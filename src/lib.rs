@@ -1,13 +1,16 @@
-mod utils;
+pub mod entity;
+pub mod geometry;
+pub mod material;
+pub mod render;
+pub mod scene;
+pub mod utils;
 
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
+pub(crate) fn window() -> web_sys::Window {
+    web_sys::window().expect("failed to get window instance")
 }
 
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, atoy!");
+pub(crate) fn document() -> web_sys::Document {
+    window()
+        .document()
+        .expect("failed to get document from window")
 }
