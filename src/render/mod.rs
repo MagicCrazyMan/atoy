@@ -1,4 +1,4 @@
-pub mod webgl2render;
+pub mod webgl;
 
 use crate::scene::Scene;
 

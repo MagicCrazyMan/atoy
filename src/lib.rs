@@ -4,6 +4,8 @@ pub mod material;
 pub mod render;
 pub mod scene;
 pub mod utils;
+pub mod camera;
+pub mod materices;
 
 pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("failed to get window instance")

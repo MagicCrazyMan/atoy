@@ -1,21 +1,26 @@
 pub mod cube;
 
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, borrow::Cow, collections::HashMap};
 
-use crate::material::Material;
+use crate::render::webgl::{
+    draw::Draw,
+    program::{AttributeValue, UniformValue},
+};
 
-pub trait Geometry: Any {
-    fn vertices(&self) -> Option<Vec<f32>>;
+pub trait Geometry {
+    fn draw(&self) -> Draw;
 
-    fn normals(&self) -> Option<Vec<f32>>;
+    fn vertices<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
 
-    fn textures(&self) -> Option<Vec<f32>>;
+    fn normals<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
 
-    fn properties(&self) -> &HashMap<String, Box<dyn Any>>;
+    fn texture_coordinates<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
 
-    fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>>;
+    fn attribute_values(&self) -> &HashMap<String, AttributeValue>;
 
-    fn material(&self) -> Option<&dyn Material>;
+    fn uniform_values(&self) -> &HashMap<String, UniformValue>;
 
-    // fn set_material<M: Material + Sized + 'static>(&mut self, material: Option<M>);
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }

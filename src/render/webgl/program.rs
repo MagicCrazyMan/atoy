@@ -1,0 +1,464 @@
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
+    io::{BufWriter, Write},
+};
+
+use wasm_bindgen::JsError;
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
+
+use crate::material::WebGLMaterial;
+
+use super::buffer::{BufferDescriptor, BufferTarget};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttributeBufferDataType {
+    Float,
+    Byte,
+    Short,
+    Int,
+    UnsignedByte,
+    UnsignedShort,
+    UnsignedInt,
+    HalfFloat,
+    Int2_10_10_10Rev,
+    UnsignedInt2_10_10_10Rev,
+}
+
+impl AttributeBufferDataType {
+    pub fn to_gl_enum(&self) -> u32 {
+        match self {
+            AttributeBufferDataType::Float => WebGl2RenderingContext::FLOAT,
+            AttributeBufferDataType::Byte => WebGl2RenderingContext::BYTE,
+            AttributeBufferDataType::Short => WebGl2RenderingContext::SHORT,
+            AttributeBufferDataType::Int => WebGl2RenderingContext::INT,
+            AttributeBufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
+            AttributeBufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
+            AttributeBufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            AttributeBufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
+            AttributeBufferDataType::Int2_10_10_10Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
+            AttributeBufferDataType::UnsignedInt2_10_10_10Rev => {
+                WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum AttributeValue<'a> {
+    ArrayBuffer {
+        descriptor: RefCell<BufferDescriptor<'a>>,
+        target: BufferTarget,
+        size: i32,
+        data_type: AttributeBufferDataType,
+        normalized: bool,
+        stride: i32,
+        offset: i32,
+    },
+    Vertex1f(f32),
+    Vertex2f(f32, f32),
+    Vertex3f(f32, f32, f32),
+    Vertex4f(f32, f32, f32, f32),
+    Vertex1fv([f32; 1]),
+    Vertex2fv([f32; 2]),
+    Vertex3fv([f32; 3]),
+    Vertex4fv([f32; 4]),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AttributeBinding {
+    GeometryPosition,
+    GeometryTextureCoordinate,
+    GeometryNormal,
+    FromGeometry(String),
+    FromMaterial(String),
+    FromEntity(String),
+}
+
+impl AttributeBinding {
+    pub fn as_str(&self) -> &str {
+        match self {
+            AttributeBinding::GeometryPosition => "a_Position",
+            AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
+            AttributeBinding::GeometryNormal => "a_Normals",
+            AttributeBinding::FromGeometry(name)
+            | AttributeBinding::FromMaterial(name)
+            | AttributeBinding::FromEntity(name) => name.as_str(),
+        }
+    }
+
+    pub fn to_glsl<'a>(&self) -> Cow<'a, str> {
+        match self {
+            AttributeBinding::GeometryPosition => Cow::Borrowed("attribute vec3 a_Position;"),
+            AttributeBinding::GeometryTextureCoordinate => Cow::Borrowed("attribute vec3 a_TexCoords;"),
+            AttributeBinding::GeometryNormal => Cow::Borrowed("attribute vec3 a_Normal;"),
+            AttributeBinding::FromGeometry(name)
+            | AttributeBinding::FromMaterial(name)
+            | AttributeBinding::FromEntity(name) => Cow::Owned(String::from("attribute")),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum UniformValue<'a> {
+    UnsignedInteger1(u32),
+    UnsignedInteger2(u32, u32),
+    UnsignedInteger3(u32, u32, u32),
+    UnsignedInteger4(u32, u32, u32, u32),
+    FloatVector1 {
+        data: Cow<'a, [f32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    FloatVector2 {
+        data: Cow<'a, [f32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    FloatVector3 {
+        data: Cow<'a, [f32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    FloatVector4 {
+        data: Cow<'a, [f32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    IntegerVector1 {
+        data: Cow<'a, [i32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    IntegerVector2 {
+        data: Cow<'a, [i32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    IntegerVector3 {
+        data: Cow<'a, [i32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    IntegerVector4 {
+        data: Cow<'a, [i32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    UnsignedIntegerVector1 {
+        data: Cow<'a, [u32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    UnsignedIntegerVector2 {
+        data: Cow<'a, [u32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    UnsignedIntegerVector3 {
+        data: Cow<'a, [u32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    UnsignedIntegerVector4 {
+        data: Cow<'a, [u32]>,
+        src_offset: u32,
+        src_length: u32,
+    },
+    Matrix2 {
+        data: Cow<'a, [f32]>,
+        transpose: bool,
+        src_offset: u32,
+        src_length: u32,
+    },
+    Matrix3 {
+        data: Cow<'a, [f32]>,
+        transpose: bool,
+        src_offset: u32,
+        src_length: u32,
+    },
+    Matrix4 {
+        data: Cow<'a, [f32]>,
+        transpose: bool,
+        src_offset: u32,
+        src_length: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UniformBinding {
+    ModelMatrix,
+    NormalMatrix,
+    ModelViewMatrix,
+    ModelViewProjMatrix,
+    ActiveCameraPosition,
+    ActiveCameraDirection,
+    FromGeometry(String),
+    FromMaterial(String),
+    FromEntity(String),
+}
+
+impl UniformBinding {
+    pub fn as_str(&self) -> &str {
+        match self {
+            UniformBinding::ModelMatrix => "u_ModelMatrix",
+            UniformBinding::NormalMatrix => "u_NormalMatrix",
+            UniformBinding::ModelViewMatrix => "u_ModelViewMatrix",
+            UniformBinding::ModelViewProjMatrix => "u_ModelViewProjMatrix",
+            UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
+            UniformBinding::ActiveCameraDirection => "u_ActiveCameraDirection",
+            UniformBinding::FromGeometry(name)
+            | UniformBinding::FromMaterial(name)
+            | UniformBinding::FromEntity(name) => name.as_str(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ShaderSource {
+    Vertex(String),
+    Fragment(String),
+}
+
+#[derive(Debug)]
+struct ProgramItem {
+    program: WebGlProgram,
+    shaders: Vec<WebGlShader>,
+    attributes: HashMap<AttributeBinding, u32>,
+    uniforms: HashMap<UniformBinding, WebGlUniformLocation>,
+}
+
+#[derive(Debug)]
+pub struct ProgramStore {
+    gl: WebGl2RenderingContext,
+    store: HashMap<String, ProgramItem>,
+}
+
+impl ProgramStore {
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
+        Self {
+            gl,
+            store: HashMap::new(),
+        }
+    }
+}
+
+impl ProgramStore {
+    // pub fn add_material<M: WebGLMaterial>(&mut self, material: &M) -> Result<(), JsError> {
+    //     if self.store.contains_key(material.name()) {
+    //         return Err(JsError::new(&format!(
+    //             "duplicated material name {}",
+    //             material.name()
+    //         )));
+    //     }
+
+    //     let replaced = self.store.insert(
+    //         material.name().to_string(),
+    //         compile_material(&self.gl, material)?,
+    //     );
+
+    //     if let Some(material) = replaced {
+    //         delete_material(&self.gl, &material);
+    //     };
+
+    //     Ok(())
+    // }
+
+    // pub fn remove_material(&mut self, name: &str) {
+    //     if let Some(material) = self.store.remove(name) {
+    //         delete_material(&self.gl, &material);
+    //     }
+    // }
+
+    /// Gets program of a specified material from store, if not exists, compiles  and stores it.
+    pub fn program_or_compile(
+        &mut self,
+        material: &dyn WebGLMaterial,
+    ) -> Result<
+        (
+            &WebGlProgram,
+            &HashMap<AttributeBinding, u32>,
+            &HashMap<UniformBinding, WebGlUniformLocation>,
+        ),
+        JsError,
+    > {
+        let item = self
+            .store
+            .entry(material.name().to_string())
+            .or_insert(compile_material_to_program(&self.gl, material)?);
+
+        Ok((&item.program, &item.attributes, &item.uniforms))
+    }
+
+    // pub fn material(&self, name: &str) -> Option<&ProgramItem> {
+    //     self.store.get(name)
+    // }
+}
+
+fn compile_material_to_program(
+    gl: &WebGl2RenderingContext,
+    material: &dyn WebGLMaterial,
+) -> Result<ProgramItem, JsError> {
+    let mut shaders = Vec::with_capacity(material.sources().len());
+    material.sources().iter().try_for_each(|source| {
+        let shader = compile_shader(gl, source)?;
+        shaders.push(shader);
+        Ok(()) as Result<(), JsError>
+    })?;
+
+    let program = create_program(gl, &shaders)?;
+    Ok(ProgramItem {
+        attributes: collect_attribute_locations(gl, &program, material.attribute_bindings())?,
+        uniforms: collect_uniform_locations(gl, &program, material.uniform_bindings())?,
+        program,
+        shaders,
+    })
+}
+
+// fn delete_program(gl: &WebGl2RenderingContext, material: &ProgramItem) {
+//     let ProgramItem {
+//         program, shaders, ..
+//     } = material;
+//     gl.use_program(None);
+//     shaders.into_iter().for_each(|shader| {
+//         gl.delete_shader(Some(&shader));
+//     });
+//     gl.delete_program(Some(&program));
+// }
+
+fn compile_shader(
+    gl: &WebGl2RenderingContext,
+    source: &ShaderSource,
+) -> Result<WebGlShader, JsError> {
+    let (shader, code) = match source {
+        ShaderSource::Vertex(code) => {
+            let shader = gl
+                .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
+                .ok_or(JsError::new("failed to create WebGL2 vertex shader"))?;
+
+            (shader, code)
+        }
+        ShaderSource::Fragment(code) => {
+            let shader = gl
+                .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
+                .ok_or(JsError::new("failed to create WebGL2 fragment shader"))?;
+
+            (shader, code)
+        }
+    };
+
+    // attaches shader source
+    gl.shader_source(&shader, &code);
+    // compiles shader
+    gl.compile_shader(&shader);
+
+    let success = gl
+        .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
+        .as_bool()
+        .unwrap();
+    if !success {
+        let err = gl
+            .get_shader_info_log(&shader)
+            .map(|err| Cow::Owned(err))
+            .unwrap_or(Cow::Borrowed("unknown compile shader error"));
+        gl.delete_shader(Some(&shader));
+        return Err(JsError::new(err.as_ref()));
+    }
+
+    Ok(shader)
+}
+
+fn create_program(
+    gl: &WebGl2RenderingContext,
+    shaders: &[WebGlShader],
+) -> Result<WebGlProgram, JsError> {
+    let program = gl
+        .create_program()
+        .ok_or(JsError::new("failed to create WebGL2 program"))?;
+
+    // attaches shader to program
+    for shader in shaders {
+        gl.attach_shader(&program, shader);
+    }
+    // lins program to GPU
+    gl.link_program(&program);
+
+    let success = gl
+        .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
+        .as_bool()
+        .unwrap();
+    if !success {
+        let err = gl
+            .get_program_info_log(&program)
+            .map(|err| Cow::Owned(err))
+            .unwrap_or(Cow::Borrowed("unknown link program error"));
+        gl.delete_program(Some(&program));
+        return Err(JsError::new(err.as_ref()));
+    }
+
+    Ok(program)
+}
+
+fn collect_attribute_locations(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+    bindings: &[AttributeBinding],
+) -> Result<HashMap<AttributeBinding, u32>, JsError> {
+    let mut locations = HashMap::with_capacity(bindings.len());
+
+    bindings.into_iter().try_for_each(|binding| {
+        let variable_name = binding.as_str();
+        if locations.contains_key(binding) {
+            return Err(JsError::new(&format!(
+                "duplicated attribute name {}",
+                variable_name
+            )));
+        }
+
+        let location = gl.get_attrib_location(program, variable_name);
+        if location == -1 {
+            Err(JsError::new(&format!(
+                "failed to get attribute location of {}",
+                variable_name
+            )))
+        } else {
+            locations.insert(binding.clone(), location as u32);
+            Ok(())
+        }
+    })?;
+
+    Ok(locations)
+}
+
+fn collect_uniform_locations(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+    bindings: &[UniformBinding],
+) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, JsError> {
+    let mut locations = HashMap::with_capacity(bindings.len());
+
+    bindings.into_iter().try_for_each(|binding| {
+        let variable_name = binding.as_str();
+        if locations.contains_key(binding) {
+            return Err(JsError::new(&format!(
+                "duplicated uniform name {}",
+                variable_name
+            )));
+        }
+
+        let location = gl.get_uniform_location(program, variable_name);
+        match location {
+            Some(location) => {
+                locations.insert(binding.clone(), location);
+                Ok(())
+            }
+            None => Err(JsError::new(&format!(
+                "failed to get uniform location of {}",
+                variable_name
+            ))),
+        }
+    })?;
+
+    Ok(locations)
+}

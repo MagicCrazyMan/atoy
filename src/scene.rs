@@ -1,8 +1,14 @@
+use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError};
 use web_sys::{HtmlCanvasElement, HtmlElement};
 
-use crate::{document, entity::Entity, utils::set_panic_hook};
+use crate::{
+    camera::{perspective::PerspectiveCamera, Camera},
+    document,
+    entity::Entity,
+    utils::set_panic_hook,
+};
 
 #[wasm_bindgen(typescript_custom_section)]
 const SCENE_OPTIONS_TYPE: &'static str = r#"
@@ -17,7 +23,7 @@ export type SceneOptions {
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(typescript_type = "SceneOptions")]
-    pub type SceneOptionsType;
+    pub type SceneOptionsObject;
 }
 
 /// Scene options
@@ -31,6 +37,7 @@ pub struct SceneOptions {
 pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
+    active_camera: Box<dyn Camera>,
     root_entity: Box<Entity>,
 }
 
@@ -38,7 +45,7 @@ pub struct Scene {
 impl Scene {
     /// Constructs a new scene using initialization options.
     #[wasm_bindgen(constructor)]
-    pub fn new(options: Option<SceneOptionsType>) -> Result<Scene, JsError> {
+    pub fn new(options: Option<SceneOptionsObject>) -> Result<Scene, JsError> {
         set_panic_hook();
 
         let options = match options {
@@ -47,9 +54,12 @@ impl Scene {
             None => SceneOptions::default(),
         };
 
+        let canvas = Self::create_canvas()?;
+        let active_camera = Self::create_camera(&canvas);
         let mut scene = Self {
             mount: None,
-            canvas: Self::create_canvas()?,
+            canvas,
+            active_camera,
             root_entity: Entity::new_boxed(),
         };
 
@@ -65,6 +75,28 @@ impl Scene {
             .ok()
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
             .ok_or(JsError::new("failed to create canvas"))
+    }
+
+    fn create_camera(canvas: &HtmlCanvasElement) -> Box<dyn Camera> {
+        Box::new(PerspectiveCamera::new(
+            Vec3::from_values(0.0, 0.0, 2.0),
+            Vec3::new(),
+            Vec3::from_values(0.0, 1.0, 0.0),
+            60.0f32.to_radians(),
+            canvas.width() as f32 / canvas.height() as f32,
+            0.5,
+            None,
+        ))
+    }
+}
+
+impl Scene {
+    /// Gets mount target.
+    pub fn mount(&self) -> Option<&HtmlElement> {
+        match &self.mount {
+            Some(mount) => Some(mount),
+            None => None,
+        }
     }
 
     /// Sets the mount target.
@@ -89,18 +121,8 @@ impl Scene {
         }
 
         // for all other situations, removes canvas from mount target
-        &self.canvas.remove();
+        self.canvas.remove();
         Ok(())
-    }
-}
-
-impl Scene {
-    /// Gets mount target.
-    pub fn mount(&self) -> Option<&HtmlElement> {
-        match &self.mount {
-            Some(mount) => Some(mount),
-            None => None,
-        }
     }
 
     /// Gets canvas element.
@@ -111,5 +133,20 @@ impl Scene {
     /// Gets root entity.
     pub fn root_entity(&self) -> &Entity {
         &self.root_entity
+    }
+
+    /// Gets mutable root entity.
+    pub fn root_entity_mut(&mut self) -> &mut Entity {
+        &mut self.root_entity
+    }
+
+    /// Gets current active camera.
+    pub fn active_camera(&self) -> &dyn Camera {
+        self.active_camera.as_ref()
+    }
+
+    /// Gets current active camera.
+    pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
+        self.active_camera.as_mut()
     }
 }

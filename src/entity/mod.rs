@@ -1,14 +1,21 @@
+use std::collections::HashMap;
+
 use gl_matrix4rust::mat4::Mat4;
 use uuid::Uuid;
 
-use crate::geometry::Geometry;
+use crate::{
+    geometry::Geometry,
+    material::WebGLMaterial,
+    materices::EntityMatrices,
+    render::webgl::program::{AttributeValue, UniformValue},
+};
 
 /// A entity node in Scene Graph.
 pub struct Entity {
     id: Uuid,
-    // name: Option<String>,
     matrices: EntityMatrices,
     geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn WebGLMaterial>>,
     parent: Option<*mut Entity>,
     children: Vec<Box<Entity>>,
 }
@@ -30,9 +37,9 @@ impl Entity {
     pub fn new_boxed() -> Box<Self> {
         Box::new(Self {
             id: Uuid::new_v4(),
-            // name: None,
             matrices: EntityMatrices::new(),
             geometry: None,
+            material: None,
             parent: None,
             children: Vec::new(),
         })
@@ -49,16 +56,13 @@ impl Entity {
         self.id
     }
 
-    // pub fn name(&self) -> Option<&str> {
-    //     match &self.name {
-    //         Some(name) => Some(name.as_str()),
-    //         None => None,
-    //     }
-    // }
+    pub fn matrices(&self) -> &EntityMatrices {
+        &self.matrices
+    }
 
-    // pub fn set_name(&mut self, name: Option<String>) {
-    //     self.name = name;
-    // }
+    pub fn matrices_mut(&mut self) -> &mut EntityMatrices {
+        &mut self.matrices
+    }
 
     pub fn geometry(&self) -> Option<&dyn Geometry> {
         match &self.geometry {
@@ -70,29 +74,41 @@ impl Entity {
         }
     }
 
-    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
-        match &mut self.geometry {
-            Some(geometry) => {
-                let geometry = geometry.as_mut();
-                Some(geometry)
+    // pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+    //     match &mut self.geometry {
+    //         Some(geometry) => {
+    //             let geometry = geometry.as_mut();
+    //             Some(geometry)
+    //         }
+    //         None => None,
+    //     }
+    // }
+
+    // pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+    //     self.geometry = match geometry {
+    //         Some(geometry) => Some(Box::new(geometry)),
+    //         None => None,
+    //     }
+    // }
+
+    pub fn material(&self) -> Option<&dyn WebGLMaterial> {
+        match &self.material {
+            Some(material) => {
+                let material = material.as_ref();
+                Some(material)
             }
             None => None,
         }
     }
 
-    pub fn set_geometry<G: Geometry>(&mut self, geometry: Option<G>) {
-        self.geometry = match geometry {
-            Some(geometry) => Some(Box::new(geometry)),
-            None => None,
-        }
+    // pub fn set_material<M: Material + Sized + 'static>(&mut self, material: Option<M>);
+
+    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
+        todo!()
     }
 
-    pub fn matrices(&self) -> &EntityMatrices {
-        &self.matrices
-    }
-
-    pub fn matrices_mut(&mut self) -> &mut EntityMatrices {
-        &mut self.matrices
+    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
+        todo!()
     }
 
     pub fn parent(&self) -> Option<&Self> {
@@ -140,126 +156,60 @@ impl Entity {
         &self.children
     }
 
-    pub fn child_by_index(&self, index: usize) -> Option<&Self> {
-        self.children.get(index).map(|child| child.as_ref())
+    pub fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
+        &mut self.children
     }
 
-    pub fn add_child(self: &mut Box<Self>, mut child: Self) {
-        child.parent = Some(self.as_mut());
-        self.children.push(Box::new(child));
-    }
+    // pub fn child_by_index(&self, index: usize) -> Option<&Self> {
+    //     self.children.get(index).map(|child| child.as_ref())
+    // }
 
-    pub fn add_child_boxed(self: &mut Box<Self>, mut child: Box<Self>) {
-        child.parent = Some(self.as_mut());
-        self.children.push(child);
-    }
+    // pub fn add_child(self: &mut Box<Self>, mut child: Self) {
+    //     child.parent = Some(self.as_mut());
+    //     self.children.push(Box::new(child));
+    // }
 
-    pub fn remove_child_by_index(&mut self, index: usize) -> Option<Box<Self>> {
-        if index > self.children.len() - 1 {
-            return None;
-        }
+    // pub fn add_child_boxed(self: &mut Box<Self>, mut child: Box<Self>) {
+    //     child.parent = Some(self.as_mut());
+    //     self.children.push(child);
+    // }
 
-        let mut child = self.children.remove(index);
-        child.parent = None;
-        Some(child)
-    }
+    // pub fn remove_child_by_index(&mut self, index: usize) -> Option<Box<Self>> {
+    //     if index > self.children.len() - 1 {
+    //         return None;
+    //     }
+
+    //     let mut child = self.children.remove(index);
+    //     child.parent = None;
+    //     Some(child)
+    // }
 
     // pub fn remove_child_by_id(&mut self, id: Uuid) -> Option<Entity> {}
 
     // fn remove_child
-
-    // pub fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
-    //     &mut self.children
-    // }
-
-    /// Deep First Searches through the entity tree from current entity node.
-    pub fn collect_tree(&self) -> Vec<&Self> {
-        todo!()
-    }
-}
-
-pub struct EntityMatrices {
-    model: Mat4,
-    m: Mat4,
-    mv: Mat4,
-    mvp: Mat4,
-}
-
-impl EntityMatrices {
-    pub fn new() -> EntityMatrices {
-        Self {
-            model: Mat4::new_identity(),
-            m: Mat4::new_identity(),
-            mv: Mat4::new_identity(),
-            mvp: Mat4::new_identity(),
-        }
-    }
-}
-
-impl EntityMatrices {
-    pub fn model(&self) -> &Mat4 {
-        &self.model
-    }
-
-    pub fn composed_model(&self) -> &Mat4 {
-        &self.m
-    }
-
-    pub fn composed_model_view(&self) -> &Mat4 {
-        &self.mv
-    }
-
-    pub fn composed_model_view_proj(&self) -> &Mat4 {
-        &self.mvp
-    }
-    pub fn set_model(&mut self, mat: Mat4) {
-        self.model = mat
-    }
-
-    pub fn set_composed_model(&mut self, mat: Mat4) {
-        self.m = mat
-    }
-
-    pub fn set_composed_model_view(&mut self, mat: Mat4) {
-        self.mv = mat
-    }
-
-    pub fn set_composed_model_view_proj(&mut self, mat: Mat4) {
-        self.mvp = mat
-    }
 }
 
 pub struct EntityBuilder {
-    name: Option<String>,
-    matrices: EntityMatrices,
+    model_matrix: Mat4,
     geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn WebGLMaterial>>,
 }
 
 impl EntityBuilder {
     pub fn new() -> Self {
         EntityBuilder {
-            matrices: EntityMatrices::new(),
-            name: None,
+            model_matrix: Mat4::new_identity(),
             geometry: None,
+            material: None,
         }
     }
 
     pub fn model_matrix(mut self, mat: Mat4) -> Self {
-        self.matrices.model = mat;
+        self.model_matrix = mat;
         self
     }
 
-    pub fn name<S: Into<String>>(mut self, name: S) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn no_name(mut self) -> Self {
-        self.name = None;
-        self
-    }
-
-    pub fn geometry<G: Geometry>(mut self, geometry: G) -> Self {
+    pub fn geometry<G: Geometry + 'static>(mut self, geometry: G) -> Self {
         self.geometry = Some(Box::new(geometry));
         self
     }
@@ -269,12 +219,22 @@ impl EntityBuilder {
         self
     }
 
+    pub fn material<M: WebGLMaterial + 'static>(mut self, material: M) -> Self {
+        self.material = Some(Box::new(material));
+        self
+    }
+
+    pub fn no_material(mut self) -> Self {
+        self.material = None;
+        self
+    }
+
     pub fn build(self) -> Entity {
         Entity {
             id: Uuid::new_v4(),
-            // name: self.name,
-            matrices: self.matrices,
+            matrices: EntityMatrices::with_model_matrix(self.model_matrix),
             geometry: self.geometry,
+            material: self.material,
             parent: None,
             children: Vec::new(),
         }
@@ -283,9 +243,9 @@ impl EntityBuilder {
     pub fn build_boxed(self) -> Box<Entity> {
         Box::new(Entity {
             id: Uuid::new_v4(),
-            // name: self.name,
-            matrices: self.matrices,
+            matrices: EntityMatrices::with_model_matrix(self.model_matrix),
             geometry: self.geometry,
+            material: self.material,
             parent: None,
             children: Vec::new(),
         })

@@ -1,16 +1,21 @@
-pub struct MaterialAttribute {
+use std::collections::HashMap;
 
-}
+use crate::render::webgl::program::{
+    AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
+};
 
-pub enum UniformData {
-    
-}
+pub mod solid_color;
 
-pub enum Uniform {
+pub trait WebGLMaterial {
+    fn name(&self) -> &str;
 
-}
+    fn attribute_bindings(&self) -> &[AttributeBinding];
 
+    fn uniform_bindings(&self) -> &[UniformBinding];
 
-pub trait Material {
-    fn uniforms(&self);
+    fn attribute_values(&self) -> &HashMap<String, AttributeValue>;
+
+    fn uniform_values(&self) -> &HashMap<String, UniformValue>;
+
+    fn sources(&self) -> &[ShaderSource];
 }
