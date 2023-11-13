@@ -1,6 +1,6 @@
 pub mod cube;
 
-use std::{any::Any, borrow::Cow, collections::HashMap};
+use std::any::Any;
 
 use crate::render::webgl::{
     draw::Draw,
@@ -10,15 +10,15 @@ use crate::render::webgl::{
 pub trait Geometry {
     fn draw(&self) -> Draw;
 
-    fn vertices<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
+    fn vertices(&self) -> Option<&AttributeValue>;
 
-    fn normals<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
+    fn normals(&self) -> Option<&AttributeValue>;
 
-    fn texture_coordinates<'a>(&'a self) -> Option<Cow<'a, AttributeValue>>;
+    fn texture_coordinates(&self) -> Option<&AttributeValue>;
 
-    fn attribute_values(&self) -> &HashMap<String, AttributeValue>;
+    fn attribute_value(&self, name: &str) -> Option<&AttributeValue>;
 
-    fn uniform_values(&self) -> &HashMap<String, UniformValue>;
+    fn uniform_value(&self, name: &str) -> Option<&UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 

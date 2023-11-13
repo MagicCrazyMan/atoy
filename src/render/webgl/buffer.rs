@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
 use wasm_bindgen::JsError;
@@ -6,7 +6,7 @@ use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferTarget {
-    ArrayBuffer,
+    Buffer,
     ElementArrayBuffer,
     CopyReadBuffer,
     CopyWriteBuffer,
@@ -19,7 +19,7 @@ pub enum BufferTarget {
 impl BufferTarget {
     pub fn to_gl_enum(&self) -> u32 {
         match self {
-            BufferTarget::ArrayBuffer => WebGl2RenderingContext::ARRAY_BUFFER,
+            BufferTarget::Buffer => WebGl2RenderingContext::ARRAY_BUFFER,
             BufferTarget::ElementArrayBuffer => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
             BufferTarget::CopyReadBuffer => WebGl2RenderingContext::COPY_READ_BUFFER,
             BufferTarget::CopyWriteBuffer => WebGl2RenderingContext::COPY_WRITE_BUFFER,
@@ -62,40 +62,53 @@ impl BufferUsage {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum BufferData<'a> {
+pub enum BufferData {
     FillZero {
         size: i32,
     },
     FillData {
-        data: Cow<'a, [u8]>,
+        data: Box<dyn AsRef<[u8]>>,
         src_byte_offset: u32,
         src_byte_length: u32,
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct BufferSubData<'a> {
-    data: Cow<'a, [u8]>,
+pub struct BufferSubData {
+    data: Box<dyn AsRef<[u8]>>,
     dst_byte_offset: i32,
     src_byte_offset: u32,
     src_byte_length: u32,
 }
 
-#[derive(Debug, Clone)]
-pub enum BufferDescriptor<'a> {
+pub enum BufferStatus {
     Unchanged {
         id: Uuid,
     },
     UpdateBuffer {
         id: Option<Uuid>,
-        data: BufferData<'a>,
+        data: BufferData,
         usage: BufferUsage,
     },
     UpdateSubBuffer {
         id: Uuid,
-        data: BufferSubData<'a>,
+        data: BufferSubData,
     },
+}
+
+pub struct BufferDescriptor {
+    status: RefCell<BufferStatus>,
+}
+
+impl BufferDescriptor {
+    pub fn new(status: BufferStatus) -> Self {
+        Self {
+            status: RefCell::new(status),
+        }
+    }
+
+    pub(crate) fn status(&self) -> &RefCell<BufferStatus> {
+        &self.status
+    }
 }
 
 // pub struct BufferItem {
@@ -119,11 +132,11 @@ impl BufferStore {
 impl BufferStore {
     pub fn buffer_or_create(
         &mut self,
-        descriptor: &mut BufferDescriptor,
+        descriptor: &mut BufferStatus,
         target: &BufferTarget,
     ) -> Result<&WebGlBuffer, JsError> {
         match descriptor {
-            BufferDescriptor::Unchanged { id } => {
+            BufferStatus::Unchanged { id } => {
                 let Some(buffer) = self.store.get(id) else {
                     return Err(JsError::new(&format!(
                         "failed to get buffer with id {}",
@@ -133,7 +146,7 @@ impl BufferStore {
 
                 Ok(buffer)
             }
-            BufferDescriptor::UpdateBuffer { id, data, usage } => {
+            BufferStatus::UpdateBuffer { id, data, usage } => {
                 // remove old buffer if specified
                 if let Some(buffer) = id.and_then(|id| self.store.remove(&id)) {
                     self.gl.delete_buffer(Some(&buffer));
@@ -159,7 +172,7 @@ impl BufferStore {
                         src_byte_length,
                     } => self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
                         target.to_gl_enum(),
-                        &data,
+                        data.as_ref().as_ref(),
                         usage.to_gl_enum(),
                         *src_byte_offset,
                         *src_byte_length,
@@ -172,11 +185,11 @@ impl BufferStore {
                 let buffer = self.store.entry(id).or_insert(buffer.clone());
 
                 // replace descriptor status
-                *descriptor = BufferDescriptor::Unchanged { id };
+                *descriptor = BufferStatus::Unchanged { id };
 
                 Ok(buffer)
             }
-            BufferDescriptor::UpdateSubBuffer { id, data } => {
+            BufferStatus::UpdateSubBuffer { id, data } => {
                 let Some(buffer) = self.store.get(id) else {
                     return Err(JsError::new(&format!(
                         "failed to get buffer with id {}",
@@ -195,14 +208,14 @@ impl BufferStore {
                     .buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
                         target.to_gl_enum(),
                         *dst_byte_offset,
-                        &data,
+                        data.as_ref().as_ref(),
                         *src_byte_offset,
                         *src_byte_length,
                     );
                 self.gl.bind_buffer(target.to_gl_enum(), None);
 
                 // replace descriptor status
-                *descriptor = BufferDescriptor::Unchanged { id: id.clone() };
+                *descriptor = BufferStatus::Unchanged { id: id.clone() };
 
                 Ok(buffer)
             }

@@ -131,22 +131,18 @@ impl WebGL2Render {
         while let Some(entity) = rollings.pop_front() {
             // update composed matrices for all entities
             let composed_model = match entity.parent() {
-                Some(parent) => *parent.matrices().model() * *entity.matrices().model(),
-                None => *entity.matrices().model(),
+                Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
+                None => *entity.model_matrix(),
             };
             let composed_model_view = view * composed_model;
             let composed_model_view_proj = proj * composed_model_view;
-            if let Err(err) = entity.matrices_mut().set_composed_model(composed_model) {
+            if let Err(err) = entity.set_composed_model_matrix(composed_model) {
                 // if meet error, skip this entity and all its children
                 // should log error
                 continue;
             }
-            entity
-                .matrices_mut()
-                .set_composed_model_view(composed_model_view);
-            entity
-                .matrices_mut()
-                .set_composed_model_view_proj(composed_model_view_proj);
+            entity.set_composed_model_view_matrix(composed_model_view);
+            entity.set_composed_model_view_proj_matrix(composed_model_view_proj);
 
             // filters any entity that has no geometry or material
             if entity.geometry().is_some() && entity.material().is_some() {
@@ -178,13 +174,7 @@ impl WebGL2Render {
         let entities = self.prepare(scene);
         for entity in entities {
             let entity = unsafe { &*entity };
-            let (matrices, geometry, material) = {
-                (
-                    entity.matrices(),
-                    entity.geometry().unwrap(),
-                    entity.material().unwrap(),
-                )
-            };
+            let (geometry, material) = { (entity.geometry().unwrap(), entity.material().unwrap()) };
 
             let (program, attributes_locations, uniform_locations) =
                 match self.program_store.program_or_compile(material) {
@@ -203,26 +193,17 @@ impl WebGL2Render {
                     AttributeBinding::GeometryPosition => geometry.vertices(),
                     AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
                     AttributeBinding::GeometryNormal => geometry.normals(),
-                    AttributeBinding::FromGeometry(name) => geometry
-                        .attribute_values()
-                        .get(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
-                    AttributeBinding::FromMaterial(name) => material
-                        .attribute_values()
-                        .get(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
-                    AttributeBinding::FromEntity(name) => entity
-                        .attribute_values()
-                        .get(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
+                    AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_str()),
+                    AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_str()),
+                    AttributeBinding::FromEntity(name) => entity.attribute_value(name.as_str()),
                 };
                 let Some(value) = value else {
                     // should log warning
                     continue;
                 };
 
-                match value.as_ref() {
-                    AttributeValue::ArrayBuffer {
+                match value {
+                    AttributeValue::Buffer {
                         descriptor,
                         target,
                         size,
@@ -231,9 +212,9 @@ impl WebGL2Render {
                         stride,
                         offset,
                     } => {
-                        let mut descriptor = descriptor.borrow_mut();
+                        let mut descriptor = descriptor.status().borrow_mut();
                         let buffer =
-                            match self.buffer_store.buffer_or_create(&mut descriptor, target) {
+                            match self.buffer_store.buffer_or_create(&mut descriptor, &target) {
                                 Ok(buffer) => buffer,
                                 Err(err) => {
                                     // should log error
@@ -278,26 +259,26 @@ impl WebGL2Render {
             for (binding, location) in uniform_locations {
                 let value = match binding {
                     UniformBinding::ModelMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
-                        data: Cow::Borrowed(matrices.composed_model().raw()),
+                        data: Box::new(entity.composed_model_matrix()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::NormalMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
-                        data: Cow::Borrowed(matrices.composed_normal().raw()),
+                        data: Box::new(matrices.composed_normal_matrix().raw()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::ModelViewMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
-                        data: Cow::Borrowed(matrices.composed_model_view().raw()),
+                        data: Box::new(matrices.composed_model_view_matrix().raw()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::ModelViewProjMatrix => {
                         Some(Cow::Owned(UniformValue::Matrix4 {
-                            data: Cow::Borrowed(matrices.composed_model_view_proj().raw()),
+                            data: Box::new(matrices.composed_model_view_proj_matrix().raw()),
                             transpose: false,
                             src_offset: 0,
                             src_length: 0,
@@ -305,29 +286,26 @@ impl WebGL2Render {
                     }
                     UniformBinding::ActiveCameraPosition => {
                         Some(Cow::Owned(UniformValue::FloatVector3 {
-                            data: Cow::Borrowed(camera_position.raw()),
+                            data: Box::new(camera_position.raw()),
                             src_offset: 0,
                             src_length: 0,
                         }))
                     }
                     UniformBinding::ActiveCameraDirection => {
                         Some(Cow::Owned(UniformValue::FloatVector3 {
-                            data: Cow::Borrowed(camera_direction.raw()),
+                            data: Box::new(camera_direction.raw()),
                             src_offset: 0,
                             src_length: 0,
                         }))
                     }
                     UniformBinding::FromGeometry(name) => geometry
-                        .uniform_values()
-                        .get(name.as_str())
+                        .uniform_value(name.as_str())
                         .map(|value| Cow::Borrowed(value)),
                     UniformBinding::FromMaterial(name) => material
-                        .uniform_values()
-                        .get(name.as_str())
+                        .uniform_value(name.as_str())
                         .map(|value| Cow::Borrowed(value)),
                     UniformBinding::FromEntity(name) => entity
-                        .uniform_values()
-                        .get(name.as_str())
+                        .uniform_value(name.as_str())
                         .map(|value| Cow::Borrowed(value)),
                 };
                 let Some(value) = value else {

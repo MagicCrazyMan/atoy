@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::borrow::Cow;
 
 use crate::render::webgl::program::{
     AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
@@ -13,9 +13,9 @@ pub trait WebGLMaterial {
 
     fn uniform_bindings(&self) -> &[UniformBinding];
 
-    fn attribute_values(&self) -> &HashMap<String, AttributeValue>;
-
-    fn uniform_values(&self) -> &HashMap<String, UniformValue>;
-
     fn sources(&self) -> &[ShaderSource];
+
+    fn attribute_value(&self, name: &str) -> Option<&AttributeValue>;
+
+    fn uniform_value(&self, name: &str) -> Option<&UniformValue>;
 }

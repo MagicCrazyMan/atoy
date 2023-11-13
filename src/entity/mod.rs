@@ -1,19 +1,20 @@
-use std::collections::HashMap;
-
-use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::{mat4::Mat4, error::Error};
 use uuid::Uuid;
 
 use crate::{
     geometry::Geometry,
     material::WebGLMaterial,
-    materices::EntityMatrices,
     render::webgl::program::{AttributeValue, UniformValue},
 };
 
 /// A entity node in Scene Graph.
 pub struct Entity {
     id: Uuid,
-    matrices: EntityMatrices,
+    m: Mat4,
+    cn: Mat4,
+    cm: Mat4,
+    cmv: Mat4,
+    cmvp: Mat4,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn WebGLMaterial>>,
     parent: Option<*mut Entity>,
@@ -37,7 +38,11 @@ impl Entity {
     pub fn new_boxed() -> Box<Self> {
         Box::new(Self {
             id: Uuid::new_v4(),
-            matrices: EntityMatrices::new(),
+            m: Mat4::new_identity(),
+            cn: Mat4::new_identity(),
+            cm: Mat4::new_identity(),
+            cmv: Mat4::new_identity(),
+            cmvp: Mat4::new_identity(),
             geometry: None,
             material: None,
             parent: None,
@@ -54,14 +59,6 @@ impl Entity {
 impl Entity {
     pub fn id(&self) -> Uuid {
         self.id
-    }
-
-    pub fn matrices(&self) -> &EntityMatrices {
-        &self.matrices
-    }
-
-    pub fn matrices_mut(&mut self) -> &mut EntityMatrices {
-        &mut self.matrices
     }
 
     pub fn geometry(&self) -> Option<&dyn Geometry> {
@@ -103,11 +100,11 @@ impl Entity {
 
     // pub fn set_material<M: Material + Sized + 'static>(&mut self, material: Option<M>);
 
-    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
+    pub fn attribute_value(&self, name: &str) -> Option<&AttributeValue> {
         todo!()
     }
 
-    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
+    pub fn uniform_value<'a>(&self, name: &str) -> Option<&UniformValue> {
         todo!()
     }
 
@@ -189,6 +186,47 @@ impl Entity {
     // fn remove_child
 }
 
+impl Entity {
+    pub fn model_matrix(&self) -> &Mat4 {
+        &self.m
+    }
+
+    pub fn composed_normal_matrix(&self) -> &Mat4 {
+        &self.cn
+    }
+
+    pub fn composed_model_matrix(&self) -> &Mat4 {
+        &self.cm
+    }
+
+    pub fn composed_model_view_matrix(&self) -> &Mat4 {
+        &self.cmv
+    }
+
+    pub fn composed_model_view_proj_matrix(&self) -> &Mat4 {
+        &self.cmvp
+    }
+
+    pub fn set_model_matrix(&mut self, mat: Mat4) {
+        self.m = mat;
+    }
+
+    pub fn set_composed_model_matrix(&mut self, mat: Mat4) -> Result<(), Error> {
+        self.cn = mat.invert()?.transpose();
+        self.cm = mat;
+
+        Ok(())
+    }
+
+    pub fn set_composed_model_view_matrix(&mut self, mat: Mat4) {
+        self.cmv = mat;
+    }
+
+    pub fn set_composed_model_view_proj_matrix(&mut self, mat: Mat4) {
+        self.cmvp = mat;
+    }
+}
+
 pub struct EntityBuilder {
     model_matrix: Mat4,
     geometry: Option<Box<dyn Geometry>>,
@@ -232,7 +270,11 @@ impl EntityBuilder {
     pub fn build(self) -> Entity {
         Entity {
             id: Uuid::new_v4(),
-            matrices: EntityMatrices::with_model_matrix(self.model_matrix),
+            m: self.model_matrix,
+            cn: Mat4::new_identity(),
+            cm: Mat4::new_identity(),
+            cmv: Mat4::new_identity(),
+            cmvp: Mat4::new_identity(),
             geometry: self.geometry,
             material: self.material,
             parent: None,
@@ -243,7 +285,11 @@ impl EntityBuilder {
     pub fn build_boxed(self) -> Box<Entity> {
         Box::new(Entity {
             id: Uuid::new_v4(),
-            matrices: EntityMatrices::with_model_matrix(self.model_matrix),
+            m: self.model_matrix,
+            cn: Mat4::new_identity(),
+            cm: Mat4::new_identity(),
+            cmv: Mat4::new_identity(),
+            cmvp: Mat4::new_identity(),
             geometry: self.geometry,
             material: self.material,
             parent: None,

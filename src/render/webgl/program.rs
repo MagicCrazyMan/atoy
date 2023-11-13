@@ -1,19 +1,14 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::HashMap,
-    io::{BufWriter, Write},
-};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap};
 
 use wasm_bindgen::JsError;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use crate::material::WebGLMaterial;
 
-use super::buffer::{BufferDescriptor, BufferTarget};
+use super::buffer::{BufferDescriptor, BufferStatus, BufferTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AttributeBufferDataType {
+pub enum BufferDataType {
     Float,
     Byte,
     Short,
@@ -26,32 +21,31 @@ pub enum AttributeBufferDataType {
     UnsignedInt2_10_10_10Rev,
 }
 
-impl AttributeBufferDataType {
+impl BufferDataType {
     pub fn to_gl_enum(&self) -> u32 {
         match self {
-            AttributeBufferDataType::Float => WebGl2RenderingContext::FLOAT,
-            AttributeBufferDataType::Byte => WebGl2RenderingContext::BYTE,
-            AttributeBufferDataType::Short => WebGl2RenderingContext::SHORT,
-            AttributeBufferDataType::Int => WebGl2RenderingContext::INT,
-            AttributeBufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            AttributeBufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
-            AttributeBufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            AttributeBufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            AttributeBufferDataType::Int2_10_10_10Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
-            AttributeBufferDataType::UnsignedInt2_10_10_10Rev => {
+            BufferDataType::Float => WebGl2RenderingContext::FLOAT,
+            BufferDataType::Byte => WebGl2RenderingContext::BYTE,
+            BufferDataType::Short => WebGl2RenderingContext::SHORT,
+            BufferDataType::Int => WebGl2RenderingContext::INT,
+            BufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
+            BufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
+            BufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            BufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
+            BufferDataType::Int2_10_10_10Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
+            BufferDataType::UnsignedInt2_10_10_10Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum AttributeValue<'a> {
-    ArrayBuffer {
-        descriptor: RefCell<BufferDescriptor<'a>>,
+pub enum AttributeValue {
+    Buffer {
+        descriptor: BufferDescriptor,
         target: BufferTarget,
         size: i32,
-        data_type: AttributeBufferDataType,
+        data_type: BufferDataType,
         normalized: bool,
         stride: i32,
         offset: i32,
@@ -91,7 +85,9 @@ impl AttributeBinding {
     pub fn to_glsl<'a>(&self) -> Cow<'a, str> {
         match self {
             AttributeBinding::GeometryPosition => Cow::Borrowed("attribute vec3 a_Position;"),
-            AttributeBinding::GeometryTextureCoordinate => Cow::Borrowed("attribute vec3 a_TexCoords;"),
+            AttributeBinding::GeometryTextureCoordinate => {
+                Cow::Borrowed("attribute vec3 a_TexCoords;")
+            }
             AttributeBinding::GeometryNormal => Cow::Borrowed("attribute vec3 a_Normal;"),
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
@@ -100,86 +96,94 @@ impl AttributeBinding {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum UniformValue<'a> {
+pub enum UniformValue {
+    Buffer {
+        descriptor: BufferDescriptor,
+        target: BufferTarget,
+        size: i32,
+        data_type: BufferDataType,
+        normalized: bool,
+        stride: i32,
+        offset: i32,
+    },
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),
     UnsignedInteger3(u32, u32, u32),
     UnsignedInteger4(u32, u32, u32, u32),
     FloatVector1 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector2 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector3 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector4 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector1 {
-        data: Cow<'a, [i32]>,
+        data: Box<dyn AsRef<[i32]>>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector2 {
-        data: Cow<'a, [i32]>,
+        data: Box<dyn AsRef<[i32]>>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector3 {
-        data: Cow<'a, [i32]>,
+        data: Box<dyn AsRef<[i32]>>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector4 {
-        data: Cow<'a, [i32]>,
+        data: Box<dyn AsRef<[i32]>>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector1 {
-        data: Cow<'a, [u32]>,
+        data: Box<dyn AsRef<[u32]>>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector2 {
-        data: Cow<'a, [u32]>,
+        data: Box<dyn AsRef<[u32]>>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector3 {
-        data: Cow<'a, [u32]>,
+        data: Box<dyn AsRef<[u32]>>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector4 {
-        data: Cow<'a, [u32]>,
+        data: Box<dyn AsRef<[u32]>>,
         src_offset: u32,
         src_length: u32,
     },
     Matrix2 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
     },
     Matrix3 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
     },
     Matrix4 {
-        data: Cow<'a, [f32]>,
+        data: Box<dyn AsRef<[f32]>>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
