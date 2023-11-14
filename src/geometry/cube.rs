@@ -19,8 +19,7 @@ use super::Geometry;
 pub struct Cube {
     size: f32,
     vertices_buffer: BufferDescriptor,
-    vertices: AttributeValue,
-    normals: AttributeValue,
+    normals_buffer: BufferDescriptor,
 }
 
 #[wasm_bindgen]
@@ -48,40 +47,15 @@ impl Cube {
                 },
                 usage: BufferUsage::StaticDraw,
             }),
-            vertices: AttributeValue::Buffer {
-                descriptor: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                    id: None,
-                    data: BufferData::FillData {
-                        data: Box::new(get_vertices_buffer(size)),
-                        src_byte_offset: 0,
-                        src_byte_length: 0,
-                    },
-                    usage: BufferUsage::StaticDraw,
-                }),
-                target: BufferTarget::Buffer,
-                size: BufferItemSize::Three,
-                data_type: BufferDataType::Float,
-                normalized: false,
-                stride: 0,
-                offset: 0,
-            },
-            normals: AttributeValue::Buffer {
-                descriptor: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                    id: None,
-                    data: BufferData::FillData {
-                        data: Box::new(get_normals_buffer()),
-                        src_byte_offset: 0,
-                        src_byte_length: 0,
-                    },
-                    usage: BufferUsage::StaticDraw,
-                }),
-                target: BufferTarget::Buffer,
-                size: BufferItemSize::Four,
-                data_type: BufferDataType::Float,
-                normalized: false,
-                stride: 0,
-                offset: 0,
-            },
+            normals_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
+                id: None,
+                data: BufferData::FillData {
+                    data: Box::new(get_normals_buffer()),
+                    src_byte_offset: 0,
+                    src_byte_length: 0,
+                },
+                usage: BufferUsage::StaticDraw,
+            }),
         }
     }
 }
@@ -121,11 +95,27 @@ impl Geometry for Cube {
     }
 
     fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Borrowed(&self.vertices))
+        Some(Ncor::Owned(AttributeValue::Buffer {
+            descriptor: Ncor::Borrowed(&self.vertices_buffer),
+            target: BufferTarget::Buffer,
+            size: BufferItemSize::Three,
+            data_type: BufferDataType::Float,
+            normalized: false,
+            stride: 0,
+            offset: 0,
+        }))
     }
 
     fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Borrowed(&self.normals))
+        Some(Ncor::Owned(AttributeValue::Buffer {
+            descriptor: Ncor::Borrowed(&self.normals_buffer),
+            target: BufferTarget::Buffer,
+            size: BufferItemSize::Three,
+            data_type: BufferDataType::Float,
+            normalized: false,
+            stride: 0,
+            offset: 0,
+        }))
     }
 
     fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
@@ -178,6 +168,7 @@ const NORMALS: [f32; 144] = [
     1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0, 0.0, // right
 ];
+#[inline]
 fn get_normals_buffer() -> &'static [u8] {
     unsafe { std::mem::transmute::<&[f32; 144], &[u8; 576]>(&NORMALS) }
 }

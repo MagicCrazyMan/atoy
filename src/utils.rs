@@ -1,10 +1,25 @@
-use std::{fmt::Display, io::Write, sync::OnceLock};
+use std::{
+    borrow::{BorrowMut, Cow},
+    cell::RefCell,
+    io::Write,
+    rc::Rc,
+    sync::{Arc, Mutex, OnceLock},
+    thread::{spawn, sleep}, time::Duration,
+};
 
-use gl_matrix4rust::mat4::Mat4;
-use wasm_bindgen::prelude::wasm_bindgen;
+use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use palette::rgb::Rgba;
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsError};
 use wasm_bindgen_test::console_log;
 
-use crate::window;
+use crate::{
+    entity::Entity,
+    geometry::cube::Cube,
+    material::solid_color::SolidColorMaterial,
+    render::webgl::WebGL2Render,
+    scene::{Scene, SceneOptions},
+    window,
+};
 
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -15,152 +30,6 @@ pub fn set_panic_hook() {
     // https://github.com/rustwasm/console_error_panic_hook#readme
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
-}
-
-pub struct A {
-    data: String,
-    parent: Option<*mut dyn B>,
-    children: Vec<Box<dyn B>>,
-}
-
-impl B for A {
-    fn o_0(&self) {
-        console_log!("o_0");
-    }
-
-    fn data(&self) -> &str {
-        &self.data
-    }
-
-    fn set_data(&mut self, data: String) {
-        self.data = data
-    }
-
-    fn parent(&self) -> Option<&dyn B> {
-        match &self.parent {
-            Some(p) => unsafe {
-                let p = &*p.cast_const();
-                Some(p)
-            },
-            None => None,
-        }
-    }
-
-    fn parent_mut(&mut self) -> Option<&mut dyn B> {
-        match &self.parent {
-            Some(p) => unsafe {
-                let p = &mut **p;
-                Some(p)
-            },
-            None => None,
-        }
-    }
-
-    fn children(&self) -> &Vec<Box<dyn B>> {
-        &self.children
-    }
-
-    fn children_mut(&mut self) -> &mut Vec<Box<dyn B>> {
-        &mut self.children
-    }
-}
-
-impl Display for A {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.data())?;
-        f.write_str(" ")?;
-        match self.parent() {
-            Some(parent) => f.write_fmt(format_args!("Parent Data: {}", parent.data()))?,
-            None => f.write_str("No Parent")?,
-        }
-        f.write_str("\n")?;
-        self.children()
-            .into_iter()
-            .try_for_each(|child| child.fmt(f))?;
-
-        Ok(())
-    }
-}
-
-trait B: Display {
-    fn o_0(&self);
-
-    fn data(&self) -> &str;
-
-    fn set_data(&mut self, data: String);
-
-    fn parent(&self) -> Option<&dyn B>;
-
-    fn parent_mut(&mut self) -> Option<&mut dyn B>;
-
-    fn children(&self) -> &Vec<Box<dyn B>>;
-
-    fn children_mut(&mut self) -> &mut Vec<Box<dyn B>>;
-}
-
-#[wasm_bindgen]
-pub fn test() {
-    set_panic_hook();
-
-    let mut parent = A {
-        data: String::from("Root"),
-        parent: None,
-        children: Vec::new(),
-    };
-    let parent_ptr: *mut dyn B = &mut parent;
-
-    {
-        parent.children = (0..100)
-            .into_iter()
-            .map(|i| {
-                let child = A {
-                    data: format!("Child_{i}"),
-                    parent: Some(parent_ptr),
-                    children: Vec::new(),
-                };
-                // let child_ptr: *mut dyn B = &mut child;
-                // console_log!("{:?}", child_ptr);
-
-                let mut child_boxed = Box::new(child) as Box<dyn B>;
-
-                // if i == 50 {
-                let child_ptr: *mut dyn B = &mut *child_boxed;
-                console_log!("{:?}", child_ptr);
-                (0..200).into_iter().for_each(|g| {
-                    let grandchild: A = A {
-                        data: format!("Grandchild_{g}"),
-                        parent: Some(child_ptr),
-                        children: Vec::new(),
-                    };
-
-                    child_boxed
-                        .as_mut()
-                        .children_mut()
-                        .push(Box::new(grandchild) as Box<dyn B>)
-                });
-                // }
-
-                child_boxed
-            })
-            .collect::<Vec<_>>();
-    }
-
-    // parent.children.get(10).unwrap().o_0();
-
-    // parent
-    //     .children
-    //     .get_mut(11)
-    //     .unwrap()
-    //     .parent_mut()
-    //     .unwrap()
-    //     .set_data(String::from("AA"));
-
-    // console_log!(
-    //     "{}",
-    //     parent.children.get(1).unwrap().parent().unwrap().data()
-    // );
-
-    console_log!("{}", parent.to_string())
 }
 
 #[wasm_bindgen]
@@ -230,4 +99,31 @@ pub fn test_memory_copy(mut buffer: Box<[u8]>) {
 #[wasm_bindgen]
 pub fn test_send_buffer() -> Box<[u8]> {
     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
+}
+
+#[wasm_bindgen]
+pub fn test_scene() -> Result<Scene, JsError> {
+    let mut scene = Scene::with_options(SceneOptions {
+        mount: Some(Cow::Borrowed("scene_container")),
+    })?;
+    scene
+        .active_camera_mut()
+        .set_position(Vec3::from_values(2.0, 2.0, 2.0));
+    let mut entity = Entity::new_boxed();
+    let cube = Cube::new();
+    let material = SolidColorMaterial::with_color(Rgba::new(1.0, 0.0, 0.0, 1.0));
+    entity.set_geometry(Some(cube));
+    entity.set_material(Some(material));
+    scene.root_entity_mut().children_mut().push(entity);
+    let mut render = WebGL2Render::new(&scene)?;
+
+    render.render(&scene)?;
+    render.render(&scene)?;
+    render.render(&scene)?;
+    render.render(&scene)?;
+    render.render(&scene)?;
+    render.render(&scene)?;
+    render.render(&scene)?;
+
+    Ok(scene)
 }

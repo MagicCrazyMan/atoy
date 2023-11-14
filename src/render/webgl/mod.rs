@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use gl_matrix4rust::vec4::Vec4;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
+use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{entity::Entity, ncor::Ncor, scene::Scene};
@@ -41,7 +42,30 @@ pub struct WebGL2Render {
 impl WebGL2Render {
     /// Constructs a new WebGL2 render.
     #[wasm_bindgen(constructor)]
-    pub fn new(
+    pub fn new_constructor(
+        scene: &Scene,
+        options: Option<WebGL2RenderOptionsObject>,
+    ) -> Result<WebGL2Render, JsError> {
+        Self::with_options(scene, options)
+    }
+}
+
+impl WebGL2Render {
+    /// Constructs a new WebGL2 render.
+    pub fn new(scene: &Scene) -> Result<WebGL2Render, JsError> {
+        let gl = Self::gl_context(scene.canvas(), None)?;
+        Ok(Self {
+            program_store: ProgramStore::new(gl.clone()),
+            buffer_store: BufferStore::new(gl.clone()),
+            gl,
+            depth_test: true,
+            cull_face_mode: None,
+            clear_color: Vec4::new(),
+        })
+    }
+
+    /// Constructs a new WebGL2 render.
+    pub fn with_options(
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
     ) -> Result<WebGL2Render, JsError> {
@@ -72,6 +96,14 @@ impl WebGL2Render {
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
             .ok_or(JsError::new("failed to get WebGL2 context"))?;
+
+        console_log!("{} {}", canvas.width(), canvas.height());
+        gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+        console_log!(
+            "{} {}",
+            gl.drawing_buffer_width(),
+            gl.drawing_buffer_height()
+        );
 
         Ok(gl)
     }
@@ -122,46 +154,49 @@ impl WebGL2Render {
 }
 
 impl WebGL2Render {
-    fn prepare<'a, 'b>(&'a self, scene: &'b mut Scene) -> Vec<*const Entity> {
+    fn prepare(&self, scene: &Scene) -> Vec<*const Entity> {
         let view = *scene.active_camera().view();
         let proj = *scene.active_camera().proj();
 
         let mut entities = Vec::new();
-        let mut rollings = VecDeque::from([scene.root_entity_mut()]);
+        let mut rollings = VecDeque::from([scene.root_entity()]);
         while let Some(entity) = rollings.pop_front() {
             // update composed matrices for all entities
             let composed_model = match entity.parent() {
                 Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
                 None => *entity.model_matrix(),
             };
+            let composed_normal = match composed_model.invert() {
+                Ok(inverted) => inverted.transpose(),
+                Err(err) => {
+                    //should err
+                    continue;
+                }
+            };
             let composed_model_view = view * composed_model;
             let composed_model_view_proj = proj * composed_model_view;
-            if let Err(err) = entity.set_composed_model_matrix(composed_model) {
-                // if meet error, skip this entity and all its children
-                // should log error
-                continue;
-            }
-            entity.set_composed_model_view_matrix(composed_model_view);
-            entity.set_composed_model_view_proj_matrix(composed_model_view_proj);
+            entity.composed_model_matrix().replace(composed_model);
+            entity.composed_normal_matrix().replace(composed_normal);
+            entity
+                .composed_model_view_matrix()
+                .replace(composed_model_view);
+            entity
+                .composed_model_view_proj_matrix()
+                .replace(composed_model_view_proj);
 
             // filters any entity that has no geometry or material
             if entity.geometry().is_some() && entity.material().is_some() {
                 entities.push(entity as *const Entity);
-                // entities.push(RenderEntity {
-                //     matrices: entity.matrices(),
-                //     geometry,
-                //     material,
-                // });
             }
 
             // adds children to rolling list
-            rollings.extend(entity.children_mut().iter_mut().map(|child| child.as_mut()));
+            rollings.extend(entity.children().iter().map(|child| child.as_ref()));
         }
 
         entities
     }
 
-    pub fn render(&mut self, scene: &mut Scene) -> Result<(), JsError> {
+    pub fn render(&mut self, scene: &Scene) -> Result<(), JsError> {
         let gl = &self.gl;
 
         // clear scene
@@ -173,6 +208,7 @@ impl WebGL2Render {
         let camera_position = *scene.active_camera().position();
         let entities = self.prepare(scene);
         for entity in entities {
+            console_log!("1");
             let entity = unsafe { &*entity };
             let (geometry, material) = { (entity.geometry().unwrap(), entity.material().unwrap()) };
 
@@ -181,6 +217,7 @@ impl WebGL2Render {
                     Ok(material) => material,
                     Err(err) => {
                         // should log here
+                        console_log!("2");
                         continue;
                     }
                 };
@@ -199,6 +236,7 @@ impl WebGL2Render {
                 };
                 let Some(value) = value else {
                     // should log warning
+                    console_log!("3");
                     continue;
                 };
 
@@ -212,15 +250,17 @@ impl WebGL2Render {
                         stride,
                         offset,
                     } => {
-                        let mut descriptor = descriptor.status().borrow_mut();
-                        let buffer =
-                            match self.buffer_store.buffer_or_create(&mut descriptor, &target) {
-                                Ok(buffer) => buffer,
-                                Err(err) => {
-                                    // should log error
-                                    continue;
-                                }
-                            };
+                        let buffer = match self
+                            .buffer_store
+                            .buffer_or_create(descriptor.as_ref(), target)
+                        {
+                            Ok(buffer) => buffer,
+                            Err(err) => {
+                                // should log error
+                                console_log!("4");
+                                continue;
+                            }
+                        };
 
                         gl.bind_buffer(target.to_gl_enum(), Some(buffer));
                         gl.vertex_attrib_pointer_with_i32(
@@ -259,26 +299,26 @@ impl WebGL2Render {
             for (binding, location) in uniform_locations {
                 let value = match binding {
                     UniformBinding::ModelMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
-                        data: Box::new(entity.composed_model_matrix()),
+                        data: Box::new(*entity.composed_model_matrix().borrow()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::NormalMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
-                        data: Box::new(entity.composed_normal_matrix()),
+                        data: Box::new(*entity.composed_normal_matrix().borrow()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::ModelViewMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
-                        data: Box::new(entity.composed_model_view_matrix()),
+                        data: Box::new(*entity.composed_model_view_matrix().borrow()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::ModelViewProjMatrix => {
                         Some(Ncor::Owned(UniformValue::Matrix4 {
-                            data: Box::new(entity.composed_model_view_proj_matrix()),
+                            data: Box::new(*entity.composed_model_view_proj_matrix().borrow()),
                             transpose: false,
                             src_offset: 0,
                             src_length: 0,
@@ -304,19 +344,11 @@ impl WebGL2Render {
                 };
                 let Some(value) = value else {
                     // should log warning
+                    console_log!("5");
                     continue;
                 };
 
                 match value.as_ref() {
-                    UniformValue::Buffer {
-                        descriptor,
-                        target,
-                        size,
-                        data_type,
-                        normalized,
-                        stride,
-                        offset,
-                    } => todo!(),
                     UniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), *x),
                     UniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), *x, *y),
                     UniformValue::UnsignedInteger3(x, y, z) => {

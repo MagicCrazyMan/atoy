@@ -1,4 +1,6 @@
-use gl_matrix4rust::{error::Error, mat4::Mat4};
+use std::cell::RefCell;
+
+use gl_matrix4rust::mat4::Mat4;
 use uuid::Uuid;
 
 use crate::{
@@ -12,10 +14,10 @@ use crate::{
 pub struct Entity {
     id: Uuid,
     m: Mat4,
-    cn: Mat4,
-    cm: Mat4,
-    cmv: Mat4,
-    cmvp: Mat4,
+    cn: RefCell<Mat4>,
+    cm: RefCell<Mat4>,
+    cmv: RefCell<Mat4>,
+    cmvp: RefCell<Mat4>,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn WebGLMaterial>>,
     parent: Option<*mut Entity>,
@@ -40,10 +42,10 @@ impl Entity {
         Box::new(Self {
             id: Uuid::new_v4(),
             m: Mat4::new_identity(),
-            cn: Mat4::new_identity(),
-            cm: Mat4::new_identity(),
-            cmv: Mat4::new_identity(),
-            cmvp: Mat4::new_identity(),
+            cn: RefCell::new(Mat4::new_identity()),
+            cm: RefCell::new(Mat4::new_identity()),
+            cmv: RefCell::new(Mat4::new_identity()),
+            cmvp: RefCell::new(Mat4::new_identity()),
             geometry: None,
             material: None,
             parent: None,
@@ -82,12 +84,12 @@ impl Entity {
     //     }
     // }
 
-    // pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
-    //     self.geometry = match geometry {
-    //         Some(geometry) => Some(Box::new(geometry)),
-    //         None => None,
-    //     }
-    // }
+    pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+        self.geometry = match geometry {
+            Some(geometry) => Some(Box::new(geometry)),
+            None => None,
+        }
+    }
 
     pub fn material(&self) -> Option<&dyn WebGLMaterial> {
         match &self.material {
@@ -99,14 +101,19 @@ impl Entity {
         }
     }
 
-    // pub fn set_material<M: Material + Sized + 'static>(&mut self, material: Option<M>);
+    pub fn set_material<M: WebGLMaterial + 'static>(&mut self, material: Option<M>) {
+        self.material = match material {
+            Some(material) => Some(Box::new(material)),
+            None => None,
+        }
+    }
 
     pub fn attribute_value<'a>(&self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
-        todo!()
+        None
     }
 
     pub fn uniform_value<'a>(&self, name: &str) -> Option<Ncor<'a, UniformValue>> {
-        todo!()
+        None
     }
 
     pub fn parent(&self) -> Option<&Self> {
@@ -192,39 +199,24 @@ impl Entity {
         &self.m
     }
 
-    pub fn composed_normal_matrix(&self) -> &Mat4 {
-        &self.cn
-    }
-
-    pub fn composed_model_matrix(&self) -> &Mat4 {
-        &self.cm
-    }
-
-    pub fn composed_model_view_matrix(&self) -> &Mat4 {
-        &self.cmv
-    }
-
-    pub fn composed_model_view_proj_matrix(&self) -> &Mat4 {
-        &self.cmvp
-    }
-
     pub fn set_model_matrix(&mut self, mat: Mat4) {
         self.m = mat;
     }
 
-    pub fn set_composed_model_matrix(&mut self, mat: Mat4) -> Result<(), Error> {
-        self.cn = mat.invert()?.transpose();
-        self.cm = mat;
-
-        Ok(())
+    pub fn composed_normal_matrix(&self) -> &RefCell<Mat4> {
+        &self.cn
     }
 
-    pub fn set_composed_model_view_matrix(&mut self, mat: Mat4) {
-        self.cmv = mat;
+    pub fn composed_model_matrix(&self) -> &RefCell<Mat4> {
+        &self.cm
     }
 
-    pub fn set_composed_model_view_proj_matrix(&mut self, mat: Mat4) {
-        self.cmvp = mat;
+    pub fn composed_model_view_matrix(&self) -> &RefCell<Mat4> {
+        &self.cmv
+    }
+
+    pub fn composed_model_view_proj_matrix(&self) -> &RefCell<Mat4> {
+        &self.cmvp
     }
 }
 
@@ -268,29 +260,29 @@ impl EntityBuilder {
         self
     }
 
-    pub fn build(self) -> Entity {
-        Entity {
-            id: Uuid::new_v4(),
-            m: self.model_matrix,
-            cn: Mat4::new_identity(),
-            cm: Mat4::new_identity(),
-            cmv: Mat4::new_identity(),
-            cmvp: Mat4::new_identity(),
-            geometry: self.geometry,
-            material: self.material,
-            parent: None,
-            children: Vec::new(),
-        }
-    }
+    // pub fn build(self) -> Entity {
+    //     Entity {
+    //         id: Uuid::new_v4(),
+    //         m: self.model_matrix,
+    //         cn: Mat4::new_identity(),
+    //         cm: Mat4::new_identity(),
+    //         cmv: Mat4::new_identity(),
+    //         cmvp: Mat4::new_identity(),
+    //         geometry: self.geometry,
+    //         material: self.material,
+    //         parent: None,
+    //         children: Vec::new(),
+    //     }
+    // }
 
     pub fn build_boxed(self) -> Box<Entity> {
         Box::new(Entity {
             id: Uuid::new_v4(),
             m: self.model_matrix,
-            cn: Mat4::new_identity(),
-            cm: Mat4::new_identity(),
-            cmv: Mat4::new_identity(),
-            cmvp: Mat4::new_identity(),
+            cn: RefCell::new(Mat4::new_identity()),
+            cm: RefCell::new(Mat4::new_identity()),
+            cmv: RefCell::new(Mat4::new_identity()),
+            cmvp: RefCell::new(Mat4::new_identity()),
             geometry: self.geometry,
             material: self.material,
             parent: None,

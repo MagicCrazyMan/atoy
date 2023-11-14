@@ -1,9 +1,11 @@
 use std::any::Any;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::Camera;
 
+#[wasm_bindgen]
 pub struct PerspectiveCamera {
     position: Vec3,
     direction: Vec3,
@@ -72,23 +74,6 @@ impl PerspectiveCamera {
         self.near
     }
 
-    pub fn set_position(&mut self, position: Vec3) {
-        self.position = position;
-        self.direction = self.center - position;
-        self.update_view();
-    }
-
-    pub fn set_center(&mut self, center: Vec3) {
-        self.center = center;
-        self.direction = center - self.position;
-        self.update_view();
-    }
-
-    pub fn set_up(&mut self, up: Vec3) {
-        self.up = up;
-        self.update_view();
-    }
-
     pub fn set_fovy(&mut self, fovy: f32) {
         self.fovy = fovy;
         self.update_proj();
@@ -144,6 +129,23 @@ impl Camera for PerspectiveCamera {
 
     fn proj(&self) -> &Mat4 {
         &self.proj
+    }
+
+    fn set_position(&mut self, position: Vec3) {
+        self.position = position;
+        self.direction = self.center - position;
+        self.update_view();
+    }
+
+    fn set_center(&mut self, center: Vec3) {
+        self.center = center;
+        self.direction = center - self.position;
+        self.update_view();
+    }
+
+    fn set_up(&mut self, up: Vec3) {
+        self.up = up;
+        self.update_view();
     }
 
     fn as_any(&self) -> &dyn Any {

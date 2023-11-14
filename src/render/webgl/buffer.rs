@@ -38,7 +38,7 @@ pub enum BufferItemSize {
     One,
     Two,
     Three,
-    Four
+    Four,
 }
 
 impl BufferItemSize {
@@ -125,7 +125,29 @@ impl BufferDescriptor {
         }
     }
 
-    pub(crate) fn status(&self) -> &RefCell<BufferStatus> {
+    pub fn buffer_data(&self, data: BufferData, usage: BufferUsage) {
+        let new_status = match *self.status.borrow() {
+            BufferStatus::Unchanged { id } => BufferStatus::UpdateBuffer {
+                id: Some(id),
+                data,
+                usage,
+            },
+            _ => panic!("unable to buffer data again until previous data finishing buffer"),
+        };
+
+        *self.status.borrow_mut() = new_status;
+    }
+
+    pub fn buffer_sub_data(&self, data: BufferSubData) {
+        let new_status = match *self.status.borrow() {
+            BufferStatus::Unchanged { id } => BufferStatus::UpdateSubBuffer { id, data },
+            _ => panic!("unable to buffer data again until previous data finishing buffer"),
+        };
+
+        *self.status.borrow_mut() = new_status;
+    }
+
+    fn status(&self) -> &RefCell<BufferStatus> {
         &self.status
     }
 }
@@ -151,10 +173,11 @@ impl BufferStore {
 impl BufferStore {
     pub fn buffer_or_create(
         &mut self,
-        descriptor: &mut BufferStatus,
+        descriptor: &BufferDescriptor,
         target: &BufferTarget,
     ) -> Result<&WebGlBuffer, JsError> {
-        match descriptor {
+        let mut status = descriptor.status().borrow_mut();
+        match &*status {
             BufferStatus::Unchanged { id } => {
                 let Some(buffer) = self.store.get(id) else {
                     return Err(JsError::new(&format!(
@@ -204,7 +227,7 @@ impl BufferStore {
                 let buffer = self.store.entry(id).or_insert(buffer.clone());
 
                 // replace descriptor status
-                *descriptor = BufferStatus::Unchanged { id };
+                *status = BufferStatus::Unchanged { id };
 
                 Ok(buffer)
             }
@@ -234,7 +257,7 @@ impl BufferStore {
                 self.gl.bind_buffer(target.to_gl_enum(), None);
 
                 // replace descriptor status
-                *descriptor = BufferStatus::Unchanged { id: id.clone() };
+                *status = BufferStatus::Unchanged { id: id.clone() };
 
                 Ok(buffer)
             }

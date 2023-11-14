@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError};
+use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlElement};
 
 use crate::{
@@ -28,9 +31,9 @@ extern "C" {
 
 /// Scene options
 #[derive(Default, Deserialize)]
-pub struct SceneOptions {
+pub struct SceneOptions<'a> {
     /// Mounts target.
-    pub mount: Option<String>,
+    pub mount: Option<Cow<'a, str>>,
 }
 
 #[wasm_bindgen]
@@ -43,16 +46,41 @@ pub struct Scene {
 
 #[wasm_bindgen]
 impl Scene {
-    /// Constructs a new scene using initialization options.
     #[wasm_bindgen(constructor)]
-    pub fn new(options: Option<SceneOptionsObject>) -> Result<Scene, JsError> {
-        set_panic_hook();
-
+    pub fn new_constructor(options: Option<SceneOptionsObject>) -> Result<Scene, JsError> {
         let options = match options {
             Some(options) => serde_wasm_bindgen::from_value::<SceneOptions>(options.obj)
                 .or(Err(JsError::new("failed to parse scene options")))?,
             None => SceneOptions::default(),
         };
+
+        Self::with_options(options)
+    }
+}
+
+impl Scene {
+    /// Constructs a new scene using initialization options.
+    pub fn new() -> Result<Self, JsError> {
+        set_panic_hook();
+
+        let canvas = Self::create_canvas()?;
+        let active_camera = Self::create_camera(&canvas);
+        let mut scene = Self {
+            mount: None,
+            canvas,
+            active_camera,
+            root_entity: Entity::new_boxed(),
+        };
+
+        // init mount target
+        Self::set_mount(&mut scene, None)?;
+
+        Ok(scene)
+    }
+
+    /// Constructs a new scene using initialization options.
+    pub fn with_options(options: SceneOptions) -> Result<Self, JsError> {
+        set_panic_hook();
 
         let canvas = Self::create_canvas()?;
         let active_camera = Self::create_camera(&canvas);
@@ -70,11 +98,14 @@ impl Scene {
     }
 
     fn create_canvas() -> Result<HtmlCanvasElement, JsError> {
-        document()
+        let canvas = document()
             .create_element("canvas")
             .ok()
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(JsError::new("failed to create canvas"))
+            .ok_or(JsError::new("failed to create canvas"))?;
+
+        canvas.style().set_css_text("width: 100%; height: 100%;");
+        Ok(canvas)
     }
 
     fn create_camera(canvas: &HtmlCanvasElement) -> Box<dyn Camera> {
@@ -100,7 +131,7 @@ impl Scene {
     }
 
     /// Sets the mount target.
-    pub fn set_mount(&mut self, mount: Option<String>) -> Result<(), JsError> {
+    pub fn set_mount(&mut self, mount: Option<Cow<'_, str>>) -> Result<(), JsError> {
         if let Some(mount) = mount {
             if !mount.is_empty() {
                 // gets and sets mount target using `document.getElementById`
@@ -113,6 +144,8 @@ impl Scene {
 
                 // mounts canvas to target (creates new if not exists)
                 mount.append_child(&self.canvas).unwrap();
+                self.canvas.set_width(mount.client_width() as u32);
+                self.canvas.set_height(mount.client_height() as u32);
 
                 self.mount = Some(mount);
 

@@ -1,11 +1,12 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use wasm_bindgen::JsError;
+use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::material::WebGLMaterial;
+use crate::{material::WebGLMaterial, ncor::Ncor};
 
-use super::buffer::{BufferDescriptor, BufferTarget, BufferItemSize};
+use super::buffer::{BufferDescriptor, BufferItemSize, BufferTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferDataType {
@@ -40,9 +41,9 @@ impl BufferDataType {
     }
 }
 
-pub enum AttributeValue {
+pub enum AttributeValue<'a> {
     Buffer {
-        descriptor: BufferDescriptor,
+        descriptor: Ncor<'a, BufferDescriptor>,
         target: BufferTarget,
         size: BufferItemSize,
         data_type: BufferDataType,
@@ -97,15 +98,6 @@ impl AttributeBinding {
 }
 
 pub enum UniformValue {
-    Buffer {
-        descriptor: BufferDescriptor,
-        target: BufferTarget,
-        size: i32,
-        data_type: BufferDataType,
-        normalized: bool,
-        stride: i32,
-        offset: i32,
-    },
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),
     UnsignedInteger3(u32, u32, u32),
@@ -367,6 +359,7 @@ fn compile_shader(
             .map(|err| Cow::Owned(err))
             .unwrap_or(Cow::Borrowed("unknown compile shader error"));
         gl.delete_shader(Some(&shader));
+        console_log!("{err}");
         return Err(JsError::new(err.as_ref()));
     }
 
@@ -398,6 +391,7 @@ fn create_program(
             .map(|err| Cow::Owned(err))
             .unwrap_or(Cow::Borrowed("unknown link program error"));
         gl.delete_program(Some(&program));
+        console_log!("{err}");
         return Err(JsError::new(err.as_ref()));
     }
 

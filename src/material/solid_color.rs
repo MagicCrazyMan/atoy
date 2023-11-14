@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::OnceLock};
+use std::sync::OnceLock;
 
 use palette::rgb::Rgba;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -15,6 +15,7 @@ use super::WebGLMaterial;
 const NAME: &'static str = "SolidColorMaterial";
 const COLOR_UNIFORM: &'static str = "u_Color";
 
+static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 1]> = OnceLock::new();
 static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
@@ -23,20 +24,21 @@ attribute vec4 a_Position;
 
 uniform mat4 u_ModelViewProjMatrix;
 
-varying vec4 v_Position;
-
 void main() {
-    v_Position = u_ModelViewProjMatrix * a_Position;
+    gl_Position = u_ModelViewProjMatrix * a_Position;
 }
 ";
 const FRAGMENT_SHADER_SOURCE: &'static str = "
-uniform vec4 u_Color;
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+#else
+    precision mediump float;
+#endif
 
-varying vec4 v_Position;
+uniform vec4 u_Color;
 
 void main() {
     gl_FragColor = u_Color;
-    gl_Position = v_Position;
 }
 ";
 
@@ -55,14 +57,12 @@ impl SolidColorMaterial {
         blue: Option<f32>,
         alpha: Option<f32>,
     ) -> Self {
-        Self {
-            color: Rgba::new(
-                red.unwrap_or(0.0),
-                green.unwrap_or(0.0),
-                blue.unwrap_or(0.0),
-                alpha.unwrap_or(0.0),
-            ),
-        }
+        Self::with_color(Rgba::new(
+            red.unwrap_or(0.0),
+            green.unwrap_or(0.0),
+            blue.unwrap_or(0.0),
+            alpha.unwrap_or(0.0),
+        ))
     }
 }
 
@@ -73,10 +73,8 @@ impl SolidColorMaterial {
         }
     }
 
-    pub fn with_color(red: f32, green: f32, blue: f32, alpha: f32) -> Self {
-        Self {
-            color: Rgba::new(red, green, blue, alpha),
-        }
+    pub fn with_color(color: Rgba) -> Self {
+        Self { color }
     }
 }
 
@@ -86,7 +84,7 @@ impl WebGLMaterial for SolidColorMaterial {
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[]
+        ATTRIBUTE_BINDINGS.get_or_init(|| [AttributeBinding::GeometryPosition])
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
@@ -112,14 +110,13 @@ impl WebGLMaterial for SolidColorMaterial {
     }
 
     fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
-        todo!()
-        // match name {
-        //     COLOR_UNIFORM => Some(Ncor<'a, UniformValue>::FloatVector4 {
-        //         data: Box::new(self.color),
-        //         src_offset: 0,
-        //         src_length: 0,
-        //     }),
-        //     _ => None,
-        // }
+        match name {
+            COLOR_UNIFORM => Some(Ncor::Owned(UniformValue::FloatVector4 {
+                data: Box::new(self.color),
+                src_offset: 0,
+                src_length: 0,
+            })),
+            _ => None,
+        }
     }
 }

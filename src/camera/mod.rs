@@ -13,6 +13,12 @@ pub trait Camera {
 
     fn proj(&self) -> &Mat4;
 
+    fn set_position(&mut self, position: Vec3);
+
+    fn set_center(&mut self, center: Vec3);
+
+    fn set_up(&mut self, up: Vec3);
+
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
