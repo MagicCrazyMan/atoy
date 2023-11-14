@@ -5,7 +5,7 @@ pub enum Draw {
     Arrays {
         mode: DrawMode,
         first: i32,
-        count: i32,
+        num_vertices: i32,
     },
     Elements {
         mode: DrawMode,

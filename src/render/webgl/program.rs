@@ -5,7 +5,7 @@ use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLoc
 
 use crate::{material::WebGLMaterial, ncor::Ncor};
 
-use super::buffer::{BufferDescriptor, BufferItemSize, BufferTarget};
+use super::buffer::{BufferComponentSize, BufferDescriptor, BufferTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferDataType {
@@ -38,17 +38,41 @@ impl BufferDataType {
             }
         }
     }
+
+    pub fn bytes_length(&self) -> i32 {
+        match self {
+            BufferDataType::Float => 4,
+            BufferDataType::Byte => 1,
+            BufferDataType::Short => 2,
+            BufferDataType::Int => 4,
+            BufferDataType::UnsignedByte => 1,
+            BufferDataType::UnsignedShort => 2,
+            BufferDataType::UnsignedInt => 4,
+            BufferDataType::HalfFloat => 2,
+            BufferDataType::Int2_10_10_10Rev => 4,
+            BufferDataType::UnsignedInt2_10_10_10Rev => 4,
+        }
+    }
 }
 
 pub enum AttributeValue<'a> {
     Buffer {
         descriptor: Ncor<'a, BufferDescriptor>,
         target: BufferTarget,
-        size: BufferItemSize,
+        component_size: BufferComponentSize,
         data_type: BufferDataType,
         normalized: bool,
-        stride: i32,
-        offset: i32,
+        bytes_stride: i32,
+        bytes_offset: i32,
+    },
+    Instanced {
+        descriptor: Ncor<'a, BufferDescriptor>,
+        target: BufferTarget,
+        component_size: BufferComponentSize,
+        data_type: BufferDataType,
+        normalized: bool,
+        components_length_per_instance: u32,
+        divisor: u32,
     },
     Vertex1f(f32),
     Vertex2f(f32, f32),
@@ -185,9 +209,9 @@ pub enum UniformValue {
 pub enum UniformBinding {
     ModelMatrix,
     NormalMatrix,
-    ViewProjMatrix,
     ModelViewMatrix,
     ModelViewProjMatrix,
+    ViewProjMatrix,
     ActiveCameraPosition,
     ActiveCameraDirection,
     FromGeometry(String),
@@ -416,14 +440,11 @@ fn collect_attribute_locations(
 
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
-            Err(format!(
-                "failed to get attribute location of {}",
-                variable_name
-            ))
+            // should log warning
         } else {
             locations.insert(binding.clone(), location as u32);
-            Ok(())
         }
+        Ok(())
     })?;
 
     Ok(locations)
@@ -449,13 +470,13 @@ fn collect_uniform_locations(
         match location {
             Some(location) => {
                 locations.insert(binding.clone(), location);
-                Ok(())
             }
-            None => Err(String::from(&format!(
-                "failed to get uniform location of {}",
-                variable_name
-            ))),
-        }
+            None => {
+                // should log warning
+            }
+        };
+
+        Ok(())
     })?;
 
     Ok(locations)

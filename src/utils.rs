@@ -8,7 +8,9 @@ use wasm_bindgen_test::console_log;
 use crate::{
     entity::Entity,
     geometry::cube::Cube,
-    material::solid_color::SolidColorMaterial,
+    material::{
+        solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
+    },
     render::webgl::WebGL2Render,
     scene::{Scene, SceneOptions},
     window,
@@ -101,7 +103,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
 }
 
 #[wasm_bindgen]
-pub fn test_scene() -> Result<(), JsError> {
+pub fn test_cube() -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
@@ -138,6 +140,50 @@ pub fn test_scene() -> Result<(), JsError> {
         entity.set_model_matrix(model_matrix);
         scene.root_entity_mut().add_child_boxed(entity);
     }
+    let mut render = WebGL2Render::new(&scene)?;
+
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
+
+        let radians_per_second = std::f64::consts::PI / 4.0;
+        let rotation = (seconds * radians_per_second) % (2.0 * std::f64::consts::PI);
+
+        scene
+            .root_entity_mut()
+            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+        let _ = render.render(&scene);
+
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn test_instanced_cube() -> Result<(), JsError> {
+    let mut scene = Scene::with_options(SceneOptions {
+        mount: Some(Cow::Borrowed("scene_container")),
+    })?;
+    scene
+        .active_camera_mut()
+        .set_position(Vec3::from_values(0.0, 400.0, 0.0));
+    scene
+        .active_camera_mut()
+        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+
+    let mut entity = Entity::new_boxed();
+
+    let mut color = rand::random::<Rgba>();
+    color.alpha = 1.0;
+    let material = SolidColorInstancedMaterial::new(color, 10000);
+
+    entity.set_geometry(Some(Cube::new()));
+    entity.set_material(Some(material));
+    scene.root_entity_mut().add_child_boxed(entity);
     let mut render = WebGL2Render::new(&scene)?;
 
     let f = Rc::new(RefCell::new(None));

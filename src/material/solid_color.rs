@@ -104,6 +104,10 @@ impl WebGLMaterial for SolidColorMaterial {
         })
     }
 
+    fn instanced(&self) -> Option<i32> {
+        None
+    }
+
     fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
         None
     }

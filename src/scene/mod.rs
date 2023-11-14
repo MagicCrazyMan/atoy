@@ -163,12 +163,12 @@ impl Scene {
     }
 
     /// Gets root entity.
-    pub fn root_entity(&self) -> &Entity {
+    pub(crate) fn root_entity(&self) -> &Entity {
         &self.root_entity
     }
 
     /// Gets mutable root entity.
-    pub fn root_entity_mut(&mut self) -> &mut Box<Entity> {
+    pub(crate) fn root_entity_mut(&mut self) -> &mut Box<Entity> {
         &mut self.root_entity
     }
 

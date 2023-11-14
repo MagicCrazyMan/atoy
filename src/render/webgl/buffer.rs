@@ -2,6 +2,7 @@ use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
 use wasm_bindgen::JsError;
+use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,20 +35,20 @@ impl BufferTarget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BufferItemSize {
+pub enum BufferComponentSize {
     One,
     Two,
     Three,
     Four,
 }
 
-impl BufferItemSize {
+impl BufferComponentSize {
     pub fn to_i32(&self) -> i32 {
         match self {
-            BufferItemSize::One => 1,
-            BufferItemSize::Two => 2,
-            BufferItemSize::Three => 3,
-            BufferItemSize::Four => 4,
+            BufferComponentSize::One => 1,
+            BufferComponentSize::Two => 2,
+            BufferComponentSize::Three => 3,
+            BufferComponentSize::Four => 4,
         }
     }
 }
@@ -82,7 +83,7 @@ impl BufferUsage {
 }
 
 pub enum BufferData {
-    FillZero {
+    FillEmpty {
         size: i32,
     },
     FillData {
@@ -92,11 +93,45 @@ pub enum BufferData {
     },
 }
 
+impl BufferData {
+    pub fn fill_empty(size: i32) -> Self {
+        Self::FillEmpty { size }
+    }
+
+    pub fn fill_data<D: AsRef<[u8]> + 'static>(
+        data: D,
+        src_byte_offset: u32,
+        src_byte_length: u32,
+    ) -> Self {
+        Self::FillData {
+            data: Box::new(data),
+            src_byte_offset,
+            src_byte_length,
+        }
+    }
+}
+
 pub struct BufferSubData {
     data: Box<dyn AsRef<[u8]>>,
     dst_byte_offset: i32,
     src_byte_offset: u32,
     src_byte_length: u32,
+}
+
+impl BufferSubData {
+    pub fn new<D: AsRef<[u8]> + 'static>(
+        data: D,
+        dst_byte_offset: i32,
+        src_byte_offset: u32,
+        src_byte_length: u32,
+    ) -> Self {
+        Self {
+            data: Box::new(data),
+            dst_byte_offset,
+            src_byte_offset,
+            src_byte_length,
+        }
+    }
 }
 
 pub enum BufferStatus {
@@ -132,22 +167,38 @@ impl BufferDescriptor {
                 data,
                 usage,
             },
-            _ => panic!("unable to buffer data again until previous data finishing buffer"),
+            BufferStatus::UpdateBuffer { id, .. } => BufferStatus::UpdateBuffer { id, data, usage },
+            BufferStatus::UpdateSubBuffer { id, .. } => BufferStatus::UpdateBuffer {
+                id: Some(id),
+                data,
+                usage,
+            },
         };
 
         *self.status.borrow_mut() = new_status;
     }
 
-    pub fn buffer_sub_data(&self, data: BufferSubData) {
+    pub fn buffer_sub_data(&self, sub_data: BufferSubData) {
         let new_status = match *self.status.borrow() {
-            BufferStatus::Unchanged { id } => BufferStatus::UpdateSubBuffer { id, data },
-            _ => panic!("unable to buffer data again until previous data finishing buffer"),
+            BufferStatus::Unchanged { id } => BufferStatus::UpdateSubBuffer { id, data: sub_data },
+            BufferStatus::UpdateBuffer { id, usage, .. } => BufferStatus::UpdateBuffer {
+                id,
+                data: BufferData::FillData {
+                    data: sub_data.data,
+                    src_byte_offset: sub_data.src_byte_offset,
+                    src_byte_length: sub_data.src_byte_offset,
+                },
+                usage,
+            },
+            BufferStatus::UpdateSubBuffer { id, .. } => {
+                BufferStatus::UpdateSubBuffer { id, data: sub_data }
+            }
         };
 
         *self.status.borrow_mut() = new_status;
     }
 
-    fn status(&self) -> &RefCell<BufferStatus> {
+    pub fn status(&self) -> &RefCell<BufferStatus> {
         &self.status
     }
 }
@@ -201,7 +252,7 @@ impl BufferStore {
 
                 self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
                 match data {
-                    BufferData::FillZero { size } => {
+                    BufferData::FillEmpty { size } => {
                         self.gl.buffer_data_with_i32(
                             target.to_gl_enum(),
                             *size,

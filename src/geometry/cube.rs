@@ -6,7 +6,7 @@ use crate::{
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferData, BufferDescriptor, BufferItemSize, BufferStatus, BufferTarget, BufferUsage,
+            BufferData, BufferDescriptor, BufferComponentSize, BufferStatus, BufferTarget, BufferUsage,
         },
         draw::{Draw, DrawMode},
         program::{AttributeValue, BufferDataType, UniformValue},
@@ -40,20 +40,12 @@ impl Cube {
             size,
             vertices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
                 id: None,
-                data: BufferData::FillData {
-                    data: Box::new(get_vertices_buffer(size)),
-                    src_byte_offset: 0,
-                    src_byte_length: 0,
-                },
+                data: BufferData::fill_data(get_vertices_buffer(size), 0, 432),
                 usage: BufferUsage::StaticDraw,
             }),
             normals_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
                 id: None,
-                data: BufferData::FillData {
-                    data: Box::new(get_normals_buffer()),
-                    src_byte_offset: 0,
-                    src_byte_length: 0,
-                },
+                data: BufferData::fill_data(get_normals_buffer(), 0, 576),
                 usage: BufferUsage::StaticDraw,
             }),
         }
@@ -90,7 +82,7 @@ impl Geometry for Cube {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            count: 36,
+            num_vertices: 36,
         }
     }
 
@@ -98,11 +90,11 @@ impl Geometry for Cube {
         Some(Ncor::Owned(AttributeValue::Buffer {
             descriptor: Ncor::Borrowed(&self.vertices_buffer),
             target: BufferTarget::Buffer,
-            size: BufferItemSize::Three,
+            component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
-            stride: 0,
-            offset: 0,
+            bytes_stride: 0,
+            bytes_offset: 0,
         }))
     }
 
@@ -110,11 +102,11 @@ impl Geometry for Cube {
         Some(Ncor::Owned(AttributeValue::Buffer {
             descriptor: Ncor::Borrowed(&self.normals_buffer),
             target: BufferTarget::Buffer,
-            size: BufferItemSize::Three,
+            component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
-            stride: 0,
-            offset: 0,
+            bytes_stride: 0,
+            bytes_offset: 0,
         }))
     }
 

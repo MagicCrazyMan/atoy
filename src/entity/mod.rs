@@ -18,8 +18,8 @@ pub struct Entity {
     cm: RefCell<Mat4>,
     cmv: RefCell<Mat4>,
     cmvp: RefCell<Mat4>,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn WebGLMaterial>>,
+    geometry: Option<RefCell<Box<dyn Geometry>>>,
+    material: Option<RefCell<Box<dyn WebGLMaterial>>>,
     parent: Option<*mut Entity>,
     children: Vec<Box<Entity>>,
 }
@@ -64,10 +64,10 @@ impl Entity {
         self.id
     }
 
-    pub fn geometry(&self) -> Option<&dyn Geometry> {
+    pub fn geometry(&self) -> Option<&RefCell<Box<dyn Geometry>>> {
         match &self.geometry {
             Some(geometry) => {
-                let geometry = &**geometry;
+                let geometry = &geometry;
                 Some(geometry)
             }
             None => None,
@@ -86,24 +86,31 @@ impl Entity {
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
-            Some(geometry) => Some(Box::new(geometry)),
+            Some(geometry) => Some(RefCell::new(Box::new(geometry))),
             None => None,
         }
     }
 
-    pub fn material(&self) -> Option<&dyn WebGLMaterial> {
+    pub fn material(&self) -> Option<&RefCell<Box<dyn WebGLMaterial>>> {
         match &self.material {
-            Some(material) => {
-                let material = material.as_ref();
-                Some(material)
-            }
+            Some(material) => Some(&material),
             None => None,
         }
     }
+
+    // pub fn material_mut(&mut self) -> Option<&mut dyn WebGLMaterial> {
+    //     match &mut self.material {
+    //         Some(material) => {
+    //             let material = material.as_mut();
+    //             Some(material)
+    //         }
+    //         None => None,
+    //     }
+    // }
 
     pub fn set_material<M: WebGLMaterial + 'static>(&mut self, material: Option<M>) {
         self.material = match material {
-            Some(material) => Some(Box::new(material)),
+            Some(material) => Some(RefCell::new(Box::new(material))),
             None => None,
         }
     }
@@ -161,9 +168,9 @@ impl Entity {
         &self.children
     }
 
-    // pub fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
-    //     &mut self.children
-    // }
+    pub(crate) fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
+        &mut self.children
+    }
 
     // pub fn child_by_index(&self, index: usize) -> Option<&Self> {
     //     self.children.get(index).map(|child| child.as_ref())
@@ -222,8 +229,8 @@ impl Entity {
 
 pub struct EntityBuilder {
     model_matrix: Mat4,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn WebGLMaterial>>,
+    geometry: Option<RefCell<Box<dyn Geometry>>>,
+    material: Option<RefCell<Box<dyn WebGLMaterial>>>,
 }
 
 impl EntityBuilder {
@@ -241,7 +248,7 @@ impl EntityBuilder {
     }
 
     pub fn geometry<G: Geometry + 'static>(mut self, geometry: G) -> Self {
-        self.geometry = Some(Box::new(geometry));
+        self.geometry = Some(RefCell::new(Box::new(geometry)));
         self
     }
 
@@ -251,7 +258,7 @@ impl EntityBuilder {
     }
 
     pub fn material<M: WebGLMaterial + 'static>(mut self, material: M) -> Self {
-        self.material = Some(Box::new(material));
+        self.material = Some(RefCell::new(Box::new(material)));
         self
     }
 
