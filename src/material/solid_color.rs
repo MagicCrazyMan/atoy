@@ -12,7 +12,6 @@ use crate::{
 
 use super::WebGLMaterial;
 
-const NAME: &'static str = "SolidColorMaterial";
 const COLOR_UNIFORM: &'static str = "u_Color";
 
 static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 1]> = OnceLock::new();
@@ -80,7 +79,7 @@ impl SolidColorMaterial {
 
 impl WebGLMaterial for SolidColorMaterial {
     fn name(&self) -> &str {
-        NAME
+        "SolidColorMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

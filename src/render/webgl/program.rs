@@ -277,7 +277,7 @@ impl ProgramStore {
             &HashMap<AttributeBinding, u32>,
             &HashMap<UniformBinding, WebGlUniformLocation>,
         ),
-        JsError,
+        String,
     > {
         let gl = self.gl.clone();
         let item = self

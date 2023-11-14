@@ -5,13 +5,14 @@ use std::{
     rc::Rc,
     sync::{Arc, Mutex, OnceLock},
     thread::{sleep, spawn},
-    time::Duration,
+    time::{Duration, Instant, SystemTime},
 };
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgba;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
 use wasm_bindgen_test::console_log;
+use web_sys::js_sys::Date;
 
 use crate::{
     entity::Entity,
