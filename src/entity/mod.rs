@@ -130,40 +130,40 @@ impl Entity {
     //     }
     // }
 
-    // pub fn set_parent(self: &mut Box<Self>, parent: Option<*mut Self>) {
-    //     // removes self from original parent
-    //     let self_entity = match &self.parent {
-    //         Some(parent) => unsafe {
-    //             let parent = &mut **parent;
-    //             let index = parent.children.iter().position(|child| child.id == self.id);
-    //             match index {
-    //                 Some(index) => Some(parent.children.remove(index)),
-    //                 None => None,
-    //             }
-    //         },
-    //         None => None,
-    //     };
+    pub fn set_parent(self: &mut Box<Self>, parent: Option<*mut Self>) {
+        // removes self from original parent
+        let self_entity = match &self.parent {
+            Some(parent) => unsafe {
+                let parent = &mut **parent;
+                let index = parent.children.iter().position(|child| child.id == self.id);
+                match index {
+                    Some(index) => Some(parent.children.remove(index)),
+                    None => None,
+                }
+            },
+            None => None,
+        };
 
-    //     // appends self into new parent if parent exists
-    //     match (parent, self_entity) {
-    //         (Some(parent), Some(self_entity)) => unsafe {
-    //             let parent = &mut *parent;
-    //             parent.children.push(self_entity);
-    //         },
-    //         _ => {}
-    //     }
+        // appends self into new parent if parent exists
+        match (parent, self_entity) {
+            (Some(parent), Some(self_entity)) => unsafe {
+                let parent = &mut *parent;
+                parent.children.push(self_entity);
+            },
+            _ => {}
+        }
 
-    //     // sets self's parent
-    //     self.parent = parent
-    // }
+        // sets self's parent
+        self.parent = parent
+    }
 
     pub fn children(&self) -> &Vec<Box<Self>> {
         &self.children
     }
 
-    pub fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
-        &mut self.children
-    }
+    // pub fn children_mut(&mut self) -> &mut Vec<Box<Entity>> {
+    //     &mut self.children
+    // }
 
     // pub fn child_by_index(&self, index: usize) -> Option<&Self> {
     //     self.children.get(index).map(|child| child.as_ref())
@@ -174,10 +174,10 @@ impl Entity {
     //     self.children.push(Box::new(child));
     // }
 
-    // pub fn add_child_boxed(self: &mut Box<Self>, mut child: Box<Self>) {
-    //     child.parent = Some(self.as_mut());
-    //     self.children.push(child);
-    // }
+    pub fn add_child_boxed(self: &mut Box<Self>, mut child: Box<Self>) {
+        child.parent = Some(self.as_mut());
+        self.children.push(child);
+    }
 
     // pub fn remove_child_by_index(&mut self, index: usize) -> Option<Box<Self>> {
     //     if index > self.children.len() - 1 {

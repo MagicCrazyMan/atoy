@@ -279,10 +279,11 @@ impl ProgramStore {
         ),
         JsError,
     > {
+        let gl = self.gl.clone();
         let item = self
             .store
             .entry(material.name().to_string())
-            .or_insert(compile_material_to_program(&self.gl, material)?);
+            .or_insert_with(move || compile_material_to_program(&gl, material).unwrap());
 
         Ok((&item.program, &item.attributes, &item.uniforms))
     }
@@ -295,12 +296,13 @@ impl ProgramStore {
 fn compile_material_to_program(
     gl: &WebGl2RenderingContext,
     material: &dyn WebGLMaterial,
-) -> Result<ProgramItem, JsError> {
+) -> Result<ProgramItem, String> {
+    console_log!("compile material: {}", material.name());
     let mut shaders = Vec::with_capacity(material.sources().len());
     material.sources().iter().try_for_each(|source| {
         let shader = compile_shader(gl, source)?;
         shaders.push(shader);
-        Ok(()) as Result<(), JsError>
+        Ok(()) as Result<(), String>
     })?;
 
     let program = create_program(gl, &shaders)?;
@@ -326,19 +328,19 @@ fn compile_material_to_program(
 fn compile_shader(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
-) -> Result<WebGlShader, JsError> {
+) -> Result<WebGlShader, String> {
     let (shader, code) = match source {
         ShaderSource::Vertex(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                .ok_or(JsError::new("failed to create WebGL2 vertex shader"))?;
+                .ok_or(String::from("failed to create WebGL2 vertex shader"))?;
 
             (shader, code)
         }
         ShaderSource::Fragment(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                .ok_or(JsError::new("failed to create WebGL2 fragment shader"))?;
+                .ok_or(String::from("failed to create WebGL2 fragment shader"))?;
 
             (shader, code)
         }
@@ -360,7 +362,7 @@ fn compile_shader(
             .unwrap_or(Cow::Borrowed("unknown compile shader error"));
         gl.delete_shader(Some(&shader));
         console_log!("{err}");
-        return Err(JsError::new(err.as_ref()));
+        return Err(String::from(err));
     }
 
     Ok(shader)
@@ -369,10 +371,10 @@ fn compile_shader(
 fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
-) -> Result<WebGlProgram, JsError> {
+) -> Result<WebGlProgram, String> {
     let program = gl
         .create_program()
-        .ok_or(JsError::new("failed to create WebGL2 program"))?;
+        .ok_or(String::from("failed to create WebGL2 program"))?;
 
     // attaches shader to program
     for shader in shaders {
@@ -392,7 +394,7 @@ fn create_program(
             .unwrap_or(Cow::Borrowed("unknown link program error"));
         gl.delete_program(Some(&program));
         console_log!("{err}");
-        return Err(JsError::new(err.as_ref()));
+        return Err(String::from(err.as_ref()));
     }
 
     Ok(program)
@@ -402,24 +404,21 @@ fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
-) -> Result<HashMap<AttributeBinding, u32>, JsError> {
+) -> Result<HashMap<AttributeBinding, u32>, String> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().try_for_each(|binding| {
         let variable_name = binding.as_str();
         if locations.contains_key(binding) {
-            return Err(JsError::new(&format!(
-                "duplicated attribute name {}",
-                variable_name
-            )));
+            return Err(format!("duplicated attribute name {}", variable_name));
         }
 
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
-            Err(JsError::new(&format!(
+            Err(format!(
                 "failed to get attribute location of {}",
                 variable_name
-            )))
+            ))
         } else {
             locations.insert(binding.clone(), location as u32);
             Ok(())
@@ -433,13 +432,13 @@ fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],
-) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, JsError> {
+) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, String> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().try_for_each(|binding| {
         let variable_name = binding.as_str();
         if locations.contains_key(binding) {
-            return Err(JsError::new(&format!(
+            return Err(String::from(&format!(
                 "duplicated uniform name {}",
                 variable_name
             )));
@@ -451,7 +450,7 @@ fn collect_uniform_locations(
                 locations.insert(binding.clone(), location);
                 Ok(())
             }
-            None => Err(JsError::new(&format!(
+            None => Err(String::from(&format!(
                 "failed to get uniform location of {}",
                 variable_name
             ))),

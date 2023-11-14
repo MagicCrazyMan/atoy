@@ -5,7 +5,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{entity::Entity, ncor::Ncor, scene::Scene};
+use crate::{entity::Entity, ncor::Ncor, scene::Scene, window};
 
 use self::{
     buffer::BufferStore,
@@ -36,6 +36,7 @@ pub struct WebGL2Render {
     depth_test: bool,
     cull_face_mode: Option<u32>,
     clear_color: Vec4,
+    first: bool,
 }
 
 #[wasm_bindgen]
@@ -61,6 +62,7 @@ impl WebGL2Render {
             depth_test: true,
             cull_face_mode: None,
             clear_color: Vec4::new(),
+            first: true,
         })
     }
 
@@ -77,6 +79,7 @@ impl WebGL2Render {
             depth_test: true,
             cull_face_mode: None,
             clear_color: Vec4::new(),
+            first: true,
         })
     }
 
@@ -197,6 +200,13 @@ impl WebGL2Render {
     }
 
     pub fn render(&mut self, scene: &Scene) -> Result<(), JsError> {
+        let mut bind_prom = 0.0;
+        let mut unbind_prom = 0.0;
+        let mut attr = 0.0;
+        let mut prep = 0.0;
+        let mut unif = 0.0;
+        let mut rend = 0.0;
+
         let gl = &self.gl;
 
         // clear scene
@@ -206,9 +216,11 @@ impl WebGL2Render {
         // collects entities and render each
         let camera_direction = *scene.active_camera().direction();
         let camera_position = *scene.active_camera().position();
+        let start = window().performance().unwrap().now();
         let entities = self.prepare(scene);
+        let end = window().performance().unwrap().now();
+        prep += end - start;
         for entity in entities {
-            console_log!("1");
             let entity = unsafe { &*entity };
             let (geometry, material) = { (entity.geometry().unwrap(), entity.material().unwrap()) };
 
@@ -223,8 +235,13 @@ impl WebGL2Render {
                 };
 
             // binds program
+            let start = window().performance().unwrap().now();
             gl.use_program(Some(program));
+            let end = window().performance().unwrap().now();
+            bind_prom += end - start;
+
             // binds attribute values
+            let start = window().performance().unwrap().now();
             for (binding, location) in attributes_locations {
                 let value = match binding {
                     AttributeBinding::GeometryPosition => geometry.vertices(),
@@ -294,8 +311,11 @@ impl WebGL2Render {
                     }
                 }
             }
+            let end = window().performance().unwrap().now();
+            attr += end - start;
 
             // binds uniform values
+            let start = window().performance().unwrap().now();
             for (binding, location) in uniform_locations {
                 let value = match binding {
                     UniformBinding::ModelMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
@@ -545,8 +565,11 @@ impl WebGL2Render {
                         ),
                 }
             }
+            let end = window().performance().unwrap().now();
+            unif += end - start;
 
             // draw!
+            let start = window().performance().unwrap().now();
             match geometry.draw() {
                 Draw::Arrays { mode, first, count } => {
                     gl.draw_arrays(mode.to_gl_enum(), first, count)
@@ -563,10 +586,28 @@ impl WebGL2Render {
                     offset,
                 ),
             }
+            let end = window().performance().unwrap().now();
+            rend += end - start;
+
+            self.first = false;
 
             // unbinds program after drawing
+            let start = window().performance().unwrap().now();
             gl.use_program(None);
+            let end = window().performance().unwrap().now();
+            unbind_prom += end - start;
         }
+
+        console_log!(
+            "bind {:.2}ms, prep {:.2}ms, attr {:.2}ms, unif {:.2}ms, rend {:.2}ms, unbind {:.2}ms, total {:.2}ms",
+            bind_prom,
+            prep,
+            attr,
+            unif,
+            rend,
+            unbind_prom,
+            bind_prom + prep + attr + unif + rend + unbind_prom
+        );
 
         Ok(())
     }

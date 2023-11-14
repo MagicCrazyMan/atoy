@@ -4,12 +4,13 @@ use std::{
     io::Write,
     rc::Rc,
     sync::{Arc, Mutex, OnceLock},
-    thread::{spawn, sleep}, time::Duration,
+    thread::{sleep, spawn},
+    time::Duration,
 };
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgba;
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsError};
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
 use wasm_bindgen_test::console_log;
 
 use crate::{
@@ -101,29 +102,67 @@ pub fn test_send_buffer() -> Box<[u8]> {
     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 }
 
+fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
 #[wasm_bindgen]
-pub fn test_scene() -> Result<Scene, JsError> {
+pub fn test_scene() -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
     scene
         .active_camera_mut()
-        .set_position(Vec3::from_values(2.0, 2.0, 2.0));
-    let mut entity = Entity::new_boxed();
-    let cube = Cube::new();
-    let material = SolidColorMaterial::with_color(Rgba::new(1.0, 0.0, 0.0, 1.0));
-    entity.set_geometry(Some(cube));
-    entity.set_material(Some(material));
-    scene.root_entity_mut().children_mut().push(entity);
+        .set_position(Vec3::from_values(0.0, 400.0, 0.0));
+    scene
+        .active_camera_mut()
+        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+
+    let count = 10000;
+    let grid = 100;
+    let width = 500.0;
+    let height = 500.0;
+    let cell_width = width / (grid as f32);
+    let cell_height = height / (grid as f32);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
+
+        let center_x = start_x - col as f32 * cell_width;
+        let center_z = start_z - row as f32 * cell_height;
+        let model_matrix = Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z));
+
+        let mut entity = Entity::new_boxed();
+        let cube = Cube::new();
+        let material = SolidColorMaterial::with_color(Rgba::new(1.0, 0.0, 0.0, 1.0));
+        entity.set_geometry(Some(cube));
+        entity.set_material(Some(material));
+        entity.set_model_matrix(model_matrix);
+        scene.root_entity_mut().add_child_boxed(entity);
+    }
     let mut render = WebGL2Render::new(&scene)?;
 
-    render.render(&scene)?;
-    render.render(&scene)?;
-    render.render(&scene)?;
-    render.render(&scene)?;
-    render.render(&scene)?;
-    render.render(&scene)?;
-    render.render(&scene)?;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
 
-    Ok(scene)
+        let radians_per_second = std::f64::consts::PI / 4.0;
+        let rotation = (seconds * radians_per_second) % (2.0 * std::f64::consts::PI);
+
+        scene
+            .root_entity_mut()
+            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+        let _ = render.render(&scene);
+
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
 }
