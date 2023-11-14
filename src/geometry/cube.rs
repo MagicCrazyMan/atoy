@@ -90,7 +90,7 @@ impl Geometry for Cube {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            count: 12,
+            count: 108,
         }
     }
 
