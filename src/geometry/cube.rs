@@ -94,18 +94,6 @@ impl Geometry for Cube {
         //     ])
     }
 
-    fn texture_coordinates<'a>(&'a self) -> Option<&AttributeValue> {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn draw(&self) -> Draw {
         todo!()
     }
@@ -116,6 +104,18 @@ impl Geometry for Cube {
 
     fn uniform_value<'a>(&self, _name: &str) -> Option<&UniformValue> {
         None
+    }
+
+    fn texture_coordinates<'a>(&'a self) -> Option<&AttributeValue> {
+        todo!()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -137,8 +137,8 @@ fn get_vertices_buffer(size: f32) -> Vec<u8> {
 static NORMALS_BUFFER: OnceLock<Vec<u8>> = OnceLock::new();
 fn get_normals_buffer() -> &'static Vec<u8> {
     NORMALS_BUFFER.get_or_init(|| {
-        [
-            0.0f32, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+        ([
+            0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, // front
             0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, // up
@@ -150,9 +150,9 @@ fn get_normals_buffer() -> &'static Vec<u8> {
             -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
             0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, // right
-        ]
-        .iter()
-        .flat_map(|v| v.to_ne_bytes())
-        .collect::<Vec<_>>()
+        ] as [f32; 144])
+            .iter()
+            .flat_map(|v| v.to_ne_bytes())
+            .collect::<Vec<_>>()
     })
 }
