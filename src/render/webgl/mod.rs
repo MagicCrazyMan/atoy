@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use gl_matrix4rust::vec4::Vec4;
+use gl_matrix4rust::{vec4::Vec4, mat4::Mat4};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{
@@ -417,6 +417,19 @@ impl WebGL2Render {
                         let start = Date::now();
                         for (binding, location) in uniform_locations {
                             let value = match binding {
+                                UniformBinding::ParentModelMatrix => {
+                                    let parent_model_matrix = match entity.parent() {
+                                        Some(parent) => *parent.model_matrix(),
+                                        // use identity if not exists
+                                        None => Mat4::new_identity(),
+                                    };
+                                    Some(Ncor::Owned(UniformValue::Matrix4 {
+                                        data: Box::new(parent_model_matrix),
+                                        transpose: false,
+                                        src_offset: 0,
+                                        src_length: 0,
+                                    }))
+                                }
                                 UniformBinding::ModelMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
                                         data: Box::new(*entity.composed_model_matrix().borrow()),

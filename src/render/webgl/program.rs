@@ -207,6 +207,7 @@ pub enum UniformValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
+    ParentModelMatrix,
     ModelMatrix,
     NormalMatrix,
     ModelViewMatrix,
@@ -222,6 +223,7 @@ pub enum UniformBinding {
 impl UniformBinding {
     pub fn as_str(&self) -> &str {
         match self {
+            UniformBinding::ParentModelMatrix => "u_ParentModelMatrix",
             UniformBinding::ModelMatrix => "u_ModelMatrix",
             UniformBinding::NormalMatrix => "u_NormalMatrix",
             UniformBinding::ModelViewMatrix => "u_ModelViewMatrix",

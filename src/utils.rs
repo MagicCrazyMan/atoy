@@ -164,7 +164,7 @@ pub fn test_cube() -> Result<(), JsError> {
 }
 
 #[wasm_bindgen]
-pub fn test_instanced_cube() -> Result<(), JsError> {
+pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
@@ -179,7 +179,7 @@ pub fn test_instanced_cube() -> Result<(), JsError> {
 
     let mut color = rand::random::<Rgba>();
     color.alpha = 1.0;
-    let material = SolidColorInstancedMaterial::new(color, 10000);
+    let material = SolidColorInstancedMaterial::new(color, count, grid, width, height);
 
     entity.set_geometry(Some(Cube::new()));
     entity.set_material(Some(material));

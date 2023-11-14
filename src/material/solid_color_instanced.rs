@@ -2,23 +2,19 @@ use std::sync::OnceLock;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgba;
-use wasm_bindgen_test::console_log;
 
 use crate::{
-    entity::Entity,
-    geometry::Geometry,
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferSubData,
-            BufferTarget, BufferUsage,
+            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferTarget,
+            BufferUsage,
         },
         program::{
             AttributeBinding, AttributeValue, BufferDataType, ShaderSource, UniformBinding,
             UniformValue,
         },
     },
-    scene::Scene,
 };
 
 use super::WebGLMaterial;
@@ -27,17 +23,18 @@ const COLOR_UNIFORM: &'static str = "u_Color";
 const MODEL_MATRIX_ATTRIBUTE: &'static str = "a_ModelMatrix";
 
 static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 2]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
+static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 3]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
 in mat4 a_ModelMatrix;
+uniform mat4 u_ParentModelMatrix;
 uniform mat4 u_ViewProjMatrix;
 
 void main() {
-    gl_Position = u_ViewProjMatrix * a_ModelMatrix * a_Position;
+    gl_Position = u_ViewProjMatrix * u_ParentModelMatrix * a_ModelMatrix * a_Position;
 }
 ";
 const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
@@ -64,13 +61,31 @@ pub struct SolidColorInstancedMaterial {
 }
 
 impl SolidColorInstancedMaterial {
-    pub fn new(color: Rgba, count: i32) -> Self {
+    pub fn new(color: Rgba, count: i32, grid: i32, width: f32, height: f32) -> Self {
+        let cell_width = width / (grid as f32);
+        let cell_height = height / (grid as f32);
+        let start_x = width / 2.0 - cell_width / 2.0;
+        let start_z = height / 2.0 - cell_height / 2.0;
+
+        let bytes_length = (16 * 4 * count) as usize;
+        let mut data = Vec::with_capacity(bytes_length);
+        for index in 0..count {
+            let row = index / grid;
+            let col = index % grid;
+
+            let center_x = start_x - col as f32 * cell_width;
+            let center_z = start_z - row as f32 * cell_height;
+            data.extend_from_slice(
+                Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z)).as_ref(),
+            );
+        }
+
         Self {
             color,
             count,
             model_matrices: BufferDescriptor::new(BufferStatus::UpdateBuffer {
                 id: None,
-                data: BufferData::fill_empty(16 * 4 * count),
+                data: BufferData::fill_data(data, 0, bytes_length as u32),
                 usage: BufferUsage::DynamicDraw,
             }),
         }
@@ -94,6 +109,7 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
     fn uniform_bindings(&self) -> &[UniformBinding] {
         UNIFORM_BINDINGS.get_or_init(|| {
             [
+                UniformBinding::ParentModelMatrix,
                 UniformBinding::ViewProjMatrix,
                 UniformBinding::FromMaterial(COLOR_UNIFORM.to_string()),
             ]
@@ -137,37 +153,5 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn instanced(&self) -> Option<i32> {
         Some(self.count)
-    }
-
-    fn pre_render(&mut self, _: &Scene, entity: &Entity, _: &dyn Geometry) {
-        let entity_model_matrix = match entity.parent() {
-            Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
-            None => *entity.model_matrix(),
-        };
-
-        let count = self.count;
-        let grid = 100;
-        let width = 500.0;
-        let height = 500.0;
-        let cell_width = width / (grid as f32);
-        let cell_height = height / (grid as f32);
-        let start_x = width / 2.0 - cell_width / 2.0;
-        let start_z = height / 2.0 - cell_height / 2.0;
-
-        let bytes_length = (16 * 4 * count) as usize;
-        let mut data = Vec::with_capacity(bytes_length);
-        for index in 0..count {
-            let row = index / grid;
-            let col = index % grid;
-
-            let center_x = start_x - col as f32 * cell_width;
-            let center_z = start_z - row as f32 * cell_height;
-            let model_matrix = entity_model_matrix
-                * Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z));
-            data.extend_from_slice(model_matrix.as_ref());
-        }
-
-        self.model_matrices
-            .buffer_sub_data(BufferSubData::new(data, 0, 0, bytes_length as u32));
     }
 }
