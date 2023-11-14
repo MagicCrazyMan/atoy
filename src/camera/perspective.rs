@@ -17,6 +17,7 @@ pub struct PerspectiveCamera {
     far: Option<f32>,
     view: Mat4,
     proj: Mat4,
+    view_proj: Mat4,
 }
 
 impl PerspectiveCamera {
@@ -40,6 +41,7 @@ impl PerspectiveCamera {
             far,
             view: Mat4::new_identity(),
             proj: Mat4::new_identity(),
+            view_proj: Mat4::new_identity(),
         };
         camera.update_view();
         camera.update_proj();
@@ -48,10 +50,12 @@ impl PerspectiveCamera {
 
     fn update_view(&mut self) {
         self.view = Mat4::from_look_at(&self.position, &self.center, &self.up);
+        self.view_proj = self.proj * self.view
     }
 
     fn update_proj(&mut self) {
         self.proj = Mat4::from_perspective(self.fovy, self.aspect, self.near, self.far);
+        self.view_proj = self.proj * self.view
     }
 
     pub fn position(&self) -> &Vec3<f32> {
@@ -88,30 +92,6 @@ impl PerspectiveCamera {
         self.near = near;
         self.update_proj();
     }
-
-    pub fn set_eye_silent(&mut self, eye: Vec3) {
-        self.position = eye;
-    }
-
-    pub fn set_center_silent(&mut self, center: Vec3) {
-        self.center = center;
-    }
-
-    pub fn set_up_silent(&mut self, up: Vec3) {
-        self.up = up;
-    }
-
-    pub fn set_fovy_silent(&mut self, fovy: f32) {
-        self.fovy = fovy;
-    }
-
-    pub fn set_aspect_silent(&mut self, aspect: f32) {
-        self.aspect = aspect;
-    }
-
-    pub fn set_near_silent(&mut self, near: f32) {
-        self.near = near;
-    }
 }
 
 impl Camera for PerspectiveCamera {
@@ -123,12 +103,16 @@ impl Camera for PerspectiveCamera {
         &self.position
     }
 
-    fn view(&self) -> &Mat4 {
+    fn view_matrix(&self) -> &Mat4 {
         &self.view
     }
 
-    fn proj(&self) -> &Mat4 {
+    fn proj_matrix(&self) -> &Mat4 {
         &self.proj
+    }
+
+    fn view_proj_matrix(&self) -> &Mat4 {
+        &self.view_proj
     }
 
     fn set_position(&mut self, position: Vec3) {

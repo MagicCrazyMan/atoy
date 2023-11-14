@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError};
-use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlElement};
 
 use crate::{

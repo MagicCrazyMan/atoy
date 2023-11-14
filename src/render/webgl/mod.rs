@@ -7,7 +7,7 @@ use web_sys::{
     js_sys::Date, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
 };
 
-use crate::{entity::Entity, ncor::Ncor, scene::Scene, window, document};
+use crate::{document, entity::Entity, ncor::Ncor, scene::Scene};
 
 use self::{
     buffer::BufferStore,
@@ -161,8 +161,8 @@ struct RenderGroup {
 
 impl WebGL2Render {
     fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
-        let view = *scene.active_camera().view();
-        let proj = *scene.active_camera().proj();
+        let view = *scene.active_camera().view_matrix();
+        let proj = *scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
         let mut rollings = VecDeque::from([scene.root_entity()]);
@@ -246,6 +246,7 @@ impl WebGL2Render {
         // extract camera direction and position
         let camera_direction = *scene.active_camera().direction();
         let camera_position = *scene.active_camera().position();
+        let camera_view_proj_matrix = *scene.active_camera().view_proj_matrix();
 
         // render each entities group
         for (
@@ -371,6 +372,14 @@ impl WebGL2Render {
                             src_offset: 0,
                             src_length: 0,
                         })),
+                        UniformBinding::ViewProjMatrix => {
+                            Some(Ncor::Owned(UniformValue::Matrix4 {
+                                data: Box::new(camera_view_proj_matrix),
+                                transpose: false,
+                                src_offset: 0,
+                                src_length: 0,
+                            }))
+                        }
                         UniformBinding::ModelViewMatrix => {
                             Some(Ncor::Owned(UniformValue::Matrix4 {
                                 data: Box::new(*entity.composed_model_view_matrix().borrow()),
@@ -636,21 +645,46 @@ impl WebGL2Render {
             }
         }
 
-        // unbinds program after drawing
+        // unbinds data after drawing
         let start = Date::now();
         gl.use_program(None);
+        gl.bind_vertex_array(None);
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         let end = Date::now();
         unbind_prom += end - start;
 
         let total_end = Date::now();
 
-        document().get_element_by_id("preparation").unwrap().set_inner_html(&prep.to_string());
-        document().get_element_by_id("bind_program").unwrap().set_inner_html(&bind_prom.to_string());
-        document().get_element_by_id("attributes").unwrap().set_inner_html(&attr.to_string());
-        document().get_element_by_id("uniforms").unwrap().set_inner_html(&unif.to_string());
-        document().get_element_by_id("render").unwrap().set_inner_html(&rend.to_string());
-        document().get_element_by_id("unbind_program").unwrap().set_inner_html(&unbind_prom.to_string());
-        document().get_element_by_id("total").unwrap().set_inner_html(&(total_end - total_start).to_string());
+        document()
+            .get_element_by_id("preparation")
+            .unwrap()
+            .set_inner_html(&prep.to_string());
+        document()
+            .get_element_by_id("bind_program")
+            .unwrap()
+            .set_inner_html(&bind_prom.to_string());
+        document()
+            .get_element_by_id("attributes")
+            .unwrap()
+            .set_inner_html(&attr.to_string());
+        document()
+            .get_element_by_id("uniforms")
+            .unwrap()
+            .set_inner_html(&unif.to_string());
+        document()
+            .get_element_by_id("render")
+            .unwrap()
+            .set_inner_html(&rend.to_string());
+        document()
+            .get_element_by_id("unbind_program")
+            .unwrap()
+            .set_inner_html(&unbind_prom.to_string());
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&(total_end - total_start).to_string());
 
         Ok(())
     }

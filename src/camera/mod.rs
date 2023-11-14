@@ -9,9 +9,11 @@ pub trait Camera {
 
     fn position(&self) -> &Vec3;
 
-    fn view(&self) -> &Mat4;
+    fn view_matrix(&self) -> &Mat4;
 
-    fn proj(&self) -> &Mat4;
+    fn proj_matrix(&self) -> &Mat4;
+
+    fn view_proj_matrix(&self) -> &Mat4;
 
     fn set_position(&mut self, position: Vec3);
 

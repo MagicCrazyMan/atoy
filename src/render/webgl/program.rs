@@ -185,6 +185,7 @@ pub enum UniformValue {
 pub enum UniformBinding {
     ModelMatrix,
     NormalMatrix,
+    ViewProjMatrix,
     ModelViewMatrix,
     ModelViewProjMatrix,
     ActiveCameraPosition,
@@ -200,6 +201,7 @@ impl UniformBinding {
             UniformBinding::ModelMatrix => "u_ModelMatrix",
             UniformBinding::NormalMatrix => "u_NormalMatrix",
             UniformBinding::ModelViewMatrix => "u_ModelViewMatrix",
+            UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ModelViewProjMatrix => "u_ModelViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
             UniformBinding::ActiveCameraDirection => "u_ActiveCameraDirection",
