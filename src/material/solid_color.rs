@@ -9,13 +9,13 @@ use crate::render::webgl::program::{
 
 use super::WebGLMaterial;
 
-static NAME: &'static str = "SolidColorMaterial";
-static COLOR_UNIFORM: &'static str = "u_Color";
+const NAME: &'static str = "SolidColorMaterial";
+const COLOR_UNIFORM: &'static str = "u_Color";
 
 static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
-static VERTEX_SHADER_SOURCE: &'static str = "
+const VERTEX_SHADER_SOURCE: &'static str = "
 attribute vec4 a_Position;
 
 uniform mat4 u_ModelViewProjMatrix;
@@ -26,7 +26,7 @@ void main() {
     v_Position = u_ModelViewProjMatrix * a_Position;
 }
 ";
-static FRAGMENT_SHADER_SOURCE: &'static str = "
+const FRAGMENT_SHADER_SOURCE: &'static str = "
 uniform vec4 u_Color;
 
 varying vec4 v_Position;
@@ -110,14 +110,13 @@ impl WebGLMaterial for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<&UniformValue> {
         todo!()
-        // if name == COLOR_UNIFORM {
-        //     Some(Cow::Owned(UniformValue::FloatVector4 {
-        //         data: Cow::Borrowed(self.color.as_ref()),
+        // match name {
+        //     COLOR_UNIFORM => Some(&UniformValue::FloatVector4 {
+        //         data: Box::new(self.color),
         //         src_offset: 0,
         //         src_length: 0,
-        //     }))
-        // } else {
-        //     None
+        //     }),
+        //     _ => None,
         // }
     }
 }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
 use wasm_bindgen::JsError;

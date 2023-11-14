@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::render::webgl::program::{
     AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
 };

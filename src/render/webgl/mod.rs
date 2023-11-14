@@ -1,10 +1,10 @@
-use std::{borrow::Cow, collections::VecDeque};
+use std::collections::VecDeque;
 
 use gl_matrix4rust::vec4::Vec4;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{entity::Entity, scene::Scene};
+use crate::{entity::Entity, scene::Scene, Ncor};
 
 use self::{
     buffer::BufferStore,
@@ -258,55 +258,55 @@ impl WebGL2Render {
             // binds uniform values
             for (binding, location) in uniform_locations {
                 let value = match binding {
-                    UniformBinding::ModelMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
+                    UniformBinding::ModelMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
                         data: Box::new(entity.composed_model_matrix()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
-                    UniformBinding::NormalMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
-                        data: Box::new(matrices.composed_normal_matrix().raw()),
+                    UniformBinding::NormalMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
+                        data: Box::new(entity.composed_normal_matrix()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
-                    UniformBinding::ModelViewMatrix => Some(Cow::Owned(UniformValue::Matrix4 {
-                        data: Box::new(matrices.composed_model_view_matrix().raw()),
+                    UniformBinding::ModelViewMatrix => Some(Ncor::Owned(UniformValue::Matrix4 {
+                        data: Box::new(entity.composed_model_view_matrix()),
                         transpose: false,
                         src_offset: 0,
                         src_length: 0,
                     })),
                     UniformBinding::ModelViewProjMatrix => {
-                        Some(Cow::Owned(UniformValue::Matrix4 {
-                            data: Box::new(matrices.composed_model_view_proj_matrix().raw()),
+                        Some(Ncor::Owned(UniformValue::Matrix4 {
+                            data: Box::new(entity.composed_model_view_proj_matrix()),
                             transpose: false,
                             src_offset: 0,
                             src_length: 0,
                         }))
                     }
                     UniformBinding::ActiveCameraPosition => {
-                        Some(Cow::Owned(UniformValue::FloatVector3 {
-                            data: Box::new(camera_position.raw()),
+                        Some(Ncor::Owned(UniformValue::FloatVector3 {
+                            data: Box::new(camera_position),
                             src_offset: 0,
                             src_length: 0,
                         }))
                     }
                     UniformBinding::ActiveCameraDirection => {
-                        Some(Cow::Owned(UniformValue::FloatVector3 {
-                            data: Box::new(camera_direction.raw()),
+                        Some(Ncor::Owned(UniformValue::FloatVector3 {
+                            data: Box::new(camera_direction),
                             src_offset: 0,
                             src_length: 0,
                         }))
                     }
                     UniformBinding::FromGeometry(name) => geometry
                         .uniform_value(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
+                        .map(|value| Ncor::Borrowed(value)),
                     UniformBinding::FromMaterial(name) => material
                         .uniform_value(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
+                        .map(|value| Ncor::Borrowed(value)),
                     UniformBinding::FromEntity(name) => entity
                         .uniform_value(name.as_str())
-                        .map(|value| Cow::Borrowed(value)),
+                        .map(|value| Ncor::Borrowed(value)),
                 };
                 let Some(value) = value else {
                     // should log warning
@@ -314,6 +314,15 @@ impl WebGL2Render {
                 };
 
                 match value.as_ref() {
+                    UniformValue::Buffer {
+                        descriptor,
+                        target,
+                        size,
+                        data_type,
+                        normalized,
+                        stride,
+                        offset,
+                    } => todo!(),
                     UniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), *x),
                     UniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), *x, *y),
                     UniformValue::UnsignedInteger3(x, y, z) => {
@@ -330,7 +339,7 @@ impl WebGL2Render {
                         .gl
                         .uniform1fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -342,7 +351,7 @@ impl WebGL2Render {
                         .gl
                         .uniform2fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -354,7 +363,7 @@ impl WebGL2Render {
                         .gl
                         .uniform3fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -366,7 +375,7 @@ impl WebGL2Render {
                         .gl
                         .uniform4fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -378,7 +387,7 @@ impl WebGL2Render {
                         .gl
                         .uniform1iv_with_i32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -390,7 +399,7 @@ impl WebGL2Render {
                         .gl
                         .uniform2iv_with_i32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -402,7 +411,7 @@ impl WebGL2Render {
                         .gl
                         .uniform3iv_with_i32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -414,7 +423,7 @@ impl WebGL2Render {
                         .gl
                         .uniform4iv_with_i32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -426,7 +435,7 @@ impl WebGL2Render {
                         .gl
                         .uniform1uiv_with_u32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -438,7 +447,7 @@ impl WebGL2Render {
                         .gl
                         .uniform2uiv_with_u32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -450,7 +459,7 @@ impl WebGL2Render {
                         .gl
                         .uniform3uiv_with_u32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -462,7 +471,7 @@ impl WebGL2Render {
                         .gl
                         .uniform4uiv_with_u32_array_and_src_offset_and_src_length(
                             Some(location),
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -476,7 +485,7 @@ impl WebGL2Render {
                         .uniform_matrix2fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
                             *transpose,
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -490,7 +499,7 @@ impl WebGL2Render {
                         .uniform_matrix3fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
                             *transpose,
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
@@ -504,7 +513,7 @@ impl WebGL2Render {
                         .uniform_matrix4fv_with_f32_array_and_src_offset_and_src_length(
                             Some(location),
                             *transpose,
-                            &data,
+                            data.as_ref().as_ref(),
                             *src_offset,
                             *src_length,
                         ),
