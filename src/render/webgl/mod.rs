@@ -4,7 +4,7 @@ use gl_matrix4rust::vec4::Vec4;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{entity::Entity, scene::Scene, Ncor};
+use crate::{entity::Entity, ncor::Ncor, scene::Scene};
 
 use self::{
     buffer::BufferStore,
@@ -202,7 +202,7 @@ impl WebGL2Render {
                     continue;
                 };
 
-                match value {
+                match value.as_ref() {
                     AttributeValue::Buffer {
                         descriptor,
                         target,
@@ -225,7 +225,7 @@ impl WebGL2Render {
                         gl.bind_buffer(target.to_gl_enum(), Some(buffer));
                         gl.vertex_attrib_pointer_with_i32(
                             *location,
-                            *size,
+                            size.to_i32(),
                             data_type.to_gl_enum(),
                             *normalized,
                             *stride,
@@ -298,15 +298,9 @@ impl WebGL2Render {
                             src_length: 0,
                         }))
                     }
-                    UniformBinding::FromGeometry(name) => geometry
-                        .uniform_value(name.as_str())
-                        .map(|value| Ncor::Borrowed(value)),
-                    UniformBinding::FromMaterial(name) => material
-                        .uniform_value(name.as_str())
-                        .map(|value| Ncor::Borrowed(value)),
-                    UniformBinding::FromEntity(name) => entity
-                        .uniform_value(name.as_str())
-                        .map(|value| Ncor::Borrowed(value)),
+                    UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_str()),
+                    UniformBinding::FromMaterial(name) => material.uniform_value(name.as_str()),
+                    UniformBinding::FromEntity(name) => entity.uniform_value(name.as_str()),
                 };
                 let Some(value) = value else {
                     // should log warning

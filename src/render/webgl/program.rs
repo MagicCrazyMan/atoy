@@ -1,11 +1,11 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap};
 
 use wasm_bindgen::JsError;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use crate::material::WebGLMaterial;
 
-use super::buffer::{BufferDescriptor, BufferStatus, BufferTarget};
+use super::buffer::{BufferDescriptor, BufferTarget, BufferItemSize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferDataType {
@@ -44,7 +44,7 @@ pub enum AttributeValue {
     Buffer {
         descriptor: BufferDescriptor,
         target: BufferTarget,
-        size: i32,
+        size: BufferItemSize,
         data_type: BufferDataType,
         normalized: bool,
         stride: i32,
@@ -91,7 +91,7 @@ impl AttributeBinding {
             AttributeBinding::GeometryNormal => Cow::Borrowed("attribute vec3 a_Normal;"),
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name) => Cow::Owned(String::from("attribute")),
+            | AttributeBinding::FromEntity(name) => Cow::Owned(name.clone()),
         }
     }
 }
@@ -228,7 +228,7 @@ pub enum ShaderSource {
 #[derive(Debug)]
 struct ProgramItem {
     program: WebGlProgram,
-    shaders: Vec<WebGlShader>,
+    // shaders: Vec<WebGlShader>,
     attributes: HashMap<AttributeBinding, u32>,
     uniforms: HashMap<UniformBinding, WebGlUniformLocation>,
 }
@@ -316,7 +316,7 @@ fn compile_material_to_program(
         attributes: collect_attribute_locations(gl, &program, material.attribute_bindings())?,
         uniforms: collect_uniform_locations(gl, &program, material.uniform_bindings())?,
         program,
-        shaders,
+        // shaders,
     })
 }
 

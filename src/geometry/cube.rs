@@ -1,11 +1,16 @@
-use std::{any::Any, sync::OnceLock};
+use std::any::Any;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::render::webgl::{
-    buffer::{BufferData, BufferDescriptor, BufferStatus, BufferTarget, BufferUsage},
-    draw::Draw,
-    program::{AttributeValue, BufferDataType, UniformValue},
+use crate::{
+    ncor::Ncor,
+    render::webgl::{
+        buffer::{
+            BufferData, BufferDescriptor, BufferItemSize, BufferStatus, BufferTarget, BufferUsage,
+        },
+        draw::{Draw, DrawMode},
+        program::{AttributeValue, BufferDataType, UniformValue},
+    },
 };
 
 use super::Geometry;
@@ -13,8 +18,17 @@ use super::Geometry;
 #[wasm_bindgen]
 pub struct Cube {
     size: f32,
+    vertices_buffer: BufferDescriptor,
     vertices: AttributeValue,
     normals: AttributeValue,
+}
+
+#[wasm_bindgen]
+impl Cube {
+    #[wasm_bindgen(constructor)]
+    pub fn new_constructor(size: Option<f32>) -> Self {
+        Self::with_size(size.unwrap_or(1.0))
+    }
 }
 
 impl Cube {
@@ -23,22 +37,29 @@ impl Cube {
     }
 
     pub fn with_size(size: f32) -> Cube {
-        let vertices = get_vertices_buffer(size);
-        let bytes_size = vertices.len() as i32;
         Self {
             size,
+            vertices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
+                id: None,
+                data: BufferData::FillData {
+                    data: Box::new(get_vertices_buffer(size)),
+                    src_byte_offset: 0,
+                    src_byte_length: 0,
+                },
+                usage: BufferUsage::StaticDraw,
+            }),
             vertices: AttributeValue::Buffer {
                 descriptor: BufferDescriptor::new(BufferStatus::UpdateBuffer {
                     id: None,
                     data: BufferData::FillData {
-                        data: Box::new(vertices),
+                        data: Box::new(get_vertices_buffer(size)),
                         src_byte_offset: 0,
                         src_byte_length: 0,
                     },
                     usage: BufferUsage::StaticDraw,
                 }),
                 target: BufferTarget::Buffer,
-                size: bytes_size,
+                size: BufferItemSize::Three,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 stride: 0,
@@ -55,7 +76,7 @@ impl Cube {
                     usage: BufferUsage::StaticDraw,
                 }),
                 target: BufferTarget::Buffer,
-                size: bytes_size,
+                size: BufferItemSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 stride: 0,
@@ -74,40 +95,49 @@ impl Cube {
 
     pub fn set_size(&mut self, size: f32) {
         self.size = size;
+        // self.vertices = AttributeValue::Buffer {
+        //     descriptor: BufferDescriptor::new(BufferStatus::UpdateBuffer {
+        //         id: self.,
+        //         data: (),
+        //         usage: (),
+        //     }),
+        //     target: BufferTarget::Buffer,
+        //     size: BufferItemSize::Three,
+        //     data_type: BufferDataType::Float,
+        //     normalized: false,
+        //     stride: 0,
+        //     offset: 0,
+        // };
     }
 }
 
 impl Geometry for Cube {
-    fn vertices(&self) -> Option<&AttributeValue> {
-        Some(&self.vertices)
-    }
-
-    fn normals(&self) -> Option<&AttributeValue> {
-        todo!()
-        //     Some(vec![
-        //         0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  // front
-        //         0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  // up
-        //         0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  // back
-        //         0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  // bottom
-        //        -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,  // left
-        //         1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  // right
-        //     ])
-    }
-
     fn draw(&self) -> Draw {
+        Draw::Arrays {
+            mode: DrawMode::Triangles,
+            first: 0,
+            count: 12,
+        }
+    }
+
+    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
+        Some(Ncor::Borrowed(&self.vertices))
+    }
+
+    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
+        Some(Ncor::Borrowed(&self.normals))
+    }
+
+    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
         todo!()
     }
 
-    fn attribute_value<'a>(&self, _name: &str) -> Option<&AttributeValue> {
+    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
         None
     }
 
-    fn uniform_value<'a>(&self, _name: &str) -> Option<&UniformValue> {
+    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
         None
-    }
-
-    fn texture_coordinates<'a>(&'a self) -> Option<&AttributeValue> {
-        todo!()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -134,25 +164,20 @@ fn get_vertices_buffer(size: f32) -> Vec<u8> {
     .collect::<Vec<_>>()
 }
 
-static NORMALS_BUFFER: OnceLock<Vec<u8>> = OnceLock::new();
-fn get_normals_buffer() -> &'static Vec<u8> {
-    NORMALS_BUFFER.get_or_init(|| {
-        ([
-            0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, // front
-            0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, // up
-            0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0,
-            0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, // back
-            0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
-            0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, // bottom
-            -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,
-            -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
-            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, // right
-        ] as [f32; 144])
-            .iter()
-            .flat_map(|v| v.to_ne_bytes())
-            .collect::<Vec<_>>()
-    })
+const NORMALS: [f32; 144] = [
+    0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
+    0.0, 0.0, 0.0, 1.0, 0.0, // front
+    0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0, 0.0, 0.0, // up
+    0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,
+    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, // back
+    0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0,
+    0.0, 0.0, 0.0, -1.0, 0.0, 0.0, // bottom
+    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0,
+    0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
+    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0, 0.0, // right
+];
+fn get_normals_buffer() -> &'static [u8] {
+    unsafe { std::mem::transmute::<&[f32; 144], &[u8; 576]>(&NORMALS) }
 }

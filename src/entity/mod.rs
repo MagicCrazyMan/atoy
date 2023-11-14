@@ -1,9 +1,10 @@
-use gl_matrix4rust::{mat4::Mat4, error::Error};
+use gl_matrix4rust::{error::Error, mat4::Mat4};
 use uuid::Uuid;
 
 use crate::{
     geometry::Geometry,
     material::WebGLMaterial,
+    ncor::Ncor,
     render::webgl::program::{AttributeValue, UniformValue},
 };
 
@@ -100,11 +101,11 @@ impl Entity {
 
     // pub fn set_material<M: Material + Sized + 'static>(&mut self, material: Option<M>);
 
-    pub fn attribute_value(&self, name: &str) -> Option<&AttributeValue> {
+    pub fn attribute_value<'a>(&self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         todo!()
     }
 
-    pub fn uniform_value<'a>(&self, name: &str) -> Option<&UniformValue> {
+    pub fn uniform_value<'a>(&self, name: &str) -> Option<Ncor<'a, UniformValue>> {
         todo!()
     }
 

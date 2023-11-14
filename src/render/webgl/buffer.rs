@@ -34,6 +34,25 @@ impl BufferTarget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufferItemSize {
+    One,
+    Two,
+    Three,
+    Four
+}
+
+impl BufferItemSize {
+    pub fn to_i32(&self) -> i32 {
+        match self {
+            BufferItemSize::One => 1,
+            BufferItemSize::Two => 2,
+            BufferItemSize::Three => 3,
+            BufferItemSize::Four => 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferUsage {
     StaticDraw,
     DynamicDraw,

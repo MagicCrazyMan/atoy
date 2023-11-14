@@ -3,8 +3,11 @@ use std::{borrow::Cow, sync::OnceLock};
 use palette::rgb::Rgba;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::render::webgl::program::{
-    AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
+use crate::{
+    ncor::Ncor,
+    render::webgl::program::{
+        AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
+    },
 };
 
 use super::WebGLMaterial;
@@ -104,14 +107,14 @@ impl WebGLMaterial for SolidColorMaterial {
         })
     }
 
-    fn attribute_value(&self, _name: &str) -> Option<&AttributeValue> {
+    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<&UniformValue> {
+    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
         todo!()
         // match name {
-        //     COLOR_UNIFORM => Some(&UniformValue::FloatVector4 {
+        //     COLOR_UNIFORM => Some(Ncor<'a, UniformValue>::FloatVector4 {
         //         data: Box::new(self.color),
         //         src_offset: 0,
         //         src_length: 0,

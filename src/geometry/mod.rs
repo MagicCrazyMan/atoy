@@ -2,23 +2,26 @@ pub mod cube;
 
 use std::any::Any;
 
-use crate::render::webgl::{
-    draw::Draw,
-    program::{AttributeValue, UniformValue},
+use crate::{
+    ncor::Ncor,
+    render::webgl::{
+        draw::Draw,
+        program::{AttributeValue, UniformValue},
+    },
 };
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
 
-    fn vertices(&self) -> Option<&AttributeValue>;
+    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
 
-    fn normals(&self) -> Option<&AttributeValue>;
+    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
 
-    fn texture_coordinates(&self) -> Option<&AttributeValue>;
+    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
 
-    fn attribute_value(&self, name: &str) -> Option<&AttributeValue>;
+    fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>>;
 
-    fn uniform_value(&self, name: &str) -> Option<&UniformValue>;
+    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>>;
 
     fn as_any(&self) -> &dyn Any;
 
