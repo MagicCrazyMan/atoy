@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use gl_matrix4rust::vec4::Vec4;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
@@ -38,7 +38,6 @@ pub struct WebGL2Render {
     depth_test: bool,
     cull_face_mode: Option<u32>,
     clear_color: Vec4,
-    first: bool,
 }
 
 #[wasm_bindgen]
@@ -64,7 +63,6 @@ impl WebGL2Render {
             depth_test: true,
             cull_face_mode: None,
             clear_color: Vec4::new(),
-            first: true,
         })
     }
 
@@ -81,7 +79,6 @@ impl WebGL2Render {
             depth_test: true,
             cull_face_mode: None,
             clear_color: Vec4::new(),
-            first: true,
         })
     }
 
