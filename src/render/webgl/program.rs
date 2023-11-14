@@ -1,6 +1,5 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use wasm_bindgen::JsError;
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 

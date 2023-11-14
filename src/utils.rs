@@ -1,18 +1,9 @@
-use std::{
-    borrow::{BorrowMut, Cow},
-    cell::RefCell,
-    io::Write,
-    rc::Rc,
-    sync::{Arc, Mutex, OnceLock},
-    thread::{sleep, spawn},
-    time::{Duration, Instant, SystemTime},
-};
+use std::{borrow::Cow, cell::RefCell, io::Write, rc::Rc, sync::OnceLock};
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgba;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
 use wasm_bindgen_test::console_log;
-use web_sys::js_sys::Date;
 
 use crate::{
     entity::Entity,
@@ -139,7 +130,9 @@ pub fn test_scene() -> Result<(), JsError> {
 
         let mut entity = Entity::new_boxed();
         let cube = Cube::new();
-        let material = SolidColorMaterial::with_color(Rgba::new(1.0, 0.0, 0.0, 1.0));
+        let mut color = rand::random::<Rgba>();
+        color.alpha = 1.0;
+        let material = SolidColorMaterial::with_color(color);
         entity.set_geometry(Some(cube));
         entity.set_material(Some(material));
         entity.set_model_matrix(model_matrix);
