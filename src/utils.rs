@@ -7,7 +7,7 @@ use wasm_bindgen_test::console_log;
 
 use crate::{
     entity::Entity,
-    geometry::cube::Cube,
+    geometry::{cube::Cube, indexed_cube::IndexedCube},
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
     },
@@ -103,21 +103,17 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
 }
 
 #[wasm_bindgen]
-pub fn test_cube() -> Result<(), JsError> {
+pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
     scene
         .active_camera_mut()
-        .set_position(Vec3::from_values(0.0, 400.0, 0.0));
+        .set_position(Vec3::from_values(0.0, 500.0, 0.0));
     scene
         .active_camera_mut()
         .set_up(Vec3::from_values(0.0, 0.0, -1.0));
 
-    let count = 10000;
-    let grid = 100;
-    let width = 500.0;
-    let height = 500.0;
     let cell_width = width / (grid as f32);
     let cell_height = height / (grid as f32);
     let start_x = width / 2.0 - cell_width / 2.0;
@@ -131,25 +127,27 @@ pub fn test_cube() -> Result<(), JsError> {
         let model_matrix = Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z));
 
         let mut entity = Entity::new_boxed();
-        let cube = Cube::new();
+
         let mut color = rand::random::<Rgba>();
         color.alpha = 1.0;
         let material = SolidColorMaterial::with_color(color);
-        entity.set_geometry(Some(cube));
+
+        entity.set_geometry(Some(Cube::new()));
+        // entity.set_geometry(Some(IndexedCube::new()));
         entity.set_material(Some(material));
         entity.set_model_matrix(model_matrix);
         scene.root_entity_mut().add_child_boxed(entity);
     }
     let mut render = WebGL2Render::new(&scene)?;
-    render.set_cull_face(Some(CullFace::Back));
+    // render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        let radians_per_second = std::f64::consts::PI / 4.0;
-        let rotation = (seconds * radians_per_second) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene
             .root_entity_mut()
@@ -183,9 +181,11 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
     let material = SolidColorInstancedMaterial::new(color, count, grid, width, height);
 
     entity.set_geometry(Some(Cube::new()));
+    // entity.set_geometry(Some(IndexedCube::new()));
     entity.set_material(Some(material));
     scene.root_entity_mut().add_child_boxed(entity);
     let mut render = WebGL2Render::new(&scene)?;
+    // render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();

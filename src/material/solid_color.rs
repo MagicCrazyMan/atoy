@@ -18,8 +18,8 @@ static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 1]> = OnceLock::new();
 static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
-const VERTEX_SHADER_SOURCE: &'static str = "
-attribute vec4 a_Position;
+const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
+in vec4 a_Position;
 
 uniform mat4 u_ModelViewProjMatrix;
 
@@ -27,7 +27,7 @@ void main() {
     gl_Position = u_ModelViewProjMatrix * a_Position;
 }
 ";
-const FRAGMENT_SHADER_SOURCE: &'static str = "
+const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
 #ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
 #else
@@ -36,8 +36,10 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "
 
 uniform vec4 u_Color;
 
+out vec4 outColor;
+
 void main() {
-    gl_FragColor = u_Color;
+    outColor = u_Color;
 }
 ";
 

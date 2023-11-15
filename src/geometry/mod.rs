@@ -1,4 +1,5 @@
 pub mod cube;
+pub mod indexed_cube;
 
 use std::any::Any;
 
@@ -11,7 +12,7 @@ use crate::{
 };
 
 pub trait Geometry {
-    fn draw(&self) -> Draw;
+    fn draw<'a>(&'a self) -> Draw<'a>;
 
     fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
 

@@ -1,7 +1,10 @@
 use web_sys::WebGl2RenderingContext;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Draw {
+use crate::ncor::Ncor;
+
+use super::buffer::BufferDescriptor;
+
+pub enum Draw<'a> {
     Arrays {
         mode: DrawMode,
         first: i32,
@@ -12,6 +15,7 @@ pub enum Draw {
         count: i32,
         element_type: DrawElementType,
         offset: i32,
+        indices: Ncor<'a, BufferDescriptor>,
     },
 }
 

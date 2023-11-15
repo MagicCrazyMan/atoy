@@ -127,7 +127,7 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         match name {
-            LOCAL_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::Instanced {
+            LOCAL_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
                 descriptor: Ncor::Borrowed(&self.model_matrices),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,

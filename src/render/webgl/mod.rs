@@ -10,7 +10,7 @@ use web_sys::{
 use crate::{document, entity::Entity, geometry, ncor::Ncor, scene::Scene};
 
 use self::{
-    buffer::BufferStore,
+    buffer::{BufferStore, BufferTarget},
     draw::Draw,
     program::{AttributeBinding, AttributeValue, ProgramStore, UniformBinding, UniformValue},
 };
@@ -342,7 +342,7 @@ impl WebGL2Render {
                                 } => {
                                     let buffer = match self
                                         .buffer_store
-                                        .buffer_or_create(descriptor.as_ref(), target)
+                                        .buffer_or_create(descriptor.as_ref(), *target)
                                     {
                                         Ok(buffer) => buffer,
                                         Err(err) => {
@@ -364,7 +364,7 @@ impl WebGL2Render {
                                     gl.enable_vertex_attrib_array(*location);
                                     gl.bind_buffer(target.to_gl_enum(), None);
                                 }
-                                AttributeValue::Instanced {
+                                AttributeValue::InstancedBuffer {
                                     descriptor,
                                     target,
                                     component_size,
@@ -375,7 +375,7 @@ impl WebGL2Render {
                                 } => {
                                     let buffer = match self
                                         .buffer_store
-                                        .buffer_or_create(descriptor.as_ref(), target)
+                                        .buffer_or_create(descriptor.as_ref(), *target)
                                     {
                                         Ok(buffer) => buffer,
                                         Err(err) => {
@@ -750,13 +750,32 @@ impl WebGL2Render {
                                 count,
                                 element_type,
                                 offset,
-                            } => gl.draw_elements_instanced_with_i32(
-                                mode.to_gl_enum(),
-                                count,
-                                element_type.to_gl_enum(),
-                                offset,
-                                num_instances,
-                            ),
+                                indices,
+                            } => {
+                                let buffer = match self.buffer_store.buffer_or_create(
+                                    indices.as_ref(),
+                                    BufferTarget::ElementArrayBuffer,
+                                ) {
+                                    Ok(buffer) => buffer,
+                                    Err(err) => {
+                                        // should log error
+                                        console_log!("4");
+                                        continue;
+                                    }
+                                };
+                                gl.bind_buffer(
+                                    BufferTarget::ElementArrayBuffer.to_gl_enum(),
+                                    Some(buffer),
+                                );
+
+                                gl.draw_elements_instanced_with_i32(
+                                    mode.to_gl_enum(),
+                                    count,
+                                    element_type.to_gl_enum(),
+                                    offset,
+                                    num_instances,
+                                )
+                            }
                         }
                     } else {
                         // draw normally!
@@ -764,19 +783,38 @@ impl WebGL2Render {
                             Draw::Arrays {
                                 mode,
                                 first,
-                                num_vertices: count,
-                            } => gl.draw_arrays(mode.to_gl_enum(), first, count),
+                                num_vertices,
+                            } => gl.draw_arrays(mode.to_gl_enum(), first, num_vertices),
                             Draw::Elements {
                                 mode,
                                 count,
                                 element_type,
                                 offset,
-                            } => gl.draw_elements_with_i32(
-                                mode.to_gl_enum(),
-                                count,
-                                element_type.to_gl_enum(),
-                                offset,
-                            ),
+                                indices,
+                            } => {
+                                let buffer = match self.buffer_store.buffer_or_create(
+                                    indices.as_ref(),
+                                    BufferTarget::ElementArrayBuffer,
+                                ) {
+                                    Ok(buffer) => buffer,
+                                    Err(err) => {
+                                        // should log error
+                                        console_log!("4");
+                                        continue;
+                                    }
+                                };
+                                gl.bind_buffer(
+                                    BufferTarget::ElementArrayBuffer.to_gl_enum(),
+                                    Some(buffer),
+                                );
+
+                                gl.draw_elements_with_i32(
+                                    mode.to_gl_enum(),
+                                    count,
+                                    element_type.to_gl_enum(),
+                                    offset,
+                                )
+                            }
                         }
                     }
                     let end = Date::now();
@@ -796,7 +834,6 @@ impl WebGL2Render {
         gl.use_program(None);
         gl.bind_vertex_array(None);
         gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         let end = Date::now();
         unbind_prom += end - start;

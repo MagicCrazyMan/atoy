@@ -2,7 +2,6 @@ use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
 use wasm_bindgen::JsError;
-use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,7 +224,7 @@ impl BufferStore {
     pub fn buffer_or_create(
         &mut self,
         descriptor: &BufferDescriptor,
-        target: &BufferTarget,
+        target: BufferTarget,
     ) -> Result<&WebGlBuffer, JsError> {
         let mut status = descriptor.status().borrow_mut();
         match &*status {

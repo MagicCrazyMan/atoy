@@ -65,7 +65,7 @@ pub enum AttributeValue<'a> {
         bytes_stride: i32,
         bytes_offset: i32,
     },
-    Instanced {
+    InstancedBuffer {
         descriptor: Ncor<'a, BufferDescriptor>,
         target: BufferTarget,
         component_size: BufferComponentSize,
@@ -443,6 +443,7 @@ fn collect_attribute_locations(
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
             // should log warning
+            console_log!("failed to get attribute location of {}", variable_name);
         } else {
             locations.insert(binding.clone(), location as u32);
         }
@@ -475,6 +476,7 @@ fn collect_uniform_locations(
             }
             None => {
                 // should log warning
+                console_log!("failed to get uniform location of {}", variable_name);
             }
         };
 
