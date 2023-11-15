@@ -10,6 +10,7 @@ use crate::{
     geometry::{cube::Cube, indexed_cube::IndexedCube},
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
+        texture_mapping::TextureMaterial,
     },
     render::webgl::{CullFace, WebGL2Render},
     scene::{Scene, SceneOptions},
@@ -202,6 +203,66 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
             .downcast_mut::<IndexedCube>()
             .unwrap()
             .set_size(size as f32);
+
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+
+        scene
+            .root_entity_mut()
+            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+        render.render(&scene);
+
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn test_texture(url: String) -> Result<(), JsError> {
+    let mut scene = Scene::with_options(SceneOptions {
+        mount: Some(Cow::Borrowed("scene_container")),
+    })?;
+    scene
+        .active_camera_mut()
+        .set_position(Vec3::from_values(2.0, 2.0, 2.0));
+    scene
+        .active_camera_mut()
+        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+
+    let mut entity = Entity::new_boxed();
+
+    // entity.set_geometry(Some(Cube::new()));
+    entity.set_geometry(Some(IndexedCube::new()));
+    entity.set_material(Some(TextureMaterial::new(url)));
+    scene.root_entity_mut().add_child_boxed(entity);
+
+    let mut render = WebGL2Render::new(&scene)?;
+    // render.set_cull_face(Some(CullFace::Back));
+
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
+
+        // static MAX_SIZE: f64 = 3.0;
+        // static MIN_SIZE: f64 = 1.0;
+        // static SIZE_PER_SECOND: f64 = 0.5;
+        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get(0)
+        //     .unwrap()
+        //     .geometry()
+        //     .unwrap()
+        //     .borrow_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<IndexedCube>()
+        //     .unwrap()
+        //     .set_size(size as f32);
 
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);

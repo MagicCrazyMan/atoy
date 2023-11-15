@@ -5,55 +5,10 @@ use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLoc
 
 use crate::{material::WebGLMaterial, ncor::Ncor};
 
-use super::buffer::{BufferComponentSize, BufferDescriptor, BufferTarget};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BufferDataType {
-    Float,
-    Byte,
-    Short,
-    Int,
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
-    HalfFloat,
-    Int2_10_10_10Rev,
-    UnsignedInt2_10_10_10Rev,
-}
-
-impl BufferDataType {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            BufferDataType::Float => WebGl2RenderingContext::FLOAT,
-            BufferDataType::Byte => WebGl2RenderingContext::BYTE,
-            BufferDataType::Short => WebGl2RenderingContext::SHORT,
-            BufferDataType::Int => WebGl2RenderingContext::INT,
-            BufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            BufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
-            BufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            BufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            BufferDataType::Int2_10_10_10Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
-            BufferDataType::UnsignedInt2_10_10_10Rev => {
-                WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
-            }
-        }
-    }
-
-    pub fn bytes_length(&self) -> i32 {
-        match self {
-            BufferDataType::Float => 4,
-            BufferDataType::Byte => 1,
-            BufferDataType::Short => 2,
-            BufferDataType::Int => 4,
-            BufferDataType::UnsignedByte => 1,
-            BufferDataType::UnsignedShort => 2,
-            BufferDataType::UnsignedInt => 4,
-            BufferDataType::HalfFloat => 2,
-            BufferDataType::Int2_10_10_10Rev => 4,
-            BufferDataType::UnsignedInt2_10_10_10Rev => 4,
-        }
-    }
-}
+use super::{
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
+    texture::{TextureDescriptor, TextureTarget, TextureParameter},
+};
 
 pub enum AttributeValue<'a> {
     Buffer {
@@ -105,22 +60,9 @@ impl AttributeBinding {
             | AttributeBinding::FromEntity(name) => name.as_str(),
         }
     }
-
-    pub fn to_glsl<'a>(&self) -> Cow<'a, str> {
-        match self {
-            AttributeBinding::GeometryPosition => Cow::Borrowed("attribute vec3 a_Position;"),
-            AttributeBinding::GeometryTextureCoordinate => {
-                Cow::Borrowed("attribute vec3 a_TexCoords;")
-            }
-            AttributeBinding::GeometryNormal => Cow::Borrowed("attribute vec3 a_Normal;"),
-            AttributeBinding::FromGeometry(name)
-            | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name) => Cow::Owned(name.clone()),
-        }
-    }
 }
 
-pub enum UniformValue {
+pub enum UniformValue<'a> {
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),
     UnsignedInteger3(u32, u32, u32),
@@ -202,6 +144,12 @@ pub enum UniformValue {
         transpose: bool,
         src_offset: u32,
         src_length: u32,
+    },
+    Texture {
+        descriptor: Ncor<'a, TextureDescriptor>,
+        target: TextureTarget,
+        params: Vec<TextureParameter>,
+        active_unit: u32,
     },
 }
 

@@ -7,17 +7,19 @@ use web_sys::{
     js_sys::Date, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
 };
 
-use crate::{document, entity::Entity, geometry, ncor::Ncor, scene::Scene};
+use crate::{document, entity::Entity, ncor::Ncor, scene::Scene};
 
 use self::{
     buffer::{BufferStore, BufferTarget},
     draw::Draw,
     program::{AttributeBinding, AttributeValue, ProgramStore, UniformBinding, UniformValue},
+    texture::{TextureParameter, TextureStore},
 };
 
 pub mod buffer;
 pub mod draw;
 pub mod program;
+pub mod texture;
 
 #[wasm_bindgen(typescript_custom_section)]
 const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"
@@ -52,6 +54,7 @@ pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
     program_store: ProgramStore,
     buffer_store: BufferStore,
+    texture_store: TextureStore,
     depth_test: bool,
     cull_face_mode: Option<CullFace>,
     clear_color: Vec4,
@@ -91,6 +94,7 @@ impl WebGL2Render {
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
+            texture_store: TextureStore::new(gl.clone()),
             gl,
             depth_test: true,
             cull_face_mode: None,
@@ -213,29 +217,35 @@ impl WebGL2Render {
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
             if entity.geometry().is_some() && entity.material().is_some() {
-                let material = entity.material().unwrap().borrow();
-                let material = material.as_ref();
+                let geometry = entity.geometry().unwrap().borrow();
+                let mut material = entity.material().unwrap().borrow_mut();
+                let material = material.as_mut();
 
-                match group.get_mut(material.name()) {
-                    Some(group) => group.entities.push(entity),
-                    None => {
-                        // precompile material to program
-                        let (program, attribute_locations, uniform_locations) =
-                            self.program_store.program_or_compile(material)?;
+                material.pre_render(scene, entity, geometry.as_ref());
 
-                        group.insert(
-                            material.name().to_string(),
-                            RenderGroup {
-                                program,
-                                attribute_locations,
-                                uniform_locations,
-                                entities: vec![entity],
-                            },
-                        );
-                    }
-                };
+                if material.ready() {
+                    match group.get_mut(material.name()) {
+                        Some(group) => group.entities.push(entity),
+                        None => {
+                            // precompile material to program
+                            let (program, attribute_locations, uniform_locations) =
+                                self.program_store.program_or_compile(material)?;
+
+                            group.insert(
+                                material.name().to_string(),
+                                RenderGroup {
+                                    program,
+                                    attribute_locations,
+                                    uniform_locations,
+                                    entities: vec![entity],
+                                },
+                            );
+                        }
+                    };
+                }
             }
 
+            // add children to rollings list
             rollings.extend(entity.children().iter().map(|child| child.as_ref()));
         }
 
@@ -301,12 +311,6 @@ impl WebGL2Render {
                 let entity = unsafe { &*entity };
                 let geometry = entity.geometry().unwrap();
                 let material = entity.material().unwrap();
-
-                {
-                    material
-                        .borrow_mut()
-                        .pre_render(scene, entity, geometry.borrow().as_ref());
-                }
 
                 {
                     let geometry = geometry.borrow();
@@ -388,7 +392,7 @@ impl WebGL2Render {
                                         Ok(buffer) => buffer,
                                         Err(err) => {
                                             // should log error
-                                        console_log!("{}", err);
+                                            console_log!("{}", err);
                                             continue;
                                         }
                                     };
@@ -551,153 +555,128 @@ impl WebGL2Render {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform1fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform1fv_with_f32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::FloatVector2 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform2fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform2fv_with_f32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::FloatVector3 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform3fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform3fv_with_f32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::FloatVector4 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform4fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform4fv_with_f32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::IntegerVector1 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform1iv_with_i32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform1iv_with_i32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::IntegerVector2 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform2iv_with_i32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform2iv_with_i32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::IntegerVector3 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform3iv_with_i32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform3iv_with_i32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::IntegerVector4 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform4iv_with_i32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform4iv_with_i32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::UnsignedIntegerVector1 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform1uiv_with_u32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform1uiv_with_u32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::UnsignedIntegerVector2 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform2uiv_with_u32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform2uiv_with_u32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::UnsignedIntegerVector3 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform3uiv_with_u32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform3uiv_with_u32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::UnsignedIntegerVector4 {
                                     data,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
-                                    .uniform4uiv_with_u32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
+                                } => gl.uniform4uiv_with_u32_array_and_src_offset_and_src_length(
+                                    Some(location),
+                                    data.as_ref().as_ref(),
+                                    *src_offset,
+                                    *src_length,
+                                ),
                                 UniformValue::Matrix2 {
                                     data,
                                     transpose,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
+                                } => gl
                                     .uniform_matrix2fv_with_f32_array_and_src_offset_and_src_length(
                                         Some(location),
                                         *transpose,
@@ -710,8 +689,7 @@ impl WebGL2Render {
                                     transpose,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
+                                } => gl
                                     .uniform_matrix3fv_with_f32_array_and_src_offset_and_src_length(
                                         Some(location),
                                         *transpose,
@@ -724,8 +702,7 @@ impl WebGL2Render {
                                     transpose,
                                     src_offset,
                                     src_length,
-                                } => self
-                                    .gl
+                                } => gl
                                     .uniform_matrix4fv_with_f32_array_and_src_offset_and_src_length(
                                         Some(location),
                                         *transpose,
@@ -733,12 +710,89 @@ impl WebGL2Render {
                                         *src_offset,
                                         *src_length,
                                     ),
+                                UniformValue::Texture {
+                                    descriptor,
+                                    target,
+                                    params,
+                                    active_unit,
+                                } => {
+                                    let texture = match self
+                                        .texture_store
+                                        .texture_or_create(descriptor.as_ref(), *target)
+                                    {
+                                        Ok(texture) => texture,
+                                        Err(err) => {
+                                            // should log error
+                                            console_log!("{}", err);
+                                            continue;
+                                        }
+                                    };
+
+                                    // active texture
+                                    gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+                                    // binds texture
+                                    gl.bind_texture(target.to_gl_enum(), Some(texture));
+                                    // setups sampler parameters
+                                    params.iter().for_each(|param| match param {
+                                        TextureParameter::MagFilter(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::MinFilter(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::WrapS(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::WrapT(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::WrapR(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::BaseLevel(v) => {
+                                            gl.tex_parameteri(target.to_gl_enum(), param.key(), *v)
+                                        }
+                                        TextureParameter::CompareFunc(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::CompareMode(v) => gl.tex_parameteri(
+                                            target.to_gl_enum(),
+                                            param.key(),
+                                            v.value(),
+                                        ),
+                                        TextureParameter::MaxLevel(v) => {
+                                            gl.tex_parameteri(target.to_gl_enum(), param.key(), *v)
+                                        }
+                                        TextureParameter::MaxLod(v) => {
+                                            gl.tex_parameterf(target.to_gl_enum(), param.key(), *v)
+                                        }
+                                        TextureParameter::MinLod(v) => {
+                                            gl.tex_parameterf(target.to_gl_enum(), param.key(), *v)
+                                        }
+                                    });
+                                    // binds to shader
+                                    gl.uniform1i(Some(location), 0);
+                                    // gl.bind_texture(target.to_gl_enum(), None);
+                                }
                             }
                         }
                         let end = Date::now();
                         unif += end - start;
                     }
 
+                    // draws entity
                     let start = Date::now();
                     if let Some(num_instances) = material.instanced() {
                         // draw instanced

@@ -6,11 +6,10 @@ use crate::{
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferSubData,
-            BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
         },
         draw::{Draw, DrawMode},
-        program::{AttributeValue, BufferDataType, UniformValue},
+        program::{AttributeValue, UniformValue},
     },
 };
 
@@ -21,6 +20,7 @@ pub struct Cube {
     size: f32,
     vertices_buffer: BufferDescriptor,
     normals_buffer: BufferDescriptor,
+    texture_coordinates_buffer: BufferDescriptor,
 }
 
 #[wasm_bindgen]
@@ -39,22 +39,29 @@ impl Cube {
     pub fn with_size(size: f32) -> Cube {
         Self {
             size,
-            vertices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(get_vertices_buffer(size), 0, 108 * 4),
-                usage: BufferUsage::StaticDraw,
-            }),
-            normals_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(get_normals_buffer(), 0, 144 * 4),
-                usage: BufferUsage::StaticDraw,
-            }),
+            vertices_buffer: BufferDescriptor::with_binary(
+                get_vertices_buffer(size),
+                0,
+                108 * 4,
+                BufferUsage::StaticDraw,
+            ),
+            normals_buffer: BufferDescriptor::with_binary(
+                get_normals_buffer(),
+                0,
+                144 * 4,
+                BufferUsage::StaticDraw,
+            ),
+            texture_coordinates_buffer: BufferDescriptor::with_binary(
+                get_texture_coordinates(),
+                0,
+                48 * 4,
+                BufferUsage::StaticDraw,
+            ),
         }
     }
 }
 
 #[wasm_bindgen]
-
 impl Cube {
     pub fn size(&self) -> f32 {
         self.size
@@ -62,12 +69,8 @@ impl Cube {
 
     pub fn set_size(&mut self, size: f32) {
         self.size = size;
-        self.vertices_buffer.buffer_sub_data(BufferSubData::new(
-            get_vertices_buffer(size),
-            0,
-            0,
-            108 * 4,
-        ));
+        self.vertices_buffer
+            .buffer_sub_data(get_vertices_buffer(size), 0, 0, 108 * 4);
     }
 }
 
@@ -105,7 +108,15 @@ impl Geometry for Cube {
     }
 
     fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        todo!()
+        Some(Ncor::Owned(AttributeValue::Buffer {
+            descriptor: Ncor::Borrowed(&self.texture_coordinates_buffer),
+            target: BufferTarget::Buffer,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::Float,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        }))
     }
 
     fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
@@ -125,21 +136,23 @@ impl Geometry for Cube {
     }
 }
 
+#[rustfmt::skip]
 fn get_vertices_buffer(size: f32) -> Vec<u8> {
     let s = size / 2.0;
     [
-        -s, s, s, -s, -s, s, s, s, s, s, s, s, -s, -s, s, s, -s, s, // front
-        -s, s, -s, -s, s, s, s, s, -s, s, s, -s, -s, s, s, s, s, s, // up
-        -s, s, -s, s, s, -s, -s, -s, -s, s, s, -s, s, -s, -s, -s, -s, -s, // back
-        -s, -s, -s, s, -s, -s, -s, -s, s, s, -s, -s, s, -s, s, -s, -s, s, // bottom
-        -s, s, -s, -s, -s, -s, -s, s, s, -s, s, s, -s, -s, -s, -s, -s, s, // left
-        s, s, s, s, -s, s, s, s, -s, s, s, -s, s, -s, s, s, -s, -s, // right
+        -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
+        -s,  s, -s,  -s,  s,  s,   s,  s, -s,   s,  s, -s,  -s,  s,  s,   s,  s,  s, // up
+        -s,  s, -s,   s,  s, -s,  -s, -s, -s,   s,  s, -s,   s, -s, -s,  -s, -s, -s, // back
+        -s, -s, -s,   s, -s, -s,  -s, -s,  s,   s, -s, -s,   s, -s,  s,  -s, -s,  s, // bottom
+        -s,  s, -s,  -s, -s, -s,  -s,  s,  s,  -s,  s,  s,  -s, -s, -s,  -s, -s,  s, // left
+         s,  s,  s,   s, -s,  s,   s,  s, -s,   s,  s, -s,   s, -s,  s,   s, -s, -s, // right
     ]
     .iter()
     .flat_map(|v| v.to_ne_bytes())
     .collect::<Vec<_>>()
 }
 
+#[rustfmt::skip]
 const NORMALS: [f32; 144] = [
     0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
     0.0, 0.0, 0.0, 1.0, 0.0, // front
@@ -157,4 +170,18 @@ const NORMALS: [f32; 144] = [
 #[inline]
 fn get_normals_buffer() -> &'static [u8] {
     unsafe { std::mem::transmute::<&[f32; 144], &[u8; 144 * 4]>(&NORMALS) }
+}
+
+#[rustfmt::skip]
+const TEXTURE_COORDINATES: [f32; 48] = [
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // front
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // up
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // back
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // bottom
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // left
+    1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // right
+];
+#[inline]
+fn get_texture_coordinates() -> &'static [u8] {
+    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) }
 }

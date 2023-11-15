@@ -6,11 +6,10 @@ use crate::{
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferSubData,
-            BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
         },
         draw::{Draw, DrawElementType, DrawMode},
-        program::{AttributeValue, BufferDataType, UniformValue},
+        program::{AttributeValue, UniformValue},
     },
 };
 
@@ -22,6 +21,7 @@ pub struct IndexedCube {
     indices_buffer: BufferDescriptor,
     vertices_buffer: BufferDescriptor,
     normals_buffer: BufferDescriptor,
+    texture_coordinates_buffer: BufferDescriptor,
 }
 
 #[wasm_bindgen]
@@ -40,21 +40,30 @@ impl IndexedCube {
     pub fn with_size(size: f32) -> IndexedCube {
         Self {
             size,
-            indices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(get_indices_buffer(), 0, 36),
-                usage: BufferUsage::StaticDraw,
-            }),
-            vertices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(get_vertices_buffer(size), 0, 72 * 4),
-                usage: BufferUsage::StaticDraw,
-            }),
-            normals_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(get_normals_buffer(), 0, 96 * 4),
-                usage: BufferUsage::StaticDraw,
-            }),
+            indices_buffer: BufferDescriptor::with_binary(
+                get_indices_buffer(),
+                0,
+                36,
+                BufferUsage::StaticDraw,
+            ),
+            vertices_buffer: BufferDescriptor::with_binary(
+                get_vertices_buffer(size),
+                0,
+                72 * 4,
+                BufferUsage::StaticDraw,
+            ),
+            normals_buffer: BufferDescriptor::with_binary(
+                get_normals_buffer(),
+                0,
+                96 * 4,
+                BufferUsage::StaticDraw,
+            ),
+            texture_coordinates_buffer: BufferDescriptor::with_binary(
+                get_texture_coordinates(),
+                0,
+                48 * 4,
+                BufferUsage::StaticDraw,
+            ),
         }
     }
 }
@@ -68,12 +77,8 @@ impl IndexedCube {
 
     pub fn set_size(&mut self, size: f32) {
         self.size = size;
-        self.vertices_buffer.buffer_sub_data(BufferSubData::new(
-            get_vertices_buffer(size),
-            0,
-            0,
-            72 * 4,
-        ));
+        self.vertices_buffer
+            .buffer_sub_data(get_vertices_buffer(size), 0, 0, 72 * 4);
     }
 }
 
@@ -104,7 +109,7 @@ impl Geometry for IndexedCube {
         Some(Ncor::Owned(AttributeValue::Buffer {
             descriptor: Ncor::Borrowed(&self.normals_buffer),
             target: BufferTarget::Buffer,
-            component_size: BufferComponentSize::Three,
+            component_size: BufferComponentSize::Four,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
@@ -113,7 +118,15 @@ impl Geometry for IndexedCube {
     }
 
     fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        todo!()
+        Some(Ncor::Owned(AttributeValue::Buffer {
+            descriptor: Ncor::Borrowed(&self.texture_coordinates_buffer),
+            target: BufferTarget::Buffer,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::Float,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        }))
     }
 
     fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
@@ -137,16 +150,30 @@ impl Geometry for IndexedCube {
 fn get_vertices_buffer(size: f32) -> Vec<u8> {
     let s = size / 2.0;
     [
-         s, s, s,  -s, s, s,  -s,-s, s,   s,-s, s, // front
-         s, s,-s,  -s, s,-s,  -s, s, s,   s, s, s, // up
-         s, s,-s,  -s, s,-s,  -s,-s,-s,   s,-s,-s, // back
-         s,-s,-s,  -s,-s,-s,  -s,-s, s,   s,-s, s, // bottom
-        -s, s, s,  -s, s,-s,  -s,-s,-s,  -s,-s, s, // left
-         s, s,-s,   s, s, s,   s,-s, s,   s,-s,-s, // right
+        s, s, s,  -s, s, s,  -s,-s, s,   s,-s, s,  // v0-v1-v2-v3 front
+        s, s, s,   s,-s, s,   s,-s,-s,   s, s,-s,  // v0-v3-v4-v5 right
+        s, s, s,   s, s,-s,  -s, s,-s,  -s, s, s,  // v0-v5-v6-v1 up
+       -s, s, s,  -s, s,-s,  -s,-s,-s,  -s,-s, s,  // v1-v6-v7-v2 left
+       -s,-s,-s,   s,-s,-s,   s,-s, s,  -s,-s, s,  // v7-v4-v3-v2 down
+        s,-s,-s,  -s,-s,-s,  -s, s,-s,   s, s,-s,  // v4-v7-v6-v5 back
     ]
     .iter()
     .flat_map(|v| v.to_ne_bytes())
     .collect::<Vec<_>>()
+}
+
+#[rustfmt::skip]
+const TEXTURE_COORDINATES: [f32; 48] = [
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // front
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // up
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // back
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // bottom
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // left
+    1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // right
+];
+#[inline]
+fn get_texture_coordinates() -> &'static [u8] {
+    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) }
 }
 
 #[rustfmt::skip]
@@ -165,12 +192,12 @@ fn get_normals_buffer() -> &'static [u8] {
 
 #[rustfmt::skip]
 const INDICES: [u8; 36] = [
-    0, 1, 2,  0, 2, 3, // front
-    4, 5, 6,  4, 6, 7, // up
-    8,10, 9,  8,11,10, // back
-   12,14,13, 12,15,14, // bottom
-   16,17,18, 16,18,19, // left
-   20,21,22, 20,22,23, // right
+    0,  1,  2,  0,  2,  3, // front
+    4,  5,  6,  4,  6,  7, // up
+    8,  9, 10,  8, 10, 11, // back
+   12, 13, 14, 12, 14, 15, // bottom
+   16, 17, 18, 16, 18, 19, // left
+   20, 21, 22, 20, 22, 23, // right
 ];
 #[inline]
 fn get_indices_buffer() -> &'static [u8] {

@@ -51,6 +51,55 @@ impl BufferComponentSize {
     }
 }
 
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufferDataType {
+    Float,
+    Byte,
+    Short,
+    Int,
+    UnsignedByte,
+    UnsignedShort,
+    UnsignedInt,
+    HalfFloat,
+    Int_2_10_10_10_Rev,
+    UnsignedInt_2_10_10_10_Rev,
+}
+
+impl BufferDataType {
+    pub fn to_gl_enum(&self) -> u32 {
+        match self {
+            BufferDataType::Float => WebGl2RenderingContext::FLOAT,
+            BufferDataType::Byte => WebGl2RenderingContext::BYTE,
+            BufferDataType::Short => WebGl2RenderingContext::SHORT,
+            BufferDataType::Int => WebGl2RenderingContext::INT,
+            BufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
+            BufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
+            BufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            BufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
+            BufferDataType::Int_2_10_10_10_Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
+            BufferDataType::UnsignedInt_2_10_10_10_Rev => {
+                WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
+            }
+        }
+    }
+
+    pub fn bytes_length(&self) -> i32 {
+        match self {
+            BufferDataType::Float => 4,
+            BufferDataType::Byte => 1,
+            BufferDataType::Short => 2,
+            BufferDataType::Int => 4,
+            BufferDataType::UnsignedByte => 1,
+            BufferDataType::UnsignedShort => 2,
+            BufferDataType::UnsignedInt => 4,
+            BufferDataType::HalfFloat => 2,
+            BufferDataType::Int_2_10_10_10_Rev => 4,
+            BufferDataType::UnsignedInt_2_10_10_10_Rev => 4,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferUsage {
     StaticDraw,
@@ -80,124 +129,131 @@ impl BufferUsage {
     }
 }
 
-pub enum BufferData {
-    FillEmpty {
+enum BufferData {
+    Preallocate {
         size: i32,
     },
-    FillData {
+    FromBinary {
         data: Box<dyn AsRef<[u8]>>,
         src_byte_offset: u32,
         src_byte_length: u32,
     },
 }
 
-impl BufferData {
-    pub fn fill_empty(size: i32) -> Self {
-        Self::FillEmpty { size }
-    }
-
-    pub fn fill_data<D: AsRef<[u8]> + 'static>(
-        data: D,
-        src_byte_offset: u32,
-        src_byte_length: u32,
-    ) -> Self {
-        Self::FillData {
-            data: Box::new(data),
-            src_byte_offset,
-            src_byte_length,
-        }
-    }
-}
-
-pub struct BufferSubData {
+struct BufferSubData {
     data: Box<dyn AsRef<[u8]>>,
     dst_byte_offset: i32,
     src_byte_offset: u32,
     src_byte_length: u32,
 }
 
-impl BufferSubData {
-    pub fn new<D: AsRef<[u8]> + 'static>(
-        data: D,
-        dst_byte_offset: i32,
-        src_byte_offset: u32,
-        src_byte_length: u32,
-    ) -> Self {
-        Self {
-            data: Box::new(data),
-            dst_byte_offset,
-            src_byte_offset,
-            src_byte_length,
-        }
-    }
-}
-
-pub enum BufferStatus {
-    Unchanged {
-        id: Uuid,
-    },
-    UpdateBuffer {
-        id: Option<Uuid>,
-        data: BufferData,
-        usage: BufferUsage,
-    },
-    UpdateSubBuffer {
-        id: Uuid,
-        data: BufferSubData,
-    },
+enum BufferStatus {
+    Unchanged { id: Uuid },
+    UpdateBuffer { id: Option<Uuid>, data: BufferData },
+    UpdateSubBuffer { id: Uuid, data: BufferSubData },
 }
 
 pub struct BufferDescriptor {
     status: RefCell<BufferStatus>,
+    usage: BufferUsage,
 }
 
 impl BufferDescriptor {
-    pub fn new(status: BufferStatus) -> Self {
+    pub fn preallocate(size: i32, usage: BufferUsage) -> Self {
         Self {
-            status: RefCell::new(status),
+            status: RefCell::new(BufferStatus::UpdateBuffer {
+                id: None,
+                data: BufferData::Preallocate { size },
+            }),
+            usage,
         }
     }
 
-    pub fn buffer_data(&self, data: BufferData, usage: BufferUsage) {
+    pub fn with_binary<D: AsRef<[u8]> + 'static>(
+        data: D,
+        src_byte_offset: u32,
+        src_byte_length: u32,
+        usage: BufferUsage,
+    ) -> Self {
+        Self {
+            status: RefCell::new(BufferStatus::UpdateBuffer {
+                id: None,
+                data: BufferData::FromBinary {
+                    data: Box::new(data),
+                    src_byte_offset,
+                    src_byte_length,
+                },
+            }),
+            usage,
+        }
+    }
+
+    pub fn buffer_data<D: AsRef<[u8]> + 'static>(
+        &mut self,
+        data: D,
+        src_byte_offset: u32,
+        src_byte_length: u32,
+    ) {
         let new_status = match *self.status.borrow() {
             BufferStatus::Unchanged { id } => BufferStatus::UpdateBuffer {
                 id: Some(id),
-                data,
-                usage,
+                data: BufferData::FromBinary {
+                    data: Box::new(data),
+                    src_byte_offset,
+                    src_byte_length,
+                },
             },
-            BufferStatus::UpdateBuffer { id, .. } => BufferStatus::UpdateBuffer { id, data, usage },
+            BufferStatus::UpdateBuffer { id, .. } => BufferStatus::UpdateBuffer {
+                id,
+                data: BufferData::FromBinary {
+                    data: Box::new(data),
+                    src_byte_offset,
+                    src_byte_length,
+                },
+            },
             BufferStatus::UpdateSubBuffer { id, .. } => BufferStatus::UpdateBuffer {
                 id: Some(id),
-                data,
-                usage,
-            },
-        };
-
-        *self.status.borrow_mut() = new_status;
-    }
-
-    pub fn buffer_sub_data(&self, sub_data: BufferSubData) {
-        let new_status = match *self.status.borrow() {
-            BufferStatus::Unchanged { id } => BufferStatus::UpdateSubBuffer { id, data: sub_data },
-            BufferStatus::UpdateBuffer { id, usage, .. } => BufferStatus::UpdateBuffer {
-                id,
-                data: BufferData::FillData {
-                    data: sub_data.data,
-                    src_byte_offset: sub_data.src_byte_offset,
-                    src_byte_length: sub_data.src_byte_offset,
+                data: BufferData::FromBinary {
+                    data: Box::new(data),
+                    src_byte_offset,
+                    src_byte_length,
                 },
-                usage,
             },
-            BufferStatus::UpdateSubBuffer { id, .. } => {
-                BufferStatus::UpdateSubBuffer { id, data: sub_data }
-            }
         };
 
         *self.status.borrow_mut() = new_status;
     }
 
-    pub fn status(&self) -> &RefCell<BufferStatus> {
-        &self.status
+    pub fn buffer_sub_data<D: AsRef<[u8]> + 'static>(
+        &mut self,
+        data: D,
+        dst_byte_offset: i32,
+        src_byte_offset: u32,
+        src_byte_length: u32,
+    ) {
+        let new_status = match *self.status.borrow() {
+            BufferStatus::Unchanged { id } | BufferStatus::UpdateSubBuffer { id, .. } => {
+                BufferStatus::UpdateSubBuffer {
+                    id,
+                    data: BufferSubData {
+                        data: Box::new(data),
+                        dst_byte_offset,
+                        src_byte_offset,
+                        src_byte_length,
+                    },
+                }
+            }
+            BufferStatus::UpdateBuffer { id, .. } => BufferStatus::UpdateBuffer {
+                id,
+                data: BufferData::FromBinary {
+                    data: Box::new(data),
+                    src_byte_offset: src_byte_offset,
+                    src_byte_length: src_byte_length,
+                },
+            },
+        };
+
+        *self.status.borrow_mut() = new_status;
     }
 }
 
@@ -222,10 +278,10 @@ impl BufferStore {
 impl BufferStore {
     pub fn buffer_or_create(
         &mut self,
-        descriptor: &BufferDescriptor,
+        BufferDescriptor { status, usage }: &BufferDescriptor,
         target: BufferTarget,
     ) -> Result<&WebGlBuffer, String> {
-        let mut status = descriptor.status().borrow_mut();
+        let mut status = status.borrow_mut();
         match &*status {
             BufferStatus::Unchanged { id } => {
                 let Some(buffer) = self.store.get(id) else {
@@ -234,7 +290,7 @@ impl BufferStore {
 
                 Ok(buffer)
             }
-            BufferStatus::UpdateBuffer { id, data, usage } => {
+            BufferStatus::UpdateBuffer { id, data } => {
                 // remove old buffer if specified
                 if let Some(buffer) = id.and_then(|id| self.store.remove(&id)) {
                     self.gl.delete_buffer(Some(&buffer));
@@ -247,32 +303,30 @@ impl BufferStore {
 
                 self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
                 match data {
-                    BufferData::FillEmpty { size } => {
+                    BufferData::Preallocate { size } => {
                         self.gl.buffer_data_with_i32(
                             target.to_gl_enum(),
                             *size,
                             usage.to_gl_enum(),
                         );
                     }
-                    BufferData::FillData {
+                    BufferData::FromBinary {
                         data,
                         src_byte_offset,
                         src_byte_length,
-                    } => {
-                        self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
-                            target.to_gl_enum(),
-                            data.as_ref().as_ref(),
-                            usage.to_gl_enum(),
-                            *src_byte_offset,
-                            *src_byte_length,
-                        )
-                    }
+                    } => self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
+                        target.to_gl_enum(),
+                        data.as_ref().as_ref(),
+                        usage.to_gl_enum(),
+                        *src_byte_offset,
+                        *src_byte_length,
+                    ),
                 };
                 self.gl.bind_buffer(target.to_gl_enum(), None);
 
                 // stores it
                 let id = Uuid::new_v4();
-                let buffer = self.store.entry(id).or_insert(buffer.clone());
+                let buffer = self.store.entry(id).or_insert(buffer);
 
                 // replace descriptor status
                 *status = BufferStatus::Unchanged { id };

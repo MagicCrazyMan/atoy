@@ -7,13 +7,9 @@ use crate::{
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferTarget,
-            BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
         },
-        program::{
-            AttributeBinding, AttributeValue, BufferDataType, ShaderSource, UniformBinding,
-            UniformValue,
-        },
+        program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
     },
 };
 
@@ -99,16 +95,18 @@ impl SolidColorInstancedMaterial {
 
         Self {
             count,
-            colors_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(colors_data, 0, colors_bytes_length as u32),
-                usage: BufferUsage::StaticDraw,
-            }),
-            model_matrices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-                id: None,
-                data: BufferData::fill_data(matrices_data, 0, matrices_bytes_length as u32),
-                usage: BufferUsage::StaticDraw,
-            }),
+            colors_buffer: BufferDescriptor::with_binary(
+                colors_data,
+                0,
+                colors_bytes_length as u32,
+                BufferUsage::StaticDraw,
+            ),
+            model_matrices_buffer: BufferDescriptor::with_binary(
+                matrices_data,
+                0,
+                matrices_bytes_length as u32,
+                BufferUsage::StaticDraw,
+            ),
         }
     }
 }
@@ -142,6 +140,14 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
         })
     }
 
+    fn ready(&self) -> bool {
+        true
+    }
+
+    fn instanced(&self) -> Option<i32> {
+        Some(self.count)
+    }
+
     fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         match name {
             COLOR_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
@@ -168,9 +174,5 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
         None
-    }
-
-    fn instanced(&self) -> Option<i32> {
-        Some(self.count)
     }
 }

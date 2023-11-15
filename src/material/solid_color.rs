@@ -99,6 +99,10 @@ impl WebGLMaterial for SolidColorMaterial {
             ]
         })
     }
+    
+    fn ready(&self) -> bool {
+        true
+    }
 
     fn instanced(&self) -> Option<i32> {
         None

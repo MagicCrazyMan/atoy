@@ -10,6 +10,7 @@ use crate::{
 
 pub mod solid_color;
 pub mod solid_color_instanced;
+pub mod texture_mapping;
 
 pub trait WebGLMaterial {
     fn name(&self) -> &str;
@@ -23,6 +24,8 @@ pub trait WebGLMaterial {
     fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>>;
 
     fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>>;
+
+    fn ready(&self) -> bool;
 
     fn instanced(&self) -> Option<i32>;
 
