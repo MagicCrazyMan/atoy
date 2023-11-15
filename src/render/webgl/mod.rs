@@ -180,7 +180,7 @@ struct RenderGroup {
 
 impl WebGL2Render {
     fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
-        let view = *scene.active_camera().view_proj_matrix();
+        let view = *scene.active_camera().view_matrix();
         let proj = *scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
@@ -195,6 +195,7 @@ impl WebGL2Render {
                 Ok(inverted) => inverted.transpose(),
                 Err(err) => {
                     //should err
+                    console_log!("{}", err);
                     continue;
                 }
             };
@@ -241,7 +242,7 @@ impl WebGL2Render {
         Ok(group)
     }
 
-    pub fn render(&mut self, scene: &Scene) -> Result<(), String> {
+    pub fn render(&mut self, scene: &Scene) {
         let mut bind_prom = 0.0;
         let mut unbind_prom = 0.0;
         let mut attr = 0.0;
@@ -253,7 +254,14 @@ impl WebGL2Render {
 
         // collects entities and render console_error_panic_hook
         let start = Date::now();
-        let entities_group = self.prepare(scene)?;
+        let entities_group = match self.prepare(scene) {
+            Ok(group) => group,
+            Err(err) => {
+                // should log error
+                console_log!("{}", err);
+                return;
+            }
+        };
         let end = Date::now();
         prep += end - start;
 
@@ -347,7 +355,7 @@ impl WebGL2Render {
                                         Ok(buffer) => buffer,
                                         Err(err) => {
                                             // should log error
-                                            console_log!("4");
+                                            console_log!("{}", err);
                                             continue;
                                         }
                                     };
@@ -380,7 +388,7 @@ impl WebGL2Render {
                                         Ok(buffer) => buffer,
                                         Err(err) => {
                                             // should log error
-                                            console_log!("4");
+                                        console_log!("{}", err);
                                             continue;
                                         }
                                     };
@@ -759,7 +767,7 @@ impl WebGL2Render {
                                     Ok(buffer) => buffer,
                                     Err(err) => {
                                         // should log error
-                                        console_log!("4");
+                                        console_log!("{}", err);
                                         continue;
                                     }
                                 };
@@ -799,7 +807,7 @@ impl WebGL2Render {
                                     Ok(buffer) => buffer,
                                     Err(err) => {
                                         // should log error
-                                        console_log!("4");
+                                        console_log!("{}", err);
                                         continue;
                                     }
                                 };
@@ -832,7 +840,6 @@ impl WebGL2Render {
         // unbinds data after drawing
         let start = Date::now();
         gl.use_program(None);
-        gl.bind_vertex_array(None);
         gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
         gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         let end = Date::now();
@@ -868,7 +875,5 @@ impl WebGL2Render {
             .get_element_by_id("total")
             .unwrap()
             .set_inner_html(&(total_end - total_start).to_string());
-
-        Ok(())
     }
 }

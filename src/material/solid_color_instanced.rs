@@ -20,7 +20,7 @@ use crate::{
 use super::WebGLMaterial;
 
 const COLOR_UNIFORM: &'static str = "u_Color";
-const LOCAL_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_LocalMatrix";
+const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
 static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 2]> = OnceLock::new();
 static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 3]> = OnceLock::new();
@@ -29,12 +29,12 @@ static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
-in mat4 a_LocalMatrix;
+in mat4 a_InstanceMatrix;
 uniform mat4 u_ModelMatrix;
 uniform mat4 u_ViewProjMatrix;
 
 void main() {
-    gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_LocalMatrix * a_Position;
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_InstanceMatrix * a_Position;
 }
 ";
 const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
@@ -101,7 +101,7 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
         ATTRIBUTE_BINDINGS.get_or_init(|| {
             [
                 AttributeBinding::GeometryPosition,
-                AttributeBinding::FromMaterial(String::from(LOCAL_MODEL_MATRIX_ATTRIBUTE)),
+                AttributeBinding::FromMaterial(String::from(INSTANCE_MODEL_MATRIX_ATTRIBUTE)),
             ]
         })
     }
@@ -127,7 +127,7 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         match name {
-            LOCAL_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
+            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
                 descriptor: Ncor::Borrowed(&self.model_matrices),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,

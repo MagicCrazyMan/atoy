@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use palette::rgb::Rgba;
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen_test::console_log;
 
 use crate::{
     ncor::Ncor,
@@ -18,8 +19,8 @@ static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 1]> = OnceLock::new();
 static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
-const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
-in vec4 a_Position;
+const VERTEX_SHADER_SOURCE: &'static str = "
+attribute vec4 a_Position;
 
 uniform mat4 u_ModelViewProjMatrix;
 
@@ -27,7 +28,7 @@ void main() {
     gl_Position = u_ModelViewProjMatrix * a_Position;
 }
 ";
-const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
+const FRAGMENT_SHADER_SOURCE: &'static str = "
 #ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
 #else
@@ -36,10 +37,8 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
 
 uniform vec4 u_Color;
 
-out vec4 outColor;
-
 void main() {
-    outColor = u_Color;
+    gl_FragColor = u_Color;
 }
 ";
 
@@ -59,10 +58,10 @@ impl SolidColorMaterial {
         alpha: Option<f32>,
     ) -> Self {
         Self::with_color(Rgba::new(
-            red.unwrap_or(0.0),
+            red.unwrap_or(1.0),
             green.unwrap_or(0.0),
             blue.unwrap_or(0.0),
-            alpha.unwrap_or(0.0),
+            alpha.unwrap_or(1.0),
         ))
     }
 }
@@ -119,7 +118,7 @@ impl WebGLMaterial for SolidColorMaterial {
             COLOR_UNIFORM => Some(Ncor::Owned(UniformValue::FloatVector4 {
                 data: Box::new(self.color),
                 src_offset: 0,
-                src_length: 0,
+                src_length: 4,
             })),
             _ => None,
         }

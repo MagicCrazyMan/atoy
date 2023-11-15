@@ -139,7 +139,7 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
         scene.root_entity_mut().add_child_boxed(entity);
     }
     let mut render = WebGL2Render::new(&scene)?;
-    // render.set_cull_face(Some(CullFace::Back));
+    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -152,7 +152,7 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
         scene
             .root_entity_mut()
             .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
-        let _ = render.render(&scene);
+        render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -185,7 +185,7 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
     entity.set_material(Some(material));
     scene.root_entity_mut().add_child_boxed(entity);
     let mut render = WebGL2Render::new(&scene)?;
-    // render.set_cull_face(Some(CullFace::Back));
+    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -215,7 +215,7 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
         scene
             .root_entity_mut()
             .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
-        let _ = render.render(&scene);
+        render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));

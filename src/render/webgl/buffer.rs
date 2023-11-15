@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
-use wasm_bindgen::JsError;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,15 +224,12 @@ impl BufferStore {
         &mut self,
         descriptor: &BufferDescriptor,
         target: BufferTarget,
-    ) -> Result<&WebGlBuffer, JsError> {
+    ) -> Result<&WebGlBuffer, String> {
         let mut status = descriptor.status().borrow_mut();
         match &*status {
             BufferStatus::Unchanged { id } => {
                 let Some(buffer) = self.store.get(id) else {
-                    return Err(JsError::new(&format!(
-                        "failed to get buffer with id {}",
-                        id
-                    )));
+                    return Err(format!("failed to get buffer with id {}", id));
                 };
 
                 Ok(buffer)
@@ -246,7 +242,7 @@ impl BufferStore {
 
                 // creates buffer and buffers data into it
                 let Some(buffer) = self.gl.create_buffer() else {
-                    return Err(JsError::new("failed to create WebGL buffer"));
+                    return Err(String::from("failed to create WebGL buffer"));
                 };
 
                 self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
@@ -262,13 +258,15 @@ impl BufferStore {
                         data,
                         src_byte_offset,
                         src_byte_length,
-                    } => self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
-                        target.to_gl_enum(),
-                        data.as_ref().as_ref(),
-                        usage.to_gl_enum(),
-                        *src_byte_offset,
-                        *src_byte_length,
-                    ),
+                    } => {
+                        self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
+                            target.to_gl_enum(),
+                            data.as_ref().as_ref(),
+                            usage.to_gl_enum(),
+                            *src_byte_offset,
+                            *src_byte_length,
+                        )
+                    }
                 };
                 self.gl.bind_buffer(target.to_gl_enum(), None);
 
@@ -283,10 +281,7 @@ impl BufferStore {
             }
             BufferStatus::UpdateSubBuffer { id, data } => {
                 let Some(buffer) = self.store.get(id) else {
-                    return Err(JsError::new(&format!(
-                        "failed to get buffer with id {}",
-                        id
-                    )));
+                    return Err(format!("failed to get buffer with id {}", id));
                 };
 
                 self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
