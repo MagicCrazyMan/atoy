@@ -1,13 +1,13 @@
 use std::{borrow::Cow, cell::RefCell, io::Write, rc::Rc, sync::OnceLock};
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
-use palette::rgb::Rgba;
+use palette::rgb::Rgb;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
 use wasm_bindgen_test::console_log;
 
 use crate::{
     entity::Entity,
-    geometry::{cube::Cube, indexed_cube::IndexedCube},
+    geometry::cube::Cube,
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
     },
@@ -128,13 +128,9 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
 
         let mut entity = Entity::new_boxed();
 
-        let mut color = rand::random::<Rgba>();
-        color.alpha = 1.0;
-        let material = SolidColorMaterial::with_color(color);
-
         entity.set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
-        entity.set_material(Some(material));
+        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
         entity.set_model_matrix(model_matrix);
         scene.root_entity_mut().add_child_boxed(entity);
     }
@@ -176,13 +172,15 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
 
     let mut entity = Entity::new_boxed();
 
-    let mut color = rand::random::<Rgba>();
-    color.alpha = 1.0;
-    let material = SolidColorInstancedMaterial::new(color, count, grid, width, height);
-
     entity.set_geometry(Some(Cube::new()));
     // entity.set_geometry(Some(IndexedCube::new()));
-    entity.set_material(Some(material));
+    entity.set_material(Some(SolidColorInstancedMaterial::new(
+        rand::random::<Rgb>(),
+        count,
+        grid,
+        width,
+        height,
+    )));
     scene.root_entity_mut().add_child_boxed(entity);
     let mut render = WebGL2Render::new(&scene)?;
     render.set_cull_face(Some(CullFace::Back));

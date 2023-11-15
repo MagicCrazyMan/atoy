@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
-use palette::rgb::Rgba;
+use palette::rgb::{Rgba, Rgb};
 
 use crate::{
     ncor::Ncor,
@@ -45,23 +45,23 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
     precision mediump float;
 #endif
 
-uniform vec4 u_Color;
+uniform vec3 u_Color;
 
 out vec4 outColor;
 
 void main() {
-    outColor = u_Color;
+    outColor = vec4(u_Color, 1.0);
 }
 ";
 
 pub struct SolidColorInstancedMaterial {
     count: i32,
-    color: Rgba,
+    color: Rgb,
     model_matrices: BufferDescriptor,
 }
 
 impl SolidColorInstancedMaterial {
-    pub fn new(color: Rgba, count: i32, grid: i32, width: f32, height: f32) -> Self {
+    pub fn new(color: Rgb, count: i32, grid: i32, width: f32, height: f32) -> Self {
         let cell_width = width / (grid as f32);
         let cell_height = height / (grid as f32);
         let start_x = width / 2.0 - cell_width / 2.0;
@@ -142,10 +142,10 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
         match name {
-            COLOR_UNIFORM => Some(Ncor::Owned(UniformValue::FloatVector4 {
+            COLOR_UNIFORM => Some(Ncor::Owned(UniformValue::FloatVector3 {
                 data: Box::new(self.color),
                 src_offset: 0,
-                src_length: 0,
+                src_length: 3,
             })),
             _ => None,
         }
