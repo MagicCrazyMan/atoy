@@ -36,10 +36,10 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
 
 uniform vec3 u_Color;
 
-out vec4 outColor;
+out vec4 out_color;
 
 void main() {
-    outColor = vec4(u_Color, 1.0);
+    out_color = vec4(u_Color, 1.0);
 }
 ";
 

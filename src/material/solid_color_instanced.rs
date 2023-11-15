@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
-use palette::rgb::{Rgba, Rgb};
+use palette::rgb::Rgb;
 
 use crate::{
     ncor::Ncor,
@@ -19,22 +19,27 @@ use crate::{
 
 use super::WebGLMaterial;
 
-const COLOR_UNIFORM: &'static str = "u_Color";
+const COLOR_ATTRIBUTE: &'static str = "a_Color";
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 2]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 3]> = OnceLock::new();
+static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 3]> = OnceLock::new();
+static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
 
 static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
+in vec3 a_Color;
 in mat4 a_InstanceMatrix;
+
 uniform mat4 u_ModelMatrix;
 uniform mat4 u_ViewProjMatrix;
 
+out vec3 v_Color;
+
 void main() {
     gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_InstanceMatrix * a_Position;
+    v_Color = a_Color;
 }
 ";
 const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
@@ -45,48 +50,64 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
     precision mediump float;
 #endif
 
-uniform vec3 u_Color;
+in vec3 v_Color;
 
-out vec4 outColor;
+out vec4 out_Color;
 
 void main() {
-    outColor = vec4(u_Color, 1.0);
+    out_Color = vec4(v_Color, 1.0);
 }
 ";
 
 pub struct SolidColorInstancedMaterial {
     count: i32,
-    color: Rgb,
-    model_matrices: BufferDescriptor,
+    colors_buffer: BufferDescriptor,
+    model_matrices_buffer: BufferDescriptor,
 }
 
 impl SolidColorInstancedMaterial {
-    pub fn new(color: Rgb, count: i32, grid: i32, width: f32, height: f32) -> Self {
+    pub fn new(count: i32, grid: i32, width: f32, height: f32) -> Self {
         let cell_width = width / (grid as f32);
         let cell_height = height / (grid as f32);
         let start_x = width / 2.0 - cell_width / 2.0;
         let start_z = height / 2.0 - cell_height / 2.0;
 
-        let bytes_length = (16 * 4 * count) as usize;
-        let mut data = Vec::with_capacity(bytes_length);
+        let matrices_bytes_length = (16 * 4 * count) as usize;
+        let colors_bytes_length = (3 * 4 * count) as usize;
+        let mut matrices_data = Vec::with_capacity(matrices_bytes_length);
+        let mut colors_data = Vec::with_capacity(colors_bytes_length);
         for index in 0..count {
             let row = index / grid;
             let col = index % grid;
 
             let center_x = start_x - col as f32 * cell_width;
             let center_z = start_z - row as f32 * cell_height;
-            data.extend_from_slice(
+            matrices_data.extend_from_slice(
                 Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z)).as_ref(),
+            );
+
+            let Rgb {
+                blue, green, red, ..
+            } = rand::random::<Rgb>();
+            colors_data.extend(
+                [red, green, blue]
+                    .iter()
+                    .flat_map(|component| component.to_ne_bytes())
+                    .collect::<Vec<_>>(),
             );
         }
 
         Self {
-            color,
             count,
-            model_matrices: BufferDescriptor::new(BufferStatus::UpdateBuffer {
+            colors_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
                 id: None,
-                data: BufferData::fill_data(data, 0, bytes_length as u32),
-                usage: BufferUsage::DynamicDraw,
+                data: BufferData::fill_data(colors_data, 0, colors_bytes_length as u32),
+                usage: BufferUsage::StaticDraw,
+            }),
+            model_matrices_buffer: BufferDescriptor::new(BufferStatus::UpdateBuffer {
+                id: None,
+                data: BufferData::fill_data(matrices_data, 0, matrices_bytes_length as u32),
+                usage: BufferUsage::StaticDraw,
             }),
         }
     }
@@ -101,19 +122,15 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
         ATTRIBUTE_BINDINGS.get_or_init(|| {
             [
                 AttributeBinding::GeometryPosition,
+                AttributeBinding::FromMaterial(String::from(COLOR_ATTRIBUTE)),
                 AttributeBinding::FromMaterial(String::from(INSTANCE_MODEL_MATRIX_ATTRIBUTE)),
             ]
         })
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS.get_or_init(|| {
-            [
-                UniformBinding::ModelMatrix,
-                UniformBinding::ViewProjMatrix,
-                UniformBinding::FromMaterial(COLOR_UNIFORM.to_string()),
-            ]
-        })
+        UNIFORM_BINDINGS
+            .get_or_init(|| [UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix])
     }
 
     fn sources(&self) -> &[ShaderSource] {
@@ -127,8 +144,17 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
 
     fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         match name {
+            COLOR_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
+                descriptor: Ncor::Borrowed(&self.colors_buffer),
+                target: BufferTarget::Buffer,
+                component_size: BufferComponentSize::Three,
+                data_type: BufferDataType::Float,
+                normalized: false,
+                components_length_per_instance: 1,
+                divisor: 1,
+            })),
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
-                descriptor: Ncor::Borrowed(&self.model_matrices),
+                descriptor: Ncor::Borrowed(&self.model_matrices_buffer),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
@@ -140,15 +166,8 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
-        match name {
-            COLOR_UNIFORM => Some(Ncor::Owned(UniformValue::FloatVector3 {
-                data: Box::new(self.color),
-                src_offset: 0,
-                src_length: 3,
-            })),
-            _ => None,
-        }
+    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
+        None
     }
 
     fn instanced(&self) -> Option<i32> {
