@@ -11,7 +11,7 @@ use crate::{
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
     },
-    render::webgl::WebGL2Render,
+    render::webgl::{WebGL2Render, CullFace},
     scene::{Scene, SceneOptions},
     window,
 };
@@ -141,6 +141,7 @@ pub fn test_cube() -> Result<(), JsError> {
         scene.root_entity_mut().add_child_boxed(entity);
     }
     let mut render = WebGL2Render::new(&scene)?;
+    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -170,7 +171,7 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
     })?;
     scene
         .active_camera_mut()
-        .set_position(Vec3::from_values(0.0, 400.0, 0.0));
+        .set_position(Vec3::from_values(0.0, 500.0, 0.0));
     scene
         .active_camera_mut()
         .set_up(Vec3::from_values(0.0, 0.0, -1.0));
@@ -191,7 +192,7 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        let radians_per_second = std::f64::consts::PI / 4.0;
+        let radians_per_second = std::f64::consts::PI / 2.0;
         let rotation = (seconds * radians_per_second) % (2.0 * std::f64::consts::PI);
 
         scene

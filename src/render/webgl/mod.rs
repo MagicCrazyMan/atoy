@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use gl_matrix4rust::{vec4::Vec4, mat4::Mat4};
+use gl_matrix4rust::{mat4::Mat4, vec4::Vec4};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{
@@ -30,13 +30,30 @@ extern "C" {
     pub type WebGL2RenderOptionsObject;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CullFace {
+    Front,
+    Back,
+    Both,
+}
+
+impl CullFace {
+    pub fn to_gl_enum(&self) -> u32 {
+        match self {
+            CullFace::Front => WebGl2RenderingContext::FRONT,
+            CullFace::Back => WebGl2RenderingContext::BACK,
+            CullFace::Both => WebGl2RenderingContext::FRONT_AND_BACK,
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
     program_store: ProgramStore,
     buffer_store: BufferStore,
     depth_test: bool,
-    cull_face_mode: Option<u32>,
+    cull_face_mode: Option<CullFace>,
     clear_color: Vec4,
 }
 
@@ -48,38 +65,43 @@ impl WebGL2Render {
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
     ) -> Result<WebGL2Render, JsError> {
-        Self::with_options(scene, options)
+        Self::new_inner(scene, options)
     }
 }
 
 impl WebGL2Render {
     /// Constructs a new WebGL2 render.
     pub fn new(scene: &Scene) -> Result<WebGL2Render, JsError> {
-        let gl = Self::gl_context(scene.canvas(), None)?;
-        Ok(Self {
-            program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::new(gl.clone()),
-            gl,
-            depth_test: true,
-            cull_face_mode: None,
-            clear_color: Vec4::new(),
-        })
+        Self::new_inner(scene, None)
     }
 
     /// Constructs a new WebGL2 render.
     pub fn with_options(
         scene: &Scene,
+        options: WebGL2RenderOptionsObject,
+    ) -> Result<WebGL2Render, JsError> {
+        Self::new_inner(scene, Some(options))
+    }
+
+    fn new_inner(
+        scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
     ) -> Result<WebGL2Render, JsError> {
         let gl = Self::gl_context(scene.canvas(), options)?;
-        Ok(Self {
+        let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
             gl,
             depth_test: true,
             cull_face_mode: None,
             clear_color: Vec4::new(),
-        })
+        };
+
+        render.set_clear_color(Vec4::new());
+        render.set_cull_face(None);
+        render.set_depth_test(true);
+
+        Ok(render)
     }
 
     /// Gets WebGl2RenderingContext.
@@ -119,16 +141,16 @@ impl WebGL2Render {
         }
     }
 
-    pub fn cull_face(&self) -> Option<u32> {
+    pub fn cull_face(&self) -> Option<CullFace> {
         self.cull_face_mode
     }
 
-    pub fn set_cull_face(&mut self, cull_face_mode: Option<u32>) {
+    pub fn set_cull_face(&mut self, cull_face_mode: Option<CullFace>) {
         self.cull_face_mode = cull_face_mode;
         match self.cull_face_mode {
             Some(cull_face_mode) => {
                 self.gl.enable(WebGl2RenderingContext::CULL_FACE);
-                self.gl.cull_face(cull_face_mode)
+                self.gl.cull_face(cull_face_mode.to_gl_enum())
             }
             None => self.gl.disable(WebGl2RenderingContext::CULL_FACE),
         }
@@ -728,7 +750,13 @@ impl WebGL2Render {
                                 count,
                                 element_type,
                                 offset,
-                            } => todo!(),
+                            } => gl.draw_elements_instanced_with_i32(
+                                mode.to_gl_enum(),
+                                count,
+                                element_type.to_gl_enum(),
+                                offset,
+                                num_instances,
+                            ),
                         }
                     } else {
                         // draw normally!
