@@ -11,7 +11,7 @@ use crate::{
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
     },
-    render::webgl::{WebGL2Render, CullFace},
+    render::webgl::{CullFace, WebGL2Render},
     scene::{Scene, SceneOptions},
     window,
 };
@@ -192,8 +192,25 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        let radians_per_second = std::f64::consts::PI / 2.0;
-        let rotation = (seconds * radians_per_second) % (2.0 * std::f64::consts::PI);
+        // static MAX_SIZE: f64 = 2.0;
+        // static MIN_SIZE: f64 = 1.0;
+        // static SIZE_PER_SECOND: f64 = 0.5;
+        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get(0)
+        //     .unwrap()
+        //     .geometry()
+        //     .unwrap()
+        //     .borrow_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<Cube>()
+        //     .unwrap()
+        //     .set_size(size as f32);
+
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene
             .root_entity_mut()

@@ -6,7 +6,8 @@ use crate::{
     ncor::Ncor,
     render::webgl::{
         buffer::{
-            BufferData, BufferDescriptor, BufferComponentSize, BufferStatus, BufferTarget, BufferUsage,
+            BufferComponentSize, BufferData, BufferDescriptor, BufferStatus, BufferSubData,
+            BufferTarget, BufferUsage,
         },
         draw::{Draw, DrawMode},
         program::{AttributeValue, BufferDataType, UniformValue},
@@ -61,19 +62,12 @@ impl Cube {
 
     pub fn set_size(&mut self, size: f32) {
         self.size = size;
-        // self.vertices = AttributeValue::Buffer {
-        //     descriptor: BufferDescriptor::new(BufferStatus::UpdateBuffer {
-        //         id: self.,
-        //         data: (),
-        //         usage: (),
-        //     }),
-        //     target: BufferTarget::Buffer,
-        //     size: BufferItemSize::Three,
-        //     data_type: BufferDataType::Float,
-        //     normalized: false,
-        //     stride: 0,
-        //     offset: 0,
-        // };
+        self.vertices_buffer.buffer_sub_data(BufferSubData::new(
+            get_vertices_buffer(size),
+            0,
+            0,
+            432,
+        ));
     }
 }
 
