@@ -54,7 +54,7 @@ impl AttributeBinding {
         match self {
             AttributeBinding::GeometryPosition => "a_Position",
             AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
-            AttributeBinding::GeometryNormal => "a_Normals",
+            AttributeBinding::GeometryNormal => "a_Normal",
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
             | AttributeBinding::FromEntity(name) => name.as_str(),
