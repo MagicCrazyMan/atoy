@@ -115,10 +115,12 @@ impl Entity {
         }
     }
 
+    #[allow(unused_variables)]
     pub fn attribute_value<'a>(&self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
         None
     }
 
+    #[allow(unused_variables)]
     pub fn uniform_value<'a>(&self, name: &str) -> Option<Ncor<'a, UniformValue>> {
         None
     }

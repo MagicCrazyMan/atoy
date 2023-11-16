@@ -28,6 +28,55 @@ pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
+// {
+//     let fbo = self.gl.create_framebuffer().unwrap();
+//     self.gl
+//         .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&fbo));
+//     self.gl.framebuffer_texture_2d(
+//         WebGl2RenderingContext::FRAMEBUFFER,
+//         WebGl2RenderingContext::COLOR_ATTACHMENT0,
+//         WebGl2RenderingContext::TEXTURE_2D,
+//         Some(&texture),
+//         0,
+//     );
+
+//     let mut data = [0; 256 * 256 * 1 * 4];
+//     // let d = Uint8ClampedArray::new_with_length(256 * 256 * 1 * 4);
+//     self.gl
+//         .read_pixels_with_u8_array_and_dst_offset(
+//             0,
+//             0,
+//             256,
+//             256,
+//             WebGl2RenderingContext::RGBA,
+//             WebGl2RenderingContext::UNSIGNED_BYTE,
+//             &mut data,
+//             0,
+//         )
+//         .unwrap();
+//     self.gl
+//         .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+//     self.gl.delete_framebuffer(Some(&fbo));
+
+//     let image_data =
+//         ImageData::new_with_u8_clamped_array_and_sh(Clamped(&data), 256, 256).unwrap();
+//     // let blob =
+//     //     Blob::new_with_u8_array_sequence(d.dyn_ref::<Object>().unwrap()).unwrap();
+//     // let url: String = Url::create_object_url_with_blob(&blob).unwrap();
+//     let canvas = document()
+//         .create_element("canvas")
+//         .unwrap()
+//         .dyn_into::<HtmlCanvasElement>()
+//         .unwrap();
+//     canvas.set_width(256);
+//     canvas.set_height(256);
+//     let ctx = canvas.get_context("2d").unwrap().unwrap().dyn_into::<CanvasRenderingContext2d>().unwrap();
+//     ctx.put_image_data(&image_data, 0.0, 0.0).unwrap();
+//     document().body().unwrap().append_child(&canvas).unwrap();
+
+//     // console_log!("{}", data.iter().map(|v| *v as usize).sum::<usize>());
+// }
+
 #[wasm_bindgen]
 pub fn test_gl_matrix_4_rust() {
     struct Random {
@@ -228,10 +277,6 @@ pub fn test_texture(url: String) -> Result<(), JsError> {
     scene
         .active_camera_mut()
         .set_position(Vec3::from_values(2.0, 2.0, 2.0));
-    scene
-        .active_camera_mut()
-        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
-
     let mut entity = Entity::new_boxed();
 
     // entity.set_geometry(Some(Cube::new()));

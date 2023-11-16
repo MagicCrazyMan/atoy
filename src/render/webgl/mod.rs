@@ -336,6 +336,7 @@ impl WebGL2Render {
                                     entity.attribute_value(name.as_str())
                                 }
                             };
+
                             let Some(value) = value else {
                                 // should log warning
                                 console_log!("3");
@@ -712,13 +713,17 @@ impl WebGL2Render {
                                     ),
                                 UniformValue::Texture {
                                     descriptor,
-                                    target,
                                     params,
                                     active_unit,
                                 } => {
-                                    let texture = match self
+                                    // active texture
+                                    gl.active_texture(
+                                        WebGl2RenderingContext::TEXTURE0 + *active_unit,
+                                    );
+
+                                    let (target, texture) = match self
                                         .texture_store
-                                        .texture_or_create(descriptor.as_ref(), *target)
+                                        .texture_or_create(descriptor.as_ref())
                                     {
                                         Ok(texture) => texture,
                                         Err(err) => {
@@ -728,63 +733,47 @@ impl WebGL2Render {
                                         }
                                     };
 
-                                    // active texture
-                                    gl.active_texture(WebGl2RenderingContext::TEXTURE0);
                                     // binds texture
-                                    gl.bind_texture(target.to_gl_enum(), Some(texture));
+                                    gl.bind_texture(target, Some(texture));
                                     // setups sampler parameters
                                     params.iter().for_each(|param| match param {
-                                        TextureParameter::MagFilter(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::MinFilter(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::WrapS(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::WrapT(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::WrapR(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::BaseLevel(v) => {
-                                            gl.tex_parameteri(target.to_gl_enum(), param.key(), *v)
+                                        TextureParameter::MagFilter(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
                                         }
-                                        TextureParameter::CompareFunc(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
-                                        TextureParameter::CompareMode(v) => gl.tex_parameteri(
-                                            target.to_gl_enum(),
-                                            param.key(),
-                                            v.value(),
-                                        ),
+                                        TextureParameter::MinFilter(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
+                                        TextureParameter::WrapS(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
+                                        TextureParameter::WrapT(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
+                                        TextureParameter::WrapR(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
+                                        TextureParameter::BaseLevel(v) => {
+                                            gl.tex_parameteri(target, param.key(), *v)
+                                        }
+                                        TextureParameter::CompareFunc(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
+                                        TextureParameter::CompareMode(v) => {
+                                            gl.tex_parameteri(target, param.key(), v.value())
+                                        }
                                         TextureParameter::MaxLevel(v) => {
-                                            gl.tex_parameteri(target.to_gl_enum(), param.key(), *v)
+                                            gl.tex_parameteri(target, param.key(), *v)
                                         }
                                         TextureParameter::MaxLod(v) => {
-                                            gl.tex_parameterf(target.to_gl_enum(), param.key(), *v)
+                                            gl.tex_parameterf(target, param.key(), *v)
                                         }
                                         TextureParameter::MinLod(v) => {
-                                            gl.tex_parameterf(target.to_gl_enum(), param.key(), *v)
+                                            gl.tex_parameterf(target, param.key(), *v)
                                         }
                                     });
                                     // binds to shader
-                                    gl.uniform1i(Some(location), 0);
-                                    // gl.bind_texture(target.to_gl_enum(), None);
+                                    gl.uniform1i(Some(location), *active_unit as i32);
+                                    // gl.bind_texture(target, None);
                                 }
                             }
                         }

@@ -1,7 +1,6 @@
 use std::sync::OnceLock;
 
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
-use wasm_bindgen_test::console_log;
 use web_sys::HtmlImageElement;
 
 use crate::{
@@ -12,9 +11,8 @@ use crate::{
     render::webgl::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
-            TextureDataType, TextureDescriptor, TextureFormat, TextureTarget,
-            TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-            TexturePixelStorage, TextureWrapMethod,
+            TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureWrapMethod,
         },
     },
     scene::Scene,
@@ -48,9 +46,9 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "
     precision mediump float;
 #endif
 
-varying vec2 v_TexCoord;
-
 uniform sampler2D u_Sampler;
+
+varying vec2 v_TexCoord;
 
 void main() {
     gl_FragColor = texture2D(u_Sampler, v_TexCoord);
@@ -133,7 +131,6 @@ impl WebGLMaterial for TextureMaterial {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(Ncor::Owned(UniformValue::Texture {
                     descriptor: Ncor::Borrowed(texture),
-                    target: TextureTarget::Texture2D,
                     params: vec![
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
@@ -162,14 +159,14 @@ impl WebGLMaterial for TextureMaterial {
             let texture_cloned: *mut Option<TextureDescriptor> = &mut self.texture;
             let image_cloned = image.clone();
             self.onload = Some(Closure::new(move || {
-                let texture = Some(TextureDescriptor::with_html_image_element(
+                let texture = Some(TextureDescriptor::texture_2d_with_html_image_element(
                     image_cloned.clone(),
                     TextureDataType::UnsignedByte,
                     TextureFormat::RGB,
                     TextureFormat::RGB,
                     0,
                     vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                    false,
+                    true,
                 ));
                 unsafe {
                     *texture_cloned = texture;

@@ -1,47 +1,15 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
+use wasm_bindgen::{JsCast, Clamped};
 use wasm_bindgen_test::console_log;
 use web_sys::{
-    js_sys::Object, HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext, WebGlTexture,
+    js_sys::{Object, Uint8Array, Uint8ClampedArray},
+    Blob, HtmlCanvasElement, HtmlImageElement, ImageData, Node, Url, WebGl2RenderingContext,
+    WebGlTexture, CanvasRenderingContext2d,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextureTarget {
-    Texture2D,
-    TextureCubeMapPositiveX,
-    TextureCubeMapNegativeX,
-    TextureCubeMapPositiveY,
-    TextureCubeMapNegativeY,
-    TextureCubeMapPositiveZ,
-    TextureCubeMapNegativeZ,
-}
-
-impl TextureTarget {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            TextureTarget::Texture2D => WebGl2RenderingContext::TEXTURE_2D,
-            TextureTarget::TextureCubeMapPositiveX => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
-            }
-            TextureTarget::TextureCubeMapNegativeX => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
-            }
-            TextureTarget::TextureCubeMapPositiveY => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
-            }
-            TextureTarget::TextureCubeMapNegativeY => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
-            }
-            TextureTarget::TextureCubeMapPositiveZ => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
-            }
-            TextureTarget::TextureCubeMapNegativeZ => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
-            }
-        }
-    }
-}
+use crate::{document, window};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -397,200 +365,516 @@ impl TextureParameter {
             TextureParameter::MinLod(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
         }
     }
+
+    // pub(super) fn tex_parameteri(&self, gl: &WebGl2RenderingContext) {
+    //     match self {
+    //         TextureParameter::MagFilter(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::MinFilter(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::WrapS(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::WrapT(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::WrapR(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::BaseLevel(v) => gl.tex_parameteri(target, param.key(), *v),
+    //         TextureParameter::CompareFunc(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::CompareMode(v) => gl.tex_parameteri(target, param.key(), v.value()),
+    //         TextureParameter::MaxLevel(v) => gl.tex_parameteri(target, param.key(), *v),
+    //         TextureParameter::MaxLod(v) => gl.tex_parameterf(target, param.key(), *v),
+    //         TextureParameter::MinLod(v) => gl.tex_parameterf(target, param.key(), *v),
+    //     }
+    // }
 }
 
 enum TextureData {
     Preallocate {
-        target: TextureTarget,
+        // target: TextureTarget,
+        level: i32,
+        internal_format: TextureFormat,
         width: i32,
         height: i32,
         format: TextureFormat,
-        level: i32,
+        data_type: TextureDataType,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromBinary {
-        target: TextureTarget,
+        // target: TextureTarget,
+        level: i32,
+        internal_format: TextureFormat,
         width: i32,
         height: i32,
         data: Box<dyn AsRef<[u8]>>,
         format: TextureFormat,
+        data_type: TextureDataType,
         src_offset: u32,
-        level: i32,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlCanvasElement {
-        target: TextureTarget,
-        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
-        format: TextureFormat,
+        // target: TextureTarget,
         level: i32,
+        internal_format: TextureFormat,
+        format: TextureFormat,
+        data_type: TextureDataType,
+        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlCanvasElementWithSize {
-        target: TextureTarget,
+        // target: TextureTarget,
+        level: i32,
+        internal_format: TextureFormat,
         width: i32,
         height: i32,
-        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
         format: TextureFormat,
-        level: i32,
+        data_type: TextureDataType,
+        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlImageElement {
-        target: TextureTarget,
-        image: Box<dyn AsRef<HtmlImageElement>>,
-        format: TextureFormat,
+        // target: TextureTarget,
         level: i32,
+        internal_format: TextureFormat,
+        format: TextureFormat,
+        data_type: TextureDataType,
+        image: Box<dyn AsRef<HtmlImageElement>>,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlImageElementWithSize {
-        target: TextureTarget,
+        // target: TextureTarget,
+        level: i32,
+        format: TextureFormat,
         width: i32,
         height: i32,
+        internal_format: TextureFormat,
+        data_type: TextureDataType,
         image: Box<dyn AsRef<HtmlImageElement>>,
-        format: TextureFormat,
-        level: i32,
-    },
-    FromObject {
-        target: TextureTarget,
-        width: i32,
-        height: i32,
-        object: Box<dyn AsRef<Object>>,
-        format: TextureFormat,
-        src_offset: u32,
-        level: i32,
+        pixel_storages: Vec<TexturePixelStorage>,
+        x_offset: i32,
+        y_offset: i32,
     },
 }
 
-enum TextureSubData {
-    Clear {
-        target: TextureTarget,
-        x_offset: i32,
-        y_offset: i32,
-        width: i32,
-        height: i32,
-        format: TextureFormat,
-        level: i32,
-    },
-    FromBinary {
-        target: TextureTarget,
-        x_offset: i32,
-        y_offset: i32,
-        width: i32,
-        height: i32,
-        data: Box<dyn AsRef<[u8]>>,
-        src_offset: u32,
-        format: TextureFormat,
-        level: i32,
-    },
-    FromHtmlCanvasElement {
-        target: TextureTarget,
-        x_offset: i32,
-        y_offset: i32,
-        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
-        format: TextureFormat,
-        level: i32,
-    },
-    FromHtmlCanvasElementWithSize {
-        target: TextureTarget,
-        x_offset: i32,
-        y_offset: i32,
-        width: i32,
-        height: i32,
-        canvas: Box<dyn AsRef<HtmlCanvasElement>>,
-        format: TextureFormat,
-        level: i32,
-    },
-    FromObject {
-        target: TextureTarget,
-        x_offset: i32,
-        y_offset: i32,
-        width: i32,
-        height: i32,
-        canvas: Box<dyn AsRef<Object>>,
-        src_offset: u32,
-        format: TextureFormat,
-        level: i32,
-    },
+impl TextureData {
+    fn pixel_storages(&self) -> &[TexturePixelStorage] {
+        match self {
+            TextureData::Preallocate { pixel_storages, .. } => &pixel_storages,
+            TextureData::FromBinary { pixel_storages, .. } => &pixel_storages,
+            TextureData::FromHtmlCanvasElement { pixel_storages, .. } => &pixel_storages,
+            TextureData::FromHtmlCanvasElementWithSize { pixel_storages, .. } => &pixel_storages,
+            TextureData::FromHtmlImageElement { pixel_storages, .. } => &pixel_storages,
+            TextureData::FromHtmlImageElementWithSize { pixel_storages, .. } => &pixel_storages,
+        }
+    }
+
+    fn tex_image(&self, gl: &WebGl2RenderingContext, tex_target: u32) -> Result<(), String> {
+        // setups pixel storage parameters
+        self.pixel_storages()
+            .iter()
+            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+
+        // buffers image data
+        let result = match self {
+            TextureData::Preallocate {
+                level,
+                internal_format,
+                width,
+                height,
+                format,
+                data_type,
+                ..
+            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                *width,
+                *height,
+                0,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                None
+            ),
+            TextureData::FromBinary {
+                level,
+                internal_format,
+                width,
+                height,
+                data,
+                format,
+                data_type,
+                src_offset,
+                ..
+            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                *width,
+                *height,
+                0,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                data.as_ref().as_ref(),
+                *src_offset
+            ),
+            TextureData::FromHtmlCanvasElement {
+                level,
+                internal_format,
+                format,
+                data_type,
+                canvas,
+                ..
+            } => gl
+            .tex_image_2d_with_u32_and_u32_and_html_canvas_element(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                canvas.as_ref().as_ref(),
+            ),
+            TextureData::FromHtmlCanvasElementWithSize {
+                level,
+                internal_format,
+                width,
+                height,
+                format,
+                data_type,
+                canvas,
+                ..
+            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_canvas_element(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                *width,
+                *height,
+                0,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                canvas.as_ref().as_ref()
+            ),
+            TextureData::FromHtmlImageElement {
+                level,
+                internal_format,
+                format,
+                data_type,
+                image,
+                ..
+            } => gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                image.as_ref().as_ref(),
+            ),
+            TextureData::FromHtmlImageElementWithSize {
+                level,
+                format,
+                width,
+                height,
+                internal_format,
+                data_type,
+                image,
+                ..
+            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_image_element(
+                tex_target,
+                *level,
+                internal_format.to_gl_enum() as i32,
+                *width,
+                *height,
+                0,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                image.as_ref().as_ref()
+            ),
+        };
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                // should log error
+                console_log!("{:?}", err);
+                Err(err
+                    .as_string()
+                    .unwrap_or(String::from("unknown error during tex image 2d")))
+            }
+        }
+    }
+
+    fn tex_sub_image(&self, gl: &WebGl2RenderingContext, tex_target: u32) -> Result<(), String> {
+        // setups pixel storage parameters
+        self.pixel_storages()
+            .iter()
+            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+
+        // buffers image data
+        let result = match self {
+            TextureData::Preallocate {
+                level,
+                width,
+                height,
+                format,
+                data_type,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                *width,
+                *height,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                None,
+            ),
+            TextureData::FromBinary {
+                level,
+                width,
+                height,
+                data,
+                format,
+                data_type,
+                src_offset,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_u8_array_and_src_offset(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                *width,
+                *height,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                data.as_ref().as_ref(),
+                *src_offset,
+            ),
+            TextureData::FromHtmlCanvasElement {
+                level,
+                format,
+                data_type,
+                canvas,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_u32_and_u32_and_html_canvas_element(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                canvas.as_ref().as_ref(),
+            ),
+            TextureData::FromHtmlCanvasElementWithSize {
+                level,
+                width,
+                height,
+                format,
+                data_type,
+                canvas,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                *width,
+                *height,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                canvas.as_ref().as_ref(),
+            ),
+            TextureData::FromHtmlImageElement {
+                level,
+                format,
+                data_type,
+                image,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_u32_and_u32_and_html_image_element(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                image.as_ref().as_ref(),
+            ),
+            TextureData::FromHtmlImageElementWithSize {
+                level,
+                format,
+                width,
+                height,
+                data_type,
+                image,
+                x_offset,
+                y_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element(
+                tex_target,
+                *level,
+                *x_offset,
+                *y_offset,
+                *width,
+                *height,
+                format.to_gl_enum(),
+                data_type.to_gl_enum(),
+                image.as_ref().as_ref(),
+            ),
+        };
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                // should log error
+                console_log!("{:?}", err);
+                Err(err
+                    .as_string()
+                    .unwrap_or(String::from("unknown error during tex image 2d")))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextureKind {
+    Texture2D,
+    TextureCubeMap,
+}
+
+impl TextureKind {
+    pub fn target(&self) -> u32 {
+        match self {
+            TextureKind::Texture2D { .. } => WebGl2RenderingContext::TEXTURE_2D,
+            TextureKind::TextureCubeMap { .. } => WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+        }
+    }
+
+    fn tex_image(
+        &self,
+        gl: &WebGl2RenderingContext,
+        data: &[Option<TextureData>; 6],
+    ) -> Result<(), String> {
+        match self {
+            TextureKind::Texture2D => {
+                data[0]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_2D)?;
+            }
+            TextureKind::TextureCubeMap => {
+                data[0]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X)?;
+                data[1]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X)?;
+                data[2]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y)?;
+                data[3]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y)?;
+                data[4]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z)?;
+                data[5]
+                    .as_ref()
+                    .unwrap()
+                    .tex_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z)?;
+            }
+        };
+
+        Ok(())
+    }
+
+    fn tex_sub_image(
+        &self,
+        gl: &WebGl2RenderingContext,
+        data: &[Option<TextureData>; 6],
+    ) -> Result<(), String> {
+        match self {
+            TextureKind::Texture2D => {
+                data[0]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_2D)?;
+            }
+            TextureKind::TextureCubeMap => {
+                data[0]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X)?;
+                data[1]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X)?;
+                data[2]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y)?;
+                data[3]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y)?;
+                data[4]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z)?;
+                data[5]
+                    .as_ref()
+                    .unwrap()
+                    .tex_sub_image(gl, WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z)?;
+            }
+        };
+
+        Ok(())
+    }
 }
 
 enum TextureStatus {
     Unchanged {
         id: Uuid,
+        kind: TextureKind,
     },
     UpdateTexture {
         id: Option<Uuid>,
-        list: Vec<TextureData>,
+        kind: TextureKind,
+        data: [Option<TextureData>; 6],
     },
     UpdateSubTexture {
         id: Uuid,
-        list: Vec<TextureSubData>,
+        kind: TextureKind,
+        data: [Option<TextureData>; 6],
     },
 }
 
 pub struct TextureDescriptor {
     status: RefCell<TextureStatus>,
-    internal_format: TextureFormat,
-    data_type: TextureDataType,
-    pixel_storages: Vec<TexturePixelStorage>,
     generate_mipmap: bool,
 }
 
 impl TextureDescriptor {
-    // pub fn preallocate<P: Into<Vec<TexturePixelStorageParam>>>(
-    //     data_type: TextureDataType,
-    //     width: i32,
-    //     height: i32,
-    //     internal_format: TextureFormat,
-    //     format: TextureFormat,
-    //     level: i32,
-    //     generate_mipmap: bool,
-    //     params: P,
-    // ) -> Self {
-    //     Self {
-    //         status: RefCell::new(TextureStatus::UpdateTexture {
-    //             id: None,
-    //             data: TextureData::Preallocate {
-    //                 width,
-    //                 height,
-    //                 format,
-    //                 level,
-    //             },
-    //         }),
-    //         internal_format,
-    //         data_type,
-    //         params: params.into(),
-    //         generate_mipmap,
-    //     }
-    // }
-
-    // pub fn with_binary<D: AsRef<[u8]> + 'static, P: Into<Vec<TexturePixelStorageParam>>>(
-    //     data: D,
-    //     data_type: TextureDataType,
-    //     width: i32,
-    //     height: i32,
-    //     internal_format: TextureFormat,
-    //     format: TextureFormat,
-    //     level: i32,
-    //     src_offset: u32,
-    //     generate_mipmap: bool,
-    //     params: P,
-    // ) -> Self {
-    //     Self {
-    //         status: RefCell::new(TextureStatus::UpdateTexture {
-    //             id: None,
-    //             data: TextureData::FromBinary {
-    //                 width,
-    //                 height,
-    //                 data: Box::new(data),
-    //                 format,
-    //                 src_offset,
-    //                 level,
-    //             },
-    //         }),
-    //         internal_format,
-    //         data_type,
-    //         params: params.into(),
-    //         generate_mipmap,
-    //     }
-    // }
-
-    pub fn with_html_image_element(
-        target: TextureTarget,
-        image: HtmlImageElement,
+    pub fn texture_2d_with_html_image_element<I: AsRef<HtmlImageElement> + 'static>(
+        // target: TextureTarget,
+        image: I,
         data_type: TextureDataType,
         internal_format: TextureFormat,
         format: TextureFormat,
@@ -601,119 +885,28 @@ impl TextureDescriptor {
         Self {
             status: RefCell::new(TextureStatus::UpdateTexture {
                 id: None,
-                list: vec![TextureData::FromHtmlImageElement {
-                    target,
-                    image: Box::new(image),
-                    format,
-                    level,
-                }],
+                kind: TextureKind::Texture2D,
+                data: [
+                    Some(TextureData::FromHtmlImageElement {
+                        image: Box::new(image),
+                        format,
+                        level,
+                        internal_format,
+                        data_type,
+                        pixel_storages,
+                        x_offset: 0,
+                        y_offset: 0,
+                    }),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
             }),
-            internal_format,
-            data_type,
-            pixel_storages,
             generate_mipmap,
         }
     }
-
-    // pub fn with_canvas<
-    //     C: AsRef<HtmlCanvasElement> + 'static,
-    //     P: Into<Vec<TexturePixelStorageParam>>,
-    // >(
-    //     canvas: C,
-    //     data_type: TextureDataType,
-    //     internal_format: TextureFormat,
-    //     format: TextureFormat,
-    //     level: i32,
-    //     generate_mipmap: bool,
-    //     params: P,
-    // ) -> Self {
-    //     Self {
-    //         status: RefCell::new(TextureStatus::UpdateTexture {
-    //             id: None,
-    //             data: TextureData::FromCanvas {
-    //                 canvas: Box::new(canvas),
-    //                 format,
-    //                 level,
-    //             },
-    //         }),
-    //         internal_format,
-    //         data_type,
-    //         params: params.into(),
-    //         generate_mipmap,
-    //     }
-    // }
-
-    // pub fn with_canvas_size<
-    //     C: AsRef<HtmlCanvasElement> + 'static,
-    //     P: Into<Vec<TexturePixelStorageParam>>,
-    // >(
-    //     canvas: C,
-    //     width: i32,
-    //     height: i32,
-    //     data_type: TextureDataType,
-    //     internal_format: TextureFormat,
-    //     format: TextureFormat,
-    //     level: i32,
-    //     generate_mipmap: bool,
-    //     params: P,
-    // ) -> Self {
-    //     Self {
-    //         status: RefCell::new(TextureStatus::UpdateTexture {
-    //             id: None,
-    //             data: TextureData::FromCanvasWithSize {
-    //                 canvas: Box::new(canvas),
-    //                 width,
-    //                 height,
-    //                 format,
-    //                 level,
-    //             },
-    //         }),
-    //         internal_format,
-    //         data_type,
-    //         params: params.into(),
-    //         generate_mipmap,
-    //     }
-    // }
-
-    // pub fn with_js_object<O: AsRef<Object> + 'static, P: Into<Vec<TexturePixelStorageParam>>>(
-    //     object: O,
-    //     width: i32,
-    //     height: i32,
-    //     data_type: TextureDataType,
-    //     internal_format: TextureFormat,
-    //     format: TextureFormat,
-    //     level: i32,
-    //     src_offset: u32,
-    //     generate_mipmap: bool,
-    //     params: P,
-    // ) -> Self {
-    //     Self {
-    //         status: RefCell::new(TextureStatus::UpdateTexture {
-    //             id: None,
-    //             data: TextureData::FromObject {
-    //                 canvas: Box::new(object),
-    //                 width,
-    //                 height,
-    //                 format,
-    //                 src_offset,
-    //                 level,
-    //             },
-    //         }),
-    //         internal_format,
-    //         data_type,
-    //         params: params.into(),
-    //         generate_mipmap,
-    //     }
-    // }
-
-    // pub fn buffer_texture(&mut self) {
-    //     let status = self.status.borrow_mut();
-    //     match &*status {
-    //         TextureStatus::Unchanged { id } => todo!(),
-    //         TextureStatus::UpdateTexture { id, data } => todo!(),
-    //         TextureStatus::UpdateSubTexture { id, data } => todo!(),
-    //     }
-    // }
 }
 
 pub struct TextureStore {
@@ -733,19 +926,16 @@ impl TextureStore {
         &mut self,
         TextureDescriptor {
             status,
-            internal_format,
-            data_type,
-            pixel_storages,
             generate_mipmap,
         }: &TextureDescriptor,
-    ) -> Result<&WebGlTexture, String> {
+    ) -> Result<(u32, &WebGlTexture), String> {
         let mut status = status.borrow_mut();
         match &*status {
-            TextureStatus::Unchanged { id } => match self.store.get(id) {
-                Some(texture) => Ok(texture),
+            TextureStatus::Unchanged { id, kind } => match self.store.get(id) {
+                Some(texture) => Ok((kind.target(), texture)),
                 None => Err(format!("failed to get texture with id {}", id)),
             },
-            TextureStatus::UpdateTexture { id, list } => {
+            TextureStatus::UpdateTexture { id, kind, data } => {
                 // delete old texture
                 if let Some(texture) = id.as_ref().and_then(|id| self.store.remove(id)) {
                     self.gl.delete_texture(Some(&texture));
@@ -756,244 +946,52 @@ impl TextureStore {
                     return Err(String::from("failed to create texture"));
                 };
 
-                // set pixel storage params
-                pixel_storages.iter().for_each(|param| {
-                    self.gl.pixel_storei(param.key(), param.value());
-                });
-
-                // active texture
-                self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-                // buffer every image
-                for data in list {
-
-                    let result = match data {
-                        TextureData::Preallocate { target, width, height, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                *width,
-                                *height,
-                                0,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                None)
-                        }
-                        TextureData::FromBinary {
-                            target,
-                            width,
-                            height,
-                            data,
-                            src_offset,
-                            format,
-                            level
-                        } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                *width,
-                                *height,
-                                0,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                data.as_ref().as_ref(),
-                                *src_offset
-                            )
-                        }
-                        TextureData::FromHtmlCanvasElement { target, canvas, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_u32_and_u32_and_html_canvas_element(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                canvas.as_ref().as_ref()
-                            )
-                        },
-                        TextureData::FromHtmlCanvasElementWithSize { target, width, height, canvas, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_canvas_element(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                *width,
-                                *height,
-                                0,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                canvas.as_ref().as_ref()
-                            )
-                        },
-                        TextureData::FromHtmlImageElement { target, image, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                image.as_ref().as_ref()
-                            )
-                        },
-                        TextureData::FromHtmlImageElementWithSize { target, width, height, image, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_image_element(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                *width,
-                                *height,
-                                0,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                image.as_ref().as_ref()
-                            )
-                        },
-                        TextureData::FromObject { target, width, height, object, src_offset, format, level } => {
-                            self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
-                            self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                                target.to_gl_enum(),
-                                *level,
-                                internal_format.to_gl_enum() as i32,
-                                *width,
-                                *height,
-                                0,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                object.as_ref().as_ref(),
-                                *src_offset
-                            )
-                        },
-                    };
-                    if let Err(err) = result {
-                        // should log error
-                        console_log!("{:?}", err);
-                        return Err(err
-                            .as_string()
-                            .unwrap_or(String::from("unknown error during tex image 2d")));
-                    }
-                }
-
+                let kind = *kind;
+                // binds texture
+                self.gl.bind_texture(kind.target(), Some(&texture));
+                // buffer images
+                kind.tex_image(&self.gl, data)?;
                 // generates mipmaps
                 if *generate_mipmap {
-                    match target {
-                        TextureTarget::Texture2D => {
-                            self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D)
-                        }
-                        _ => self
-                            .gl
-                            .generate_mipmap(WebGl2RenderingContext::TEXTURE_CUBE_MAP),
-                    }
+                    self.gl.generate_mipmap(kind.target());
                 }
 
                 // unbinds for good practice
-                self.gl.bind_texture(target.to_gl_enum(), None);
+                self.gl.bind_texture(kind.target(), None);
 
                 // stores it
                 let id = Uuid::new_v4();
                 let texture = self.store.entry(id.clone()).or_insert(texture);
 
                 // updates status
-                *status = TextureStatus::Unchanged { id };
+                *status = TextureStatus::Unchanged { id, kind };
 
-                Ok(texture)
+                Ok((kind.target(), texture))
             }
-            TextureStatus::UpdateSubTexture { id, list } => {
+            TextureStatus::UpdateSubTexture { id, kind, data } => {
                 let Some(texture) = self.store.get(id) else {
                     return Err(format!("failed to get texture with id {}", id));
                 };
 
-                // buffer sub image
-                self.gl.bind_texture(target.to_gl_enum(), Some(texture));
-                for data in list {
-                    let result = match data {
-                        TextureSubData::Clear { target, width, height, format, x_offset, y_offset, level } => {
-                            self.gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_u8_array(
-                                target.to_gl_enum(),
-                                *level,
-                                *x_offset,
-                                *y_offset,
-                                *width,
-                                *height,
-                                format.to_gl_enum(),
-                                data_type.to_gl_enum(),
-                                None
-                            )
-                        }
-                        TextureSubData::FromBinary { target, x_offset, y_offset, width, height, data, src_offset, format, level } => self.gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_u8_array_and_src_offset(
-                            target.to_gl_enum(),
-                            *level,
-                            *x_offset,
-                            *y_offset,
-                            *width,
-                            *height,
-                            format.to_gl_enum(),
-                            data_type.to_gl_enum(),
-                            data.as_ref().as_ref(),
-                            *src_offset
-                        ),
-                        TextureSubData::FromHtmlCanvasElement { target, x_offset, y_offset, canvas, format, level } => self.gl.tex_sub_image_2d_with_u32_and_u32_and_html_canvas_element(
-                            target.to_gl_enum(),
-                            *level,
-                            *x_offset,
-                            *y_offset,
-                            format.to_gl_enum(),
-                            data_type.to_gl_enum(),
-                            canvas.as_ref().as_ref()
-                        ),
-                        TextureSubData::FromHtmlCanvasElementWithSize { target, x_offset, y_offset, width, height, canvas, format, level } => self.gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element(
-                            target.to_gl_enum(),
-                            *level,
-                            *x_offset,
-                            *y_offset,
-                            *width,
-                            *height,
-                            format.to_gl_enum(),
-                            data_type.to_gl_enum(),
-                            canvas.as_ref().as_ref()
-                        ),
-                        TextureSubData::FromObject { target, x_offset, y_offset, width, height, canvas, src_offset, format, level } => self.gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
-                            target.to_gl_enum(),
-                            *level,
-                            *x_offset,
-                            *y_offset,
-                            *width,
-                            *height,
-                            format.to_gl_enum(),
-                            data_type.to_gl_enum(),
-                            canvas.as_ref().as_ref(),
-                            *src_offset
-                        ),
-                    };
-                    if let Err(err) = result {
-                        // should log error
-                        console_log!("{:?}", err);
-                        return Err(err
-                            .as_string()
-                            .unwrap_or(String::from("unknown error during tex sub image 2d")));
-                    }
-                }
-
+                let kind = *kind;
+                // binds texture
+                self.gl.bind_texture(kind.target(), Some(texture));
+                // buffers images
+                kind.tex_sub_image(&self.gl, data)?;
                 // generates mipmaps
                 if *generate_mipmap {
-                    match target {
-                        TextureTarget::Texture2D => {
-                            self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D)
-                        }
-                        _ => self
-                            .gl
-                            .generate_mipmap(WebGl2RenderingContext::TEXTURE_CUBE_MAP),
-                    }
+                    self.gl.generate_mipmap(kind.target());
                 }
-
                 // unbinds for good practice
-                self.gl.bind_texture(target.to_gl_enum(), None);
+                self.gl.bind_texture(kind.target(), None);
 
-                Ok(texture)
+                // updates status
+                *status = TextureStatus::Unchanged {
+                    id: id.clone(),
+                    kind,
+                };
+
+                Ok((kind.target(), texture))
             }
         }
     }

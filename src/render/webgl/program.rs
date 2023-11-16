@@ -7,7 +7,7 @@ use crate::{material::WebGLMaterial, ncor::Ncor};
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
-    texture::{TextureDescriptor, TextureTarget, TextureParameter},
+    texture::{TextureDescriptor, TextureParameter},
 };
 
 pub enum AttributeValue<'a> {
@@ -147,7 +147,6 @@ pub enum UniformValue<'a> {
     },
     Texture {
         descriptor: Ncor<'a, TextureDescriptor>,
-        target: TextureTarget,
         params: Vec<TextureParameter>,
         active_unit: u32,
     },
