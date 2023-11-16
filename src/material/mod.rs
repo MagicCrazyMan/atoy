@@ -11,6 +11,7 @@ use crate::{
 pub mod solid_color;
 pub mod solid_color_instanced;
 pub mod texture_mapping;
+pub mod texture_mapping_instanced;
 
 pub trait WebGLMaterial {
     fn name(&self) -> &str;

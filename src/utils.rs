@@ -10,7 +10,7 @@ use crate::{
     geometry::{cube::Cube, indexed_cube::IndexedCube},
     material::{
         solid_color::SolidColorMaterial, solid_color_instanced::SolidColorInstancedMaterial,
-        texture_mapping::TextureMaterial,
+        texture_mapping::TextureMaterial, texture_mapping_instanced::TextureInstancedMaterial,
     },
     render::webgl::{CullFace, WebGL2Render},
     scene::{Scene, SceneOptions},
@@ -270,18 +270,30 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
 }
 
 #[wasm_bindgen]
-pub fn test_texture(url: String) -> Result<(), JsError> {
+pub fn test_texture(
+    url: String,
+    count: i32,
+    grid: i32,
+    width: f32,
+    height: f32,
+) -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
     scene
         .active_camera_mut()
-        .set_position(Vec3::from_values(2.0, 2.0, 2.0));
+        .set_position(Vec3::from_values(0.0, 20.0, 10.0));
+    scene
+        .active_camera_mut()
+        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+
     let mut entity = Entity::new_boxed();
 
     // entity.set_geometry(Some(Cube::new()));
     entity.set_geometry(Some(IndexedCube::new()));
-    entity.set_material(Some(TextureMaterial::new(url)));
+    entity.set_material(Some(TextureInstancedMaterial::new(
+        url, count, grid, width, height,
+    )));
     scene.root_entity_mut().add_child_boxed(entity);
 
     let mut render = WebGL2Render::new(&scene)?;

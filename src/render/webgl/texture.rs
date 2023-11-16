@@ -1,15 +1,8 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
-use wasm_bindgen::{JsCast, Clamped};
 use wasm_bindgen_test::console_log;
-use web_sys::{
-    js_sys::{Object, Uint8Array, Uint8ClampedArray},
-    Blob, HtmlCanvasElement, HtmlImageElement, ImageData, Node, Url, WebGl2RenderingContext,
-    WebGlTexture, CanvasRenderingContext2d,
-};
-
-use crate::{document, window};
+use web_sys::{HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext, WebGlTexture};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -350,37 +343,51 @@ pub enum TextureParameter {
 }
 
 impl TextureParameter {
-    pub fn key(&self) -> u32 {
+    pub(super) fn tex_parameteri(&self, gl: &WebGl2RenderingContext, target: u32) {
         match self {
-            TextureParameter::MagFilter(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-            TextureParameter::MinFilter(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-            TextureParameter::WrapS(_) => WebGl2RenderingContext::TEXTURE_WRAP_S,
-            TextureParameter::WrapT(_) => WebGl2RenderingContext::TEXTURE_WRAP_T,
-            TextureParameter::WrapR(_) => WebGl2RenderingContext::TEXTURE_WRAP_R,
-            TextureParameter::BaseLevel(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-            TextureParameter::CompareFunc(_) => WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
-            TextureParameter::CompareMode(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
-            TextureParameter::MaxLevel(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
-            TextureParameter::MaxLod(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
-            TextureParameter::MinLod(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
+            TextureParameter::MagFilter(v) => gl.tex_parameteri(
+                target,
+                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+                v.value(),
+            ),
+            TextureParameter::MinFilter(v) => gl.tex_parameteri(
+                target,
+                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+                v.value(),
+            ),
+            TextureParameter::WrapS(v) => {
+                gl.tex_parameteri(target, WebGl2RenderingContext::TEXTURE_WRAP_S, v.value())
+            }
+            TextureParameter::WrapT(v) => {
+                gl.tex_parameteri(target, WebGl2RenderingContext::TEXTURE_WRAP_T, v.value())
+            }
+            TextureParameter::WrapR(v) => {
+                gl.tex_parameteri(target, WebGl2RenderingContext::TEXTURE_WRAP_R, v.value())
+            }
+            TextureParameter::BaseLevel(v) => {
+                gl.tex_parameteri(target, WebGl2RenderingContext::TEXTURE_BASE_LEVEL, *v)
+            }
+            TextureParameter::CompareFunc(v) => gl.tex_parameteri(
+                target,
+                WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
+                v.value(),
+            ),
+            TextureParameter::CompareMode(v) => gl.tex_parameteri(
+                target,
+                WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
+                v.value(),
+            ),
+            TextureParameter::MaxLevel(v) => {
+                gl.tex_parameteri(target, WebGl2RenderingContext::TEXTURE_MAX_LEVEL, *v)
+            }
+            TextureParameter::MaxLod(v) => {
+                gl.tex_parameterf(target, WebGl2RenderingContext::TEXTURE_MAX_LOD, *v)
+            }
+            TextureParameter::MinLod(v) => {
+                gl.tex_parameterf(target, WebGl2RenderingContext::TEXTURE_MIN_LOD, *v)
+            }
         }
     }
-
-    // pub(super) fn tex_parameteri(&self, gl: &WebGl2RenderingContext) {
-    //     match self {
-    //         TextureParameter::MagFilter(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::MinFilter(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::WrapS(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::WrapT(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::WrapR(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::BaseLevel(v) => gl.tex_parameteri(target, param.key(), *v),
-    //         TextureParameter::CompareFunc(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::CompareMode(v) => gl.tex_parameteri(target, param.key(), v.value()),
-    //         TextureParameter::MaxLevel(v) => gl.tex_parameteri(target, param.key(), *v),
-    //         TextureParameter::MaxLod(v) => gl.tex_parameterf(target, param.key(), *v),
-    //         TextureParameter::MinLod(v) => gl.tex_parameterf(target, param.key(), *v),
-    //     }
-    // }
 }
 
 enum TextureData {

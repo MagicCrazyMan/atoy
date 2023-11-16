@@ -13,7 +13,7 @@ use self::{
     buffer::{BufferStore, BufferTarget},
     draw::Draw,
     program::{AttributeBinding, AttributeValue, ProgramStore, UniformBinding, UniformValue},
-    texture::{TextureParameter, TextureStore},
+    texture::TextureStore,
 };
 
 pub mod buffer;
@@ -535,7 +535,7 @@ impl WebGL2Render {
                             };
                             let Some(value) = value else {
                                 // should log warning
-                                console_log!("5");
+                                console_log!("uniform {} not found", binding.as_str());
                                 continue;
                             };
 
@@ -736,41 +736,9 @@ impl WebGL2Render {
                                     // binds texture
                                     gl.bind_texture(target, Some(texture));
                                     // setups sampler parameters
-                                    params.iter().for_each(|param| match param {
-                                        TextureParameter::MagFilter(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::MinFilter(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::WrapS(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::WrapT(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::WrapR(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::BaseLevel(v) => {
-                                            gl.tex_parameteri(target, param.key(), *v)
-                                        }
-                                        TextureParameter::CompareFunc(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::CompareMode(v) => {
-                                            gl.tex_parameteri(target, param.key(), v.value())
-                                        }
-                                        TextureParameter::MaxLevel(v) => {
-                                            gl.tex_parameteri(target, param.key(), *v)
-                                        }
-                                        TextureParameter::MaxLod(v) => {
-                                            gl.tex_parameterf(target, param.key(), *v)
-                                        }
-                                        TextureParameter::MinLod(v) => {
-                                            gl.tex_parameterf(target, param.key(), *v)
-                                        }
-                                    });
+                                    params
+                                        .iter()
+                                        .for_each(|param| param.tex_parameteri(gl, target));
                                     // binds to shader
                                     gl.uniform1i(Some(location), *active_unit as i32);
                                     // gl.bind_texture(target, None);
