@@ -7,7 +7,7 @@ use wasm_bindgen_test::console_log;
 
 use crate::{
     entity::Entity,
-    geometry::{cube::Cube, indexed_cube::IndexedCube},
+    geometry::{cube::Cube, indexed_cube::IndexedCube, sphere::Sphere},
     material::{
         environment_mapping::EnvironmentMaterial, solid_color::SolidColorMaterial,
         solid_color_instanced::SolidColorInstancedMaterial, texture_mapping::TextureMaterial,
@@ -356,8 +356,7 @@ pub fn test_environment(
 
     let mut entity = Entity::new_boxed();
 
-    // entity.set_geometry(Some(Cube::new()));
-    entity.set_geometry(Some(IndexedCube::new()));
+    entity.set_geometry(Some(Sphere::with_opts(1.0, 24, 48)));
     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
     scene.root_entity_mut().add_child_boxed(entity);
 
@@ -366,13 +365,24 @@ pub fn test_environment(
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
+    let mut scaling = Vec3::<f32>::from_values(1.0, 1.0, 1.0);
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        // static MAX_SIZE: f64 = 3.0;
-        // static MIN_SIZE: f64 = 1.0;
-        // static SIZE_PER_SECOND: f64 = 0.5;
-        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        static MAX_SIZE: f64 = 1.0;
+        static MIN_SIZE: f64 = 0.2;
+        static SIZE_PER_SECOND: f64 = 0.5;
+        let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        scaling.0[0] = size as f32;
+        scaling.0[1] = size as f32;
+        scaling.0[2] = size as f32;
+        scene
+            .root_entity_mut()
+            .children_mut()
+            .get_mut(0)
+            .unwrap()
+            .set_model_matrix(Mat4::from_scaling(&scaling));
+        // bad performance below
         // scene
         //     .root_entity_mut()
         //     .children_mut()
@@ -382,11 +392,11 @@ pub fn test_environment(
         //     .unwrap()
         //     .borrow_mut()
         //     .as_any_mut()
-        //     .downcast_mut::<IndexedCube>()
+        //     .downcast_mut::<Sphere>()
         //     .unwrap()
-        //     .set_size(size as f32);
+        //     .set_radius(size as f32);
 
-        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene

@@ -221,7 +221,7 @@ impl WebGL2Render {
                 let mut material = entity.material().unwrap().borrow_mut();
                 let material = material.as_mut();
 
-                material.pre_render(scene, entity, geometry.as_ref());
+                material.prepare(scene, entity, geometry.as_ref());
 
                 if material.ready() {
                     match group.get_mut(material.name()) {
@@ -311,6 +311,14 @@ impl WebGL2Render {
                 let entity = unsafe { &*entity };
                 let geometry = entity.geometry().unwrap();
                 let material = entity.material().unwrap();
+
+                // pre-render
+                {
+                    let geometry = geometry.borrow();
+                    let mut material = material.borrow_mut();
+
+                    material.pre_render(scene, entity, geometry.as_ref());
+                }
 
                 {
                     let geometry = geometry.borrow();

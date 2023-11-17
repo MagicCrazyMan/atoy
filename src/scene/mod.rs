@@ -3,10 +3,11 @@ use std::borrow::Cow;
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError};
+use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlElement};
 
 use crate::{
-    camera::{perspective::PerspectiveCamera, Camera},
+    camera::{self, perspective::PerspectiveCamera, Camera},
     document,
     entity::Entity,
     utils::set_panic_hook,
@@ -108,6 +109,12 @@ impl Scene {
     }
 
     fn create_camera(canvas: &HtmlCanvasElement) -> Box<dyn Camera> {
+        console_log!(
+            "{} {} {}",
+            canvas.width(),
+            canvas.height(),
+            canvas.width() as f32 / canvas.height() as f32
+        );
         Box::new(PerspectiveCamera::new(
             Vec3::from_values(0.0, 0.0, 2.0),
             Vec3::new(),
@@ -143,8 +150,19 @@ impl Scene {
 
                 // mounts canvas to target (creates new if not exists)
                 mount.append_child(&self.canvas).unwrap();
-                self.canvas.set_width(mount.client_width() as u32);
-                self.canvas.set_height(mount.client_height() as u32);
+                let width = mount.client_width() as u32;
+                let height = mount.client_height() as u32;
+                self.canvas.set_width(width);
+                self.canvas.set_height(height);
+
+                // try set aspect if camera is a PerspectiveCamera
+                if let Some(camera) = self
+                    .active_camera
+                    .as_any_mut()
+                    .downcast_mut::<PerspectiveCamera>()
+                {
+                    camera.set_aspect(width as f32 / height as f32);
+                };
 
                 self.mount = Some(mount);
 

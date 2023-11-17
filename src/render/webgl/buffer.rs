@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use uuid::Uuid;
+use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -247,8 +248,8 @@ impl BufferDescriptor {
                 id,
                 data: BufferData::FromBinary {
                     data: Box::new(data),
-                    src_byte_offset: src_byte_offset,
-                    src_byte_length: src_byte_length,
+                    src_byte_offset,
+                    src_byte_length,
                 },
             },
         };

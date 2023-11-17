@@ -167,7 +167,7 @@ impl WebGLMaterial for EnvironmentMaterial {
         }
     }
 
-    fn pre_render(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
+    fn prepare(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> =
@@ -187,9 +187,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(0).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
@@ -198,9 +196,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(1).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
@@ -209,9 +205,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(2).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
@@ -220,9 +214,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(3).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
@@ -231,9 +223,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(4).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
@@ -242,9 +232,7 @@ impl WebGLMaterial for EnvironmentMaterial {
                                 format: TextureFormat::RGB,
                                 data_type: TextureDataType::UnsignedByte,
                                 image: Box::new(images.get(5).unwrap().clone()),
-                                pixel_storages: vec![
-                                    TexturePixelStorage::UnpackFlipYWebGL(true),
-                                ],
+                                pixel_storages: vec![],
                                 x_offset: 0,
                                 y_offset: 0,
                             },
