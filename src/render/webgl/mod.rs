@@ -183,75 +183,6 @@ struct RenderGroup {
 }
 
 impl WebGL2Render {
-    fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
-        let view = *scene.active_camera().view_matrix();
-        let proj = *scene.active_camera().proj_matrix();
-
-        let mut group: HashMap<String, RenderGroup> = HashMap::new();
-        let mut rollings = VecDeque::from([scene.root_entity()]);
-        while let Some(entity) = rollings.pop_front() {
-            // update composed matrices for all entities
-            let composed_model = match entity.parent() {
-                Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
-                None => *entity.model_matrix(),
-            };
-            let composed_normal = match composed_model.invert() {
-                Ok(inverted) => inverted.transpose(),
-                Err(err) => {
-                    //should err
-                    console_log!("{}", err);
-                    continue;
-                }
-            };
-            let composed_model_view = view * composed_model;
-            let composed_model_view_proj = proj * composed_model_view;
-            entity.composed_model_matrix().replace(composed_model);
-            entity.composed_normal_matrix().replace(composed_normal);
-            entity
-                .composed_model_view_matrix()
-                .replace(composed_model_view);
-            entity
-                .composed_model_view_proj_matrix()
-                .replace(composed_model_view_proj);
-
-            // filters any entity that has no geometry or material
-            // groups entities by material to prevent unnecessary program switching
-            if entity.geometry().is_some() && entity.material().is_some() {
-                let geometry = entity.geometry().unwrap().borrow();
-                let mut material = entity.material().unwrap().borrow_mut();
-                let material = material.as_mut();
-
-                material.prepare(scene, entity, geometry.as_ref());
-
-                if material.ready() {
-                    match group.get_mut(material.name()) {
-                        Some(group) => group.entities.push(entity),
-                        None => {
-                            // precompile material to program
-                            let (program, attribute_locations, uniform_locations) =
-                                self.program_store.program_or_compile(material)?;
-
-                            group.insert(
-                                material.name().to_string(),
-                                RenderGroup {
-                                    program,
-                                    attribute_locations,
-                                    uniform_locations,
-                                    entities: vec![entity],
-                                },
-                            );
-                        }
-                    };
-                }
-            }
-
-            // add children to rollings list
-            rollings.extend(entity.children().iter().map(|child| child.as_ref()));
-        }
-
-        Ok(group)
-    }
-
     pub fn render(&mut self, scene: &Scene) {
         let mut bind_prom = 0.0;
         let mut unbind_prom = 0.0;
@@ -276,6 +207,14 @@ impl WebGL2Render {
         prep += end - start;
 
         let gl = &self.gl;
+
+        // update WebGL viewport
+        gl.viewport(
+            0,
+            0,
+            scene.canvas().width() as i32,
+            scene.canvas().height() as i32,
+        );
 
         // clear scene
         gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
@@ -894,5 +833,73 @@ impl WebGL2Render {
             .get_element_by_id("total")
             .unwrap()
             .set_inner_html(&(total_end - total_start).to_string());
+    }
+    fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
+        let view = *scene.active_camera().view_matrix();
+        let proj = *scene.active_camera().proj_matrix();
+
+        let mut group: HashMap<String, RenderGroup> = HashMap::new();
+        let mut rollings = VecDeque::from([scene.root_entity()]);
+        while let Some(entity) = rollings.pop_front() {
+            // update composed matrices for all entities
+            let composed_model = match entity.parent() {
+                Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
+                None => *entity.model_matrix(),
+            };
+            let composed_normal = match composed_model.invert() {
+                Ok(inverted) => inverted.transpose(),
+                Err(err) => {
+                    //should err
+                    console_log!("{}", err);
+                    continue;
+                }
+            };
+            let composed_model_view = view * composed_model;
+            let composed_model_view_proj = proj * composed_model_view;
+            entity.composed_model_matrix().replace(composed_model);
+            entity.composed_normal_matrix().replace(composed_normal);
+            entity
+                .composed_model_view_matrix()
+                .replace(composed_model_view);
+            entity
+                .composed_model_view_proj_matrix()
+                .replace(composed_model_view_proj);
+
+            // filters any entity that has no geometry or material
+            // groups entities by material to prevent unnecessary program switching
+            if entity.geometry().is_some() && entity.material().is_some() {
+                let geometry = entity.geometry().unwrap().borrow();
+                let mut material = entity.material().unwrap().borrow_mut();
+                let material = material.as_mut();
+
+                material.prepare(scene, entity, geometry.as_ref());
+
+                if material.ready() {
+                    match group.get_mut(material.name()) {
+                        Some(group) => group.entities.push(entity),
+                        None => {
+                            // precompile material to program
+                            let (program, attribute_locations, uniform_locations) =
+                                self.program_store.program_or_compile(material)?;
+
+                            group.insert(
+                                material.name().to_string(),
+                                RenderGroup {
+                                    program,
+                                    attribute_locations,
+                                    uniform_locations,
+                                    entities: vec![entity],
+                                },
+                            );
+                        }
+                    };
+                }
+            }
+
+            // add children to rollings list
+            rollings.extend(entity.children().iter().map(|child| child.as_ref()));
+        }
+
+        Ok(group)
     }
 }

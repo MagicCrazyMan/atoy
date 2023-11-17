@@ -2,9 +2,9 @@ use std::borrow::Cow;
 
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError};
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
 use wasm_bindgen_test::console_log;
-use web_sys::{HtmlCanvasElement, HtmlElement};
+use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry};
 
 use crate::{
     camera::{self, perspective::PerspectiveCamera, Camera},
@@ -40,6 +40,7 @@ pub struct SceneOptions<'a> {
 pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
+    resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     active_camera: Box<dyn Camera>,
     root_entity: Box<Entity>,
 }
@@ -61,38 +62,31 @@ impl Scene {
 impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Result<Self, JsError> {
-        set_panic_hook();
-
-        let canvas = Self::create_canvas()?;
-        let active_camera = Self::create_camera(&canvas);
-        let mut scene = Self {
-            mount: None,
-            canvas,
-            active_camera,
-            root_entity: Entity::new_boxed(),
-        };
-
-        // init mount target
-        Self::set_mount(&mut scene, None)?;
-
-        Ok(scene)
+        Self::new_inner(None)
     }
 
     /// Constructs a new scene using initialization options.
     pub fn with_options(options: SceneOptions) -> Result<Self, JsError> {
+        Self::new_inner(Some(options))
+    }
+
+    fn new_inner(options: Option<SceneOptions>) -> Result<Self, JsError> {
         set_panic_hook();
 
         let canvas = Self::create_canvas()?;
-        let active_camera = Self::create_camera(&canvas);
+        let mut active_camera = Self::create_camera(&canvas);
+        let resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
+
         let mut scene = Self {
             mount: None,
             canvas,
             active_camera,
+            resize_observer,
             root_entity: Entity::new_boxed(),
         };
 
         // init mount target
-        Self::set_mount(&mut scene, options.mount)?;
+        Self::set_mount(&mut scene, options.and_then(|opts| opts.mount))?;
 
         Ok(scene)
     }
@@ -109,12 +103,6 @@ impl Scene {
     }
 
     fn create_camera(canvas: &HtmlCanvasElement) -> Box<dyn Camera> {
-        console_log!(
-            "{} {} {}",
-            canvas.width(),
-            canvas.height(),
-            canvas.width() as f32 / canvas.height() as f32
-        );
         Box::new(PerspectiveCamera::new(
             Vec3::from_values(0.0, 0.0, 2.0),
             Vec3::new(),
@@ -124,6 +112,40 @@ impl Scene {
             0.5,
             None,
         ))
+    }
+
+    fn observer_canvas_size(
+        canvas: &HtmlCanvasElement,
+        camera: &mut Box<dyn Camera>,
+    ) -> (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>) {
+        // create observer observing size change event of canvas
+        let camera_ptr: *mut dyn Camera = camera.as_mut();
+        let resize_observer_callback = Closure::new(move |entries: Vec<ResizeObserverEntry>| {
+            // should have only one entry
+            let Some(target) = entries.get(0).map(|entry| entry.target()) else {
+                return;
+            };
+            let Some(canvas) = target.dyn_ref::<HtmlCanvasElement>() else {
+                return;
+            };
+
+            canvas.set_width(canvas.client_width() as u32);
+            canvas.set_height(canvas.client_height() as u32);
+
+            unsafe {
+                let camera = &mut *camera_ptr;
+                if let Some(camera) = camera.as_any_mut().downcast_mut::<PerspectiveCamera>() {
+                    console_log!("{}", canvas.width() as f32 / canvas.height() as f32);
+                    camera.set_aspect(canvas.width() as f32 / canvas.height() as f32);
+                }
+            }
+        });
+
+        let resize_observer =
+            ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref()).unwrap();
+        resize_observer.observe(canvas);
+
+        (resize_observer, resize_observer_callback)
     }
 }
 
@@ -172,6 +194,7 @@ impl Scene {
 
         // for all other situations, removes canvas from mount target
         self.canvas.remove();
+        self.mount = None;
         Ok(())
     }
 
