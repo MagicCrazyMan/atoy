@@ -17,7 +17,7 @@ use super::Geometry;
 
 #[wasm_bindgen]
 pub struct IndexedCube {
-    size: f32,
+    size: f64,
     indices_buffer: BufferDescriptor,
     vertices_buffer: BufferDescriptor,
     normals_buffer: BufferDescriptor,
@@ -27,7 +27,7 @@ pub struct IndexedCube {
 #[wasm_bindgen]
 impl IndexedCube {
     #[wasm_bindgen(constructor)]
-    pub fn new_constructor(size: Option<f32>) -> Self {
+    pub fn new_constructor(size: Option<f64>) -> Self {
         Self::with_size(size.unwrap_or(1.0))
     }
 }
@@ -37,7 +37,7 @@ impl IndexedCube {
         Self::with_size(1.0)
     }
 
-    pub fn with_size(size: f32) -> IndexedCube {
+    pub fn with_size(size: f64) -> IndexedCube {
         Self {
             size,
             indices_buffer: BufferDescriptor::with_binary(
@@ -71,11 +71,11 @@ impl IndexedCube {
 #[wasm_bindgen]
 
 impl IndexedCube {
-    pub fn size(&self) -> f32 {
+    pub fn size(&self) -> f64 {
         self.size
     }
 
-    pub fn set_size(&mut self, size: f32) {
+    pub fn set_size(&mut self, size: f64) {
         self.size = size;
         self.vertices_buffer
             .buffer_sub_data(get_vertices_buffer(size), 0, 0, 72 * 4);
@@ -86,7 +86,7 @@ impl Geometry for IndexedCube {
     fn draw<'a>(&'a self) -> Draw<'a> {
         Draw::Elements {
             mode: DrawMode::Triangles,
-            count: 36,
+            num_vertices: 36,
             element_type: DrawElementType::UnsignedByte,
             offset: 0,
             indices: Ncor::Borrowed(&self.indices_buffer),
@@ -147,8 +147,8 @@ impl Geometry for IndexedCube {
 }
 
 #[rustfmt::skip]
-fn get_vertices_buffer(size: f32) -> Vec<u8> {
-    let s = size / 2.0;
+fn get_vertices_buffer(size: f64) -> Vec<u8> {
+    let s = (size / 2.0) as f32;
     [
         s, s, s,  -s, s, s,  -s,-s, s,   s,-s, s,  // v0-v1-v2-v3 front
         s, s, s,   s,-s, s,   s,-s,-s,   s, s,-s,  // v0-v3-v4-v5 right

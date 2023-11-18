@@ -12,7 +12,7 @@ use crate::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureSource,
+            TextureMinificationFilter, TextureParameter, TextureSource,
         },
     },
     scene::Scene,
@@ -170,8 +170,7 @@ impl WebGLMaterial for EnvironmentMaterial {
     fn prepare(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
-            let images_ptr: *const Option<Vec<HtmlImageElement>> =
-                &self.images;
+            let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;
             let texture_ptr: *mut Option<TextureDescriptor> = &mut self.texture;
 
             self.onload = Some(Closure::new(move || unsafe {

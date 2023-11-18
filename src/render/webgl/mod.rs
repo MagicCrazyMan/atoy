@@ -160,17 +160,17 @@ impl WebGL2Render {
         }
     }
 
-    pub fn clear_color(&self) -> Vec4<f32> {
+    pub fn clear_color(&self) -> Vec4 {
         self.clear_color
     }
 
     pub fn set_clear_color(&mut self, clear_color: Vec4) {
         self.clear_color = clear_color;
         self.gl.clear_color(
-            self.clear_color.0[0],
-            self.clear_color.0[1],
-            self.clear_color.0[2],
-            self.clear_color.0[3],
+            self.clear_color.0[0] as f32,
+            self.clear_color.0[1] as f32,
+            self.clear_color.0[2] as f32,
+            self.clear_color.0[3] as f32,
         );
     }
 }
@@ -221,9 +221,9 @@ impl WebGL2Render {
         gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
         // extract camera direction and position
-        let camera_direction = *scene.active_camera().direction();
-        let camera_position = *scene.active_camera().position();
-        let camera_view_proj_matrix = *scene.active_camera().view_proj_matrix();
+        let camera_direction = scene.active_camera().direction();
+        let camera_position = scene.active_camera().position();
+        let camera_view_proj_matrix = scene.active_camera().view_proj_matrix();
 
         // render each entities group
         for (
@@ -401,12 +401,12 @@ impl WebGL2Render {
                             let value = match binding {
                                 UniformBinding::ParentModelMatrix => {
                                     let parent_model_matrix = match entity.parent() {
-                                        Some(parent) => *parent.model_matrix(),
+                                        Some(parent) => parent.model_matrix(),
                                         // use identity if not exists
                                         None => Mat4::new_identity(),
                                     };
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(parent_model_matrix),
+                                        data: Box::new(parent_model_matrix.into_gl()),
                                         transpose: false,
                                         src_offset: 0,
                                         src_length: 0,
@@ -414,7 +414,9 @@ impl WebGL2Render {
                                 }
                                 UniformBinding::ModelMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(*entity.composed_model_matrix().borrow()),
+                                        data: Box::new(
+                                            entity.composed_model_matrix().borrow().into_gl(),
+                                        ),
                                         transpose: false,
                                         src_offset: 0,
                                         src_length: 0,
@@ -422,7 +424,9 @@ impl WebGL2Render {
                                 }
                                 UniformBinding::NormalMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(*entity.composed_normal_matrix().borrow()),
+                                        data: Box::new(
+                                            entity.composed_normal_matrix().borrow().into_gl(),
+                                        ),
                                         transpose: false,
                                         src_offset: 0,
                                         src_length: 0,
@@ -431,7 +435,7 @@ impl WebGL2Render {
                                 UniformBinding::ModelViewMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
                                         data: Box::new(
-                                            *entity.composed_model_view_matrix().borrow(),
+                                            entity.composed_model_view_matrix().borrow().into_gl(),
                                         ),
                                         transpose: false,
                                         src_offset: 0,
@@ -441,7 +445,7 @@ impl WebGL2Render {
                                 UniformBinding::ModelViewProjMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
                                         data: Box::new(
-                                            *entity.composed_model_view_proj_matrix().borrow(),
+                                            entity.composed_model_view_proj_matrix().borrow().into_gl(),
                                         ),
                                         transpose: false,
                                         src_offset: 0,
@@ -450,7 +454,7 @@ impl WebGL2Render {
                                 }
                                 UniformBinding::ViewProjMatrix => {
                                     Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(camera_view_proj_matrix),
+                                        data: Box::new(camera_view_proj_matrix.into_gl()),
                                         transpose: false,
                                         src_offset: 0,
                                         src_length: 0,
@@ -458,14 +462,14 @@ impl WebGL2Render {
                                 }
                                 UniformBinding::ActiveCameraPosition => {
                                     Some(Ncor::Owned(UniformValue::FloatVector3 {
-                                        data: Box::new(camera_position),
+                                        data: Box::new(camera_position.into_gl()),
                                         src_offset: 0,
                                         src_length: 0,
                                     }))
                                 }
                                 UniformBinding::ActiveCameraDirection => {
                                     Some(Ncor::Owned(UniformValue::FloatVector3 {
-                                        data: Box::new(camera_direction),
+                                        data: Box::new(camera_direction.into_gl()),
                                         src_offset: 0,
                                         src_length: 0,
                                     }))
@@ -713,7 +717,7 @@ impl WebGL2Render {
                             ),
                             Draw::Elements {
                                 mode,
-                                count,
+                                num_vertices,
                                 element_type,
                                 offset,
                                 indices,
@@ -736,7 +740,7 @@ impl WebGL2Render {
 
                                 gl.draw_elements_instanced_with_i32(
                                     mode.to_gl_enum(),
-                                    count,
+                                    num_vertices,
                                     element_type.to_gl_enum(),
                                     offset,
                                     num_instances,
@@ -753,7 +757,7 @@ impl WebGL2Render {
                             } => gl.draw_arrays(mode.to_gl_enum(), first, num_vertices),
                             Draw::Elements {
                                 mode,
-                                count,
+                                num_vertices,
                                 element_type,
                                 offset,
                                 indices,
@@ -776,7 +780,7 @@ impl WebGL2Render {
 
                                 gl.draw_elements_with_i32(
                                     mode.to_gl_enum(),
-                                    count,
+                                    num_vertices,
                                     element_type.to_gl_enum(),
                                     offset,
                                 )
@@ -834,17 +838,18 @@ impl WebGL2Render {
             .unwrap()
             .set_inner_html(&(total_end - total_start).to_string());
     }
+
     fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
-        let view = *scene.active_camera().view_matrix();
-        let proj = *scene.active_camera().proj_matrix();
+        let view = scene.active_camera().view_matrix();
+        let proj = scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
         let mut rollings = VecDeque::from([scene.root_entity()]);
         while let Some(entity) = rollings.pop_front() {
             // update composed matrices for all entities
             let composed_model = match entity.parent() {
-                Some(parent) => *parent.model_matrix() * *entity.model_matrix(),
-                None => *entity.model_matrix(),
+                Some(parent) => parent.model_matrix() * entity.model_matrix(),
+                None => entity.model_matrix(),
             };
             let composed_normal = match composed_model.invert() {
                 Ok(inverted) => inverted.transpose(),

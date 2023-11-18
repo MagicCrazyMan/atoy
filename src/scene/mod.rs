@@ -3,11 +3,10 @@ use std::borrow::Cow;
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
-use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry};
 
 use crate::{
-    camera::{self, perspective::PerspectiveCamera, Camera},
+    camera::{perspective::PerspectiveCamera, Camera},
     document,
     entity::Entity,
     utils::set_panic_hook,
@@ -107,8 +106,8 @@ impl Scene {
             Vec3::from_values(0.0, 0.0, 2.0),
             Vec3::new(),
             Vec3::from_values(0.0, 1.0, 0.0),
-            60.0f32.to_radians(),
-            canvas.width() as f32 / canvas.height() as f32,
+            60.0f64.to_radians(),
+            canvas.width() as f64 / canvas.height() as f64,
             0.5,
             None,
         ))
@@ -135,8 +134,7 @@ impl Scene {
             unsafe {
                 let camera = &mut *camera_ptr;
                 if let Some(camera) = camera.as_any_mut().downcast_mut::<PerspectiveCamera>() {
-                    console_log!("{}", canvas.width() as f32 / canvas.height() as f32);
-                    camera.set_aspect(canvas.width() as f32 / canvas.height() as f32);
+                    camera.set_aspect(canvas.width() as f64 / canvas.height() as f64);
                 }
             }
         });
@@ -183,7 +181,7 @@ impl Scene {
                     .as_any_mut()
                     .downcast_mut::<PerspectiveCamera>()
                 {
-                    camera.set_aspect(width as f32 / height as f32);
+                    camera.set_aspect(width as f64 / height as f64);
                 };
 
                 self.mount = Some(mount);

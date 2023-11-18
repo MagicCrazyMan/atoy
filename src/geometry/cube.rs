@@ -17,7 +17,7 @@ use super::Geometry;
 
 #[wasm_bindgen]
 pub struct Cube {
-    size: f32,
+    size: f64,
     vertices_buffer: BufferDescriptor,
     normals_buffer: BufferDescriptor,
     texture_coordinates_buffer: BufferDescriptor,
@@ -26,7 +26,7 @@ pub struct Cube {
 #[wasm_bindgen]
 impl Cube {
     #[wasm_bindgen(constructor)]
-    pub fn new_constructor(size: Option<f32>) -> Self {
+    pub fn new_constructor(size: Option<f64>) -> Self {
         Self::with_size(size.unwrap_or(1.0))
     }
 }
@@ -36,7 +36,7 @@ impl Cube {
         Self::with_size(1.0)
     }
 
-    pub fn with_size(size: f32) -> Cube {
+    pub fn with_size(size: f64) -> Cube {
         Self {
             size,
             vertices_buffer: BufferDescriptor::with_binary(
@@ -63,11 +63,11 @@ impl Cube {
 
 #[wasm_bindgen]
 impl Cube {
-    pub fn size(&self) -> f32 {
+    pub fn size(&self) -> f64 {
         self.size
     }
 
-    pub fn set_size(&mut self, size: f32) {
+    pub fn set_size(&mut self, size: f64) {
         self.size = size;
         self.vertices_buffer
             .buffer_sub_data(get_vertices_buffer(size), 0, 0, 108 * 4);
@@ -137,8 +137,8 @@ impl Geometry for Cube {
 }
 
 #[rustfmt::skip]
-fn get_vertices_buffer(size: f32) -> Vec<u8> {
-    let s = size / 2.0;
+fn get_vertices_buffer(size: f64) -> Vec<u8> {
+    let s = (size / 2.0) as f32;
     [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
         -s,  s, -s,  -s,  s,  s,   s,  s, -s,   s,  s, -s,  -s,  s,  s,   s,  s,  s, // up

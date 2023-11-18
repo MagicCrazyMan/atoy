@@ -12,7 +12,7 @@ pub enum Draw<'a> {
     },
     Elements {
         mode: DrawMode,
-        count: i32,
+        num_vertices: i32,
         element_type: DrawElementType,
         offset: i32,
         indices: Ncor<'a, BufferDescriptor>,

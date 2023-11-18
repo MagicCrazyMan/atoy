@@ -204,8 +204,8 @@ impl Entity {
 }
 
 impl Entity {
-    pub fn model_matrix(&self) -> &Mat4 {
-        &self.m
+    pub fn model_matrix(&self) -> Mat4 {
+        self.m
     }
 
     pub fn set_model_matrix(&mut self, mat: Mat4) {

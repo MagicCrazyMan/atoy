@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgb;
+use wasm_bindgen_test::console_log;
 
 use crate::{
     ncor::Ncor,
@@ -62,9 +63,9 @@ pub struct SolidColorInstancedMaterial {
 }
 
 impl SolidColorInstancedMaterial {
-    pub fn new(count: i32, grid: i32, width: f32, height: f32) -> Self {
-        let cell_width = width / (grid as f32);
-        let cell_height = height / (grid as f32);
+    pub fn new(count: i32, grid: i32, width: f64, height: f64) -> Self {
+        let cell_width = width / (grid as f64);
+        let cell_height = height / (grid as f64);
         let start_x = width / 2.0 - cell_width / 2.0;
         let start_z = height / 2.0 - cell_height / 2.0;
 
@@ -76,10 +77,10 @@ impl SolidColorInstancedMaterial {
             let row = index / grid;
             let col = index % grid;
 
-            let center_x = start_x - col as f32 * cell_width;
-            let center_z = start_z - row as f32 * cell_height;
+            let center_x = start_x - col as f64 * cell_width;
+            let center_z = start_z - row as f64 * cell_height;
             matrices_data.extend_from_slice(
-                Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z)).as_ref(),
+                Mat4::<f32>::from_translation(Vec3::from_values(center_x as f32, 0.0, center_z as f32)).as_ref(),
             );
 
             let Rgb {

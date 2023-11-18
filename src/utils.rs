@@ -154,7 +154,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
 }
 
 #[wasm_bindgen]
-pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), JsError> {
+pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
@@ -165,16 +165,16 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
         .active_camera_mut()
         .set_up(Vec3::from_values(0.0, 0.0, -1.0));
 
-    let cell_width = width / (grid as f32);
-    let cell_height = height / (grid as f32);
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
 
-        let center_x = start_x - col as f32 * cell_width;
-        let center_z = start_z - row as f32 * cell_height;
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z));
 
         let mut entity = Entity::new_boxed();
@@ -198,7 +198,7 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
 
         scene
             .root_entity_mut()
-            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+            .set_model_matrix(Mat4::from_y_rotation(rotation));
         render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -210,7 +210,7 @@ pub fn test_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), J
 }
 
 #[wasm_bindgen]
-pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Result<(), JsError> {
+pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), JsError> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
@@ -252,14 +252,14 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f32, height: f32) -> Re
             .as_any_mut()
             .downcast_mut::<IndexedCube>()
             .unwrap()
-            .set_size(size as f32);
+            .set_size(size);
 
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene
             .root_entity_mut()
-            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+            .set_model_matrix(Mat4::from_y_rotation(rotation));
         render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -327,7 +327,7 @@ pub fn test_texture(
 
         scene
             .root_entity_mut()
-            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+            .set_model_matrix(Mat4::from_y_rotation(rotation));
         render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -365,7 +365,7 @@ pub fn test_environment(
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
-    let mut scaling = Vec3::<f32>::from_values(1.0, 1.0, 1.0);
+    let mut scaling = Vec3::<f64>::from_values(1.0, 1.0, 1.0);
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
@@ -373,9 +373,9 @@ pub fn test_environment(
         static MIN_SIZE: f64 = 0.2;
         static SIZE_PER_SECOND: f64 = 0.5;
         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-        scaling.0[0] = size as f32;
-        scaling.0[1] = size as f32;
-        scaling.0[2] = size as f32;
+        scaling.0[0] = size;
+        scaling.0[1] = size;
+        scaling.0[2] = size;
         scene
             .root_entity_mut()
             .children_mut()
@@ -401,7 +401,7 @@ pub fn test_environment(
 
         scene
             .root_entity_mut()
-            .set_model_matrix(Mat4::from_y_rotation(rotation as f32));
+            .set_model_matrix(Mat4::from_y_rotation(rotation));
         render.render(&scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
