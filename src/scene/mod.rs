@@ -39,7 +39,8 @@ pub struct SceneOptions<'a> {
 pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
-    resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
+    // require for storing callback closure function
+    _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     active_camera: Box<dyn Camera>,
     root_entity: Box<Entity>,
 }
@@ -74,13 +75,13 @@ impl Scene {
 
         let canvas = Self::create_canvas()?;
         let mut active_camera = Self::create_camera(&canvas);
-        let resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
+        let _resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
 
         let mut scene = Self {
             mount: None,
             canvas,
             active_camera,
-            resize_observer,
+            _resize_observer,
             root_entity: Entity::new_boxed(),
         };
 
