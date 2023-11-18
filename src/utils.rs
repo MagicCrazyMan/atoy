@@ -356,7 +356,7 @@ pub fn test_environment(
 
     let mut entity = Entity::new_boxed();
 
-    entity.set_geometry(Some(Sphere::with_opts(1.0, 24, 48)));
+    entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
     scene.root_entity_mut().add_child_boxed(entity);
 
