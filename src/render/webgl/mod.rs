@@ -230,35 +230,14 @@ impl WebGL2Render {
                 let material = entity.material().unwrap();
 
                 // pre-render
-                self.pre_render(
-                    scene,
-                    entity,
-                    geometry.borrow().as_ref(),
-                    material.borrow_mut().as_mut(),
-                );
+                self.pre_render(scene, entity, geometry, material);
                 // binds attributes
-                self.bind_attributes(
-                    attribute_locations,
-                    entity,
-                    geometry.borrow().as_ref(),
-                    material.borrow().as_ref(),
-                );
+                self.bind_attributes(attribute_locations, entity, geometry, material);
                 // binds uniforms
-                self.bind_uniforms(
-                    scene,
-                    uniform_locations,
-                    entity,
-                    geometry.borrow().as_ref(),
-                    material.borrow().as_ref(),
-                );
-                self.draw(geometry.borrow().as_ref(), material.borrow().as_ref());
+                self.bind_uniforms(scene, uniform_locations, entity, geometry, material);
+                self.draw(geometry, material);
                 // post-render
-                self.post_render(
-                    scene,
-                    entity,
-                    geometry.borrow().as_ref(),
-                    material.borrow_mut().as_mut(),
-                );
+                self.post_render(scene, entity, geometry, material);
             }
 
             // unbinds for good practices
@@ -293,12 +272,8 @@ impl WebGL2Render {
 
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
-            if entity.geometry().is_some() && entity.material().is_some() {
-                let geometry = entity.geometry().unwrap().borrow();
-                let mut material = entity.material().unwrap().borrow_mut();
-                let material = material.as_mut();
-
-                material.prepare(scene, entity, geometry.as_ref());
+            if let (Some(geometry), Some(material)) = (entity.geometry(), entity.material()) {
+                material.prepare(scene, entity, geometry);
 
                 // check whether material is ready or not
                 if material.ready() {
@@ -339,7 +314,7 @@ impl WebGL2Render {
         scene: &Scene,
         entity: &Entity,
         geometry: &dyn Geometry,
-        material: &mut dyn WebGLMaterial,
+        material: &dyn WebGLMaterial,
     ) {
         material.pre_render(scene, entity, geometry);
     }
@@ -349,7 +324,7 @@ impl WebGL2Render {
         scene: &Scene,
         entity: &Entity,
         geometry: &dyn Geometry,
-        material: &mut dyn WebGLMaterial,
+        material: &dyn WebGLMaterial,
     ) {
         material.post_render(scene, entity, geometry);
     }

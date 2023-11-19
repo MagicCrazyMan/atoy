@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use gl_matrix4rust::mat4::Mat4;
 use uuid::Uuid;
 
@@ -20,8 +18,8 @@ pub struct Entity {
     model_matrix: Mat4,
     model_view_matrix: Mat4,
     model_view_proj_matrix: Mat4,
-    geometry: Option<RefCell<Box<dyn Geometry>>>,
-    material: Option<RefCell<Box<dyn WebGLMaterial>>>,
+    geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn WebGLMaterial>>,
     parent: Option<*mut Entity>,
     children: Vec<Box<Entity>>,
 }
@@ -66,12 +64,9 @@ impl Entity {
         self.id
     }
 
-    pub fn geometry(&self) -> Option<&RefCell<Box<dyn Geometry>>> {
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
         match &self.geometry {
-            Some(geometry) => {
-                let geometry = &geometry;
-                Some(geometry)
-            }
+            Some(geometry) => Some(geometry.as_ref()),
             None => None,
         }
     }
@@ -88,14 +83,14 @@ impl Entity {
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
-            Some(geometry) => Some(RefCell::new(Box::new(geometry))),
+            Some(geometry) => Some(Box::new(geometry)),
             None => None,
         }
     }
 
-    pub fn material(&self) -> Option<&RefCell<Box<dyn WebGLMaterial>>> {
+    pub fn material(&self) -> Option<&dyn WebGLMaterial> {
         match &self.material {
-            Some(material) => Some(&material),
+            Some(material) => Some(material.as_ref()),
             None => None,
         }
     }
@@ -112,7 +107,7 @@ impl Entity {
 
     pub fn set_material<M: WebGLMaterial + 'static>(&mut self, material: Option<M>) {
         self.material = match material {
-            Some(material) => Some(RefCell::new(Box::new(material))),
+            Some(material) => Some(Box::new(material)),
             None => None,
         }
     }
@@ -247,8 +242,8 @@ impl Entity {
 
 pub struct EntityBuilder {
     model_matrix: Mat4,
-    geometry: Option<RefCell<Box<dyn Geometry>>>,
-    material: Option<RefCell<Box<dyn WebGLMaterial>>>,
+    geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn WebGLMaterial>>,
 }
 
 impl EntityBuilder {
@@ -266,7 +261,7 @@ impl EntityBuilder {
     }
 
     pub fn geometry<G: Geometry + 'static>(mut self, geometry: G) -> Self {
-        self.geometry = Some(RefCell::new(Box::new(geometry)));
+        self.geometry = Some(Box::new(geometry));
         self
     }
 
@@ -276,7 +271,7 @@ impl EntityBuilder {
     }
 
     pub fn material<M: WebGLMaterial + 'static>(mut self, material: M) -> Self {
-        self.material = Some(RefCell::new(Box::new(material)));
+        self.material = Some(Box::new(material));
         self
     }
 

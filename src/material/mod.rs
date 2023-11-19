@@ -31,11 +31,11 @@ pub trait WebGLMaterial {
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
+    fn prepare(&self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn pre_render(&mut self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
+    fn pre_render(&self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
+    fn post_render(&self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
 }
