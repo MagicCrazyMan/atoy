@@ -169,7 +169,7 @@ impl BufferDescriptor {
         }
     }
 
-    pub fn with_binary<D: AsRef<[u8]> + 'static>(
+    pub fn from_binary<D: AsRef<[u8]> + 'static>(
         data: D,
         src_byte_offset: u32,
         src_byte_length: u32,
@@ -256,10 +256,6 @@ impl BufferDescriptor {
         *self.status.borrow_mut() = new_status;
     }
 }
-
-// pub struct BufferItem {
-//     buffer: WebGlBuffer,
-// }
 
 pub struct BufferStore {
     gl: WebGl2RenderingContext,

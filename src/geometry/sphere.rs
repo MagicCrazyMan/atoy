@@ -97,7 +97,7 @@ impl Geometry for Sphere {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            num_vertices: self.num_vertices,
+            count: self.num_vertices,
         }
     }
 

@@ -53,7 +53,7 @@ impl Geometry for Plane {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            num_vertices: 36,
+            count: 36,
         }
     }
 

@@ -2,15 +2,10 @@ use std::any::Any;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{
-    ncor::Ncor,
-    render::webgl::{
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
-        },
-        draw::{Draw, DrawMode},
-        program::{AttributeValue, UniformValue},
-    },
+use crate::render::webgl::{
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
+    draw::{Draw, DrawMode},
+    program::{AttributeValue, UniformValue},
 };
 
 use super::Geometry;
@@ -18,9 +13,9 @@ use super::Geometry;
 #[wasm_bindgen]
 pub struct Cube {
     size: f64,
-    vertices_buffer: BufferDescriptor,
-    normals_buffer: BufferDescriptor,
-    texture_coordinates_buffer: BufferDescriptor,
+    vertices: BufferDescriptor,
+    normals: BufferDescriptor,
+    texture_coordinates: BufferDescriptor,
 }
 
 #[wasm_bindgen]
@@ -39,19 +34,19 @@ impl Cube {
     pub fn with_size(size: f64) -> Cube {
         Self {
             size,
-            vertices_buffer: BufferDescriptor::with_binary(
+            vertices: BufferDescriptor::from_binary(
                 get_vertices_buffer(size),
                 0,
                 108 * 4,
                 BufferUsage::StaticDraw,
             ),
-            normals_buffer: BufferDescriptor::with_binary(
+            normals: BufferDescriptor::from_binary(
                 get_normals_buffer(),
                 0,
                 144 * 4,
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates_buffer: BufferDescriptor::with_binary(
+            texture_coordinates: BufferDescriptor::from_binary(
                 get_texture_coordinates(),
                 0,
                 48 * 4,
@@ -69,61 +64,61 @@ impl Cube {
 
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices_buffer
+        self.vertices
             .buffer_sub_data(get_vertices_buffer(size), 0, 0, 108 * 4);
     }
 }
 
 impl Geometry for Cube {
-    fn draw<'a>(&'a self) -> Draw<'a> {
+    fn draw(&self) -> Draw {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            num_vertices: 36,
+            count: 36,
         }
     }
 
-    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.vertices_buffer),
+    fn vertices<'a>(&'a self) -> Option<AttributeValue<'a>> {
+        Some(AttributeValue::Buffer {
+            descriptor: &self.vertices,
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.normals_buffer),
+    fn normals<'a>(&'a self) -> Option<AttributeValue<'a>> {
+        Some(AttributeValue::Buffer {
+            descriptor: &self.normals,
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Four,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.texture_coordinates_buffer),
+    fn texture_coordinates<'a>(&'a self) -> Option<AttributeValue<'a>> {
+        Some(AttributeValue::Buffer {
+            descriptor: &self.texture_coordinates,
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value<'a>(&'a self, _name: &str) -> Option<AttributeValue<'a>> {
         None
     }
 
-    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value<'a>(&'a self, _name: &str) -> Option<UniformValue<'a>> {
         None
     }
 

@@ -1,30 +1,27 @@
 pub mod cube;
-pub mod indexed_cube;
-pub mod plane;
-pub mod sphere;
+// pub mod indexed_cube;
+// pub mod plane;
+// pub mod sphere;
 
 use std::any::Any;
 
-use crate::{
-    ncor::Ncor,
-    render::webgl::{
-        draw::Draw,
-        program::{AttributeValue, UniformValue},
-    },
+use crate::render::webgl::{
+    draw::Draw,
+    program::{AttributeValue, UniformValue},
 };
 
 pub trait Geometry {
-    fn draw<'a>(&'a self) -> Draw<'a>;
+    fn draw(&self) -> Draw;
 
-    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
+    fn vertices<'a>(&'a self) -> Option<AttributeValue<'a>>;
 
-    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
+    fn normals<'a>(&'a self) -> Option<AttributeValue<'a>>;
 
-    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>>;
+    fn texture_coordinates<'a>(&'a self) -> Option<AttributeValue<'a>>;
 
-    fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>>;
+    fn attribute_value<'a>(&'a self, name: &str) -> Option<AttributeValue<'a>>;
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>>;
+    fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>>;
 
     fn as_any(&self) -> &dyn Any;
 

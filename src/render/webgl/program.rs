@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap};
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::{material::WebGLMaterial, ncor::Ncor};
+use crate::material::WebGLMaterial;
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
@@ -12,7 +12,7 @@ use super::{
 
 pub enum AttributeValue<'a> {
     Buffer {
-        descriptor: Ncor<'a, BufferDescriptor>,
+        descriptor: &'a BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
@@ -21,7 +21,7 @@ pub enum AttributeValue<'a> {
         bytes_offset: i32,
     },
     InstancedBuffer {
-        descriptor: Ncor<'a, BufferDescriptor>,
+        descriptor: &'a BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
@@ -68,85 +68,85 @@ pub enum UniformValue<'a> {
     UnsignedInteger3(u32, u32, u32),
     UnsignedInteger4(u32, u32, u32, u32),
     FloatVector1 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector2 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector3 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         src_offset: u32,
         src_length: u32,
     },
     FloatVector4 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector1 {
-        data: Box<dyn AsRef<[i32]>>,
+        data: &'a dyn AsRef<[i32]>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector2 {
-        data: Box<dyn AsRef<[i32]>>,
+        data: &'a dyn AsRef<[i32]>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector3 {
-        data: Box<dyn AsRef<[i32]>>,
+        data: &'a dyn AsRef<[i32]>,
         src_offset: u32,
         src_length: u32,
     },
     IntegerVector4 {
-        data: Box<dyn AsRef<[i32]>>,
+        data: &'a dyn AsRef<[i32]>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector1 {
-        data: Box<dyn AsRef<[u32]>>,
+        data: &'a dyn AsRef<[u32]>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector2 {
-        data: Box<dyn AsRef<[u32]>>,
+        data: &'a dyn AsRef<[u32]>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector3 {
-        data: Box<dyn AsRef<[u32]>>,
+        data: &'a dyn AsRef<[u32]>,
         src_offset: u32,
         src_length: u32,
     },
     UnsignedIntegerVector4 {
-        data: Box<dyn AsRef<[u32]>>,
+        data: &'a dyn AsRef<[u32]>,
         src_offset: u32,
         src_length: u32,
     },
     Matrix2 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
     },
     Matrix3 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
     },
     Matrix4 {
-        data: Box<dyn AsRef<[f32]>>,
+        data: &'a dyn AsRef<[f32]>,
         transpose: bool,
         src_offset: u32,
         src_length: u32,
     },
     Texture {
-        descriptor: Ncor<'a, TextureDescriptor>,
+        descriptor: &'a TextureDescriptor,
         params: Vec<TextureParameter>,
         active_unit: u32,
     },

@@ -86,7 +86,7 @@ impl Geometry for IndexedCube {
     fn draw<'a>(&'a self) -> Draw<'a> {
         Draw::Elements {
             mode: DrawMode::Triangles,
-            num_vertices: 36,
+            count: 36,
             element_type: DrawElementType::UnsignedByte,
             offset: 0,
             indices: Ncor::Borrowed(&self.indices_buffer),

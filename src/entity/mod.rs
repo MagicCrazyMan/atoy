@@ -6,7 +6,6 @@ use uuid::Uuid;
 use crate::{
     geometry::Geometry,
     material::WebGLMaterial,
-    ncor::Ncor,
     render::webgl::program::{AttributeValue, UniformValue},
 };
 
@@ -116,12 +115,12 @@ impl Entity {
     }
 
     #[allow(unused_variables)]
-    pub fn attribute_value<'a>(&self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    pub fn attribute_value<'a>(&self, name: &str) -> Option<AttributeValue<'a>> {
         None
     }
 
     #[allow(unused_variables)]
-    pub fn uniform_value<'a>(&self, name: &str) -> Option<Ncor<'a, UniformValue>> {
+    pub fn uniform_value<'a>(&self, name: &str) -> Option<UniformValue<'a>> {
         None
     }
 

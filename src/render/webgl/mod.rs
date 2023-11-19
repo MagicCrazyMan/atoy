@@ -3,11 +3,9 @@ use std::collections::{HashMap, VecDeque};
 use gl_matrix4rust::{mat4::Mat4, vec4::Vec4};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
 use wasm_bindgen_test::console_log;
-use web_sys::{
-    js_sys::Date, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
-};
+use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
-use crate::{document, entity::Entity, ncor::Ncor, scene::Scene};
+use crate::{entity::Entity, geometry::Geometry, material::WebGLMaterial, scene::Scene};
 
 use self::{
     buffer::{BufferStore, BufferTarget},
@@ -184,17 +182,19 @@ struct RenderGroup {
 
 impl WebGL2Render {
     pub fn render(&mut self, scene: &Scene) {
-        let mut bind_prom = 0.0;
-        let mut unbind_prom = 0.0;
-        let mut attr = 0.0;
-        let mut prep = 0.0;
-        let mut unif = 0.0;
-        let mut rend = 0.0;
+        // update WebGL viewport
+        self.gl.viewport(
+            0,
+            0,
+            scene.canvas().width() as i32,
+            scene.canvas().height() as i32,
+        );
 
-        let total_start = Date::now();
+        // clear scene
+        self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
         // collects entities and render console_error_panic_hook
-        let start = Date::now();
         let entities_group = match self.prepare(scene) {
             Ok(group) => group,
             Err(err) => {
@@ -203,27 +203,6 @@ impl WebGL2Render {
                 return;
             }
         };
-        let end = Date::now();
-        prep += end - start;
-
-        let gl = &self.gl;
-
-        // update WebGL viewport
-        gl.viewport(
-            0,
-            0,
-            scene.canvas().width() as i32,
-            scene.canvas().height() as i32,
-        );
-
-        // clear scene
-        gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
-
-        // extract camera direction and position
-        let camera_direction = scene.active_camera().direction();
-        let camera_position = scene.active_camera().position();
-        let camera_view_proj_matrix = scene.active_camera().view_proj_matrix();
 
         // render each entities group
         for (
@@ -240,10 +219,7 @@ impl WebGL2Render {
                 unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
 
             // binds program
-            let start = Date::now();
-            gl.use_program(Some(program));
-            let end = Date::now();
-            bind_prom += end - start;
+            self.gl.use_program(Some(program));
 
             // render each entity
             for entity in entities {
@@ -252,591 +228,44 @@ impl WebGL2Render {
                 let material = entity.material().unwrap();
 
                 // pre-render
-                {
-                    let geometry = geometry.borrow();
-                    let mut material = material.borrow_mut();
-
-                    material.pre_render(scene, entity, geometry.as_ref());
-                }
-
-                {
-                    let geometry = geometry.borrow();
-                    let material = material.borrow();
-
-                    // binds attribute values
-                    {
-                        let start = Date::now();
-                        for (binding, location) in attribute_locations {
-                            let value = match binding {
-                                AttributeBinding::GeometryPosition => geometry.vertices(),
-                                AttributeBinding::GeometryTextureCoordinate => {
-                                    geometry.texture_coordinates()
-                                }
-                                AttributeBinding::GeometryNormal => geometry.normals(),
-                                AttributeBinding::FromGeometry(name) => {
-                                    geometry.attribute_value(name.as_str())
-                                }
-                                AttributeBinding::FromMaterial(name) => {
-                                    material.attribute_value(name.as_str())
-                                }
-                                AttributeBinding::FromEntity(name) => {
-                                    entity.attribute_value(name.as_str())
-                                }
-                            };
-
-                            let Some(value) = value else {
-                                // should log warning
-                                console_log!("3");
-                                continue;
-                            };
-
-                            match value.as_ref() {
-                                AttributeValue::Buffer {
-                                    descriptor,
-                                    target,
-                                    component_size,
-                                    data_type,
-                                    normalized,
-                                    bytes_stride,
-                                    bytes_offset,
-                                } => {
-                                    let buffer = match self
-                                        .buffer_store
-                                        .buffer_or_create(descriptor.as_ref(), *target)
-                                    {
-                                        Ok(buffer) => buffer,
-                                        Err(err) => {
-                                            // should log error
-                                            console_log!("{}", err);
-                                            continue;
-                                        }
-                                    };
-
-                                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
-                                    gl.vertex_attrib_pointer_with_i32(
-                                        *location,
-                                        component_size.to_i32(),
-                                        data_type.to_gl_enum(),
-                                        *normalized,
-                                        *bytes_stride,
-                                        *bytes_offset,
-                                    );
-                                    gl.enable_vertex_attrib_array(*location);
-                                    gl.bind_buffer(target.to_gl_enum(), None);
-                                }
-                                AttributeValue::InstancedBuffer {
-                                    descriptor,
-                                    target,
-                                    component_size,
-                                    data_type,
-                                    normalized,
-                                    components_length_per_instance,
-                                    divisor,
-                                } => {
-                                    let buffer = match self
-                                        .buffer_store
-                                        .buffer_or_create(descriptor.as_ref(), *target)
-                                    {
-                                        Ok(buffer) => buffer,
-                                        Err(err) => {
-                                            // should log error
-                                            console_log!("{}", err);
-                                            continue;
-                                        }
-                                    };
-
-                                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
-                                    // binds each instance
-                                    for i in 0..*components_length_per_instance {
-                                        let offset_location = *location + i;
-                                        gl.vertex_attrib_pointer_with_i32(
-                                            offset_location,
-                                            component_size.to_i32(),
-                                            data_type.to_gl_enum(),
-                                            *normalized,
-                                            data_type.bytes_length()
-                                                * component_size.to_i32()
-                                                * (*components_length_per_instance as i32),
-                                            (i as i32)
-                                                * data_type.bytes_length()
-                                                * component_size.to_i32(),
-                                        );
-                                        gl.enable_vertex_attrib_array(offset_location);
-                                        gl.vertex_attrib_divisor(offset_location, *divisor);
-                                    }
-                                    gl.bind_buffer(target.to_gl_enum(), None);
-                                }
-                                AttributeValue::Vertex1f(x) => gl.vertex_attrib1f(*location, *x),
-                                AttributeValue::Vertex2f(x, y) => {
-                                    gl.vertex_attrib2f(*location, *x, *y)
-                                }
-                                AttributeValue::Vertex3f(x, y, z) => {
-                                    gl.vertex_attrib3f(*location, *x, *y, *z)
-                                }
-                                AttributeValue::Vertex4f(x, y, z, w) => {
-                                    gl.vertex_attrib4f(*location, *x, *y, *z, *w)
-                                }
-                                AttributeValue::Vertex1fv(v) => {
-                                    gl.vertex_attrib1fv_with_f32_array(*location, v)
-                                }
-                                AttributeValue::Vertex2fv(v) => {
-                                    gl.vertex_attrib2fv_with_f32_array(*location, v)
-                                }
-                                AttributeValue::Vertex3fv(v) => {
-                                    gl.vertex_attrib3fv_with_f32_array(*location, v)
-                                }
-                                AttributeValue::Vertex4fv(v) => {
-                                    gl.vertex_attrib4fv_with_f32_array(*location, v)
-                                }
-                            }
-                        }
-                        let end = Date::now();
-                        attr += end - start;
-                    }
-
-                    // binds uniform values
-                    {
-                        let start = Date::now();
-                        for (binding, location) in uniform_locations {
-                            let value = match binding {
-                                UniformBinding::ParentModelMatrix => {
-                                    let parent_model_matrix = match entity.parent() {
-                                        Some(parent) => parent.model_matrix(),
-                                        // use identity if not exists
-                                        None => Mat4::new_identity(),
-                                    };
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(parent_model_matrix.into_gl()),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ModelMatrix => {
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(
-                                            entity.composed_model_matrix().borrow().into_gl(),
-                                        ),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::NormalMatrix => {
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(
-                                            entity.composed_normal_matrix().borrow().into_gl(),
-                                        ),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ModelViewMatrix => {
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(
-                                            entity.composed_model_view_matrix().borrow().into_gl(),
-                                        ),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ModelViewProjMatrix => {
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(
-                                            entity.composed_model_view_proj_matrix().borrow().into_gl(),
-                                        ),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ViewProjMatrix => {
-                                    Some(Ncor::Owned(UniformValue::Matrix4 {
-                                        data: Box::new(camera_view_proj_matrix.into_gl()),
-                                        transpose: false,
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ActiveCameraPosition => {
-                                    Some(Ncor::Owned(UniformValue::FloatVector3 {
-                                        data: Box::new(camera_position.into_gl()),
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::ActiveCameraDirection => {
-                                    Some(Ncor::Owned(UniformValue::FloatVector3 {
-                                        data: Box::new(camera_direction.into_gl()),
-                                        src_offset: 0,
-                                        src_length: 0,
-                                    }))
-                                }
-                                UniformBinding::FromGeometry(name) => {
-                                    geometry.uniform_value(name.as_str())
-                                }
-                                UniformBinding::FromMaterial(name) => {
-                                    material.uniform_value(name.as_str())
-                                }
-                                UniformBinding::FromEntity(name) => {
-                                    entity.uniform_value(name.as_str())
-                                }
-                            };
-                            let Some(value) = value else {
-                                // should log warning
-                                console_log!("uniform {} not found", binding.as_str());
-                                continue;
-                            };
-
-                            match value.as_ref() {
-                                UniformValue::UnsignedInteger1(x) => {
-                                    gl.uniform1ui(Some(location), *x)
-                                }
-                                UniformValue::UnsignedInteger2(x, y) => {
-                                    gl.uniform2ui(Some(location), *x, *y)
-                                }
-                                UniformValue::UnsignedInteger3(x, y, z) => {
-                                    gl.uniform3ui(Some(location), *x, *y, *z)
-                                }
-                                UniformValue::UnsignedInteger4(x, y, z, w) => {
-                                    gl.uniform4ui(Some(location), *x, *y, *z, *w)
-                                }
-                                UniformValue::FloatVector1 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform1fv_with_f32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::FloatVector2 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform2fv_with_f32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::FloatVector3 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform3fv_with_f32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::FloatVector4 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform4fv_with_f32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::IntegerVector1 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform1iv_with_i32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::IntegerVector2 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform2iv_with_i32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::IntegerVector3 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform3iv_with_i32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::IntegerVector4 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform4iv_with_i32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::UnsignedIntegerVector1 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform1uiv_with_u32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::UnsignedIntegerVector2 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform2uiv_with_u32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::UnsignedIntegerVector3 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform3uiv_with_u32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::UnsignedIntegerVector4 {
-                                    data,
-                                    src_offset,
-                                    src_length,
-                                } => gl.uniform4uiv_with_u32_array_and_src_offset_and_src_length(
-                                    Some(location),
-                                    data.as_ref().as_ref(),
-                                    *src_offset,
-                                    *src_length,
-                                ),
-                                UniformValue::Matrix2 {
-                                    data,
-                                    transpose,
-                                    src_offset,
-                                    src_length,
-                                } => gl
-                                    .uniform_matrix2fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        *transpose,
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
-                                UniformValue::Matrix3 {
-                                    data,
-                                    transpose,
-                                    src_offset,
-                                    src_length,
-                                } => gl
-                                    .uniform_matrix3fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        *transpose,
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
-                                UniformValue::Matrix4 {
-                                    data,
-                                    transpose,
-                                    src_offset,
-                                    src_length,
-                                } => gl
-                                    .uniform_matrix4fv_with_f32_array_and_src_offset_and_src_length(
-                                        Some(location),
-                                        *transpose,
-                                        data.as_ref().as_ref(),
-                                        *src_offset,
-                                        *src_length,
-                                    ),
-                                UniformValue::Texture {
-                                    descriptor,
-                                    params,
-                                    active_unit,
-                                } => {
-                                    // active texture
-                                    gl.active_texture(
-                                        WebGl2RenderingContext::TEXTURE0 + *active_unit,
-                                    );
-
-                                    let (target, texture) = match self
-                                        .texture_store
-                                        .texture_or_create(descriptor.as_ref())
-                                    {
-                                        Ok(texture) => texture,
-                                        Err(err) => {
-                                            // should log error
-                                            console_log!("{}", err);
-                                            continue;
-                                        }
-                                    };
-
-                                    // binds texture
-                                    gl.bind_texture(target, Some(texture));
-                                    // setups sampler parameters
-                                    params
-                                        .iter()
-                                        .for_each(|param| param.tex_parameteri(gl, target));
-                                    // binds to shader
-                                    gl.uniform1i(Some(location), *active_unit as i32);
-                                    // gl.bind_texture(target, None);
-                                }
-                            }
-                        }
-                        let end = Date::now();
-                        unif += end - start;
-                    }
-
-                    // draws entity
-                    let start = Date::now();
-                    if let Some(num_instances) = material.instanced() {
-                        // draw instanced
-                        match geometry.draw() {
-                            Draw::Arrays {
-                                mode,
-                                first,
-                                num_vertices,
-                            } => gl.draw_arrays_instanced(
-                                mode.to_gl_enum(),
-                                first,
-                                num_vertices,
-                                num_instances,
-                            ),
-                            Draw::Elements {
-                                mode,
-                                num_vertices,
-                                element_type,
-                                offset,
-                                indices,
-                            } => {
-                                let buffer = match self.buffer_store.buffer_or_create(
-                                    indices.as_ref(),
-                                    BufferTarget::ElementArrayBuffer,
-                                ) {
-                                    Ok(buffer) => buffer,
-                                    Err(err) => {
-                                        // should log error
-                                        console_log!("{}", err);
-                                        continue;
-                                    }
-                                };
-                                gl.bind_buffer(
-                                    BufferTarget::ElementArrayBuffer.to_gl_enum(),
-                                    Some(buffer),
-                                );
-
-                                gl.draw_elements_instanced_with_i32(
-                                    mode.to_gl_enum(),
-                                    num_vertices,
-                                    element_type.to_gl_enum(),
-                                    offset,
-                                    num_instances,
-                                )
-                            }
-                        }
-                    } else {
-                        // draw normally!
-                        match geometry.draw() {
-                            Draw::Arrays {
-                                mode,
-                                first,
-                                num_vertices,
-                            } => gl.draw_arrays(mode.to_gl_enum(), first, num_vertices),
-                            Draw::Elements {
-                                mode,
-                                num_vertices,
-                                element_type,
-                                offset,
-                                indices,
-                            } => {
-                                let buffer = match self.buffer_store.buffer_or_create(
-                                    indices.as_ref(),
-                                    BufferTarget::ElementArrayBuffer,
-                                ) {
-                                    Ok(buffer) => buffer,
-                                    Err(err) => {
-                                        // should log error
-                                        console_log!("{}", err);
-                                        continue;
-                                    }
-                                };
-                                gl.bind_buffer(
-                                    BufferTarget::ElementArrayBuffer.to_gl_enum(),
-                                    Some(buffer),
-                                );
-
-                                gl.draw_elements_with_i32(
-                                    mode.to_gl_enum(),
-                                    num_vertices,
-                                    element_type.to_gl_enum(),
-                                    offset,
-                                )
-                            }
-                        }
-                    }
-                    let end = Date::now();
-                    rend += end - start;
-                }
-
-                {
-                    material
-                        .borrow_mut()
-                        .post_render(scene, entity, geometry.borrow().as_ref());
-                }
+                self.pre_render(
+                    scene,
+                    entity,
+                    geometry.borrow().as_ref(),
+                    material.borrow_mut().as_mut(),
+                );
+                // binds attributes
+                self.bind_attributes(
+                    attribute_locations,
+                    entity,
+                    geometry.borrow().as_ref(),
+                    material.borrow().as_ref(),
+                );
+                // binds uniforms
+                self.bind_uniforms(
+                    scene,
+                    uniform_locations,
+                    entity,
+                    geometry.borrow().as_ref(),
+                    material.borrow().as_ref(),
+                );
+                self.draw(geometry.borrow().as_ref(), material.borrow().as_ref());
+                // post-render
+                self.post_render(
+                    scene,
+                    entity,
+                    geometry.borrow().as_ref(),
+                    material.borrow_mut().as_mut(),
+                );
             }
+
+            // unbinds for good practices
+            self.gl.use_program(None);
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         }
-
-        // unbinds data after drawing
-        let start = Date::now();
-        gl.use_program(None);
-        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
-        let end = Date::now();
-        unbind_prom += end - start;
-
-        let total_end = Date::now();
-
-        document()
-            .get_element_by_id("preparation")
-            .unwrap()
-            .set_inner_html(&prep.to_string());
-        document()
-            .get_element_by_id("bind_program")
-            .unwrap()
-            .set_inner_html(&bind_prom.to_string());
-        document()
-            .get_element_by_id("attributes")
-            .unwrap()
-            .set_inner_html(&attr.to_string());
-        document()
-            .get_element_by_id("uniforms")
-            .unwrap()
-            .set_inner_html(&unif.to_string());
-        document()
-            .get_element_by_id("render")
-            .unwrap()
-            .set_inner_html(&rend.to_string());
-        document()
-            .get_element_by_id("unbind_program")
-            .unwrap()
-            .set_inner_html(&unbind_prom.to_string());
-        document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&(total_end - total_start).to_string());
     }
 
     fn prepare(&mut self, scene: &Scene) -> Result<HashMap<String, RenderGroup>, String> {
@@ -906,5 +335,480 @@ impl WebGL2Render {
         }
 
         Ok(group)
+    }
+
+    fn pre_render(
+        &self,
+        scene: &Scene,
+        entity: &Entity,
+        geometry: &dyn Geometry,
+        material: &mut dyn WebGLMaterial,
+    ) {
+        material.pre_render(scene, entity, geometry);
+    }
+
+    fn post_render(
+        &self,
+        scene: &Scene,
+        entity: &Entity,
+        geometry: &dyn Geometry,
+        material: &mut dyn WebGLMaterial,
+    ) {
+        material.post_render(scene, entity, geometry);
+    }
+
+    fn bind_attributes(
+        &mut self,
+        attribute_locations: &HashMap<AttributeBinding, u32>,
+        entity: &Entity,
+        geometry: &dyn Geometry,
+        material: &dyn WebGLMaterial,
+    ) {
+        let gl = &self.gl;
+
+        for (binding, location) in attribute_locations {
+            let value = match binding {
+                AttributeBinding::GeometryPosition => geometry.vertices(),
+                AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
+                AttributeBinding::GeometryNormal => geometry.normals(),
+                AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_str()),
+                AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_str()),
+                AttributeBinding::FromEntity(name) => entity.attribute_value(name.as_str()),
+            };
+            let Some(value) = value else {
+                // should log warning
+                console_log!("3");
+                continue;
+            };
+
+            match value {
+                AttributeValue::Buffer {
+                    descriptor,
+                    target,
+                    component_size,
+                    data_type,
+                    normalized,
+                    bytes_stride,
+                    bytes_offset,
+                } => {
+                    let buffer = match self.buffer_store.buffer_or_create(descriptor, target) {
+                        Ok(buffer) => buffer,
+                        Err(err) => {
+                            // should log error
+                            console_log!("{}", err);
+                            continue;
+                        }
+                    };
+
+                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
+                    gl.vertex_attrib_pointer_with_i32(
+                        *location,
+                        component_size.to_i32(),
+                        data_type.to_gl_enum(),
+                        normalized,
+                        bytes_stride,
+                        bytes_offset,
+                    );
+                    gl.enable_vertex_attrib_array(*location);
+                    gl.bind_buffer(target.to_gl_enum(), None);
+                }
+                AttributeValue::InstancedBuffer {
+                    descriptor,
+                    target,
+                    component_size,
+                    data_type,
+                    normalized,
+                    components_length_per_instance,
+                    divisor,
+                } => {
+                    let buffer = match self.buffer_store.buffer_or_create(descriptor, target) {
+                        Ok(buffer) => buffer,
+                        Err(err) => {
+                            // should log error
+                            console_log!("{}", err);
+                            continue;
+                        }
+                    };
+
+                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
+                    // binds each instance
+                    for i in 0..components_length_per_instance {
+                        let offset_location = *location + i;
+                        gl.vertex_attrib_pointer_with_i32(
+                            offset_location,
+                            component_size.to_i32(),
+                            data_type.to_gl_enum(),
+                            normalized,
+                            data_type.bytes_length()
+                                * component_size.to_i32()
+                                * (components_length_per_instance as i32),
+                            (i as i32) * data_type.bytes_length() * component_size.to_i32(),
+                        );
+                        gl.enable_vertex_attrib_array(offset_location);
+                        gl.vertex_attrib_divisor(offset_location, divisor);
+                    }
+                    gl.bind_buffer(target.to_gl_enum(), None);
+                }
+                AttributeValue::Vertex1f(x) => gl.vertex_attrib1f(*location, x),
+                AttributeValue::Vertex2f(x, y) => gl.vertex_attrib2f(*location, x, y),
+                AttributeValue::Vertex3f(x, y, z) => gl.vertex_attrib3f(*location, x, y, z),
+                AttributeValue::Vertex4f(x, y, z, w) => gl.vertex_attrib4f(*location, x, y, z, w),
+                AttributeValue::Vertex1fv(v) => gl.vertex_attrib1fv_with_f32_array(*location, &v),
+                AttributeValue::Vertex2fv(v) => gl.vertex_attrib2fv_with_f32_array(*location, &v),
+                AttributeValue::Vertex3fv(v) => gl.vertex_attrib3fv_with_f32_array(*location, &v),
+                AttributeValue::Vertex4fv(v) => gl.vertex_attrib4fv_with_f32_array(*location, &v),
+            }
+        }
+    }
+
+    fn bind_uniforms(
+        &mut self,
+        scene: &Scene,
+        uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
+        entity: &Entity,
+        geometry: &dyn Geometry,
+        material: &dyn WebGLMaterial,
+    ) {
+        let gl = &self.gl;
+
+        let mut tmp_mat4;
+        let mut tmp_vec3;
+
+        for (binding, location) in uniform_locations {
+            let value = match binding {
+                UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_str()),
+                UniformBinding::FromMaterial(name) => material.uniform_value(name.as_str()),
+                UniformBinding::FromEntity(name) => entity.uniform_value(name.as_str()),
+                UniformBinding::ParentModelMatrix
+                | UniformBinding::ModelMatrix
+                | UniformBinding::NormalMatrix
+                | UniformBinding::ModelViewMatrix
+                | UniformBinding::ModelViewProjMatrix
+                | UniformBinding::ViewProjMatrix => {
+                    tmp_mat4 = match binding {
+                        UniformBinding::ParentModelMatrix => match entity.parent() {
+                            Some(parent) => parent.model_matrix().into_gl(),
+                            None => Mat4::<f32>::new_identity().into_gl(), // use identity if not exists
+                        },
+                        UniformBinding::ModelMatrix => entity.model_matrix().into_gl(),
+                        UniformBinding::NormalMatrix => {
+                            entity.composed_normal_matrix().borrow().into_gl()
+                        }
+                        UniformBinding::ModelViewMatrix => {
+                            entity.composed_model_view_matrix().borrow().into_gl()
+                        }
+                        UniformBinding::ModelViewProjMatrix => {
+                            entity.composed_model_view_proj_matrix().borrow().into_gl()
+                        }
+                        UniformBinding::ViewProjMatrix => {
+                            scene.active_camera().view_proj_matrix().into_gl()
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    Some(UniformValue::Matrix4 {
+                        data: &tmp_mat4,
+                        transpose: false,
+                        src_offset: 0,
+                        src_length: 0,
+                    })
+                }
+                UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraDirection => {
+                    tmp_vec3 = match binding {
+                        UniformBinding::ActiveCameraPosition => {
+                            scene.active_camera().position().into_gl()
+                        }
+                        UniformBinding::ActiveCameraDirection => {
+                            scene.active_camera().direction().into_gl()
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    Some(UniformValue::FloatVector3 {
+                        data: &tmp_vec3,
+                        src_offset: 0,
+                        src_length: 0,
+                    })
+                }
+            };
+            let Some(value) = value else {
+                // should log warning
+                continue;
+            };
+
+            match value {
+                UniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), x),
+                UniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), x, y),
+                UniformValue::UnsignedInteger3(x, y, z) => gl.uniform3ui(Some(location), x, y, z),
+                UniformValue::UnsignedInteger4(x, y, z, w) => {
+                    gl.uniform4ui(Some(location), x, y, z, w)
+                }
+                UniformValue::FloatVector1 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform1fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::FloatVector2 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform2fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::FloatVector3 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform3fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::FloatVector4 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform4fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::IntegerVector1 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform1iv_with_i32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::IntegerVector2 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform2iv_with_i32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::IntegerVector3 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform3iv_with_i32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::IntegerVector4 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform4iv_with_i32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::UnsignedIntegerVector1 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform1uiv_with_u32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::UnsignedIntegerVector2 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform2uiv_with_u32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::UnsignedIntegerVector3 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform3uiv_with_u32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::UnsignedIntegerVector4 {
+                    data,
+                    src_offset,
+                    src_length,
+                } => gl.uniform4uiv_with_u32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::Matrix2 {
+                    data,
+                    transpose,
+                    src_offset,
+                    src_length,
+                } => gl.uniform_matrix2fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    transpose,
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::Matrix3 {
+                    data,
+                    transpose,
+                    src_offset,
+                    src_length,
+                } => gl.uniform_matrix3fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    transpose,
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::Matrix4 {
+                    data,
+                    transpose,
+                    src_offset,
+                    src_length,
+                } => gl.uniform_matrix4fv_with_f32_array_and_src_offset_and_src_length(
+                    Some(location),
+                    transpose,
+                    data.as_ref().as_ref(),
+                    src_offset,
+                    src_length,
+                ),
+                UniformValue::Texture {
+                    descriptor,
+                    params,
+                    active_unit,
+                } => {
+                    // active texture
+                    gl.active_texture(WebGl2RenderingContext::TEXTURE0 + active_unit);
+
+                    let (target, texture) = match self.texture_store.texture_or_create(descriptor) {
+                        Ok(texture) => texture,
+                        Err(err) => {
+                            // should log warning
+                            console_log!("{}", err);
+                            continue;
+                        }
+                    };
+
+                    // binds texture
+                    gl.bind_texture(target, Some(texture));
+                    // setups sampler parameters
+                    params
+                        .iter()
+                        .for_each(|param| param.tex_parameteri(gl, target));
+                    // binds to shader
+                    gl.uniform1i(Some(location), active_unit as i32);
+                    gl.bind_texture(target, None);
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, geometry: &dyn Geometry, material: &dyn WebGLMaterial) {
+        let gl = &self.gl;
+
+        // draws entity
+        if let Some(num_instances) = material.instanced() {
+            // dr: f64aw instanced
+            match geometry.draw() {
+                Draw::Arrays {
+                    mode,
+                    first,
+                    count: num_vertices,
+                } => {
+                    gl.draw_arrays_instanced(mode.to_gl_enum(), first, num_vertices, num_instances)
+                }
+                Draw::Elements {
+                    mode,
+                    count: num_vertices,
+                    element_type,
+                    offset,
+                    indices,
+                } => {
+                    let buffer = match self
+                        .buffer_store
+                        .buffer_or_create(indices, BufferTarget::ElementArrayBuffer)
+                    {
+                        Ok(buffer) => buffer,
+                        Err(err) => {
+                            // should log warning
+                            console_log!("{}", err);
+                            return;
+                        }
+                    };
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.to_gl_enum(), Some(buffer));
+
+                    gl.draw_elements_instanced_with_i32(
+                        mode.to_gl_enum(),
+                        num_vertices,
+                        element_type.to_gl_enum(),
+                        offset,
+                        num_instances,
+                    );
+                }
+            }
+        } else {
+            // draw normally!
+            match geometry.draw() {
+                Draw::Arrays {
+                    mode,
+                    first,
+                    count: num_vertices,
+                } => gl.draw_arrays(mode.to_gl_enum(), first, num_vertices),
+                Draw::Elements {
+                    mode,
+                    count: num_vertices,
+                    element_type,
+                    offset,
+                    indices,
+                } => {
+                    let buffer = match self
+                        .buffer_store
+                        .buffer_or_create(indices, BufferTarget::ElementArrayBuffer)
+                    {
+                        Ok(buffer) => buffer,
+                        Err(err) => {
+                            // should log warning
+                            console_log!("{}", err);
+                            return;
+                        }
+                    };
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.to_gl_enum(), Some(buffer));
+
+                    gl.draw_elements_with_i32(
+                        mode.to_gl_enum(),
+                        num_vertices,
+                        element_type.to_gl_enum(),
+                        offset,
+                    );
+                }
+            }
+        }
     }
 }

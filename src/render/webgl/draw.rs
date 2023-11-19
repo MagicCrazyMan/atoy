@@ -1,21 +1,19 @@
 use web_sys::WebGl2RenderingContext;
 
-use crate::ncor::Ncor;
-
 use super::buffer::BufferDescriptor;
 
 pub enum Draw<'a> {
     Arrays {
         mode: DrawMode,
         first: i32,
-        num_vertices: i32,
+        count: i32,
     },
     Elements {
         mode: DrawMode,
-        num_vertices: i32,
+        count: i32,
         element_type: DrawElementType,
         offset: i32,
-        indices: Ncor<'a, BufferDescriptor>,
+        indices: &'a BufferDescriptor,
     },
 }
 
