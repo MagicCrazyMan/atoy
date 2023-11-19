@@ -39,10 +39,10 @@ pub struct SceneOptions<'a> {
 pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
-    // require for storing callback closure function
-    _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     active_camera: Box<dyn Camera>,
     root_entity: Box<Entity>,
+    // require for storing callback closure function
+    _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
 }
 
 #[wasm_bindgen]

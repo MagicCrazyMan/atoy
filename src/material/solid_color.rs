@@ -1,7 +1,4 @@
-use std::sync::OnceLock;
-
 use palette::rgb::Rgb;
-use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::render::webgl::program::{
     AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
@@ -11,10 +8,6 @@ use super::WebGLMaterial;
 
 const COLOR_UNIFORM: &'static str = "u_Color";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 1]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
-
-static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 in vec4 a_Position;
 
@@ -40,22 +33,9 @@ void main() {
 }
 ";
 
-#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct SolidColorMaterial {
     color: Rgb,
-}
-
-#[wasm_bindgen]
-impl SolidColorMaterial {
-    #[wasm_bindgen]
-    pub fn new_constructor(red: Option<f32>, green: Option<f32>, blue: Option<f32>) -> Self {
-        Self::with_color(Rgb::new(
-            red.unwrap_or(1.0),
-            green.unwrap_or(0.0),
-            blue.unwrap_or(0.0),
-        ))
-    }
 }
 
 impl SolidColorMaterial {
@@ -71,30 +51,26 @@ impl SolidColorMaterial {
 }
 
 impl WebGLMaterial for SolidColorMaterial {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "SolidColorMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        ATTRIBUTE_BINDINGS.get_or_init(|| [AttributeBinding::GeometryPosition])
+        &[AttributeBinding::GeometryPosition]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS.get_or_init(|| {
-            [
-                UniformBinding::ModelViewProjMatrix,
-                UniformBinding::FromMaterial(COLOR_UNIFORM.to_string()),
-            ]
-        })
+        &[
+            UniformBinding::ModelViewProjMatrix,
+            UniformBinding::FromMaterial(COLOR_UNIFORM),
+        ]
     }
 
     fn sources(&self) -> &[ShaderSource] {
-        SHADER_SOURCES.get_or_init(|| {
-            [
-                ShaderSource::Vertex(VERTEX_SHADER_SOURCE.to_string()),
-                ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE.to_string()),
-            ]
-        })
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn ready(&self) -> bool {

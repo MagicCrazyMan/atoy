@@ -6,17 +6,20 @@ use uuid::Uuid;
 use crate::{
     geometry::Geometry,
     material::WebGLMaterial,
-    render::webgl::program::{AttributeValue, UniformValue},
+    render::webgl::{
+        error::Error,
+        program::{AttributeValue, UniformValue},
+    },
 };
 
 /// A entity node in Scene Graph.
 pub struct Entity {
     id: Uuid,
-    m: Mat4,
-    cn: RefCell<Mat4>,
-    cm: RefCell<Mat4>,
-    cmv: RefCell<Mat4>,
-    cmvp: RefCell<Mat4>,
+    local_matrix: Mat4,
+    normal_matrix: Mat4,
+    model_matrix: Mat4,
+    model_view_matrix: Mat4,
+    model_view_proj_matrix: Mat4,
     geometry: Option<RefCell<Box<dyn Geometry>>>,
     material: Option<RefCell<Box<dyn WebGLMaterial>>>,
     parent: Option<*mut Entity>,
@@ -40,11 +43,11 @@ impl Entity {
     pub fn new_boxed() -> Box<Self> {
         Box::new(Self {
             id: Uuid::new_v4(),
-            m: Mat4::new_identity(),
-            cn: RefCell::new(Mat4::new_identity()),
-            cm: RefCell::new(Mat4::new_identity()),
-            cmv: RefCell::new(Mat4::new_identity()),
-            cmvp: RefCell::new(Mat4::new_identity()),
+            local_matrix: Mat4::new_identity(),
+            normal_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::new_identity(),
+            model_view_matrix: Mat4::new_identity(),
+            model_view_proj_matrix: Mat4::new_identity(),
             geometry: None,
             material: None,
             parent: None,
@@ -203,28 +206,42 @@ impl Entity {
 }
 
 impl Entity {
-    pub fn model_matrix(&self) -> Mat4 {
-        self.m
+    pub fn local_matrix(&self) -> &Mat4 {
+        &self.local_matrix
     }
 
-    pub fn set_model_matrix(&mut self, mat: Mat4) {
-        self.m = mat;
+    pub fn model_matrix(&self) -> &Mat4 {
+        &self.model_matrix
     }
 
-    pub fn composed_normal_matrix(&self) -> &RefCell<Mat4> {
-        &self.cn
+    pub fn normal_matrix(&self) -> &Mat4 {
+        &self.normal_matrix
     }
 
-    pub fn composed_model_matrix(&self) -> &RefCell<Mat4> {
-        &self.cm
+    pub fn model_view_matrix(&self) -> &Mat4 {
+        &self.model_view_matrix
     }
 
-    pub fn composed_model_view_matrix(&self) -> &RefCell<Mat4> {
-        &self.cmv
+    pub fn model_view_proj_matrix(&self) -> &Mat4 {
+        &self.model_view_proj_matrix
     }
 
-    pub fn composed_model_view_proj_matrix(&self) -> &RefCell<Mat4> {
-        &self.cmvp
+    pub fn set_local_matrix(&mut self, mat: Mat4) {
+        self.local_matrix = mat;
+    }
+
+    pub(crate) fn set_model_matrix(&mut self, mat: Mat4) -> Result<(), Error> {
+        self.model_matrix = mat;
+        self.normal_matrix = mat.invert()?.transpose();
+        Ok(())
+    }
+
+    pub(crate) fn set_model_view_matrix(&mut self, mat: Mat4) {
+        self.model_view_matrix = mat;
+    }
+
+    pub(crate) fn set_model_view_proj_matrix(&mut self, mat: Mat4) {
+        self.model_view_proj_matrix = mat;
     }
 }
 
@@ -286,11 +303,11 @@ impl EntityBuilder {
     pub fn build_boxed(self) -> Box<Entity> {
         Box::new(Entity {
             id: Uuid::new_v4(),
-            m: self.model_matrix,
-            cn: RefCell::new(Mat4::new_identity()),
-            cm: RefCell::new(Mat4::new_identity()),
-            cmv: RefCell::new(Mat4::new_identity()),
-            cmvp: RefCell::new(Mat4::new_identity()),
+            local_matrix: self.model_matrix,
+            normal_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::new_identity(),
+            model_view_matrix: Mat4::new_identity(),
+            model_view_proj_matrix: Mat4::new_identity(),
             geometry: self.geometry,
             material: self.material,
             parent: None,

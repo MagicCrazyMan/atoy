@@ -198,7 +198,7 @@ pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), J
         entity.set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-        entity.set_model_matrix(model_matrix);
+        entity.set_local_matrix(model_matrix);
         scene.root_entity_mut().add_child_boxed(entity);
     }
     let mut render = WebGL2Render::new(&scene)?;
@@ -214,8 +214,8 @@ pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), J
 
         scene
             .root_entity_mut()
-            .set_model_matrix(Mat4::from_y_rotation(rotation));
-        render.render(&scene);
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
+        render.render(&mut scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));

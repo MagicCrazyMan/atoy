@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
@@ -7,6 +7,7 @@ use crate::material::WebGLMaterial;
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
+    error::Error,
     texture::{TextureDescriptor, TextureParameter},
 };
 
@@ -44,9 +45,9 @@ pub enum AttributeBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
     GeometryNormal,
-    FromGeometry(String),
-    FromMaterial(String),
-    FromEntity(String),
+    FromGeometry(&'static str),
+    FromMaterial(&'static str),
+    FromEntity(&'static str),
 }
 
 impl AttributeBinding {
@@ -57,7 +58,7 @@ impl AttributeBinding {
             AttributeBinding::GeometryNormal => "a_Normal",
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name) => name.as_str(),
+            | AttributeBinding::FromEntity(name) => name,
         }
     }
 }
@@ -162,9 +163,9 @@ pub enum UniformBinding {
     ViewProjMatrix,
     ActiveCameraPosition,
     ActiveCameraDirection,
-    FromGeometry(String),
-    FromMaterial(String),
-    FromEntity(String),
+    FromGeometry(&'static str),
+    FromMaterial(&'static str),
+    FromEntity(&'static str),
 }
 
 impl UniformBinding {
@@ -180,23 +181,37 @@ impl UniformBinding {
             UniformBinding::ActiveCameraDirection => "u_ActiveCameraDirection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
-            | UniformBinding::FromEntity(name) => name.as_str(),
+            | UniformBinding::FromEntity(name) => name,
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum ShaderSource {
-    Vertex(String),
-    Fragment(String),
+pub enum ShaderSource<'a> {
+    Vertex(&'a str),
+    Fragment(&'a str),
 }
 
 #[derive(Debug)]
-struct ProgramItem {
+pub struct ProgramItem {
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
     attributes: HashMap<AttributeBinding, u32>,
     uniforms: HashMap<UniformBinding, WebGlUniformLocation>,
+}
+
+impl ProgramItem {
+    pub fn program(&self) -> &WebGlProgram {
+        &self.program
+    }
+
+    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, u32> {
+        &self.attributes
+    }
+
+    pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
+        &self.uniforms
+    }
 }
 
 #[derive(Debug)]
@@ -245,21 +260,14 @@ impl ProgramStore {
     pub fn program_or_compile(
         &mut self,
         material: &dyn WebGLMaterial,
-    ) -> Result<
-        (
-            &WebGlProgram,
-            &HashMap<AttributeBinding, u32>,
-            &HashMap<UniformBinding, WebGlUniformLocation>,
-        ),
-        String,
-    > {
+    ) -> Result<&ProgramItem, Error> {
         let gl = self.gl.clone();
         let item = self
             .store
             .entry(material.name().to_string())
-            .or_insert_with(move || compile_material_to_program(&gl, material).unwrap());
+            .or_insert_with(move || compile_material(&gl, material).unwrap());
 
-        Ok((&item.program, &item.attributes, &item.uniforms))
+        Ok(item)
     }
 
     // pub fn material(&self, name: &str) -> Option<&ProgramItem> {
@@ -267,16 +275,14 @@ impl ProgramStore {
     // }
 }
 
-fn compile_material_to_program(
+fn compile_material(
     gl: &WebGl2RenderingContext,
     material: &dyn WebGLMaterial,
-) -> Result<ProgramItem, String> {
-    console_log!("compile material: {}", material.name());
+) -> Result<ProgramItem, Error> {
     let mut shaders = Vec::with_capacity(material.sources().len());
     material.sources().iter().try_for_each(|source| {
-        let shader = compile_shader(gl, source)?;
-        shaders.push(shader);
-        Ok(()) as Result<(), String>
+        shaders.push(compile_shader(gl, source)?);
+        Ok(()) as Result<(), Error>
     })?;
 
     let program = create_program(gl, &shaders)?;
@@ -302,20 +308,18 @@ fn compile_material_to_program(
 fn compile_shader(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
-) -> Result<WebGlShader, String> {
+) -> Result<WebGlShader, Error> {
     let (shader, code) = match source {
         ShaderSource::Vertex(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                .ok_or(String::from("failed to create WebGL2 vertex shader"))?;
-
+                .ok_or(Error::VertexShaderCreateFailure)?;
             (shader, code)
         }
         ShaderSource::Fragment(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                .ok_or(String::from("failed to create WebGL2 fragment shader"))?;
-
+                .ok_or(Error::FragmentShaderCreateFailure)?;
             (shader, code)
         }
     };
@@ -330,25 +334,19 @@ fn compile_shader(
         .as_bool()
         .unwrap();
     if !success {
-        let err = gl
-            .get_shader_info_log(&shader)
-            .map(|err| Cow::Owned(err))
-            .unwrap_or(Cow::Borrowed("unknown compile shader error"));
+        let err = gl.get_shader_info_log(&shader).map(|err| err);
         gl.delete_shader(Some(&shader));
-        console_log!("{err}");
-        return Err(String::from(err));
+        Err(Error::ShaderCompileFailure(err))
+    } else {
+        Ok(shader)
     }
-
-    Ok(shader)
 }
 
 fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
-) -> Result<WebGlProgram, String> {
-    let program = gl
-        .create_program()
-        .ok_or(String::from("failed to create WebGL2 program"))?;
+) -> Result<WebGlProgram, Error> {
+    let program = gl.create_program().ok_or(Error::ProgramCreateFailure)?;
 
     // attaches shader to program
     for shader in shaders {
@@ -362,31 +360,23 @@ fn create_program(
         .as_bool()
         .unwrap();
     if !success {
-        let err = gl
-            .get_program_info_log(&program)
-            .map(|err| Cow::Owned(err))
-            .unwrap_or(Cow::Borrowed("unknown link program error"));
+        let err = gl.get_program_info_log(&program).map(|err| err);
         gl.delete_program(Some(&program));
-        console_log!("{err}");
-        return Err(String::from(err.as_ref()));
+        Err(Error::ProgramCompileFailure(err))
+    } else {
+        Ok(program)
     }
-
-    Ok(program)
 }
 
 fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
-) -> Result<HashMap<AttributeBinding, u32>, String> {
+) -> Result<HashMap<AttributeBinding, u32>, Error> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
-    bindings.into_iter().try_for_each(|binding| {
+    bindings.into_iter().for_each(|binding| {
         let variable_name = binding.as_str();
-        if locations.contains_key(binding) {
-            return Err(format!("duplicated attribute name {}", variable_name));
-        }
-
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
             // should log warning
@@ -394,8 +384,7 @@ fn collect_attribute_locations(
         } else {
             locations.insert(binding.clone(), location as u32);
         }
-        Ok(())
-    })?;
+    });
 
     Ok(locations)
 }
@@ -404,31 +393,22 @@ fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],
-) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, String> {
+) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, Error> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
-    bindings.into_iter().try_for_each(|binding| {
+    bindings.into_iter().for_each(|binding| {
         let variable_name = binding.as_str();
-        if locations.contains_key(binding) {
-            return Err(String::from(&format!(
-                "duplicated uniform name {}",
-                variable_name
-            )));
-        }
-
         let location = gl.get_uniform_location(program, variable_name);
         match location {
-            Some(location) => {
-                locations.insert(binding.clone(), location);
-            }
             None => {
                 // should log warning
                 console_log!("failed to get uniform location of {}", variable_name);
             }
-        };
-
-        Ok(())
-    })?;
+            Some(location) => {
+                locations.insert(binding.clone(), location);
+            }
+        }
+    });
 
     Ok(locations)
 }

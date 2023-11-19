@@ -14,13 +14,13 @@ pub mod solid_color;
 // pub mod environment_mapping;
 
 pub trait WebGLMaterial {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     fn attribute_bindings(&self) -> &[AttributeBinding];
 
     fn uniform_bindings(&self) -> &[UniformBinding];
 
-    fn sources(&self) -> &[ShaderSource];
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
     fn attribute_value<'a>(&'a self, name: &str) -> Option<AttributeValue<'a>>;
 
