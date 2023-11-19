@@ -313,13 +313,13 @@ fn compile_shader(
         ShaderSource::Vertex(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                .ok_or(Error::VertexShaderCreateFailure)?;
+                .ok_or(Error::CreateVertexShaderFailure)?;
             (shader, code)
         }
         ShaderSource::Fragment(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                .ok_or(Error::FragmentShaderCreateFailure)?;
+                .ok_or(Error::CreateFragmentShaderFailure)?;
             (shader, code)
         }
     };
@@ -336,7 +336,7 @@ fn compile_shader(
     if !success {
         let err = gl.get_shader_info_log(&shader).map(|err| err);
         gl.delete_shader(Some(&shader));
-        Err(Error::ShaderCompileFailure(err))
+        Err(Error::CompileShaderFailure(err))
     } else {
         Ok(shader)
     }
@@ -346,7 +346,7 @@ fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
 ) -> Result<WebGlProgram, Error> {
-    let program = gl.create_program().ok_or(Error::ProgramCreateFailure)?;
+    let program = gl.create_program().ok_or(Error::CreateProgramFailure)?;
 
     // attaches shader to program
     for shader in shaders {
@@ -362,7 +362,7 @@ fn create_program(
     if !success {
         let err = gl.get_program_info_log(&program).map(|err| err);
         gl.delete_program(Some(&program));
-        Err(Error::ProgramCompileFailure(err))
+        Err(Error::CompileProgramFailure(err))
     } else {
         Ok(program)
     }

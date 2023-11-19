@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use gl_matrix4rust::{mat4::Mat4, vec4::Vec4};
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsError, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
@@ -67,14 +67,14 @@ impl WebGL2Render {
     pub fn new_constructor(
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render, JsError> {
+    ) -> Result<WebGL2Render, Error> {
         Self::new_inner(scene, options)
     }
 }
 
 impl WebGL2Render {
     /// Constructs a new WebGL2 render.
-    pub fn new(scene: &Scene) -> Result<WebGL2Render, JsError> {
+    pub fn new(scene: &Scene) -> Result<WebGL2Render, Error> {
         Self::new_inner(scene, None)
     }
 
@@ -82,14 +82,14 @@ impl WebGL2Render {
     pub fn with_options(
         scene: &Scene,
         options: WebGL2RenderOptionsObject,
-    ) -> Result<WebGL2Render, JsError> {
+    ) -> Result<WebGL2Render, Error> {
         Self::new_inner(scene, Some(options))
     }
 
     fn new_inner(
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render, JsError> {
+    ) -> Result<WebGL2Render, Error> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
@@ -112,7 +112,7 @@ impl WebGL2Render {
     fn gl_context(
         canvas: &HtmlCanvasElement,
         options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGl2RenderingContext, JsError> {
+    ) -> Result<WebGl2RenderingContext, Error> {
         let options = match options {
             Some(options) => options.obj,
             None => JsValue::UNDEFINED,
@@ -123,7 +123,7 @@ impl WebGL2Render {
             .ok()
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
-            .ok_or(JsError::new("failed to get WebGL2 context"))?;
+            .ok_or(Error::WebGl2RenderingContextNotFound)?;
 
         gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
 
@@ -183,7 +183,7 @@ struct RenderGroup {
 }
 
 impl WebGL2Render {
-    pub fn render(&mut self, scene: &mut Scene) {
+    pub fn render(&mut self, scene: &mut Scene) -> Result<(), Error> {
         // update WebGL viewport
         self.gl.viewport(
             0,
@@ -197,14 +197,7 @@ impl WebGL2Render {
         self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
         // collects entities and render console_error_panic_hook
-        let entities_group = match self.prepare(scene) {
-            Ok(group) => group,
-            Err(err) => {
-                // should log error
-                console_log!("{}", err);
-                return;
-            }
-        };
+        let entities_group = self.prepare(scene)?;
 
         // render each entities group
         for (
@@ -235,6 +228,7 @@ impl WebGL2Render {
                 self.bind_attributes(attribute_locations, entity, geometry, material);
                 // binds uniforms
                 self.bind_uniforms(scene, uniform_locations, entity, geometry, material);
+                // draws
                 self.draw(geometry, material);
                 // post-render
                 self.post_render(scene, entity, geometry, material);
@@ -247,63 +241,71 @@ impl WebGL2Render {
             self.gl
                 .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         }
+
+        Ok(())
     }
 
     fn prepare(&mut self, scene: &mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
-        let view = scene.active_camera().view_matrix();
-        let proj = scene.active_camera().proj_matrix();
+        let view_matrix = scene.active_camera().view_matrix();
+        let proj_matrix = scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
-        let mut rollings: VecDeque<*mut Entity> =
+        let mut rolling_ptrs: VecDeque<*mut Entity> =
             VecDeque::from([scene.root_entity_mut().as_mut() as *mut Entity]);
-        while let Some(entity) = rollings.pop_front() {
-            let entity = unsafe { &mut *entity };
+        while let Some(entity_ptr) = rolling_ptrs.pop_front() {
+            // update entity matrices in current frame
+            unsafe {
+                let entity = &mut *entity_ptr;
 
-            // update composed matrices for all entities
-            let model_matrix = match entity.parent() {
-                Some(parent) => *parent.model_matrix() * *entity.local_matrix(),
-                None => *entity.local_matrix(),
-            };
-            let model_view_matrix = view * model_matrix;
-            let model_view_proj_matrix = proj * model_view_matrix;
-            entity.set_model_matrix(model_matrix)?;
-            entity.set_model_view_matrix(model_view_matrix);
-            entity.set_model_view_proj_matrix(model_view_proj_matrix);
+                entity.update_frame_matrices(
+                    entity.parent().map(|parent| parent.model_matrix()),
+                    &view_matrix,
+                    &proj_matrix,
+                );
+            }
 
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
-            if let (Some(geometry), Some(material)) = (entity.geometry(), entity.material()) {
-                material.prepare(scene, entity, geometry);
+            unsafe {
+                let entity = &mut *entity_ptr;
+                if let (Some(geometry), Some(material)) =
+                    (entity.geometry_mut(), entity.material_mut())
+                {
+                    material.prepare(scene, entity, geometry);
 
-                // check whether material is ready or not
-                if material.ready() {
-                    match group.get_mut(material.name()) {
-                        Some(group) => group.entities.push(entity),
-                        None => {
-                            // precompile material to program
-                            let item = self.program_store.program_or_compile(material)?;
+                    // check whether material is ready or not
+                    if material.ready() {
+                        match group.get_mut(material.name()) {
+                            Some(group) => group.entities.push(entity),
+                            None => {
+                                // precompile material to program
+                                let item = self.program_store.program_or_compile(material)?;
 
-                            group.insert(
-                                material.name().to_string(),
-                                RenderGroup {
-                                    program: item.program(),
-                                    attribute_locations: item.attribute_locations(),
-                                    uniform_locations: item.uniform_locations(),
-                                    entities: vec![entity],
-                                },
-                            );
-                        }
-                    };
+                                group.insert(
+                                    material.name().to_string(),
+                                    RenderGroup {
+                                        program: item.program(),
+                                        attribute_locations: item.attribute_locations(),
+                                        uniform_locations: item.uniform_locations(),
+                                        entities: vec![entity],
+                                    },
+                                );
+                            }
+                        };
+                    }
                 }
             }
 
             // add children to rollings list
-            rollings.extend(
-                entity
-                    .children_mut()
-                    .iter_mut()
-                    .map(|child| child.as_mut() as *mut Entity),
-            );
+            unsafe {
+                let entity = &mut *entity_ptr;
+                rolling_ptrs.extend(
+                    entity
+                        .children_mut()
+                        .iter_mut()
+                        .map(|child| child.as_mut() as *mut Entity),
+                );
+            }
         }
 
         Ok(group)

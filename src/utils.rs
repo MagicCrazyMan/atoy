@@ -23,8 +23,9 @@ use std::{borrow::Cow, cell::RefCell, rc::Rc};
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen::{closure::Closure, JsCast, JsError};
+use wasm_bindgen::{closure::Closure, JsCast};
 
+use crate::error::Error;
 use crate::{
     entity::Entity,
     geometry::cube::Cube,
@@ -170,7 +171,7 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
 }
 
 #[wasm_bindgen]
-pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), JsError> {
+pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = Scene::with_options(SceneOptions {
         mount: Some(Cow::Borrowed("scene_container")),
     })?;
@@ -215,7 +216,8 @@ pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), J
         scene
             .root_entity_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
-        render.render(&mut scene);
+
+        render.render(&mut scene).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));

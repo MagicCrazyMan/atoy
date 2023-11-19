@@ -2,13 +2,14 @@ use std::borrow::Cow;
 
 use gl_matrix4rust::vec3::Vec3;
 use serde::Deserialize;
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry};
 
 use crate::{
     camera::{perspective::PerspectiveCamera, Camera},
     document,
     entity::Entity,
+    error::Error,
     utils::set_panic_hook,
 };
 
@@ -48,10 +49,10 @@ pub struct Scene {
 #[wasm_bindgen]
 impl Scene {
     #[wasm_bindgen(constructor)]
-    pub fn new_constructor(options: Option<SceneOptionsObject>) -> Result<Scene, JsError> {
+    pub fn new_constructor(options: Option<SceneOptionsObject>) -> Result<Scene, Error> {
         let options = match options {
             Some(options) => serde_wasm_bindgen::from_value::<SceneOptions>(options.obj)
-                .or(Err(JsError::new("failed to parse scene options")))?,
+                .or(Err(Error::ParseObjectFailure))?,
             None => SceneOptions::default(),
         };
 
@@ -61,16 +62,16 @@ impl Scene {
 
 impl Scene {
     /// Constructs a new scene using initialization options.
-    pub fn new() -> Result<Self, JsError> {
+    pub fn new() -> Result<Self, Error> {
         Self::new_inner(None)
     }
 
     /// Constructs a new scene using initialization options.
-    pub fn with_options(options: SceneOptions) -> Result<Self, JsError> {
+    pub fn with_options(options: SceneOptions) -> Result<Self, Error> {
         Self::new_inner(Some(options))
     }
 
-    fn new_inner(options: Option<SceneOptions>) -> Result<Self, JsError> {
+    fn new_inner(options: Option<SceneOptions>) -> Result<Self, Error> {
         set_panic_hook();
 
         let canvas = Self::create_canvas()?;
@@ -91,12 +92,12 @@ impl Scene {
         Ok(scene)
     }
 
-    fn create_canvas() -> Result<HtmlCanvasElement, JsError> {
+    fn create_canvas() -> Result<HtmlCanvasElement, Error> {
         let canvas = document()
             .create_element("canvas")
             .ok()
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(JsError::new("failed to create canvas"))?;
+            .ok_or(Error::CreateCanvasFailure)?;
 
         canvas.style().set_css_text("width: 100%; height: 100%;");
         Ok(canvas)
@@ -158,16 +159,14 @@ impl Scene {
     }
 
     /// Sets the mount target.
-    pub fn set_mount(&mut self, mount: Option<Cow<'_, str>>) -> Result<(), JsError> {
+    pub fn set_mount(&mut self, mount: Option<Cow<'_, str>>) -> Result<(), Error> {
         if let Some(mount) = mount {
             if !mount.is_empty() {
                 // gets and sets mount target using `document.getElementById`
                 let mount = document()
                     .get_element_by_id(&mount)
                     .and_then(|ele| ele.dyn_into::<HtmlElement>().ok())
-                    .ok_or(JsError::new(&format!(
-                        "mount element with id `{mount}` not found"
-                    )))?;
+                    .ok_or(Error::MountElementNotFound)?;
 
                 // mounts canvas to target (creates new if not exists)
                 mount.append_child(&self.canvas).unwrap();

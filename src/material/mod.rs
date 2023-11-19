@@ -31,7 +31,7 @@ pub trait WebGLMaterial {
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}
+    fn prepare(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
     fn pre_render(&self, scene: &Scene, entity: &Entity, geometry: &dyn Geometry) {}

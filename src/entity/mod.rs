@@ -71,15 +71,12 @@ impl Entity {
         }
     }
 
-    // pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
-    //     match &mut self.geometry {
-    //         Some(geometry) => {
-    //             let geometry = geometry.as_mut();
-    //             Some(geometry)
-    //         }
-    //         None => None,
-    //     }
-    // }
+    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        match &mut self.geometry {
+            Some(geometry) => Some(geometry.as_mut()),
+            None => None,
+        }
+    }
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
@@ -95,15 +92,12 @@ impl Entity {
         }
     }
 
-    // pub fn material_mut(&mut self) -> Option<&mut dyn WebGLMaterial> {
-    //     match &mut self.material {
-    //         Some(material) => {
-    //             let material = material.as_mut();
-    //             Some(material)
-    //         }
-    //         None => None,
-    //     }
-    // }
+    pub fn material_mut(&mut self) -> Option<&mut dyn WebGLMaterial> {
+        match &mut self.material {
+            Some(material) => Some(material.as_mut()),
+            None => None,
+        }
+    }
 
     pub fn set_material<M: WebGLMaterial + 'static>(&mut self, material: Option<M>) {
         self.material = match material {
@@ -225,18 +219,23 @@ impl Entity {
         self.local_matrix = mat;
     }
 
-    pub(crate) fn set_model_matrix(&mut self, mat: Mat4) -> Result<(), Error> {
-        self.model_matrix = mat;
-        self.normal_matrix = mat.invert()?.transpose();
+    pub(crate) fn update_frame_matrices(
+        &mut self,
+        parent_model_matrix: Option<&Mat4>,
+        view_matrix: &Mat4,
+        proj_matrix: &Mat4,
+    ) -> Result<(), Error> {
+        let model_matrix = match parent_model_matrix {
+            Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
+            None => self.local_matrix,
+        };
+        let normal_matrix = model_matrix.invert()?.transpose();
+        self.model_matrix = model_matrix;
+        self.normal_matrix = normal_matrix;
+        self.model_view_matrix = *view_matrix * self.model_matrix;
+        self.model_view_proj_matrix = *proj_matrix * self.model_view_matrix;
+
         Ok(())
-    }
-
-    pub(crate) fn set_model_view_matrix(&mut self, mat: Mat4) {
-        self.model_view_matrix = mat;
-    }
-
-    pub(crate) fn set_model_view_proj_matrix(&mut self, mat: Mat4) {
-        self.model_view_proj_matrix = mat;
     }
 }
 
