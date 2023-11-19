@@ -71,7 +71,7 @@ impl Entity {
         }
     }
 
-    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+    pub fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
         match &mut self.geometry {
             Some(geometry) => Some(geometry.as_mut()),
             None => None,
@@ -88,6 +88,13 @@ impl Entity {
     pub fn material(&self) -> Option<&dyn WebGLMaterial> {
         match &self.material {
             Some(material) => Some(material.as_ref()),
+            None => None,
+        }
+    }
+
+    pub fn material_raw(&mut self) -> Option<*mut dyn WebGLMaterial> {
+        match &mut self.material {
+            Some(material) => Some(material.as_mut()),
             None => None,
         }
     }
@@ -114,6 +121,10 @@ impl Entity {
     #[allow(unused_variables)]
     pub fn uniform_value<'a>(&self, name: &str) -> Option<UniformValue<'a>> {
         None
+    }
+
+    pub fn parent_raw(&self) -> Option<*mut Entity> {
+        self.parent
     }
 
     pub fn parent(&self) -> Option<&Self> {
@@ -221,10 +232,21 @@ impl Entity {
 
     pub(crate) fn update_frame_matrices(
         &mut self,
-        parent_model_matrix: Option<&Mat4>,
-        view_matrix: &Mat4,
-        proj_matrix: &Mat4,
+        parent_model_matrix: Option<*const Mat4>,
+        view_matrix: *const Mat4,
+        proj_matrix: *const Mat4,
     ) -> Result<(), Error> {
+        let (parent_model_matrix, view_matrix, proj_matrix) = unsafe {
+            (
+                match parent_model_matrix {
+                    Some(mat) => Some(&*mat),
+                    None => None,
+                },
+                &*view_matrix,
+                &*proj_matrix,
+            )
+        };
+
         let model_matrix = match parent_model_matrix {
             Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
             None => self.local_matrix,

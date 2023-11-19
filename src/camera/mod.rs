@@ -5,15 +5,15 @@ use std::any::Any;
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
 pub trait Camera {
-    fn direction(&self) -> Vec3;
+    fn direction(&self) -> &Vec3;
 
-    fn position(&self) -> Vec3;
+    fn position(&self) -> &Vec3;
 
-    fn view_matrix(&self) -> Mat4;
+    fn view_matrix(&self) -> &Mat4;
 
-    fn proj_matrix(&self) -> Mat4;
+    fn proj_matrix(&self) -> &Mat4;
 
-    fn view_proj_matrix(&self) -> Mat4;
+    fn view_proj_matrix(&self) -> &Mat4;
 
     fn set_position(&mut self, position: Vec3);
 

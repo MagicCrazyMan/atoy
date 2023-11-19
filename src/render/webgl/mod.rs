@@ -179,7 +179,13 @@ struct RenderGroup {
     program: *const WebGlProgram,
     attribute_locations: *const HashMap<AttributeBinding, u32>,
     uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
-    entities: Vec<*const Entity>,
+    entities: Vec<RenderItem>,
+}
+
+struct RenderItem {
+    entity: *mut Entity,
+    geometry: *mut dyn Geometry,
+    material: *mut dyn WebGLMaterial,
 }
 
 impl WebGL2Render {
@@ -196,8 +202,11 @@ impl WebGL2Render {
         self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
+        // extracts to pointers
+        let scene_ptr: *mut Scene = scene;
+
         // collects entities and render console_error_panic_hook
-        let entities_group = self.prepare(scene)?;
+        let entities_group = self.prepare(scene_ptr)?;
 
         // render each entities group
         for (
@@ -217,10 +226,14 @@ impl WebGL2Render {
             self.gl.use_program(Some(program));
 
             // render each entity
-            for entity in entities {
-                let entity = unsafe { &*entity };
-                let geometry = entity.geometry().unwrap();
-                let material = entity.material().unwrap();
+            for entity_item in entities {
+                let RenderItem {
+                    entity,
+                    geometry,
+                    material,
+                } = entity_item;
+                let (entity, geometry, material) =
+                    unsafe { (&mut *entity, &mut *geometry, &mut *material) };
 
                 // pre-render
                 self.pre_render(scene, entity, geometry, material);
@@ -245,67 +258,74 @@ impl WebGL2Render {
         Ok(())
     }
 
-    fn prepare(&mut self, scene: &mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
-        let view_matrix = scene.active_camera().view_matrix();
-        let proj_matrix = scene.active_camera().proj_matrix();
+    fn prepare(&mut self, scene_ptr: *mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
+        let scene = unsafe { &mut *scene_ptr };
+
+        let view_matrix: *const Mat4 = scene.active_camera().view_matrix();
+        let proj_matrix: *const Mat4 = scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
-        let mut rolling_ptrs: VecDeque<*mut Entity> =
-            VecDeque::from([scene.root_entity_mut().as_mut() as *mut Entity]);
-        while let Some(entity_ptr) = rolling_ptrs.pop_front() {
-            // update entity matrices in current frame
-            unsafe {
-                let entity = &mut *entity_ptr;
 
-                entity.update_frame_matrices(
-                    entity.parent().map(|parent| parent.model_matrix()),
-                    &view_matrix,
-                    &proj_matrix,
-                );
+        let mut rollings: VecDeque<*mut Entity> =
+            VecDeque::from([scene.root_entity_mut().as_mut() as *mut Entity]);
+        while let Some(entity) = rollings.pop_front() {
+            let entity: &mut Entity = unsafe { &mut *entity };
+
+            // update entity matrices in current frame
+            let parent_model_matrix = entity
+                .parent()
+                .map(|parent| parent.model_matrix() as *const Mat4);
+
+            if let Err(err) =
+                entity.update_frame_matrices(parent_model_matrix, view_matrix, proj_matrix)
+            {
+                // should log warning
+                console_log!("{}", err);
+                continue;
             }
 
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
-            unsafe {
-                let entity = &mut *entity_ptr;
-                if let (Some(geometry), Some(material)) =
-                    (entity.geometry_mut(), entity.material_mut())
-                {
-                    material.prepare(scene, entity, geometry);
+            if let (Some(geometry), Some(material)) = (entity.geometry_raw(), entity.material_raw())
+            {
+                let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
 
-                    // check whether material is ready or not
-                    if material.ready() {
-                        match group.get_mut(material.name()) {
-                            Some(group) => group.entities.push(entity),
-                            None => {
-                                // precompile material to program
-                                let item = self.program_store.program_or_compile(material)?;
+                material.prepare(scene, entity, geometry);
 
-                                group.insert(
-                                    material.name().to_string(),
-                                    RenderGroup {
-                                        program: item.program(),
-                                        attribute_locations: item.attribute_locations(),
-                                        uniform_locations: item.uniform_locations(),
-                                        entities: vec![entity],
-                                    },
-                                );
-                            }
-                        };
-                    }
+                // check whether material is ready or not
+                if material.ready() {
+                    let render_item = RenderItem {
+                        entity,
+                        geometry,
+                        material,
+                    };
+                    match group.get_mut(material.name()) {
+                        Some(group) => group.entities.push(render_item),
+                        None => {
+                            // precompile material to program
+                            let item = self.program_store.program_or_compile(material)?;
+
+                            group.insert(
+                                material.name().to_string(),
+                                RenderGroup {
+                                    program: item.program(),
+                                    attribute_locations: item.attribute_locations(),
+                                    uniform_locations: item.uniform_locations(),
+                                    entities: vec![render_item],
+                                },
+                            );
+                        }
+                    };
                 }
             }
 
             // add children to rollings list
-            unsafe {
-                let entity = &mut *entity_ptr;
-                rolling_ptrs.extend(
-                    entity
-                        .children_mut()
-                        .iter_mut()
-                        .map(|child| child.as_mut() as *mut Entity),
-                );
-            }
+            rollings.extend(
+                entity
+                    .children_mut()
+                    .iter_mut()
+                    .map(|child| child.as_mut() as *mut Entity),
+            );
         }
 
         Ok(group)
@@ -313,20 +333,20 @@ impl WebGL2Render {
 
     fn pre_render(
         &self,
-        scene: &Scene,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn WebGLMaterial,
+        scene: &mut Scene,
+        entity: &mut Entity,
+        geometry: &mut dyn Geometry,
+        material: &mut dyn WebGLMaterial,
     ) {
         material.pre_render(scene, entity, geometry);
     }
 
     fn post_render(
         &self,
-        scene: &Scene,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn WebGLMaterial,
+        scene: &mut Scene,
+        entity: &mut Entity,
+        geometry: &mut dyn Geometry,
+        material: &mut dyn WebGLMaterial,
     ) {
         material.post_render(scene, entity, geometry);
     }

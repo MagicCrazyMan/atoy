@@ -95,24 +95,24 @@ impl PerspectiveCamera {
 }
 
 impl Camera for PerspectiveCamera {
-    fn direction(&self) -> Vec3 {
-        self.direction
+    fn direction(&self) -> &Vec3 {
+        &self.direction
     }
 
-    fn position(&self) -> Vec3 {
-        self.position
+    fn position(&self) -> &Vec3 {
+        &self.position
     }
 
-    fn view_matrix(&self) -> Mat4 {
-        self.view
+    fn view_matrix(&self) -> &Mat4 {
+        &self.view
     }
 
-    fn proj_matrix(&self) -> Mat4 {
-        self.proj
+    fn proj_matrix(&self) -> &Mat4 {
+        &self.proj
     }
 
-    fn view_proj_matrix(&self) -> Mat4 {
-        self.view_proj
+    fn view_proj_matrix(&self) -> &Mat4 {
+        &self.view_proj
     }
 
     fn set_position(&mut self, position: Vec3) {

@@ -2,7 +2,6 @@ pub mod camera;
 pub mod entity;
 pub mod geometry;
 pub mod material;
-// pub mod ncor;
 pub mod render;
 pub mod scene;
 pub mod utils;
