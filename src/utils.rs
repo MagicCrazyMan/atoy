@@ -24,6 +24,7 @@ use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen_test::console_log;
 
 use crate::error::Error;
 use crate::{
@@ -95,54 +96,54 @@ pub fn set_panic_hook() {
 // //     // console_log!("{}", data.iter().map(|v| *v as usize).sum::<usize>());
 // // }
 
-// #[wasm_bindgen]
-// pub fn test_gl_matrix_4_rust() {
-//     struct Random {
-//         seed: f64,
-//     }
+#[wasm_bindgen]
+pub fn test_gl_matrix_4_rust() {
+    struct Random {
+        seed: f64,
+    }
 
-//     impl Random {
-//         fn new(seed: f64) -> Self {
-//             Self { seed }
-//         }
+    impl Random {
+        fn new(seed: f64) -> Self {
+            Self { seed }
+        }
 
-//         fn get(&mut self) -> f64 {
-//             let x = self.seed.sin() * 10000.0;
-//             self.seed += 1.0;
-//             return x - x.floor();
-//         }
-//     }
+        fn get(&mut self) -> f64 {
+            let x = self.seed.sin() * 10000.0;
+            self.seed += 1.0;
+            return x - x.floor();
+        }
+    }
 
-//     let performance = window()
-//         .performance()
-//         .expect("performance should be available");
+    let performance = window()
+        .performance()
+        .expect("performance should be available");
 
-//     console_log!("start benchmark");
+    console_log!("start benchmark");
 
-//     let start = performance.now();
+    let start = performance.now();
 
-//     let iteration = 10000000u32;
-//     let mut random_a = Random::new(1928473.0);
-//     let mut random_b = Random::new(1928473.0);
+    let iteration = 10000000u32;
+    let mut random_a = Random::new(1928473.0);
+    let mut random_b = Random::new(1928473.0);
 
-//     let mut values_a = [0.0; 4 * 4];
-//     let mut values_b = [0.0; 4 * 4];
-//     for i in 0..(4 * 4) {
-//         values_a[i] = random_a.get();
-//         values_b[i] = random_b.get();
-//     }
+    let mut values_a = [0.0; 4 * 4];
+    let mut values_b = [0.0; 4 * 4];
+    for i in 0..(4 * 4) {
+        values_a[i] = random_a.get();
+        values_b[i] = random_b.get();
+    }
 
-//     let mat_a = Mat4::<f64>::from_slice(&values_a);
-//     let mat_b = Mat4::<f64>::from_slice(&values_b);
-//     // let mut out = Mat4::<f64>::new();
-//     for _ in 0..iteration {
-//         // mat_a.mul_to(&mat_b, &mut out);
-//         let _ = mat_a * mat_b;
-//     }
+    let mat_a = Mat4::<f64>::from_slice(&values_a);
+    let mat_b = Mat4::<f64>::from_slice(&values_b);
+    // let mut out = Mat4::<f64>::new();
+    for _ in 0..iteration {
+        // mat_a.mul_to(&mat_b, &mut out);
+        let _ = mat_a * mat_b;
+    }
 
-//     let end = performance.now();
-//     console_log!("gl-matrix4rust duration: {}ms", end - start);
-// }
+    let end = performance.now();
+    console_log!("gl-matrix4rust duration: {}ms", end - start);
+}
 
 // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
 
@@ -192,7 +193,7 @@ pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), E
 
         let center_x = start_x - col as f64 * cell_width;
         let center_z = start_z - row as f64 * cell_height;
-        let model_matrix = Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z));
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
         let mut entity = Entity::new_boxed();
 

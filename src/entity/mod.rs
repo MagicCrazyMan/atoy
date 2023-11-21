@@ -1,4 +1,4 @@
-use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
 
 use crate::{
@@ -251,7 +251,9 @@ impl Entity {
             Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
             None => self.local_matrix,
         };
-        let normal_matrix = model_matrix.invert()?.transpose();
+        let mut normal_matrix = model_matrix.clone();
+        normal_matrix.invert()?.transpose();
+
         self.model_matrix = model_matrix;
         self.normal_matrix = normal_matrix;
         self.model_view_matrix = *view_matrix * self.model_matrix;

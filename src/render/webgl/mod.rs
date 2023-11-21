@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use gl_matrix4rust::{mat4::Mat4, vec4::Vec4};
+use gl_matrix4rust::{mat4::{Mat4, AsMat4}, vec4::Vec4, vec3::AsVec3};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
@@ -481,17 +481,17 @@ impl WebGL2Render {
                 | UniformBinding::ViewProjMatrix => {
                     tmp_mat4 = match binding {
                         UniformBinding::ParentModelMatrix => match entity.parent() {
-                            Some(parent) => parent.local_matrix().into_gl(),
-                            None => Mat4::<f32>::new_identity().into_gl(), // use identity if not exists
+                            Some(parent) => parent.local_matrix().to_gl(),
+                            None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
                         },
-                        UniformBinding::ModelMatrix => entity.local_matrix().into_gl(),
-                        UniformBinding::NormalMatrix => entity.normal_matrix().into_gl(),
-                        UniformBinding::ModelViewMatrix => entity.model_view_matrix().into_gl(),
+                        UniformBinding::ModelMatrix => entity.local_matrix().to_gl(),
+                        UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
+                        UniformBinding::ModelViewMatrix => entity.model_view_matrix().to_gl(),
                         UniformBinding::ModelViewProjMatrix => {
-                            entity.model_view_proj_matrix().into_gl()
+                            entity.model_view_proj_matrix().to_gl()
                         }
                         UniformBinding::ViewProjMatrix => {
-                            scene.active_camera().view_proj_matrix().into_gl()
+                            scene.active_camera().view_proj_matrix().to_gl()
                         }
                         _ => unreachable!(),
                     };
@@ -506,10 +506,10 @@ impl WebGL2Render {
                 UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraDirection => {
                     tmp_vec3 = match binding {
                         UniformBinding::ActiveCameraPosition => {
-                            scene.active_camera().position().into_gl()
+                            scene.active_camera().position().to_gl()
                         }
                         UniformBinding::ActiveCameraDirection => {
-                            scene.active_camera().direction().into_gl()
+                            scene.active_camera().direction().to_gl()
                         }
                         _ => unreachable!(),
                     };
