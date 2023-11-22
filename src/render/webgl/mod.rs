@@ -261,8 +261,8 @@ impl WebGL2Render {
     fn prepare(&mut self, scene_ptr: *mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
         let scene = unsafe { &mut *scene_ptr };
 
-        let view_matrix: *const Mat4 = scene.active_camera().view_matrix();
-        let proj_matrix: *const Mat4 = scene.active_camera().proj_matrix();
+        let view_matrix = scene.active_camera().view_matrix();
+        let proj_matrix = scene.active_camera().proj_matrix();
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
@@ -277,7 +277,7 @@ impl WebGL2Render {
                 .map(|parent| parent.model_matrix() as *const Mat4);
 
             if let Err(err) =
-                entity.update_frame_matrices(parent_model_matrix, view_matrix, proj_matrix)
+                entity.update_frame_matrices(parent_model_matrix, &view_matrix, &proj_matrix)
             {
                 // should log warning
                 console_log!("{}", err);

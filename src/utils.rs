@@ -1,31 +1,12 @@
-// use std::{borrow::Cow, cell::RefCell, io::Write, rc::Rc, sync::OnceLock};
+use std::{cell::RefCell, rc::Rc};
 
-// use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
-// use palette::rgb::Rgb;
-// use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast, JsError};
-// use wasm_bindgen_test::console_log;
-
-// use crate::{
-//     entity::Entity,
-//     geometry::{cube::Cube, indexed_cube::IndexedCube, sphere::Sphere},
-//     material::{
-//         environment_mapping::EnvironmentMaterial, solid_color::SolidColorMaterial,
-//         solid_color_instanced::SolidColorInstancedMaterial, texture_mapping::TextureMaterial,
-//         texture_mapping_instanced::TextureInstancedMaterial,
-//     },
-//     render::webgl::{CullFace, WebGL2Render},
-//     scene::{Scene, SceneOptions},
-//     window,
-// };
-
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
-
-use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use gl_matrix4rust::mat4::Mat4;
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 
+use crate::camera::perspective::PerspectiveCamera;
 use crate::error::Error;
 use crate::{
     entity::Entity,
@@ -46,55 +27,6 @@ pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
-
-// // {
-// //     let fbo = self.gl.create_framebuffer().unwrap();
-// //     self.gl
-// //         .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&fbo));
-// //     self.gl.framebuffer_texture_2d(
-// //         WebGl2RenderingContext::FRAMEBUFFER,
-// //         WebGl2RenderingContext::COLOR_ATTACHMENT0,
-// //         WebGl2RenderingContext::TEXTURE_2D,
-// //         Some(&texture),
-// //         0,
-// //     );
-
-// //     let mut data = [0; 256 * 256 * 1 * 4];
-// //     // let d = Uint8ClampedArray::new_with_length(256 * 256 * 1 * 4);
-// //     self.gl
-// //         .read_pixels_with_u8_array_and_dst_offset(
-// //             0,
-// //             0,
-// //             256,
-// //             256,
-// //             WebGl2RenderingContext::RGBA,
-// //             WebGl2RenderingContext::UNSIGNED_BYTE,
-// //             &mut data,
-// //             0,
-// //         )
-// //         .unwrap();
-// //     self.gl
-// //         .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-// //     self.gl.delete_framebuffer(Some(&fbo));
-
-// //     let image_data =
-// //         ImageData::new_with_u8_clamped_array_and_sh(Clamped(&data), 256, 256).unwrap();
-// //     // let blob =
-// //     //     Blob::new_with_u8_array_sequence(d.dyn_ref::<Object>().unwrap()).unwrap();
-// //     // let url: String = Url::create_object_url_with_blob(&blob).unwrap();
-// //     let canvas = document()
-// //         .create_element("canvas")
-// //         .unwrap()
-// //         .dyn_into::<HtmlCanvasElement>()
-// //         .unwrap();
-// //     canvas.set_width(256);
-// //     canvas.set_height(256);
-// //     let ctx = canvas.get_context("2d").unwrap().unwrap().dyn_into::<CanvasRenderingContext2d>().unwrap();
-// //     ctx.put_image_data(&image_data, 0.0, 0.0).unwrap();
-// //     document().body().unwrap().append_child(&canvas).unwrap();
-
-// //     // console_log!("{}", data.iter().map(|v| *v as usize).sum::<usize>());
-// // }
 
 #[wasm_bindgen]
 pub fn test_gl_matrix_4_rust() {
@@ -133,16 +65,18 @@ pub fn test_gl_matrix_4_rust() {
         values_b[i] = random_b.get();
     }
 
-    let mat_a = Mat4::<f64>::from_slice(&values_a);
-    let mat_b = Mat4::<f64>::from_slice(&values_b);
-    // let mut out = Mat4::<f64>::new();
+    let mat_a = Mat4::from_slice(values_a);
+    let mat_b = Mat4::from_slice(values_b);
     for _ in 0..iteration {
-        // mat_a.mul_to(&mat_b, &mut out);
         let _ = mat_a * mat_b;
     }
 
     let end = performance.now();
-    console_log!("gl-matrix4rust duration: {}ms", end - start);
+    console_log!(
+        "gl-matrix4rust iterate {} times cost {}ms",
+        iteration,
+        end - start
+    );
 }
 
 // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
@@ -173,15 +107,18 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
 
 #[wasm_bindgen]
 pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = Scene::with_options(SceneOptions {
-        mount: Some(Cow::Borrowed("scene_container")),
-    })?;
-    scene
-        .active_camera_mut()
-        .set_position(Vec3::from_values(0.0, 500.0, 0.0));
-    scene
-        .active_camera_mut()
-        .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+    let scene_options = SceneOptions::new()
+        .with_mount("scene_container")
+        .with_default_camera(PerspectiveCamera::new(
+            (0.0, 500.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, -1.0),
+            60.0f64.to_radians(),
+            1.0,
+            0.5,
+            None,
+        ));
+    let mut scene = Scene::with_options(scene_options)?;
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);

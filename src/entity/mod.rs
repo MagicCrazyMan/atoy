@@ -233,8 +233,8 @@ impl Entity {
     pub(crate) fn update_frame_matrices(
         &mut self,
         parent_model_matrix: Option<*const Mat4>,
-        view_matrix: *const Mat4,
-        proj_matrix: *const Mat4,
+        view_matrix: &Mat4,
+        proj_matrix: &Mat4,
     ) -> Result<(), Error> {
         let (parent_model_matrix, view_matrix, proj_matrix) = unsafe {
             (
@@ -242,8 +242,8 @@ impl Entity {
                     Some(mat) => Some(&*mat),
                     None => None,
                 },
-                &*view_matrix,
-                &*proj_matrix,
+                view_matrix,
+                proj_matrix,
             )
         };
 
@@ -251,8 +251,7 @@ impl Entity {
             Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
             None => self.local_matrix,
         };
-        let mut normal_matrix = model_matrix.clone();
-        normal_matrix.invert()?.transpose();
+        let normal_matrix = model_matrix.invert()?.transpose();
 
         self.model_matrix = model_matrix;
         self.normal_matrix = normal_matrix;

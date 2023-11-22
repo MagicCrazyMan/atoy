@@ -1,7 +1,4 @@
-use std::borrow::Cow;
-
-use gl_matrix4rust::vec3::Vec3;
-use serde::Deserialize;
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry};
 
@@ -30,10 +27,57 @@ extern "C" {
 }
 
 /// Scene options
-#[derive(Default, Deserialize)]
-pub struct SceneOptions<'a> {
+#[derive(Default)]
+pub struct SceneOptions {
     /// Mounts target.
-    pub mount: Option<Cow<'a, str>>,
+    mount: Option<String>,
+    /// Default camera
+    camera: Option<Box<dyn Camera>>,
+}
+
+impl SceneOptions {
+    pub fn new() -> Self {
+        Self {
+            mount: None,
+            camera: None,
+        }
+    }
+
+    pub fn with_mount<S: Into<String>>(mut self, mount: S) -> Self {
+        self.mount = Some(mount.into());
+        self
+    }
+
+    pub fn without_mount(mut self) -> Self {
+        self.mount = None;
+        self
+    }
+
+    pub fn with_default_camera<C: Camera + 'static>(mut self, camera: C) -> Self {
+        self.camera = Some(Box::new(camera));
+        self
+    }
+
+    pub fn without_default_camera(mut self) -> Self {
+        self.camera = None;
+        self
+    }
+
+    pub fn mount(&self) -> Option<&str> {
+        self.mount.as_ref().map(|x| x.as_str())
+    }
+
+    pub fn camera(&self) -> Option<&Box<dyn Camera>> {
+        self.camera.as_ref()
+    }
+
+    pub fn take_mount(&mut self) -> Option<String> {
+        self.mount.take()
+    }
+
+    pub fn take_camera(&mut self) -> Option<Box<dyn Camera>> {
+        self.camera.take()
+    }
 }
 
 #[wasm_bindgen]
@@ -46,19 +90,19 @@ pub struct Scene {
     _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
 }
 
-#[wasm_bindgen]
-impl Scene {
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor(options: Option<SceneOptionsObject>) -> Result<Scene, Error> {
-        let options = match options {
-            Some(options) => serde_wasm_bindgen::from_value::<SceneOptions>(options.obj)
-                .or(Err(Error::ParseObjectFailure))?,
-            None => SceneOptions::default(),
-        };
+// #[wasm_bindgen]
+// impl Scene {
+//     #[wasm_bindgen(constructor)]
+//     pub fn new_constructor(options: Option<SceneOptionsObject>) -> Result<Scene, Error> {
+//         let options = match options {
+//             Some(options) => serde_wasm_bindgen::from_value::<SceneOptions>(options.obj)
+//                 .or(Err(Error::ParseObjectFailure))?,
+//             None => SceneOptions::default(),
+//         };
 
-        Self::with_options(options)
-    }
-}
+//         Self::with_options(options)
+//     }
+// }
 
 impl Scene {
     /// Constructs a new scene using initialization options.
@@ -71,11 +115,14 @@ impl Scene {
         Self::new_inner(Some(options))
     }
 
-    fn new_inner(options: Option<SceneOptions>) -> Result<Self, Error> {
+    fn new_inner(mut options: Option<SceneOptions>) -> Result<Self, Error> {
         set_panic_hook();
 
         let canvas = Self::create_canvas()?;
-        let mut active_camera = Self::create_camera(&canvas);
+        let mut active_camera = options
+            .as_mut()
+            .and_then(|opts| opts.take_camera())
+            .unwrap_or(Self::create_camera(&canvas));
         let _resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
 
         let mut scene = Self {
@@ -87,7 +134,7 @@ impl Scene {
         };
 
         // init mount target
-        Self::set_mount(&mut scene, options.and_then(|opts| opts.mount))?;
+        Self::set_mount(&mut scene, options.as_ref().and_then(|opts| opts.mount()))?;
 
         Ok(scene)
     }
@@ -159,7 +206,7 @@ impl Scene {
     }
 
     /// Sets the mount target.
-    pub fn set_mount(&mut self, mount: Option<Cow<'_, str>>) -> Result<(), Error> {
+    pub fn set_mount(&mut self, mount: Option<&str>) -> Result<(), Error> {
         if let Some(mount) = mount {
             if !mount.is_empty() {
                 // gets and sets mount target using `document.getElementById`

@@ -1,6 +1,9 @@
 use std::any::Any;
 
-use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use gl_matrix4rust::{
+    mat4::Mat4,
+    vec3::{AsVec3, Vec3},
+};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::Camera;
@@ -8,7 +11,6 @@ use super::Camera;
 #[wasm_bindgen]
 pub struct PerspectiveCamera {
     position: Vec3,
-    direction: Vec3,
     center: Vec3,
     up: Vec3,
     fovy: f64,
@@ -21,31 +23,34 @@ pub struct PerspectiveCamera {
 }
 
 impl PerspectiveCamera {
-    pub fn new(
-        position: Vec3,
-        center: Vec3,
-        up: Vec3,
+    pub fn new<V1, V2, V3>(
+        position: V1,
+        center: V2,
+        up: V3,
         fovy: f64,
         aspect: f64,
         near: f64,
         far: Option<f64>,
-    ) -> Self {
-        let mut camera = Self {
-            position,
-            direction: center - position,
-            center,
-            up,
+    ) -> Self
+    where
+        V1: AsVec3<f64>,
+        V2: AsVec3<f64>,
+        V3: AsVec3<f64>,
+    {
+        let view = Mat4::from_look_at(&position, &center, &up);
+        let proj = Mat4::from_perspective(fovy, aspect, near, far);
+        Self {
+            position: Vec3::from_as_vec3(position),
+            center: Vec3::from_as_vec3(center),
+            up: Vec3::from_as_vec3(up),
             fovy,
             aspect,
             near,
             far,
-            view: Mat4::new_identity(),
-            proj: Mat4::new_identity(),
-            view_proj: Mat4::new_identity(),
-        };
-        camera.update_view();
-        camera.update_proj();
-        camera
+            view,
+            proj,
+            view_proj: proj * view,
+        }
     }
 
     fn update_view(&mut self) {
@@ -58,12 +63,12 @@ impl PerspectiveCamera {
         self.view_proj = self.proj * self.view
     }
 
-    pub fn position(&self) -> &Vec3 {
-        &self.position
+    pub fn center(&self) -> Vec3 {
+        self.center
     }
 
-    pub fn center(&self) -> &Vec3 {
-        &self.center
+    pub fn up(&self) -> Vec3 {
+        self.up
     }
 
     pub fn fovy(&self) -> f64 {
@@ -92,44 +97,51 @@ impl PerspectiveCamera {
         self.near = near;
         self.update_proj();
     }
+
+    pub fn set_position<V>(&mut self, position: &V)
+    where
+        V: AsVec3<f64> + ?Sized,
+    {
+        self.position.copy(position);
+        self.update_view();
+    }
+
+    pub fn set_center<V>(&mut self, center: &V)
+    where
+        V: AsVec3<f64> + ?Sized,
+    {
+        self.center.copy(center);
+        self.update_view();
+    }
+
+    pub fn set_up<V>(&mut self, up: &V)
+    where
+        V: AsVec3<f64> + ?Sized,
+    {
+        self.up.copy(up);
+        self.update_view();
+    }
 }
 
 impl Camera for PerspectiveCamera {
-    fn direction(&self) -> &Vec3 {
-        &self.direction
+    fn position(&self) -> Vec3 {
+        self.position
     }
 
-    fn position(&self) -> &Vec3 {
-        &self.position
+    fn direction(&self) -> Vec3 {
+        self.center - self.position
     }
 
-    fn view_matrix(&self) -> &Mat4 {
-        &self.view
+    fn view_matrix(&self) -> Mat4 {
+        self.view
     }
 
-    fn proj_matrix(&self) -> &Mat4 {
-        &self.proj
+    fn proj_matrix(&self) -> Mat4 {
+        self.proj
     }
 
-    fn view_proj_matrix(&self) -> &Mat4 {
-        &self.view_proj
-    }
-
-    fn set_position(&mut self, position: Vec3) {
-        self.position = position;
-        self.direction = self.center - position;
-        self.update_view();
-    }
-
-    fn set_center(&mut self, center: Vec3) {
-        self.center = center;
-        self.direction = center - self.position;
-        self.update_view();
-    }
-
-    fn set_up(&mut self, up: Vec3) {
-        self.up = up;
-        self.update_view();
+    fn view_proj_matrix(&self) -> Mat4 {
+        self.view_proj
     }
 
     fn as_any(&self) -> &dyn Any {
