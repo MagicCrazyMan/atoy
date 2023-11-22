@@ -37,5 +37,6 @@ pub trait WebGLMaterial {
     fn pre_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
+    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {
+    }
 }

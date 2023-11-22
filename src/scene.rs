@@ -130,7 +130,7 @@ impl Scene {
             canvas,
             active_camera,
             _resize_observer,
-            root_entity: Entity::new_boxed(),
+            root_entity: Box::new(Entity::new()),
         };
 
         // init mount target
@@ -250,12 +250,12 @@ impl Scene {
 
     /// Gets root entity.
     pub(crate) fn root_entity(&self) -> &Entity {
-        &self.root_entity
+        self.root_entity.as_ref()
     }
 
     /// Gets mutable root entity.
-    pub(crate) fn root_entity_mut(&mut self) -> &mut Box<Entity> {
-        &mut self.root_entity
+    pub(crate) fn root_entity_mut(&mut self) -> &mut Entity {
+        self.root_entity.as_mut()
     }
 
     /// Gets current active camera.

@@ -132,13 +132,13 @@ pub fn test_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), E
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = Entity::new_boxed();
+        let mut entity = Entity::new();
 
         entity.set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
         entity.set_local_matrix(model_matrix);
-        scene.root_entity_mut().add_child_boxed(entity);
+        scene.root_entity_mut().add_child(entity);
     }
     let mut render = WebGL2Render::new(&scene)?;
     render.set_cull_face(Some(CullFace::Back));

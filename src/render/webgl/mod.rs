@@ -1,6 +1,10 @@
 use std::collections::{HashMap, VecDeque};
 
-use gl_matrix4rust::{mat4::{Mat4, AsMat4}, vec4::Vec4, vec3::AsVec3};
+use gl_matrix4rust::{
+    mat4::{AsMat4, Mat4},
+    vec3::AsVec3,
+    vec4::Vec4,
+};
 use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
@@ -267,7 +271,7 @@ impl WebGL2Render {
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
         let mut rollings: VecDeque<*mut Entity> =
-            VecDeque::from([scene.root_entity_mut().as_mut() as *mut Entity]);
+            VecDeque::from([scene.root_entity_mut() as *mut Entity]);
         while let Some(entity) = rollings.pop_front() {
             let entity: &mut Entity = unsafe { &mut *entity };
 
