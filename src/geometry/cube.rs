@@ -41,13 +41,13 @@ impl Cube {
                 BufferUsage::StaticDraw,
             ),
             normals: BufferDescriptor::from_binary(
-                get_normals_buffer(),
+                NORMALS_BINARY,
                 0,
                 144 * 4,
                 BufferUsage::StaticDraw,
             ),
             texture_coordinates: BufferDescriptor::from_binary(
-                get_texture_coordinates(),
+                &TEXTURE_COORDINATES_BINARY,
                 0,
                 48 * 4,
                 BufferUsage::StaticDraw,
@@ -162,10 +162,8 @@ const NORMALS: [f32; 144] = [
     1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0, 0.0, // right
 ];
-#[inline]
-fn get_normals_buffer() -> &'static [u8] {
-    unsafe { std::mem::transmute::<&[f32; 144], &[u8; 144 * 4]>(&NORMALS) }
-}
+const NORMALS_BINARY: &[u8; 144 * 4] =
+    unsafe { std::mem::transmute::<&[f32; 144], &[u8; 144 * 4]>(&NORMALS) };
 
 #[rustfmt::skip]
 const TEXTURE_COORDINATES: [f32; 48] = [
@@ -176,7 +174,5 @@ const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // left
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // right
 ];
-#[inline]
-fn get_texture_coordinates() -> &'static [u8] {
-    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) }
-}
+const TEXTURE_COORDINATES_BINARY: &[u8; 48 * 4] =
+    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) };
