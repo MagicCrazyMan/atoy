@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
 
@@ -12,16 +10,6 @@ use crate::{
     },
 };
 
-static mut R: OnceLock<Entity> = OnceLock::new();
-fn r() -> &'static mut Entity {
-    unsafe {
-        R.get_or_init(|| Entity::new());
-        let r = R.get_mut().unwrap();
-        println!("{}", r.id());
-        r
-    }
-}
-
 pub struct Entity {
     id: Uuid,
     local_matrix: Mat4,
@@ -32,24 +20,10 @@ pub struct Entity {
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn WebGLMaterial>>,
     parent: Option<*mut Entity>,
-    children: Vec<Box<Entity>>,
+    children: Vec<EntityNode>,
 }
 
 impl Entity {
-    pub fn new() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            local_matrix: Mat4::new_identity(),
-            normal_matrix: Mat4::new_identity(),
-            model_matrix: Mat4::new_identity(),
-            model_view_matrix: Mat4::new_identity(),
-            model_view_proj_matrix: Mat4::new_identity(),
-            geometry: None,
-            material: None,
-            parent: None,
-            children: Vec::new(),
-        }
-    }
     pub fn id(&self) -> &Uuid {
         &self.id
     }
@@ -131,86 +105,73 @@ impl Entity {
         }
     }
 
-    pub fn add_child_boxed(&mut self, mut entity: Box<Entity>) {
-        entity.parent = Some(&mut *self);
+    pub fn add_child_boxed(&mut self, mut entity: EntityNode) {
+        entity.0.parent = Some(&mut *self);
         self.children.push(entity);
     }
 
-    pub fn add_child(&mut self, mut entity: Entity) {
-        entity.parent = Some(&mut *self);
-        self.children.push(Box::new(entity));
-    }
-
-    pub fn add_children<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
-        for entity in entities {
-            self.add_child(entity);
-        }
-    }
-
-    pub fn add_children_boxed<I: IntoIterator<Item = Box<Entity>>>(&mut self, entities: I) {
+    pub fn add_children_boxed<I: IntoIterator<Item = EntityNode>>(&mut self, entities: I) {
         for entity in entities {
             self.add_child_boxed(entity);
         }
     }
 
-    pub fn remove_child_by_index(&mut self, index: usize) -> Option<Box<Entity>> {
+    pub fn remove_child_by_index(&mut self, index: usize) -> Option<EntityNode> {
         if index > self.children.len() - 1 {
             return None;
         }
 
         let mut entity = self.children.remove(index);
-        entity.parent = None;
+        entity.0.parent = None;
         Some(entity)
     }
 
-    pub fn remove_child_by_id(&mut self, id: &Uuid) -> Option<Box<Entity>> {
-        let Some(index) = self.children.iter().position(|entity| &entity.id == id) else {
+    pub fn remove_child_by_id(&mut self, id: &Uuid) -> Option<EntityNode> {
+        let Some(index) = self.children.iter().position(|entity| &entity.0.id == id) else {
             return None;
         };
 
         let mut entity = self.children.remove(index);
-        entity.parent = None;
+        entity.0.parent = None;
         Some(entity)
     }
 
     pub fn child_by_index(&self, index: usize) -> Option<&Entity> {
         match self.children.get(index) {
-            Some(child) => Some(child.as_ref()),
+            Some(child) => Some(child.0.as_ref()),
             None => None,
         }
     }
 
     pub fn child_mut_by_index(&mut self, index: usize) -> Option<&mut Entity> {
         match self.children.get_mut(index) {
-            Some(child) => Some(child.as_mut()),
+            Some(child) => Some(child.0.as_mut()),
             None => None,
         }
     }
 
     pub fn child_by_id(&self, id: &Uuid) -> Option<&Entity> {
-        match self.children.iter().find(|entity| &entity.id == id) {
-            Some(child) => Some(child.as_ref()),
+        match self.children.iter().find(|entity| &entity.0.id == id) {
+            Some(child) => Some(child.0.as_ref()),
             None => None,
         }
     }
 
     pub fn child_mut_by_id(&mut self, id: &Uuid) -> Option<&mut Entity> {
-        match self.children.iter_mut().find(|entity| &entity.id == id) {
-            Some(child) => Some(child.as_mut()),
+        match self.children.iter_mut().find(|entity| &entity.0.id == id) {
+            Some(child) => Some(child.0.as_mut()),
             None => None,
         }
     }
 
-    pub fn children(&self) -> &[Box<Entity>] {
+    pub fn children(&self) -> &[EntityNode] {
         &self.children
     }
 
-    pub fn children_mut(&mut self) -> &mut [Box<Entity>] {
+    pub fn children_mut(&mut self) -> &mut [EntityNode] {
         &mut self.children
     }
-}
 
-impl Entity {
     pub fn local_matrix(&self) -> &Mat4 {
         &self.local_matrix
     }
@@ -267,38 +228,150 @@ impl Entity {
     }
 }
 
-#[test]
-fn a() {
-    let mut root = Entity::new();
-    root.add_child(Entity::new());
-    root.add_child(Entity::new());
+pub struct EntityNode(Box<Entity>);
 
-    let child = {
-        let mut child = Entity::new();
-        println!("target id: {}", child.id());
-        child.add_child(Entity::new());
-        child.add_child(Entity::new());
-        child.add_child(Entity::new());
-        root.add_child(child);
-        root.remove_child_by_index(2).unwrap()
-    };
-    for grandchild in child.children() {
-        println!("target id: {}", grandchild.parent().unwrap().id());
-        assert_eq!(child.id(), grandchild.parent().unwrap().id());
+impl EntityNode {
+    pub fn new() -> Self {
+        Self(Box::new(Entity {
+            id: Uuid::new_v4(),
+            local_matrix: Mat4::new_identity(),
+            normal_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::new_identity(),
+            model_view_matrix: Mat4::new_identity(),
+            model_view_proj_matrix: Mat4::new_identity(),
+            geometry: None,
+            material: None,
+            parent: None,
+            children: Vec::new(),
+        }))
     }
 
-    let child = {
-        let mut child = Entity::new();
-        println!("target id: {}", child.id());
-        child.add_child(Entity::new());
-        child.add_child(Entity::new());
-        child.add_child(Entity::new());
-        root.add_child(child);
-        root.remove_child_by_index_test(2).unwrap()
-    };
-    for grandchild in child.children() {
-        println!("target id: {}", grandchild.parent().unwrap().id());
-        assert_eq!(child.id(), grandchild.parent().unwrap().id());
+    pub fn id(&self) -> &Uuid {
+        self.0.id()
+    }
+
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
+        self.0.geometry()
+    }
+
+    pub fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
+        self.0.geometry_raw()
+    }
+
+    pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+        self.0.set_geometry(geometry)
+    }
+
+    pub fn material(&self) -> Option<&dyn WebGLMaterial> {
+        self.0.material()
+    }
+
+    pub fn material_raw(&mut self) -> Option<*mut dyn WebGLMaterial> {
+        self.0.material_raw()
+    }
+
+    pub fn material_mut(&mut self) -> Option<&mut dyn WebGLMaterial> {
+        self.0.material_mut()
+    }
+
+    pub fn set_material<M: WebGLMaterial + 'static>(&mut self, material: Option<M>) {
+        self.0.set_material(material)
+    }
+
+    #[allow(unused_variables)]
+    pub fn attribute_value<'a>(&self, name: &str) -> Option<AttributeValue<'a>> {
+        self.0.attribute_value(name)
+    }
+
+    #[allow(unused_variables)]
+    pub fn uniform_value<'a>(&self, name: &str) -> Option<UniformValue<'a>> {
+        self.0.uniform_value(name)
+    }
+
+    // pub fn parent_raw(&self) -> Option<*mut EntityNode> {
+    //     self.parent
+    // }
+
+    pub fn parent(&self) -> Option<&Entity> {
+        self.0.parent()
+    }
+
+    pub fn parent_mut(&self) -> Option<&mut Entity> {
+        self.0.parent_mut()
+    }
+
+    pub fn add_child_boxed(&mut self, mut entity: EntityNode) {
+        self.0.add_child_boxed(entity)
+    }
+
+    pub fn add_children_boxed<I: IntoIterator<Item = EntityNode>>(&mut self, entities: I) {
+        self.0.add_children_boxed(entities)
+    }
+
+    pub fn remove_child_by_index(&mut self, index: usize) -> Option<EntityNode> {
+        self.0.remove_child_by_index(index)
+    }
+
+    pub fn remove_child_by_id(&mut self, id: &Uuid) -> Option<EntityNode> {
+        self.0.remove_child_by_id(id)
+    }
+
+    pub fn child_by_index(&self, index: usize) -> Option<&Entity> {
+        self.0.child_by_index(index)
+    }
+
+    pub fn child_mut_by_index(&mut self, index: usize) -> Option<&mut Entity> {
+        self.0.child_mut_by_index(index)
+    }
+
+    pub fn child_by_id(&self, id: &Uuid) -> Option<&Entity> {
+        self.0.child_by_id(id)
+    }
+
+    pub fn child_mut_by_id(&mut self, id: &Uuid) -> Option<&mut Entity> {
+        self.0.child_mut_by_id(id)
+    }
+
+    pub fn children(&self) -> &[EntityNode] {
+        self.0.children()
+    }
+
+    pub fn children_mut(&mut self) -> &mut [EntityNode] {
+        self.0.children_mut()
+    }
+
+    pub fn local_matrix(&self) -> &Mat4 {
+        self.0.local_matrix()
+    }
+
+    pub fn model_matrix(&self) -> &Mat4 {
+        self.0.model_matrix()
+    }
+
+    pub fn normal_matrix(&self) -> &Mat4 {
+        self.0.normal_matrix()
+    }
+
+    pub fn model_view_matrix(&self) -> &Mat4 {
+        self.0.model_view_matrix()
+    }
+
+    pub fn model_view_proj_matrix(&self) -> &Mat4 {
+        self.0.model_view_proj_matrix()
+    }
+
+    pub fn set_local_matrix(&mut self, mat: Mat4) {
+        self.0.set_local_matrix(mat)
+    }
+
+    pub(crate) fn update_frame_matrices(
+        &mut self,
+        parent_model_matrix: Option<*const Mat4>,
+        view_matrix: &Mat4,
+        proj_matrix: &Mat4,
+    ) -> Result<(), Error> {
+        self.0
+            .update_frame_matrices(parent_model_matrix, view_matrix, proj_matrix)
     }
 }
 

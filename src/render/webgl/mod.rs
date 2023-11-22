@@ -9,7 +9,9 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
-use crate::{entity::Entity, geometry::Geometry, material::WebGLMaterial, scene::Scene};
+use crate::{
+    document, entity::EntityNode, geometry::Geometry, material::WebGLMaterial, scene::Scene, window,
+};
 
 use self::{
     buffer::{BufferStore, BufferTarget},
@@ -187,13 +189,15 @@ struct RenderGroup {
 }
 
 struct RenderItem {
-    entity: *mut Entity,
+    entity: *mut EntityNode,
     geometry: *mut dyn Geometry,
     material: *mut dyn WebGLMaterial,
 }
 
 impl WebGL2Render {
     pub fn render(&mut self, scene: &mut Scene) -> Result<(), Error> {
+        let total_start = window().performance().unwrap().now();
+
         // update WebGL viewport
         self.gl.viewport(
             0,
@@ -210,7 +214,9 @@ impl WebGL2Render {
         let scene_ptr: *mut Scene = scene;
 
         // collects entities and render console_error_panic_hook
+        let prepare_start = window().performance().unwrap().now();
         let entities_group = self.prepare(scene_ptr)?;
+        let prepare_end = window().performance().unwrap().now();
 
         // render each entities group
         for (
@@ -259,6 +265,17 @@ impl WebGL2Render {
                 .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         }
 
+        let total_end = window().performance().unwrap().now();
+
+        document()
+            .get_element_by_id("preparation")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", (prepare_end - prepare_start)));
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", (total_end - total_start)));
+
         Ok(())
     }
 
@@ -270,10 +287,9 @@ impl WebGL2Render {
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
-        let mut rollings: VecDeque<*mut Entity> =
-            VecDeque::from([scene.root_entity_mut() as *mut Entity]);
+        let mut rollings: VecDeque<*mut EntityNode> = VecDeque::from([scene.root_entity_mut() as *mut EntityNode]);
         while let Some(entity) = rollings.pop_front() {
-            let entity: &mut Entity = unsafe { &mut *entity };
+            let entity = unsafe { &mut *entity };
 
             // update entity matrices in current frame
             let parent_model_matrix = entity
@@ -328,7 +344,7 @@ impl WebGL2Render {
                 entity
                     .children_mut()
                     .iter_mut()
-                    .map(|child| child.as_mut() as *mut Entity),
+                    .map(|child| child as *mut EntityNode),
             );
         }
 
@@ -338,7 +354,7 @@ impl WebGL2Render {
     fn pre_render(
         &self,
         scene: &mut Scene,
-        entity: &mut Entity,
+        entity: &mut EntityNode,
         geometry: &mut dyn Geometry,
         material: &mut dyn WebGLMaterial,
     ) {
@@ -348,7 +364,7 @@ impl WebGL2Render {
     fn post_render(
         &self,
         scene: &mut Scene,
-        entity: &mut Entity,
+        entity: &mut EntityNode,
         geometry: &mut dyn Geometry,
         material: &mut dyn WebGLMaterial,
     ) {
@@ -358,7 +374,7 @@ impl WebGL2Render {
     fn bind_attributes(
         &mut self,
         attribute_locations: &HashMap<AttributeBinding, u32>,
-        entity: &Entity,
+        entity: &EntityNode,
         geometry: &dyn Geometry,
         material: &dyn WebGLMaterial,
     ) {
@@ -463,7 +479,7 @@ impl WebGL2Render {
         &mut self,
         scene: &Scene,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
-        entity: &Entity,
+        entity: &EntityNode,
         geometry: &dyn Geometry,
         material: &dyn WebGLMaterial,
     ) {

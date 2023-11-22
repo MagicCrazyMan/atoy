@@ -1,5 +1,5 @@
 use crate::{
-    entity::Entity,
+    entity::EntityNode,
     geometry::Geometry,
     render::webgl::program::{
         AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
@@ -31,12 +31,11 @@ pub trait WebGLMaterial {
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
+    fn prepare(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn pre_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
+    fn pre_render(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {
-    }
+    fn post_render(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
 }
