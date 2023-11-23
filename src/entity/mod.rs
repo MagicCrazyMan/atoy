@@ -148,13 +148,13 @@ impl EntityData {
     }
 
     pub fn remove_child_by_index(&mut self, index: usize) -> Option<Entity> {
-        if index > self.children.len() - 1 {
-            return None;
+        if index < self.children.len() {
+            let mut entity = self.children.remove(index);
+            entity.0.parent = None;
+            Some(entity)
+        } else {
+            None
         }
-
-        let mut entity = self.children.remove(index);
-        entity.0.parent = None;
-        Some(entity)
     }
 
     pub fn remove_child_by_id(&mut self, id: &Uuid) -> Option<Entity> {

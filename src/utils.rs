@@ -19,7 +19,7 @@ use crate::render::webgl::texture::TextureUnit;
 use crate::{
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
-    render::webgl::{CullFace, WebGL2Render},
+    render::webgl::{draw::CullFace, WebGL2Render},
     scene::{Scene, SceneOptions},
     window,
 };

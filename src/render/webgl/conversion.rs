@@ -2,13 +2,12 @@ use web_sys::WebGl2RenderingContext;
 
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
-    draw::{DrawElementType, DrawMode},
+    draw::{CullFace, DrawElementType, DrawMode},
     texture::{
         TextureCompareFunction, TextureCompareMode, TextureDataType, TextureFormat,
-        TextureMagnificationFilter, TextureMinificationFilter, TexturePixelStorage, TextureUnit,
-        TextureUnpackColorSpaceConversion, TextureWrapMethod, TextureParameter,
+        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+        TexturePixelStorage, TextureUnit, TextureUnpackColorSpaceConversion, TextureWrapMethod,
     },
-    CullFace,
 };
 
 /// Rust data type representing WebGL GLenum.

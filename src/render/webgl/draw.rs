@@ -1,5 +1,12 @@
 use super::{buffer::BufferDescriptor, conversion::{GLint, GLsizei, GLintptr}};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CullFace {
+    Front,
+    Back,
+    Both,
+}
+
 #[derive(Debug, Clone)]
 pub enum Draw {
     Arrays {
