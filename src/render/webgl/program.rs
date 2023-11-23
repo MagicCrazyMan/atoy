@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::material::WebGLMaterial;
+use crate::material::Material;
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
@@ -11,9 +11,10 @@ use super::{
     texture::{TextureDescriptor, TextureParameter},
 };
 
-pub enum AttributeValue<'a> {
+#[derive(Debug, Clone)]
+pub enum AttributeValue {
     Buffer {
-        descriptor: &'a BufferDescriptor,
+        descriptor: BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
@@ -22,7 +23,7 @@ pub enum AttributeValue<'a> {
         bytes_offset: i32,
     },
     InstancedBuffer {
-        descriptor: &'a BufferDescriptor,
+        descriptor: BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
@@ -147,7 +148,7 @@ pub enum UniformValue<'a> {
         src_length: u32,
     },
     Texture {
-        descriptor: &'a TextureDescriptor,
+        descriptor: TextureDescriptor,
         params: Vec<TextureParameter>,
         active_unit: u32,
     },
@@ -259,7 +260,7 @@ impl ProgramStore {
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
     pub fn program_or_compile(
         &mut self,
-        material: &dyn WebGLMaterial,
+        material: &dyn Material,
     ) -> Result<&ProgramItem, Error> {
         let gl = self.gl.clone();
         let item = self
@@ -277,7 +278,7 @@ impl ProgramStore {
 
 fn compile_material(
     gl: &WebGl2RenderingContext,
-    material: &dyn WebGLMaterial,
+    material: &dyn Material,
 ) -> Result<ProgramItem, Error> {
     let mut shaders = Vec::with_capacity(material.sources().len());
     material.sources().iter().try_for_each(|source| {

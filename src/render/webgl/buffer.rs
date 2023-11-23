@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
@@ -100,7 +100,7 @@ impl BufferDataType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferUsage {
     StaticDraw,
     DynamicDraw,
@@ -140,6 +140,26 @@ enum BufferData {
     },
 }
 
+impl Debug for BufferData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Preallocate { size } => {
+                f.debug_struct("Preallocate").field("size", size).finish()
+            }
+            Self::FromBinary {
+                data,
+                src_byte_offset,
+                src_byte_length,
+            } => f
+                .debug_struct("FromBinary")
+                .field("data_length", &data.as_ref().as_ref().len())
+                .field("src_byte_offset", src_byte_offset)
+                .field("src_byte_length", src_byte_length)
+                .finish(),
+        }
+    }
+}
+
 struct BufferSubData {
     data: Box<dyn AsRef<[u8]>>,
     dst_byte_offset: i32,
@@ -147,24 +167,37 @@ struct BufferSubData {
     src_byte_length: u32,
 }
 
+impl Debug for BufferSubData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BufferSubData")
+            .field("data_length", &self.data.as_ref().as_ref().len())
+            .field("dst_byte_offset", &self.dst_byte_offset)
+            .field("src_byte_offset", &self.src_byte_offset)
+            .field("src_byte_length", &self.src_byte_length)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 enum BufferStatus {
     Unchanged { id: Uuid },
     UpdateBuffer { id: Option<Uuid>, data: BufferData },
     UpdateSubBuffer { id: Uuid, data: BufferSubData },
 }
 
+#[derive(Debug, Clone)]
 pub struct BufferDescriptor {
-    status: RefCell<BufferStatus>,
+    status: Rc<RefCell<BufferStatus>>,
     usage: BufferUsage,
 }
 
 impl BufferDescriptor {
     pub fn preallocate(size: i32, usage: BufferUsage) -> Self {
         Self {
-            status: RefCell::new(BufferStatus::UpdateBuffer {
+            status: Rc::new(RefCell::new(BufferStatus::UpdateBuffer {
                 id: None,
                 data: BufferData::Preallocate { size },
-            }),
+            })),
             usage,
         }
     }
@@ -176,14 +209,14 @@ impl BufferDescriptor {
         usage: BufferUsage,
     ) -> Self {
         Self {
-            status: RefCell::new(BufferStatus::UpdateBuffer {
+            status: Rc::new(RefCell::new(BufferStatus::UpdateBuffer {
                 id: None,
                 data: BufferData::FromBinary {
                     data: Box::new(data),
                     src_byte_offset,
                     src_byte_length,
                 },
-            }),
+            })),
             usage,
         }
     }

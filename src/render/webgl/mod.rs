@@ -10,7 +10,7 @@ use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
 use crate::{
-    document, entity::EntityNode, geometry::Geometry, material::WebGLMaterial, scene::Scene, window,
+    document, entity::Entity, geometry::Geometry, material::Material, scene::Scene, window,
 };
 
 use self::{
@@ -189,9 +189,9 @@ struct RenderGroup {
 }
 
 struct RenderItem {
-    entity: *mut EntityNode,
+    entity: *mut Entity,
     geometry: *mut dyn Geometry,
-    material: *mut dyn WebGLMaterial,
+    material: *mut dyn Material,
 }
 
 impl WebGL2Render {
@@ -287,7 +287,7 @@ impl WebGL2Render {
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
-        let mut rollings: VecDeque<*mut EntityNode> = VecDeque::from([scene.root_entity_mut() as *mut EntityNode]);
+        let mut rollings: VecDeque<*mut Entity> = VecDeque::from([scene.root_entity_mut() as *mut Entity]);
         while let Some(entity) = rollings.pop_front() {
             let entity = unsafe { &mut *entity };
 
@@ -344,7 +344,7 @@ impl WebGL2Render {
                 entity
                     .children_mut()
                     .iter_mut()
-                    .map(|child| child as *mut EntityNode),
+                    .map(|child| child as *mut Entity),
             );
         }
 
@@ -354,9 +354,9 @@ impl WebGL2Render {
     fn pre_render(
         &self,
         scene: &mut Scene,
-        entity: &mut EntityNode,
+        entity: &mut Entity,
         geometry: &mut dyn Geometry,
-        material: &mut dyn WebGLMaterial,
+        material: &mut dyn Material,
     ) {
         material.pre_render(scene, entity, geometry);
     }
@@ -364,9 +364,9 @@ impl WebGL2Render {
     fn post_render(
         &self,
         scene: &mut Scene,
-        entity: &mut EntityNode,
+        entity: &mut Entity,
         geometry: &mut dyn Geometry,
-        material: &mut dyn WebGLMaterial,
+        material: &mut dyn Material,
     ) {
         material.post_render(scene, entity, geometry);
     }
@@ -374,9 +374,9 @@ impl WebGL2Render {
     fn bind_attributes(
         &mut self,
         attribute_locations: &HashMap<AttributeBinding, u32>,
-        entity: &EntityNode,
+        entity: &Entity,
         geometry: &dyn Geometry,
-        material: &dyn WebGLMaterial,
+        material: &dyn Material,
     ) {
         let gl = &self.gl;
 
@@ -405,7 +405,7 @@ impl WebGL2Render {
                     bytes_stride,
                     bytes_offset,
                 } => {
-                    let buffer = match self.buffer_store.buffer_or_create(descriptor, target) {
+                    let buffer = match self.buffer_store.buffer_or_create(&descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -435,7 +435,7 @@ impl WebGL2Render {
                     components_length_per_instance,
                     divisor,
                 } => {
-                    let buffer = match self.buffer_store.buffer_or_create(descriptor, target) {
+                    let buffer = match self.buffer_store.buffer_or_create(&descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -479,9 +479,9 @@ impl WebGL2Render {
         &mut self,
         scene: &Scene,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
-        entity: &EntityNode,
+        entity: &Entity,
         geometry: &dyn Geometry,
-        material: &dyn WebGLMaterial,
+        material: &dyn Material,
     ) {
         let gl = &self.gl;
 
@@ -504,7 +504,7 @@ impl WebGL2Render {
                             Some(parent) => parent.local_matrix().to_gl(),
                             None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
                         },
-                        UniformBinding::ModelMatrix => entity.local_matrix().to_gl(),
+                        UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
                         UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
                         UniformBinding::ModelViewMatrix => entity.model_view_matrix().to_gl(),
                         UniformBinding::ModelViewProjMatrix => {
@@ -717,7 +717,7 @@ impl WebGL2Render {
                     // active texture
                     gl.active_texture(WebGl2RenderingContext::TEXTURE0 + active_unit);
 
-                    let (target, texture) = match self.texture_store.texture_or_create(descriptor) {
+                    let (target, texture) = match self.texture_store.texture_or_create(&descriptor) {
                         Ok(texture) => texture,
                         Err(err) => {
                             // should log warning
@@ -740,7 +740,7 @@ impl WebGL2Render {
         }
     }
 
-    fn draw(&mut self, geometry: &dyn Geometry, material: &dyn WebGLMaterial) {
+    fn draw(&mut self, geometry: &dyn Geometry, material: &dyn Material) {
         let gl = &self.gl;
 
         // draws entity
@@ -763,7 +763,7 @@ impl WebGL2Render {
                 } => {
                     let buffer = match self
                         .buffer_store
-                        .buffer_or_create(indices, BufferTarget::ElementArrayBuffer)
+                        .buffer_or_create(&indices, BufferTarget::ElementArrayBuffer)
                     {
                         Ok(buffer) => buffer,
                         Err(err) => {
@@ -800,7 +800,7 @@ impl WebGL2Render {
                 } => {
                     let buffer = match self
                         .buffer_store
-                        .buffer_or_create(indices, BufferTarget::ElementArrayBuffer)
+                        .buffer_or_create(&indices, BufferTarget::ElementArrayBuffer)
                     {
                         Ok(buffer) => buffer,
                         Err(err) => {

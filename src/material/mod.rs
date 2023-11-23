@@ -1,5 +1,5 @@
 use crate::{
-    entity::EntityNode,
+    entity::Entity,
     geometry::Geometry,
     render::webgl::program::{
         AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
@@ -8,12 +8,13 @@ use crate::{
 };
 
 pub mod solid_color;
+pub mod solid_color_instanced;
 // pub mod solid_color_instanced;
 // pub mod texture_mapping;
 // pub mod texture_mapping_instanced;
 // pub mod environment_mapping;
 
-pub trait WebGLMaterial {
+pub trait Material {
     fn name(&self) -> &'static str;
 
     fn attribute_bindings(&self) -> &[AttributeBinding];
@@ -22,7 +23,7 @@ pub trait WebGLMaterial {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value<'a>(&'a self, name: &str) -> Option<AttributeValue<'a>>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
     fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>>;
 
@@ -31,11 +32,11 @@ pub trait WebGLMaterial {
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
+    fn prepare(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn pre_render(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
+    fn pre_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, scene: &mut Scene, entity: &mut EntityNode, geometry: &mut dyn Geometry) {}
+    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 }

@@ -5,7 +5,7 @@ use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntr
 use crate::{
     camera::{perspective::PerspectiveCamera, Camera},
     document,
-    entity::EntityNode,
+    entity::Entity,
     error::Error,
     utils::set_panic_hook,
 };
@@ -85,7 +85,7 @@ pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
     active_camera: Box<dyn Camera>,
-    root_entity: EntityNode,
+    root_entity: Entity,
     // require for storing callback closure function
     _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
 }
@@ -130,7 +130,7 @@ impl Scene {
             canvas,
             active_camera,
             _resize_observer,
-            root_entity: EntityNode::new(),
+            root_entity: Entity::new(),
         };
 
         // init mount target
@@ -249,12 +249,12 @@ impl Scene {
     }
 
     /// Gets root entity.
-    pub(crate) fn root_entity(&self) -> &EntityNode {
+    pub(crate) fn root_entity(&self) -> &Entity {
         &self.root_entity
     }
 
     /// Gets mutable root entity.
-    pub(crate) fn root_entity_mut(&mut self) -> &mut EntityNode {
+    pub(crate) fn root_entity_mut(&mut self) -> &mut Entity {
         &mut self.root_entity
     }
 

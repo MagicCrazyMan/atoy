@@ -7,10 +7,11 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 
 use crate::camera::perspective::PerspectiveCamera;
-use crate::entity::EntityNode;
+use crate::entity::Entity;
 use crate::error::Error;
+use crate::geometry::indexed_cube::IndexedCube;
+use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::{
-    entity::Entity,
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
     render::webgl::{CullFace, WebGL2Render},
@@ -133,7 +134,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = EntityNode::new();
+        let mut entity = Entity::new();
 
         entity.set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
@@ -174,66 +175,69 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     Ok(())
 }
 
-// #[wasm_bindgen]
-// pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), JsError> {
-//     let mut scene = Scene::with_options(SceneOptions {
-//         mount: Some(Cow::Borrowed("scene_container")),
-//     })?;
-//     scene
-//         .active_camera_mut()
-//         .set_position(Vec3::from_values(0.0, 500.0, 0.0));
-//     scene
-//         .active_camera_mut()
-//         .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+#[wasm_bindgen]
+pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
+    let scene_options = SceneOptions::new()
+        .with_mount("scene_container")
+        .with_default_camera(PerspectiveCamera::new(
+            (0.0, 500.0, 0.0),
+            (0.0, 0.0, 0.0),
+            (0.0, 0.0, -1.0),
+            60.0f64.to_radians(),
+            1.0,
+            0.5,
+            None,
+        ));
+    let mut scene = Scene::with_options(scene_options)?;
 
-//     let mut entity = Entity::new_boxed();
+    let mut entity = Entity::new();
 
-//     // entity.set_geometry(Some(Cube::new()));
-//     entity.set_geometry(Some(IndexedCube::new()));
-//     entity.set_material(Some(SolidColorInstancedMaterial::new(
-//         count, grid, width, height,
-//     )));
-//     scene.root_entity_mut().add_child_boxed(entity);
-//     let mut render = WebGL2Render::new(&scene)?;
-//     render.set_cull_face(Some(CullFace::Back));
+    // entity.set_geometry(Some(Cube::new()));
+    entity.set_geometry(Some(IndexedCube::new()));
+    entity.set_material(Some(SolidColorInstancedMaterial::new(
+        count, grid, width, height,
+    )));
+    scene.root_entity_mut().add_child_boxed(entity);
+    let mut render = WebGL2Render::new(&scene)?;
+    render.set_cull_face(Some(CullFace::Back));
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
 
-//         static MAX_SIZE: f64 = 3.0;
-//         static MIN_SIZE: f64 = 1.0;
-//         static SIZE_PER_SECOND: f64 = 0.5;
-//         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-//         scene
-//             .root_entity_mut()
-//             .children_mut()
-//             .get(0)
-//             .unwrap()
-//             .geometry()
-//             .unwrap()
-//             .borrow_mut()
-//             .as_any_mut()
-//             .downcast_mut::<IndexedCube>()
-//             .unwrap()
-//             .set_size(size);
+        static MAX_SIZE: f64 = 3.0;
+        static MIN_SIZE: f64 = 1.0;
+        static SIZE_PER_SECOND: f64 = 0.5;
+        let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        scene
+            .root_entity_mut()
+            .children_mut()
+            .get_mut(0)
+            .unwrap()
+            .geometry_mut()
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<IndexedCube>()
+            .unwrap()
+            .set_size(size);
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_model_matrix(Mat4::from_y_rotation(rotation));
-//         render.render(&scene);
+        scene
+            .root_entity_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        render.render(&mut scene).unwrap();
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     Ok(())
-// }
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
 
 // #[wasm_bindgen]
 // pub fn test_texture(

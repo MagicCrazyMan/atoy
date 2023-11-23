@@ -78,9 +78,9 @@ impl Geometry for Cube {
         }
     }
 
-    fn vertices<'a>(&'a self) -> Option<AttributeValue<'a>> {
+    fn vertices(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: &self.vertices,
+            descriptor: self.vertices.clone(),
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -90,9 +90,9 @@ impl Geometry for Cube {
         })
     }
 
-    fn normals<'a>(&'a self) -> Option<AttributeValue<'a>> {
+    fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: &self.normals,
+            descriptor: self.normals.clone(),
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Four,
             data_type: BufferDataType::Float,
@@ -102,9 +102,9 @@ impl Geometry for Cube {
         })
     }
 
-    fn texture_coordinates<'a>(&'a self) -> Option<AttributeValue<'a>> {
+    fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: &self.texture_coordinates,
+            descriptor: self.texture_coordinates.clone(),
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
@@ -114,7 +114,7 @@ impl Geometry for Cube {
         })
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<AttributeValue<'a>> {
+    fn attribute_value(&self, _name: &str) -> Option<AttributeValue> {
         None
     }
 

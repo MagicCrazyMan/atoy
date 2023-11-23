@@ -4,7 +4,7 @@ use crate::render::webgl::program::{
     AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
 };
 
-use super::WebGLMaterial;
+use super::Material;
 
 const COLOR_UNIFORM: &'static str = "u_Color";
 
@@ -50,7 +50,7 @@ impl SolidColorMaterial {
     }
 }
 
-impl WebGLMaterial for SolidColorMaterial {
+impl Material for SolidColorMaterial {
     fn name(&self) -> &'static str {
         "SolidColorMaterial"
     }
@@ -81,7 +81,7 @@ impl WebGLMaterial for SolidColorMaterial {
         None
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<AttributeValue<'a>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 

@@ -1,4 +1,5 @@
 pub mod cube;
+pub mod indexed_cube;
 // pub mod indexed_cube;
 // pub mod plane;
 // pub mod sphere;
@@ -13,13 +14,13 @@ use crate::render::webgl::{
 pub trait Geometry {
     fn draw(&self) -> Draw;
 
-    fn vertices<'a>(&'a self) -> Option<AttributeValue<'a>>;
+    fn vertices(&self) -> Option<AttributeValue>;
 
-    fn normals<'a>(&'a self) -> Option<AttributeValue<'a>>;
+    fn normals(&self) -> Option<AttributeValue>;
 
-    fn texture_coordinates<'a>(&'a self) -> Option<AttributeValue<'a>>;
+    fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value<'a>(&'a self, name: &str) -> Option<AttributeValue<'a>>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
     fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>>;
 

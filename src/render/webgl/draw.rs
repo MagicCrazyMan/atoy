@@ -2,7 +2,8 @@ use web_sys::WebGl2RenderingContext;
 
 use super::buffer::BufferDescriptor;
 
-pub enum Draw<'a> {
+#[derive(Debug, Clone)]
+pub enum Draw {
     Arrays {
         mode: DrawMode,
         first: i32,
@@ -13,7 +14,7 @@ pub enum Draw<'a> {
         count: i32,
         element_type: DrawElementType,
         offset: i32,
-        indices: &'a BufferDescriptor,
+        indices: BufferDescriptor,
     },
 }
 

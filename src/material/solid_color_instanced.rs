@@ -1,28 +1,16 @@
-use std::sync::OnceLock;
-
-use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use palette::rgb::Rgb;
-use wasm_bindgen_test::console_log;
 
-use crate::{
-    ncor::Ncor,
-    render::webgl::{
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
-        },
-        program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
-    },
+use crate::render::webgl::{
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
+    program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
 };
 
-use super::WebGLMaterial;
+use super::Material;
 
 const COLOR_ATTRIBUTE: &'static str = "a_Color";
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 3]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
-
-static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
@@ -59,7 +47,7 @@ void main() {
 pub struct SolidColorInstancedMaterial {
     count: i32,
     colors_buffer: BufferDescriptor,
-    model_matrices_buffer: BufferDescriptor,
+    instance_matrices_buffer: BufferDescriptor,
 }
 
 impl SolidColorInstancedMaterial {
@@ -79,9 +67,7 @@ impl SolidColorInstancedMaterial {
 
             let center_x = start_x - col as f64 * cell_width;
             let center_z = start_z - row as f64 * cell_height;
-            matrices_data.extend_from_slice(
-                Mat4::<f32>::from_translation(Vec3::from_values(center_x as f32, 0.0, center_z as f32)).as_ref(),
-            );
+            matrices_data.extend(Mat4::from_translation(&(center_x, 0.0, center_z)).to_gl_binary());
 
             let Rgb {
                 blue, green, red, ..
@@ -96,13 +82,13 @@ impl SolidColorInstancedMaterial {
 
         Self {
             count,
-            colors_buffer: BufferDescriptor::with_binary(
+            colors_buffer: BufferDescriptor::from_binary(
                 colors_data,
                 0,
                 colors_bytes_length as u32,
                 BufferUsage::StaticDraw,
             ),
-            model_matrices_buffer: BufferDescriptor::with_binary(
+            instance_matrices_buffer: BufferDescriptor::from_binary(
                 matrices_data,
                 0,
                 matrices_bytes_length as u32,
@@ -112,33 +98,28 @@ impl SolidColorInstancedMaterial {
     }
 }
 
-impl WebGLMaterial for SolidColorInstancedMaterial {
-    fn name(&self) -> &str {
+impl Material for SolidColorInstancedMaterial {
+    fn name(&self) -> &'static str {
         "SolidColorInstancedMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        ATTRIBUTE_BINDINGS.get_or_init(|| {
-            [
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::FromMaterial(String::from(COLOR_ATTRIBUTE)),
-                AttributeBinding::FromMaterial(String::from(INSTANCE_MODEL_MATRIX_ATTRIBUTE)),
-            ]
-        })
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::FromMaterial(COLOR_ATTRIBUTE),
+            AttributeBinding::FromMaterial(INSTANCE_MODEL_MATRIX_ATTRIBUTE),
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS
-            .get_or_init(|| [UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix])
+        &[UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix]
     }
 
     fn sources(&self) -> &[ShaderSource] {
-        SHADER_SOURCES.get_or_init(|| {
-            [
-                ShaderSource::Vertex(VERTEX_SHADER_SOURCE.to_string()),
-                ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE.to_string()),
-            ]
-        })
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn ready(&self) -> bool {
@@ -149,31 +130,31 @@ impl WebGLMaterial for SolidColorInstancedMaterial {
         Some(self.count)
     }
 
-    fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
         match name {
-            COLOR_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
-                descriptor: Ncor::Borrowed(&self.colors_buffer),
+            COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
+                descriptor: self.colors_buffer.clone(),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 components_length_per_instance: 1,
                 divisor: 1,
-            })),
-            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
-                descriptor: Ncor::Borrowed(&self.model_matrices_buffer),
+            }),
+            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
+                descriptor: self.instance_matrices_buffer.clone(),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 components_length_per_instance: 4,
                 divisor: 1,
-            })),
+            }),
             _ => None,
         }
     }
 
-    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value<'a>(&'a self, _name: &str) -> Option<UniformValue<'a>> {
         None
     }
 }
