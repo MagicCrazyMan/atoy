@@ -328,19 +328,19 @@ pub fn test_environment(
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        // static MAX_SIZE: f64 = 1.0;
-        // static MIN_SIZE: f64 = 0.2;
-        // static SIZE_PER_SECOND: f64 = 0.5;
-        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-        // scaling.0[0] = size;
-        // scaling.0[1] = size;
-        // scaling.0[2] = size;
-        // scene
-        //     .root_entity_mut()
-        //     .children_mut()
-        //     .get_mut(0)
-        //     .unwrap()
-        //     .set_local_matrix(Mat4::from_scaling(&scaling));
+        static MAX_SIZE: f64 = 1.0;
+        static MIN_SIZE: f64 = 0.2;
+        static SIZE_PER_SECOND: f64 = 0.5;
+        let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        scaling.0[0] = size;
+        scaling.0[1] = size;
+        scaling.0[2] = size;
+        scene
+            .root_entity_mut()
+            .children_mut()
+            .get_mut(0)
+            .unwrap()
+            .set_local_matrix(Mat4::from_scaling(&scaling));
         // bad performance below
         // scene
         //     .root_entity_mut()
