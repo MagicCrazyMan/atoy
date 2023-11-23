@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::HtmlImageElement;
 
@@ -7,7 +5,6 @@ use crate::{
     document,
     entity::Entity,
     geometry::Geometry,
-    ncor::Ncor,
     render::webgl::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
@@ -18,14 +15,10 @@ use crate::{
     scene::Scene,
 };
 
-use super::WebGLMaterial;
+use super::Material;
 
 const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 2]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 2]> = OnceLock::new();
-
-static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 in vec4 a_Position;
 in vec2 a_TexCoord;
@@ -84,36 +77,30 @@ impl TextureMaterial {
     }
 }
 
-impl WebGLMaterial for TextureMaterial {
-    fn name(&self) -> &str {
+impl Material for TextureMaterial {
+    fn name(&self) -> &'static str {
         "TextureMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        ATTRIBUTE_BINDINGS.get_or_init(|| {
-            [
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryTextureCoordinate,
-            ]
-        })
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryTextureCoordinate,
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS.get_or_init(|| {
-            [
-                UniformBinding::ModelViewProjMatrix,
-                UniformBinding::FromMaterial(SAMPLER_UNIFORM.to_string()),
-            ]
-        })
+        &[
+            UniformBinding::ModelViewProjMatrix,
+            UniformBinding::FromMaterial(SAMPLER_UNIFORM),
+        ]
     }
 
     fn sources(&self) -> &[ShaderSource] {
-        SHADER_SOURCES.get_or_init(|| {
-            [
-                ShaderSource::Vertex(VERTEX_SHADER_SOURCE.to_string()),
-                ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE.to_string()),
-            ]
-        })
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn ready(&self) -> bool {
@@ -124,15 +111,15 @@ impl WebGLMaterial for TextureMaterial {
         None
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
-                Some(texture) => Some(Ncor::Owned(UniformValue::Texture {
-                    descriptor: Ncor::Borrowed(texture),
+                Some(texture) => Some(UniformValue::Texture {
+                    descriptor: texture.clone(),
                     params: vec![
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
@@ -140,14 +127,14 @@ impl WebGLMaterial for TextureMaterial {
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
                     active_unit: 0,
-                })),
+                }),
                 None => None,
             },
             _ => None,
         }
     }
 
-    fn pre_render(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
+    fn prepare(&mut self, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

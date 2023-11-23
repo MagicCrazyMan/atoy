@@ -1,43 +1,20 @@
 use std::any::Any;
 
-use wasm_bindgen::prelude::wasm_bindgen;
-
-use crate::{
-    ncor::Ncor,
-    render::webgl::{
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
-        },
-        draw::{Draw, DrawMode},
-        program::{AttributeValue, UniformValue},
-    },
+use crate::render::webgl::{
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
+    draw::{Draw, DrawMode},
+    program::{AttributeValue, UniformValue},
 };
 
 use super::Geometry;
 
-#[wasm_bindgen]
 pub struct Sphere {
     radius: f32,
     vertical_segments: u32,
     horizontal_segments: u32,
     num_vertices: i32,
-    vertices_buffer: BufferDescriptor,
-    normals_buffer: BufferDescriptor,
-}
-
-#[wasm_bindgen]
-impl Sphere {
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor(
-        radius: Option<f32>,
-        vertical_segments: Option<u32>,
-        horizontal_segments: Option<u32>,
-    ) -> Self {
-        let radius = radius.unwrap_or(1.0);
-        let vertical_segments = vertical_segments.unwrap_or(12);
-        let horizontal_segments = horizontal_segments.unwrap_or(vertical_segments * 2);
-        Self::with_opts(radius, vertical_segments, horizontal_segments)
-    }
+    vertices: BufferDescriptor,
+    normals: BufferDescriptor,
 }
 
 impl Sphere {
@@ -55,13 +32,13 @@ impl Sphere {
             vertical_segments,
             horizontal_segments,
             num_vertices: vertices_len,
-            vertices_buffer: BufferDescriptor::with_binary(
+            vertices: BufferDescriptor::from_binary(
                 vertices,
                 0,
                 vertices_byte_len,
                 BufferUsage::StaticDraw,
             ),
-            normals_buffer: BufferDescriptor::with_binary(
+            normals: BufferDescriptor::from_binary(
                 normals,
                 0,
                 normals_byte_len,
@@ -71,7 +48,6 @@ impl Sphere {
     }
 }
 
-#[wasm_bindgen]
 impl Sphere {
     pub fn radius(&self) -> f32 {
         self.radius
@@ -85,15 +61,15 @@ impl Sphere {
         let normals_byte_len = normals.len() as u32;
 
         self.num_vertices = num_vertices;
-        self.vertices_buffer
+        self.vertices
             .buffer_sub_data(vertices, 0, 0, vertices_byte_len);
-        self.normals_buffer
+        self.normals
             .buffer_sub_data(normals, 0, 0, normals_byte_len);
     }
 }
 
 impl Geometry for Sphere {
-    fn draw<'a>(&'a self) -> Draw<'a> {
+    fn draw(&self) -> Draw {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
@@ -101,39 +77,39 @@ impl Geometry for Sphere {
         }
     }
 
-    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.vertices_buffer),
+    fn vertices(&self) -> Option<AttributeValue> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.vertices.clone(),
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.normals_buffer),
+    fn normals(&self) -> Option<AttributeValue> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.normals.clone(),
             target: BufferTarget::Buffer,
             component_size: BufferComponentSize::Four,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
+    fn texture_coordinates(&self) -> Option<AttributeValue> {
         None
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
         None
     }
 

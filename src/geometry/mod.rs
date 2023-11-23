@@ -1,5 +1,6 @@
 pub mod cube;
 pub mod indexed_cube;
+pub mod sphere;
 // pub mod indexed_cube;
 // pub mod plane;
 // pub mod sphere;

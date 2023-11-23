@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -10,7 +11,10 @@ use crate::camera::perspective::PerspectiveCamera;
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
+use crate::geometry::sphere::Sphere;
+use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
+use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
 use crate::{
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
@@ -107,20 +111,29 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .expect("should register `requestAnimationFrame` OK");
 }
 
-#[wasm_bindgen]
-pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+fn create_scene(
+    camera_position: impl AsVec3<f64>,
+    camera_center: impl AsVec3<f64>,
+    camera_up: impl AsVec3<f64>,
+) -> Result<Scene, Error> {
     let scene_options = SceneOptions::new()
         .with_mount("scene_container")
         .with_default_camera(PerspectiveCamera::new(
-            (0.0, 500.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, -1.0),
+            camera_position,
+            camera_center,
+            camera_up,
             60.0f64.to_radians(),
             1.0,
             0.5,
             None,
         ));
-    let mut scene = Scene::with_options(scene_options)?;
+
+    Scene::with_options(scene_options)
+}
+
+#[wasm_bindgen]
+pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -140,7 +153,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
         entity.set_local_matrix(model_matrix);
-        scene.root_entity_mut().add_child_boxed(entity);
+        scene.root_entity_mut().add_child(entity);
     }
 
     let mut collection = Vec::with_capacity(count);
@@ -148,7 +161,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let node = scene.root_entity_mut().remove_child_by_index(0).unwrap();
         collection.push(node);
     }
-    scene.root_entity_mut().add_children_boxed(collection);
+    scene.root_entity_mut().add_children(collection);
 
     let mut render = WebGL2Render::new(&scene)?;
     render.set_cull_face(Some(CullFace::Back));
@@ -177,18 +190,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
 #[wasm_bindgen]
 pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
-    let scene_options = SceneOptions::new()
-        .with_mount("scene_container")
-        .with_default_camera(PerspectiveCamera::new(
-            (0.0, 500.0, 0.0),
-            (0.0, 0.0, 0.0),
-            (0.0, 0.0, -1.0),
-            60.0f64.to_radians(),
-            1.0,
-            0.5,
-            None,
-        ));
-    let mut scene = Scene::with_options(scene_options)?;
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
 
     let mut entity = Entity::new();
 
@@ -197,7 +199,8 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Re
     entity.set_material(Some(SolidColorInstancedMaterial::new(
         count, grid, width, height,
     )));
-    scene.root_entity_mut().add_child_boxed(entity);
+    scene.root_entity_mut().add_child(entity);
+
     let mut render = WebGL2Render::new(&scene)?;
     render.set_cull_face(Some(CullFace::Back));
 
@@ -239,144 +242,125 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Re
     Ok(())
 }
 
-// #[wasm_bindgen]
-// pub fn test_texture(
-//     url: String,
-//     count: i32,
-//     grid: i32,
-//     width: f32,
-//     height: f32,
-// ) -> Result<(), JsError> {
-//     let mut scene = Scene::with_options(SceneOptions {
-//         mount: Some(Cow::Borrowed("scene_container")),
-//     })?;
-//     scene
-//         .active_camera_mut()
-//         .set_position(Vec3::from_values(0.0, 20.0, 10.0));
-//     scene
-//         .active_camera_mut()
-//         .set_up(Vec3::from_values(0.0, 0.0, -1.0));
+#[wasm_bindgen]
+pub fn test_texture(
+    url: String,
+    count: i32,
+    grid: i32,
+    width: f32,
+    height: f32,
+) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 20.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
 
-//     let mut entity = Entity::new_boxed();
+    let mut entity = Entity::new();
 
-//     // entity.set_geometry(Some(Cube::new()));
-//     entity.set_geometry(Some(IndexedCube::new()));
-//     entity.set_material(Some(TextureInstancedMaterial::new(
-//         url, count, grid, width, height,
-//     )));
-//     scene.root_entity_mut().add_child_boxed(entity);
+    // entity.set_geometry(Some(Cube::new()));
+    entity.set_geometry(Some(IndexedCube::new()));
+    entity.set_material(Some(TextureInstancedMaterial::new(
+        url, count, grid, width, height,
+    )));
+    scene.root_entity_mut().add_child(entity);
 
-//     let mut render = WebGL2Render::new(&scene)?;
-//     render.set_cull_face(Some(CullFace::Back));
+    let mut render = WebGL2Render::new(&scene)?;
+    render.set_cull_face(Some(CullFace::Back));
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
 
-//         // static MAX_SIZE: f64 = 3.0;
-//         // static MIN_SIZE: f64 = 1.0;
-//         // static SIZE_PER_SECOND: f64 = 0.5;
-//         // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-//         // scene
-//         //     .root_entity_mut()
-//         //     .children_mut()
-//         //     .get(0)
-//         //     .unwrap()
-//         //     .geometry()
-//         //     .unwrap()
-//         //     .borrow_mut()
-//         //     .as_any_mut()
-//         //     .downcast_mut::<IndexedCube>()
-//         //     .unwrap()
-//         //     .set_size(size as f32);
+        // static MAX_SIZE: f64 = 3.0;
+        // static MIN_SIZE: f64 = 1.0;
+        // static SIZE_PER_SECOND: f64 = 0.5;
+        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get(0)
+        //     .unwrap()
+        //     .geometry()
+        //     .unwrap()
+        //     .borrow_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<IndexedCube>()
+        //     .unwrap()
+        //     .set_size(size as f32);
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_model_matrix(Mat4::from_y_rotation(rotation));
-//         render.render(&scene);
+        scene
+            .root_entity_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
+        render.render(&mut scene).unwrap();
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     Ok(())
-// }
+    Ok(())
+}
 
-// #[wasm_bindgen]
-// pub fn test_environment(
-//     px: String,
-//     nx: String,
-//     py: String,
-//     ny: String,
-//     pz: String,
-//     nz: String,
-// ) -> Result<(), JsError> {
-//     let mut scene = Scene::with_options(SceneOptions {
-//         mount: Some(Cow::Borrowed("scene_container")),
-//     })?;
-//     scene
-//         .active_camera_mut()
-//         .set_position(Vec3::from_values(2.0, 2.0, 2.0));
+#[wasm_bindgen]
+pub fn test_environment(
+    px: String,
+    nx: String,
+    py: String,
+    ny: String,
+    pz: String,
+    nz: String,
+) -> Result<(), Error> {
+    let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
 
-//     let mut entity = Entity::new_boxed();
+    let mut entity = Entity::new();
 
-//     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
-//     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
-//     scene.root_entity_mut().add_child_boxed(entity);
+    entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+    entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
+    scene.root_entity_mut().add_child(entity);
 
-//     let mut render = WebGL2Render::new(&scene)?;
-//     render.set_cull_face(Some(CullFace::Back));
+    let mut render = WebGL2Render::new(&scene)?;
+    render.set_cull_face(Some(CullFace::Back));
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     let mut scaling = Vec3::<f64>::from_values(1.0, 1.0, 1.0);
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    let mut scaling = Vec3::from_values(1.0, 1.0, 1.0);
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        let seconds = timestamp / 1000.0;
 
-//         static MAX_SIZE: f64 = 1.0;
-//         static MIN_SIZE: f64 = 0.2;
-//         static SIZE_PER_SECOND: f64 = 0.5;
-//         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-//         scaling.0[0] = size;
-//         scaling.0[1] = size;
-//         scaling.0[2] = size;
-//         scene
-//             .root_entity_mut()
-//             .children_mut()
-//             .get_mut(0)
-//             .unwrap()
-//             .set_model_matrix(Mat4::from_scaling(&scaling));
-//         // bad performance below
-//         // scene
-//         //     .root_entity_mut()
-//         //     .children_mut()
-//         //     .get(0)
-//         //     .unwrap()
-//         //     .geometry()
-//         //     .unwrap()
-//         //     .borrow_mut()
-//         //     .as_any_mut()
-//         //     .downcast_mut::<Sphere>()
-//         //     .unwrap()
-//         //     .set_radius(size as f32);
+        // static MAX_SIZE: f64 = 1.0;
+        // static MIN_SIZE: f64 = 0.2;
+        // static SIZE_PER_SECOND: f64 = 0.5;
+        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        // scaling.0[0] = size;
+        // scaling.0[1] = size;
+        // scaling.0[2] = size;
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get_mut(0)
+        //     .unwrap()
+        //     .set_local_matrix(Mat4::from_scaling(&scaling));
+        // bad performance below
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get(0)
+        //     .unwrap()
+        //     .geometry()
+        //     .unwrap()
+        //     .borrow_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<Sphere>()
+        //     .unwrap()
+        //     .set_radius(size as f32);
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        render.render(&mut scene).unwrap();
 
-//         scene
-//             .root_entity_mut()
-//             .set_model_matrix(Mat4::from_y_rotation(rotation));
-//         render.render(&scene);
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
-
-//     Ok(())
-// }
+    Ok(())
+}

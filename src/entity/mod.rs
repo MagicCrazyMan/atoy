@@ -2,6 +2,7 @@ use std::{any::Any, collections::HashMap};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
+use wasm_bindgen_test::console_log;
 
 use crate::{
     geometry::Geometry,
@@ -140,14 +141,14 @@ impl EntityData {
         }
     }
 
-    pub fn add_child_boxed(&mut self, mut entity: Entity) {
+    pub fn add_child(&mut self, mut entity: Entity) {
         entity.0.parent = Some(&mut *self);
         self.children.push(entity);
     }
 
-    pub fn add_children_boxed<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
+    pub fn add_children<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
         for entity in entities {
-            self.add_child_boxed(entity);
+            self.add_child(entity);
         }
     }
 
@@ -364,12 +365,12 @@ impl Entity {
         self.0.parent_mut()
     }
 
-    pub fn add_child_boxed(&mut self, entity: Entity) {
-        self.0.add_child_boxed(entity)
+    pub fn add_child(&mut self, entity: Entity) {
+        self.0.add_child(entity)
     }
 
-    pub fn add_children_boxed<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
-        self.0.add_children_boxed(entities)
+    pub fn add_children<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
+        self.0.add_children(entities)
     }
 
     pub fn remove_child_by_index(&mut self, index: usize) -> Option<Entity> {

@@ -1,13 +1,10 @@
-use std::sync::OnceLock;
-
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
+use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;
 
 use crate::{
     document,
     entity::Entity,
     geometry::Geometry,
-    ncor::Ncor,
     render::webgl::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
@@ -18,14 +15,10 @@ use crate::{
     scene::Scene,
 };
 
-use super::WebGLMaterial;
+use super::Material;
 
 const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 2]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 5]> = OnceLock::new();
-
-static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 in vec4 a_Position;
 in vec4 a_Normal;
@@ -67,28 +60,12 @@ void main() {
 }
 ";
 
-#[wasm_bindgen]
 pub struct EnvironmentMaterial {
     urls: Vec<String>,
     count: usize,
     images: Option<Vec<HtmlImageElement>>,
     onload: Option<Closure<dyn FnMut()>>,
     texture: Option<TextureDescriptor>,
-}
-
-#[wasm_bindgen]
-impl EnvironmentMaterial {
-    #[wasm_bindgen]
-    pub fn new_constructor(
-        px: String,
-        nx: String,
-        py: String,
-        ny: String,
-        pz: String,
-        nz: String,
-    ) -> Self {
-        Self::new(px, nx, py, ny, pz, nz)
-    }
 }
 
 impl EnvironmentMaterial {
@@ -103,39 +80,33 @@ impl EnvironmentMaterial {
     }
 }
 
-impl WebGLMaterial for EnvironmentMaterial {
-    fn name(&self) -> &str {
+impl Material for EnvironmentMaterial {
+    fn name(&self) -> &'static str {
         "EnvironmentMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        ATTRIBUTE_BINDINGS.get_or_init(|| {
-            [
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryNormal,
-            ]
-        })
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS.get_or_init(|| {
-            [
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::ModelViewProjMatrix,
-                UniformBinding::ActiveCameraPosition,
-                UniformBinding::FromMaterial(SAMPLER_UNIFORM.to_string()),
-            ]
-        })
+        &[
+            UniformBinding::ModelMatrix,
+            UniformBinding::NormalMatrix,
+            UniformBinding::ModelViewProjMatrix,
+            UniformBinding::ActiveCameraPosition,
+            UniformBinding::FromMaterial(SAMPLER_UNIFORM),
+        ]
     }
 
     fn sources(&self) -> &[ShaderSource] {
-        SHADER_SOURCES.get_or_init(|| {
-            [
-                ShaderSource::Vertex(VERTEX_SHADER_SOURCE.to_string()),
-                ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE.to_string()),
-            ]
-        })
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn ready(&self) -> bool {
@@ -146,28 +117,28 @@ impl WebGLMaterial for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
-                Some(texture) => Some(Ncor::Owned(UniformValue::Texture {
-                    descriptor: Ncor::Borrowed(texture),
+                Some(texture) => Some(UniformValue::Texture {
+                    descriptor: texture.clone(),
                     params: vec![
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
                     ],
                     active_unit: 0,
-                })),
+                }),
                 None => None,
             },
             _ => None,
         }
     }
 
-    fn prepare(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
+    fn prepare(&mut self, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;

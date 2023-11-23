@@ -392,7 +392,6 @@ impl TextureParameter {
 
 pub enum TextureSource {
     Preallocate {
-        // target: TextureTarget,
         internal_format: TextureFormat,
         width: i32,
         height: i32,
@@ -403,7 +402,6 @@ pub enum TextureSource {
         y_offset: i32,
     },
     FromBinary {
-        // target: TextureTarget,
         internal_format: TextureFormat,
         width: i32,
         height: i32,
@@ -416,7 +414,6 @@ pub enum TextureSource {
         y_offset: i32,
     },
     FromHtmlCanvasElement {
-        // target: TextureTarget,
         internal_format: TextureFormat,
         format: TextureFormat,
         data_type: TextureDataType,
@@ -426,7 +423,6 @@ pub enum TextureSource {
         y_offset: i32,
     },
     FromHtmlCanvasElementWithSize {
-        // target: TextureTarget,
         internal_format: TextureFormat,
         width: i32,
         height: i32,
@@ -438,7 +434,6 @@ pub enum TextureSource {
         y_offset: i32,
     },
     FromHtmlImageElement {
-        // target: TextureTarget,
         internal_format: TextureFormat,
         format: TextureFormat,
         data_type: TextureDataType,
@@ -448,7 +443,6 @@ pub enum TextureSource {
         y_offset: i32,
     },
     FromHtmlImageElementWithSize {
-        // target: TextureTarget,
         format: TextureFormat,
         width: i32,
         height: i32,
@@ -1045,7 +1039,6 @@ pub struct TextureDescriptor {
 
 impl TextureDescriptor {
     pub fn texture_2d_with_html_image_element<I: AsRef<HtmlImageElement> + 'static>(
-        // target: TextureTarget,
         image: I,
         data_type: TextureDataType,
         internal_format: TextureFormat,

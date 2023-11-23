@@ -425,7 +425,6 @@ impl WebGL2Render {
                         bytes_offset,
                     );
                     gl.enable_vertex_attrib_array(*location);
-                    gl.bind_buffer(target.to_gl_enum(), None);
                 }
                 AttributeValue::InstancedBuffer {
                     descriptor,
@@ -499,7 +498,7 @@ impl WebGL2Render {
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
                         UniformBinding::ParentModelMatrix => match entity.parent() {
-                            Some(parent) => parent.local_matrix().to_gl(),
+                            Some(parent) => parent.model_matrix().to_gl(),
                             None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
                         },
                         UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
@@ -616,7 +615,6 @@ impl WebGL2Render {
                         .for_each(|param| param.tex_parameteri(gl, target));
                     // binds to shader
                     gl.uniform1i(Some(location), active_unit as i32);
-                    gl.bind_texture(target, None);
                 }
             }
         }

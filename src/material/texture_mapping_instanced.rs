@@ -1,7 +1,4 @@
-use std::sync::OnceLock;
-
-use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
-use palette::rgb::Rgb;
+use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;
 
@@ -9,7 +6,6 @@ use crate::{
     document,
     entity::Entity,
     geometry::Geometry,
-    ncor::Ncor,
     render::webgl::{
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
@@ -23,16 +19,12 @@ use crate::{
     scene::Scene,
 };
 
-use super::WebGLMaterial;
-
-const SAMPLER_UNIFORM: &'static str = "u_Sampler";
+use super::Material;
 
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
-static ATTRIBUTE_BINDINGS: OnceLock<[AttributeBinding; 3]> = OnceLock::new();
-static UNIFORM_BINDINGS: OnceLock<[UniformBinding; 3]> = OnceLock::new();
+const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
-static SHADER_SOURCES: OnceLock<[ShaderSource; 2]> = OnceLock::new();
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
@@ -70,7 +62,7 @@ void main() {
 
 pub struct TextureInstancedMaterial {
     count: i32,
-    model_matrices_buffer: BufferDescriptor,
+    instance_matrices: BufferDescriptor,
     url: String,
     texture: Option<TextureDescriptor>,
     image: Option<HtmlImageElement>,
@@ -85,33 +77,19 @@ impl TextureInstancedMaterial {
         let start_z = height / 2.0 - cell_height / 2.0;
 
         let matrices_bytes_length = (16 * 4 * count) as usize;
-        let colors_bytes_length = (3 * 4 * count) as usize;
         let mut matrices_data = Vec::with_capacity(matrices_bytes_length);
-        let mut colors_data = Vec::with_capacity(colors_bytes_length);
         for index in 0..count {
             let row = index / grid;
             let col = index % grid;
 
             let center_x = start_x - col as f32 * cell_width;
             let center_z = start_z - row as f32 * cell_height;
-            matrices_data.extend_from_slice(
-                Mat4::from_translation(Vec3::from_values(center_x, 0.0, center_z)).as_ref(),
-            );
-
-            let Rgb {
-                blue, green, red, ..
-            } = rand::random::<Rgb>();
-            colors_data.extend(
-                [red, green, blue]
-                    .iter()
-                    .flat_map(|component| component.to_ne_bytes())
-                    .collect::<Vec<_>>(),
-            );
+            matrices_data.extend(Mat4::from_translation(&(center_x, 0.0, center_z)).to_gl_binary());
         }
 
         Self {
             count,
-            model_matrices_buffer: BufferDescriptor::with_binary(
+            instance_matrices: BufferDescriptor::from_binary(
                 matrices_data,
                 0,
                 matrices_bytes_length as u32,
@@ -125,38 +103,32 @@ impl TextureInstancedMaterial {
     }
 }
 
-impl WebGLMaterial for TextureInstancedMaterial {
-    fn name(&self) -> &str {
+impl Material for TextureInstancedMaterial {
+    fn name(&self) -> &'static str {
         "TextureInstancedMaterial"
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        ATTRIBUTE_BINDINGS.get_or_init(|| {
-            [
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryTextureCoordinate,
-                AttributeBinding::FromMaterial(String::from(INSTANCE_MODEL_MATRIX_ATTRIBUTE)),
-            ]
-        })
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryTextureCoordinate,
+            AttributeBinding::FromMaterial(INSTANCE_MODEL_MATRIX_ATTRIBUTE),
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        UNIFORM_BINDINGS.get_or_init(|| {
-            [
-                UniformBinding::ModelMatrix,
-                UniformBinding::ViewProjMatrix,
-                UniformBinding::FromMaterial(String::from(SAMPLER_UNIFORM)),
-            ]
-        })
+        &[
+            UniformBinding::ModelMatrix,
+            UniformBinding::ViewProjMatrix,
+            UniformBinding::FromMaterial(SAMPLER_UNIFORM),
+        ]
     }
 
     fn sources(&self) -> &[ShaderSource] {
-        SHADER_SOURCES.get_or_init(|| {
-            [
-                ShaderSource::Vertex(VERTEX_SHADER_SOURCE.to_string()),
-                ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE.to_string()),
-            ]
-        })
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn ready(&self) -> bool {
@@ -167,26 +139,26 @@ impl WebGLMaterial for TextureInstancedMaterial {
         Some(self.count)
     }
 
-    fn attribute_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
         match name {
-            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(Ncor::Owned(AttributeValue::InstancedBuffer {
-                descriptor: Ncor::Borrowed(&self.model_matrices_buffer),
+            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
+                descriptor: self.instance_matrices.clone(),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 components_length_per_instance: 4,
                 divisor: 1,
-            })),
+            }),
             _ => None,
         }
     }
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
-                Some(texture) => Some(Ncor::Owned(UniformValue::Texture {
-                    descriptor: Ncor::Borrowed(texture),
+                Some(texture) => Some(UniformValue::Texture {
+                    descriptor: texture.clone(),
                     params: vec![
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
@@ -194,14 +166,14 @@ impl WebGLMaterial for TextureInstancedMaterial {
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
                     active_unit: 0,
-                })),
+                }),
                 None => None,
             },
             _ => None,
         }
     }
 
-    fn pre_render(&mut self, _: &Scene, _: &Entity, _: &dyn Geometry) {
+    fn prepare(&mut self, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

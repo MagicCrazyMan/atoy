@@ -46,8 +46,8 @@ void main() {
 
 pub struct SolidColorInstancedMaterial {
     count: i32,
-    colors_buffer: BufferDescriptor,
-    instance_matrices_buffer: BufferDescriptor,
+    colors: BufferDescriptor,
+    instance_matrices: BufferDescriptor,
 }
 
 impl SolidColorInstancedMaterial {
@@ -82,13 +82,13 @@ impl SolidColorInstancedMaterial {
 
         Self {
             count,
-            colors_buffer: BufferDescriptor::from_binary(
+            colors: BufferDescriptor::from_binary(
                 colors_data,
                 0,
                 colors_bytes_length as u32,
                 BufferUsage::StaticDraw,
             ),
-            instance_matrices_buffer: BufferDescriptor::from_binary(
+            instance_matrices: BufferDescriptor::from_binary(
                 matrices_data,
                 0,
                 matrices_bytes_length as u32,
@@ -133,7 +133,7 @@ impl Material for SolidColorInstancedMaterial {
     fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
         match name {
             COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
-                descriptor: self.colors_buffer.clone(),
+                descriptor: self.colors.clone(),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::Float,
@@ -142,7 +142,7 @@ impl Material for SolidColorInstancedMaterial {
                 divisor: 1,
             }),
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
-                descriptor: self.instance_matrices_buffer.clone(),
+                descriptor: self.instance_matrices.clone(),
                 target: BufferTarget::Buffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
