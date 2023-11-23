@@ -8,7 +8,10 @@ use std::{
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
-use super::conversion::{GLintptr, GLsizeiptr, GLuint, ToGlEnum};
+use super::{
+    conversion::{GLint, GLintptr, GLsizeiptr, GLuint, ToGlEnum},
+    error::Error,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferTarget {
@@ -47,7 +50,7 @@ pub enum BufferDataType {
 }
 
 impl BufferDataType {
-    pub fn bytes_length(&self) -> i32 {
+    pub fn bytes_length(&self) -> GLint {
         match self {
             BufferDataType::Float => 4,
             BufferDataType::Byte => 1,
@@ -256,16 +259,13 @@ impl BufferStore {
         &mut self,
         BufferDescriptor { status, usage }: &BufferDescriptor,
         target: BufferTarget,
-    ) -> Result<&WebGlBuffer, String> {
+    ) -> Result<&WebGlBuffer, Error> {
         let mut status = status.borrow_mut();
         match &*status {
-            BufferStatus::Unchanged { id } => {
-                let Some(buffer) = self.store.get(id) else {
-                    return Err(format!("failed to get buffer with id {}", id));
-                };
-
-                Ok(buffer)
-            }
+            BufferStatus::Unchanged { id } => self
+                .store
+                .get(id)
+                .ok_or(Error::BufferStorageNotFount(id.clone())),
             BufferStatus::UpdateBuffer { id, data } => {
                 // remove old buffer if specified
                 if let Some(buffer) = id.and_then(|id| self.store.remove(&id)) {
@@ -274,17 +274,14 @@ impl BufferStore {
 
                 // creates buffer and buffers data into it
                 let Some(buffer) = self.gl.create_buffer() else {
-                    return Err(String::from("failed to create WebGL buffer"));
+                    return Err(Error::CreateBufferFailure);
                 };
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 match data {
                     BufferData::Preallocate { size } => {
-                        self.gl.buffer_data_with_i32(
-                            target.gl_enum(),
-                            *size,
-                            usage.gl_enum(),
-                        );
+                        self.gl
+                            .buffer_data_with_i32(target.gl_enum(), *size, usage.gl_enum());
                     }
                     BufferData::FromBinary {
                         data,
@@ -311,7 +308,7 @@ impl BufferStore {
             }
             BufferStatus::UpdateSubBuffer { id, data } => {
                 let Some(buffer) = self.store.get(id) else {
-                    return Err(format!("failed to get buffer with id {}", id));
+                    return Err(Error::BufferStorageNotFount(id.clone()));
                 };
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));

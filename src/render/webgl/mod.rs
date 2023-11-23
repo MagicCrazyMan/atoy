@@ -191,6 +191,7 @@ struct RenderItem {
 }
 
 impl WebGL2Render {
+    /// Render frame.
     pub fn render(&mut self, scene: &mut Scene) -> Result<(), Error> {
         let total_start = window().performance().unwrap().now();
 
@@ -202,17 +203,14 @@ impl WebGL2Render {
             scene.canvas().height() as i32,
         );
 
+        // collects entities and render console_error_panic_hook
+        let prepare_start = window().performance().unwrap().now();
+        let entities_group = self.prepare(scene)?;
+        let prepare_end = window().performance().unwrap().now();
+
         // clear scene
         self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
-
-        // extracts to pointers
-        let scene_ptr: *mut Scene = scene;
-
-        // collects entities and render console_error_panic_hook
-        let prepare_start = window().performance().unwrap().now();
-        let entities_group = self.prepare(scene_ptr)?;
-        let prepare_end = window().performance().unwrap().now();
 
         // render each entities group
         for (
@@ -275,9 +273,9 @@ impl WebGL2Render {
         Ok(())
     }
 
-    fn prepare(&mut self, scene_ptr: *mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
-        let scene = unsafe { &mut *scene_ptr };
-
+    /// Prepares graphic scene.
+    /// Updates entities matrices using current frame status, collects and groups all entities.
+    fn prepare(&mut self, scene: &mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
         let view_matrix = scene.active_camera().view_matrix();
         let proj_matrix = scene.active_camera().proj_matrix();
 
@@ -307,6 +305,7 @@ impl WebGL2Render {
             {
                 let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
 
+                // calls prepare callback
                 material.prepare(scene, entity, geometry);
 
                 // check whether material is ready or not
@@ -348,6 +347,7 @@ impl WebGL2Render {
         Ok(group)
     }
 
+    /// Calls pre-render callback of the entity.
     fn pre_render(
         &self,
         scene: &mut Scene,
@@ -358,6 +358,7 @@ impl WebGL2Render {
         material.pre_render(scene, entity, geometry);
     }
 
+    /// Calls post-render callback of the entity.
     fn post_render(
         &self,
         scene: &mut Scene,
@@ -368,6 +369,7 @@ impl WebGL2Render {
         material.post_render(scene, entity, geometry);
     }
 
+    /// Binds attributes of the entity.
     fn bind_attributes(
         &mut self,
         attribute_locations: &HashMap<AttributeBinding, GLuint>,
@@ -472,6 +474,7 @@ impl WebGL2Render {
         }
     }
 
+    /// Binds uniform data of the entity.
     fn bind_uniforms(
         &mut self,
         scene: &Scene,

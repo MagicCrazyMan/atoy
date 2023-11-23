@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use uuid::Uuid;
-use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext, WebGlTexture};
 
 use super::{
@@ -488,7 +487,7 @@ impl TextureSource {
             ),
         };
 
-        result.map_err(|err| Error::BufferImageFailure(err.as_string()))
+        result.map_err(|err| Error::TexImageFailure(err.as_string()))
     }
 
     fn tex_sub_image(
@@ -619,7 +618,7 @@ impl TextureSource {
             ),
         };
 
-        result.map_err(|err| Error::BufferImageFailure(err.as_string()))
+        result.map_err(|err| Error::TexImageFailure(err.as_string()))
     }
 }
 
@@ -916,7 +915,7 @@ enum TextureStatus {
 #[derive(Debug, Clone)]
 pub struct TextureDescriptor {
     status: Rc<RefCell<TextureStatus>>,
-    generate_mipmap: bool,
+    generate_mipmap: GLboolean,
 }
 
 impl TextureDescriptor {
@@ -927,7 +926,7 @@ impl TextureDescriptor {
         format: TextureFormat,
         level: GLint,
         pixel_storages: Vec<TexturePixelStorage>,
-        generate_mipmap: bool,
+        generate_mipmap: GLboolean,
     ) -> Self {
         Self {
             status: Rc::new(RefCell::new(TextureStatus::UpdateTexture {
@@ -956,7 +955,7 @@ impl TextureDescriptor {
         ny: TextureSource,
         pz: TextureSource,
         nz: TextureSource,
-        generate_mipmap: bool,
+        generate_mipmap: GLboolean,
     ) -> Self {
         Self {
             status: Rc::new(RefCell::new(TextureStatus::UpdateTexture {
@@ -999,7 +998,7 @@ impl TextureStore {
         match &*status {
             TextureStatus::Unchanged { id, target } => match self.store.get(id) {
                 Some(texture) => Ok((*target, texture)),
-                None => Err(Error::BufferStorageNotFount(id.clone())),
+                None => Err(Error::TextureStorageNotFount(id.clone())),
             },
             TextureStatus::UpdateTexture { id, data } => {
                 // delete old texture
@@ -1039,7 +1038,7 @@ impl TextureStore {
             }
             TextureStatus::UpdateSubTexture { id, data } => {
                 let Some(texture) = self.store.get(id) else {
-                    return Err(Error::BufferStorageNotFount(id.clone()));
+                    return Err(Error::TextureStorageNotFount(id.clone()));
                 };
 
                 let texture_target = data.texture_target();
