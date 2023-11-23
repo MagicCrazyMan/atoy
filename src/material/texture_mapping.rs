@@ -6,11 +6,12 @@ use crate::{
     entity::Entity,
     geometry::Geometry,
     render::webgl::{
-        program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
+        program::{ShaderSource, UniformBinding, UniformValue},
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureWrapMethod, TextureUnit,
-        },
+            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+            TextureWrapMethod,
+        }, attribute::{AttributeBinding, AttributeValue},
     },
     scene::Scene,
 };

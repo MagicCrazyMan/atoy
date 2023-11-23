@@ -2,15 +2,11 @@ use std::{any::Any, collections::HashMap};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
-use wasm_bindgen_test::console_log;
 
 use crate::{
     geometry::Geometry,
     material::Material,
-    render::webgl::{
-        error::Error,
-        program::{AttributeValue, UniformValue},
-    },
+    render::webgl::{error::Error, program::UniformValue, attribute::AttributeValue},
 };
 
 pub struct EntityData {
@@ -117,7 +113,6 @@ impl EntityData {
     pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
         &mut self.properties
     }
-
 
     pub fn property<'a>(&'a self, key: &str) -> Option<&'a Box<dyn Any>> {
         self.properties.get(key)

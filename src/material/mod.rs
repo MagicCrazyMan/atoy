@@ -1,17 +1,18 @@
 use crate::{
     entity::Entity,
     geometry::Geometry,
-    render::webgl::program::{
-        AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        program::{ShaderSource, UniformBinding, UniformValue},
     },
     scene::Scene,
 };
 
+pub mod environment_mapping;
 pub mod solid_color;
 pub mod solid_color_instanced;
-pub mod texture_mapping_instanced;
 pub mod texture_mapping;
-pub mod environment_mapping;
+pub mod texture_mapping_instanced;
 // pub mod solid_color_instanced;
 // pub mod texture_mapping;
 // pub mod texture_mapping_instanced;
@@ -28,7 +29,7 @@ pub trait Material {
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
-    fn uniform_value(& self, name: &str) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
@@ -41,5 +42,6 @@ pub trait Material {
     fn pre_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {}
+    fn post_render(&mut self, scene: &mut Scene, entity: &mut Entity, geometry: &mut dyn Geometry) {
+    }
 }

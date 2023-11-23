@@ -7,13 +7,15 @@ use crate::{
     entity::Entity,
     geometry::Geometry,
     render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
         },
-        program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
+        program::{ShaderSource, UniformBinding, UniformValue},
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureWrapMethod, TextureUnit,
+            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+            TextureWrapMethod,
         },
     },
     scene::Scene,

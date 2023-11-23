@@ -1,9 +1,10 @@
 use std::any::Any;
 
 use crate::render::webgl::{
+    attribute::AttributeValue,
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
     draw::{Draw, DrawMode},
-    program::{AttributeValue, UniformValue},
+    program::UniformValue,
 };
 
 use super::Geometry;

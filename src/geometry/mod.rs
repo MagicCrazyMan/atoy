@@ -1,16 +1,11 @@
 pub mod cube;
 pub mod indexed_cube;
 pub mod sphere;
-// pub mod indexed_cube;
 // pub mod plane;
-// pub mod sphere;
 
 use std::any::Any;
 
-use crate::render::webgl::{
-    draw::Draw,
-    program::{AttributeValue, UniformValue},
-};
+use crate::render::webgl::{attribute::AttributeValue, draw::Draw, program::UniformValue};
 
 pub trait Geometry {
     fn draw(&self) -> Draw;

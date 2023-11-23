@@ -3,7 +3,7 @@ use palette::rgb::Rgb;
 
 use crate::render::webgl::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
-    program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
+    program::{ShaderSource, UniformBinding, UniformValue}, attribute::{AttributeBinding, AttributeValue},
 };
 
 use super::Material;

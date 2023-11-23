@@ -1,8 +1,6 @@
 use palette::rgb::Rgb;
 
-use crate::render::webgl::program::{
-    AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue,
-};
+use crate::render::webgl::{program::{ShaderSource, UniformBinding, UniformValue}, attribute::{AttributeBinding, AttributeValue}};
 
 use super::Material;
 

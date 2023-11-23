@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use crate::render::webgl::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
     draw::{Draw, DrawMode},
-    program::{AttributeValue, UniformValue},
+    program::UniformValue, attribute::AttributeValue,
 };
 
 use super::Geometry;

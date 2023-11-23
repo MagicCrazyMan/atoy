@@ -15,13 +15,14 @@ use crate::{
 
 use self::{
     buffer::{BufferStore, BufferTarget},
-    conversion::{GLint, GLuint, ToGlEnum},
+    conversion::{GLint, GLuint, ToGlEnum, GLfloat},
     draw::Draw,
     error::Error,
-    program::{AttributeBinding, AttributeValue, ProgramStore, UniformBinding, UniformValue},
-    texture::TextureStore,
+    program::{ProgramStore, UniformBinding, UniformValue},
+    texture::TextureStore, attribute::{AttributeBinding, AttributeValue},
 };
 
+pub mod attribute;
 pub mod buffer;
 pub mod conversion;
 pub mod draw;
@@ -165,10 +166,10 @@ impl WebGL2Render {
     pub fn set_clear_color(&mut self, clear_color: Vec4) {
         self.clear_color = clear_color;
         self.gl.clear_color(
-            self.clear_color.0[0] as f32,
-            self.clear_color.0[1] as f32,
-            self.clear_color.0[2] as f32,
-            self.clear_color.0[3] as f32,
+            self.clear_color.0[0] as GLfloat,
+            self.clear_color.0[1] as GLfloat,
+            self.clear_color.0[2] as GLfloat,
+            self.clear_color.0[3] as GLfloat,
         );
     }
 
@@ -179,7 +180,7 @@ impl WebGL2Render {
 
 struct RenderGroup {
     program: *const WebGlProgram,
-    attribute_locations: *const HashMap<AttributeBinding, u32>,
+    attribute_locations: *const HashMap<AttributeBinding, GLuint>,
     uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
     entities: Vec<RenderItem>,
 }
