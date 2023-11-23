@@ -17,7 +17,7 @@ use self::{
     attribute::{AttributeBinding, AttributeValue},
     buffer::{BufferStore, BufferTarget},
     conversion::{GLfloat, GLint, GLuint, ToGlEnum},
-    draw::Draw,
+    draw::{CullFace, Draw},
     error::Error,
     program::ProgramStore,
     texture::TextureStore,
@@ -44,15 +44,57 @@ extern "C" {
     pub type WebGL2RenderOptionsObject;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CullFace {
-    Front,
-    Back,
-    Both,
+struct EventTargets<'a> {
+    before_render: EventTarget<()>,
+    before_prepare: EventTarget<()>,
+    after_prepare: EventTarget<()>,
+    before_entity_bind_attributes: EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<AttributeBinding, GLuint>,
+    )>,
+    after_entity_bind_attributes: EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<AttributeBinding, GLuint>,
+    )>,
+    before_entity_bind_uniforms: EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<UniformBinding, WebGlUniformLocation>,
+    )>,
+    after_entity_bind_uniforms: EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<UniformBinding, WebGlUniformLocation>,
+    )>,
+    before_entity_draw: EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)>,
+    after_entity_draw: EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)>,
+    after_render: EventTarget<()>,
 }
 
-#[wasm_bindgen]
-pub struct WebGL2Render {
+impl<'a> EventTargets<'a> {
+    fn new() -> Self {
+        Self {
+            before_render: EventTarget::new(),
+            before_prepare: EventTarget::new(),
+            after_prepare: EventTarget::new(),
+            before_entity_bind_attributes: EventTarget::new(),
+            after_entity_bind_attributes: EventTarget::new(),
+            before_entity_bind_uniforms: EventTarget::new(),
+            after_entity_bind_uniforms: EventTarget::new(),
+            before_entity_draw: EventTarget::new(),
+            after_entity_draw: EventTarget::new(),
+            after_render: EventTarget::new(),
+        }
+    }
+}
+
+pub struct WebGL2Render<'a> {
     gl: WebGl2RenderingContext,
     program_store: ProgramStore,
     buffer_store: BufferStore,
