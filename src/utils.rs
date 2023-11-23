@@ -311,7 +311,7 @@ pub fn test_environment(
     pz: String,
     nz: String,
 ) -> Result<(), Error> {
-    let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
 
     let mut entity = Entity::new();
 
