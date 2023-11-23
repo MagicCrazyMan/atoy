@@ -170,8 +170,10 @@ fn create_program(
     for shader in shaders {
         gl.attach_shader(&program, shader);
     }
-    // lins program to GPU
+    // links program
     gl.link_program(&program);
+    // validates program
+    gl.validate_program(&program);
 
     let success = gl
         .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
