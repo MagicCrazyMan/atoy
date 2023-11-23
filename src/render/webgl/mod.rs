@@ -287,7 +287,8 @@ impl WebGL2Render {
 
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
-        let mut rollings: VecDeque<*mut Entity> = VecDeque::from([scene.root_entity_mut() as *mut Entity]);
+        let mut rollings: VecDeque<*mut Entity> =
+            VecDeque::from([scene.root_entity_mut() as *mut Entity]);
         while let Some(entity) = rollings.pop_front() {
             let entity = unsafe { &mut *entity };
 
@@ -485,9 +486,6 @@ impl WebGL2Render {
     ) {
         let gl = &self.gl;
 
-        let mut tmp_mat4;
-        let mut tmp_vec3;
-
         for (binding, location) in uniform_locations {
             let value = match binding {
                 UniformBinding::FromGeometry(name) => geometry.uniform_value(name),
@@ -499,7 +497,7 @@ impl WebGL2Render {
                 | UniformBinding::ModelViewMatrix
                 | UniformBinding::ModelViewProjMatrix
                 | UniformBinding::ViewProjMatrix => {
-                    tmp_mat4 = match binding {
+                    let mat = match binding {
                         UniformBinding::ParentModelMatrix => match entity.parent() {
                             Some(parent) => parent.local_matrix().to_gl(),
                             None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
@@ -517,14 +515,12 @@ impl WebGL2Render {
                     };
 
                     Some(UniformValue::Matrix4 {
-                        data: &tmp_mat4,
+                        data: mat,
                         transpose: false,
-                        src_offset: 0,
-                        src_length: 0,
                     })
                 }
                 UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraDirection => {
-                    tmp_vec3 = match binding {
+                    let vec = match binding {
                         UniformBinding::ActiveCameraPosition => {
                             scene.active_camera().position().to_gl()
                         }
@@ -534,11 +530,7 @@ impl WebGL2Render {
                         _ => unreachable!(),
                     };
 
-                    Some(UniformValue::FloatVector3 {
-                        data: &tmp_vec3,
-                        src_offset: 0,
-                        src_length: 0,
-                    })
+                    Some(UniformValue::FloatVector3(vec))
                 }
             };
             let Some(value) = value else {
@@ -553,162 +545,51 @@ impl WebGL2Render {
                 UniformValue::UnsignedInteger4(x, y, z, w) => {
                     gl.uniform4ui(Some(location), x, y, z, w)
                 }
-                UniformValue::FloatVector1 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform1fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::FloatVector2 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform2fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::FloatVector3 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform3fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::FloatVector4 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform4fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::IntegerVector1 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform1iv_with_i32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::IntegerVector2 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform2iv_with_i32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::IntegerVector3 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform3iv_with_i32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::IntegerVector4 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform4iv_with_i32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::UnsignedIntegerVector1 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform1uiv_with_u32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::UnsignedIntegerVector2 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform2uiv_with_u32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::UnsignedIntegerVector3 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform3uiv_with_u32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::UnsignedIntegerVector4 {
-                    data,
-                    src_offset,
-                    src_length,
-                } => gl.uniform4uiv_with_u32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::Matrix2 {
-                    data,
-                    transpose,
-                    src_offset,
-                    src_length,
-                } => gl.uniform_matrix2fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    transpose,
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::Matrix3 {
-                    data,
-                    transpose,
-                    src_offset,
-                    src_length,
-                } => gl.uniform_matrix3fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    transpose,
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
-                UniformValue::Matrix4 {
-                    data,
-                    transpose,
-                    src_offset,
-                    src_length,
-                } => gl.uniform_matrix4fv_with_f32_array_and_src_offset_and_src_length(
-                    Some(location),
-                    transpose,
-                    data.as_ref().as_ref(),
-                    src_offset,
-                    src_length,
-                ),
+                UniformValue::FloatVector1(data) => {
+                    gl.uniform1fv_with_f32_array(Some(location), &data)
+                }
+                UniformValue::FloatVector2(data) => {
+                    gl.uniform2fv_with_f32_array(Some(location), &data)
+                }
+                UniformValue::FloatVector3(data) => {
+                    gl.uniform3fv_with_f32_array(Some(location), &data)
+                }
+                UniformValue::FloatVector4(data) => {
+                    gl.uniform4fv_with_f32_array(Some(location), &data)
+                }
+                UniformValue::IntegerVector1(data) => {
+                    gl.uniform1iv_with_i32_array(Some(location), &data)
+                }
+                UniformValue::IntegerVector2(data) => {
+                    gl.uniform2iv_with_i32_array(Some(location), &data)
+                }
+                UniformValue::IntegerVector3(data) => {
+                    gl.uniform3iv_with_i32_array(Some(location), &data)
+                }
+                UniformValue::IntegerVector4(data) => {
+                    gl.uniform4iv_with_i32_array(Some(location), &data)
+                }
+                UniformValue::UnsignedIntegerVector1(data) => {
+                    gl.uniform1uiv_with_u32_array(Some(location), &data)
+                }
+                UniformValue::UnsignedIntegerVector2(data) => {
+                    gl.uniform2uiv_with_u32_array(Some(location), &data)
+                }
+                UniformValue::UnsignedIntegerVector3(data) => {
+                    gl.uniform3uiv_with_u32_array(Some(location), &data)
+                }
+                UniformValue::UnsignedIntegerVector4(data) => {
+                    gl.uniform4uiv_with_u32_array(Some(location), &data)
+                }
+                UniformValue::Matrix2 { data, transpose } => {
+                    gl.uniform_matrix2fv_with_f32_array(Some(location), transpose, &data)
+                }
+                UniformValue::Matrix3 { data, transpose } => {
+                    gl.uniform_matrix3fv_with_f32_array(Some(location), transpose, &data)
+                }
+                UniformValue::Matrix4 { data, transpose } => {
+                    gl.uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
+                }
                 UniformValue::Texture {
                     descriptor,
                     params,
@@ -717,7 +598,8 @@ impl WebGL2Render {
                     // active texture
                     gl.active_texture(WebGl2RenderingContext::TEXTURE0 + active_unit);
 
-                    let (target, texture) = match self.texture_store.texture_or_create(&descriptor) {
+                    let (target, texture) = match self.texture_store.texture_or_create(&descriptor)
+                    {
                         Ok(texture) => texture,
                         Err(err) => {
                             // should log warning

@@ -2,7 +2,6 @@ use std::{any::Any, collections::HashMap};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
-use wasm_bindgen_test::console_log;
 
 use crate::{
     geometry::Geometry,
@@ -13,9 +12,6 @@ use crate::{
     },
 };
 
-use wasm_bindgen::prelude::wasm_bindgen;
-
-#[wasm_bindgen]
 pub struct EntityData {
     id: Uuid,
     local_matrix: Mat4,
@@ -24,6 +20,7 @@ pub struct EntityData {
     model_view_matrix: Mat4,
     model_view_proj_matrix: Mat4,
     attributes: HashMap<String, AttributeValue>,
+    uniforms: HashMap<String, UniformValue>,
     properties: HashMap<String, Box<dyn Any>>,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn Material>>,
@@ -92,18 +89,34 @@ impl EntityData {
         }
     }
 
-    pub fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
-        self.attributes.get(name).cloned()
+    pub fn attribute_value(&self, name: &str) -> Option<&AttributeValue> {
+        self.attributes.get(name)
     }
 
     pub fn set_attribute_value<K: Into<String>>(&mut self, name: K, value: AttributeValue) {
         self.attributes.insert(name.into(), value);
     }
 
-    #[allow(unused_variables)]
-    pub fn uniform_value<'a>(&self, name: &str) -> Option<UniformValue<'a>> {
-        None
+    pub fn uniform_value(&self, name: &str) -> Option<UniformValue> {
+        self.uniforms.get(name).cloned()
     }
+
+    pub fn set_uniform_value<K: Into<String>>(
+        &mut self,
+        name: K,
+        value: UniformValue,
+    ) -> Option<UniformValue> {
+        self.uniforms.insert(name.into(), value)
+    }
+
+    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.properties
+    }
+
+    pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
+        &mut self.properties
+    }
+
 
     pub fn property<'a>(&'a self, key: &str) -> Option<&'a Box<dyn Any>> {
         self.properties.get(key)
@@ -235,7 +248,6 @@ impl EntityData {
             )
         };
 
-
         let model_matrix = match parent_model_matrix {
             Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
             None => self.local_matrix,
@@ -263,6 +275,7 @@ impl Entity {
             model_view_matrix: Mat4::new_identity(),
             model_view_proj_matrix: Mat4::new_identity(),
             attributes: HashMap::new(),
+            uniforms: HashMap::new(),
             properties: HashMap::new(),
             geometry: None,
             material: None,
@@ -308,16 +321,31 @@ impl Entity {
     }
 
     pub fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
-        self.0.attribute_value(name)
+        self.0.attribute_value(name).cloned()
     }
 
     pub fn set_attribute_value<K: Into<String>>(&mut self, name: K, value: AttributeValue) {
         self.0.set_attribute_value(name, value)
     }
 
-    #[allow(unused_variables)]
-    pub fn uniform_value<'a>(&self, name: &str) -> Option<UniformValue<'a>> {
+    pub fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         self.0.uniform_value(name)
+    }
+
+    pub fn set_uniform_value<K: Into<String>>(
+        &mut self,
+        name: K,
+        value: UniformValue,
+    ) -> Option<UniformValue> {
+        self.0.set_uniform_value(name, value)
+    }
+
+    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
+        self.0.properties()
+    }
+
+    pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
+        self.0.properties_mut()
     }
 
     pub fn property<'a>(&'a self, key: &str) -> Option<&'a Box<dyn Any>> {

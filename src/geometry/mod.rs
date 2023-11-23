@@ -22,7 +22,7 @@ pub trait Geometry {
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>>;
+    fn uniform_value(&self, name: &str) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 

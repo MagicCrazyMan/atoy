@@ -154,7 +154,7 @@ impl Material for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value<'a>(&'a self, _name: &str) -> Option<UniformValue<'a>> {
+    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
         None
     }
 }

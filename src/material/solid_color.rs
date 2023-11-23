@@ -85,13 +85,13 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
-            COLOR_UNIFORM => Some(UniformValue::FloatVector3 {
-                data: &self.color,
-                src_offset: 0,
-                src_length: 3,
-            }),
+            COLOR_UNIFORM => Some(UniformValue::FloatVector3([
+                self.color.red,
+                self.color.green,
+                self.color.blue,
+            ])),
             _ => None,
         }
     }

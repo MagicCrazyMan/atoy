@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
@@ -64,88 +64,35 @@ impl AttributeBinding {
     }
 }
 
-pub enum UniformValue<'a> {
+#[derive(Debug, Clone)]
+pub enum UniformValue {
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),
     UnsignedInteger3(u32, u32, u32),
     UnsignedInteger4(u32, u32, u32, u32),
-    FloatVector1 {
-        data: &'a dyn AsRef<[f32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    FloatVector2 {
-        data: &'a dyn AsRef<[f32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    FloatVector3 {
-        data: &'a dyn AsRef<[f32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    FloatVector4 {
-        data: &'a dyn AsRef<[f32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    IntegerVector1 {
-        data: &'a dyn AsRef<[i32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    IntegerVector2 {
-        data: &'a dyn AsRef<[i32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    IntegerVector3 {
-        data: &'a dyn AsRef<[i32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    IntegerVector4 {
-        data: &'a dyn AsRef<[i32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    UnsignedIntegerVector1 {
-        data: &'a dyn AsRef<[u32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    UnsignedIntegerVector2 {
-        data: &'a dyn AsRef<[u32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    UnsignedIntegerVector3 {
-        data: &'a dyn AsRef<[u32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
-    UnsignedIntegerVector4 {
-        data: &'a dyn AsRef<[u32]>,
-        src_offset: u32,
-        src_length: u32,
-    },
+    FloatVector1([f32; 1]),
+    FloatVector2([f32; 2]),
+    FloatVector3([f32; 3]),
+    FloatVector4([f32; 4]),
+    IntegerVector1([i32; 1]),
+    IntegerVector2([i32; 1]),
+    IntegerVector3([i32; 1]),
+    IntegerVector4([i32; 1]),
+    UnsignedIntegerVector1([u32; 1]),
+    UnsignedIntegerVector2([u32; 1]),
+    UnsignedIntegerVector3([u32; 1]),
+    UnsignedIntegerVector4([u32; 1]),
     Matrix2 {
-        data: &'a dyn AsRef<[f32]>,
-        transpose: bool,
-        src_offset: u32,
-        src_length: u32,
+        data: [f32; 4],
+        transpose: bool
     },
-    Matrix3 {
-        data: &'a dyn AsRef<[f32]>,
-        transpose: bool,
-        src_offset: u32,
-        src_length: u32,
+    Matrix3{
+        data: [f32; 9],
+        transpose: bool
     },
-    Matrix4 {
-        data: &'a dyn AsRef<[f32]>,
-        transpose: bool,
-        src_offset: u32,
-        src_length: u32,
+    Matrix4{
+        data: [f32; 16],
+        transpose: bool
     },
     Texture {
         descriptor: TextureDescriptor,
@@ -258,10 +205,7 @@ impl ProgramStore {
     // }
 
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub fn program_or_compile(
-        &mut self,
-        material: &dyn Material,
-    ) -> Result<&ProgramItem, Error> {
+    pub fn program_or_compile(&mut self, material: &dyn Material) -> Result<&ProgramItem, Error> {
         let gl = self.gl.clone();
         let item = self
             .store

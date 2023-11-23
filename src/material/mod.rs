@@ -25,7 +25,7 @@ pub trait Material {
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
-    fn uniform_value<'a>(&'a self, name: &str) -> Option<UniformValue<'a>>;
+    fn uniform_value(& self, name: &str) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
