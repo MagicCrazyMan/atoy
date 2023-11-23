@@ -15,6 +15,7 @@ use crate::{
 
 use self::{
     buffer::{BufferStore, BufferTarget},
+    conversion::{GLint, GLuint, ToGlEnum},
     draw::Draw,
     error::Error,
     program::{AttributeBinding, AttributeValue, ProgramStore, UniformBinding, UniformValue},
@@ -22,6 +23,7 @@ use self::{
 };
 
 pub mod buffer;
+pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod program;
@@ -43,16 +45,6 @@ pub enum CullFace {
     Front,
     Back,
     Both,
-}
-
-impl CullFace {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            CullFace::Front => WebGl2RenderingContext::FRONT,
-            CullFace::Back => WebGl2RenderingContext::BACK,
-            CullFace::Both => WebGl2RenderingContext::FRONT_AND_BACK,
-        }
-    }
 }
 
 #[wasm_bindgen]
@@ -160,7 +152,7 @@ impl WebGL2Render {
         match self.cull_face_mode {
             Some(cull_face_mode) => {
                 self.gl.enable(WebGl2RenderingContext::CULL_FACE);
-                self.gl.cull_face(cull_face_mode.to_gl_enum())
+                self.gl.cull_face(cull_face_mode.gl_enum())
             }
             None => self.gl.disable(WebGl2RenderingContext::CULL_FACE),
         }
@@ -178,6 +170,10 @@ impl WebGL2Render {
             self.clear_color.0[2] as f32,
             self.clear_color.0[3] as f32,
         );
+    }
+
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
     }
 }
 
@@ -374,7 +370,7 @@ impl WebGL2Render {
 
     fn bind_attributes(
         &mut self,
-        attribute_locations: &HashMap<AttributeBinding, u32>,
+        attribute_locations: &HashMap<AttributeBinding, GLuint>,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn Material,
@@ -415,11 +411,11 @@ impl WebGL2Render {
                         }
                     };
 
-                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
+                    gl.bind_buffer(target.gl_enum(), Some(buffer));
                     gl.vertex_attrib_pointer_with_i32(
                         *location,
-                        component_size.to_i32(),
-                        data_type.to_gl_enum(),
+                        component_size as GLint,
+                        data_type.gl_enum(),
                         normalized,
                         bytes_stride,
                         bytes_offset,
@@ -432,7 +428,7 @@ impl WebGL2Render {
                     component_size,
                     data_type,
                     normalized,
-                    components_length_per_instance,
+                    component_count_per_instance: components_length_per_instance,
                     divisor,
                 } => {
                     let buffer = match self.buffer_store.buffer_or_create(&descriptor, target) {
@@ -444,24 +440,25 @@ impl WebGL2Render {
                         }
                     };
 
-                    gl.bind_buffer(target.to_gl_enum(), Some(buffer));
+                    gl.bind_buffer(target.gl_enum(), Some(buffer));
+                    let component_size = component_size as GLint;
                     // binds each instance
                     for i in 0..components_length_per_instance {
-                        let offset_location = *location + i;
+                        let offset_location = *location + (i as GLuint);
                         gl.vertex_attrib_pointer_with_i32(
                             offset_location,
-                            component_size.to_i32(),
-                            data_type.to_gl_enum(),
+                            component_size,
+                            data_type.gl_enum(),
                             normalized,
                             data_type.bytes_length()
-                                * component_size.to_i32()
-                                * (components_length_per_instance as i32),
-                            (i as i32) * data_type.bytes_length() * component_size.to_i32(),
+                                * component_size
+                                * components_length_per_instance,
+                            i * data_type.bytes_length() * component_size,
                         );
                         gl.enable_vertex_attrib_array(offset_location);
                         gl.vertex_attrib_divisor(offset_location, divisor);
                     }
-                    gl.bind_buffer(target.to_gl_enum(), None);
+                    gl.bind_buffer(target.gl_enum(), None);
                 }
                 AttributeValue::Vertex1f(x) => gl.vertex_attrib1f(*location, x),
                 AttributeValue::Vertex2f(x, y) => gl.vertex_attrib2f(*location, x, y),
@@ -592,10 +589,10 @@ impl WebGL2Render {
                 UniformValue::Texture {
                     descriptor,
                     params,
-                    active_unit,
+                    texture_unit,
                 } => {
                     // active texture
-                    gl.active_texture(WebGl2RenderingContext::TEXTURE0 + active_unit);
+                    gl.active_texture(texture_unit.gl_enum());
 
                     let (target, texture) = match self.texture_store.texture_or_create(&descriptor)
                     {
@@ -614,7 +611,7 @@ impl WebGL2Render {
                         .iter()
                         .for_each(|param| param.tex_parameteri(gl, target));
                     // binds to shader
-                    gl.uniform1i(Some(location), active_unit as i32);
+                    gl.uniform1i(Some(location), texture_unit.unit_index());
                 }
             }
         }
@@ -631,9 +628,7 @@ impl WebGL2Render {
                     mode,
                     first,
                     count: num_vertices,
-                } => {
-                    gl.draw_arrays_instanced(mode.to_gl_enum(), first, num_vertices, num_instances)
-                }
+                } => gl.draw_arrays_instanced(mode.gl_enum(), first, num_vertices, num_instances),
                 Draw::Elements {
                     mode,
                     count: num_vertices,
@@ -652,12 +647,12 @@ impl WebGL2Render {
                             return;
                         }
                     };
-                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.to_gl_enum(), Some(buffer));
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(buffer));
 
                     gl.draw_elements_instanced_with_i32(
-                        mode.to_gl_enum(),
+                        mode.gl_enum(),
                         num_vertices,
-                        element_type.to_gl_enum(),
+                        element_type.gl_enum(),
                         offset,
                         num_instances,
                     );
@@ -670,7 +665,7 @@ impl WebGL2Render {
                     mode,
                     first,
                     count: num_vertices,
-                } => gl.draw_arrays(mode.to_gl_enum(), first, num_vertices),
+                } => gl.draw_arrays(mode.gl_enum(), first, num_vertices),
                 Draw::Elements {
                     mode,
                     count: num_vertices,
@@ -689,12 +684,12 @@ impl WebGL2Render {
                             return;
                         }
                     };
-                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.to_gl_enum(), Some(buffer));
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(buffer));
 
                     gl.draw_elements_with_i32(
-                        mode.to_gl_enum(),
+                        mode.gl_enum(),
                         num_vertices,
-                        element_type.to_gl_enum(),
+                        element_type.gl_enum(),
                         offset,
                     );
                 }

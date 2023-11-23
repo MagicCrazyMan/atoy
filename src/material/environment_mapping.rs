@@ -9,7 +9,7 @@ use crate::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TextureSource,
+            TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit,
         },
     },
     scene::Scene,
@@ -130,7 +130,7 @@ impl Material for EnvironmentMaterial {
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
                     ],
-                    active_unit: 0,
+                    texture_unit: TextureUnit::TEXTURE0,
                 }),
                 None => None,
             },

@@ -87,7 +87,7 @@ pub struct Scene {
     active_camera: Box<dyn Camera>,
     root_entity: Entity,
     // require for storing callback closure function
-    _resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
+    resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
 }
 
 // #[wasm_bindgen]
@@ -129,7 +129,7 @@ impl Scene {
             mount: None,
             canvas,
             active_camera,
-            _resize_observer,
+            resize_observer: _resize_observer,
             root_entity: Entity::new(),
         };
 
@@ -266,5 +266,12 @@ impl Scene {
     /// Gets current active camera.
     pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
         self.active_camera.as_mut()
+    }
+}
+
+impl Drop for Scene {
+    fn drop(&mut self) {
+        // cleanups observers
+        self.resize_observer.0.disconnect();
     }
 }

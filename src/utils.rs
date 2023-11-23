@@ -15,6 +15,7 @@ use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::render::webgl::texture::TextureUnit;
 use crate::{
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
@@ -129,6 +130,16 @@ fn create_scene(
         ));
 
     Scene::with_options(scene_options)
+}
+
+#[wasm_bindgen]
+pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
+    let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let render = WebGL2Render::new(&scene)?;
+    let count = TextureUnit::max_combined_texture_image_units(render.gl());
+    console_log!("max combined texture image units: {}", count);
+
+    Ok(())
 }
 
 #[wasm_bindgen]

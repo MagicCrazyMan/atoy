@@ -138,7 +138,7 @@ impl Material for SolidColorInstancedMaterial {
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::Float,
                 normalized: false,
-                components_length_per_instance: 1,
+                component_count_per_instance: 1,
                 divisor: 1,
             }),
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
@@ -147,7 +147,7 @@ impl Material for SolidColorInstancedMaterial {
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,
-                components_length_per_instance: 4,
+                component_count_per_instance: 4,
                 divisor: 1,
             }),
             _ => None,

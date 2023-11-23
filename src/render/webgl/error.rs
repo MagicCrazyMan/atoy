@@ -1,12 +1,17 @@
+use uuid::Uuid;
+
 #[derive(Debug, Clone)]
 pub enum Error {
     MatrixError(gl_matrix4rust::error::Error),
     WebGl2RenderingContextNotFound,
     CreateProgramFailure,
+    CreateTextureFailure,
     CreateVertexShaderFailure,
     CreateFragmentShaderFailure,
     CompileShaderFailure(Option<String>),
     CompileProgramFailure(Option<String>),
+    BufferImageFailure(Option<String>),
+    BufferStorageNotFount(Uuid),
 }
 
 impl Error {}
@@ -15,14 +20,15 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::MatrixError(err) => err.fmt(f),
+            Error::CreateProgramFailure => todo!(),
+            Error::CreateTextureFailure => todo!(),
             Error::CreateVertexShaderFailure => todo!(),
             Error::CreateFragmentShaderFailure => todo!(),
             Error::CompileShaderFailure(_) => todo!(),
             Error::CompileProgramFailure(_) => todo!(),
-            Error::CreateProgramFailure => todo!(),
             Error::WebGl2RenderingContextNotFound => todo!(),
-            
-            
+            Error::BufferImageFailure(_) => todo!(),
+            Error::BufferStorageNotFount(_) => todo!(),
         }
     }
 }

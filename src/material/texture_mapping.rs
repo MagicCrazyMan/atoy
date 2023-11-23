@@ -9,7 +9,7 @@ use crate::{
         program::{AttributeBinding, AttributeValue, ShaderSource, UniformBinding, UniformValue},
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureWrapMethod,
+            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureWrapMethod, TextureUnit,
         },
     },
     scene::Scene,
@@ -126,7 +126,7 @@ impl Material for TextureMaterial {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    active_unit: 0,
+                    texture_unit: TextureUnit::TEXTURE0,
                 }),
                 None => None,
             },

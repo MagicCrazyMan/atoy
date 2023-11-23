@@ -1,9 +1,16 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    rc::Rc,
+};
 
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use super::conversion::{GLintptr, GLsizeiptr, GLuint, ToGlEnum};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferTarget {
     Buffer,
     ElementArrayBuffer,
@@ -15,44 +22,17 @@ pub enum BufferTarget {
     PixelUnpackBuffer,
 }
 
-impl BufferTarget {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            BufferTarget::Buffer => WebGl2RenderingContext::ARRAY_BUFFER,
-            BufferTarget::ElementArrayBuffer => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
-            BufferTarget::CopyReadBuffer => WebGl2RenderingContext::COPY_READ_BUFFER,
-            BufferTarget::CopyWriteBuffer => WebGl2RenderingContext::COPY_WRITE_BUFFER,
-            BufferTarget::TransformFeedbackBuffer => {
-                WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER
-            }
-            BufferTarget::UniformBuffer => WebGl2RenderingContext::UNIFORM_BUFFER,
-            BufferTarget::PixelPackBuffer => WebGl2RenderingContext::PIXEL_PACK_BUFFER,
-            BufferTarget::PixelUnpackBuffer => WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
 pub enum BufferComponentSize {
-    One,
-    Two,
-    Three,
-    Four,
-}
-
-impl BufferComponentSize {
-    pub fn to_i32(&self) -> i32 {
-        match self {
-            BufferComponentSize::One => 1,
-            BufferComponentSize::Two => 2,
-            BufferComponentSize::Three => 3,
-            BufferComponentSize::Four => 4,
-        }
-    }
+    One = 1,
+    Two = 2,
+    Three = 3,
+    Four = 4,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferDataType {
     Float,
     Byte,
@@ -67,23 +47,6 @@ pub enum BufferDataType {
 }
 
 impl BufferDataType {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            BufferDataType::Float => WebGl2RenderingContext::FLOAT,
-            BufferDataType::Byte => WebGl2RenderingContext::BYTE,
-            BufferDataType::Short => WebGl2RenderingContext::SHORT,
-            BufferDataType::Int => WebGl2RenderingContext::INT,
-            BufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            BufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
-            BufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            BufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            BufferDataType::Int_2_10_10_10_Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
-            BufferDataType::UnsignedInt_2_10_10_10_Rev => {
-                WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
-            }
-        }
-    }
-
     pub fn bytes_length(&self) -> i32 {
         match self {
             BufferDataType::Float => 4,
@@ -113,35 +76,19 @@ pub enum BufferUsage {
     StreamCopy,
 }
 
-impl BufferUsage {
-    pub fn to_gl_enum(&self) -> u32 {
-        match self {
-            BufferUsage::StaticDraw => WebGl2RenderingContext::STATIC_DRAW,
-            BufferUsage::DynamicDraw => WebGl2RenderingContext::DYNAMIC_DRAW,
-            BufferUsage::StreamDraw => WebGl2RenderingContext::STREAM_DRAW,
-            BufferUsage::StaticRead => WebGl2RenderingContext::STATIC_READ,
-            BufferUsage::DynamicRead => WebGl2RenderingContext::DYNAMIC_READ,
-            BufferUsage::StreamRead => WebGl2RenderingContext::STREAM_READ,
-            BufferUsage::StaticCopy => WebGl2RenderingContext::STATIC_COPY,
-            BufferUsage::DynamicCopy => WebGl2RenderingContext::DYNAMIC_COPY,
-            BufferUsage::StreamCopy => WebGl2RenderingContext::STATIC_COPY,
-        }
-    }
-}
-
 enum BufferData {
     Preallocate {
-        size: i32,
+        size: GLsizeiptr,
     },
     FromBinary {
         data: Box<dyn AsRef<[u8]>>,
-        src_byte_offset: u32,
-        src_byte_length: u32,
+        src_byte_offset: GLuint,
+        src_byte_length: GLuint,
     },
 }
 
 impl Debug for BufferData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Preallocate { size } => {
                 f.debug_struct("Preallocate").field("size", size).finish()
@@ -162,13 +109,13 @@ impl Debug for BufferData {
 
 struct BufferSubData {
     data: Box<dyn AsRef<[u8]>>,
-    dst_byte_offset: i32,
-    src_byte_offset: u32,
-    src_byte_length: u32,
+    dst_byte_offset: GLintptr,
+    src_byte_offset: GLuint,
+    src_byte_length: GLuint,
 }
 
 impl Debug for BufferSubData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BufferSubData")
             .field("data_length", &self.data.as_ref().as_ref().len())
             .field("dst_byte_offset", &self.dst_byte_offset)
@@ -192,7 +139,7 @@ pub struct BufferDescriptor {
 }
 
 impl BufferDescriptor {
-    pub fn preallocate(size: i32, usage: BufferUsage) -> Self {
+    pub fn preallocate(size: GLsizeiptr, usage: BufferUsage) -> Self {
         Self {
             status: Rc::new(RefCell::new(BufferStatus::UpdateBuffer {
                 id: None,
@@ -204,8 +151,8 @@ impl BufferDescriptor {
 
     pub fn from_binary<D: AsRef<[u8]> + 'static>(
         data: D,
-        src_byte_offset: u32,
-        src_byte_length: u32,
+        src_byte_offset: GLuint,
+        src_byte_length: GLuint,
         usage: BufferUsage,
     ) -> Self {
         Self {
@@ -224,8 +171,8 @@ impl BufferDescriptor {
     pub fn buffer_data<D: AsRef<[u8]> + 'static>(
         &mut self,
         data: D,
-        src_byte_offset: u32,
-        src_byte_length: u32,
+        src_byte_offset: GLuint,
+        src_byte_length: GLuint,
     ) {
         let new_status = match *self.status.borrow() {
             BufferStatus::Unchanged { id } => BufferStatus::UpdateBuffer {
@@ -260,9 +207,9 @@ impl BufferDescriptor {
     pub fn buffer_sub_data<D: AsRef<[u8]> + 'static>(
         &mut self,
         data: D,
-        dst_byte_offset: i32,
-        src_byte_offset: u32,
-        src_byte_length: u32,
+        dst_byte_offset: GLintptr,
+        src_byte_offset: GLuint,
+        src_byte_length: GLuint,
     ) {
         let new_status = match *self.status.borrow() {
             BufferStatus::Unchanged { id } | BufferStatus::UpdateSubBuffer { id, .. } => {
@@ -330,13 +277,13 @@ impl BufferStore {
                     return Err(String::from("failed to create WebGL buffer"));
                 };
 
-                self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
+                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 match data {
                     BufferData::Preallocate { size } => {
                         self.gl.buffer_data_with_i32(
-                            target.to_gl_enum(),
+                            target.gl_enum(),
                             *size,
-                            usage.to_gl_enum(),
+                            usage.gl_enum(),
                         );
                     }
                     BufferData::FromBinary {
@@ -344,14 +291,14 @@ impl BufferStore {
                         src_byte_offset,
                         src_byte_length,
                     } => self.gl.buffer_data_with_u8_array_and_src_offset_and_length(
-                        target.to_gl_enum(),
+                        target.gl_enum(),
                         data.as_ref().as_ref(),
-                        usage.to_gl_enum(),
+                        usage.gl_enum(),
                         *src_byte_offset,
                         *src_byte_length,
                     ),
                 };
-                self.gl.bind_buffer(target.to_gl_enum(), None);
+                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // stores it
                 let id = Uuid::new_v4();
@@ -367,7 +314,7 @@ impl BufferStore {
                     return Err(format!("failed to get buffer with id {}", id));
                 };
 
-                self.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
+                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 let BufferSubData {
                     data,
                     dst_byte_offset,
@@ -376,13 +323,13 @@ impl BufferStore {
                 } = data;
                 self.gl
                     .buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
-                        target.to_gl_enum(),
+                        target.gl_enum(),
                         *dst_byte_offset,
                         data.as_ref().as_ref(),
                         *src_byte_offset,
                         *src_byte_length,
                     );
-                self.gl.bind_buffer(target.to_gl_enum(), None);
+                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replace descriptor status
                 *status = BufferStatus::Unchanged { id: id.clone() };

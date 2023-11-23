@@ -7,8 +7,9 @@ use crate::material::Material;
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
+    conversion::{GLboolean, GLintptr, GLsizei, GLuint},
     error::Error,
-    texture::{TextureDescriptor, TextureParameter},
+    texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
 #[derive(Debug, Clone)]
@@ -18,18 +19,18 @@ pub enum AttributeValue {
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
-        normalized: bool,
-        bytes_stride: i32,
-        bytes_offset: i32,
+        normalized: GLboolean,
+        bytes_stride: GLsizei,
+        bytes_offset: GLintptr,
     },
     InstancedBuffer {
         descriptor: BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
-        normalized: bool,
-        components_length_per_instance: u32,
-        divisor: u32,
+        normalized: GLboolean,
+        component_count_per_instance: i32,
+        divisor: GLuint,
     },
     Vertex1f(f32),
     Vertex2f(f32, f32),
@@ -84,20 +85,20 @@ pub enum UniformValue {
     UnsignedIntegerVector4([u32; 1]),
     Matrix2 {
         data: [f32; 4],
-        transpose: bool
+        transpose: bool,
     },
-    Matrix3{
+    Matrix3 {
         data: [f32; 9],
-        transpose: bool
+        transpose: bool,
     },
-    Matrix4{
+    Matrix4 {
         data: [f32; 16],
-        transpose: bool
+        transpose: bool,
     },
     Texture {
         descriptor: TextureDescriptor,
         params: Vec<TextureParameter>,
-        active_unit: u32,
+        texture_unit: TextureUnit,
     },
 }
 
@@ -144,7 +145,7 @@ pub enum ShaderSource<'a> {
 pub struct ProgramItem {
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
-    attributes: HashMap<AttributeBinding, u32>,
+    attributes: HashMap<AttributeBinding, GLuint>,
     uniforms: HashMap<UniformBinding, WebGlUniformLocation>,
 }
 
@@ -153,7 +154,7 @@ impl ProgramItem {
         &self.program
     }
 
-    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, u32> {
+    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
         &self.attributes
     }
 
@@ -317,7 +318,7 @@ fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
-) -> Result<HashMap<AttributeBinding, u32>, Error> {
+) -> Result<HashMap<AttributeBinding, GLuint>, Error> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
@@ -327,7 +328,7 @@ fn collect_attribute_locations(
             // should log warning
             console_log!("failed to get attribute location of {}", variable_name);
         } else {
-            locations.insert(binding.clone(), location as u32);
+            locations.insert(binding.clone(), location as GLuint);
         }
     });
 
