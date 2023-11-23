@@ -14,12 +14,14 @@ use crate::{
 };
 
 use self::{
+    attribute::{AttributeBinding, AttributeValue},
     buffer::{BufferStore, BufferTarget},
-    conversion::{GLint, GLuint, ToGlEnum, GLfloat},
+    conversion::{GLfloat, GLint, GLuint, ToGlEnum},
     draw::Draw,
     error::Error,
-    program::{ProgramStore, UniformBinding, UniformValue},
-    texture::TextureStore, attribute::{AttributeBinding, AttributeValue},
+    program::ProgramStore,
+    texture::TextureStore,
+    uniform::{UniformBinding, UniformValue},
 };
 
 pub mod attribute;
@@ -29,6 +31,7 @@ pub mod draw;
 pub mod error;
 pub mod program;
 pub mod texture;
+pub mod uniform;
 
 #[wasm_bindgen(typescript_custom_section)]
 const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"

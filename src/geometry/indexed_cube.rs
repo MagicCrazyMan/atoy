@@ -3,9 +3,10 @@ use std::any::Any;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::render::webgl::{
+    attribute::AttributeValue,
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
     draw::{Draw, DrawElementType, DrawMode},
-    program::UniformValue, attribute::AttributeValue,
+    uniform::UniformValue,
 };
 
 use super::Geometry;

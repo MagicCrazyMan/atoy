@@ -2,8 +2,10 @@ use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use palette::rgb::Rgb;
 
 use crate::render::webgl::{
+    attribute::{AttributeBinding, AttributeValue},
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
-    program::{ShaderSource, UniformBinding, UniformValue}, attribute::{AttributeBinding, AttributeValue},
+    program::ShaderSource,
+    uniform::{UniformBinding, UniformValue},
 };
 
 use super::Material;

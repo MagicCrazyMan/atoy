@@ -11,12 +11,13 @@ use crate::{
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
         },
-        program::{ShaderSource, UniformBinding, UniformValue},
+        program::ShaderSource,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
             TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
             TextureWrapMethod,
         },
+        uniform::{UniformBinding, UniformValue},
     },
     scene::Scene,
 };

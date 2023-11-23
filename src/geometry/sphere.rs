@@ -4,7 +4,7 @@ use crate::render::webgl::{
     attribute::AttributeValue,
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
     draw::{Draw, DrawMode},
-    program::UniformValue,
+    uniform::UniformValue,
 };
 
 use super::Geometry;

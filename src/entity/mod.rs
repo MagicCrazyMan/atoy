@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     geometry::Geometry,
     material::Material,
-    render::webgl::{error::Error, program::UniformValue, attribute::AttributeValue},
+    render::webgl::{attribute::AttributeValue, error::Error, uniform::UniformValue},
 };
 
 pub struct EntityData {

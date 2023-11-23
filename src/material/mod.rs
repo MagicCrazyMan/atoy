@@ -3,7 +3,8 @@ use crate::{
     geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::{ShaderSource, UniformBinding, UniformValue},
+        program::ShaderSource,
+        uniform::{UniformBinding, UniformValue},
     },
     scene::Scene,
 };

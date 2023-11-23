@@ -5,7 +5,7 @@ pub mod sphere;
 
 use std::any::Any;
 
-use crate::render::webgl::{attribute::AttributeValue, draw::Draw, program::UniformValue};
+use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue};
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
