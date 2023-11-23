@@ -10,7 +10,7 @@ use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
 use crate::{
-    document, entity::Entity, geometry::Geometry, material::Material, scene::Scene, window,
+    entity::Entity, event::EventTarget, geometry::Geometry, material::Material, scene::Scene,
 };
 
 use self::{
@@ -96,29 +96,18 @@ impl<'a> EventTargets<'a> {
 
 pub struct WebGL2Render<'a> {
     gl: WebGl2RenderingContext,
+    depth_test: bool,
+    cull_face: Option<CullFace>,
+    clear_color: Vec4,
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
-    depth_test: bool,
-    cull_face_mode: Option<CullFace>,
-    clear_color: Vec4,
+    event_targets: EventTargets<'a>,
 }
 
-#[wasm_bindgen]
-impl WebGL2Render {
+impl<'a> WebGL2Render<'a> {
     /// Constructs a new WebGL2 render.
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor(
-        scene: &Scene,
-        options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render, Error> {
-        Self::new_inner(scene, options)
-    }
-}
-
-impl WebGL2Render {
-    /// Constructs a new WebGL2 render.
-    pub fn new(scene: &Scene) -> Result<WebGL2Render, Error> {
+    pub fn new(scene: &Scene) -> Result<WebGL2Render<'a>, Error> {
         Self::new_inner(scene, None)
     }
 
@@ -126,14 +115,14 @@ impl WebGL2Render {
     pub fn with_options(
         scene: &Scene,
         options: WebGL2RenderOptionsObject,
-    ) -> Result<WebGL2Render, Error> {
+    ) -> Result<WebGL2Render<'a>, Error> {
         Self::new_inner(scene, Some(options))
     }
 
     fn new_inner(
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render, Error> {
+    ) -> Result<WebGL2Render<'a>, Error> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
@@ -141,8 +130,9 @@ impl WebGL2Render {
             texture_store: TextureStore::new(gl.clone()),
             gl,
             depth_test: true,
-            cull_face_mode: None,
+            cull_face: None,
             clear_color: Vec4::new(),
+            event_targets: EventTargets::new(),
         };
 
         render.set_clear_color(Vec4::new());
@@ -175,7 +165,7 @@ impl WebGL2Render {
     }
 }
 
-impl WebGL2Render {
+impl<'a> WebGL2Render<'a> {
     pub fn depth_test(&self) -> bool {
         self.depth_test
     }
@@ -190,12 +180,12 @@ impl WebGL2Render {
     }
 
     pub fn cull_face(&self) -> Option<CullFace> {
-        self.cull_face_mode
+        self.cull_face
     }
 
     pub fn set_cull_face(&mut self, cull_face_mode: Option<CullFace>) {
-        self.cull_face_mode = cull_face_mode;
-        match self.cull_face_mode {
+        self.cull_face = cull_face_mode;
+        match self.cull_face {
             Some(cull_face_mode) => {
                 self.gl.enable(WebGl2RenderingContext::CULL_FACE);
                 self.gl.cull_face(cull_face_mode.gl_enum())
@@ -223,6 +213,80 @@ impl WebGL2Render {
     }
 }
 
+impl<'a> WebGL2Render<'a> {
+    pub fn before_render(&mut self) -> &mut EventTarget<()> {
+        &mut self.event_targets.before_render
+    }
+
+    pub fn before_prepare(&mut self) -> &mut EventTarget<()> {
+        &mut self.event_targets.before_prepare
+    }
+
+    pub fn after_prepare(&mut self) -> &mut EventTarget<()> {
+        &mut self.event_targets.after_prepare
+    }
+
+    pub fn before_entity_bind_attributes(
+        &mut self,
+    ) -> &mut EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<AttributeBinding, GLuint>,
+    )> {
+        &mut self.event_targets.before_entity_bind_attributes
+    }
+
+    pub fn after_entity_bind_attributes(
+        &mut self,
+    ) -> &mut EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<AttributeBinding, GLuint>,
+    )> {
+        &mut self.event_targets.after_entity_bind_attributes
+    }
+
+    pub fn before_entity_bind_uniforms(
+        &mut self,
+    ) -> &mut EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<UniformBinding, WebGlUniformLocation>,
+    )> {
+        &mut self.event_targets.before_entity_bind_uniforms
+    }
+
+    pub fn after_entity_bind_uniforms(
+        &mut self,
+    ) -> &mut EventTarget<(
+        &'a Entity,
+        &'a dyn Geometry,
+        &'a dyn Material,
+        &'a HashMap<UniformBinding, WebGlUniformLocation>,
+    )> {
+        &mut self.event_targets.after_entity_bind_uniforms
+    }
+
+    pub fn before_entity_draw(
+        &mut self,
+    ) -> &mut EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)> {
+        &mut self.event_targets.before_entity_draw
+    }
+
+    pub fn after_entity_draw(
+        &mut self,
+    ) -> &mut EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)> {
+        &mut self.event_targets.after_entity_draw
+    }
+
+    pub fn after_render(&mut self) -> &mut EventTarget<()> {
+        &mut self.event_targets.after_render
+    }
+}
+
 struct RenderGroup {
     program: *const WebGlProgram,
     attribute_locations: *const HashMap<AttributeBinding, GLuint>,
@@ -231,15 +295,15 @@ struct RenderGroup {
 }
 
 struct RenderItem {
-    entity: *mut Entity,
-    geometry: *mut dyn Geometry,
-    material: *mut dyn Material,
+    entity_ptr: *mut Entity,
+    geometry_ptr: *mut dyn Geometry,
+    material_ptr: *mut dyn Material,
 }
 
-impl WebGL2Render {
+impl<'a> WebGL2Render<'a> {
     /// Render frame.
     pub fn render(&mut self, scene: &mut Scene) -> Result<(), Error> {
-        let total_start = window().performance().unwrap().now();
+        self.event_targets.before_render.raise(());
 
         // update WebGL viewport
         self.gl.viewport(
@@ -250,9 +314,7 @@ impl WebGL2Render {
         );
 
         // collects entities and render console_error_panic_hook
-        let prepare_start = window().performance().unwrap().now();
         let entities_group = self.prepare(scene)?;
-        let prepare_end = window().performance().unwrap().now();
 
         // clear scene
         self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
@@ -278,21 +340,27 @@ impl WebGL2Render {
             // render each entity
             for entity_item in entities {
                 let RenderItem {
-                    entity,
-                    geometry,
-                    material,
+                    entity_ptr,
+                    geometry_ptr,
+                    material_ptr,
                 } = entity_item;
                 let (entity, geometry, material) =
-                    unsafe { (&mut *entity, &mut *geometry, &mut *material) };
+                    unsafe { (&mut *entity_ptr, &mut *geometry_ptr, &mut *material_ptr) };
 
                 // pre-render
                 self.pre_render(scene, entity, geometry, material);
                 // binds attributes
-                self.bind_attributes(attribute_locations, entity, geometry, material);
+                self.bind_attributes(attribute_locations, entity_ptr, geometry_ptr, material_ptr);
                 // binds uniforms
-                self.bind_uniforms(scene, uniform_locations, entity, geometry, material);
+                self.bind_uniforms(
+                    scene,
+                    uniform_locations,
+                    entity_ptr,
+                    geometry_ptr,
+                    material_ptr,
+                );
                 // draws
-                self.draw(geometry, material);
+                self.draw(entity_ptr, geometry_ptr, material_ptr);
                 // post-render
                 self.post_render(scene, entity, geometry, material);
             }
@@ -305,16 +373,7 @@ impl WebGL2Render {
                 .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         }
 
-        let total_end = window().performance().unwrap().now();
-
-        document()
-            .get_element_by_id("preparation")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", (prepare_end - prepare_start)));
-        document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", (total_end - total_start)));
+        self.event_targets.after_render.raise(());
 
         Ok(())
     }
@@ -322,6 +381,8 @@ impl WebGL2Render {
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
     fn prepare(&mut self, scene: &mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
+        self.event_targets.before_prepare.raise(());
+
         let view_matrix = scene.active_camera().view_matrix();
         let proj_matrix = scene.active_camera().proj_matrix();
 
@@ -357,9 +418,9 @@ impl WebGL2Render {
                 // check whether material is ready or not
                 if material.ready() {
                     let render_item = RenderItem {
-                        entity,
-                        geometry,
-                        material,
+                        entity_ptr: entity,
+                        geometry_ptr: geometry,
+                        material_ptr: material,
                     };
                     match group.get_mut(material.name()) {
                         Some(group) => group.entities.push(render_item),
@@ -390,6 +451,8 @@ impl WebGL2Render {
             );
         }
 
+        self.event_targets.after_prepare.raise(());
+
         Ok(group)
     }
 
@@ -418,11 +481,21 @@ impl WebGL2Render {
     /// Binds attributes of the entity.
     fn bind_attributes(
         &mut self,
-        attribute_locations: &HashMap<AttributeBinding, GLuint>,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn Material,
+        attribute_locations: &'a HashMap<AttributeBinding, GLuint>,
+        entity_ptr: *const Entity,
+        geometry_ptr: *const dyn Geometry,
+        material_ptr: *const dyn Material,
     ) {
+        let (entity, geometry, material) =
+            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
+
+        self.event_targets.before_entity_bind_attributes.raise((
+            entity,
+            geometry,
+            material,
+            attribute_locations,
+        ));
+
         let gl = &self.gl;
 
         for (binding, location) in attribute_locations {
@@ -516,7 +589,14 @@ impl WebGL2Render {
                 AttributeValue::Vertex2fv(v) => gl.vertex_attrib2fv_with_f32_array(*location, &v),
                 AttributeValue::Vertex3fv(v) => gl.vertex_attrib3fv_with_f32_array(*location, &v),
                 AttributeValue::Vertex4fv(v) => gl.vertex_attrib4fv_with_f32_array(*location, &v),
-            }
+            };
+
+            self.event_targets.after_entity_bind_attributes.raise((
+                entity,
+                geometry,
+                material,
+                attribute_locations,
+            ));
         }
     }
 
@@ -524,11 +604,21 @@ impl WebGL2Render {
     fn bind_uniforms(
         &mut self,
         scene: &Scene,
-        uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn Material,
+        uniform_locations: &'a HashMap<UniformBinding, WebGlUniformLocation>,
+        entity_ptr: *const Entity,
+        geometry_ptr: *const dyn Geometry,
+        material_ptr: *const dyn Material,
     ) {
+        let (entity, geometry, material) =
+            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
+
+        self.event_targets.before_entity_bind_uniforms.raise((
+            entity,
+            geometry,
+            material,
+            uniform_locations,
+        ));
+
         let gl = &self.gl;
 
         for (binding, location) in uniform_locations {
@@ -662,11 +752,30 @@ impl WebGL2Render {
                     // binds to shader
                     gl.uniform1i(Some(location), texture_unit.unit_index());
                 }
-            }
+            };
+
+            self.event_targets.after_entity_bind_uniforms.raise((
+                entity,
+                geometry,
+                material,
+                uniform_locations,
+            ));
         }
     }
 
-    fn draw(&mut self, geometry: &dyn Geometry, material: &dyn Material) {
+    fn draw(
+        &mut self,
+        entity_ptr: *const Entity,
+        geometry_ptr: *const dyn Geometry,
+        material_ptr: *const dyn Material,
+    ) {
+        let (entity, geometry, material) =
+            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
+
+        self.event_targets
+            .before_entity_draw
+            .raise((entity, geometry, material));
+
         let gl = &self.gl;
 
         // draws entity
@@ -744,5 +853,9 @@ impl WebGL2Render {
                 }
             }
         }
+
+        self.event_targets
+            .after_entity_draw
+            .raise((entity, geometry, material));
     }
 }

@@ -6,8 +6,10 @@ use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
+use web_sys::js_sys::Date;
 
 use crate::camera::perspective::PerspectiveCamera;
+use crate::document;
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
@@ -132,10 +134,102 @@ fn create_scene(
     Scene::with_options(scene_options)
 }
 
+static mut RENDER_START: f64 = 0.0;
+static mut RENDER_END: f64 = 0.0;
+static mut PREPARE_START: f64 = 0.0;
+static mut PREPARE_END: f64 = 0.0;
+static mut BIND_ATTRIBUTES_START: f64 = 0.0;
+static mut BIND_ATTRIBUTES_END: f64 = 0.0;
+static mut BIND_ATTRIBUTES_TOTAL: f64 = 0.0;
+static mut BIND_UNIFORMS_START: f64 = 0.0;
+static mut BIND_UNIFORMS_END: f64 = 0.0;
+static mut BIND_UNIFORMS_TOTAL: f64 = 0.0;
+static mut DRAW_START: f64 = 0.0;
+static mut DRAW_END: f64 = 0.0;
+static mut DRAW_TOTAL: f64 = 0.0;
+
+fn create_render<'a, 'b>(scene: &'a Scene) -> Result<WebGL2Render<'b>, Error> {
+    let mut render = WebGL2Render::new(&scene)?;
+    render.set_cull_face(Some(CullFace::Back));
+
+    render.before_render().on(move |_| unsafe {
+        RENDER_START = Date::now();
+    });
+    render.before_prepare().on(move |_| unsafe {
+        PREPARE_START = Date::now();
+    });
+    render.after_prepare().on(move |_| unsafe {
+        PREPARE_END = Date::now();
+    });
+    render.before_entity_bind_attributes().on(move |_| unsafe {
+        BIND_ATTRIBUTES_START = Date::now();
+    });
+    render.after_entity_bind_attributes().on(move |_| unsafe {
+        BIND_ATTRIBUTES_END = Date::now();
+        BIND_ATTRIBUTES_TOTAL += BIND_ATTRIBUTES_END - BIND_ATTRIBUTES_START;
+    });
+    render.before_entity_bind_uniforms().on(move |_| unsafe {
+        BIND_UNIFORMS_START = Date::now();
+    });
+    render.after_entity_bind_uniforms().on(move |_| unsafe {
+        BIND_UNIFORMS_END = Date::now();
+        BIND_UNIFORMS_TOTAL += BIND_UNIFORMS_END - BIND_UNIFORMS_START;
+    });
+    render.before_entity_draw().on(move |_| unsafe {
+        DRAW_START = Date::now();
+    });
+    render.after_entity_draw().on(move |_| unsafe {
+        DRAW_END = Date::now();
+        DRAW_TOTAL += DRAW_END - DRAW_START;
+    });
+    render.after_render().on(move |_| unsafe {
+        RENDER_END = Date::now();
+
+        let total = RENDER_END - RENDER_START;
+        let preparation = PREPARE_END - PREPARE_START;
+        document()
+            .get_element_by_id("preparation")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", preparation));
+        document()
+            .get_element_by_id("attributes")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", BIND_ATTRIBUTES_TOTAL));
+        document()
+            .get_element_by_id("uniforms")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", BIND_UNIFORMS_TOTAL));
+        document()
+            .get_element_by_id("draw")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", DRAW_TOTAL));
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", total));
+
+        RENDER_START = 0.0;
+        RENDER_END = 0.0;
+        PREPARE_START = 0.0;
+        PREPARE_END = 0.0;
+        BIND_ATTRIBUTES_START = 0.0;
+        BIND_ATTRIBUTES_END = 0.0;
+        BIND_ATTRIBUTES_TOTAL = 0.0;
+        BIND_UNIFORMS_START = 0.0;
+        BIND_UNIFORMS_END = 0.0;
+        BIND_UNIFORMS_TOTAL = 0.0;
+        DRAW_START = 0.0;
+        DRAW_END = 0.0;
+        DRAW_TOTAL = 0.0;
+    });
+
+    Ok(render)
+}
+
 #[wasm_bindgen]
 pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-    let render = WebGL2Render::new(&scene)?;
+    let render = create_render(&scene)?;
     let count = TextureUnit::max_combined_texture_image_units(render.gl());
     console_log!("max combined texture image units: {}", count);
 
@@ -145,6 +239,7 @@ pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render(&scene)?;
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -174,9 +269,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     }
     scene.root_entity_mut().add_children(collection);
 
-    let mut render = WebGL2Render::new(&scene)?;
-    render.set_cull_face(Some(CullFace::Back));
-
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
@@ -202,6 +294,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 #[wasm_bindgen]
 pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render(&scene)?;
 
     let mut entity = Entity::new();
 
@@ -211,9 +304,6 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Re
         count, grid, width, height,
     )));
     scene.root_entity_mut().add_child(entity);
-
-    let mut render = WebGL2Render::new(&scene)?;
-    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -262,6 +352,7 @@ pub fn test_texture(
     height: f32,
 ) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 20.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render(&scene)?;
 
     let mut entity = Entity::new();
 
@@ -271,9 +362,6 @@ pub fn test_texture(
         url, count, grid, width, height,
     )));
     scene.root_entity_mut().add_child(entity);
-
-    let mut render = WebGL2Render::new(&scene)?;
-    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -323,15 +411,13 @@ pub fn test_environment(
     nz: String,
 ) -> Result<(), Error> {
     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut render = create_render(&scene)?;
 
     let mut entity = Entity::new();
 
     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
     scene.root_entity_mut().add_child(entity);
-
-    let mut render = WebGL2Render::new(&scene)?;
-    render.set_cull_face(Some(CullFace::Back));
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
