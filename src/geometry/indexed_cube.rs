@@ -1,17 +1,19 @@
 use std::any::Any;
 
-use wasm_bindgen::prelude::wasm_bindgen;
-
-use crate::render::webgl::{
-    attribute::AttributeValue,
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
-    draw::{Draw, DrawElementType, DrawMode},
-    uniform::UniformValue,
+use crate::{
+    render::webgl::{
+        attribute::AttributeValue,
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+        },
+        draw::{Draw, DrawElementType, DrawMode},
+        uniform::UniformValue,
+    },
+    utils::{slice_to_float32_array, slice_to_uint8_array},
 };
 
 use super::Geometry;
 
-#[wasm_bindgen]
 pub struct IndexedCube {
     size: f64,
     indices: BufferDescriptor,
@@ -20,56 +22,59 @@ pub struct IndexedCube {
     texture_coordinates: BufferDescriptor,
 }
 
-#[wasm_bindgen]
 impl IndexedCube {
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor(size: Option<f64>) -> Self {
-        Self::with_size(size.unwrap_or(1.0))
-    }
-}
-
-impl IndexedCube {
+    /// Constructs a cube using elemental index with size `1.0`.
     pub fn new() -> IndexedCube {
         Self::with_size(1.0)
     }
 
+    /// Constructs a cube using elemental index with specified size.
     pub fn with_size(size: f64) -> IndexedCube {
         Self {
             size,
-            indices: BufferDescriptor::from_binary(&INDICES, 0, 36, BufferUsage::StaticDraw),
-            vertices: BufferDescriptor::from_binary(
-                get_vertices_buffer(size),
+            indices: BufferDescriptor::from_uint8_array(
+                slice_to_uint8_array(&INDICES),
                 0,
-                72 * 4,
+                36,
                 BufferUsage::StaticDraw,
             ),
-            normals: BufferDescriptor::from_binary(
-                NORMALS_BINARY,
+            vertices: BufferDescriptor::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(size)),
                 0,
-                96 * 4,
+                72,
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates: BufferDescriptor::from_binary(
-                TEXTURE_COORDINATES_BINARY,
+            normals: BufferDescriptor::from_float32_array(
+                slice_to_float32_array(&NORMALS),
                 0,
-                48 * 4,
+                96,
+                BufferUsage::StaticDraw,
+            ),
+            texture_coordinates: BufferDescriptor::from_float32_array(
+                slice_to_float32_array(&TEXTURE_COORDINATES),
+                0,
+                48,
                 BufferUsage::StaticDraw,
             ),
         }
     }
 }
 
-#[wasm_bindgen]
-
 impl IndexedCube {
+    /// Gets cube size.
     pub fn size(&self) -> f64 {
         self.size
     }
 
+    /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices
-            .buffer_sub_binary(get_vertices_buffer(size), 0, 0, 72 * 4);
+        self.vertices.buffer_sub_float32_array(
+            slice_to_float32_array(&calculate_vertices(size)),
+            0,
+            0,
+            72,
+        );
     }
 }
 
@@ -138,7 +143,7 @@ impl Geometry for IndexedCube {
 }
 
 #[rustfmt::skip]
-fn get_vertices_buffer(size: f64) -> Vec<u8> {
+fn calculate_vertices(size: f64) -> [f32; 72] {
     let s = (size / 2.0) as f32;
     [
         s, s, s,  -s, s, s,  -s,-s, s,   s,-s, s,  // v0-v1-v2-v3 front
@@ -148,9 +153,6 @@ fn get_vertices_buffer(size: f64) -> Vec<u8> {
        -s,-s,-s,   s,-s,-s,   s,-s, s,  -s,-s, s,  // v7-v4-v3-v2 bottom
         s,-s,-s,  -s,-s,-s,  -s, s,-s,   s, s,-s,  // v4-v7-v6-v5 back
     ]
-    .iter()
-    .flat_map(|v| v.to_ne_bytes())
-    .collect::<Vec<_>>()
 }
 
 #[rustfmt::skip]
@@ -162,8 +164,6 @@ const TEXTURE_COORDINATES: [f32; 48] = [
     1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // bottom
     1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // back
 ];
-const TEXTURE_COORDINATES_BINARY: &[u8; 48 * 4] =
-    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) };
 
 #[rustfmt::skip]
 const NORMALS: [f32; 96] = [
@@ -174,8 +174,6 @@ const NORMALS: [f32; 96] = [
      0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0, // bottom
      0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0, // back
 ];
-const NORMALS_BINARY: &[u8; 96 * 4] =
-    unsafe { std::mem::transmute::<&[f32; 96], &[u8; 96 * 4]>(&NORMALS) };
 
 #[rustfmt::skip]
 const INDICES: [u8; 36] = [

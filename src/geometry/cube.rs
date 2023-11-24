@@ -1,18 +1,19 @@
 use std::any::Any;
 
-use wasm_bindgen::prelude::wasm_bindgen;
-use web_sys::js_sys::Float32Array;
-
-use crate::render::webgl::{
-    attribute::AttributeValue,
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
-    draw::{Draw, DrawMode},
-    uniform::UniformValue,
+use crate::{
+    render::webgl::{
+        attribute::AttributeValue,
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+        },
+        draw::{Draw, DrawMode},
+        uniform::UniformValue,
+    },
+    utils::slice_to_float32_array,
 };
 
 use super::Geometry;
 
-#[wasm_bindgen]
 pub struct Cube {
     size: f64,
     vertices: BufferDescriptor,
@@ -20,43 +21,30 @@ pub struct Cube {
     texture_coordinates: BufferDescriptor,
 }
 
-#[wasm_bindgen]
 impl Cube {
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor(size: Option<f64>) -> Self {
-        Self::with_size(size.unwrap_or(1.0))
-    }
-}
-
-impl Cube {
+    /// Constructs a cube with size `1.0`.
     pub fn new() -> Cube {
         Self::with_size(1.0)
     }
 
+    /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
-        let vertices = get_vertices_buffer(size);
-        let vertices_buffer = Float32Array::new_with_length(vertices.len() as u32);
-        let normal_buffer = Float32Array::new_with_length(NORMALS.len() as u32);
-        let tex_coords_buffer = Float32Array::new_with_length(TEXTURE_COORDINATES.len() as u32);
-        vertices_buffer.copy_from(&vertices);
-        normal_buffer.copy_from(&NORMALS);
-        tex_coords_buffer.copy_from(&TEXTURE_COORDINATES);
         Self {
             size,
             vertices: BufferDescriptor::from_float32_array(
-                vertices_buffer,
+                slice_to_float32_array(&calculate_vertices(size)),
                 0,
                 108,
                 BufferUsage::StaticDraw,
             ),
             normals: BufferDescriptor::from_float32_array(
-                normal_buffer,
+                slice_to_float32_array(&NORMALS),
                 0,
                 144,
                 BufferUsage::StaticDraw,
             ),
             texture_coordinates: BufferDescriptor::from_float32_array(
-                tex_coords_buffer,
+                slice_to_float32_array(&TEXTURE_COORDINATES),
                 0,
                 48,
                 BufferUsage::StaticDraw,
@@ -65,20 +53,22 @@ impl Cube {
     }
 }
 
-#[wasm_bindgen]
 impl Cube {
+    /// Gets cube size.
     pub fn size(&self) -> f64 {
         self.size
     }
 
+    /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
 
-        let vertices = get_vertices_buffer(size);
-        let vertices_buffer = Float32Array::new_with_length(vertices.len() as u32);
-        vertices_buffer.copy_from(&vertices);
-        self.vertices
-            .buffer_sub_float32_array(vertices_buffer, 0, 0, 108);
+        self.vertices.buffer_sub_float32_array(
+            slice_to_float32_array(&calculate_vertices(size)),
+            0,
+            0,
+            108,
+        );
     }
 }
 
@@ -145,7 +135,7 @@ impl Geometry for Cube {
 }
 
 #[rustfmt::skip]
-fn get_vertices_buffer(size: f64) -> [f32; 108] {
+fn calculate_vertices(size: f64) -> [f32; 108] {
     let s = (size / 2.0) as f32;
     [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front

@@ -1,11 +1,12 @@
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
     collections::HashMap,
+    hash::Hash,
     rc::{Rc, Weak},
 };
 
 use uuid::Uuid;
+use wasm_bindgen_test::console_log;
 use web_sys::{
     js_sys::{
         BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array,
@@ -180,122 +181,67 @@ impl BufferSource {
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint8Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint8ClampedArray {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromInt16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromInt32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromFloat32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromFloat64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromBigInt64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromBigUint64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (
-                data as &Object,
-                *dst_byte_offset,
-                *src_offset,
-                *src_length,
-            ),
+            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
         }
     }
 
@@ -319,11 +265,7 @@ impl BufferSource {
             _ => {
                 let (data, _, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
-                    target,
-                    data,
-                    usage,
-                    src_offset,
-                    src_length,
+                    target, data, usage, src_offset, src_length,
                 );
             }
         }
@@ -360,73 +302,99 @@ impl BufferSource {
     }
 }
 
-enum BufferDescriptorAgency {
-    Dropped,
-    Unchanged {
-        id: Uuid,
-        runtime: Option<(Weak<RefCell<StoreContainer>>, WebGl2RenderingContext)>,
-    },
-    UpdateBuffer {
-        old_id: Option<Uuid>,
-        runtime: Option<(Weak<RefCell<StoreContainer>>, WebGl2RenderingContext)>,
-        source: BufferSource,
-    },
-    UpdateSubBuffer {
-        id: Uuid,
-        runtime: Option<(Weak<RefCell<StoreContainer>>, WebGl2RenderingContext)>,
-        source: BufferSource,
-    },
-}
+/// An buffer agency is an unique identifier to save the runtime status of a buffer descriptor.
+/// `BufferDescriptorAgency` is aimed for doing automatic WebGlBuffer cleanup when a buffer no more usable.
+#[derive(Clone)]
+struct BufferDescriptorAgency(Uuid, Weak<RefCell<StoreContainer>>, WebGl2RenderingContext);
 
-/// Deletes associated WebGlBuffer from store(if exists) when descriptor drops.
-impl Drop for BufferDescriptorAgency {
-    fn drop(&mut self) {
-        let v = match self {
-            BufferDescriptorAgency::Dropped => return,
-            BufferDescriptorAgency::Unchanged { id, runtime } => (Some(id), runtime),
-            BufferDescriptorAgency::UpdateBuffer {
-                old_id, runtime, ..
-            } => (old_id.as_mut(), runtime),
-            BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => (Some(id), runtime),
-        };
-        let (Some(id), Some((store, gl))) = v else {
-            return;
-        };
-        let Some(store) = store.upgrade() else {
-            return;
-        };
-        let Some(mut store) = store.try_borrow_mut().ok() else {
-            // if borrowed, buffer is deleting from buffer store, thus, do nothing here.
-            return;
-        };
-
-        let Some((buffer, _)) = store.borrow_mut().remove(id) else {
-            return;
-        };
-
-        gl.delete_buffer(Some(&buffer));
+impl BufferDescriptorAgency {
+    fn raw_id(&self) -> &Uuid {
+        &self.0
     }
 }
 
+impl PartialEq for BufferDescriptorAgency {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for BufferDescriptorAgency {}
+
+impl Hash for BufferDescriptorAgency {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+/// Deletes associated WebGlBuffer from store(if exists) when descriptor id drops.
+impl Drop for BufferDescriptorAgency {
+    fn drop(&mut self) {
+        let Some(store) = self.1.upgrade() else {
+            return;
+        };
+        let mut store = (*store).borrow_mut();
+
+        let Some((buffer, _)) = store.remove(&self.0) else {
+            return;
+        };
+
+        self.2.delete_buffer(Some(&buffer));
+
+        console_log!("buffer {} dropped", &self.0);
+    }
+}
+
+/// An enum describing current status of a descriptor.
+enum BufferDescriptorStatus {
+    Dropped,
+    Unchanged {
+        id: Rc<BufferDescriptorAgency>,
+    },
+    UpdateBuffer {
+        old_id: Option<Rc<BufferDescriptorAgency>>,
+        source: BufferSource,
+    },
+    UpdateSubBuffer {
+        id: Rc<BufferDescriptorAgency>,
+        source: BufferSource,
+    },
+}
+
+/// An identifier telling [`BufferStore`] what to do with WebGlBuffer.
+/// 
+/// `BufferDescriptor` instance is cloneable, developer could reuse a
+/// `BufferDescriptor` and its associated WebGlBuffer by cloning it
+/// (cloning a descriptor does not create a new WebGlBuffer).
+/// 
+/// Dropping all `BufferDescriptor` instances will drop associated WebGlBuffer as well.
 #[derive(Clone)]
-#[crate::render::webgl::wasm_bindgen]
 pub struct BufferDescriptor {
-    status: Rc<RefCell<BufferDescriptorAgency>>,
+    status: Rc<RefCell<BufferDescriptorStatus>>,
     usage: BufferUsage,
 }
 
 impl BufferDescriptor {
+    /// Gets the [`BufferTarget`] of this buffer descriptor.
+    pub fn usage(&self) -> BufferUsage {
+        self.usage
+    }
+
+    /// Constructs a new buffer descriptor with preallocate buffer only.
     pub fn preallocate(size: GLsizeiptr, usage: BufferUsage) -> Self {
         Self {
-            status: Rc::new(RefCell::new(BufferDescriptorAgency::UpdateBuffer {
+            status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
                 old_id: None,
-                runtime: None,
                 source: BufferSource::Preallocate { size },
             })),
             usage,
         }
     }
 
+    /// Constructs a new buffer descriptor with data from WASM binary.
+    ///
+    /// DO NOT buffer a huge binary data using this method,
+    /// use [`from_uint8_array()`](Self@from_uint8_array) or those `from_[TypedArray]()` methods instead.
     pub fn from_binary<D: AsRef<[u8]> + 'static>(
         data: D,
         src_offset: GLuint,
@@ -434,9 +402,8 @@ impl BufferDescriptor {
         usage: BufferUsage,
     ) -> Self {
         Self {
-            status: Rc::new(RefCell::new(BufferDescriptorAgency::UpdateBuffer {
+            status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
                 old_id: None,
-                runtime: None,
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
@@ -455,25 +422,8 @@ impl BufferDescriptor {
         src_length: GLuint,
     ) {
         self.status.replace_with(|old| match old {
-            BufferDescriptorAgency::Unchanged { id, runtime } => {
-                BufferDescriptorAgency::UpdateBuffer {
-                    old_id: Some(*id),
-                    runtime: runtime.clone(),
-                    source: BufferSource::FromBinary {
-                        data: Box::new(data),
-                        dst_byte_offset: 0,
-                        src_offset,
-                        src_length,
-                    },
-                }
-            }
-            BufferDescriptorAgency::UpdateBuffer {
-                old_id: id,
-                runtime,
-                ..
-            } => BufferDescriptorAgency::UpdateBuffer {
-                old_id: id.clone(),
-                runtime: runtime.clone(),
+            BufferDescriptorStatus::Unchanged { id } => BufferDescriptorStatus::UpdateBuffer {
+                old_id: Some(id.clone()),
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
@@ -481,10 +431,9 @@ impl BufferDescriptor {
                     src_length,
                 },
             },
-            BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
-                BufferDescriptorAgency::UpdateBuffer {
-                    old_id: Some(*id),
-                    runtime: runtime.clone(),
+            BufferDescriptorStatus::UpdateBuffer { old_id, .. } => {
+                BufferDescriptorStatus::UpdateBuffer {
+                    old_id: old_id.clone(),
                     source: BufferSource::FromBinary {
                         data: Box::new(data),
                         dst_byte_offset: 0,
@@ -493,9 +442,19 @@ impl BufferDescriptor {
                     },
                 }
             }
-            BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
+            BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+                BufferDescriptorStatus::UpdateBuffer {
+                    old_id: Some(id.clone()),
+                    source: BufferSource::FromBinary {
+                        data: Box::new(data),
+                        dst_byte_offset: 0,
+                        src_offset,
+                        src_length,
+                    },
+                }
+            }
+            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
                 old_id: None,
-                runtime: None,
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
@@ -514,11 +473,10 @@ impl BufferDescriptor {
         src_length: GLuint,
     ) {
         self.status.replace_with(|old| match old {
-            BufferDescriptorAgency::Unchanged { id, runtime }
-            | BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
-                BufferDescriptorAgency::UpdateSubBuffer {
-                    id: *id,
-                    runtime: runtime.clone(),
+            BufferDescriptorStatus::Unchanged { id }
+            | BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+                BufferDescriptorStatus::UpdateSubBuffer {
+                    id: id.clone(),
                     source: BufferSource::FromBinary {
                         data: Box::new(data),
                         dst_byte_offset,
@@ -527,21 +485,19 @@ impl BufferDescriptor {
                     },
                 }
             }
-            BufferDescriptorAgency::UpdateBuffer {
-                old_id, runtime, ..
-            } => BufferDescriptorAgency::UpdateBuffer {
-                old_id: old_id.clone(),
-                runtime: runtime.clone(),
-                source: BufferSource::FromBinary {
-                    data: Box::new(data),
-                    dst_byte_offset: 0,
-                    src_offset,
-                    src_length,
-                },
-            },
-            BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
+            BufferDescriptorStatus::UpdateBuffer { old_id, .. } => {
+                BufferDescriptorStatus::UpdateBuffer {
+                    old_id: old_id.clone(),
+                    source: BufferSource::FromBinary {
+                        data: Box::new(data),
+                        dst_byte_offset: 0,
+                        src_offset,
+                        src_length,
+                    },
+                }
+            }
+            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
                 old_id: None,
-                runtime: None,
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
@@ -564,9 +520,8 @@ macro_rules! impl_typed_array {
                     usage: BufferUsage,
                 ) -> Self {
                     Self {
-                        status: Rc::new(RefCell::new(BufferDescriptorAgency::UpdateBuffer {
+                        status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
                             old_id: None,
-                            runtime: None,
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
@@ -585,10 +540,9 @@ macro_rules! impl_typed_array {
                     src_length: GLuint,
                 ) {
                     self.status.replace_with(|old| match old {
-                        BufferDescriptorAgency::Unchanged { id, runtime } => {
-                            BufferDescriptorAgency::UpdateBuffer {
-                                old_id: Some(*id),
-                                runtime: runtime.clone(),
+                        BufferDescriptorStatus::Unchanged { id } => {
+                            BufferDescriptorStatus::UpdateBuffer {
+                                old_id: Some(id.clone()),
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset: 0,
@@ -597,13 +551,10 @@ macro_rules! impl_typed_array {
                                 },
                             }
                         }
-                        BufferDescriptorAgency::UpdateBuffer {
-                            old_id: id,
-                            runtime,
-                            ..
-                        } => BufferDescriptorAgency::UpdateBuffer {
-                            old_id: id.clone(),
-                            runtime: runtime.clone(),
+                        BufferDescriptorStatus::UpdateBuffer {
+                            old_id, ..
+                        } => BufferDescriptorStatus::UpdateBuffer {
+                            old_id: old_id.clone(),
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
@@ -611,10 +562,9 @@ macro_rules! impl_typed_array {
                                 src_length,
                             },
                         },
-                        BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
-                            BufferDescriptorAgency::UpdateBuffer {
-                                old_id: Some(*id),
-                                runtime: runtime.clone(),
+                        BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+                            BufferDescriptorStatus::UpdateBuffer {
+                                old_id: Some(id.clone()),
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset: 0,
@@ -623,9 +573,8 @@ macro_rules! impl_typed_array {
                                 },
                             }
                         }
-                        BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
+                        BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
                             old_id: None,
-                            runtime: None,
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
@@ -644,11 +593,10 @@ macro_rules! impl_typed_array {
                     src_length: GLuint,
                 ) {
                     self.status.replace_with(|old| match old {
-                        BufferDescriptorAgency::Unchanged { id, runtime }
-                        | BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
-                            BufferDescriptorAgency::UpdateSubBuffer {
-                                id: *id,
-                                runtime: runtime.clone(),
+                        BufferDescriptorStatus::Unchanged { id }
+                        | BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+                            BufferDescriptorStatus::UpdateSubBuffer {
+                                id: id.clone(),
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset,
@@ -657,11 +605,10 @@ macro_rules! impl_typed_array {
                                 },
                             }
                         }
-                        BufferDescriptorAgency::UpdateBuffer {
-                            old_id, runtime, ..
-                        } => BufferDescriptorAgency::UpdateBuffer {
+                        BufferDescriptorStatus::UpdateBuffer {
+                            old_id, ..
+                        } => BufferDescriptorStatus::UpdateBuffer {
                             old_id: old_id.clone(),
-                            runtime: runtime.clone(),
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
@@ -669,9 +616,8 @@ macro_rules! impl_typed_array {
                                 src_length,
                             },
                         },
-                        BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
+                        BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
                             old_id: None,
-                            runtime: None,
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
@@ -700,7 +646,7 @@ impl_typed_array! {
     (from_big_uint64_array, buffer_big_uint64_array, buffer_sub_big_uint64_array, BigUint64Array, FromBigUint64Array)
 }
 
-type StoreContainer = HashMap<Uuid, (WebGlBuffer, Weak<RefCell<BufferDescriptorAgency>>)>;
+type StoreContainer = HashMap<Uuid, (WebGlBuffer, Weak<RefCell<BufferDescriptorStatus>>)>;
 
 pub struct BufferStore {
     gl: WebGl2RenderingContext,
@@ -717,6 +663,9 @@ impl BufferStore {
 }
 
 impl BufferStore {
+    /// gets a [`WebGlBuffer`] and binds it to [`BufferTarget`] with the associated [`BufferDescriptor`].
+    /// If WebGlBuffer not created yet, buffer store creates and one and buffers data into it, then caches it.
+    /// On the next time
     pub fn use_buffer(
         &mut self,
         BufferDescriptor { status, usage }: &BufferDescriptor,
@@ -724,20 +673,19 @@ impl BufferStore {
     ) -> Result<WebGlBuffer, Error> {
         let mut status_mut = (**status).borrow_mut();
         match &mut *status_mut {
-            BufferDescriptorAgency::Dropped => Err(Error::BufferUnexpectedDropped),
-            BufferDescriptorAgency::Unchanged { id, .. } => self
+            BufferDescriptorStatus::Dropped => Err(Error::BufferUnexpectedDropped),
+            BufferDescriptorStatus::Unchanged { id, .. } => self
                 .store
                 .borrow()
-                .get(id)
+                .get(id.raw_id())
                 .map(|(buffer, _)| buffer.clone())
-                .ok_or(Error::BufferStorageNotFound(id.clone())),
-            BufferDescriptorAgency::UpdateBuffer {
-                old_id: id, source, ..
-            } => {
+                .ok_or(Error::BufferStorageNotFound(*id.raw_id())),
+            BufferDescriptorStatus::UpdateBuffer { old_id, source, .. } => {
                 let mut store = (*self.store).borrow_mut();
 
                 // remove old buffer if specified
-                if let Some((buffer, _)) = id.and_then(|id| store.remove(&id)) {
+                if let Some((buffer, _)) = old_id.as_ref().and_then(|id| store.remove(id.raw_id()))
+                {
                     self.gl.delete_buffer(Some(&buffer));
                 };
 
@@ -752,22 +700,25 @@ impl BufferStore {
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // stores it
-                let id = Uuid::new_v4();
-                store.insert(id, (buffer.clone(), Rc::downgrade(&status)));
+                let raw_id = Uuid::new_v4();
+                store.insert(raw_id, (buffer.clone(), Rc::downgrade(&status)));
 
                 // replace descriptor status
-                *status_mut = BufferDescriptorAgency::Unchanged {
-                    id,
-                    runtime: Some((Rc::downgrade(&self.store), self.gl.clone())),
+                *status_mut = BufferDescriptorStatus::Unchanged {
+                    id: Rc::new(BufferDescriptorAgency(
+                        raw_id,
+                        Rc::downgrade(&self.store),
+                        self.gl.clone(),
+                    )),
                 };
 
                 Ok(buffer)
             }
-            BufferDescriptorAgency::UpdateSubBuffer { id, source, .. } => {
+            BufferDescriptorStatus::UpdateSubBuffer { id, source, .. } => {
                 let store = self.store.borrow();
 
-                let Some((buffer, _)) = store.get(id) else {
-                    return Err(Error::BufferStorageNotFound(id.clone()));
+                let Some((buffer, _)) = store.get(id.raw_id()) else {
+                    return Err(Error::BufferStorageNotFound(*id.raw_id()));
                 };
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
@@ -775,10 +726,7 @@ impl BufferStore {
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replace descriptor status
-                *status_mut = BufferDescriptorAgency::Unchanged {
-                    id: id.clone(),
-                    runtime: Some((Rc::downgrade(&self.store), self.gl.clone())),
-                };
+                *status_mut = BufferDescriptorStatus::Unchanged { id: id.clone() };
 
                 Ok(buffer.clone())
             }
@@ -793,12 +741,12 @@ impl Drop for BufferStore {
     fn drop(&mut self) {
         let gl = &self.gl;
         (*self.store)
-            .borrow_mut()
-            .drain()
+            .borrow()
+            .iter()
             .for_each(|(_, (buffer, status))| {
                 gl.delete_buffer(Some(&buffer));
                 status.upgrade().map(|status| {
-                    *(*status).borrow_mut() = BufferDescriptorAgency::Dropped;
+                    *(*status).borrow_mut() = BufferDescriptorStatus::Dropped;
                 });
             });
     }
