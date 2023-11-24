@@ -850,7 +850,7 @@ impl TextureStore {
         }
     }
 
-    pub fn texture_or_create(
+    pub fn use_texture(
         &mut self,
         TextureDescriptor {
             status,

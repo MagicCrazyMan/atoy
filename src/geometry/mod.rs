@@ -1,6 +1,7 @@
 pub mod cube;
 pub mod indexed_cube;
 pub mod sphere;
+pub mod raw;
 // pub mod plane;
 
 use std::any::Any;

@@ -732,7 +732,7 @@ impl<'a> WebGL2Render<'a> {
                     // active texture
                     gl.active_texture(texture_unit.gl_enum());
 
-                    let (target, texture) = match self.texture_store.texture_or_create(&descriptor)
+                    let (target, texture) = match self.texture_store.use_texture(&descriptor)
                     {
                         Ok(texture) => texture,
                         Err(err) => {

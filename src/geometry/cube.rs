@@ -135,7 +135,7 @@ impl Geometry for Cube {
 }
 
 #[rustfmt::skip]
-fn calculate_vertices(size: f64) -> [f32; 108] {
+pub fn calculate_vertices(size: f64) -> [f32; 108] {
     let s = (size / 2.0) as f32;
     [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
@@ -148,7 +148,7 @@ fn calculate_vertices(size: f64) -> [f32; 108] {
 }
 
 #[rustfmt::skip]
-const NORMALS: [f32; 144] = [
+pub const NORMALS: [f32; 144] = [
      0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0, // front
      0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0, // up
      0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0, // back
@@ -158,7 +158,7 @@ const NORMALS: [f32; 144] = [
 ];
 
 #[rustfmt::skip]
-const TEXTURE_COORDINATES: [f32; 48] = [
+pub const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // front
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // up
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // back
