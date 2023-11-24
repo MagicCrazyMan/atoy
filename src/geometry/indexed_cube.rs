@@ -69,7 +69,7 @@ impl IndexedCube {
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
         self.vertices
-            .buffer_sub_data(get_vertices_buffer(size), 0, 0, 72 * 4);
+            .buffer_sub_binary(get_vertices_buffer(size), 0, 0, 72 * 4);
     }
 }
 

@@ -63,9 +63,9 @@ impl Sphere {
 
         self.num_vertices = num_vertices;
         self.vertices
-            .buffer_sub_data(vertices, 0, 0, vertices_byte_len);
+            .buffer_sub_binary(vertices, 0, 0, vertices_byte_len);
         self.normals
-            .buffer_sub_data(normals, 0, 0, normals_byte_len);
+            .buffer_sub_binary(normals, 0, 0, normals_byte_len);
     }
 }
 

@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
-use web_sys::js_sys::Date;
+use web_sys::js_sys::{ArrayBuffer, Date, Uint8Array};
 
 use crate::camera::perspective::PerspectiveCamera;
 use crate::document;
@@ -497,68 +497,87 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let mut render = create_render(&scene)?;
 
-    let large_buffer = BufferDescriptor::from_binary(
-        vec![0u8; 1 * 1024 * 1024 * 1024],
-        0,
-        0,
-        BufferUsage::StaticDraw,
-    );
-    let large_buffer_1 = BufferDescriptor::from_binary(
-        vec![0u8; 1 * 1024 * 1024 * 1024],
-        0,
-        0,
-        BufferUsage::StaticDraw,
-    );
-    // let large_buffer_2 = BufferDescriptor::from_binary(
-    //     vec![0u8; 1 * 1024 * 1024 * 1024],
-    //     0,
-    //     0,
-    //     BufferUsage::StaticDraw,
-    // );
+    let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+    buffer.fill(1, 0, buffer.byte_length());
+    let large_buffer = BufferDescriptor::from_uint8_array(buffer, 0, 0, BufferUsage::StaticDraw);
+    let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+    buffer.fill(1, 0, buffer.byte_length());
+    let large_buffer_1 = BufferDescriptor::from_uint8_array(buffer, 0, 0, BufferUsage::StaticDraw);
     render
         .buffer_store_mut()
         .use_buffer(&large_buffer, BufferTarget::ArrayBuffer)?;
-    // render
-    //     .buffer_store_mut()
-    //     .use_buffer(&large_buffer_1, BufferTarget::ArrayBuffer)?;
-    // render
-    //     .buffer_store_mut()
-    //     .use_buffer(&large_buffer_2, BufferTarget::ArrayBuffer)?;
+    render
+        .buffer_store_mut()
+        .use_buffer(&large_buffer_1, BufferTarget::ArrayBuffer)?;
 
-    // let mut entity = Entity::new();
-    // entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
-    // entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-    // scene.root_entity_mut().add_child(entity);
+    let mut entity = Entity::new();
+    entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+    entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+    scene.root_entity_mut().add_child(entity);
 
-    // let f = Rc::new(RefCell::new(None));
-    // let g = f.clone();
-    // *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-    //     if timestamp <= 10.0 * 1000.0 {
-    //         render.render(&mut scene).unwrap();
-    //         request_animation_frame(f.borrow().as_ref().unwrap());
-    //     } else {
-    //         console_log!("{}", Rc::strong_count(&f));
-    //         console_log!("stop rendering");
-            
-    //     }
-    // }));
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        if timestamp <= 30.0 * 1000.0 {
+            render.render(&mut scene).unwrap();
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        } else {
+            scene.set_mount(None).unwrap();
+            console_log!("stop rendering");
+        }
+    }));
 
-    // request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-    let callback = Closure::once(|| {
-        drop(scene);
-        drop(render);
+    let callback = Closure::once(move || {
         drop(large_buffer);
-        // drop(large_buffer_1);
-        // drop(large_buffer_2);
+        drop(large_buffer_1);
     });
 
     window()
         .set_timeout_with_callback_and_timeout_and_arguments_0(
             callback.into_js_value().unchecked_ref(),
-            5 * 1000,
+            10 * 1000,
         )
         .unwrap();
 
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn test_binary() {
+    let b0 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+    b0.fill(1, 0, 1 * 1024 * 1024 * 1024);
+    let b1 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+    b1.fill(1, 0, 1 * 1024 * 1024 * 1024);
+    let b2 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+    b2.fill(1, 0, 1 * 1024 * 1024 * 1024);
+    let b3 = b0.clone();
+    let b4 = b0.clone();
+    let b5 = b0.clone();
+    let b6 = b0.clone();
+    let b7 = b0.clone();
+    let b8 = b0.clone();
+    let b9 = b0.clone();
+
+    let callback = Closure::once(|| {
+        drop(b0);
+        drop(b1);
+        drop(b2);
+        drop(b3);
+        drop(b4);
+        drop(b5);
+        drop(b6);
+        drop(b7);
+        drop(b8);
+        drop(b9);
+        console_log!("dropped")
+    });
+
+    window()
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            callback.into_js_value().unchecked_ref(),
+            10 * 1000,
+        )
+        .unwrap();
 }
