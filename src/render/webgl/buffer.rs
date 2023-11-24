@@ -425,7 +425,10 @@ impl Drop for BufferDescriptorAgency {
         let Some(container) = self.1.upgrade() else {
             return;
         };
-        let mut container = (*container).borrow_mut();
+        let Ok(mut container) = (*container).try_borrow_mut() else {
+            // if it is borrowed, buffer is dropping by store, skip here
+            return;
+        };
 
         let Some(StorageItem {
             buffer,
@@ -441,27 +444,27 @@ impl Drop for BufferDescriptorAgency {
         container.memory_usage -= size;
 
         // updates most and least LRU
-        // if let Some(most_recently) = container.most_recently {
-        //     let most_recently = unsafe { &*most_recently };
-        //     if most_recently.raw_id == lru_node.raw_id {
-        //         container.most_recently = lru_node.less_recently;
-        //     }
-        // }
-        // if let Some(least_recently) = container.least_recently {
-        //     let least_recently = unsafe { &*least_recently };
-        //     if least_recently.raw_id == lru_node.raw_id {
-        //         container.least_recently = lru_node.more_recently;
-        //     }
-        // }
-        // // updates self connecting LRU
-        // if let Some(less_recently) = lru_node.less_recently {
-        //     let less_recently = unsafe { &mut *less_recently };
-        //     less_recently.more_recently = lru_node.more_recently;
-        // }
-        // if let Some(more_recently) = lru_node.more_recently {
-        //     let more_recently = unsafe { &mut *more_recently };
-        //     more_recently.less_recently = lru_node.less_recently;
-        // }
+        if let Some(most_recently) = container.most_recently {
+            let most_recently = unsafe { &*most_recently };
+            if most_recently.raw_id == lru_node.raw_id {
+                container.most_recently = lru_node.less_recently;
+            }
+        }
+        if let Some(least_recently) = container.least_recently {
+            let least_recently = unsafe { &*least_recently };
+            if least_recently.raw_id == lru_node.raw_id {
+                container.least_recently = lru_node.more_recently;
+            }
+        }
+        // updates self connecting LRU
+        if let Some(less_recently) = lru_node.less_recently {
+            let less_recently = unsafe { &mut *less_recently };
+            less_recently.more_recently = lru_node.more_recently;
+        }
+        if let Some(more_recently) = lru_node.more_recently {
+            let more_recently = unsafe { &mut *more_recently };
+            more_recently.less_recently = lru_node.less_recently;
+        }
 
         console_log!("buffer {} dropped by itself", &self.0);
     }
@@ -585,7 +588,6 @@ struct StorageItem {
     buffer: WebGlBuffer,
     status: Weak<RefCell<BufferDescriptorStatus>>,
     size: usize,
-    last_used_timestamp: f64,
     lru_node: Box<LruNode>,
 }
 
@@ -693,7 +695,6 @@ impl BufferStore {
             mut restore,
         }: BufferDescriptor,
         target: BufferTarget,
-        timestamp: f64,
     ) -> Result<(), Error> {
         let mut container_guard = (*self.container).borrow_mut();
         let container_mut = &mut *container_guard;
@@ -703,10 +704,7 @@ impl BufferStore {
         match status_mut {
             BufferDescriptorStatus::Unchanged { id, .. } => {
                 let StorageItem {
-                    buffer,
-                    last_used_timestamp,
-                    lru_node,
-                    ..
+                    buffer, lru_node, ..
                 } = container_mut
                     .store
                     .get_mut(id.raw_id())
@@ -714,8 +712,6 @@ impl BufferStore {
 
                 self.gl.bind_buffer(target.gl_enum(), Some(buffer));
 
-                // updates last used timestamp
-                *last_used_timestamp = timestamp;
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
             }
@@ -780,7 +776,6 @@ impl BufferStore {
                         buffer,
                         size,
                         status: Rc::downgrade(&status),
-                        last_used_timestamp: timestamp,
                         lru_node,
                     },
                 );
@@ -796,10 +791,7 @@ impl BufferStore {
             }
             BufferDescriptorStatus::UpdateSubBuffer { id, source, .. } => {
                 let Some(StorageItem {
-                    buffer,
-                    last_used_timestamp,
-                    lru_node,
-                    ..
+                    buffer, lru_node, ..
                 }) = container_mut.store.get_mut(id.raw_id())
                 else {
                     return Err(Error::BufferStorageNotFound(*id.raw_id()));
@@ -811,9 +803,6 @@ impl BufferStore {
 
                 // replace descriptor status
                 *status_mut = BufferDescriptorStatus::Unchanged { id: id.clone() };
-
-                // updates last used timestamp
-                *last_used_timestamp = timestamp;
 
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
@@ -830,14 +819,53 @@ impl BufferStore {
 
     /// Tries to free memory if current memory usage exceeds the maximum memory limitation.
     fn free(&mut self) {
-        let container = (*self.container).borrow_mut();
+        let mut container = (*self.container).borrow_mut();
 
         if container.memory_usage < self.max_memory {
             return;
         }
 
+        // removes buffer from the least recently used until memory usage lower than limitation
+        while container.memory_usage >= self.max_memory {
+            let Some(least_recently) = container.least_recently else {
+                break;
+            };
+            let node = unsafe { &*least_recently };
+
+            let Some(StorageItem {
+                status,
+                buffer,
+                size,
+                mut lru_node,
+            }) = container.store.remove(&node.raw_id)
+            else {
+                continue;
+            };
+
+            // deletes WebGlBuffer
+            self.gl.delete_buffer(Some(&buffer));
+            // reduces memory usage
+            container.memory_usage -= size;
+            // updates LRU
+            if let Some(more_recently) = lru_node.more_recently {
+                let more_recently = unsafe { &mut *more_recently };
+                more_recently.less_recently = None;
+                container.least_recently = Some(more_recently);
+            } else {
+                // nothing left, break
+                break;
+            }
+            lru_node.more_recently = None;
+
+            if let Some(mut status) = status.upgrade() {
+                status.borrow_mut().replace(BufferDescriptorStatus::Dropped);
+            };
+
+            // console_log!("buffer {} dropped, {} memory freed, {} total", node.raw_id, size, container.memory_usage);
+        }
+
         // let mut ids = Vec::new();
-        // let mut node = container.most_recently;
+        // let mut node = (*self.container).borrow_mut().most_recently;
         // while let Some(lru_node) = node {
         //     let lru_node = unsafe { &*lru_node };
         //     // console_log!("{}", lru_node.raw_id);
@@ -856,30 +884,19 @@ impl BufferStore {
 impl Drop for BufferStore {
     fn drop(&mut self) {
         let gl = &self.gl;
-        let mut container = (*self.container).borrow_mut();
-        let container = &mut *container;
-        let memory_usage = &mut container.memory_usage;
-        let store = &mut container.store;
 
-        store.iter().for_each(
-            |(
-                _,
-                StorageItem {
-                    buffer,
-                    status,
-                    size,
-                    ..
-                },
-            )| {
+        (*self.container)
+            .borrow_mut()
+            .borrow_mut()
+            .store
+            .iter()
+            .for_each(|(_, StorageItem { buffer, status, .. })| {
                 gl.delete_buffer(Some(&buffer));
-                *memory_usage -= size;
-
                 status.upgrade().map(|status| {
                     *(*status).borrow_mut() = BufferDescriptorStatus::Dropped;
                 });
 
                 // store dropped, no need to update LRU anymore
-            },
-        );
+            });
     }
 }

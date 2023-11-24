@@ -607,10 +607,10 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
     );
     render
         .buffer_store_mut()
-        .use_buffer(large_buffer.clone(), BufferTarget::ArrayBuffer, 0.0)?;
+        .use_buffer(large_buffer.clone(), BufferTarget::ArrayBuffer)?;
     render
         .buffer_store_mut()
-        .use_buffer(large_buffer_1.clone(), BufferTarget::ArrayBuffer, 0.0)?;
+        .use_buffer(large_buffer_1.clone(), BufferTarget::ArrayBuffer)?;
 
     let mut entity = Entity::new();
     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));

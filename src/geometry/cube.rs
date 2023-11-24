@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use wasm_bindgen_test::console_log;
+
 use crate::{
     render::webgl::{
         attribute::AttributeValue,
@@ -30,16 +32,25 @@ impl Cube {
 
     /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
+        let mut vertices = BufferDescriptor::new(
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(size)),
+                0,
+                108,
+            ),
+            BufferUsage::StaticDraw,
+        );
+        vertices.enable_free(move || {
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(size)),
+                0,
+                108,
+            )
+        });
+
         Self {
             size,
-            vertices: BufferDescriptor::new(
-                BufferSource::from_float32_array(
-                    slice_to_float32_array(&calculate_vertices(size)),
-                    0,
-                    108,
-                ),
-                BufferUsage::StaticDraw,
-            ),
+            vertices,
             normals: BufferDescriptor::new(
                 BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144),
                 BufferUsage::StaticDraw,
