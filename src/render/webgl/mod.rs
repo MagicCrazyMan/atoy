@@ -372,13 +372,6 @@ impl<'a> WebGL2Render<'a> {
                 // post-render
                 self.post_render(scene, entity, geometry, material);
             }
-
-            // unbinds for good practices
-            self.gl.use_program(None);
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
         }
 
         self.event_targets.after_render.raise(());
@@ -531,7 +524,7 @@ impl<'a> WebGL2Render<'a> {
                     bytes_stride,
                     bytes_offset,
                 } => {
-                    let buffer = match self.buffer_store.use_buffer(&descriptor, target) {
+                    match self.buffer_store.use_buffer(&descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -540,7 +533,6 @@ impl<'a> WebGL2Render<'a> {
                         }
                     };
 
-                    gl.bind_buffer(target.gl_enum(), Some(&buffer));
                     gl.vertex_attrib_pointer_with_i32(
                         *location,
                         component_size as GLint,
@@ -560,7 +552,7 @@ impl<'a> WebGL2Render<'a> {
                     component_count_per_instance: components_length_per_instance,
                     divisor,
                 } => {
-                    let buffer = match self.buffer_store.use_buffer(&descriptor, target) {
+                    match self.buffer_store.use_buffer(&descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -569,7 +561,6 @@ impl<'a> WebGL2Render<'a> {
                         }
                     };
 
-                    gl.bind_buffer(target.gl_enum(), Some(&buffer));
                     let component_size = component_size as GLint;
                     // binds each instance
                     for i in 0..components_length_per_instance {
@@ -802,7 +793,7 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    let buffer = match self
+                    match self
                         .buffer_store
                         .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
                     {
@@ -813,7 +804,6 @@ impl<'a> WebGL2Render<'a> {
                             return;
                         }
                     };
-                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
 
                     gl.draw_elements_instanced_with_i32(
                         mode.gl_enum(),
@@ -839,7 +829,7 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    let buffer = match self
+                    match self
                         .buffer_store
                         .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
                     {
@@ -850,7 +840,6 @@ impl<'a> WebGL2Render<'a> {
                             return;
                         }
                     };
-                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
 
                     gl.draw_elements_with_i32(
                         mode.gl_enum(),

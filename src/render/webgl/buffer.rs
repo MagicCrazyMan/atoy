@@ -362,11 +362,11 @@ enum BufferDescriptorStatus {
 }
 
 /// An identifier telling [`BufferStore`] what to do with WebGlBuffer.
-/// 
+///
 /// `BufferDescriptor` instance is cloneable, developer could reuse a
 /// `BufferDescriptor` and its associated WebGlBuffer by cloning it
 /// (cloning a descriptor does not create a new WebGlBuffer).
-/// 
+///
 /// Dropping all `BufferDescriptor` instances will drop associated WebGlBuffer as well.
 #[derive(Clone)]
 pub struct BufferDescriptor {
@@ -670,16 +670,21 @@ impl BufferStore {
         &mut self,
         BufferDescriptor { status, usage }: &BufferDescriptor,
         target: BufferTarget,
-    ) -> Result<WebGlBuffer, Error> {
+    ) -> Result<(), Error> {
         let mut status_mut = (**status).borrow_mut();
         match &mut *status_mut {
             BufferDescriptorStatus::Dropped => Err(Error::BufferUnexpectedDropped),
-            BufferDescriptorStatus::Unchanged { id, .. } => self
-                .store
-                .borrow()
-                .get(id.raw_id())
-                .map(|(buffer, _)| buffer.clone())
-                .ok_or(Error::BufferStorageNotFound(*id.raw_id())),
+            BufferDescriptorStatus::Unchanged { id, .. } => {
+                let buffer = self
+                    .store
+                    .borrow()
+                    .get(id.raw_id())
+                    .map(|(buffer, _)| buffer.clone())
+                    .ok_or(Error::BufferStorageNotFound(*id.raw_id()))?;
+
+                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                Ok(())
+            }
             BufferDescriptorStatus::UpdateBuffer { old_id, source, .. } => {
                 let mut store = (*self.store).borrow_mut();
 
@@ -697,7 +702,6 @@ impl BufferStore {
                 // buffer data
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 source.buffer_data(&self.gl, target, *usage);
-                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // stores it
                 let raw_id = Uuid::new_v4();
@@ -712,7 +716,7 @@ impl BufferStore {
                     )),
                 };
 
-                Ok(buffer)
+                Ok(())
             }
             BufferDescriptorStatus::UpdateSubBuffer { id, source, .. } => {
                 let store = self.store.borrow();
@@ -723,12 +727,11 @@ impl BufferStore {
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 source.buffer_sub_data(&self.gl, target);
-                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replace descriptor status
                 *status_mut = BufferDescriptorStatus::Unchanged { id: id.clone() };
 
-                Ok(buffer.clone())
+                Ok(())
             }
         }
     }
