@@ -116,7 +116,7 @@ impl TextureInstancedMaterial {
         Self {
             count,
             instance_matrices: BufferDescriptor::new(
-                BufferSource::from_float32_array(matrices_data, 0, matrices_bytes_length, 0),
+                BufferSource::from_float32_array(matrices_data, 0, matrices_bytes_length),
                 BufferUsage::StaticDraw,
             ),
             url: url.into(),

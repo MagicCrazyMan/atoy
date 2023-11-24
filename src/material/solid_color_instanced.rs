@@ -102,11 +102,11 @@ impl SolidColorInstancedMaterial {
         Self {
             count,
             colors: BufferDescriptor::new(
-                BufferSource::from_float32_array(colors_data, 0, colors_length, 0),
+                BufferSource::from_float32_array(colors_data, 0, colors_length),
                 BufferUsage::StaticDraw,
             ),
             instance_matrices: BufferDescriptor::new(
-                BufferSource::from_float32_array(matrices_data, 0, matrices_length, 0),
+                BufferSource::from_float32_array(matrices_data, 0, matrices_length),
                 BufferUsage::StaticDraw,
             ),
         }

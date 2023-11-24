@@ -39,11 +39,11 @@ impl Sphere {
             horizontal_segments,
             num_vertices,
             vertices: BufferDescriptor::new(
-                BufferSource::from_float32_array(vertices, 0, vertices_len, 0),
+                BufferSource::from_float32_array(vertices, 0, vertices_len),
                 BufferUsage::StaticDraw,
             ),
             normals: BufferDescriptor::new(
-                BufferSource::from_float32_array(normals, 0, normals_len, 0),
+                BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -64,14 +64,9 @@ impl Sphere {
 
         self.num_vertices = num_vertices;
         self.vertices
-            .buffer_sub_data(BufferSource::from_float32_array(
-                vertices,
-                0,
-                vertices_len,
-                0,
-            ));
+            .buffer_sub_data(BufferSource::from_float32_array(vertices, 0, vertices_len));
         self.normals
-            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len, 0));
+            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len));
     }
 }
 

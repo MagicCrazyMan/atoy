@@ -294,7 +294,6 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
                 slice_to_float32_array(&calculate_vertices(1.0)),
                 0,
                 108,
-                0,
             ),
             BufferUsage::StaticDraw,
         ),
@@ -307,7 +306,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
     };
     let normals = AttributeValue::Buffer {
         descriptor: BufferDescriptor::new(
-            BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144, 0),
+            BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144),
             BufferUsage::StaticDraw,
         ),
         target: BufferTarget::ArrayBuffer,
@@ -323,7 +322,6 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
                 slice_to_float32_array(&cube::TEXTURE_COORDINATES),
                 0,
                 48,
-                0,
             ),
             BufferUsage::StaticDraw,
         ),
@@ -599,13 +597,13 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
     buffer.fill(1, 0, buffer.byte_length());
     let large_buffer = BufferDescriptor::new(
-        BufferSource::from_uint8_array(buffer, 0, 0, 0),
+        BufferSource::from_uint8_array(buffer, 0, 0),
         BufferUsage::StaticDraw,
     );
     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
     buffer.fill(1, 0, buffer.byte_length());
     let large_buffer_1 = BufferDescriptor::new(
-        BufferSource::from_uint8_array(buffer, 0, 0, 0),
+        BufferSource::from_uint8_array(buffer, 0, 0),
         BufferUsage::StaticDraw,
     );
     render

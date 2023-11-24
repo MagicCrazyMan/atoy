@@ -324,13 +324,44 @@ impl BufferSource {
             src_length,
         }
     }
+
+    /// Constructs a new buffer descriptor with data from WASM binary.
+    ///
+    /// DO NOT buffer a huge binary data using this method,
+    /// use [`from_uint8_array()`](Self@from_uint8_array) or those `from_[TypedArray]()` methods instead.
+    pub fn from_binary_with_dst_byte_offset<D: AsRef<[u8]> + 'static>(
+        data: D,
+        src_offset: GLuint,
+        src_length: GLuint,
+        dst_byte_offset: GLsizeiptr,
+    ) -> Self {
+        Self::FromBinary {
+            data: Box::new(data),
+            dst_byte_offset,
+            src_offset,
+            src_length,
+        }
+    }
 }
 
 macro_rules! impl_typed_array {
-    ($(($from: ident, $buffer: ident, $buffer_sub: ident, $source: tt, $kind: ident)),+) => {
+    ($(($from: ident, $from_with: ident, $source: tt, $kind: ident)),+) => {
         impl BufferSource {
             $(
                 pub fn $from(
+                    data: $source,
+                    src_offset: GLuint,
+                    src_length: GLuint,
+                ) -> Self {
+                    Self::$kind {
+                        data,
+                        dst_byte_offset: 0,
+                        src_offset,
+                        src_length,
+                    }
+                }
+    
+                pub fn $from_with(
                     data: $source,
                     src_offset: GLuint,
                     src_length: GLuint,
@@ -343,118 +374,23 @@ macro_rules! impl_typed_array {
                         src_length,
                     }
                 }
-
-                // pub fn $buffer(
-                //     &mut self,
-                //     data: $source,
-                //     src_offset: GLuint,
-                //     src_length: GLuint,
-                // ) {
-                //     self.status.replace_with(|old| match old {
-                //         BufferDescriptorStatus::Unchanged { id } => {
-                //             BufferDescriptorStatus::UpdateBuffer {
-                //                 old_id: Some(id.clone()),
-                //                 source: BufferSource::$kind {
-                //                     data,
-                //                     dst_byte_offset: 0,
-                //                     src_offset,
-                //                     src_length,
-                //                 },
-                //             }
-                //         }
-                //         BufferDescriptorStatus::UpdateBuffer {
-                //             old_id, ..
-                //         } => BufferDescriptorStatus::UpdateBuffer {
-                //             old_id: old_id.clone(),
-                //             source: BufferSource::$kind {
-                //                 data,
-                //                 dst_byte_offset: 0,
-                //                 src_offset,
-                //                 src_length,
-                //             },
-                //         },
-                //         BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
-                //             BufferDescriptorStatus::UpdateBuffer {
-                //                 old_id: Some(id.clone()),
-                //                 source: BufferSource::$kind {
-                //                     data,
-                //                     dst_byte_offset: 0,
-                //                     src_offset,
-                //                     src_length,
-                //                 },
-                //             }
-                //         }
-                //         BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                //             old_id: None,
-                //             source: BufferSource::$kind {
-                //                 data,
-                //                 dst_byte_offset: 0,
-                //                 src_offset,
-                //                 src_length,
-                //             },
-                //         },
-                //     });
-                // }
-
-                // pub fn $buffer_sub(
-                //     &mut self,
-                //     data: $source,
-                //     dst_byte_offset: GLintptr,
-                //     src_offset: GLuint,
-                //     src_length: GLuint,
-                // ) {
-                //     self.status.replace_with(|old| match old {
-                //         BufferDescriptorStatus::Unchanged { id }
-                //         | BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
-                //             BufferDescriptorStatus::UpdateSubBuffer {
-                //                 id: id.clone(),
-                //                 source: BufferSource::$kind {
-                //                     data,
-                //                     dst_byte_offset,
-                //                     src_offset,
-                //                     src_length,
-                //                 },
-                //             }
-                //         }
-                //         BufferDescriptorStatus::UpdateBuffer {
-                //             old_id, ..
-                //         } => BufferDescriptorStatus::UpdateBuffer {
-                //             old_id: old_id.clone(),
-                //             source: BufferSource::$kind {
-                //                 data,
-                //                 dst_byte_offset: 0,
-                //                 src_offset,
-                //                 src_length,
-                //             },
-                //         },
-                //         BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                //             old_id: None,
-                //             source: BufferSource::$kind {
-                //                 data,
-                //                 dst_byte_offset: 0,
-                //                 src_offset,
-                //                 src_length,
-                //             },
-                //         },
-                //     });
-                // }
             )+
         }
     };
 }
 
 impl_typed_array! {
-    (from_int8_array, buffer_int8_array, buffer_sub_int8_array, Int8Array, FromInt8Array),
-    (from_uint8_array, buffer_uint8_array, buffer_sub_uint8_array, Uint8Array, FromUint8Array),
-    (from_uint8_clamped_array, buffer_uint8_clamped_array, buffer_sub_uint8_clamped_array, Uint8ClampedArray, FromUint8ClampedArray),
-    (from_int16_array, buffer_int16_array, buffer_sub_int16_array, Int16Array, FromInt16Array),
-    (from_uint16_array, buffer_uint16_array, buffer_sub_uint16_array, Uint16Array, FromUint16Array),
-    (from_int32_array, buffer_int32_array, buffer_sub_int32_array, Int32Array, FromInt32Array),
-    (from_uint32_array, buffer_uint32_array, buffer_sub_uint32_array, Uint32Array, FromUint32Array),
-    (from_float32_array, buffer_float32_array, buffer_sub_float32_array, Float32Array, FromFloat32Array),
-    (from_float64_array, buffer_float64_array, buffer_sub_float64_array, Float64Array, FromFloat64Array),
-    (from_big_int64_array, buffer_big_int64_array, buffer_sub_big_int64_array, BigInt64Array, FromBigInt64Array),
-    (from_big_uint64_array, buffer_big_uint64_array, buffer_sub_big_uint64_array, BigUint64Array, FromBigUint64Array)
+    (from_int8_array, from_int8_array_with_dst_byte_length, Int8Array, FromInt8Array),
+    (from_uint8_array, from_uint8_array_with_dst_byte_length, Uint8Array, FromUint8Array),
+    (from_uint8_clamped_array, from_uint8_clamped_array_with_dst_byte_length, Uint8ClampedArray, FromUint8ClampedArray),
+    (from_int16_array, from_int16_array_with_dst_byte_length, Int16Array, FromInt16Array),
+    (from_uint16_array, from_uint16_array_with_dst_byte_length, Uint16Array, FromUint16Array),
+    (from_int32_array, from_int32_array_with_dst_byte_length, Int32Array, FromInt32Array),
+    (from_uint32_array, from_uint32_array_with_dst_byte_length, Uint32Array, FromUint32Array),
+    (from_float32_array, from_float32_array_with_dst_byte_length, Float32Array, FromFloat32Array),
+    (from_float64_array, from_float64_array_with_dst_byte_length, Float64Array, FromFloat64Array),
+    (from_big_int64_array, from_big_int64_array_with_dst_byte_length, BigInt64Array, FromBigInt64Array),
+    (from_big_uint64_array, from_big_uint64_array_with_dst_byte_length, BigUint64Array, FromBigUint64Array)
 }
 
 /// An buffer agency is an unique identifier to save the runtime status of a buffer descriptor.

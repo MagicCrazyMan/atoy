@@ -37,12 +37,11 @@ impl Cube {
                     slice_to_float32_array(&calculate_vertices(size)),
                     0,
                     108,
-                    0,
                 ),
                 BufferUsage::StaticDraw,
             ),
             normals: BufferDescriptor::new(
-                BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144, 0),
+                BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144),
                 BufferUsage::StaticDraw,
             ),
             texture_coordinates: BufferDescriptor::new(
@@ -50,7 +49,6 @@ impl Cube {
                     slice_to_float32_array(&TEXTURE_COORDINATES),
                     0,
                     48,
-                    0,
                 ),
                 BufferUsage::StaticDraw,
             ),
@@ -73,7 +71,6 @@ impl Cube {
                 slice_to_float32_array(&calculate_vertices(size)),
                 0,
                 108,
-                0,
             ));
     }
 }
