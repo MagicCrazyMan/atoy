@@ -126,7 +126,7 @@ impl<'a> WebGL2Render<'a> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::new(gl.clone()),
+            buffer_store: BufferStore::with_max_memory(gl.clone(), 5000),
             texture_store: TextureStore::new(gl.clone()),
             gl,
             depth_test: true,
@@ -310,7 +310,7 @@ struct RenderItem {
 
 impl<'a> WebGL2Render<'a> {
     /// Render frame.
-    pub fn render(&mut self, scene: &mut Scene) -> Result<(), Error> {
+    pub fn render(&mut self, scene: &mut Scene, timestamp: f64) -> Result<(), Error> {
         self.event_targets.before_render.raise(());
 
         // update WebGL viewport
@@ -358,7 +358,13 @@ impl<'a> WebGL2Render<'a> {
                 // pre-render
                 self.pre_render(scene, entity, geometry, material);
                 // binds attributes
-                self.bind_attributes(attribute_locations, entity_ptr, geometry_ptr, material_ptr);
+                self.bind_attributes(
+                    attribute_locations,
+                    entity_ptr,
+                    geometry_ptr,
+                    material_ptr,
+                    timestamp,
+                );
                 // binds uniforms
                 self.bind_uniforms(
                     scene,
@@ -368,7 +374,7 @@ impl<'a> WebGL2Render<'a> {
                     material_ptr,
                 );
                 // draws
-                self.draw(entity_ptr, geometry_ptr, material_ptr);
+                self.draw(entity_ptr, geometry_ptr, material_ptr, timestamp);
                 // post-render
                 self.post_render(scene, entity, geometry, material);
             }
@@ -486,6 +492,7 @@ impl<'a> WebGL2Render<'a> {
         entity_ptr: *const Entity,
         geometry_ptr: *const dyn Geometry,
         material_ptr: *const dyn Material,
+        timestamp: f64,
     ) {
         let (entity, geometry, material) =
             unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
@@ -524,7 +531,7 @@ impl<'a> WebGL2Render<'a> {
                     bytes_stride,
                     bytes_offset,
                 } => {
-                    match self.buffer_store.use_buffer(&descriptor, target) {
+                    match self.buffer_store.use_buffer(descriptor, target, timestamp) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -552,7 +559,7 @@ impl<'a> WebGL2Render<'a> {
                     component_count_per_instance: components_length_per_instance,
                     divisor,
                 } => {
-                    match self.buffer_store.use_buffer(&descriptor, target) {
+                    match self.buffer_store.use_buffer(descriptor, target, timestamp) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -732,8 +739,7 @@ impl<'a> WebGL2Render<'a> {
                     // active texture
                     gl.active_texture(texture_unit.gl_enum());
 
-                    let (target, texture) = match self.texture_store.use_texture(&descriptor)
-                    {
+                    let (target, texture) = match self.texture_store.use_texture(&descriptor) {
                         Ok(texture) => texture,
                         Err(err) => {
                             // should log warning
@@ -767,6 +773,7 @@ impl<'a> WebGL2Render<'a> {
         entity_ptr: *const Entity,
         geometry_ptr: *const dyn Geometry,
         material_ptr: *const dyn Material,
+        timestamp: f64,
     ) {
         let (entity, geometry, material) =
             unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
@@ -793,10 +800,11 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    match self
-                        .buffer_store
-                        .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
-                    {
+                    match self.buffer_store.use_buffer(
+                        indices,
+                        BufferTarget::ElementArrayBuffer,
+                        timestamp,
+                    ) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log warning
@@ -829,10 +837,11 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    match self
-                        .buffer_store
-                        .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
-                    {
+                    match self.buffer_store.use_buffer(
+                        indices,
+                        BufferTarget::ElementArrayBuffer,
+                        timestamp,
+                    ) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log warning

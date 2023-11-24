@@ -272,7 +272,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .root_entity_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-        render.render(&mut scene).unwrap();
+        render.render(&mut scene, timestamp).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -376,7 +376,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
             .root_entity_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-        render.render(&mut scene).unwrap();
+        render.render(&mut scene, timestamp).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -433,7 +433,7 @@ pub fn test_instanced_cube(
             .root_entity_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-        render.render(&mut scene).unwrap();
+        render.render(&mut scene, timestamp).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -468,22 +468,21 @@ pub fn test_texture(
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         let seconds = timestamp / 1000.0;
 
-        // static MAX_SIZE: f64 = 3.0;
-        // static MIN_SIZE: f64 = 1.0;
-        // static SIZE_PER_SECOND: f64 = 0.5;
-        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-        // scene
-        //     .root_entity_mut()
-        //     .children_mut()
-        //     .get(0)
-        //     .unwrap()
-        //     .geometry()
-        //     .unwrap()
-        //     .borrow_mut()
-        //     .as_any_mut()
-        //     .downcast_mut::<IndexedCube>()
-        //     .unwrap()
-        //     .set_size(size as f32);
+        static MAX_SIZE: f64 = 3.0;
+        static MIN_SIZE: f64 = 1.0;
+        static SIZE_PER_SECOND: f64 = 0.5;
+        let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        scene
+            .root_entity_mut()
+            .children_mut()
+            .get_mut(0)
+            .unwrap()
+            .geometry_mut()
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<IndexedCube>()
+            .unwrap()
+            .set_size(size as f64);
 
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
@@ -491,7 +490,7 @@ pub fn test_texture(
         scene
             .root_entity_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
-        render.render(&mut scene).unwrap();
+        render.render(&mut scene, timestamp).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -552,7 +551,7 @@ pub fn test_environment(
         //     .unwrap()
         //     .set_radius(size as f32);
 
-        render.render(&mut scene).unwrap();
+        render.render(&mut scene, timestamp).unwrap();
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -577,9 +576,9 @@ pub fn test_drop_buffer_descriptor() -> Result<(), Error> {
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         if timestamp > 5.0 * 1000.0 {
             let _ = scene.root_entity_mut().remove_child_by_index(0);
-            render.render(&mut scene).unwrap();
+            render.render(&mut scene, timestamp).unwrap();
         } else {
-            render.render(&mut scene).unwrap();
+            render.render(&mut scene, timestamp).unwrap();
             request_animation_frame(f.borrow().as_ref().unwrap());
         }
     }));
@@ -608,10 +607,10 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
     );
     render
         .buffer_store_mut()
-        .use_buffer(&large_buffer, BufferTarget::ArrayBuffer)?;
+        .use_buffer(large_buffer.clone(), BufferTarget::ArrayBuffer, 0.0)?;
     render
         .buffer_store_mut()
-        .use_buffer(&large_buffer_1, BufferTarget::ArrayBuffer)?;
+        .use_buffer(large_buffer_1.clone(), BufferTarget::ArrayBuffer, 0.0)?;
 
     let mut entity = Entity::new();
     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
@@ -622,7 +621,7 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
         if timestamp <= 30.0 * 1000.0 {
-            render.render(&mut scene).unwrap();
+            render.render(&mut scene, timestamp).unwrap();
             request_animation_frame(f.borrow().as_ref().unwrap());
         } else {
             scene.set_mount(None).unwrap();
