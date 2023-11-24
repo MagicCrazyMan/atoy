@@ -6,7 +6,6 @@ use std::{
 };
 
 use uuid::Uuid;
-use wasm_bindgen_test::console_log;
 use web_sys::{
     js_sys::{
         BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array,
@@ -382,21 +381,6 @@ enum BufferDescriptorAgency {
 /// Deletes associated WebGlBuffer from store(if exists) when descriptor drops.
 impl Drop for BufferDescriptorAgency {
     fn drop(&mut self) {
-        match self {
-            BufferDescriptorAgency::Dropped => {
-                console_log!("buffer descriptor in Dropped status")
-            }
-            BufferDescriptorAgency::Unchanged { id, .. } => {
-                console_log!("buffer descriptor {} in Unchanged status", id)
-            }
-            BufferDescriptorAgency::UpdateBuffer { old_id, .. } => {
-                console_log!("buffer descriptor {:?} in UpdateBuffer status", old_id)
-            }
-            BufferDescriptorAgency::UpdateSubBuffer { id, .. } => {
-                console_log!("buffer descriptor {} in UpdateSubBuffer status", id)
-            }
-        }
-
         let v = match self {
             BufferDescriptorAgency::Dropped => return,
             BufferDescriptorAgency::Unchanged { id, runtime } => (Some(id), runtime),
@@ -420,11 +404,7 @@ impl Drop for BufferDescriptorAgency {
             return;
         };
 
-        let id = *id;
-
         gl.delete_buffer(Some(&buffer));
-
-        console_log!("buffer descriptor {} dropped", id);
     }
 }
 
@@ -781,8 +761,6 @@ impl BufferStore {
                     runtime: Some((Rc::downgrade(&self.store), self.gl.clone())),
                 };
 
-                console_log!("buffer descriptor {} update buffer", id);
-
                 Ok(buffer)
             }
             BufferDescriptorAgency::UpdateSubBuffer { id, source, .. } => {
@@ -813,7 +791,6 @@ impl BufferStore {
 /// when buffer store drops.
 impl Drop for BufferStore {
     fn drop(&mut self) {
-        console_log!("buffer store dropping");
         let gl = &self.gl;
         (*self.store)
             .borrow_mut()
@@ -824,6 +801,5 @@ impl Drop for BufferStore {
                     *(*status).borrow_mut() = BufferDescriptorAgency::Dropped;
                 });
             });
-        console_log!("buffer store dropped");
     }
 }
