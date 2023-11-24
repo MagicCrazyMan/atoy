@@ -98,74 +98,74 @@ enum BufferSource {
     FromBinary {
         data: Box<dyn AsRef<[u8]>>,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromInt8Array {
         data: Int8Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromUint8Array {
         data: Uint8Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromUint8ClampedArray {
         data: Uint8ClampedArray,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromInt16Array {
         data: Int16Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromUint16Array {
         data: Uint16Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromInt32Array {
         data: Int32Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromUint32Array {
         data: Uint32Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromFloat32Array {
         data: Float32Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromFloat64Array {
         data: Float64Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromBigInt64Array {
         data: BigInt64Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     FromBigUint64Array {
         data: BigUint64Array,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
 }
 
@@ -178,123 +178,123 @@ impl BufferSource {
             BufferSource::FromInt8Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromUint8Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromUint8ClampedArray {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromInt16Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromUint16Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromInt32Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromUint32Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromFloat32Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromFloat64Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromBigInt64Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             BufferSource::FromBigUint64Array {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => (
                 data as &Object,
                 *dst_byte_offset,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
         }
     }
@@ -306,24 +306,24 @@ impl BufferSource {
             BufferSource::Preallocate { size } => gl.buffer_data_with_i32(target, *size, usage),
             BufferSource::FromBinary {
                 data,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
                 ..
             } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
                 target,
                 data.as_ref().as_ref(),
                 usage,
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             _ => {
-                let (data, _, src_byte_offset, src_byte_length) = self.collect_typed_array_buffer();
+                let (data, _, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
                     target,
                     data,
                     usage,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 );
             }
         }
@@ -336,24 +336,24 @@ impl BufferSource {
             BufferSource::FromBinary {
                 data,
                 dst_byte_offset,
-                src_byte_offset,
-                src_byte_length,
+                src_offset,
+                src_length,
             } => gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
                 target,
                 *dst_byte_offset,
                 data.as_ref().as_ref(),
-                *src_byte_offset,
-                *src_byte_length,
+                *src_offset,
+                *src_length,
             ),
             _ => {
-                let (data, dst_byte_offset, src_byte_offset, src_byte_length) =
+                let (data, dst_byte_offset, src_offset, src_length) =
                     self.collect_typed_array_buffer();
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
                     target,
                     dst_byte_offset,
                     data,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 )
             }
         }
@@ -429,8 +429,8 @@ impl BufferDescriptor {
 
     pub fn from_binary<D: AsRef<[u8]> + 'static>(
         data: D,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
         usage: BufferUsage,
     ) -> Self {
         Self {
@@ -440,8 +440,8 @@ impl BufferDescriptor {
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 },
             })),
             usage,
@@ -451,8 +451,8 @@ impl BufferDescriptor {
     pub fn buffer_binary<D: AsRef<[u8]> + 'static>(
         &mut self,
         data: D,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     ) {
         self.status.replace_with(|old| match old {
             BufferDescriptorAgency::Unchanged { id, runtime } => {
@@ -462,8 +462,8 @@ impl BufferDescriptor {
                     source: BufferSource::FromBinary {
                         data: Box::new(data),
                         dst_byte_offset: 0,
-                        src_byte_offset,
-                        src_byte_length,
+                        src_offset,
+                        src_length,
                     },
                 }
             }
@@ -477,8 +477,8 @@ impl BufferDescriptor {
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 },
             },
             BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
@@ -488,8 +488,8 @@ impl BufferDescriptor {
                     source: BufferSource::FromBinary {
                         data: Box::new(data),
                         dst_byte_offset: 0,
-                        src_byte_offset,
-                        src_byte_length,
+                        src_offset,
+                        src_length,
                     },
                 }
             }
@@ -499,8 +499,8 @@ impl BufferDescriptor {
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 },
             },
         });
@@ -510,8 +510,8 @@ impl BufferDescriptor {
         &mut self,
         data: D,
         dst_byte_offset: GLintptr,
-        src_byte_offset: GLuint,
-        src_byte_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     ) {
         self.status.replace_with(|old| match old {
             BufferDescriptorAgency::Unchanged { id, runtime }
@@ -522,8 +522,8 @@ impl BufferDescriptor {
                     source: BufferSource::FromBinary {
                         data: Box::new(data),
                         dst_byte_offset,
-                        src_byte_offset,
-                        src_byte_length,
+                        src_offset,
+                        src_length,
                     },
                 }
             }
@@ -535,8 +535,8 @@ impl BufferDescriptor {
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 },
             },
             BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
@@ -545,8 +545,8 @@ impl BufferDescriptor {
                 source: BufferSource::FromBinary {
                     data: Box::new(data),
                     dst_byte_offset: 0,
-                    src_byte_offset,
-                    src_byte_length,
+                    src_offset,
+                    src_length,
                 },
             },
         });
@@ -559,8 +559,8 @@ macro_rules! impl_typed_array {
             $(
                 pub fn $from(
                     data: $source,
-                    src_byte_offset: GLuint,
-                    src_byte_length: GLuint,
+                    src_offset: GLuint,
+                    src_length: GLuint,
                     usage: BufferUsage,
                 ) -> Self {
                     Self {
@@ -570,8 +570,8 @@ macro_rules! impl_typed_array {
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
-                                src_byte_offset,
-                                src_byte_length,
+                                src_offset,
+                                src_length,
                             },
                         })),
                         usage,
@@ -581,8 +581,8 @@ macro_rules! impl_typed_array {
                 pub fn $buffer(
                     &mut self,
                     data: $source,
-                    src_byte_offset: GLuint,
-                    src_byte_length: GLuint,
+                    src_offset: GLuint,
+                    src_length: GLuint,
                 ) {
                     self.status.replace_with(|old| match old {
                         BufferDescriptorAgency::Unchanged { id, runtime } => {
@@ -592,8 +592,8 @@ macro_rules! impl_typed_array {
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset: 0,
-                                    src_byte_offset,
-                                    src_byte_length,
+                                    src_offset,
+                                    src_length,
                                 },
                             }
                         }
@@ -607,8 +607,8 @@ macro_rules! impl_typed_array {
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
-                                src_byte_offset,
-                                src_byte_length,
+                                src_offset,
+                                src_length,
                             },
                         },
                         BufferDescriptorAgency::UpdateSubBuffer { id, runtime, .. } => {
@@ -618,8 +618,8 @@ macro_rules! impl_typed_array {
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset: 0,
-                                    src_byte_offset,
-                                    src_byte_length,
+                                    src_offset,
+                                    src_length,
                                 },
                             }
                         }
@@ -629,8 +629,8 @@ macro_rules! impl_typed_array {
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
-                                src_byte_offset,
-                                src_byte_length,
+                                src_offset,
+                                src_length,
                             },
                         },
                     });
@@ -640,8 +640,8 @@ macro_rules! impl_typed_array {
                     &mut self,
                     data: $source,
                     dst_byte_offset: GLintptr,
-                    src_byte_offset: GLuint,
-                    src_byte_length: GLuint,
+                    src_offset: GLuint,
+                    src_length: GLuint,
                 ) {
                     self.status.replace_with(|old| match old {
                         BufferDescriptorAgency::Unchanged { id, runtime }
@@ -652,8 +652,8 @@ macro_rules! impl_typed_array {
                                 source: BufferSource::$kind {
                                     data,
                                     dst_byte_offset,
-                                    src_byte_offset,
-                                    src_byte_length,
+                                    src_offset,
+                                    src_length,
                                 },
                             }
                         }
@@ -665,8 +665,8 @@ macro_rules! impl_typed_array {
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
-                                src_byte_offset,
-                                src_byte_length,
+                                src_offset,
+                                src_length,
                             },
                         },
                         BufferDescriptorAgency::Dropped => BufferDescriptorAgency::UpdateBuffer {
@@ -675,8 +675,8 @@ macro_rules! impl_typed_array {
                             source: BufferSource::$kind {
                                 data,
                                 dst_byte_offset: 0,
-                                src_byte_offset,
-                                src_byte_length,
+                                src_offset,
+                                src_length,
                             },
                         },
                     });

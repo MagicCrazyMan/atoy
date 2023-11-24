@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use wasm_bindgen::prelude::wasm_bindgen;
+use web_sys::js_sys::Float32Array;
 
 use crate::render::webgl::{
     attribute::AttributeValue,
@@ -33,24 +34,31 @@ impl Cube {
     }
 
     pub fn with_size(size: f64) -> Cube {
+        let vertices = get_vertices_buffer(size);
+        let vertices_buffer = Float32Array::new_with_length(vertices.len() as u32);
+        let normal_buffer = Float32Array::new_with_length(NORMALS.len() as u32);
+        let tex_coords_buffer = Float32Array::new_with_length(TEXTURE_COORDINATES.len() as u32);
+        vertices_buffer.copy_from(&vertices);
+        normal_buffer.copy_from(&NORMALS);
+        tex_coords_buffer.copy_from(&TEXTURE_COORDINATES);
         Self {
             size,
-            vertices: BufferDescriptor::from_binary(
-                get_vertices_buffer(size),
+            vertices: BufferDescriptor::from_float32_array(
+                vertices_buffer,
                 0,
-                108 * 4,
+                108,
                 BufferUsage::StaticDraw,
             ),
-            normals: BufferDescriptor::from_binary(
-                NORMALS_BINARY,
+            normals: BufferDescriptor::from_float32_array(
+                normal_buffer,
                 0,
-                144 * 4,
+                144,
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates: BufferDescriptor::from_binary(
-                &TEXTURE_COORDINATES_BINARY,
+            texture_coordinates: BufferDescriptor::from_float32_array(
+                tex_coords_buffer,
                 0,
-                48 * 4,
+                48,
                 BufferUsage::StaticDraw,
             ),
         }
@@ -65,8 +73,12 @@ impl Cube {
 
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
+
+        let vertices = get_vertices_buffer(size);
+        let vertices_buffer = Float32Array::new_with_length(vertices.len() as u32);
+        vertices_buffer.copy_from(&vertices);
         self.vertices
-            .buffer_sub_binary(get_vertices_buffer(size), 0, 0, 108 * 4);
+            .buffer_sub_float32_array(vertices_buffer, 0, 0, 108);
     }
 }
 
@@ -133,7 +145,7 @@ impl Geometry for Cube {
 }
 
 #[rustfmt::skip]
-fn get_vertices_buffer(size: f64) -> Vec<u8> {
+fn get_vertices_buffer(size: f64) -> [f32; 108] {
     let s = (size / 2.0) as f32;
     [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
@@ -143,28 +155,17 @@ fn get_vertices_buffer(size: f64) -> Vec<u8> {
         -s,  s, -s,  -s, -s, -s,  -s,  s,  s,  -s,  s,  s,  -s, -s, -s,  -s, -s,  s, // left
          s,  s,  s,   s, -s,  s,   s,  s, -s,   s,  s, -s,   s, -s,  s,   s, -s, -s, // right
     ]
-    .iter()
-    .flat_map(|v| v.to_ne_bytes())
-    .collect::<Vec<_>>()
 }
 
 #[rustfmt::skip]
 const NORMALS: [f32; 144] = [
-    0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0,
-    0.0, 0.0, 0.0, 1.0, 0.0, // front
-    0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-    0.0, 0.0, 1.0, 0.0, 0.0, // up
-    0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,
-    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, // back
-    0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0,
-    0.0, 0.0, 0.0, -1.0, 0.0, 0.0, // bottom
-    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0,
-    0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
-    1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0, 0.0, // right
+     0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0, // front
+     0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0, // up
+     0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0, // back
+     0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0, // bottom
+    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
+     1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0, // right
 ];
-const NORMALS_BINARY: &[u8; 144 * 4] =
-    unsafe { std::mem::transmute::<&[f32; 144], &[u8; 144 * 4]>(&NORMALS) };
 
 #[rustfmt::skip]
 const TEXTURE_COORDINATES: [f32; 48] = [
@@ -175,5 +176,3 @@ const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // left
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // right
 ];
-const TEXTURE_COORDINATES_BINARY: &[u8; 48 * 4] =
-    unsafe { std::mem::transmute::<&[f32; 48], &[u8; 48 * 4]>(&TEXTURE_COORDINATES) };
