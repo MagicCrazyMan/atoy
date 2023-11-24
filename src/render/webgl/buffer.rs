@@ -602,52 +602,6 @@ struct LruNode {
     more_recently: Option<*mut LruNode>,
 }
 
-/// Rust lifetime limitation makes it unable to do the job inside a function.
-/// Maybe somebody could find some other better solutions.
-// macro_rules! to_most_recently_lru {
-//     ($container: expr, $lru: expr) => {
-//         // sets more recently of the incoming node to least recently if incoming node is least recently
-//         if let Some(least_recently) = $container.least_recently {
-//             let least_recently = unsafe { &mut *least_recently };
-
-//             if least_recently.raw_id == $lru.raw_id {
-//                 if let Some(more_recently) = $lru.more_recently {
-//                     let more_recently = unsafe { &mut *more_recently };
-//                     more_recently.less_recently = None;
-//                     $container.least_recently = Some(more_recently);
-//                 } else {
-//                     // lets incoming node being the least node
-//                 }
-//             } else {
-//                 if let (Some(more_recently), Some(less_recently)) = ($lru.more_recently, $lru.less_recently) {
-//                     let more_recently = unsafe { &mut *more_recently };
-//                     let less_recently = unsafe { &mut *less_recently };
-
-//                     more_recently.less_recently = Some(less_recently);
-//                     less_recently.more_recently = Some(more_recently);
-//                 }
-//             }
-//         } else {
-//             // sets incoming node as least recently if least recently node is none
-//             $container.least_recently = Some($lru.as_mut());
-//         }
-
-//         // sets incoming node as most recently node if most recently node is not incoming node itself
-//         if let Some(most_recently) = $container.most_recently {
-//             let most_recently = unsafe { &mut *most_recently };
-
-//             if most_recently.raw_id != $lru.raw_id {
-//                 $lru.more_recently = None;
-//                 $lru.less_recently = $container.most_recently;
-//                 most_recently.more_recently = Some($lru.as_mut());
-//                 $container.most_recently = Some($lru.as_mut());
-//             }
-//         } else {
-//             // sets incoming node as most recently if most recently node is none
-//             $container.most_recently = Some($lru.as_mut());
-//         }
-//     };
-// }
 macro_rules! to_most_recently_lru {
     ($container: expr, $lru: expr) => {
         'to_most_recently_lru: {
@@ -671,12 +625,15 @@ macro_rules! to_most_recently_lru {
                     break 'to_most_recently_lru;
                 }
                 (None, None) => {
-                    // i am a new node.
+                    // i am a new node or the single node in LRU.
 
                     if $container.most_recently.is_none() && $container.least_recently.is_none() {
                         // i am the first node in LRU cache! it is ok to just set the most and least recently to me.
                         $container.most_recently = Some($lru.as_mut());
                         $container.least_recently = Some($lru.as_mut());
+                        break 'to_most_recently_lru;
+                    } else if unsafe { &mut *$container.most_recently.unwrap() }.raw_id == $lru.raw_id {
+                        // i am the single node in LRU, do nothing!
                         break 'to_most_recently_lru;
                     } else {
                         // for any other situations, step next to be the most recently node
