@@ -3,7 +3,7 @@ use super::{
     conversion::{GLboolean, GLintptr, GLsizei, GLuint},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum AttributeValue {
     Buffer {
         descriptor: BufferDescriptor,

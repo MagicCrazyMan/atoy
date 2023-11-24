@@ -1,6 +1,6 @@
 use super::texture::{TextureDescriptor, TextureParameter, TextureUnit};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum UniformValue {
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),

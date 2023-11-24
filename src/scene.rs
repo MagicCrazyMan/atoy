@@ -1,5 +1,6 @@
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
+use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry};
 
 use crate::{
@@ -271,7 +272,10 @@ impl Scene {
 
 impl Drop for Scene {
     fn drop(&mut self) {
+        console_log!("scene dropping");
         // cleanups observers
         self.resize_observer.0.disconnect();
+        self.canvas.remove();
+        console_log!("scene dropped");
     }
 }

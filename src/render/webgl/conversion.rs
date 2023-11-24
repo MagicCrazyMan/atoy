@@ -35,7 +35,7 @@ pub trait ToGlEnum {
 impl ToGlEnum for BufferTarget {
     fn gl_enum(&self) -> GLenum {
         match self {
-            BufferTarget::Buffer => WebGl2RenderingContext::ARRAY_BUFFER,
+            BufferTarget::ArrayBuffer => WebGl2RenderingContext::ARRAY_BUFFER,
             BufferTarget::ElementArrayBuffer => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
             BufferTarget::CopyReadBuffer => WebGl2RenderingContext::COPY_READ_BUFFER,
             BufferTarget::CopyWriteBuffer => WebGl2RenderingContext::COPY_WRITE_BUFFER,

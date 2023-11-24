@@ -82,7 +82,7 @@ impl Geometry for Cube {
     fn vertices(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.vertices.clone(),
-            target: BufferTarget::Buffer,
+            target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
@@ -94,7 +94,7 @@ impl Geometry for Cube {
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.normals.clone(),
-            target: BufferTarget::Buffer,
+            target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Four,
             data_type: BufferDataType::Float,
             normalized: false,
@@ -106,7 +106,7 @@ impl Geometry for Cube {
     fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.texture_coordinates.clone(),
-            target: BufferTarget::Buffer,
+            target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
             normalized: false,

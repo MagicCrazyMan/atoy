@@ -146,7 +146,7 @@ impl Material for TextureInstancedMaterial {
         match name {
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
-                target: BufferTarget::Buffer,
+                target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,

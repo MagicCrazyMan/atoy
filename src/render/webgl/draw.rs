@@ -1,4 +1,7 @@
-use super::{buffer::BufferDescriptor, conversion::{GLint, GLsizei, GLintptr}};
+use super::{
+    buffer::BufferDescriptor,
+    conversion::{GLint, GLintptr, GLsizei},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CullFace {
@@ -7,7 +10,7 @@ pub enum CullFace {
     Both,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Draw {
     Arrays {
         mode: DrawMode,

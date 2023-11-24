@@ -622,142 +622,6 @@ impl TextureSource {
     }
 }
 
-impl Debug for TextureSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Preallocate {
-                internal_format,
-                width,
-                height,
-                format,
-                data_type,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("Preallocate")
-                .field("internal_format", internal_format)
-                .field("width", width)
-                .field("height", height)
-                .field("format", format)
-                .field("data_type", data_type)
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-            Self::FromBinary {
-                internal_format,
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("FromBinary")
-                .field("internal_format", internal_format)
-                .field("width", width)
-                .field("height", height)
-                .field("data_length", &data.as_ref().as_ref().len())
-                .field("format", format)
-                .field("data_type", data_type)
-                .field("src_offset", src_offset)
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-            Self::FromHtmlCanvasElement {
-                internal_format,
-                format,
-                data_type,
-                canvas,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("FromHtmlCanvasElement")
-                .field("internal_format", internal_format)
-                .field("format", format)
-                .field("data_type", data_type)
-                .field("canvas_width", &canvas.as_ref().as_ref().width())
-                .field("canvas_height", &canvas.as_ref().as_ref().height())
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-            Self::FromHtmlCanvasElementWithSize {
-                internal_format,
-                width,
-                height,
-                format,
-                data_type,
-                canvas,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("FromHtmlCanvasElementWithSize")
-                .field("internal_format", internal_format)
-                .field("width", width)
-                .field("height", height)
-                .field("format", format)
-                .field("data_type", data_type)
-                .field("canvas_width", &canvas.as_ref().as_ref().width())
-                .field("canvas_height", &canvas.as_ref().as_ref().height())
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-            Self::FromHtmlImageElement {
-                internal_format,
-                format,
-                data_type,
-                image,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("FromHtmlImageElement")
-                .field("internal_format", internal_format)
-                .field("format", format)
-                .field("data_type", data_type)
-                .field("image_width", &image.as_ref().as_ref().width())
-                .field("image_height", &image.as_ref().as_ref().height())
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-            Self::FromHtmlImageElementWithSize {
-                format,
-                width,
-                height,
-                internal_format,
-                data_type,
-                image,
-                pixel_storages,
-                x_offset,
-                y_offset,
-            } => f
-                .debug_struct("FromHtmlImageElementWithSize")
-                .field("format", format)
-                .field("width", width)
-                .field("height", height)
-                .field("internal_format", internal_format)
-                .field("data_type", data_type)
-                .field("image_width", &image.as_ref().as_ref().width())
-                .field("image_height", &image.as_ref().as_ref().height())
-                .field("pixel_storages", pixel_storages)
-                .field("x_offset", x_offset)
-                .field("y_offset", y_offset)
-                .finish(),
-        }
-    }
-}
-
-#[derive(Debug)]
 enum TextureData {
     Texture2D(HashMap<GLint, TextureSource>),
     TextureCubeMap {
@@ -905,14 +769,13 @@ impl TextureData {
     }
 }
 
-#[derive(Debug)]
 enum TextureStatus {
     Unchanged { id: Uuid, target: GLenum },
     UpdateTexture { id: Option<Uuid>, data: TextureData },
     UpdateSubTexture { id: Uuid, data: TextureData },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TextureDescriptor {
     status: Rc<RefCell<TextureStatus>>,
     generate_mipmap: GLboolean,

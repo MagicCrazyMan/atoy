@@ -1,9 +1,11 @@
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::js_sys::Date;
@@ -17,6 +19,7 @@ use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::render::webgl::buffer::{BufferDescriptor, BufferTarget, BufferUsage};
 use crate::render::webgl::texture::TextureUnit;
 use crate::{
     geometry::cube::Cube,
@@ -161,27 +164,27 @@ fn create_render<'a, 'b>(scene: &'a Scene) -> Result<WebGL2Render<'b>, Error> {
     render.after_prepare().on(move |_| unsafe {
         PREPARE_END = Date::now();
     });
-    render.before_entity_bind_attributes().on(move |_| unsafe {
-        BIND_ATTRIBUTES_START = Date::now();
-    });
-    render.after_entity_bind_attributes().on(move |_| unsafe {
-        BIND_ATTRIBUTES_END = Date::now();
-        BIND_ATTRIBUTES_TOTAL += BIND_ATTRIBUTES_END - BIND_ATTRIBUTES_START;
-    });
-    render.before_entity_bind_uniforms().on(move |_| unsafe {
-        BIND_UNIFORMS_START = Date::now();
-    });
-    render.after_entity_bind_uniforms().on(move |_| unsafe {
-        BIND_UNIFORMS_END = Date::now();
-        BIND_UNIFORMS_TOTAL += BIND_UNIFORMS_END - BIND_UNIFORMS_START;
-    });
-    render.before_entity_draw().on(move |_| unsafe {
-        DRAW_START = Date::now();
-    });
-    render.after_entity_draw().on(move |_| unsafe {
-        DRAW_END = Date::now();
-        DRAW_TOTAL += DRAW_END - DRAW_START;
-    });
+    // render.before_entity_bind_attributes().on(move |_| unsafe {
+    //     BIND_ATTRIBUTES_START = Date::now();
+    // });
+    // render.after_entity_bind_attributes().on(move |_| unsafe {
+    //     BIND_ATTRIBUTES_END = Date::now();
+    //     BIND_ATTRIBUTES_TOTAL += BIND_ATTRIBUTES_END - BIND_ATTRIBUTES_START;
+    // });
+    // render.before_entity_bind_uniforms().on(move |_| unsafe {
+    //     BIND_UNIFORMS_START = Date::now();
+    // });
+    // render.after_entity_bind_uniforms().on(move |_| unsafe {
+    //     BIND_UNIFORMS_END = Date::now();
+    //     BIND_UNIFORMS_TOTAL += BIND_UNIFORMS_END - BIND_UNIFORMS_START;
+    // });
+    // render.before_entity_draw().on(move |_| unsafe {
+    //     DRAW_START = Date::now();
+    // });
+    // render.after_entity_draw().on(move |_| unsafe {
+    //     DRAW_END = Date::now();
+    //     DRAW_TOTAL += DRAW_END - DRAW_START;
+    // });
     render.after_render().on(move |_| unsafe {
         RENDER_END = Date::now();
 
@@ -458,6 +461,104 @@ pub fn test_environment(
     }));
 
     request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn test_drop_buffer_descriptor() -> Result<(), Error> {
+    let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut render = create_render(&scene)?;
+
+    let mut entity = Entity::new();
+    entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+    entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+    scene.root_entity_mut().add_child(entity);
+
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+        if timestamp > 5.0 * 1000.0 {
+            let _ = scene.root_entity_mut().remove_child_by_index(0);
+            render.render(&mut scene).unwrap();
+        } else {
+            render.render(&mut scene).unwrap();
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        }
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
+    let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut render = create_render(&scene)?;
+
+    let large_buffer = BufferDescriptor::from_binary(
+        vec![0u8; 1 * 1024 * 1024 * 1024],
+        0,
+        0,
+        BufferUsage::StaticDraw,
+    );
+    let large_buffer_1 = BufferDescriptor::from_binary(
+        vec![0u8; 1 * 1024 * 1024 * 1024],
+        0,
+        0,
+        BufferUsage::StaticDraw,
+    );
+    // let large_buffer_2 = BufferDescriptor::from_binary(
+    //     vec![0u8; 1 * 1024 * 1024 * 1024],
+    //     0,
+    //     0,
+    //     BufferUsage::StaticDraw,
+    // );
+    render
+        .buffer_store_mut()
+        .use_buffer(&large_buffer, BufferTarget::ArrayBuffer)?;
+    // render
+    //     .buffer_store_mut()
+    //     .use_buffer(&large_buffer_1, BufferTarget::ArrayBuffer)?;
+    // render
+    //     .buffer_store_mut()
+    //     .use_buffer(&large_buffer_2, BufferTarget::ArrayBuffer)?;
+
+    // let mut entity = Entity::new();
+    // entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+    // entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+    // scene.root_entity_mut().add_child(entity);
+
+    // let f = Rc::new(RefCell::new(None));
+    // let g = f.clone();
+    // *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+    //     if timestamp <= 10.0 * 1000.0 {
+    //         render.render(&mut scene).unwrap();
+    //         request_animation_frame(f.borrow().as_ref().unwrap());
+    //     } else {
+    //         console_log!("{}", Rc::strong_count(&f));
+    //         console_log!("stop rendering");
+            
+    //     }
+    // }));
+
+    // request_animation_frame(g.borrow().as_ref().unwrap());
+
+    let callback = Closure::once(|| {
+        drop(scene);
+        drop(render);
+        drop(large_buffer);
+        // drop(large_buffer_1);
+        // drop(large_buffer_2);
+    });
+
+    window()
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            callback.into_js_value().unchecked_ref(),
+            5 * 1000,
+        )
+        .unwrap();
 
     Ok(())
 }

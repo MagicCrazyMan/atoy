@@ -136,7 +136,7 @@ impl Material for SolidColorInstancedMaterial {
         match name {
             COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
-                target: BufferTarget::Buffer,
+                target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::Float,
                 normalized: false,
@@ -145,7 +145,7 @@ impl Material for SolidColorInstancedMaterial {
             }),
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
-                target: BufferTarget::Buffer,
+                target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,

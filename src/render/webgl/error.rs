@@ -12,6 +12,7 @@ pub enum Error {
     CompileShaderFailure(Option<String>),
     CompileProgramFailure(Option<String>),
     BufferStorageNotFount(Uuid),
+    BufferUnexpectedDropped,
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
 }
@@ -31,6 +32,7 @@ impl std::fmt::Display for Error {
             Error::CompileProgramFailure(_) => todo!(),
             Error::WebGl2RenderingContextNotFound => todo!(),
             Error::BufferStorageNotFount(_) => todo!(),
+            Error::BufferUnexpectedDropped => todo!(),
             Error::TexImageFailure(_) => todo!(),
             Error::TextureStorageNotFount(_) => todo!(),
         }
