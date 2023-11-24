@@ -40,13 +40,13 @@ impl Cube {
             ),
             BufferUsage::StaticDraw,
         );
-        vertices.enable_free(move || {
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
-                0,
-                108,
-            )
-        });
+        // vertices.enable_free(move || {
+        //     BufferSource::from_float32_array(
+        //         slice_to_float32_array(&calculate_vertices(size)),
+        //         0,
+        //         108,
+        //     )
+        // });
 
         Self {
             size,

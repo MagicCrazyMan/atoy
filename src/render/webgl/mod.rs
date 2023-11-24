@@ -126,7 +126,7 @@ impl<'a> WebGL2Render<'a> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::with_max_memory(gl.clone(), 500000),
+            buffer_store: BufferStore::with_max_memory(gl.clone(), 5000),
             texture_store: TextureStore::new(gl.clone()),
             gl,
             depth_test: true,

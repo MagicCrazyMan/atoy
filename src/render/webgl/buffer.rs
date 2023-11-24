@@ -400,6 +400,12 @@ impl_typed_array! {
 struct BufferDescriptorAgency(Uuid, Weak<RefCell<StoreContainer>>, WebGl2RenderingContext);
 
 impl BufferDescriptorAgency {
+    fn try_container(&self) -> Option<Rc<RefCell<StoreContainer>>> {
+        self.1.upgrade()
+    }
+}
+
+impl BufferDescriptorAgency {
     fn raw_id(&self) -> &Uuid {
         &self.0
     }
@@ -474,16 +480,27 @@ impl Drop for BufferDescriptorAgency {
 enum BufferDescriptorStatus {
     Dropped,
     Unchanged {
-        id: Rc<BufferDescriptorAgency>,
+        agency: Rc<BufferDescriptorAgency>,
     },
     UpdateBuffer {
-        old_id: Option<Rc<BufferDescriptorAgency>>,
+        old_agency: Option<Rc<BufferDescriptorAgency>>,
         source: BufferSource,
     },
     UpdateSubBuffer {
-        id: Rc<BufferDescriptorAgency>,
+        agency: Rc<BufferDescriptorAgency>,
         source: BufferSource,
     },
+}
+
+impl BufferDescriptorStatus {
+    fn agency(&self) -> Option<Rc<BufferDescriptorAgency>> {
+        match self {
+            BufferDescriptorStatus::Dropped => None,
+            BufferDescriptorStatus::Unchanged { agency } => Some(Rc::clone(agency)),
+            BufferDescriptorStatus::UpdateBuffer { .. } => None,
+            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => Some(Rc::clone(agency)),
+        }
+    }
 }
 
 /// An identifier telling [`BufferStore`] what to do with WebGlBuffer.
@@ -505,7 +522,7 @@ impl BufferDescriptor {
     pub fn new(source: BufferSource, usage: BufferUsage) -> Self {
         Self {
             status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
-                old_id: None,
+                old_agency: None,
                 source,
             })),
             usage,
@@ -522,6 +539,7 @@ impl BufferDescriptor {
     /// when buffer storage tries to free GPU memory.
     pub fn disable_free(&mut self) {
         self.restore = None;
+        self.update_freeable();
     }
 
     /// Sets this buffer descriptor droppable
@@ -534,28 +552,45 @@ impl BufferDescriptor {
         F: FnMut() -> BufferSource + 'static,
     {
         self.restore = Some(Rc::new(RefCell::new(Box::new(restore))));
+        self.update_freeable();
+    }
+
+    fn update_freeable(&mut self) {
+        // update status
+        let status = (*self.status).borrow_mut();
+        let Some(agency) = status.agency() else {
+            return;
+        };
+        let Some(container) = agency.try_container() else {
+            return;
+        };
+        let mut container = (*container).borrow_mut();
+        let Some(item) = container.store.get_mut(&agency.0) else {
+            return;
+        };
+        item.freeable = self.restore.is_some();
     }
 
     pub fn buffer_data(&mut self, source: BufferSource) {
         self.status.replace_with(|old| match old {
-            BufferDescriptorStatus::Unchanged { id } => BufferDescriptorStatus::UpdateBuffer {
-                old_id: Some(id.clone()),
+            BufferDescriptorStatus::Unchanged { agency } => BufferDescriptorStatus::UpdateBuffer {
+                old_agency: Some(agency.clone()),
                 source,
             },
-            BufferDescriptorStatus::UpdateBuffer { old_id, .. } => {
+            BufferDescriptorStatus::UpdateBuffer { old_agency, .. } => {
                 BufferDescriptorStatus::UpdateBuffer {
-                    old_id: old_id.clone(),
+                    old_agency: old_agency.clone(),
                     source,
                 }
             }
-            BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
                 BufferDescriptorStatus::UpdateBuffer {
-                    old_id: Some(id.clone()),
+                    old_agency: Some(agency.clone()),
                     source,
                 }
             }
             BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                old_id: None,
+                old_agency: None,
                 source,
             },
         });
@@ -563,21 +598,21 @@ impl BufferDescriptor {
 
     pub fn buffer_sub_data(&mut self, source: BufferSource) {
         self.status.replace_with(|old| match old {
-            BufferDescriptorStatus::Unchanged { id }
-            | BufferDescriptorStatus::UpdateSubBuffer { id, .. } => {
+            BufferDescriptorStatus::Unchanged { agency }
+            | BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
                 BufferDescriptorStatus::UpdateSubBuffer {
-                    id: id.clone(),
+                    agency: agency.clone(),
                     source,
                 }
             }
-            BufferDescriptorStatus::UpdateBuffer { old_id, .. } => {
+            BufferDescriptorStatus::UpdateBuffer { old_agency, .. } => {
                 BufferDescriptorStatus::UpdateBuffer {
-                    old_id: old_id.clone(),
+                    old_agency: old_agency.clone(),
                     source,
                 }
             }
             BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                old_id: None,
+                old_agency: None,
                 source,
             },
         });
@@ -589,6 +624,7 @@ struct StorageItem {
     status: Weak<RefCell<BufferDescriptorStatus>>,
     size: usize,
     lru_node: Box<LruNode>,
+    freeable: bool,
 }
 
 struct StoreContainer {
@@ -702,13 +738,13 @@ impl BufferStore {
         let mut status_guard = (*status).borrow_mut();
         let status_mut = &mut *status_guard;
         match status_mut {
-            BufferDescriptorStatus::Unchanged { id, .. } => {
+            BufferDescriptorStatus::Unchanged { agency, .. } => {
                 let StorageItem {
                     buffer, lru_node, ..
                 } = container_mut
                     .store
-                    .get_mut(id.raw_id())
-                    .ok_or(Error::BufferStorageNotFound(*id.raw_id()))?;
+                    .get_mut(agency.raw_id())
+                    .ok_or(Error::BufferStorageNotFound(*agency.raw_id()))?;
 
                 self.gl.bind_buffer(target.gl_enum(), Some(buffer));
 
@@ -722,7 +758,7 @@ impl BufferStore {
                     // gets buffer source from restore in Dropped if exists, or throws error otherwise.
                     BufferDescriptorStatus::Dropped => {
                         let Some(restore) = restore.borrow_mut() else {
-                            return Err(Error::BufferUnexpectedDropped);
+                            return Err(Error::BufferDescriptorUnrestoreable);
                         };
                         let mut restore = (**restore).borrow_mut();
                         let restore = restore.as_mut();
@@ -731,9 +767,9 @@ impl BufferStore {
                         &tmp_source
                     }
                     // gets buffer source from status in UpdateBuffer, and delete an old buffer if exists.
-                    BufferDescriptorStatus::UpdateBuffer { old_id, source } => {
+                    BufferDescriptorStatus::UpdateBuffer { old_agency, source } => {
                         // remove old buffer if specified
-                        if let Some(StorageItem { buffer, .. }) = old_id
+                        if let Some(StorageItem { buffer, .. }) = old_agency
                             .as_ref()
                             .and_then(|id| container_mut.store.remove(id.raw_id()))
                         {
@@ -777,24 +813,25 @@ impl BufferStore {
                         size,
                         status: Rc::downgrade(&status),
                         lru_node,
+                        freeable: restore.is_some(),
                     },
                 );
 
                 // replace descriptor status
                 *status_mut = BufferDescriptorStatus::Unchanged {
-                    id: Rc::new(BufferDescriptorAgency(
+                    agency: Rc::new(BufferDescriptorAgency(
                         raw_id,
                         Rc::downgrade(&self.container),
                         self.gl.clone(),
                     )),
                 };
             }
-            BufferDescriptorStatus::UpdateSubBuffer { id, source, .. } => {
+            BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
                 let Some(StorageItem {
                     buffer, lru_node, ..
-                }) = container_mut.store.get_mut(id.raw_id())
+                }) = container_mut.store.get_mut(agency.raw_id())
                 else {
-                    return Err(Error::BufferStorageNotFound(*id.raw_id()));
+                    return Err(Error::BufferStorageNotFound(*agency.raw_id()));
                 };
 
                 // binds and buffers sub data
@@ -802,7 +839,9 @@ impl BufferStore {
                 source.buffer_sub_data(&self.gl, target);
 
                 // replace descriptor status
-                *status_mut = BufferDescriptorStatus::Unchanged { id: id.clone() };
+                *status_mut = BufferDescriptorStatus::Unchanged {
+                    agency: agency.clone(),
+                };
 
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
@@ -826,19 +865,34 @@ impl BufferStore {
         }
 
         // removes buffer from the least recently used until memory usage lower than limitation
+        let mut next_node = container.least_recently;
         while container.memory_usage >= self.max_memory {
-            let Some(least_recently) = container.least_recently else {
+            let Some(current_node) = next_node else {
                 break;
             };
-            let node = unsafe { &*least_recently };
+            let current_node = unsafe { &*current_node };
 
+            // checks if buffer freeable
+            if !container
+                .store
+                .get(&current_node.raw_id)
+                .map(|item| item.freeable)
+                .unwrap_or(false)
+            {
+                next_node = current_node.more_recently;
+                continue;
+            }
+
+            // starts dropping buffer
             let Some(StorageItem {
                 status,
                 buffer,
                 size,
                 mut lru_node,
-            }) = container.store.remove(&node.raw_id)
+                ..
+            }) = container.store.remove(&current_node.raw_id)
             else {
+                next_node = current_node.more_recently;
                 continue;
             };
 
@@ -851,9 +905,10 @@ impl BufferStore {
                 let more_recently = unsafe { &mut *more_recently };
                 more_recently.less_recently = None;
                 container.least_recently = Some(more_recently);
+                next_node = Some(more_recently);
             } else {
-                // nothing left, break
-                break;
+                container.least_recently = None;
+                next_node = None;
             }
             lru_node.more_recently = None;
 
@@ -861,7 +916,12 @@ impl BufferStore {
                 status.borrow_mut().replace(BufferDescriptorStatus::Dropped);
             };
 
-            // console_log!("buffer {} dropped, {} memory freed, {} total", node.raw_id, size, container.memory_usage);
+            // console_log!(
+            //     "buffer {} dropped, {} memory freed, {} total",
+            //     node.raw_id,
+            //     size,
+            //     container.memory_usage
+            // );
         }
 
         // let mut ids = Vec::new();

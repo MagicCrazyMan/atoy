@@ -12,7 +12,7 @@ pub enum Error {
     CompileShaderFailure(Option<String>),
     CompileProgramFailure(Option<String>),
     BufferStorageNotFound(Uuid),
-    BufferUnexpectedDropped,
+    BufferDescriptorUnrestoreable,
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
 }
@@ -32,7 +32,7 @@ impl std::fmt::Display for Error {
             Error::CompileProgramFailure(_) => todo!(),
             Error::WebGl2RenderingContextNotFound => todo!(),
             Error::BufferStorageNotFound(_) => todo!(),
-            Error::BufferUnexpectedDropped => todo!(),
+            Error::BufferDescriptorUnrestoreable => f.write_str("unrestoreable buffer descriptor"),
             Error::TexImageFailure(_) => todo!(),
             Error::TextureStorageNotFount(_) => todo!(),
         }
