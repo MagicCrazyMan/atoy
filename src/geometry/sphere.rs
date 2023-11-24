@@ -1,8 +1,13 @@
 use std::any::Any;
 
+use web_sys::js_sys::Float32Array;
+
 use crate::render::webgl::{
     attribute::AttributeValue,
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
+    buffer::{
+        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+        BufferUsage,
+    },
     draw::{Draw, DrawMode},
     uniform::UniformValue,
 };
@@ -10,10 +15,10 @@ use crate::render::webgl::{
 use super::Geometry;
 
 pub struct Sphere {
-    radius: f32,
-    vertical_segments: u32,
-    horizontal_segments: u32,
-    num_vertices: i32,
+    radius: f64,
+    vertical_segments: usize,
+    horizontal_segments: usize,
+    num_vertices: usize,
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
 }
@@ -23,26 +28,22 @@ impl Sphere {
         Self::with_opts(1.0, 12, 24)
     }
 
-    pub fn with_opts(radius: f32, vertical_segments: u32, horizontal_segments: u32) -> Sphere {
-        let (vertices_len, vertices, normals) =
-            get_vertices_normals_buffer(radius, vertical_segments, horizontal_segments);
-        let vertices_byte_len = vertices.len() as u32;
-        let normals_byte_len = normals.len() as u32;
+    pub fn with_opts(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
+        let (num_vertices, vertices, normals) =
+            calculate_vertices_normals(radius, vertical_segments, horizontal_segments);
+        let vertices_len = vertices.length();
+        let normals_len = normals.length();
         Self {
             radius,
             vertical_segments,
             horizontal_segments,
-            num_vertices: vertices_len,
-            vertices: BufferDescriptor::from_binary(
-                vertices,
-                0,
-                vertices_byte_len,
+            num_vertices,
+            vertices: BufferDescriptor::new(
+                BufferSource::from_float32_array(vertices, 0, vertices_len, 0),
                 BufferUsage::StaticDraw,
             ),
-            normals: BufferDescriptor::from_binary(
-                normals,
-                0,
-                normals_byte_len,
+            normals: BufferDescriptor::new(
+                BufferSource::from_float32_array(normals, 0, normals_len, 0),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -50,22 +51,27 @@ impl Sphere {
 }
 
 impl Sphere {
-    pub fn radius(&self) -> f32 {
+    pub fn radius(&self) -> f64 {
         self.radius
     }
 
-    pub fn set_radius(&mut self, radius: f32) {
+    pub fn set_radius(&mut self, radius: f64) {
         self.radius = radius;
         let (num_vertices, vertices, normals) =
-            get_vertices_normals_buffer(radius, self.vertical_segments, self.horizontal_segments);
-        let vertices_byte_len = vertices.len() as u32;
-        let normals_byte_len = normals.len() as u32;
+            calculate_vertices_normals(radius, self.vertical_segments, self.horizontal_segments);
+        let vertices_len = vertices.length();
+        let normals_len = normals.length();
 
         self.num_vertices = num_vertices;
         self.vertices
-            .buffer_sub_binary(vertices, 0, 0, vertices_byte_len);
+            .buffer_sub_data(BufferSource::from_float32_array(
+                vertices,
+                0,
+                vertices_len,
+                0,
+            ));
         self.normals
-            .buffer_sub_binary(normals, 0, 0, normals_byte_len);
+            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len, 0));
     }
 }
 
@@ -74,7 +80,7 @@ impl Geometry for Sphere {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            count: self.num_vertices,
+            count: self.num_vertices as i32,
         }
     }
 
@@ -124,30 +130,27 @@ impl Geometry for Sphere {
 }
 
 #[rustfmt::skip]
-fn get_vertices_normals_buffer(radius: f32, vertical_segments: u32, horizontal_segments: u32) -> (i32, Vec<u8>, Vec<u8>) {
-    let vertical_segments = vertical_segments as usize;
-    let horizontal_segments = horizontal_segments as usize;
-
-    let vertical_offset = std::f32::consts::PI / vertical_segments as f32;
-    let horizontal_offset = (2.0 * std::f32::consts::PI) / horizontal_segments as f32;
+fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> (usize, Float32Array, Float32Array) {
+    let vertical_offset = std::f64::consts::PI / vertical_segments as f64;
+    let horizontal_offset = (2.0 * std::f64::consts::PI) / horizontal_segments as f64;
   
-    let mut vertices = vec![0.0f32; ((vertical_segments + 1) * (horizontal_segments + 1) * 3) as usize];
+    let mut vertices = vec![0.0f32; (vertical_segments + 1) * (horizontal_segments + 1) * 3];
     for i in 0..=vertical_segments {
-      let ri = i as f32 * vertical_offset;
+      let ri = i as f64 * vertical_offset;
       let ci = ri.cos();
       let si = ri.sin();
   
       for j in 0..=horizontal_segments {
-        let rj = j as f32 * horizontal_offset;
+        let rj = j as f64 * horizontal_offset;
         let cj = rj.cos();
         let sj = rj.sin();
   
         let x = radius * si * cj;
         let y = radius * ci;
         let z = radius * si * sj;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 0] = x;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 1] = y;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 2] = z;
+        vertices[(i * (horizontal_segments + 1) + j) * 3 + 0] = x as f32;
+        vertices[(i * (horizontal_segments + 1) + j) * 3 + 1] = y as f32;
+        vertices[(i * (horizontal_segments + 1) + j) * 3 + 2] = z as f32;
       }
     }
   
@@ -202,9 +205,13 @@ fn get_vertices_normals_buffer(radius: f32, vertical_segments: u32, horizontal_s
       }
     }
 
+    let vertices = Float32Array::new_with_length(triangle_vertices.len() as u32);
+    let normals = Float32Array::new_with_length(triangle_normals.len() as u32);
+    vertices.copy_from(&triangle_vertices);
+    normals.copy_from(&triangle_normals);
     (
-        (triangle_vertices.len() / 3) as i32,
-        triangle_vertices.into_iter().flat_map(|v| v.to_ne_bytes()).collect::<Vec<_>>(),
-        triangle_normals.into_iter().flat_map(|v| v.to_ne_bytes()).collect::<Vec<_>>(),
+        (triangle_vertices.len() / 3),
+        vertices,
+        normals,
     )
 }

@@ -4,7 +4,8 @@ use crate::{
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
         },
         draw::{Draw, DrawMode},
         uniform::UniformValue,
@@ -31,22 +32,26 @@ impl Cube {
     pub fn with_size(size: f64) -> Cube {
         Self {
             size,
-            vertices: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
-                0,
-                108,
+            vertices: BufferDescriptor::new(
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&calculate_vertices(size)),
+                    0,
+                    108,
+                    0,
+                ),
                 BufferUsage::StaticDraw,
             ),
-            normals: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&NORMALS),
-                0,
-                144,
+            normals: BufferDescriptor::new(
+                BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144, 0),
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&TEXTURE_COORDINATES),
-                0,
-                48,
+            texture_coordinates: BufferDescriptor::new(
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&TEXTURE_COORDINATES),
+                    0,
+                    48,
+                    0,
+                ),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -63,12 +68,13 @@ impl Cube {
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
 
-        self.vertices.buffer_sub_float32_array(
-            slice_to_float32_array(&calculate_vertices(size)),
-            0,
-            0,
-            108,
-        );
+        self.vertices
+            .buffer_sub_data(BufferSource::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(size)),
+                0,
+                108,
+                0,
+            ));
     }
 }
 

@@ -22,7 +22,7 @@ use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
-    BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+    BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::TextureUnit;
@@ -289,10 +289,13 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
 
     // reuses cube buffer
     let vertices = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::from_float32_array(
-            slice_to_float32_array(&calculate_vertices(1.0)),
-            0,
-            0,
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(1.0)),
+                0,
+                108,
+                0,
+            ),
             BufferUsage::StaticDraw,
         ),
         target: BufferTarget::ArrayBuffer,
@@ -303,10 +306,8 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         bytes_offset: 108,
     };
     let normals = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::from_float32_array(
-            slice_to_float32_array(&cube::NORMALS),
-            0,
-            0,
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144, 0),
             BufferUsage::StaticDraw,
         ),
         target: BufferTarget::ArrayBuffer,
@@ -317,10 +318,13 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         bytes_offset: 108,
     };
     let tex_coords = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::from_float32_array(
-            slice_to_float32_array(&cube::TEXTURE_COORDINATES),
-            0,
-            0,
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&cube::TEXTURE_COORDINATES),
+                0,
+                48,
+                0,
+            ),
             BufferUsage::StaticDraw,
         ),
         target: BufferTarget::ArrayBuffer,
@@ -385,7 +389,12 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
 }
 
 #[wasm_bindgen]
-pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Result<(), Error> {
+pub fn test_instanced_cube(
+    count: usize,
+    grid: usize,
+    width: f64,
+    height: f64,
+) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render(&scene)?;
 
@@ -439,10 +448,10 @@ pub fn test_instanced_cube(count: i32, grid: i32, width: f64, height: f64) -> Re
 #[wasm_bindgen]
 pub fn test_texture(
     url: String,
-    count: i32,
-    grid: i32,
-    width: f32,
-    height: f32,
+    count: usize,
+    grid: usize,
+    width: f64,
+    height: f64,
 ) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 20.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render(&scene)?;
@@ -589,10 +598,16 @@ pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
 
     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
     buffer.fill(1, 0, buffer.byte_length());
-    let large_buffer = BufferDescriptor::from_uint8_array(buffer, 0, 0, BufferUsage::StaticDraw);
+    let large_buffer = BufferDescriptor::new(
+        BufferSource::from_uint8_array(buffer, 0, 0, 0),
+        BufferUsage::StaticDraw,
+    );
     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
     buffer.fill(1, 0, buffer.byte_length());
-    let large_buffer_1 = BufferDescriptor::from_uint8_array(buffer, 0, 0, BufferUsage::StaticDraw);
+    let large_buffer_1 = BufferDescriptor::new(
+        BufferSource::from_uint8_array(buffer, 0, 0, 0),
+        BufferUsage::StaticDraw,
+    );
     render
         .buffer_store_mut()
         .use_buffer(&large_buffer, BufferTarget::ArrayBuffer)?;

@@ -4,7 +4,8 @@ use crate::{
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
         },
         draw::{Draw, DrawElementType, DrawMode},
         uniform::UniformValue,
@@ -32,28 +33,30 @@ impl IndexedCube {
     pub fn with_size(size: f64) -> IndexedCube {
         Self {
             size,
-            indices: BufferDescriptor::from_uint8_array(
-                slice_to_uint8_array(&INDICES),
-                0,
-                36,
+            indices: BufferDescriptor::new(
+                BufferSource::from_uint8_array(slice_to_uint8_array(&INDICES), 0, 36, 0),
                 BufferUsage::StaticDraw,
             ),
-            vertices: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
-                0,
-                72,
+            vertices: BufferDescriptor::new(
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&calculate_vertices(size)),
+                    0,
+                    72,
+                    0,
+                ),
                 BufferUsage::StaticDraw,
             ),
-            normals: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&NORMALS),
-                0,
-                96,
+            normals: BufferDescriptor::new(
+                BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 96, 0),
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates: BufferDescriptor::from_float32_array(
-                slice_to_float32_array(&TEXTURE_COORDINATES),
-                0,
-                48,
+            texture_coordinates: BufferDescriptor::new(
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&TEXTURE_COORDINATES),
+                    0,
+                    48,
+                    0,
+                ),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -69,12 +72,12 @@ impl IndexedCube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices.buffer_sub_float32_array(
+        self.vertices.buffer_sub_data(BufferSource::from_float32_array(
             slice_to_float32_array(&calculate_vertices(size)),
             0,
-            0,
             72,
-        );
+            0,
+        ));
     }
 }
 

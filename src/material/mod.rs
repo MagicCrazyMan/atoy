@@ -14,10 +14,6 @@ pub mod solid_color;
 pub mod solid_color_instanced;
 pub mod texture_mapping;
 pub mod texture_mapping_instanced;
-// pub mod solid_color_instanced;
-// pub mod texture_mapping;
-// pub mod texture_mapping_instanced;
-// pub mod environment_mapping;
 
 pub trait Material {
     fn name(&self) -> &'static str;

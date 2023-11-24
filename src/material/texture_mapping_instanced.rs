@@ -1,6 +1,6 @@
-use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::mat4::Mat4;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::HtmlImageElement;
+use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
@@ -9,7 +9,8 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
         },
         program::ShaderSource,
         texture::{
@@ -64,7 +65,7 @@ void main() {
 ";
 
 pub struct TextureInstancedMaterial {
-    count: i32,
+    count: usize,
     instance_matrices: BufferDescriptor,
     url: String,
     texture: Option<TextureDescriptor>,
@@ -73,32 +74,52 @@ pub struct TextureInstancedMaterial {
 }
 
 impl TextureInstancedMaterial {
-    pub fn new(url: String, count: i32, grid: i32, width: f32, height: f32) -> Self {
-        let cell_width = width / (grid as f32);
-        let cell_height = height / (grid as f32);
+    pub fn new<S: Into<String>>(
+        url: S,
+        count: usize,
+        grid: usize,
+        width: f64,
+        height: f64,
+    ) -> Self {
+        let cell_width = width / (grid as f64);
+        let cell_height = height / (grid as f64);
         let start_x = width / 2.0 - cell_width / 2.0;
         let start_z = height / 2.0 - cell_height / 2.0;
 
-        let matrices_bytes_length = (16 * 4 * count) as usize;
-        let mut matrices_data = Vec::with_capacity(matrices_bytes_length);
+        let matrices_bytes_length = (16 * count) as u32;
+        let matrices_data = Float32Array::new_with_length(matrices_bytes_length);
         for index in 0..count {
             let row = index / grid;
             let col = index % grid;
 
-            let center_x = start_x - col as f32 * cell_width;
-            let center_z = start_z - row as f32 * cell_height;
-            matrices_data.extend(Mat4::from_translation(&(center_x, 0.0, center_z)).to_gl_binary());
+            let center_x = (start_x - col as f64 * cell_width) as f32;
+            let center_z = (start_z - row as f64 * cell_height) as f32;
+            let matrix = Mat4::from_translation(&(center_x, 0.0, center_z));
+            matrices_data.set_index((index * 16) as u32 + 0, matrix.raw()[0]);
+            matrices_data.set_index((index * 16) as u32 + 1, matrix.raw()[1]);
+            matrices_data.set_index((index * 16) as u32 + 2, matrix.raw()[2]);
+            matrices_data.set_index((index * 16) as u32 + 3, matrix.raw()[3]);
+            matrices_data.set_index((index * 16) as u32 + 4, matrix.raw()[4]);
+            matrices_data.set_index((index * 16) as u32 + 5, matrix.raw()[5]);
+            matrices_data.set_index((index * 16) as u32 + 6, matrix.raw()[6]);
+            matrices_data.set_index((index * 16) as u32 + 7, matrix.raw()[7]);
+            matrices_data.set_index((index * 16) as u32 + 8, matrix.raw()[8]);
+            matrices_data.set_index((index * 16) as u32 + 9, matrix.raw()[9]);
+            matrices_data.set_index((index * 16) as u32 + 10, matrix.raw()[10]);
+            matrices_data.set_index((index * 16) as u32 + 11, matrix.raw()[11]);
+            matrices_data.set_index((index * 16) as u32 + 12, matrix.raw()[12]);
+            matrices_data.set_index((index * 16) as u32 + 13, matrix.raw()[13]);
+            matrices_data.set_index((index * 16) as u32 + 14, matrix.raw()[14]);
+            matrices_data.set_index((index * 16) as u32 + 15, matrix.raw()[15]);
         }
 
         Self {
             count,
-            instance_matrices: BufferDescriptor::from_binary(
-                matrices_data,
-                0,
-                matrices_bytes_length as u32,
+            instance_matrices: BufferDescriptor::new(
+                BufferSource::from_float32_array(matrices_data, 0, matrices_bytes_length, 0),
                 BufferUsage::StaticDraw,
             ),
-            url,
+            url: url.into(),
             texture: None,
             image: None,
             onload: None,
@@ -139,7 +160,7 @@ impl Material for TextureInstancedMaterial {
     }
 
     fn instanced(&self) -> Option<i32> {
-        Some(self.count)
+        Some(self.count as i32)
     }
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue> {

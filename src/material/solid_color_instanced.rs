@@ -1,9 +1,13 @@
-use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::mat4::Mat4;
 use palette::rgb::Rgb;
+use web_sys::js_sys::Float32Array;
 
 use crate::render::webgl::{
     attribute::{AttributeBinding, AttributeValue},
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage},
+    buffer::{
+        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+        BufferUsage,
+    },
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
 };
@@ -47,53 +51,62 @@ void main() {
 ";
 
 pub struct SolidColorInstancedMaterial {
-    count: i32,
+    count: usize,
     colors: BufferDescriptor,
     instance_matrices: BufferDescriptor,
 }
 
 impl SolidColorInstancedMaterial {
-    pub fn new(count: i32, grid: i32, width: f64, height: f64) -> Self {
+    pub fn new(count: usize, grid: usize, width: f64, height: f64) -> Self {
         let cell_width = width / (grid as f64);
         let cell_height = height / (grid as f64);
         let start_x = width / 2.0 - cell_width / 2.0;
         let start_z = height / 2.0 - cell_height / 2.0;
 
-        let matrices_bytes_length = (16 * 4 * count) as usize;
-        let colors_bytes_length = (3 * 4 * count) as usize;
-        let mut matrices_data = Vec::with_capacity(matrices_bytes_length);
-        let mut colors_data = Vec::with_capacity(colors_bytes_length);
+        let matrices_length = (16 * count) as u32;
+        let colors_length = (3 * count) as u32;
+        let matrices_data = Float32Array::new_with_length(matrices_length);
+        let colors_data = Float32Array::new_with_length(colors_length);
         for index in 0..count {
             let row = index / grid;
             let col = index % grid;
 
-            let center_x = start_x - col as f64 * cell_width;
-            let center_z = start_z - row as f64 * cell_height;
-            matrices_data.extend(Mat4::from_translation(&(center_x, 0.0, center_z)).to_gl_binary());
+            let center_x = (start_x - col as f64 * cell_width) as f32;
+            let center_z = (start_z - row as f64 * cell_height) as f32;
+            let matrix = Mat4::from_translation(&(center_x, 0.0, center_z));
+            matrices_data.set_index((index * 16) as u32 + 0, matrix.raw()[0]);
+            matrices_data.set_index((index * 16) as u32 + 1, matrix.raw()[1]);
+            matrices_data.set_index((index * 16) as u32 + 2, matrix.raw()[2]);
+            matrices_data.set_index((index * 16) as u32 + 3, matrix.raw()[3]);
+            matrices_data.set_index((index * 16) as u32 + 4, matrix.raw()[4]);
+            matrices_data.set_index((index * 16) as u32 + 5, matrix.raw()[5]);
+            matrices_data.set_index((index * 16) as u32 + 6, matrix.raw()[6]);
+            matrices_data.set_index((index * 16) as u32 + 7, matrix.raw()[7]);
+            matrices_data.set_index((index * 16) as u32 + 8, matrix.raw()[8]);
+            matrices_data.set_index((index * 16) as u32 + 9, matrix.raw()[9]);
+            matrices_data.set_index((index * 16) as u32 + 10, matrix.raw()[10]);
+            matrices_data.set_index((index * 16) as u32 + 11, matrix.raw()[11]);
+            matrices_data.set_index((index * 16) as u32 + 12, matrix.raw()[12]);
+            matrices_data.set_index((index * 16) as u32 + 13, matrix.raw()[13]);
+            matrices_data.set_index((index * 16) as u32 + 14, matrix.raw()[14]);
+            matrices_data.set_index((index * 16) as u32 + 15, matrix.raw()[15]);
 
             let Rgb {
                 blue, green, red, ..
             } = rand::random::<Rgb>();
-            colors_data.extend(
-                [red, green, blue]
-                    .iter()
-                    .flat_map(|component| component.to_ne_bytes())
-                    .collect::<Vec<_>>(),
-            );
+            colors_data.set_index((index * 3) as u32 + 0, red);
+            colors_data.set_index((index * 3) as u32 + 1, green);
+            colors_data.set_index((index * 3) as u32 + 2, blue);
         }
 
         Self {
             count,
-            colors: BufferDescriptor::from_binary(
-                colors_data,
-                0,
-                colors_bytes_length as u32,
+            colors: BufferDescriptor::new(
+                BufferSource::from_float32_array(colors_data, 0, colors_length, 0),
                 BufferUsage::StaticDraw,
             ),
-            instance_matrices: BufferDescriptor::from_binary(
-                matrices_data,
-                0,
-                matrices_bytes_length as u32,
+            instance_matrices: BufferDescriptor::new(
+                BufferSource::from_float32_array(matrices_data, 0, matrices_length, 0),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -129,7 +142,7 @@ impl Material for SolidColorInstancedMaterial {
     }
 
     fn instanced(&self) -> Option<i32> {
-        Some(self.count)
+        Some(self.count as i32)
     }
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
