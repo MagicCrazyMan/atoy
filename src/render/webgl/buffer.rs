@@ -710,13 +710,15 @@ impl BufferStore {
     /// On the next time
     pub fn use_buffer(
         &mut self,
-        BufferDescriptor {
+        buffer_descriptor: BufferDescriptor,
+        target: BufferTarget,
+    ) -> Result<WebGlBuffer, Error> {
+        let BufferDescriptor {
             status,
             usage,
             mut restore,
-        }: BufferDescriptor,
-        target: BufferTarget,
-    ) -> Result<WebGlBuffer, Error> {
+        } = buffer_descriptor;
+
         let mut container_guard = (*self.container).borrow_mut();
         let container_mut = &mut *container_guard;
 
