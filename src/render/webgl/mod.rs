@@ -126,7 +126,8 @@ impl<'a> WebGL2Render<'a> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::with_max_memory(gl.clone(), 5000),
+            // buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
+            buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
             texture_store: TextureStore::new(gl.clone()),
             gl,
             depth_test: true,
@@ -374,9 +375,16 @@ impl<'a> WebGL2Render<'a> {
             }
         }
 
+        self.reset();
+
         self.event_targets.after_render.raise(());
 
         Ok(())
+    }
+
+    /// Resets WebGl status.
+    fn reset(&self) {
+
     }
 
     /// Prepares graphic scene.
@@ -524,7 +532,7 @@ impl<'a> WebGL2Render<'a> {
                     bytes_stride,
                     bytes_offset,
                 } => {
-                    match self.buffer_store.use_buffer(descriptor, target) {
+                    let buffer = match self.buffer_store.use_buffer(descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -533,6 +541,7 @@ impl<'a> WebGL2Render<'a> {
                         }
                     };
 
+                    gl.bind_buffer(target.gl_enum(), Some(&buffer));
                     gl.vertex_attrib_pointer_with_i32(
                         *location,
                         component_size as GLint,
@@ -552,7 +561,7 @@ impl<'a> WebGL2Render<'a> {
                     component_count_per_instance: components_length_per_instance,
                     divisor,
                 } => {
-                    match self.buffer_store.use_buffer(descriptor, target) {
+                    let buffer = match self.buffer_store.use_buffer(descriptor, target) {
                         Ok(buffer) => buffer,
                         Err(err) => {
                             // should log error
@@ -560,6 +569,8 @@ impl<'a> WebGL2Render<'a> {
                             continue;
                         }
                     };
+
+                    gl.bind_buffer(target.gl_enum(), Some(&buffer));
 
                     let component_size = component_size as GLint;
                     // binds each instance
@@ -578,7 +589,6 @@ impl<'a> WebGL2Render<'a> {
                         gl.enable_vertex_attrib_array(offset_location);
                         gl.vertex_attrib_divisor(offset_location, divisor);
                     }
-                    gl.bind_buffer(target.gl_enum(), None);
                 }
                 AttributeValue::Vertex1f(x) => gl.vertex_attrib1f(*location, x),
                 AttributeValue::Vertex2f(x, y) => gl.vertex_attrib2f(*location, x, y),
@@ -792,7 +802,7 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    match self
+                    let buffer = match self
                         .buffer_store
                         .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                     {
@@ -804,6 +814,7 @@ impl<'a> WebGL2Render<'a> {
                         }
                     };
 
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
                     gl.draw_elements_instanced_with_i32(
                         mode.gl_enum(),
                         num_vertices,
@@ -828,7 +839,7 @@ impl<'a> WebGL2Render<'a> {
                     offset,
                     indices,
                 } => {
-                    match self
+                    let buffer = match self
                         .buffer_store
                         .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                     {
@@ -840,6 +851,7 @@ impl<'a> WebGL2Render<'a> {
                         }
                     };
 
+                    gl.bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
                     gl.draw_elements_with_i32(
                         mode.gl_enum(),
                         num_vertices,

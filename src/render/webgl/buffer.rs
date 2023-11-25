@@ -182,67 +182,67 @@ impl BufferSource {
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint8Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint8ClampedArray {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromInt16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromInt32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromUint32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromFloat32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromFloat64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromBigInt64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
             BufferSource::FromBigUint64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data as &Object, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *dst_byte_offset, *src_offset, *src_length),
         }
     }
 
@@ -483,7 +483,6 @@ enum BufferDescriptorStatus {
         agency: Rc<BufferDescriptorAgency>,
     },
     UpdateBuffer {
-        old_agency: Option<Rc<BufferDescriptorAgency>>,
         source: BufferSource,
     },
     UpdateSubBuffer {
@@ -522,7 +521,6 @@ impl BufferDescriptor {
     pub fn new(source: BufferSource, usage: BufferUsage) -> Self {
         Self {
             status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
-                old_agency: None,
                 source,
             })),
             usage,
@@ -535,28 +533,30 @@ impl BufferDescriptor {
         self.usage
     }
 
-    /// Sets this buffer descriptor should not be dropped
-    /// when buffer storage tries to free GPU memory.
-    pub fn disable_free(&mut self) {
+    /// Sets this buffer descriptor not restorable.
+    ///
+    /// If not restorable, buffer store retrieves data back from WebGlBuffer when freeing GPU memory.
+    /// This is a fallback operation, usually resulting a worser performance.
+    pub fn disable_restore(&mut self) {
         self.restore = None;
-        self.update_freeable();
+        self.update_restorable();
     }
 
-    /// Sets this buffer descriptor droppable
-    /// when buffer storage tries to free GPU memory.
-    /// A restore function returning a new [`BufferSource`]
-    /// should be specified for restoring data when
+    /// Sets this buffer descriptor restorable.
+    ///
+    /// If restorable, buffer store does not get data back from WebGlBuffer when freeing GPU memory.
+    /// A restore function returning a new [`BufferSource`] is required for restoring data when
     /// this buffer descriptor being used again.
-    pub fn enable_free<F>(&mut self, restore: F)
+    pub fn enable_restore<F>(&mut self, restore: F)
     where
         F: FnMut() -> BufferSource + 'static,
     {
         self.restore = Some(Rc::new(RefCell::new(Box::new(restore))));
-        self.update_freeable();
+        self.update_restorable();
     }
 
-    fn update_freeable(&mut self) {
-        // update status
+    /// Tells storage item whether restorable if already buffered.
+    fn update_restorable(&mut self) {
         let status = (*self.status).borrow_mut();
         let Some(agency) = status.agency() else {
             return;
@@ -568,31 +568,21 @@ impl BufferDescriptor {
         let Some(item) = container.store.get_mut(&agency.0) else {
             return;
         };
-        item.freeable = self.restore.is_some();
+        item.restorable = self.restore.is_some();
     }
 
     pub fn buffer_data(&mut self, source: BufferSource) {
         self.status.replace_with(|old| match old {
-            BufferDescriptorStatus::Unchanged { agency } => BufferDescriptorStatus::UpdateBuffer {
-                old_agency: Some(agency.clone()),
-                source,
-            },
-            BufferDescriptorStatus::UpdateBuffer { old_agency, .. } => {
-                BufferDescriptorStatus::UpdateBuffer {
-                    old_agency: old_agency.clone(),
-                    source,
-                }
+            BufferDescriptorStatus::Unchanged { .. } => {
+                BufferDescriptorStatus::UpdateBuffer { source }
             }
-            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
-                BufferDescriptorStatus::UpdateBuffer {
-                    old_agency: Some(agency.clone()),
-                    source,
-                }
+            BufferDescriptorStatus::UpdateBuffer { .. } => {
+                BufferDescriptorStatus::UpdateBuffer { source }
             }
-            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                old_agency: None,
-                source,
-            },
+            BufferDescriptorStatus::UpdateSubBuffer { .. } => {
+                BufferDescriptorStatus::UpdateBuffer { source }
+            }
+            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer { source },
         });
     }
 
@@ -605,26 +595,21 @@ impl BufferDescriptor {
                     source,
                 }
             }
-            BufferDescriptorStatus::UpdateBuffer { old_agency, .. } => {
-                BufferDescriptorStatus::UpdateBuffer {
-                    old_agency: old_agency.clone(),
-                    source,
-                }
+            BufferDescriptorStatus::UpdateBuffer { .. } => {
+                BufferDescriptorStatus::UpdateBuffer { source }
             }
-            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer {
-                old_agency: None,
-                source,
-            },
+            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer { source },
         });
     }
 }
 
 struct StorageItem {
+    target: BufferTarget,
     buffer: WebGlBuffer,
     status: Weak<RefCell<BufferDescriptorStatus>>,
     size: usize,
     lru_node: Box<LruNode>,
-    freeable: bool,
+    restorable: bool,
 }
 
 struct StoreContainer {
@@ -731,13 +716,13 @@ impl BufferStore {
             mut restore,
         }: BufferDescriptor,
         target: BufferTarget,
-    ) -> Result<(), Error> {
+    ) -> Result<WebGlBuffer, Error> {
         let mut container_guard = (*self.container).borrow_mut();
         let container_mut = &mut *container_guard;
 
         let mut status_guard = (*status).borrow_mut();
         let status_mut = &mut *status_guard;
-        match status_mut {
+        let buffer = match status_mut {
             BufferDescriptorStatus::Unchanged { agency, .. } => {
                 let StorageItem {
                     buffer, lru_node, ..
@@ -746,10 +731,10 @@ impl BufferStore {
                     .get_mut(agency.raw_id())
                     .ok_or(Error::BufferStorageNotFound(*agency.raw_id()))?;
 
-                self.gl.bind_buffer(target.gl_enum(), Some(buffer));
-
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
+
+                buffer.clone()
             }
             BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
                 // gets buffer source
@@ -758,7 +743,7 @@ impl BufferStore {
                     // gets buffer source from restore in Dropped if exists, or throws error otherwise.
                     BufferDescriptorStatus::Dropped => {
                         let Some(restore) = restore.borrow_mut() else {
-                            return Err(Error::BufferDescriptorUnrestoreable);
+                            return Err(Error::BufferUnexpectedDropped);
                         };
                         let mut restore = (**restore).borrow_mut();
                         let restore = restore.as_mut();
@@ -767,17 +752,7 @@ impl BufferStore {
                         &tmp_source
                     }
                     // gets buffer source from status in UpdateBuffer, and delete an old buffer if exists.
-                    BufferDescriptorStatus::UpdateBuffer { old_agency, source } => {
-                        // remove old buffer if specified
-                        if let Some(StorageItem { buffer, .. }) = old_agency
-                            .as_ref()
-                            .and_then(|id| container_mut.store.remove(id.raw_id()))
-                        {
-                            self.gl.delete_buffer(Some(&buffer));
-                        };
-
-                        source
-                    }
+                    BufferDescriptorStatus::UpdateBuffer { source } => source,
                     _ => unreachable!(),
                 };
 
@@ -797,6 +772,7 @@ impl BufferStore {
                     .as_f64()
                     .unwrap() as usize;
                 container_mut.memory_usage += size;
+                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // stores it and caches it into LRU
                 let raw_id = Uuid::new_v4();
@@ -809,11 +785,12 @@ impl BufferStore {
                 container_mut.store.insert(
                     raw_id,
                     StorageItem {
-                        buffer,
+                        target,
+                        buffer: buffer.clone(),
                         size,
                         status: Rc::downgrade(&status),
                         lru_node,
-                        freeable: restore.is_some(),
+                        restorable: restore.is_some(),
                     },
                 );
 
@@ -825,6 +802,8 @@ impl BufferStore {
                         self.gl.clone(),
                     )),
                 };
+
+                buffer
             }
             BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
                 let Some(StorageItem {
@@ -837,6 +816,7 @@ impl BufferStore {
                 // binds and buffers sub data
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 source.buffer_sub_data(&self.gl, target);
+                self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replace descriptor status
                 *status_mut = BufferDescriptorStatus::Unchanged {
@@ -845,6 +825,8 @@ impl BufferStore {
 
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
+
+                buffer.clone()
             }
         };
 
@@ -853,7 +835,7 @@ impl BufferStore {
 
         self.free();
 
-        Ok(())
+        Ok(buffer)
     }
 
     /// Tries to free memory if current memory usage exceeds the maximum memory limitation.
@@ -872,34 +854,54 @@ impl BufferStore {
             };
             let current_node = unsafe { &*current_node };
 
-            // checks if buffer freeable
-            if !container
-                .store
-                .get(&current_node.raw_id)
-                .map(|item| item.freeable)
-                .unwrap_or(false)
-            {
-                next_node = current_node.more_recently;
-                continue;
-            }
-
-            // starts dropping buffer
             let Some(StorageItem {
+                target,
                 status,
                 buffer,
                 size,
-                mut lru_node,
-                ..
+                lru_node,
+                restorable,
             }) = container.store.remove(&current_node.raw_id)
             else {
                 next_node = current_node.more_recently;
                 continue;
             };
 
-            // deletes WebGlBuffer
-            self.gl.delete_buffer(Some(&buffer));
+            // checks if buffer restorable
+            if restorable {
+                // if restorable, drops buffer directly
+
+                // deletes WebGlBuffer
+                self.gl.delete_buffer(Some(&buffer));
+
+                // updates status
+                status
+                    .upgrade()
+                    .map(|mut status| status.borrow_mut().replace(BufferDescriptorStatus::Dropped));
+            } else {
+                // if not restorable, gets buffer data back from WebGlBuffer
+                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                let data = Uint8Array::new_with_length(size as u32);
+                self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                    target.gl_enum(),
+                    0,
+                    &data,
+                );
+                self.gl.bind_buffer(target.gl_enum(), None);
+
+                // updates status
+                status.upgrade().map(|mut status| {
+                    status
+                        .borrow_mut()
+                        .replace(BufferDescriptorStatus::UpdateBuffer {
+                            source: BufferSource::from_uint8_array(data, 0, size as u32),
+                        })
+                });
+            }
+
             // reduces memory usage
             container.memory_usage -= size;
+
             // updates LRU
             if let Some(more_recently) = lru_node.more_recently {
                 let more_recently = unsafe { &mut *more_recently };
@@ -910,11 +912,6 @@ impl BufferStore {
                 container.least_recently = None;
                 next_node = None;
             }
-            lru_node.more_recently = None;
-
-            if let Some(mut status) = status.upgrade() {
-                status.borrow_mut().replace(BufferDescriptorStatus::Dropped);
-            };
 
             // console_log!(
             //     "buffer {} dropped, {} memory freed, {} total",
