@@ -2,7 +2,7 @@ use crate::render::webgl::{
     attribute::{AttributeBinding, AttributeValue},
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    EntityRenderState,
+    RenderingEntityState,
 };
 
 pub mod environment_mapping;
@@ -20,20 +20,20 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, state: &EntityRenderState) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, state: &RenderingEntityState) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, state: &EntityRenderState) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, state: &RenderingEntityState) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &EntityRenderState) {}
+    fn prepare(&mut self, state: &RenderingEntityState) {}
 
     #[allow(unused_variables)]
-    fn pre_render(&mut self, state: &EntityRenderState) {}
+    fn pre_render(&mut self, state: &RenderingEntityState) {}
 
     #[allow(unused_variables)]
-    fn post_render(&mut self, state: &EntityRenderState) {}
+    fn post_render(&mut self, state: &RenderingEntityState) {}
 }

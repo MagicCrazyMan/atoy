@@ -12,7 +12,7 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
-        EntityRenderState,
+        RenderingEntityState,
     },
 };
 
@@ -112,11 +112,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -135,7 +135,7 @@ impl Material for TextureMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &EntityRenderState) {
+    fn prepare(&mut self, _: &RenderingEntityState) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

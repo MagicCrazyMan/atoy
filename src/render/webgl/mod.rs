@@ -187,13 +187,13 @@ struct RenderGroup<'a> {
     program: *const WebGlProgram,
     attribute_locations: *const HashMap<AttributeBinding, GLuint>,
     uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
-    entities: Vec<EntityRenderState<'a>>,
+    entities: Vec<RenderingEntityState<'a>>,
 }
 
 /// A objects collection for rendering an entity.
 /// Including a [`WebGl2RenderingContext`], current rendering [`Scene`],
 /// current [`Entity`] and its carrying [`Geometry`] and [`Material`].
-pub struct EntityRenderState<'a> {
+pub struct RenderingEntityState<'a> {
     gl: *mut WebGl2RenderingContext,
     scene: *mut Scene,
     entity: *mut Entity,
@@ -202,7 +202,7 @@ pub struct EntityRenderState<'a> {
     _p: PhantomData<&'a ()>
 }
 
-impl<'a> EntityRenderState<'a> {
+impl<'a> RenderingEntityState<'a> {
     /// Gets [`WebGl2RenderingContext`].
     #[inline]
     pub fn gl(&self) -> &WebGl2RenderingContext {
@@ -362,7 +362,7 @@ impl WebGL2Render {
             if let (Some(geometry), Some(material)) = (entity.geometry_raw(), material) {
                 let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
 
-                let state = EntityRenderState {
+                let state = RenderingEntityState {
                     gl: &mut self.gl,
                     entity,
                     geometry,
@@ -409,12 +409,12 @@ impl WebGL2Render {
     }
 
     /// Calls pre-render callback of the entity.
-    fn pre_render(&self, state: &EntityRenderState) {
+    fn pre_render(&self, state: &RenderingEntityState) {
         state.material().pre_render(state);
     }
 
     /// Calls post-render callback of the entity.
-    fn post_render(&self, state: &EntityRenderState) {
+    fn post_render(&self, state: &RenderingEntityState) {
         state.material().post_render(state);
     }
 
@@ -422,7 +422,7 @@ impl WebGL2Render {
     fn bind_attributes(
         &mut self,
         attribute_locations: &HashMap<AttributeBinding, GLuint>,
-        state: &EntityRenderState,
+        state: &RenderingEntityState,
     ) {
         let gl = &self.gl;
 
@@ -531,7 +531,7 @@ impl WebGL2Render {
     fn bind_uniforms(
         &mut self,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
-        state: &EntityRenderState,
+        state: &RenderingEntityState,
     ) {
         let gl = &self.gl;
 
@@ -671,7 +671,7 @@ impl WebGL2Render {
         }
     }
 
-    fn draw(&mut self, state: &EntityRenderState) {
+    fn draw(&mut self, state: &RenderingEntityState) {
         let gl = &self.gl;
 
         // draws entity

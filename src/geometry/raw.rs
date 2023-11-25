@@ -1,6 +1,6 @@
 use std::{any::Any, collections::HashMap};
 
-use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue, EntityRenderState};
+use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue, RenderingEntityState};
 
 use super::Geometry;
 
@@ -50,11 +50,11 @@ impl Geometry for RawGeometry {
         self.texture_coordinates.clone()
     }
 
-    fn attribute_value(&self, name: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         self.attributes.get(name).map(|v| v.clone())
     }
 
-    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         self.uniforms.get(name).map(|v| v.clone())
     }
 

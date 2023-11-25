@@ -17,7 +17,7 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
-        EntityRenderState,
+        RenderingEntityState,
     },
 };
 
@@ -161,7 +161,7 @@ impl Material for TextureInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         match name {
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
@@ -176,7 +176,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -195,7 +195,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &EntityRenderState) {
+    fn prepare(&mut self, _: &RenderingEntityState) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

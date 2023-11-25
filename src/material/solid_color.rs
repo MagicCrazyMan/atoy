@@ -4,7 +4,7 @@ use crate::render::webgl::{
     attribute::{AttributeBinding, AttributeValue},
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    EntityRenderState,
+    RenderingEntityState,
 };
 
 use super::Material;
@@ -84,11 +84,11 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         match name {
             COLOR_UNIFORM => Some(UniformValue::FloatVector3([
                 self.color.red,

@@ -10,7 +10,7 @@ use crate::{
             BufferUsage,
         },
         draw::{Draw, DrawMode},
-        uniform::UniformValue, EntityRenderState,
+        uniform::UniformValue, RenderingEntityState,
     },
     utils::slice_to_float32_array,
 };
@@ -131,11 +131,11 @@ impl Geometry for Cube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         None
     }
 

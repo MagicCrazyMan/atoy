@@ -11,7 +11,7 @@ use crate::{
             TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit,
         },
         uniform::{UniformBinding, UniformValue},
-        EntityRenderState,
+        RenderingEntityState,
     },
 };
 
@@ -117,11 +117,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -138,7 +138,7 @@ impl Material for EnvironmentMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &EntityRenderState) {
+    fn prepare(&mut self, _: &RenderingEntityState) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;

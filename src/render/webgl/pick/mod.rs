@@ -13,7 +13,7 @@ use super::{
     error::Error,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    EntityRenderState,
+    RenderingEntityState,
 };
 
 pub(super) struct EntityPicker {
@@ -291,11 +291,11 @@ impl Material for PickDetectionMaterial {
         ]
     }
 
-    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, state: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, state: &RenderingEntityState) -> Option<UniformValue> {
         match name {
             "u_Index" => self.id2index.get(state.entity().id()).cloned(),
             _ => None,
@@ -310,7 +310,7 @@ impl Material for PickDetectionMaterial {
         None
     }
 
-    fn prepare(&mut self, state: &EntityRenderState) {
+    fn prepare(&mut self, state: &RenderingEntityState) {
         let entity = state.entity();
 
         let index = self.id2index.len() + 1; // index 0 as nothing

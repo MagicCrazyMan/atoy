@@ -10,7 +10,7 @@ use crate::render::webgl::{
     },
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    EntityRenderState,
+    RenderingEntityState,
 };
 
 use super::Material;
@@ -146,7 +146,7 @@ impl Material for SolidColorInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &EntityRenderState) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
         match name {
             COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
@@ -170,7 +170,7 @@ impl Material for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, _: &str, _: &EntityRenderState) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &RenderingEntityState) -> Option<UniformValue> {
         None
     }
 }
