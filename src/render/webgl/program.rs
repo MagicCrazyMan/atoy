@@ -1,11 +1,16 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Debug,
+};
 
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use crate::material::Material;
 
-use super::{attribute::AttributeBinding, conversion::GLuint, error::Error, uniform::UniformBinding};
+use super::{
+    attribute::AttributeBinding, conversion::GLuint, error::Error, uniform::UniformBinding,
+};
 
 #[derive(Debug, Clone)]
 pub enum ShaderSource<'a> {
@@ -78,14 +83,22 @@ impl ProgramStore {
     // }
 
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub fn program_or_compile(&mut self, material: &dyn Material) -> Result<&ProgramItem, Error> {
-        let gl = self.gl.clone();
-        let item = self
-            .store
-            .entry(material.name().to_string())
-            .or_insert_with(move || compile_material(&gl, material).unwrap());
+    pub fn use_program<'a>(
+        &'a mut self,
+        material: &dyn Material,
+    ) -> Result<&'a ProgramItem, Error> {
+        let store = &mut self.store;
 
-        Ok(item)
+        match store.entry(material.name().to_string()) {
+            Entry::Occupied(occupied) => {
+                let item: *const ProgramItem = occupied.get();
+                Ok(unsafe { &*item })
+            }
+            Entry::Vacant(vacant) => {
+                let item = vacant.insert(compile_material(&self.gl, material)?);
+                Ok(item)
+            }
+        }
     }
 
     // pub fn material(&self, name: &str) -> Option<&ProgramItem> {
@@ -123,7 +136,7 @@ fn compile_material(
 //     gl.delete_program(Some(&program));
 // }
 
-fn compile_shader(
+pub fn compile_shader(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
 ) -> Result<WebGlShader, Error> {
@@ -160,7 +173,7 @@ fn compile_shader(
     }
 }
 
-fn create_program(
+pub fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
 ) -> Result<WebGlProgram, Error> {
@@ -188,7 +201,7 @@ fn create_program(
     }
 }
 
-fn collect_attribute_locations(
+pub fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
@@ -209,7 +222,7 @@ fn collect_attribute_locations(
     Ok(locations)
 }
 
-fn collect_uniform_locations(
+pub fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],

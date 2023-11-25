@@ -19,6 +19,7 @@ use self::{
     conversion::{GLfloat, GLint, GLuint, ToGlEnum},
     draw::{CullFace, Draw},
     error::Error,
+    pick::EntityPicker,
     program::ProgramStore,
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
@@ -29,6 +30,7 @@ pub mod buffer;
 pub mod conversion;
 pub mod draw;
 pub mod error;
+pub mod pick;
 pub mod program;
 pub mod texture;
 pub mod uniform;
@@ -96,8 +98,10 @@ impl<'a> EventTargets<'a> {
 
 pub struct WebGL2Render<'a> {
     gl: WebGl2RenderingContext,
+    entity_picker: EntityPicker,
     depth_test: bool,
     cull_face: Option<CullFace>,
+    clear_depth: f32,
     clear_color: Vec4,
     program_store: ProgramStore,
     buffer_store: BufferStore,
@@ -126,12 +130,14 @@ impl<'a> WebGL2Render<'a> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
-            // buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
-            buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
+            buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
+            // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
             texture_store: TextureStore::new(gl.clone()),
+            entity_picker: EntityPicker::new(gl.clone()),
             gl,
             depth_test: true,
             cull_face: None,
+            clear_depth: 0.0,
             clear_color: Vec4::new(),
             event_targets: EventTargets::new(),
         };
@@ -207,6 +213,15 @@ impl<'a> WebGL2Render<'a> {
             self.clear_color.0[2] as GLfloat,
             self.clear_color.0[3] as GLfloat,
         );
+    }
+
+    pub fn clear_depth(&self) -> f32 {
+        self.clear_depth
+    }
+
+    pub fn set_clear_depth(&mut self, clear_depth: f32) {
+        self.clear_depth = clear_depth;
+        self.gl.clear_depth(clear_depth);
     }
 
     pub fn gl(&self) -> &WebGl2RenderingContext {
@@ -310,8 +325,29 @@ struct RenderItem {
 }
 
 impl<'a> WebGL2Render<'a> {
+    pub fn pick(
+        &mut self,
+        scene: &mut Scene,
+        timestamp: f64,
+        x: i32,
+        y: i32,
+    ) -> Result<Option<&mut Entity>, Error> {
+        self.entity_picker.prepare()?;
+        self.render_inner(scene, timestamp, true)?;
+        self.entity_picker.pick(x, y)
+    }
+
+    pub fn render(&mut self, scene: &mut Scene, timestamp: f64) -> Result<(), Error> {
+        self.render_inner(scene, timestamp, false)
+    }
+
     /// Render frame.
-    pub fn render(&mut self, scene: &mut Scene, _timestamp: f64) -> Result<(), Error> {
+    fn render_inner(
+        &mut self,
+        scene: &mut Scene,
+        _timestamp: f64,
+        is_picking: bool,
+    ) -> Result<(), Error> {
         self.event_targets.before_render.raise(());
 
         // update WebGL viewport
@@ -323,11 +359,18 @@ impl<'a> WebGL2Render<'a> {
         );
 
         // collects entities and render console_error_panic_hook
-        let entities_group = self.prepare(scene)?;
+        let entities_group = self.prepare(scene, is_picking)?;
 
         // clear scene
-        self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+        if is_picking {
+            self.gl
+                .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
+            // self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+            self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+        } else {
+            self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+            self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+        }
 
         // render each entities group
         for (
@@ -383,13 +426,15 @@ impl<'a> WebGL2Render<'a> {
     }
 
     /// Resets WebGl status.
-    fn reset(&self) {
-
-    }
+    fn reset(&self) {}
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare(&mut self, scene: &mut Scene) -> Result<HashMap<String, RenderGroup>, Error> {
+    fn prepare(
+        &mut self,
+        scene: &mut Scene,
+        is_picking: bool,
+    ) -> Result<HashMap<String, RenderGroup>, Error> {
         self.event_targets.before_prepare.raise(());
 
         let view_matrix = scene.active_camera().view_matrix();
@@ -415,14 +460,20 @@ impl<'a> WebGL2Render<'a> {
                 continue;
             }
 
+            // uses picking detection material if in picking mode
+            let material: Option<*mut dyn Material> = if is_picking {
+                Some(self.entity_picker.material())
+            } else {
+                entity.material_raw()
+            };
+
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
-            if let (Some(geometry), Some(material)) = (entity.geometry_raw(), entity.material_raw())
-            {
+            if let (Some(geometry), Some(material)) = (entity.geometry_raw(), material) {
                 let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
 
                 // calls prepare callback
-                material.prepare(scene, entity, geometry);
+                material.prepare(&self.gl, scene, entity, geometry);
 
                 // check whether material is ready or not
                 if material.ready() {
@@ -435,7 +486,7 @@ impl<'a> WebGL2Render<'a> {
                         Some(group) => group.entities.push(render_item),
                         None => {
                             // precompile material to program
-                            let item = self.program_store.program_or_compile(material)?;
+                            let item = self.program_store.use_program(material)?;
 
                             group.insert(
                                 material.name().to_string(),
@@ -473,7 +524,7 @@ impl<'a> WebGL2Render<'a> {
         geometry: &mut dyn Geometry,
         material: &mut dyn Material,
     ) {
-        material.pre_render(scene, entity, geometry);
+        material.pre_render(&self.gl, scene, entity, geometry);
     }
 
     /// Calls post-render callback of the entity.
@@ -484,7 +535,7 @@ impl<'a> WebGL2Render<'a> {
         geometry: &mut dyn Geometry,
         material: &mut dyn Material,
     ) {
-        material.post_render(scene, entity, geometry);
+        material.post_render(&self.gl, scene, entity, geometry);
     }
 
     /// Binds attributes of the entity.
@@ -513,7 +564,7 @@ impl<'a> WebGL2Render<'a> {
                 AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
                 AttributeBinding::GeometryNormal => geometry.normals(),
                 AttributeBinding::FromGeometry(name) => geometry.attribute_value(name),
-                AttributeBinding::FromMaterial(name) => material.attribute_value(name),
+                AttributeBinding::FromMaterial(name) => material.attribute_value(name, entity),
                 AttributeBinding::FromEntity(name) => entity.attribute_value(name),
             };
             let Some(value) = value else {
@@ -633,7 +684,7 @@ impl<'a> WebGL2Render<'a> {
         for (binding, location) in uniform_locations {
             let value = match binding {
                 UniformBinding::FromGeometry(name) => geometry.uniform_value(name),
-                UniformBinding::FromMaterial(name) => material.uniform_value(name),
+                UniformBinding::FromMaterial(name) => material.uniform_value(name, entity),
                 UniformBinding::FromEntity(name) => entity.uniform_value(name),
                 UniformBinding::ParentModelMatrix
                 | UniformBinding::ModelMatrix

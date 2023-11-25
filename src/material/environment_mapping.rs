@@ -1,5 +1,5 @@
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::HtmlImageElement;
+use web_sys::{HtmlImageElement, WebGl2RenderingContext};
 
 use crate::{
     document,
@@ -118,11 +118,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -139,7 +139,7 @@ impl Material for EnvironmentMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
+    fn prepare(&mut self, _: &WebGl2RenderingContext, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;
