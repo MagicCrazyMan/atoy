@@ -147,80 +147,9 @@ static mut DRAW_START: f64 = 0.0;
 static mut DRAW_END: f64 = 0.0;
 static mut DRAW_TOTAL: f64 = 0.0;
 
-fn create_render<'a, 'b>(scene: &'a Scene) -> Result<WebGL2Render<'b>, Error> {
+fn create_render(scene: &Scene) -> Result<WebGL2Render, Error> {
     let mut render = WebGL2Render::new(&scene)?;
     render.set_cull_face(Some(CullFace::Back));
-
-    render.before_render().on(move |_| unsafe {
-        RENDER_START = Date::now();
-    });
-    render.before_prepare().on(move |_| unsafe {
-        PREPARE_START = Date::now();
-    });
-    render.after_prepare().on(move |_| unsafe {
-        PREPARE_END = Date::now();
-    });
-    // render.before_entity_bind_attributes().on(move |_| unsafe {
-    //     BIND_ATTRIBUTES_START = Date::now();
-    // });
-    // render.after_entity_bind_attributes().on(move |_| unsafe {
-    //     BIND_ATTRIBUTES_END = Date::now();
-    //     BIND_ATTRIBUTES_TOTAL += BIND_ATTRIBUTES_END - BIND_ATTRIBUTES_START;
-    // });
-    // render.before_entity_bind_uniforms().on(move |_| unsafe {
-    //     BIND_UNIFORMS_START = Date::now();
-    // });
-    // render.after_entity_bind_uniforms().on(move |_| unsafe {
-    //     BIND_UNIFORMS_END = Date::now();
-    //     BIND_UNIFORMS_TOTAL += BIND_UNIFORMS_END - BIND_UNIFORMS_START;
-    // });
-    // render.before_entity_draw().on(move |_| unsafe {
-    //     DRAW_START = Date::now();
-    // });
-    // render.after_entity_draw().on(move |_| unsafe {
-    //     DRAW_END = Date::now();
-    //     DRAW_TOTAL += DRAW_END - DRAW_START;
-    // });
-    render.after_render().on(move |_| unsafe {
-        RENDER_END = Date::now();
-
-        let total = RENDER_END - RENDER_START;
-        let preparation = PREPARE_END - PREPARE_START;
-        document()
-            .get_element_by_id("preparation")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", preparation));
-        document()
-            .get_element_by_id("attributes")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", BIND_ATTRIBUTES_TOTAL));
-        document()
-            .get_element_by_id("uniforms")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", BIND_UNIFORMS_TOTAL));
-        document()
-            .get_element_by_id("draw")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", DRAW_TOTAL));
-        document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", total));
-
-        RENDER_START = 0.0;
-        RENDER_END = 0.0;
-        PREPARE_START = 0.0;
-        PREPARE_END = 0.0;
-        BIND_ATTRIBUTES_START = 0.0;
-        BIND_ATTRIBUTES_END = 0.0;
-        BIND_ATTRIBUTES_TOTAL = 0.0;
-        BIND_UNIFORMS_START = 0.0;
-        BIND_UNIFORMS_END = 0.0;
-        BIND_UNIFORMS_TOTAL = 0.0;
-        DRAW_START = 0.0;
-        DRAW_END = 0.0;
-        DRAW_TOTAL = 0.0;
-    });
 
     Ok(render)
 }
@@ -744,11 +673,11 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                     console_log!("pick entity {}", entity.id());
                     entity.set_material(Some(SolidColorMaterial::with_color(rand::random())));
                     *picked_entity.borrow_mut() = Some(entity);
-                },
+                }
                 None => {
                     console_log!("no entity picked");
                     *picked_entity.borrow_mut() = None;
-                },
+                }
             }
         }
 

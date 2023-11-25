@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::{collections::{HashMap, VecDeque}, marker::PhantomData};
 
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
@@ -9,9 +9,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
-use crate::{
-    entity::Entity, event::EventTarget, geometry::Geometry, material::Material, scene::Scene,
-};
+use crate::{entity::Entity, geometry::Geometry, material::Material, scene::Scene};
 
 use self::{
     attribute::{AttributeBinding, AttributeValue},
@@ -46,57 +44,7 @@ extern "C" {
     pub type WebGL2RenderOptionsObject;
 }
 
-struct EventTargets<'a> {
-    before_render: EventTarget<()>,
-    before_prepare: EventTarget<()>,
-    after_prepare: EventTarget<()>,
-    before_entity_bind_attributes: EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<AttributeBinding, GLuint>,
-    )>,
-    after_entity_bind_attributes: EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<AttributeBinding, GLuint>,
-    )>,
-    before_entity_bind_uniforms: EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<UniformBinding, WebGlUniformLocation>,
-    )>,
-    after_entity_bind_uniforms: EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<UniformBinding, WebGlUniformLocation>,
-    )>,
-    before_entity_draw: EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)>,
-    after_entity_draw: EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)>,
-    after_render: EventTarget<()>,
-}
-
-impl<'a> EventTargets<'a> {
-    fn new() -> Self {
-        Self {
-            before_render: EventTarget::new(),
-            before_prepare: EventTarget::new(),
-            after_prepare: EventTarget::new(),
-            before_entity_bind_attributes: EventTarget::new(),
-            after_entity_bind_attributes: EventTarget::new(),
-            before_entity_bind_uniforms: EventTarget::new(),
-            after_entity_bind_uniforms: EventTarget::new(),
-            before_entity_draw: EventTarget::new(),
-            after_entity_draw: EventTarget::new(),
-            after_render: EventTarget::new(),
-        }
-    }
-}
-
-pub struct WebGL2Render<'a> {
+pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
     entity_picker: EntityPicker,
     depth_test: bool,
@@ -106,12 +54,11 @@ pub struct WebGL2Render<'a> {
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
-    event_targets: EventTargets<'a>,
 }
 
-impl<'a> WebGL2Render<'a> {
+impl WebGL2Render {
     /// Constructs a new WebGL2 render.
-    pub fn new(scene: &Scene) -> Result<WebGL2Render<'a>, Error> {
+    pub fn new(scene: &Scene) -> Result<WebGL2Render, Error> {
         Self::new_inner(scene, None)
     }
 
@@ -119,14 +66,14 @@ impl<'a> WebGL2Render<'a> {
     pub fn with_options(
         scene: &Scene,
         options: WebGL2RenderOptionsObject,
-    ) -> Result<WebGL2Render<'a>, Error> {
+    ) -> Result<WebGL2Render, Error> {
         Self::new_inner(scene, Some(options))
     }
 
     fn new_inner(
         scene: &Scene,
         options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render<'a>, Error> {
+    ) -> Result<WebGL2Render, Error> {
         let gl = Self::gl_context(scene.canvas(), options)?;
         let mut render = Self {
             program_store: ProgramStore::new(gl.clone()),
@@ -139,7 +86,6 @@ impl<'a> WebGL2Render<'a> {
             cull_face: None,
             clear_depth: 0.0,
             clear_color: Vec4::new(),
-            event_targets: EventTargets::new(),
         };
 
         render.set_clear_color(Vec4::new());
@@ -172,7 +118,7 @@ impl<'a> WebGL2Render<'a> {
     }
 }
 
-impl<'a> WebGL2Render<'a> {
+impl WebGL2Render {
     pub fn depth_test(&self) -> bool {
         self.depth_test
     }
@@ -237,94 +183,58 @@ impl<'a> WebGL2Render<'a> {
     }
 }
 
-impl<'a> WebGL2Render<'a> {
-    pub fn before_render(&mut self) -> &mut EventTarget<()> {
-        &mut self.event_targets.before_render
-    }
-
-    pub fn before_prepare(&mut self) -> &mut EventTarget<()> {
-        &mut self.event_targets.before_prepare
-    }
-
-    pub fn after_prepare(&mut self) -> &mut EventTarget<()> {
-        &mut self.event_targets.after_prepare
-    }
-
-    pub fn before_entity_bind_attributes(
-        &mut self,
-    ) -> &mut EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<AttributeBinding, GLuint>,
-    )> {
-        &mut self.event_targets.before_entity_bind_attributes
-    }
-
-    pub fn after_entity_bind_attributes(
-        &mut self,
-    ) -> &mut EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<AttributeBinding, GLuint>,
-    )> {
-        &mut self.event_targets.after_entity_bind_attributes
-    }
-
-    pub fn before_entity_bind_uniforms(
-        &mut self,
-    ) -> &mut EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<UniformBinding, WebGlUniformLocation>,
-    )> {
-        &mut self.event_targets.before_entity_bind_uniforms
-    }
-
-    pub fn after_entity_bind_uniforms(
-        &mut self,
-    ) -> &mut EventTarget<(
-        &'a Entity,
-        &'a dyn Geometry,
-        &'a dyn Material,
-        &'a HashMap<UniformBinding, WebGlUniformLocation>,
-    )> {
-        &mut self.event_targets.after_entity_bind_uniforms
-    }
-
-    pub fn before_entity_draw(
-        &mut self,
-    ) -> &mut EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)> {
-        &mut self.event_targets.before_entity_draw
-    }
-
-    pub fn after_entity_draw(
-        &mut self,
-    ) -> &mut EventTarget<(&'a Entity, &'a dyn Geometry, &'a dyn Material)> {
-        &mut self.event_targets.after_entity_draw
-    }
-
-    pub fn after_render(&mut self) -> &mut EventTarget<()> {
-        &mut self.event_targets.after_render
-    }
-}
-
-struct RenderGroup {
+struct RenderGroup<'a> {
     program: *const WebGlProgram,
     attribute_locations: *const HashMap<AttributeBinding, GLuint>,
     uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
-    entities: Vec<RenderItem>,
+    entities: Vec<EntityRenderState<'a>>,
 }
 
-struct RenderItem {
-    entity_ptr: *mut Entity,
-    geometry_ptr: *mut dyn Geometry,
-    material_ptr: *mut dyn Material,
+/// A objects collection for rendering an entity.
+/// Including a [`WebGl2RenderingContext`], current rendering [`Scene`],
+/// current [`Entity`] and its carrying [`Geometry`] and [`Material`].
+pub struct EntityRenderState<'a> {
+    gl: *mut WebGl2RenderingContext,
+    scene: *mut Scene,
+    entity: *mut Entity,
+    geometry: *mut dyn Geometry,
+    material: *mut dyn Material,
+    _p: PhantomData<&'a ()>
 }
 
-impl<'a> WebGL2Render<'a> {
+impl<'a> EntityRenderState<'a> {
+    /// Gets [`WebGl2RenderingContext`].
+    #[inline]
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        unsafe { &*self.gl }
+    }
+
+    /// Gets mutable [`Scene`].
+    #[inline]
+    pub fn scene(&self) -> &mut Scene {
+        unsafe { &mut *self.scene }
+    }
+
+    /// Gets mutable [`Entity`].
+    #[inline]
+    pub fn entity(&self) -> &mut Entity {
+        unsafe { &mut *self.entity }
+    }
+
+    /// Gets mutable [`Geometry`] belongs to this entity.
+    #[inline]
+    pub fn geometry(&self) -> &mut dyn Geometry {
+        unsafe { &mut *self.geometry }
+    }
+
+    /// Gets mutable [`Material`] belongs to this entity.
+    #[inline]
+    pub fn material(&self) -> &mut dyn Material {
+        unsafe { &mut *self.material }
+    }
+}
+
+impl WebGL2Render {
     pub fn pick(
         &mut self,
         scene: &mut Scene,
@@ -348,8 +258,6 @@ impl<'a> WebGL2Render<'a> {
         _timestamp: f64,
         is_picking: bool,
     ) -> Result<(), Error> {
-        self.event_targets.before_render.raise(());
-
         // update WebGL viewport
         self.gl.viewport(
             0,
@@ -359,7 +267,7 @@ impl<'a> WebGL2Render<'a> {
         );
 
         // collects entities and render console_error_panic_hook
-        let entities_group = self.prepare(scene, is_picking)?;
+        let group = self.prepare(scene, is_picking)?;
 
         // clear scene
         if is_picking {
@@ -381,7 +289,7 @@ impl<'a> WebGL2Render<'a> {
                 uniform_locations,
                 entities,
             },
-        ) in entities_group
+        ) in group
         {
             let (program, attribute_locations, uniform_locations) =
                 unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
@@ -390,37 +298,21 @@ impl<'a> WebGL2Render<'a> {
             self.gl.use_program(Some(program));
 
             // render each entity
-            for entity_item in entities {
-                let RenderItem {
-                    entity_ptr,
-                    geometry_ptr,
-                    material_ptr,
-                } = entity_item;
-                let (entity, geometry, material) =
-                    unsafe { (&mut *entity_ptr, &mut *geometry_ptr, &mut *material_ptr) };
-
+            for state in entities {
                 // pre-render
-                self.pre_render(scene, entity, geometry, material);
+                self.pre_render(&state);
                 // binds attributes
-                self.bind_attributes(attribute_locations, entity_ptr, geometry_ptr, material_ptr);
+                self.bind_attributes(attribute_locations, &state);
                 // binds uniforms
-                self.bind_uniforms(
-                    scene,
-                    uniform_locations,
-                    entity_ptr,
-                    geometry_ptr,
-                    material_ptr,
-                );
+                self.bind_uniforms(uniform_locations, &state);
                 // draws
-                self.draw(entity_ptr, geometry_ptr, material_ptr);
+                self.draw(&state);
                 // post-render
-                self.post_render(scene, entity, geometry, material);
+                self.post_render(&state);
             }
         }
 
         self.reset();
-
-        self.event_targets.after_render.raise(());
 
         Ok(())
     }
@@ -430,13 +322,11 @@ impl<'a> WebGL2Render<'a> {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare(
+    fn prepare<'a>(
         &mut self,
-        scene: &mut Scene,
+        scene: &'a mut Scene,
         is_picking: bool,
-    ) -> Result<HashMap<String, RenderGroup>, Error> {
-        self.event_targets.before_prepare.raise(());
-
+    ) -> Result<HashMap<String, RenderGroup<'a>>, Error> {
         let view_matrix = scene.active_camera().view_matrix();
         let proj_matrix = scene.active_camera().proj_matrix();
 
@@ -472,18 +362,22 @@ impl<'a> WebGL2Render<'a> {
             if let (Some(geometry), Some(material)) = (entity.geometry_raw(), material) {
                 let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
 
+                let state = EntityRenderState {
+                    gl: &mut self.gl,
+                    entity,
+                    geometry,
+                    material,
+                    scene,
+                    _p: PhantomData
+                };
+
                 // calls prepare callback
-                material.prepare(&self.gl, scene, entity, geometry);
+                state.material().prepare(&state);
 
                 // check whether material is ready or not
                 if material.ready() {
-                    let render_item = RenderItem {
-                        entity_ptr: entity,
-                        geometry_ptr: geometry,
-                        material_ptr: material,
-                    };
                     match group.get_mut(material.name()) {
-                        Some(group) => group.entities.push(render_item),
+                        Some(group) => group.entities.push(state),
                         None => {
                             // precompile material to program
                             let item = self.program_store.use_program(material)?;
@@ -494,7 +388,7 @@ impl<'a> WebGL2Render<'a> {
                                     program: item.program(),
                                     attribute_locations: item.attribute_locations(),
                                     uniform_locations: item.uniform_locations(),
-                                    entities: vec![render_item],
+                                    entities: vec![state],
                                 },
                             );
                         }
@@ -511,61 +405,41 @@ impl<'a> WebGL2Render<'a> {
             );
         }
 
-        self.event_targets.after_prepare.raise(());
-
         Ok(group)
     }
 
     /// Calls pre-render callback of the entity.
-    fn pre_render(
-        &self,
-        scene: &mut Scene,
-        entity: &mut Entity,
-        geometry: &mut dyn Geometry,
-        material: &mut dyn Material,
-    ) {
-        material.pre_render(&self.gl, scene, entity, geometry);
+    fn pre_render(&self, state: &EntityRenderState) {
+        state.material().pre_render(state);
     }
 
     /// Calls post-render callback of the entity.
-    fn post_render(
-        &self,
-        scene: &mut Scene,
-        entity: &mut Entity,
-        geometry: &mut dyn Geometry,
-        material: &mut dyn Material,
-    ) {
-        material.post_render(&self.gl, scene, entity, geometry);
+    fn post_render(&self, state: &EntityRenderState) {
+        state.material().post_render(state);
     }
 
     /// Binds attributes of the entity.
     fn bind_attributes(
         &mut self,
-        attribute_locations: &'a HashMap<AttributeBinding, GLuint>,
-        entity_ptr: *const Entity,
-        geometry_ptr: *const dyn Geometry,
-        material_ptr: *const dyn Material,
+        attribute_locations: &HashMap<AttributeBinding, GLuint>,
+        state: &EntityRenderState,
     ) {
-        let (entity, geometry, material) =
-            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
-
-        self.event_targets.before_entity_bind_attributes.raise((
-            entity,
-            geometry,
-            material,
-            attribute_locations,
-        ));
-
         let gl = &self.gl;
 
         for (binding, location) in attribute_locations {
             let value = match binding {
-                AttributeBinding::GeometryPosition => geometry.vertices(),
-                AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
-                AttributeBinding::GeometryNormal => geometry.normals(),
-                AttributeBinding::FromGeometry(name) => geometry.attribute_value(name),
-                AttributeBinding::FromMaterial(name) => material.attribute_value(name, entity),
-                AttributeBinding::FromEntity(name) => entity.attribute_value(name),
+                AttributeBinding::GeometryPosition => state.geometry().vertices(),
+                AttributeBinding::GeometryTextureCoordinate => {
+                    state.geometry().texture_coordinates()
+                }
+                AttributeBinding::GeometryNormal => state.geometry().normals(),
+                AttributeBinding::FromGeometry(name) => {
+                    state.geometry().attribute_value(name, &state)
+                }
+                AttributeBinding::FromMaterial(name) => {
+                    state.material().attribute_value(name, &state)
+                }
+                AttributeBinding::FromEntity(name) => state.entity().attribute_value(name),
             };
             let Some(value) = value else {
                 // should log warning
@@ -650,42 +524,22 @@ impl<'a> WebGL2Render<'a> {
                 AttributeValue::Vertex3fv(v) => gl.vertex_attrib3fv_with_f32_array(*location, &v),
                 AttributeValue::Vertex4fv(v) => gl.vertex_attrib4fv_with_f32_array(*location, &v),
             };
-
-            self.event_targets.after_entity_bind_attributes.raise((
-                entity,
-                geometry,
-                material,
-                attribute_locations,
-            ));
         }
     }
 
     /// Binds uniform data of the entity.
     fn bind_uniforms(
         &mut self,
-        scene: &Scene,
-        uniform_locations: &'a HashMap<UniformBinding, WebGlUniformLocation>,
-        entity_ptr: *const Entity,
-        geometry_ptr: *const dyn Geometry,
-        material_ptr: *const dyn Material,
+        uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
+        state: &EntityRenderState,
     ) {
-        let (entity, geometry, material) =
-            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
-
-        self.event_targets.before_entity_bind_uniforms.raise((
-            entity,
-            geometry,
-            material,
-            uniform_locations,
-        ));
-
         let gl = &self.gl;
 
         for (binding, location) in uniform_locations {
             let value = match binding {
-                UniformBinding::FromGeometry(name) => geometry.uniform_value(name),
-                UniformBinding::FromMaterial(name) => material.uniform_value(name, entity),
-                UniformBinding::FromEntity(name) => entity.uniform_value(name),
+                UniformBinding::FromGeometry(name) => state.geometry().uniform_value(name, &state),
+                UniformBinding::FromMaterial(name) => state.material().uniform_value(name, &state),
+                UniformBinding::FromEntity(name) => state.entity().uniform_value(name),
                 UniformBinding::ParentModelMatrix
                 | UniformBinding::ModelMatrix
                 | UniformBinding::NormalMatrix
@@ -693,18 +547,20 @@ impl<'a> WebGL2Render<'a> {
                 | UniformBinding::ModelViewProjMatrix
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
-                        UniformBinding::ParentModelMatrix => match entity.parent() {
+                        UniformBinding::ParentModelMatrix => match state.entity().parent() {
                             Some(parent) => parent.model_matrix().to_gl(),
                             None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
                         },
-                        UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
-                        UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
-                        UniformBinding::ModelViewMatrix => entity.model_view_matrix().to_gl(),
+                        UniformBinding::ModelMatrix => state.entity().model_matrix().to_gl(),
+                        UniformBinding::NormalMatrix => state.entity().normal_matrix().to_gl(),
+                        UniformBinding::ModelViewMatrix => {
+                            state.entity().model_view_matrix().to_gl()
+                        }
                         UniformBinding::ModelViewProjMatrix => {
-                            entity.model_view_proj_matrix().to_gl()
+                            state.entity().model_view_proj_matrix().to_gl()
                         }
                         UniformBinding::ViewProjMatrix => {
-                            scene.active_camera().view_proj_matrix().to_gl()
+                            state.scene().active_camera().view_proj_matrix().to_gl()
                         }
                         _ => unreachable!(),
                     };
@@ -717,10 +573,10 @@ impl<'a> WebGL2Render<'a> {
                 UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraDirection => {
                     let vec = match binding {
                         UniformBinding::ActiveCameraPosition => {
-                            scene.active_camera().position().to_gl()
+                            state.scene().active_camera().position().to_gl()
                         }
                         UniformBinding::ActiveCameraDirection => {
-                            scene.active_camera().direction().to_gl()
+                            state.scene().active_camera().direction().to_gl()
                         }
                         _ => unreachable!(),
                     };
@@ -812,35 +668,16 @@ impl<'a> WebGL2Render<'a> {
                     gl.uniform1i(Some(location), texture_unit.unit_index());
                 }
             };
-
-            self.event_targets.after_entity_bind_uniforms.raise((
-                entity,
-                geometry,
-                material,
-                uniform_locations,
-            ));
         }
     }
 
-    fn draw(
-        &mut self,
-        entity_ptr: *const Entity,
-        geometry_ptr: *const dyn Geometry,
-        material_ptr: *const dyn Material,
-    ) {
-        let (entity, geometry, material) =
-            unsafe { (&*entity_ptr, &*geometry_ptr, &*material_ptr) };
-
-        self.event_targets
-            .before_entity_draw
-            .raise((entity, geometry, material));
-
+    fn draw(&mut self, state: &EntityRenderState) {
         let gl = &self.gl;
 
         // draws entity
-        if let Some(num_instances) = material.instanced() {
-            // dr: f64aw instanced
-            match geometry.draw() {
+        if let Some(num_instances) = state.material().instanced() {
+            // draw instanced
+            match state.geometry().draw() {
                 Draw::Arrays {
                     mode,
                     first,
@@ -877,7 +714,7 @@ impl<'a> WebGL2Render<'a> {
             }
         } else {
             // draw normally!
-            match geometry.draw() {
+            match state.geometry().draw() {
                 Draw::Arrays {
                     mode,
                     first,
@@ -912,9 +749,5 @@ impl<'a> WebGL2Render<'a> {
                 }
             }
         }
-
-        self.event_targets
-            .after_entity_draw
-            .raise((entity, geometry, material));
     }
 }

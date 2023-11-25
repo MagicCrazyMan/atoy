@@ -10,6 +10,7 @@ use crate::render::webgl::{
     },
     draw::{Draw, DrawMode},
     uniform::UniformValue,
+    EntityRenderState,
 };
 
 use super::Geometry;
@@ -107,11 +108,11 @@ impl Geometry for Sphere {
         None
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &EntityRenderState) -> Option<UniformValue> {
         None
     }
 

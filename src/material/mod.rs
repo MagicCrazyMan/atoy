@@ -1,14 +1,8 @@
-use web_sys::WebGl2RenderingContext;
-
-use crate::{
-    entity::Entity,
-    geometry::Geometry,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
-    },
-    scene::Scene,
+use crate::render::webgl::{
+    attribute::{AttributeBinding, AttributeValue},
+    program::ShaderSource,
+    uniform::{UniformBinding, UniformValue},
+    EntityRenderState,
 };
 
 pub mod environment_mapping;
@@ -26,41 +20,20 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, entity: &Entity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, state: &EntityRenderState) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, state: &EntityRenderState) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        scene: &mut Scene,
-        entity: &mut Entity,
-        geometry: &mut dyn Geometry,
-    ) {
-    }
+    fn prepare(&mut self, state: &EntityRenderState) {}
 
     #[allow(unused_variables)]
-    fn pre_render(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        scene: &mut Scene,
-        entity: &mut Entity,
-        geometry: &mut dyn Geometry,
-    ) {
-    }
+    fn pre_render(&mut self, state: &EntityRenderState) {}
 
     #[allow(unused_variables)]
-    fn post_render(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        scene: &mut Scene,
-        entity: &mut Entity,
-        geometry: &mut dyn Geometry,
-    ) {
-    }
+    fn post_render(&mut self, state: &EntityRenderState) {}
 }

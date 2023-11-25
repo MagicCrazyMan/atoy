@@ -5,7 +5,7 @@ use web_sys::{
     js_sys::Uint32Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
-use crate::{entity::Entity, geometry::Geometry, material::Material, scene::Scene};
+use crate::{entity::Entity, material::Material};
 
 use super::{
     attribute::{AttributeBinding, AttributeValue},
@@ -13,6 +13,7 @@ use super::{
     error::Error,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
+    EntityRenderState,
 };
 
 pub(super) struct EntityPicker {
@@ -129,6 +130,8 @@ impl EntityPicker {
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         self.gl
             .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+        self.gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
         Ok(entity)
     }
@@ -288,13 +291,13 @@ impl Material for PickDetectionMaterial {
         ]
     }
 
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &EntityRenderState) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, state: &EntityRenderState) -> Option<UniformValue> {
         match name {
-            "u_Index" => self.id2index.get(entity.id()).cloned(),
+            "u_Index" => self.id2index.get(state.entity().id()).cloned(),
             _ => None,
         }
     }
@@ -307,14 +310,9 @@ impl Material for PickDetectionMaterial {
         None
     }
 
-    fn prepare(
-        &mut self,
-        _: &WebGl2RenderingContext,
-        _: &mut Scene,
-        entity: &mut Entity,
-        _: &mut dyn Geometry,
-    ) {
-        let id = entity.id();
+    fn prepare(&mut self, state: &EntityRenderState) {
+        let entity = state.entity();
+
         let index = self.id2index.len() + 1; // index 0 as nothing
         if index >= u32::MAX as usize {
             panic!("too may entities in scene");
@@ -322,7 +320,7 @@ impl Material for PickDetectionMaterial {
 
         let index = index as u32;
         self.id2index
-            .insert(*id, UniformValue::UnsignedInteger1(index));
+            .insert(*entity.id(), UniformValue::UnsignedInteger1(index));
         self.index2entity.insert(index, entity);
     }
 }

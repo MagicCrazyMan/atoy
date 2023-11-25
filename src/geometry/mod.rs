@@ -6,7 +6,7 @@ pub mod raw;
 
 use std::any::Any;
 
-use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue};
+use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue, EntityRenderState};
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
@@ -17,9 +17,9 @@ pub trait Geometry {
 
     fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, state: &EntityRenderState) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, state: &EntityRenderState) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 

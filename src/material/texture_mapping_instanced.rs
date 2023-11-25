@@ -1,11 +1,9 @@
 use gl_matrix4rust::mat4::Mat4;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{js_sys::Float32Array, HtmlImageElement, WebGl2RenderingContext};
+use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
-    entity::Entity,
-    geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
@@ -19,8 +17,8 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
+        EntityRenderState,
     },
-    scene::Scene,
 };
 
 use super::Material;
@@ -163,7 +161,7 @@ impl Material for TextureInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &EntityRenderState) -> Option<AttributeValue> {
         match name {
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
@@ -178,7 +176,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &EntityRenderState) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -197,7 +195,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &WebGl2RenderingContext, _: &mut Scene, _: &mut Entity, _: &mut dyn Geometry) {
+    fn prepare(&mut self, _: &EntityRenderState) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")
