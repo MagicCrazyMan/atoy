@@ -1,23 +1,21 @@
-use web_sys::WebGl2RenderingContext;
-
 use crate::render::webgl::error::Error;
 
 use super::{RenderState, RenderStuff};
 
-pub trait PostprocessOp<'s, S> {
-    fn name(&'s self) -> &'s str;
+pub trait PostprocessOp<S> {
+    fn name(&self) -> &str;
 
-    fn post_process(&'s self, state: &'s RenderState<S>) -> Result<(), Error>;
+    fn post_process(&self, state: &RenderState<S>) -> Result<(), Error>;
 }
 
 pub enum InternalPostprocess {}
 
-impl<'s, S: RenderStuff<'s>> PostprocessOp<'s, S> for InternalPostprocess {
-    fn name(&'s self) -> &'s str {
+impl<S: RenderStuff> PostprocessOp<S> for InternalPostprocess {
+    fn name(&self) -> &str {
         todo!()
     }
 
-    fn post_process(&'s self, state: &'s RenderState<S>) -> Result<(), Error> {
+    fn post_process(&self, state: &RenderState<S>) -> Result<(), Error> {
         todo!()
     }
 }

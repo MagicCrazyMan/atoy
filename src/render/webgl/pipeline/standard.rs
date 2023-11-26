@@ -1,5 +1,5 @@
 use wasm_bindgen::JsValue;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
+use web_sys::HtmlCanvasElement;
 
 use crate::{
     camera::Camera,
@@ -18,20 +18,20 @@ struct StandardRenderStuff<'s> {
     scene: &'s mut Scene,
 }
 
-impl<'s> RenderStuff<'s> for StandardRenderStuff<'s> {
-    fn canvas(&'s self) -> &'s HtmlCanvasElement {
+impl<'s> RenderStuff for StandardRenderStuff<'s> {
+    fn canvas(&self) -> &HtmlCanvasElement {
         self.scene.canvas()
     }
 
-    fn ctx_options(&'s self) -> Option<&'s JsValue> {
+    fn ctx_options(&self) -> Option<&JsValue> {
         None
     }
 
-    fn entities(&'s mut self) -> &'s mut [Entity] {
+    fn entities(&mut self) -> &mut [Entity] {
         self.scene.root_entity_mut().children_mut()
     }
 
-    fn camera(&'s mut self) -> &'s mut dyn Camera {
+    fn camera(&mut self) -> &mut dyn Camera {
         self.scene.active_camera_mut()
     }
 }
@@ -40,19 +40,19 @@ pub struct StandardPipeline<'p> {
     scene: &'p mut Scene,
 }
 
-impl<'s, 'p: 's> RenderPipeline<'s, 'p, StandardRenderStuff<'s>> for StandardPipeline<'p> {
-    fn dependencies(&'p mut self) -> Result<(), Error> {
+impl<'p> RenderPipeline<StandardRenderStuff<'p>> for StandardPipeline<'p> {
+    fn dependencies<'a>(&'a mut self) -> Result<(), Error> {
         todo!()
     }
 
-    fn prepare(&'p mut self) -> Result<StandardRenderStuff<'s>, Error> {
+    fn prepare<'a>(&'a mut self) -> Result<StandardRenderStuff<'p>, Error> {
         Ok(StandardRenderStuff { scene: self.scene })
     }
 
-    fn pre_process(
-        &'p mut self,
-        _: &'p RenderState<StandardRenderStuff<'s>>,
-    ) -> Result<&'p [&'p dyn PreprocessOp<StandardRenderStuff<'s>>], Error> {
+    fn pre_process<'a>(
+        &'a mut self,
+        _: &mut RenderState<StandardRenderStuff<'p>>,
+    ) -> Result<&[&dyn PreprocessOp<StandardRenderStuff<'p>>], Error> {
         Ok(&[
             &InternalPreprocessOp::UpdateViewport,
             &InternalPreprocessOp::EnableDepthTest,
@@ -64,10 +64,10 @@ impl<'s, 'p: 's> RenderPipeline<'s, 'p, StandardRenderStuff<'s>> for StandardPip
         ])
     }
 
-    fn post_precess(
-        &'p mut self,
-        _: &'p RenderState<StandardRenderStuff<'s>>,
-    ) -> Result<&'p [&'p dyn PostprocessOp<StandardRenderStuff<'s>>], Error> {
+    fn post_precess<'a>(
+        &'a mut self,
+        _: &mut RenderState<StandardRenderStuff<'p>>,
+    ) -> Result<&[&dyn PostprocessOp<StandardRenderStuff<'p>>], Error> {
         Ok(&[])
     }
 }

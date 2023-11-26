@@ -277,33 +277,19 @@ impl<'a> RenderingEntityState<'a> {
 }
 
 impl WebGL2Render {
-    pub fn render<'s, 'p: 's, S, P>(
-        &mut self,
-        pipeline: &'p mut P,
-        frame_time: f64,
-    ) -> Result<(), Error>
+    pub fn render<'p, S, P>(&mut self, pipeline: &'p mut P, frame_time: f64) -> Result<(), Error>
     where
-        S: RenderStuff<'s> + 's,
-        P: RenderPipeline<'s, 'p, S>,
+        S: RenderStuff + 'p,
+        P: RenderPipeline<S>,
     {
         // prepares stage, obtains a render stuff
         let stuff = pipeline.prepare()?;
 
         // constructs render state
-        let gl = stuff
-            .canvas()
-            .get_context_with_context_options(
-                "webgl2",
-                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
-            )
-            .ok()
-            .and_then(|context| context)
-            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
-            .ok_or(Error::WenGL2Unsupported)?;
-        // let mut state = RenderState::new(gl, frame_time, stuff);
+        let mut state = RenderState::new(Self::gl_context(&stuff)?, frame_time, stuff);
 
-        // // preprocess stages
-        // pipeline.pre_process(&mut state);
+        // preprocess stages
+        pipeline.pre_process(&mut state);
 
         // render each entities group
         // for (
@@ -342,9 +328,8 @@ impl WebGL2Render {
         Ok(())
     }
 
-    fn gl_context<'p, S: RenderStuff<'p> + 'p>(
-        stuff: &'p S,
-    ) -> Result<WebGl2RenderingContext, Error> {
+    /// Gets [`WebGl2RenderingContext`] from canvas with options.
+    fn gl_context<S: RenderStuff>(stuff: &S) -> Result<WebGl2RenderingContext, Error> {
         let gl = stuff
             .canvas()
             .get_context_with_context_options(

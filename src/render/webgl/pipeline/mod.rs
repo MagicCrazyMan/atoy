@@ -10,23 +10,23 @@ use crate::{camera::Camera, entity::Entity, material::Material, scene::Scene};
 
 use self::{postprocess::PostprocessOp, preprocess::PreprocessOp};
 
-use super::{draw::CullFace, error::Error};
+use super::error::Error;
 
 /// Basic stuffs for running the render program.
-pub trait RenderStuff<'s> {
+pub trait RenderStuff {
     /// Rendering canvas.
-    fn canvas(&'s self) -> &'s HtmlCanvasElement;
+    fn canvas(&self) -> &HtmlCanvasElement;
 
     /// WebGL2 context options.
     /// Checks [MDN References](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext)
     /// for more details.
-    fn ctx_options(&'s self) -> Option<&'s JsValue>;
+    fn ctx_options(&self) -> Option<&JsValue>;
 
     /// Gets entities that should be draw on current frame.
-    fn entities(&'s mut self) -> &'s mut [Entity];
+    fn entities(&mut self) -> &mut [Entity];
 
     /// Gets the main camera for current frame.
-    fn camera(&'s mut self) -> &'s mut dyn Camera;
+    fn camera(&mut self) -> &mut dyn Camera;
 }
 
 pub struct RenderState<S> {
@@ -35,9 +35,9 @@ pub struct RenderState<S> {
     frame_time: f64,
 }
 
-impl<'s, S> RenderState<S>
+impl<S> RenderState<S>
 where
-    S: RenderStuff<'s>,
+    S: RenderStuff,
 {
     pub fn new(gl: WebGl2RenderingContext, frame_time: f64, stuff: S) -> Self {
         Self {
@@ -47,70 +47,70 @@ where
         }
     }
 
-    pub fn gl(&'s self) -> &'s WebGl2RenderingContext {
+    pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
     }
 
-    pub fn frame_time(&'s self) -> f64 {
+    pub fn frame_time(&self) -> f64 {
         self.frame_time
     }
 
-    pub fn canvas(&'s self) -> &'s HtmlCanvasElement {
+    pub fn canvas(&self) -> &HtmlCanvasElement {
         self.stuff.canvas()
     }
 
-    pub fn entities(&'s mut self) -> &'s mut [Entity] {
+    pub fn entities(&mut self) -> &mut [Entity] {
         self.stuff.entities()
     }
 
-    pub fn camera(&'s mut self) -> &'s mut dyn Camera {
+    pub fn camera(&mut self) -> &mut dyn Camera {
         self.stuff.camera()
     }
 }
 
 /// Material policy telling render program what material should be used for a entity.
-pub enum MaterialPolicy<'s> {
+pub enum MaterialPolicy {
     /// Uses the material provides by entity.
     FollowEntity,
     /// Forces all entities render with a specified material.
-    Overwrite(&'s mut dyn Material),
+    Overwrite(Box<dyn Material>),
     /// Decides what material to use for each entity.
-    Custom(&'s dyn Fn(&Entity)),
+    Custom(Box<dyn Fn(&Entity)>),
 }
 
 pub trait GeometryPolicy {
     fn name(&self) -> &str;
 }
 
-pub trait RenderPipeline<'s, 'p: 's, S>
+pub trait RenderPipeline<S>
 where
-    S: RenderStuff<'s>,
+    S: RenderStuff,
 {
-    fn dependencies(&'p mut self) -> Result<(), Error>;
+    fn dependencies<'a>(&'a mut self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
     /// Developer should provide a [`RenderState`] telling
     /// render program how to render current frame.
-    fn prepare(&'p mut self) -> Result<S, Error>;
+    fn prepare<'a>(&'a mut self) -> Result<S, Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn pre_process(
-        &'p mut self,
-        state: &'p RenderState<S>,
-    ) -> Result<&'p [&'p dyn PreprocessOp<S>], Error>;
+    fn pre_process<'a>(
+        &'a mut self,
+        state: &mut RenderState<S>,
+    ) -> Result<&[&dyn PreprocessOp<S>], Error>;
 
-    // fn geometry_policy(&'p mut self, state: &'p RenderState<S>) -> Result<(), Error>;
+    // fn geometry_policy(&mut self, state: &RenderState<S>) -> Result<(), Error>;
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
     /// also accepts multiple [`PostprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precess(
-        &'p mut self,
-        state: &'p RenderState<S>,
-    ) -> Result<&'p [&'p dyn PostprocessOp<S>], Error>;
+    fn post_precess<'a>(
+        &'a mut self,
+        state: &mut RenderState<S>,
+    ) -> Result<&[&dyn PostprocessOp<S>], Error>;
 }
