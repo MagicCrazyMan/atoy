@@ -72,11 +72,11 @@ impl SceneOptions {
         self.camera.as_ref()
     }
 
-    pub fn take_mount(&mut self) -> Option<String> {
+    fn take_mount(&mut self) -> Option<String> {
         self.mount.take()
     }
 
-    pub fn take_camera(&mut self) -> Option<Box<dyn Camera>> {
+    fn take_camera(&mut self) -> Option<Box<dyn Camera>> {
         self.camera.take()
     }
 }
@@ -259,6 +259,11 @@ impl Scene {
         &mut self.root_entity
     }
 
+    /// Gets mutable root entity.
+    pub(crate) fn root_entity_raw(&mut self) -> *mut Entity {
+        &mut self.root_entity
+    }
+
     /// Gets current active camera.
     pub fn active_camera(&self) -> &dyn Camera {
         self.active_camera.as_ref()
@@ -266,6 +271,10 @@ impl Scene {
 
     /// Gets current active camera.
     pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
+        self.active_camera.as_mut()
+    }
+
+    pub(crate) fn active_camera_raw(&mut self) -> *mut dyn Camera {
         self.active_camera.as_mut()
     }
 }

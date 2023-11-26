@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, VecDeque}, marker::PhantomData};
+use std::{
+    collections::{HashMap, VecDeque},
+    marker::PhantomData,
+};
 
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
@@ -18,6 +21,7 @@ use self::{
     draw::{CullFace, Draw},
     error::Error,
     pick::EntityPicker,
+    pipeline::{RenderPipeline, RenderState, RenderStuff},
     program::ProgramStore,
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
@@ -29,20 +33,21 @@ pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod pick;
+pub mod pipeline;
 pub mod program;
 pub mod texture;
 pub mod uniform;
 
-#[wasm_bindgen(typescript_custom_section)]
-const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"
-export type WebGL2RenderOptions = WebGLContextAttributes;
-"#;
+// #[wasm_bindgen(typescript_custom_section)]
+// const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"
+// export type WebGL2RenderOptions = WebGLContextAttributes;
+// "#;
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(typescript_type = "WebGL2RenderOptions")]
-    pub type WebGL2RenderOptionsObject;
-}
+// #[wasm_bindgen]
+// extern "C" {
+//     #[wasm_bindgen(typescript_type = "WebGL2RenderOptions")]
+//     pub type WebGL2RenderOptionsObject;
+// }
 
 pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
@@ -57,65 +62,102 @@ pub struct WebGL2Render {
 }
 
 impl WebGL2Render {
-    /// Constructs a new WebGL2 render.
-    pub fn new(scene: &Scene) -> Result<WebGL2Render, Error> {
-        Self::new_inner(scene, None)
-    }
+    // /// Constructs a new WebGL2 render.
+    // pub fn new(scene: &Scene) -> Result<WebGL2Render, Error> {
+    //     Self::new_inner(scene, None)
+    // }
 
-    /// Constructs a new WebGL2 render.
-    pub fn with_options(
-        scene: &Scene,
-        options: WebGL2RenderOptionsObject,
-    ) -> Result<WebGL2Render, Error> {
-        Self::new_inner(scene, Some(options))
-    }
+    // /// Constructs a new WebGL2 render.
+    // pub fn with_options(
+    //     scene: &Scene,
+    //     options: WebGL2RenderOptionsObject,
+    // ) -> Result<WebGL2Render, Error> {
+    //     Self::new_inner(scene, Some(options))
+    // }
 
-    fn new_inner(
-        scene: &Scene,
-        options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGL2Render, Error> {
-        let gl = Self::gl_context(scene.canvas(), options)?;
-        let mut render = Self {
-            program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
-            // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
-            texture_store: TextureStore::new(gl.clone()),
-            entity_picker: EntityPicker::new(gl.clone()),
-            gl,
-            depth_test: true,
-            cull_face: None,
-            clear_depth: 0.0,
-            clear_color: Vec4::new(),
-        };
+    // fn new_inner(
+    //     scene: &Scene,
+    //     options: Option<WebGL2RenderOptionsObject>,
+    // ) -> Result<WebGL2Render, Error> {
+    //     let gl = Self::gl_context(scene.canvas(), options)?;
+    //     let mut render = Self {
+    //         program_store: ProgramStore::new(gl.clone()),
+    //         buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
+    //         // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
+    //         texture_store: TextureStore::new(gl.clone()),
+    //         entity_picker: EntityPicker::new(gl.clone()),
+    //         gl,
+    //         depth_test: true,
+    //         cull_face: None,
+    //         clear_depth: 0.0,
+    //         clear_color: Vec4::new(),
+    //     };
 
-        render.set_clear_color(Vec4::new());
-        render.set_cull_face(None);
-        render.set_depth_test(true);
+    //     render.set_clear_color(Vec4::new());
+    //     render.set_cull_face(None);
+    //     render.set_depth_test(true);
 
-        Ok(render)
-    }
+    //     Ok(render)
+    // }
 
-    /// Gets WebGl2RenderingContext.
-    fn gl_context(
-        canvas: &HtmlCanvasElement,
-        options: Option<WebGL2RenderOptionsObject>,
-    ) -> Result<WebGl2RenderingContext, Error> {
-        let options = match options {
-            Some(options) => options.obj,
-            None => JsValue::UNDEFINED,
-        };
+    // /// Gets WebGl2RenderingContext.
+    // fn gl_context(
+    //     canvas: &HtmlCanvasElement,
+    //     options: Option<WebGL2RenderOptionsObject>,
+    // ) -> Result<WebGl2RenderingContext, Error> {
+    //     let options = match options {
+    //         Some(options) => options.obj,
+    //         None => JsValue::UNDEFINED,
+    //     };
 
-        let gl = canvas
-            .get_context_with_context_options("webgl2", &options)
-            .ok()
-            .and_then(|context| context)
-            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
-            .ok_or(Error::WebGl2RenderingContextNotFound)?;
+    //     let gl = canvas
+    //         .get_context_with_context_options("webgl2", &options)
+    //         .ok()
+    //         .and_then(|context| context)
+    //         .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+    //         .ok_or(Error::WebGl2RenderingContextNotFound)?;
 
-        gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
+    //     gl.viewport(0, 0, canvas.width() as i32, canvas.height() as i32);
 
-        Ok(gl)
-    }
+    //     Ok(gl)
+    // }
+
+    // fn new_inner(scene: &Scene, options: Option<&JsValue>) -> Result<WebGL2Render, Error> {
+    //     let gl = Self::gl_context(scene.canvas(), options)?;
+    //     let mut render = Self {
+    //         program_store: ProgramStore::new(gl.clone()),
+    //         buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
+    //         // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
+    //         texture_store: TextureStore::new(gl.clone()),
+    //         entity_picker: EntityPicker::new(gl.clone()),
+    //         gl,
+    //         depth_test: true,
+    //         cull_face: None,
+    //         clear_depth: 0.0,
+    //         clear_color: Vec4::new(),
+    //     };
+
+    //     render.set_clear_color(Vec4::new());
+    //     render.set_cull_face(None);
+    //     render.set_depth_test(true);
+
+    //     Ok(render)
+    // }
+
+    // /// Gets WebGl2RenderingContext.
+    // fn gl_context<'a>(
+    //     canvas: &'a HtmlCanvasElement,
+    //     options: Option<&'a JsValue>,
+    // ) -> Result<WebGl2RenderingContext, Error> {
+    //     let gl = canvas
+    //         .get_context_with_context_options("webgl2", options.unwrap_or(&JsValue::undefined()))
+    //         .ok()
+    //         .and_then(|context| context)
+    //         .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+    //         .ok_or(Error::WenGL2Unsupported)?;
+
+    //     Ok(gl)
+    // }
 }
 
 impl WebGL2Render {
@@ -199,7 +241,7 @@ pub struct RenderingEntityState<'a> {
     entity: *mut Entity,
     geometry: *mut dyn Geometry,
     material: *mut dyn Material,
-    _p: PhantomData<&'a ()>
+    _p: PhantomData<&'a ()>,
 }
 
 impl<'a> RenderingEntityState<'a> {
@@ -235,86 +277,86 @@ impl<'a> RenderingEntityState<'a> {
 }
 
 impl WebGL2Render {
-    pub fn pick(
+    pub fn render<'s, 'p: 's, S, P>(
         &mut self,
-        scene: &mut Scene,
-        timestamp: f64,
-        x: i32,
-        y: i32,
-    ) -> Result<Option<&mut Entity>, Error> {
-        self.entity_picker.prepare()?;
-        self.render_inner(scene, timestamp, true)?;
-        self.entity_picker.pick(x, y)
-    }
+        pipeline: &'p mut P,
+        frame_time: f64,
+    ) -> Result<(), Error>
+    where
+        S: RenderStuff<'s> + 's,
+        P: RenderPipeline<'s, 'p, S>,
+    {
+        // prepares stage, obtains a render stuff
+        let stuff = pipeline.prepare()?;
 
-    pub fn render(&mut self, scene: &mut Scene, timestamp: f64) -> Result<(), Error> {
-        self.render_inner(scene, timestamp, false)
-    }
+        // constructs render state
+        let gl = stuff
+            .canvas()
+            .get_context_with_context_options(
+                "webgl2",
+                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
+            )
+            .ok()
+            .and_then(|context| context)
+            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+            .ok_or(Error::WenGL2Unsupported)?;
+        // let mut state = RenderState::new(gl, frame_time, stuff);
 
-    /// Render frame.
-    fn render_inner(
-        &mut self,
-        scene: &mut Scene,
-        _timestamp: f64,
-        is_picking: bool,
-    ) -> Result<(), Error> {
-        // update WebGL viewport
-        self.gl.viewport(
-            0,
-            0,
-            scene.canvas().width() as i32,
-            scene.canvas().height() as i32,
-        );
-
-        // collects entities and render console_error_panic_hook
-        let group = self.prepare(scene, is_picking)?;
-
-        // clear scene
-        if is_picking {
-            self.gl
-                .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
-            // self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-            self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
-        } else {
-            self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-            self.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
-        }
+        // // preprocess stages
+        // pipeline.pre_process(&mut state);
 
         // render each entities group
-        for (
-            _,
-            RenderGroup {
-                program,
-                attribute_locations,
-                uniform_locations,
-                entities,
-            },
-        ) in group
-        {
-            let (program, attribute_locations, uniform_locations) =
-                unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
+        // for (
+        //     _,
+        //     RenderGroup {
+        //         program,
+        //         attribute_locations,
+        //         uniform_locations,
+        //         entities,
+        //     },
+        // ) in group
+        // {
+        //     let (program, attribute_locations, uniform_locations) =
+        //         unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
 
-            // binds program
-            self.gl.use_program(Some(program));
+        //     // binds program
+        //     self.gl.use_program(Some(program));
 
-            // render each entity
-            for state in entities {
-                // pre-render
-                self.pre_render(&state);
-                // binds attributes
-                self.bind_attributes(attribute_locations, &state);
-                // binds uniforms
-                self.bind_uniforms(uniform_locations, &state);
-                // draws
-                self.draw(&state);
-                // post-render
-                self.post_render(&state);
-            }
-        }
+        //     // render each entity
+        //     for state in entities {
+        //         // pre-render
+        //         self.pre_render(&state);
+        //         // binds attributes
+        //         self.bind_attributes(attribute_locations, &state);
+        //         // binds uniforms
+        //         self.bind_uniforms(uniform_locations, &state);
+        //         // draws
+        //         self.draw(&state);
+        //         // post-render
+        //         self.post_render(&state);
+        //     }
+        // }
 
         self.reset();
 
         Ok(())
+    }
+
+    fn gl_context<'p, S: RenderStuff<'p> + 'p>(
+        stuff: &'p S,
+    ) -> Result<WebGl2RenderingContext, Error> {
+        let gl = stuff
+            .canvas()
+            .get_context_with_context_options(
+                "webgl2",
+                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
+            )
+            .ok()
+            .and_then(|context| context)
+            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+            .ok_or(Error::WenGL2Unsupported)?;
+
+        Ok(gl)
     }
 
     /// Resets WebGl status.
@@ -368,7 +410,7 @@ impl WebGL2Render {
                     geometry,
                     material,
                     scene,
-                    _p: PhantomData
+                    _p: PhantomData,
                 };
 
                 // calls prepare callback

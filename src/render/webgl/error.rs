@@ -3,7 +3,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub enum Error {
     MatrixError(gl_matrix4rust::error::Error),
-    WebGl2RenderingContextNotFound,
+    WenGL2Unsupported,
     CreateProgramFailure,
     CreateBufferFailure,
     CreateFramebufferFailure,
@@ -36,7 +36,7 @@ impl std::fmt::Display for Error {
             Error::CompileShaderFailure(_) => todo!(),
             Error::CompileProgramFailure(_) => todo!(),
             Error::PickFailure(_) => todo!(),
-            Error::WebGl2RenderingContextNotFound => todo!(),
+            Error::WenGL2Unsupported => todo!(),
             Error::BufferStorageNotFound(_) => todo!(),
             Error::BufferUnexpectedDropped => f.write_str("buffer descriptor unexpected dropped"),
             Error::TexImageFailure(_) => todo!(),
