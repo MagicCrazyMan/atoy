@@ -4,10 +4,10 @@ use crate::render::webgl::{conversion::ToGlEnum, draw::CullFace, error::Error};
 
 use super::{RenderState, RenderStuff};
 
-pub trait PreprocessOp<S> {
+pub trait PreprocessOp {
     fn name(&self) -> &str;
 
-    fn pre_process(&self, state: &RenderState<S>) -> Result<(), Error>;
+    fn pre_process(&self, state: &RenderState) -> Result<(), Error>;
 }
 
 pub enum InternalPreprocessOp {
@@ -20,10 +20,7 @@ pub enum InternalPreprocessOp {
     SetCullFaceMode(CullFace),
 }
 
-impl<S> PreprocessOp<S> for InternalPreprocessOp
-where
-    S: RenderStuff,
-{
+impl PreprocessOp for InternalPreprocessOp {
     fn name(&self) -> &str {
         match self {
             InternalPreprocessOp::UpdateViewport => "UpdateViewport",
@@ -36,7 +33,7 @@ where
         }
     }
 
-    fn pre_process(&self, state: &RenderState<S>) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState) -> Result<(), Error> {
         match self {
             InternalPreprocessOp::UpdateViewport => state.gl().viewport(
                 0,

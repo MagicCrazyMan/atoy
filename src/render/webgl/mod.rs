@@ -226,6 +226,25 @@ impl<'a> RenderingEntityState<'a> {
     }
 }
 
+pub enum GeometryHolder<'a> {
+    Borrowed(&'a mut dyn Geometry),
+    Owned(Box<dyn Geometry>),
+}
+
+pub enum MaterialHolder<'a> {
+    Borrowed(&'a mut dyn Material),
+    Owned(Box<dyn Material>),
+}
+
+impl<'a> MaterialHolder<'a> {
+    fn as_mut(&mut self) -> &mut dyn Material {
+        match self {
+            MaterialHolder::Borrowed(m) => *m,
+            MaterialHolder::Owned(m) => m.as_mut(),
+        }
+    }
+}
+
 impl WebGL2Render {
     pub fn render<S, P>(
         &mut self,
@@ -235,7 +254,7 @@ impl WebGL2Render {
     ) -> Result<(), Error>
     where
         S: RenderStuff,
-        P: RenderPipeline<S>,
+        P: RenderPipeline,
     {
         // prepares stage, obtains a render stuff
         pipeline.prepare(stuff)?;
@@ -311,27 +330,24 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn collect_entity<'a, 'b, S>(
+    fn collect_entity<S>(
         &mut self,
-        state: &'a mut RenderState<'a, S>,
+        state: &mut RenderState<'_>,
         view_matrix: &Mat4,
         proj_matrix: &Mat4,
-        material_policy: &'b mut MaterialPolicy<'b, S>,
-        geometry_policy: &mut GeometryPolicy<S>,
-    ) -> Result<HashMap<String, RenderGroup>, Error>
-    where
-        S: RenderStuff,
-    {
+        material_policy: &mut MaterialPolicy,
+        geometry_policy: &mut GeometryPolicy,
+    ) -> Result<HashMap<String, RenderGroup>, Error> {
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
         let mut collections = VecDeque::from([(Mat4::new_identity(), state.entity_collection())]);
         while let Some((parent_model_matrix, collection)) = collections.pop_front() {
-            // update collection first
+            // update collection matrices
             collection.update_frame_matrices(&parent_model_matrix);
             let collection_model_matrix = *collection.model_matrix();
 
-            // update entities inside collection
             for entity in collection.entities_mut() {
+                // update matrices
                 if let Err(err) = entity.update_frame_matrices(
                     &collection_model_matrix,
                     &view_matrix,
@@ -341,44 +357,47 @@ impl WebGL2Render {
                     console_log!("{}", err);
                     continue;
                 }
-            }
 
-            // selects material
-            // let mut material = &material_policy.policy(state, entity);
-            // let mut material = match material_policy {
-            //     MaterialPolicy::FollowEntity => entity
-            //         .material_mut()
-            //         .map(|material| MaterialHolder::Borrowed(material)),
-            //     MaterialPolicy::Overwrite(material) => material
-            //         .as_mut()
-            //         .map(|material| MaterialHolder::Borrowed(material.as_mut())),
-            //     MaterialPolicy::Custom(func) => match func(state, entity) {
-            //         Some(material) => Some(material),
-            //         None => None,
-            //     },
-            // };
-            // selects geometry
-            // let mut geometry_tmp: Option<*mut dyn Geometry>;
-            // let mut geometry = match &mut geometry_policy {
-            //     GeometryPolicy::FollowEntity => {
-            //         geometry_tmp = entity.geometry_raw();
-            //         &geometry_tmp
-            //     }
-            //     GeometryPolicy::Overwrite(geometry) => {
-            //         geometry_tmp = match geometry {
-            //             Some(geometry) => Some(&mut **geometry),
-            //             None => None,
-            //         };
-            //         &geometry_tmp
-            //     }
-            //     GeometryPolicy::Custom(func) => {
-            //         geometry_tmp = match func(state, entity) {
-            //             Some(geometry) => Some(geometry),
-            //             None => None,
-            //         };
-            //         &geometry_tmp
-            //     }
-            // };
+                // selects material
+                let mut material = match material_policy {
+                    MaterialPolicy::FollowEntity => entity
+                        .material_mut()
+                        .map(|material| MaterialHolder::Borrowed(material)),
+                    MaterialPolicy::Overwrite(material) => material
+                        .as_mut()
+                        .map(|material| MaterialHolder::Borrowed(material.as_mut())),
+                    MaterialPolicy::Custom(func) => {
+                        func(entity).map(|material| MaterialHolder::Owned(material))
+                    }
+                };
+                // trigger material preparation
+                if let Some(material) = material.as_mut() {
+                    // material.as_mut().prepare(state, entity);
+                };
+
+                // skip if has no material or not ready yet
+                if material
+                    .as_mut()
+                    .map(|material| material.as_mut().ready())
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                // selects geometry
+                let mut geometry = match geometry_policy {
+                    GeometryPolicy::FollowEntity => entity
+                        .geometry_mut()
+                        .map(|geom| GeometryHolder::Borrowed(geom)),
+                    GeometryPolicy::Overwrite(geometry) => geometry
+                        .as_mut()
+                        .map(|geom| GeometryHolder::Borrowed(geom.as_mut())),
+                    GeometryPolicy::Custom(func) => {
+                        func(entity).map(|geom| GeometryHolder::Owned(geom))
+                    }
+                };
+                // prepare material
+            }
 
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
@@ -431,12 +450,12 @@ impl WebGL2Render {
 
     /// Calls pre-render callback of the entity.
     fn pre_render(&self, state: &RenderingEntityState) {
-        state.material().pre_render(state);
+        // state.material().pre_render(state);
     }
 
     /// Calls post-render callback of the entity.
     fn post_render(&self, state: &RenderingEntityState) {
-        state.material().post_render(state);
+        // state.material().post_render(state);
     }
 
     /// Binds attributes of the entity.

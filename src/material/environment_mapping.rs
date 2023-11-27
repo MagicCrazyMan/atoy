@@ -5,6 +5,7 @@ use crate::{
     document,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
+        pipeline::RenderState,
         program::ShaderSource,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
@@ -12,7 +13,7 @@ use crate::{
         },
         uniform::{UniformBinding, UniformValue},
         RenderingEntityState,
-    },
+    }, entity::Entity,
 };
 
 use super::Material;
@@ -138,7 +139,7 @@ impl Material for EnvironmentMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &RenderingEntityState) {
+    fn prepare(&mut self, _: &RenderState, _: &Entity) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;

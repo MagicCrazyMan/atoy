@@ -3,8 +3,10 @@ use web_sys::HtmlImageElement;
 
 use crate::{
     document,
+    entity::Entity,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
+        pipeline::RenderState,
         program::ShaderSource,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
@@ -135,7 +137,7 @@ impl Material for TextureMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &RenderingEntityState) {
+    fn prepare(&mut self, _: &RenderState, _: &Entity) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

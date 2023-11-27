@@ -1,9 +1,10 @@
-use crate::render::webgl::{
+use crate::{render::webgl::{
     attribute::{AttributeBinding, AttributeValue},
+    pipeline::RenderState,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
     RenderingEntityState,
-};
+}, entity::Entity};
 
 pub mod environment_mapping;
 pub mod solid_color;
@@ -29,11 +30,5 @@ pub trait Material {
     fn instanced(&self) -> Option<i32>;
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &RenderingEntityState) {}
-
-    #[allow(unused_variables)]
-    fn pre_render(&mut self, state: &RenderingEntityState) {}
-
-    #[allow(unused_variables)]
-    fn post_render(&mut self, state: &RenderingEntityState) {}
+    fn prepare(&mut self, state: &RenderState, entity: &Entity) {}
 }

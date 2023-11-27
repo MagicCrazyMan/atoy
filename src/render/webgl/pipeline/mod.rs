@@ -7,7 +7,7 @@ pub mod standard;
 use wasm_bindgen::JsValue;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, entity::{Entity, EntityCollection}, material::Material};
+use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
     policy::{GeometryPolicy, MaterialPolicy},
@@ -34,17 +34,17 @@ pub trait RenderStuff {
     fn camera(&mut self) -> &mut dyn Camera;
 }
 
-pub struct RenderState<'a, S> {
+pub struct RenderState<'a> {
     gl: WebGl2RenderingContext,
     frame_time: f64,
-    stuff: &'a mut S,
+    stuff: &'a mut dyn RenderStuff,
 }
 
-impl<'a, S> RenderState<'a, S>
-where
-    S: RenderStuff,
-{
-    pub fn new(gl: WebGl2RenderingContext, frame_time: f64, stuff: &'a mut S) -> Self {
+impl<'a> RenderState<'a> {
+    pub fn new<S>(gl: WebGl2RenderingContext, frame_time: f64, stuff: &'a mut S) -> Self
+    where
+        S: RenderStuff,
+    {
         Self {
             gl,
             frame_time,
@@ -73,30 +73,25 @@ where
     }
 }
 
-pub trait RenderPipeline<S>
-where
-    S: RenderStuff,
-{
+pub trait RenderPipeline {
     fn dependencies(&self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    fn prepare(&mut self, stuff: &mut S) -> Result<(), Error>;
+    fn prepare(&mut self, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn pre_process(&mut self, state: &mut RenderState<S>)
-        -> Result<&[&dyn PreprocessOp<S>], Error>;
+    fn pre_process(&mut self, state: &mut RenderState) -> Result<&[&dyn PreprocessOp], Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
-    // fn material_policy<'a>(&'a self, state: &'a RenderState<'a, S>) -> Result<M, Error>;
-    fn material_policy<'a, 'b, 'c>(&'a self, state: &'b RenderState<S>) -> Result<MaterialPolicy<'c, S>, Error>;
+    fn material_policy(&self, state: &RenderState) -> Result<MaterialPolicy, Error>;
 
     /// Returns a [`GeometryPolicy`] which decides what geometry
     /// to use of each entity during entities collection procedure.
-    fn geometry_policy(&self, state: &RenderState<S>) -> Result<GeometryPolicy<S>, Error>;
+    fn geometry_policy(&self, state: &RenderState) -> Result<GeometryPolicy, Error>;
 
     // fn collect_policy<'a>(
     //     &'a mut self,
@@ -110,8 +105,5 @@ where
     /// also accepts multiple [`PostprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precess(
-        &mut self,
-        state: &mut RenderState<S>,
-    ) -> Result<&[&dyn PostprocessOp<S>], Error>;
+    fn post_precess(&mut self, state: &mut RenderState) -> Result<&[&dyn PostprocessOp], Error>;
 }

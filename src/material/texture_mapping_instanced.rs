@@ -4,12 +4,14 @@ use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
+    entity::Entity,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
+        pipeline::RenderState,
         program::ShaderSource,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
@@ -195,7 +197,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &RenderingEntityState) {
+    fn prepare(&mut self, _: &RenderState, _: &Entity) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

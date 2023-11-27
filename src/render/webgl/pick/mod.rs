@@ -5,12 +5,13 @@ use web_sys::{
     js_sys::Uint32Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
-use crate::{material::Material, entity::Entity};
+use crate::{entity::Entity, material::Material};
 
 use super::{
     attribute::{AttributeBinding, AttributeValue},
     conversion::GLint,
     error::Error,
+    pipeline::RenderState,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
     RenderingEntityState,
@@ -100,7 +101,7 @@ impl EntityPicker {
         Ok(())
     }
 
-    pub(super) fn pick(&mut self, x: i32, y: i32) -> Result<Option<&mut Entity>, Error> {
+    pub(super) fn pick(&mut self, x: i32, y: i32) -> Result<Option<&Entity>, Error> {
         // read index from texture
         let dst = Uint32Array::new_with_length(1);
         self.gl
@@ -121,7 +122,7 @@ impl EntityPicker {
             self.material
                 .index2entity
                 .get(&index)
-                .map(|entity| unsafe { &mut **entity })
+                .map(|entity| unsafe { &**entity })
         } else {
             None
         };
@@ -251,7 +252,7 @@ const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("./fragment.gl");
 
 pub(crate) struct PickDetectionMaterial {
     id2index: HashMap<Uuid, UniformValue>,
-    index2entity: HashMap<u32, *mut Entity>,
+    index2entity: HashMap<u32, *const Entity>,
 }
 
 impl PickDetectionMaterial {
@@ -310,9 +311,7 @@ impl Material for PickDetectionMaterial {
         None
     }
 
-    fn prepare(&mut self, state: &RenderingEntityState) {
-        let entity = state.entity();
-
+    fn prepare(&mut self, _: &RenderState, entity: &Entity) {
         let index = self.id2index.len() + 1; // index 0 as nothing
         if index >= u32::MAX as usize {
             panic!("too may entities in scene");
