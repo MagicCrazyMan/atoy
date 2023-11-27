@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
-    marker::PhantomData,
+    marker::PhantomData, rc::Rc,
 };
 
 use gl_matrix4rust::{
@@ -8,11 +8,16 @@ use gl_matrix4rust::{
     vec3::AsVec3,
     vec4::Vec4,
 };
-use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
 
-use crate::{entity::Entity, geometry::Geometry, material::Material, scene::Scene};
+use crate::{
+    entity::Entity,
+    geometry::Geometry,
+    material::{self, Material},
+    scene::Scene,
+};
 
 use self::{
     attribute::{AttributeBinding, AttributeValue},
@@ -21,7 +26,10 @@ use self::{
     draw::{CullFace, Draw},
     error::Error,
     pick::EntityPicker,
-    pipeline::{RenderPipeline, RenderState, RenderStuff},
+    pipeline::{
+        policy::{GeometryPolicy, MaterialPolicy},
+        MaterialHolder, RenderPipeline, RenderState, RenderStuff,
+    },
     program::ProgramStore,
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
@@ -52,10 +60,6 @@ pub mod uniform;
 pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
     entity_picker: EntityPicker,
-    depth_test: bool,
-    cull_face: Option<CullFace>,
-    clear_depth: f32,
-    clear_color: Vec4,
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
@@ -161,61 +165,6 @@ impl WebGL2Render {
 }
 
 impl WebGL2Render {
-    pub fn depth_test(&self) -> bool {
-        self.depth_test
-    }
-
-    pub fn set_depth_test(&mut self, depth_test: bool) {
-        self.depth_test = depth_test;
-        if self.depth_test {
-            self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-        } else {
-            self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-        }
-    }
-
-    pub fn cull_face(&self) -> Option<CullFace> {
-        self.cull_face
-    }
-
-    pub fn set_cull_face(&mut self, cull_face_mode: Option<CullFace>) {
-        self.cull_face = cull_face_mode;
-        match self.cull_face {
-            Some(cull_face_mode) => {
-                self.gl.enable(WebGl2RenderingContext::CULL_FACE);
-                self.gl.cull_face(cull_face_mode.gl_enum())
-            }
-            None => self.gl.disable(WebGl2RenderingContext::CULL_FACE),
-        }
-    }
-
-    pub fn clear_color(&self) -> Vec4 {
-        self.clear_color
-    }
-
-    pub fn set_clear_color(&mut self, clear_color: Vec4) {
-        self.clear_color = clear_color;
-        self.gl.clear_color(
-            self.clear_color.0[0] as GLfloat,
-            self.clear_color.0[1] as GLfloat,
-            self.clear_color.0[2] as GLfloat,
-            self.clear_color.0[3] as GLfloat,
-        );
-    }
-
-    pub fn clear_depth(&self) -> f32 {
-        self.clear_depth
-    }
-
-    pub fn set_clear_depth(&mut self, clear_depth: f32) {
-        self.clear_depth = clear_depth;
-        self.gl.clear_depth(clear_depth);
-    }
-
-    pub fn gl(&self) -> &WebGl2RenderingContext {
-        &self.gl
-    }
-
     pub fn buffer_store(&self) -> &BufferStore {
         &self.buffer_store
     }
@@ -277,19 +226,33 @@ impl<'a> RenderingEntityState<'a> {
 }
 
 impl WebGL2Render {
-    pub fn render<'p, S, P>(&mut self, pipeline: &'p mut P, frame_time: f64) -> Result<(), Error>
+    pub fn render<S, P>(
+        &mut self,
+        pipeline: &mut P,
+        stuff: &mut S,
+        frame_time: f64,
+    ) -> Result<(), Error>
     where
-        S: RenderStuff + 'p,
+        S: RenderStuff,
         P: RenderPipeline<S>,
     {
         // prepares stage, obtains a render stuff
-        let stuff = pipeline.prepare()?;
+        pipeline.prepare(stuff)?;
 
         // constructs render state
-        let mut state = RenderState::new(Self::gl_context(&stuff)?, frame_time, stuff);
+        let mut state = RenderState::new(
+            Self::gl(stuff.canvas(), stuff.ctx_options())?,
+            frame_time,
+            stuff,
+        );
 
         // preprocess stages
-        pipeline.pre_process(&mut state);
+        pipeline.pre_process(&mut state)?;
+
+        let view_matrix = state.camera().view_matrix();
+        let proj_matrix = state.camera().proj_matrix();
+        let material_policy = pipeline.material_policy(&state)?;
+        // let geometry_policy = pipeline.geometry_policy(&state)?;
 
         // render each entities group
         // for (
@@ -328,14 +291,12 @@ impl WebGL2Render {
         Ok(())
     }
 
-    /// Gets [`WebGl2RenderingContext`] from canvas with options.
-    fn gl_context<S: RenderStuff>(stuff: &S) -> Result<WebGl2RenderingContext, Error> {
-        let gl = stuff
-            .canvas()
-            .get_context_with_context_options(
-                "webgl2",
-                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
-            )
+    fn gl(
+        canvas: &HtmlCanvasElement,
+        options: Option<&JsValue>,
+    ) -> Result<WebGl2RenderingContext, Error> {
+        let gl = canvas
+            .get_context_with_context_options("webgl2", options.unwrap_or(&JsValue::undefined()))
             .ok()
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
@@ -349,87 +310,114 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare<'a>(
+    fn collect_entity<'a, 'b, S>(
         &mut self,
-        scene: &'a mut Scene,
-        is_picking: bool,
-    ) -> Result<HashMap<String, RenderGroup<'a>>, Error> {
-        let view_matrix = scene.active_camera().view_matrix();
-        let proj_matrix = scene.active_camera().proj_matrix();
-
+        state: &'a mut RenderState<'a, S>,
+        view_matrix: &Mat4,
+        proj_matrix: &Mat4,
+        material_policy: &'b mut MaterialPolicy<'b, S>,
+        geometry_policy: &mut GeometryPolicy<S>,
+    ) -> Result<HashMap<String, RenderGroup>, Error>
+    where
+        S: RenderStuff,
+    {
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
-        let mut rollings: VecDeque<*mut Entity> =
-            VecDeque::from([scene.root_entity_mut() as *mut Entity]);
-        while let Some(entity) = rollings.pop_front() {
+        let mut queue = state
+            .entities()
+            .into_iter()
+            .map(|entity| entity as *mut Entity)
+            .collect::<VecDeque<_>>();
+        while let Some(entity) = queue.pop_front() {
             let entity = unsafe { &mut *entity };
 
-            // update entity matrices in current frame
-            let parent_model_matrix = entity
-                .parent()
-                .map(|parent| parent.model_matrix() as *const Mat4);
-
-            if let Err(err) =
-                entity.update_frame_matrices(parent_model_matrix, &view_matrix, &proj_matrix)
-            {
+            if let Err(err) = entity.update_frame_matrices(&view_matrix, &proj_matrix) {
                 // should log warning
                 console_log!("{}", err);
                 continue;
             }
 
-            // uses picking detection material if in picking mode
-            let material: Option<*mut dyn Material> = if is_picking {
-                Some(self.entity_picker.material())
-            } else {
-                entity.material_raw()
+            // selects material
+            // let mut material = &material_policy.policy(state, entity);
+            let mut material = match material_policy {
+                MaterialPolicy::FollowEntity => entity
+                    .material_mut()
+                    .map(|material| MaterialHolder::Borrowed(material)),
+                MaterialPolicy::Overwrite(material) => material
+                    .as_mut()
+                    .map(|material| MaterialHolder::Borrowed(material.as_mut())),
+                MaterialPolicy::Custom(func) => match func(state, entity) {
+                    Some(material) => Some(material),
+                    None => None,
+                },
             };
+            // selects geometry
+            // let mut geometry_tmp: Option<*mut dyn Geometry>;
+            // let mut geometry = match &mut geometry_policy {
+            //     GeometryPolicy::FollowEntity => {
+            //         geometry_tmp = entity.geometry_raw();
+            //         &geometry_tmp
+            //     }
+            //     GeometryPolicy::Overwrite(geometry) => {
+            //         geometry_tmp = match geometry {
+            //             Some(geometry) => Some(&mut **geometry),
+            //             None => None,
+            //         };
+            //         &geometry_tmp
+            //     }
+            //     GeometryPolicy::Custom(func) => {
+            //         geometry_tmp = match func(state, entity) {
+            //             Some(geometry) => Some(geometry),
+            //             None => None,
+            //         };
+            //         &geometry_tmp
+            //     }
+            // };
 
             // filters any entity that has no geometry or material
             // groups entities by material to prevent unnecessary program switching
-            if let (Some(geometry), Some(material)) = (entity.geometry_raw(), material) {
-                let (geometry, material) = unsafe { (&mut *geometry, &mut *material) };
+            // if let (Some(geometry), Some(material)) = (geometry, material) {
+            // let state = RenderingEntityState {
+            //     gl: &mut self.gl,
+            //     entity,
+            //     geometry,
+            //     material,
+            //     scene,
+            //     _p: PhantomData,
+            // };
 
-                let state = RenderingEntityState {
-                    gl: &mut self.gl,
-                    entity,
-                    geometry,
-                    material,
-                    scene,
-                    _p: PhantomData,
-                };
+            // // calls prepare callback
+            // state.material().prepare(&state);
 
-                // calls prepare callback
-                state.material().prepare(&state);
+            // // check whether material is ready or not
+            // if material.ready() {
+            //     match group.get_mut(material.name()) {
+            //         Some(group) => group.entities.push(state),
+            //         None => {
+            //             // precompile material to program
+            //             let item = self.program_store.use_program(material)?;
 
-                // check whether material is ready or not
-                if material.ready() {
-                    match group.get_mut(material.name()) {
-                        Some(group) => group.entities.push(state),
-                        None => {
-                            // precompile material to program
-                            let item = self.program_store.use_program(material)?;
-
-                            group.insert(
-                                material.name().to_string(),
-                                RenderGroup {
-                                    program: item.program(),
-                                    attribute_locations: item.attribute_locations(),
-                                    uniform_locations: item.uniform_locations(),
-                                    entities: vec![state],
-                                },
-                            );
-                        }
-                    };
-                }
-            }
+            //             group.insert(
+            //                 material.name().to_string(),
+            //                 RenderGroup {
+            //                     program: item.program(),
+            //                     attribute_locations: item.attribute_locations(),
+            //                     uniform_locations: item.uniform_locations(),
+            //                     entities: vec![state],
+            //                 },
+            //             );
+            //         }
+            //     };
+            // }
+            // }
 
             // add children to rollings list
-            rollings.extend(
-                entity
-                    .children_mut()
-                    .iter_mut()
-                    .map(|child| child as *mut Entity),
-            );
+            // queue.extend(
+            //     entity
+            //         .children_mut()
+            //         .iter_mut()
+            //         .map(|child| child as *mut Entity),
+            // );
         }
 
         Ok(group)

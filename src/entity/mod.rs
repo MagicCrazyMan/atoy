@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, rc::Rc, cell::RefCell};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
@@ -229,23 +229,11 @@ impl EntityData {
 
     pub(crate) fn update_frame_matrices(
         &mut self,
-        parent_model_matrix: Option<*const Mat4>,
         view_matrix: &Mat4,
         proj_matrix: &Mat4,
     ) -> Result<(), Error> {
-        let (parent_model_matrix, view_matrix, proj_matrix) = unsafe {
-            (
-                match parent_model_matrix {
-                    Some(mat) => Some(&*mat),
-                    None => None,
-                },
-                view_matrix,
-                proj_matrix,
-            )
-        };
-
-        let model_matrix = match parent_model_matrix {
-            Some(parent_model_matrix) => *parent_model_matrix * self.local_matrix,
+        let model_matrix = match self.parent() {
+            Some(parent) => parent.model_matrix * self.local_matrix,
             None => self.local_matrix,
         };
         let normal_matrix = model_matrix.invert()?.transpose();
@@ -426,12 +414,10 @@ impl Entity {
 
     pub(crate) fn update_frame_matrices(
         &mut self,
-        parent_model_matrix: Option<*const Mat4>,
         view_matrix: &Mat4,
         proj_matrix: &Mat4,
     ) -> Result<(), Error> {
-        self.0
-            .update_frame_matrices(parent_model_matrix, view_matrix, proj_matrix)
+        self.0.update_frame_matrices(view_matrix, proj_matrix)
     }
 }
 

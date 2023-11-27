@@ -20,7 +20,10 @@ pub enum InternalPreprocessOp {
     SetCullFaceMode(CullFace),
 }
 
-impl<S: RenderStuff> PreprocessOp<S> for InternalPreprocessOp {
+impl<S> PreprocessOp<S> for InternalPreprocessOp
+where
+    S: RenderStuff,
+{
     fn name(&self) -> &str {
         match self {
             InternalPreprocessOp::UpdateViewport => "UpdateViewport",

@@ -1,14 +1,19 @@
 pub mod pick;
+pub mod policy;
 pub mod postprocess;
 pub mod preprocess;
 pub mod standard;
 
 use wasm_bindgen::JsValue;
-use web_sys::{js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext};
+use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, entity::Entity, material::Material, scene::Scene};
+use crate::{camera::Camera, entity::Entity, material::Material};
 
-use self::{postprocess::PostprocessOp, preprocess::PreprocessOp};
+use self::{
+    policy::{GeometryPolicy, MaterialPolicy},
+    postprocess::PostprocessOp,
+    preprocess::PreprocessOp,
+};
 
 use super::error::Error;
 
@@ -29,17 +34,17 @@ pub trait RenderStuff {
     fn camera(&mut self) -> &mut dyn Camera;
 }
 
-pub struct RenderState<S> {
-    stuff: S,
+pub struct RenderState<'a, S> {
     gl: WebGl2RenderingContext,
     frame_time: f64,
+    stuff: &'a mut S,
 }
 
-impl<S> RenderState<S>
+impl<'a, S> RenderState<'a, S>
 where
     S: RenderStuff,
 {
-    pub fn new(gl: WebGl2RenderingContext, frame_time: f64, stuff: S) -> Self {
+    pub fn new(gl: WebGl2RenderingContext, frame_time: f64, stuff: &'a mut S) -> Self {
         Self {
             gl,
             frame_time,
@@ -68,49 +73,45 @@ where
     }
 }
 
-/// Material policy telling render program what material should be used for a entity.
-pub enum MaterialPolicy {
-    /// Uses the material provides by entity.
-    FollowEntity,
-    /// Forces all entities render with a specified material.
-    Overwrite(Box<dyn Material>),
-    /// Decides what material to use for each entity.
-    Custom(Box<dyn Fn(&Entity)>),
-}
-
-pub trait GeometryPolicy {
-    fn name(&self) -> &str;
-}
-
 pub trait RenderPipeline<S>
 where
     S: RenderStuff,
 {
-    fn dependencies<'a>(&'a mut self) -> Result<(), Error>;
+    fn dependencies(&self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    /// Developer should provide a [`RenderState`] telling
-    /// render program how to render current frame.
-    fn prepare<'a>(&'a mut self) -> Result<S, Error>;
+    fn prepare(&mut self, stuff: &mut S) -> Result<(), Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn pre_process<'a>(
-        &'a mut self,
-        state: &mut RenderState<S>,
-    ) -> Result<&[&dyn PreprocessOp<S>], Error>;
+    fn pre_process(&mut self, state: &mut RenderState<S>)
+        -> Result<&[&dyn PreprocessOp<S>], Error>;
 
-    // fn geometry_policy(&mut self, state: &RenderState<S>) -> Result<(), Error>;
+    /// Returns a [`MaterialPolicy`] which decides what material
+    /// to use of each entity during entities collection procedure.
+    // fn material_policy<'a>(&'a self, state: &'a RenderState<'a, S>) -> Result<M, Error>;
+    fn material_policy<'a, 'b, 'c>(&'a self, state: &'b RenderState<S>) -> Result<MaterialPolicy<'c, S>, Error>;
+
+    /// Returns a [`GeometryPolicy`] which decides what geometry
+    /// to use of each entity during entities collection procedure.
+    fn geometry_policy(&self, state: &RenderState<S>) -> Result<GeometryPolicy<S>, Error>;
+
+    // fn collect_policy<'a>(
+    //     &'a mut self,
+    //     state: &'a mut RenderState<'a, S>,
+    // ) -> Result<(MaterialPolicy<'a, S>, GeometryPolicy<'a, S>), Error> {
+    //     Ok((self.material_policy(state)?, self.geometry_policy(state)?))
+    // }
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
     /// also accepts multiple [`PostprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precess<'a>(
-        &'a mut self,
+    fn post_precess(
+        &mut self,
         state: &mut RenderState<S>,
     ) -> Result<&[&dyn PostprocessOp<S>], Error>;
 }

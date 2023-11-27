@@ -8,6 +8,7 @@ pub mod test;
 pub mod error;
 pub mod event;
 pub mod utils;
+pub mod ncor;
 
 pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("failed to get window instance")
