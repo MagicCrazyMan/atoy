@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, VecDeque},
-    marker::PhantomData, rc::Rc,
+    marker::PhantomData,
+    rc::Rc,
 };
 
 use gl_matrix4rust::{
@@ -28,7 +29,7 @@ use self::{
     pick::EntityPicker,
     pipeline::{
         policy::{GeometryPolicy, MaterialPolicy},
-        MaterialHolder, RenderPipeline, RenderState, RenderStuff,
+        RenderPipeline, RenderState, RenderStuff,
     },
     program::ProgramStore,
     texture::TextureStore,
@@ -323,34 +324,39 @@ impl WebGL2Render {
     {
         let mut group: HashMap<String, RenderGroup> = HashMap::new();
 
-        let mut queue = state
-            .entities()
-            .into_iter()
-            .map(|entity| entity as *mut Entity)
-            .collect::<VecDeque<_>>();
-        while let Some(entity) = queue.pop_front() {
-            let entity = unsafe { &mut *entity };
+        let mut collections = VecDeque::from([(Mat4::new_identity(), state.entity_collection())]);
+        while let Some((parent_model_matrix, collection)) = collections.pop_front() {
+            // update collection first
+            collection.update_frame_matrices(&parent_model_matrix);
+            let collection_model_matrix = *collection.model_matrix();
 
-            if let Err(err) = entity.update_frame_matrices(&view_matrix, &proj_matrix) {
-                // should log warning
-                console_log!("{}", err);
-                continue;
+            // update entities inside collection
+            for entity in collection.entities_mut() {
+                if let Err(err) = entity.update_frame_matrices(
+                    &collection_model_matrix,
+                    &view_matrix,
+                    &proj_matrix,
+                ) {
+                    // should log warning
+                    console_log!("{}", err);
+                    continue;
+                }
             }
 
             // selects material
             // let mut material = &material_policy.policy(state, entity);
-            let mut material = match material_policy {
-                MaterialPolicy::FollowEntity => entity
-                    .material_mut()
-                    .map(|material| MaterialHolder::Borrowed(material)),
-                MaterialPolicy::Overwrite(material) => material
-                    .as_mut()
-                    .map(|material| MaterialHolder::Borrowed(material.as_mut())),
-                MaterialPolicy::Custom(func) => match func(state, entity) {
-                    Some(material) => Some(material),
-                    None => None,
-                },
-            };
+            // let mut material = match material_policy {
+            //     MaterialPolicy::FollowEntity => entity
+            //         .material_mut()
+            //         .map(|material| MaterialHolder::Borrowed(material)),
+            //     MaterialPolicy::Overwrite(material) => material
+            //         .as_mut()
+            //         .map(|material| MaterialHolder::Borrowed(material.as_mut())),
+            //     MaterialPolicy::Custom(func) => match func(state, entity) {
+            //         Some(material) => Some(material),
+            //         None => None,
+            //     },
+            // };
             // selects geometry
             // let mut geometry_tmp: Option<*mut dyn Geometry>;
             // let mut geometry = match &mut geometry_policy {
@@ -412,12 +418,12 @@ impl WebGL2Render {
             // }
 
             // add children to rollings list
-            // queue.extend(
-            //     entity
-            //         .children_mut()
-            //         .iter_mut()
-            //         .map(|child| child as *mut Entity),
-            // );
+            collections.extend(
+                collection
+                    .collections_mut()
+                    .iter_mut()
+                    .map(|collection| (collection_model_matrix, collection)),
+            );
         }
 
         Ok(group)
@@ -454,7 +460,9 @@ impl WebGL2Render {
                 AttributeBinding::FromMaterial(name) => {
                     state.material().attribute_value(name, &state)
                 }
-                AttributeBinding::FromEntity(name) => state.entity().attribute_value(name),
+                AttributeBinding::FromEntity(name) => {
+                    state.entity().attribute_values().get(*name).cloned()
+                }
             };
             let Some(value) = value else {
                 // should log warning
@@ -554,18 +562,15 @@ impl WebGL2Render {
             let value = match binding {
                 UniformBinding::FromGeometry(name) => state.geometry().uniform_value(name, &state),
                 UniformBinding::FromMaterial(name) => state.material().uniform_value(name, &state),
-                UniformBinding::FromEntity(name) => state.entity().uniform_value(name),
-                UniformBinding::ParentModelMatrix
-                | UniformBinding::ModelMatrix
+                UniformBinding::FromEntity(name) => {
+                    state.entity().uniform_values().get(*name).cloned()
+                }
+                UniformBinding::ModelMatrix
                 | UniformBinding::NormalMatrix
                 | UniformBinding::ModelViewMatrix
                 | UniformBinding::ModelViewProjMatrix
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
-                        UniformBinding::ParentModelMatrix => match state.entity().parent() {
-                            Some(parent) => parent.model_matrix().to_gl(),
-                            None => Mat4::<f32>::new_identity().to_gl(), // use identity if not exists
-                        },
                         UniformBinding::ModelMatrix => state.entity().model_matrix().to_gl(),
                         UniformBinding::NormalMatrix => state.entity().normal_matrix().to_gl(),
                         UniformBinding::ModelViewMatrix => {

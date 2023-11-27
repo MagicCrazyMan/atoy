@@ -7,7 +7,7 @@ pub mod standard;
 use wasm_bindgen::JsValue;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, entity::Entity, material::Material};
+use crate::{camera::Camera, entity::{Entity, EntityCollection}, material::Material};
 
 use self::{
     policy::{GeometryPolicy, MaterialPolicy},
@@ -27,8 +27,8 @@ pub trait RenderStuff {
     /// for more details.
     fn ctx_options(&self) -> Option<&JsValue>;
 
-    /// Gets entities that should be draw on current frame.
-    fn entities(&mut self) -> &mut [Entity];
+    /// Gets entity collection that should be draw on current frame.
+    fn entity_collection(&mut self) -> &mut EntityCollection;
 
     /// Gets the main camera for current frame.
     fn camera(&mut self) -> &mut dyn Camera;
@@ -64,8 +64,8 @@ where
         self.stuff.canvas()
     }
 
-    pub fn entities(&mut self) -> &mut [Entity] {
-        self.stuff.entities()
+    pub fn entity_collection(&mut self) -> &mut EntityCollection {
+        self.stuff.entity_collection()
     }
 
     pub fn camera(&mut self) -> &mut dyn Camera {

@@ -5,7 +5,7 @@ use web_sys::{
     js_sys::Uint32Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
-use crate::{entity::Entity, material::Material};
+use crate::{material::Material, entity::Entity};
 
 use super::{
     attribute::{AttributeBinding, AttributeValue},

@@ -6,7 +6,7 @@ use web_sys::{HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntr
 use crate::{
     camera::{perspective::PerspectiveCamera, Camera},
     document,
-    entity::Entity,
+    entity::EntityCollection,
     error::Error,
     utils::set_panic_hook,
 };
@@ -86,7 +86,7 @@ pub struct Scene {
     mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
     active_camera: Box<dyn Camera>,
-    root_entity: Entity,
+    entity_collection: EntityCollection,
     // require for storing callback closure function
     resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
 }
@@ -131,7 +131,7 @@ impl Scene {
             canvas,
             active_camera,
             resize_observer: _resize_observer,
-            root_entity: Entity::new(),
+            entity_collection: EntityCollection::new(),
         };
 
         // init mount target
@@ -250,18 +250,13 @@ impl Scene {
     }
 
     /// Gets root entity.
-    pub(crate) fn root_entity(&self) -> &Entity {
-        &self.root_entity
+    pub(crate) fn entity_collection(&self) -> &EntityCollection {
+        &self.entity_collection
     }
 
     /// Gets mutable root entity.
-    pub(crate) fn root_entity_mut(&mut self) -> &mut Entity {
-        &mut self.root_entity
-    }
-
-    /// Gets mutable root entity.
-    pub(crate) fn root_entity_raw(&mut self) -> *mut Entity {
-        &mut self.root_entity
+    pub(crate) fn root_entity_mut(&mut self) -> &mut EntityCollection {
+        &mut self.entity_collection
     }
 
     /// Gets current active camera.
