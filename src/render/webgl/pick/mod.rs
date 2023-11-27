@@ -14,7 +14,7 @@ use super::{
     pipeline::RenderState,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    RenderingEntityState,
+    RenderEntity,
 };
 
 pub(super) struct EntityPicker {
@@ -292,13 +292,13 @@ impl Material for PickDetectionMaterial {
         ]
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, state: &RenderingEntityState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, state: &Entity) -> Option<UniformValue> {
         match name {
-            "u_Index" => self.id2index.get(state.entity().id()).cloned(),
+            "u_Index" => self.id2index.get(state.id()).cloned(),
             _ => None,
         }
     }

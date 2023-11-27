@@ -8,9 +8,9 @@ use crate::{
             BufferUsage,
         },
         draw::{Draw, DrawElementType, DrawMode},
-        uniform::UniformValue, RenderingEntityState,
+        uniform::UniformValue,
     },
-    utils::{slice_to_float32_array, slice_to_uint8_array},
+    utils::{slice_to_float32_array, slice_to_uint8_array}, entity::Entity,
 };
 
 use super::Geometry;
@@ -126,11 +126,11 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &RenderingEntityState) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &Entity) -> Option<UniformValue> {
         None
     }
 

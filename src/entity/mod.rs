@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
@@ -19,8 +19,8 @@ pub struct Entity {
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     properties: HashMap<String, Box<dyn Any>>,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn Material>>,
+    geometry: Option<Rc<RefCell<dyn Geometry>>>,
+    material: Option<Rc<RefCell<dyn Material>>>,
 }
 
 impl Entity {
@@ -28,44 +28,24 @@ impl Entity {
         &self.id
     }
 
-    pub fn geometry(&self) -> Option<&dyn Geometry> {
-        match &self.geometry {
-            Some(geometry) => Some(geometry.as_ref()),
-            None => None,
-        }
-    }
-
-    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
-        match &mut self.geometry {
-            Some(geometry) => Some(geometry.as_mut()),
-            None => None,
-        }
+    pub fn geometry(&self) -> Option<&Rc<RefCell<dyn Geometry>>> {
+        self.geometry.as_ref()
     }
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
-            Some(geometry) => Some(Box::new(geometry)),
+            Some(geometry) => Some(Rc::new(RefCell::new(geometry))),
             None => None,
         }
     }
 
-    pub fn material(&self) -> Option<&dyn Material> {
-        match &self.material {
-            Some(material) => Some(material.as_ref()),
-            None => None,
-        }
-    }
-
-    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
-        match &mut self.material {
-            Some(material) => Some(material.as_mut()),
-            None => None,
-        }
+    pub fn material(&self) -> Option<&Rc<RefCell<dyn Material>>> {
+        self.material.as_ref()
     }
 
     pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
         self.material = match material {
-            Some(material) => Some(Box::new(material)),
+            Some(material) => Some(Rc::new(RefCell::new(material))),
             None => None,
         }
     }

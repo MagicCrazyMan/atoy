@@ -5,7 +5,7 @@ use super::{RenderState, RenderStuff};
 pub trait PostprocessOp {
     fn name(&self) -> &str;
 
-    fn post_process(&self, state: &RenderState) -> Result<(), Error>;
+    fn post_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error>;
 }
 
 pub enum InternalPostprocess {}
@@ -15,7 +15,7 @@ impl PostprocessOp for InternalPostprocess {
         todo!()
     }
 
-    fn post_process(&self, state: &RenderState) -> Result<(), Error> {
+    fn post_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error> {
         todo!()
     }
 }

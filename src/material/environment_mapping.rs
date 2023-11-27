@@ -3,6 +3,7 @@ use web_sys::HtmlImageElement;
 
 use crate::{
     document,
+    entity::Entity,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -12,8 +13,7 @@ use crate::{
             TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit,
         },
         uniform::{UniformBinding, UniformValue},
-        RenderingEntityState,
-    }, entity::Entity,
+    },
 };
 
 use super::Material;
@@ -118,11 +118,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {

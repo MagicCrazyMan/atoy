@@ -1,10 +1,12 @@
-use crate::{render::webgl::{
-    attribute::{AttributeBinding, AttributeValue},
-    pipeline::RenderState,
-    program::ShaderSource,
-    uniform::{UniformBinding, UniformValue},
-    RenderingEntityState,
-}, entity::Entity};
+use crate::{
+    entity::Entity,
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        pipeline::RenderState,
+        program::ShaderSource,
+        uniform::{UniformBinding, UniformValue},
+    },
+};
 
 pub mod environment_mapping;
 pub mod solid_color;
@@ -21,9 +23,9 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, state: &RenderingEntityState) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &Entity) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, state: &RenderingEntityState) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 

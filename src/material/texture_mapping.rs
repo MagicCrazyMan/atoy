@@ -14,7 +14,6 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
-        RenderingEntityState,
     },
 };
 
@@ -114,11 +113,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderingEntityState) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &RenderingEntityState) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {

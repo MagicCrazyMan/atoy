@@ -1,12 +1,15 @@
 pub mod cube;
 pub mod indexed_cube;
-pub mod sphere;
 pub mod raw;
+pub mod sphere;
 // pub mod plane;
 
 use std::any::Any;
 
-use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue, RenderingEntityState};
+use crate::{
+    entity::Entity,
+    render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
+};
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
@@ -17,9 +20,9 @@ pub trait Geometry {
 
     fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value(&self, name: &str, state: &RenderingEntityState) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, state: &Entity) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, state: &RenderingEntityState) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, state: &Entity) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 

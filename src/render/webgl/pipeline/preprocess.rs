@@ -7,7 +7,7 @@ use super::{RenderState, RenderStuff};
 pub trait PreprocessOp {
     fn name(&self) -> &str;
 
-    fn pre_process(&self, state: &RenderState) -> Result<(), Error>;
+    fn pre_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error>;
 }
 
 pub enum InternalPreprocessOp {
@@ -33,31 +33,31 @@ impl PreprocessOp for InternalPreprocessOp {
         }
     }
 
-    fn pre_process(&self, state: &RenderState) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error> {
         match self {
-            InternalPreprocessOp::UpdateViewport => state.gl().viewport(
+            InternalPreprocessOp::UpdateViewport => state.gl.viewport(
                 0,
                 0,
-                state.canvas().width() as i32,
-                state.canvas().height() as i32,
+                stuff.canvas().width() as i32,
+                stuff.canvas().height() as i32,
             ),
             InternalPreprocessOp::EnableDepthTest => {
-                state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+                state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
             }
             InternalPreprocessOp::EnableCullFace => {
-                state.gl().enable(WebGl2RenderingContext::CULL_FACE);
+                state.gl.enable(WebGl2RenderingContext::CULL_FACE);
             }
-            InternalPreprocessOp::EnableBlend => state.gl().enable(WebGl2RenderingContext::BLEND),
+            InternalPreprocessOp::EnableBlend => state.gl.enable(WebGl2RenderingContext::BLEND),
             InternalPreprocessOp::ClearColor(red, green, blue, alpha) => {
-                state.gl().clear_color(*red, *green, *blue, *alpha);
-                state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+                state.gl.clear_color(*red, *green, *blue, *alpha);
+                state.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
             }
             InternalPreprocessOp::ClearDepth(depth) => {
-                state.gl().clear_depth(*depth);
-                state.gl().clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+                state.gl.clear_depth(*depth);
+                state.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
             }
             InternalPreprocessOp::SetCullFaceMode(cull_face) => {
-                state.gl().cull_face(cull_face.gl_enum());
+                state.gl.cull_face(cull_face.gl_enum());
             }
         };
 

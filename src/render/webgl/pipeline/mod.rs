@@ -4,7 +4,7 @@ pub mod postprocess;
 pub mod preprocess;
 pub mod standard;
 
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::EntityCollection};
@@ -28,48 +28,37 @@ pub trait RenderStuff {
     fn ctx_options(&self) -> Option<&JsValue>;
 
     /// Gets entity collection that should be draw on current frame.
-    fn entity_collection(&mut self) -> &mut EntityCollection;
+    fn entity_collection(&self) -> &EntityCollection;
+
+    /// Gets mutable entity collection that should be draw on current frame.
+    fn entity_collection_mut(&mut self) -> &mut EntityCollection;
 
     /// Gets the main camera for current frame.
-    fn camera(&mut self) -> &mut dyn Camera;
+    fn camera(&self) -> &dyn Camera;
+
+    /// Gets mutable the main camera for current frame.
+    fn camera_mut(&mut self) -> &mut dyn Camera;
 }
 
-pub struct RenderState<'a> {
-    gl: WebGl2RenderingContext,
-    frame_time: f64,
-    stuff: &'a mut dyn RenderStuff,
+pub struct RenderState {
+    pub gl: WebGl2RenderingContext,
+    pub frame_time: f64,
 }
 
-impl<'a> RenderState<'a> {
-    pub fn new<S>(gl: WebGl2RenderingContext, frame_time: f64, stuff: &'a mut S) -> Self
-    where
-        S: RenderStuff,
-    {
-        Self {
-            gl,
-            frame_time,
-            stuff,
-        }
-    }
+impl RenderState {
+    pub(super) fn new(stuff: &dyn RenderStuff, frame_time: f64) -> Result<Self, Error> {
+        let gl = stuff
+            .canvas()
+            .get_context_with_context_options(
+                "webgl2",
+                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
+            )
+            .ok()
+            .and_then(|context| context)
+            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+            .ok_or(Error::WenGL2Unsupported)?;
 
-    pub fn gl(&self) -> &WebGl2RenderingContext {
-        &self.gl
-    }
-
-    pub fn frame_time(&self) -> f64 {
-        self.frame_time
-    }
-
-    pub fn canvas(&self) -> &HtmlCanvasElement {
-        self.stuff.canvas()
-    }
-
-    pub fn entity_collection(&mut self) -> &mut EntityCollection {
-        self.stuff.entity_collection()
-    }
-
-    pub fn camera(&mut self) -> &mut dyn Camera {
-        self.stuff.camera()
+        Ok(Self { gl, frame_time })
     }
 }
 
@@ -83,15 +72,27 @@ pub trait RenderPipeline {
     /// Developer could provide multiple [`PreprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn pre_process(&mut self, state: &mut RenderState) -> Result<&[&dyn PreprocessOp], Error>;
+    fn pre_process(
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<&[&dyn PreprocessOp], Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
-    fn material_policy(&self, state: &RenderState) -> Result<MaterialPolicy, Error>;
+    fn material_policy(
+        &self,
+        state: &RenderState,
+        stuff: &dyn RenderStuff,
+    ) -> Result<MaterialPolicy, Error>;
 
     /// Returns a [`GeometryPolicy`] which decides what geometry
     /// to use of each entity during entities collection procedure.
-    fn geometry_policy(&self, state: &RenderState) -> Result<GeometryPolicy, Error>;
+    fn geometry_policy(
+        &self,
+        state: &RenderState,
+        stuff: &dyn RenderStuff,
+    ) -> Result<GeometryPolicy, Error>;
 
     // fn collect_policy<'a>(
     //     &'a mut self,
@@ -105,5 +106,9 @@ pub trait RenderPipeline {
     /// also accepts multiple [`PostprocessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precess(&mut self, state: &mut RenderState) -> Result<&[&dyn PostprocessOp], Error>;
+    fn post_precess(
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<&[&dyn PostprocessOp], Error>;
 }
