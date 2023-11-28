@@ -5,6 +5,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use smallvec::SmallVec;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -185,16 +186,16 @@ impl RenderPipeline for PickDetection {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error> {
-        Ok(vec![
-            Box::new(UsePickDetectionFramebuffer),
-            Box::new(UpdateCamera),
-            Box::new(UpdateViewport),
-            Box::new(EnableDepthTest),
-            Box::new(EnableCullFace),
-            Box::new(PickDetectionClear),
-            Box::new(SetCullFaceMode::new(CullFace::Back)),
-        ])
+    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn PreProcessor<Self>>; 12]> = SmallVec::new();
+        processors.push(Box::new(UsePickDetectionFramebuffer));
+        processors.push(Box::new(UpdateCamera));
+        processors.push(Box::new(UpdateViewport));
+        processors.push(Box::new(EnableDepthTest));
+        processors.push(Box::new(EnableCullFace));
+        processors.push(Box::new(PickDetectionClear));
+        processors.push(Box::new(SetCullFaceMode::new(CullFace::Back)));
+        Ok(processors)
     }
 
     fn material_policy(
@@ -227,8 +228,11 @@ impl RenderPipeline for PickDetection {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error> {
-        Ok(vec![Box::new(PickDetectionPickEntity), Box::new(Reset)])
+    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn PostProcessor<Self>>; 12]> = SmallVec::new();
+        processors.push(Box::new(PickDetectionPickEntity));
+        processors.push(Box::new(Reset));
+        Ok(processors)
     }
 
     fn as_any(&self) -> &dyn Any {

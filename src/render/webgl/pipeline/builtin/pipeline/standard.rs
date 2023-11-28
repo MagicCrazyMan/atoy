@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use smallvec::SmallVec;
+
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -8,11 +10,11 @@ use crate::{
         error::Error,
         pipeline::{
             builtin::{
+                postprocessor::Reset,
                 preprocessor::{
                     ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest,
                     SetCullFaceMode, UpdateCamera, UpdateViewport,
                 },
-                postprocessor::Reset,
             },
             policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
             postprocess::PostProcessor,
@@ -58,7 +60,11 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<PreparationPolicy, Error> {
+    fn prepare(
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<PreparationPolicy, Error> {
         Ok(PreparationPolicy::Continue)
     }
 
@@ -66,17 +72,17 @@ impl<'a> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error> {
-        Ok(vec![
-            Box::new(UpdateCamera),
-            Box::new(UpdateViewport),
-            Box::new(EnableDepthTest),
-            Box::new(EnableCullFace),
-            Box::new(EnableBlend),
-            Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            Box::new(ClearDepth::new(1.0)),
-            Box::new(SetCullFaceMode::new(CullFace::Back)),
-        ])
+    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn PreProcessor<Self>>; 12]> = SmallVec::new();
+        processors.push(Box::new(UpdateCamera));
+        processors.push(Box::new(UpdateViewport));
+        processors.push(Box::new(EnableDepthTest));
+        processors.push(Box::new(EnableCullFace));
+        processors.push(Box::new(EnableBlend));
+        processors.push(Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)));
+        processors.push(Box::new(ClearDepth::new(1.0)));
+        processors.push(Box::new(SetCullFaceMode::new(CullFace::Back)));
+        Ok(processors)
     }
 
     fn material_policy(
@@ -107,8 +113,10 @@ impl<'a> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error> {
-        Ok(vec![Box::new(Reset)])
+    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn PostProcessor<Self>>; 12]> = SmallVec::new();
+        processors.push(Box::new(Reset));
+        Ok(processors)
     }
 
     fn as_any(&self) -> &dyn Any {

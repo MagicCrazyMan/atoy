@@ -5,6 +5,7 @@ pub mod preprocess;
 
 use std::any::Any;
 
+use smallvec::SmallVec;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::EntityCollection};
@@ -56,7 +57,7 @@ pub trait RenderPipeline {
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error>;
+    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
@@ -89,7 +90,7 @@ pub trait RenderPipeline {
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error>;
+    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error>;
 
     fn as_any(&self) -> &dyn Any;
 
