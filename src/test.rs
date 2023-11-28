@@ -25,6 +25,7 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::pipeline::builtin::pipeline::pick_detection::PickDetection;
 use crate::render::webgl::pipeline::builtin::pipeline::standard::{
     StandardPipeline, StandardRenderStuff,
 };
@@ -631,79 +632,96 @@ pub fn test_instanced_cube(
 //         .unwrap();
 // }
 
-// #[wasm_bindgen]
-// pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 10.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-//     let mut render = create_render(&scene)?;
+#[wasm_bindgen]
+pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render()?;
+    let mut standard_pipeline = create_standard_pipeline();
+    let mut pick_detection_pipeline = PickDetection::new();
 
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
 
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-//         let mut entity = Entity::new();
+        let mut entity = Entity::new();
 
-//         entity.set_geometry(Some(Cube::new()));
-//         // entity.set_geometry(Some(IndexedCube::new()));
-//         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-//         entity.set_local_matrix(model_matrix);
-//         scene.root_entity_mut().add_child(entity);
-//     }
+        entity.set_geometry(Some(Cube::new()));
+        // entity.set_geometry(Some(IndexedCube::new()));
+        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.set_local_matrix(model_matrix);
+        scene.entity_collection_mut().add_entity(entity);
+    }
 
-//     let picked_entity = Rc::new(RefCell::new(None as Option<*mut Entity>));
-//     let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
-//     let pick_position_cloned = Rc::clone(&pick_position);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         let client_x = event.client_x();
-//         let client_y = event.client_y();
-//         *pick_position_cloned.borrow_mut() = Some((client_x, client_y));
-//     });
-//     window()
-//         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
+    let picked_entity = Rc::new(RefCell::new(None as Option<Rc<RefCell<Entity>>>));
+    let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
+    let pick_position_cloned = Rc::clone(&pick_position);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        let client_x = event.client_x();
+        let client_y = event.client_y();
+        *pick_position_cloned.borrow_mut() = Some((client_x, client_y));
+    });
+    window()
+        .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
+        scene
+            .entity_collection_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         if let Some((x, y)) = pick_position.borrow_mut().take() {
-//             let entity = render.pick(&mut scene, timestamp, x, y).unwrap();
+        if let Some((x, y)) = pick_position.borrow_mut().take() {
+            pick_detection_pipeline.set_position(x, y);
+            render
+                .render(
+                    &mut pick_detection_pipeline,
+                    &mut StandardRenderStuff::new(&mut scene),
+                    frame_time,
+                )
+                .unwrap();
 
-//             match entity {
-//                 Some(entity) => {
-//                     console_log!("pick entity {}", entity.id());
-//                     entity.set_material(Some(SolidColorMaterial::with_color(rand::random())));
-//                     *picked_entity.borrow_mut() = Some(entity);
-//                 }
-//                 None => {
-//                     console_log!("no entity picked");
-//                     *picked_entity.borrow_mut() = None;
-//                 }
-//             }
-//         }
+            match pick_detection_pipeline.pick() {
+                Some(entity) => {
+                    console_log!("pick entity {}", entity.borrow().id());
+                    entity
+                        .borrow_mut()
+                        .set_material(Some(SolidColorMaterial::with_color(rand::random())));
+                    *picked_entity.borrow_mut() = Some(Rc::clone(entity));
+                }
+                None => {
+                    console_log!("no entity picked");
+                    *picked_entity.borrow_mut() = None;
+                }
+            }
+        }
 
-//         render.render(&mut scene, timestamp).unwrap();
+        render
+            .render(
+                &mut standard_pipeline,
+                &mut StandardRenderStuff::new(&mut scene),
+                frame_time,
+            )
+            .unwrap();
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     Ok(())
-// }
+    Ok(())
+}

@@ -38,7 +38,6 @@ pub mod buffer;
 pub mod conversion;
 pub mod draw;
 pub mod error;
-pub mod pick;
 pub mod pipeline;
 pub mod program;
 pub mod texture;
@@ -248,7 +247,7 @@ impl WebGL2Render {
         pipeline.prepare(state, stuff)?;
 
         // pre-process stages
-        for processor in pipeline.pre_process(state, stuff)? {
+        for mut processor in pipeline.pre_process(state, stuff)? {
             processor.pre_process(state, stuff)?;
         }
 
