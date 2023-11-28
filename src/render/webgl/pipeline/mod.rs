@@ -10,7 +10,7 @@ use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
     policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
-    postprocess::PostProcessOp,
+    postprocess::PostProcessor,
     preprocess::PreProcessor,
 };
 
@@ -37,15 +37,14 @@ pub struct RenderState {
     pub frame_time: f64,
 }
 
-pub trait RenderPipeline {
+pub trait RenderPipeline<Stuff>
+where
+    Stuff: RenderStuff,
+{
     fn dependencies(&self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    fn prepare(
-        &mut self,
-        state: &mut RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<(), Error>;
+    fn prepare(&mut self, state: &mut RenderState, stuff: &mut Stuff) -> Result<(), Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreProcessOp`]s
@@ -54,29 +53,21 @@ pub trait RenderPipeline {
     fn pre_process(
         &mut self,
         state: &mut RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor>>, Error>;
+        stuff: &mut Stuff,
+    ) -> Result<Vec<Box<dyn PreProcessor<Stuff>>>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
-    fn material_policy(
-        &self,
-        state: &RenderState,
-        stuff: &dyn RenderStuff,
-    ) -> Result<MaterialPolicy, Error>;
+    fn material_policy(&self, state: &RenderState, stuff: &Stuff) -> Result<MaterialPolicy, Error>;
 
     /// Returns a [`GeometryPolicy`] which decides what geometry
     /// to use of each entity during entities collection procedure.
-    fn geometry_policy(
-        &self,
-        state: &RenderState,
-        stuff: &dyn RenderStuff,
-    ) -> Result<GeometryPolicy, Error>;
+    fn geometry_policy(&self, state: &RenderState, stuff: &Stuff) -> Result<GeometryPolicy, Error>;
 
     fn collect_policy(
         &mut self,
         state: &RenderState,
-        stuff: &dyn RenderStuff,
+        stuff: &Stuff,
     ) -> Result<CollectPolicy, Error>;
 
     /// Postprecess stages during render procedure.
@@ -87,6 +78,6 @@ pub trait RenderPipeline {
     fn post_precess(
         &mut self,
         state: &mut RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PostProcessOp], Error>;
+        stuff: &mut Stuff,
+    ) -> Result<Vec<Box<dyn PostProcessor<Stuff>>>, Error>;
 }

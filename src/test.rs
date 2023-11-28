@@ -318,62 +318,75 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 //     Ok(())
 // }
 
-// #[wasm_bindgen]
-// pub fn test_instanced_cube(
-//     count: usize,
-//     grid: usize,
-//     width: f64,
-//     height: f64,
-// ) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-//     let mut render = create_render(&scene)?;
+#[wasm_bindgen]
+pub fn test_instanced_cube(
+    count: usize,
+    grid: usize,
+    width: f64,
+    height: f64,
+) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render()?;
+    let mut pipeline = create_standard_pipeline();
 
-//     let mut entity = Entity::new();
+    let mut entity = Entity::new();
 
-//     // entity.set_geometry(Some(Cube::new()));
-//     entity.set_geometry(Some(IndexedCube::new()));
-//     entity.set_material(Some(SolidColorInstancedMaterial::new(
-//         count, grid, width, height,
-//     )));
-//     scene.root_entity_mut().add_child(entity);
+    // entity.set_geometry(Some(Cube::new()));
+    entity.set_geometry(Some(IndexedCube::new()));
+    entity.set_material(Some(SolidColorInstancedMaterial::new(
+        count, grid, width, height,
+    )));
+    scene.entity_collection_mut().add_entity(entity);
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
 
-//         static MAX_SIZE: f64 = 3.0;
-//         static MIN_SIZE: f64 = 1.0;
-//         static SIZE_PER_SECOND: f64 = 0.5;
-//         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-//         scene
-//             .root_entity_mut()
-//             .children_mut()
-//             .get_mut(0)
-//             .unwrap()
-//             .geometry_mut()
-//             .unwrap()
-//             .as_any_mut()
-//             .downcast_mut::<IndexedCube>()
-//             .unwrap()
-//             .set_size(size);
+        // static MAX_SIZE: f64 = 3.0;
+        // static MIN_SIZE: f64 = 1.0;
+        // static SIZE_PER_SECOND: f64 = 0.5;
+        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+        // scene
+        //     .root_entity_mut()
+        //     .children_mut()
+        //     .get_mut(0)
+        //     .unwrap()
+        //     .geometry_mut()
+        //     .unwrap()
+        //     .as_any_mut()
+        //     .downcast_mut::<IndexedCube>()
+        //     .unwrap()
+        //     .set_size(size);
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
+        scene
+            .entity_collection_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         render.render(&mut scene, timestamp).unwrap();
+        let start = window().performance().unwrap().now();
+        render
+            .render(
+                &mut pipeline,
+                &mut StandardRenderStuff::new(&mut scene),
+                frame_time,
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 // #[wasm_bindgen]
 // pub fn test_texture(

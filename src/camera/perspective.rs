@@ -5,7 +5,6 @@ use gl_matrix4rust::{
     vec3::{AsVec3, Vec3},
 };
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen_test::console_log;
 
 use crate::render::webgl::pipeline::RenderState;
 

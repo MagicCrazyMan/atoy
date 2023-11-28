@@ -1,31 +1,35 @@
+pub mod standard;
+
 use web_sys::WebGl2RenderingContext;
 
 use crate::render::webgl::error::Error;
 
 use super::{RenderState, RenderStuff};
 
-pub trait PostProcessOp {
+pub trait PostProcessor<Stuff>
+where
+    Stuff: RenderStuff,
+{
     fn name(&self) -> &str;
 
-    fn post_process(
-        &mut self,
-        state: &RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<(), Error>;
+    fn post_process(&mut self, state: &RenderState, stuff: &mut Stuff) -> Result<(), Error>;
 }
 
 pub enum StandardPostProcess {
     Reset,
 }
 
-impl PostProcessOp for StandardPostProcess {
+impl<Stuff> PostProcessor<Stuff> for StandardPostProcess
+where
+    Stuff: RenderStuff,
+{
     fn name(&self) -> &str {
         match self {
             StandardPostProcess::Reset => "Reset",
         }
     }
 
-    fn post_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn post_process(&mut self, state: &RenderState, _: &mut Stuff) -> Result<(), Error> {
         match self {
             StandardPostProcess::Reset => {
                 state.gl.use_program(None);
@@ -82,8 +86,12 @@ impl PostProcessOp for StandardPostProcess {
                 state.gl.disable(WebGl2RenderingContext::CULL_FACE);
                 state.gl.disable(WebGl2RenderingContext::BLEND);
                 state.gl.disable(WebGl2RenderingContext::DITHER);
-                state.gl.disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
-                state.gl.disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
+                state
+                    .gl
+                    .disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
+                state
+                    .gl
+                    .disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
                 state.gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
                 state.gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
                 state.gl.disable(WebGl2RenderingContext::STENCIL_TEST);

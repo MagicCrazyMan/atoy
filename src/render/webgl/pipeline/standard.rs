@@ -1,5 +1,3 @@
-use wasm_bindgen_test::console_log;
-
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -9,7 +7,7 @@ use crate::{
 
 use super::{
     policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
-    postprocess::PostProcessOp,
+    postprocess::{standard::Reset, PostProcessor},
     preprocess::{
         standard::{
             ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, SetCullFaceMode,
@@ -69,20 +67,20 @@ impl StandardPipeline {
     }
 }
 
-impl<'s> RenderPipeline for StandardPipeline {
+impl<'s, Stuff: RenderStuff> RenderPipeline<Stuff> for StandardPipeline {
     fn dependencies(&self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn prepare(&mut self, _: &mut RenderState, _: &mut Stuff) -> Result<(), Error> {
         Ok(())
     }
 
     fn pre_process(
         &mut self,
         _: &mut RenderState,
-        _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
+        _: &mut Stuff,
+    ) -> Result<Vec<Box<dyn PreProcessor<Stuff>>>, Error> {
         Ok(vec![
             Box::new(UpdateCamera),
             Box::new(UpdateViewport),
@@ -95,35 +93,23 @@ impl<'s> RenderPipeline for StandardPipeline {
         ])
     }
 
-    fn material_policy(
-        &self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
-    ) -> Result<MaterialPolicy, Error> {
+    fn material_policy(&self, _: &RenderState, _: &Stuff) -> Result<MaterialPolicy, Error> {
         Ok(MaterialPolicy::FollowEntity)
     }
 
-    fn geometry_policy(
-        &self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
-    ) -> Result<GeometryPolicy, Error> {
+    fn geometry_policy(&self, _: &RenderState, _: &Stuff) -> Result<GeometryPolicy, Error> {
         Ok(GeometryPolicy::FollowEntity)
     }
 
-    fn collect_policy(
-        &mut self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
-    ) -> Result<CollectPolicy, Error> {
+    fn collect_policy(&mut self, _: &RenderState, _: &Stuff) -> Result<CollectPolicy, Error> {
         Ok(CollectPolicy::CollectAll)
     }
 
     fn post_precess(
         &mut self,
         _: &mut RenderState,
-        _: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PostProcessOp], Error> {
-        Ok(&[])
+        _: &mut Stuff,
+    ) -> Result<Vec<Box<dyn PostProcessor<Stuff>>>, Error> {
+        Ok(vec![Box::new(Reset)])
     }
 }
