@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use gl_matrix4rust::mat4::Mat4;
 use palette::rgb::Rgb;
 use web_sys::js_sys::Float32Array;
@@ -143,6 +145,14 @@ impl Material for SolidColorInstancedMaterial {
 
     fn instanced(&self) -> Option<i32> {
         Some(self.count as i32)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
     fn attribute_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {

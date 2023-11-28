@@ -409,6 +409,14 @@ impl Material for PickDetectionMaterial {
         None
     }
 
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn prepare(&mut self, _: &RenderState, entity: &Rc<RefCell<Entity>>) {
         let index = self.id2index.len() + 1; // index 0 as nothing
         if index >= u32::MAX as usize {

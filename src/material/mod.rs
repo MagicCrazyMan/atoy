@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, any::Any};
 
 use crate::{
     entity::Entity,
@@ -33,6 +33,10 @@ pub trait Material {
     fn ready(&self) -> bool;
 
     fn instanced(&self) -> Option<i32>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 
     /// Preparation before entering drawing stage.
     ///

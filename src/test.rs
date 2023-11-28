@@ -700,9 +700,16 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             match pick_detection_pipeline.pick() {
                 Some(entity) => {
                     console_log!("pick entity {}", entity.borrow().id());
-                    entity
-                        .borrow_mut()
-                        .set_material(Some(SolidColorMaterial::with_color(rand::random())));
+                    {
+                        let entity = (*entity).borrow_mut();
+                        let mut material = entity.material().unwrap().borrow_mut();
+                        material
+                            .as_any_mut()
+                            .downcast_mut::<SolidColorMaterial>()
+                            .unwrap()
+                            .set_color(rand::random());
+                    }
+
                     *picked_entity.borrow_mut() = Some(entity);
                 }
                 None => {

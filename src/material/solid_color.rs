@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use palette::rgb::Rgb;
 
 use crate::render::webgl::{
@@ -50,6 +52,14 @@ impl SolidColorMaterial {
     pub fn with_color(color: Rgb) -> Self {
         Self { color }
     }
+
+    pub fn color(&self) -> Rgb {
+        self.color
+    }
+
+    pub fn set_color(&mut self, color: Rgb) {
+        self.color = color;
+    }
 }
 
 impl Material for SolidColorMaterial {
@@ -96,5 +106,13 @@ impl Material for SolidColorMaterial {
             ])),
             _ => None,
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

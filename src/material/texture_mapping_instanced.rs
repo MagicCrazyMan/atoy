@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, any::Any};
 
 use gl_matrix4rust::mat4::Mat4;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -196,6 +196,14 @@ impl Material for TextureInstancedMaterial {
             },
             _ => None,
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 
     fn prepare(&mut self, _: &RenderState, _: &Rc<RefCell<Entity>>) {
