@@ -30,28 +30,13 @@ extern "C" {
 /// Scene options
 #[derive(Default)]
 pub struct SceneOptions {
-    /// Mounts target.
-    mount: Option<String>,
     /// Default camera
     camera: Option<Box<dyn Camera>>,
 }
 
 impl SceneOptions {
     pub fn new() -> Self {
-        Self {
-            mount: None,
-            camera: None,
-        }
-    }
-
-    pub fn with_mount<S: Into<String>>(mut self, mount: S) -> Self {
-        self.mount = Some(mount.into());
-        self
-    }
-
-    pub fn without_mount(mut self) -> Self {
-        self.mount = None;
-        self
+        Self { camera: None }
     }
 
     pub fn with_default_camera<C: Camera + 'static>(mut self, camera: C) -> Self {
@@ -64,16 +49,8 @@ impl SceneOptions {
         self
     }
 
-    pub fn mount(&self) -> Option<&str> {
-        self.mount.as_ref().map(|x| x.as_str())
-    }
-
     pub fn camera(&self) -> Option<&Box<dyn Camera>> {
         self.camera.as_ref()
-    }
-
-    fn take_mount(&mut self) -> Option<String> {
-        self.mount.take()
     }
 
     fn take_camera(&mut self) -> Option<Box<dyn Camera>> {
@@ -83,8 +60,6 @@ impl SceneOptions {
 
 #[wasm_bindgen]
 pub struct Scene {
-    mount: Option<HtmlElement>,
-    canvas: HtmlCanvasElement,
     active_camera: Box<dyn Camera>,
     entity_collection: EntityCollection,
     // require for storing callback closure function
@@ -124,13 +99,11 @@ impl Scene {
             .as_mut()
             .and_then(|opts| opts.take_camera())
             .unwrap_or(Self::create_camera(&canvas));
-        let _resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
+        let resize_observer = Self::observer_canvas_size(&canvas, &mut active_camera);
 
         let mut scene = Self {
-            mount: None,
-            canvas,
             active_camera,
-            resize_observer: _resize_observer,
+            resize_observer,
             entity_collection: EntityCollection::new(),
         };
 

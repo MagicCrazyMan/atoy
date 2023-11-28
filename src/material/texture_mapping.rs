@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::HtmlImageElement;
 
@@ -113,11 +115,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -136,7 +138,7 @@ impl Material for TextureMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Entity) {
+    fn prepare(&mut self, _: &RenderState, _: &Rc<RefCell<Entity>>) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

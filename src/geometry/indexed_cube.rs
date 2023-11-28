@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::{
     render::webgl::{
@@ -126,11 +126,11 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
         None
     }
 

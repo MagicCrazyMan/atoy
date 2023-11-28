@@ -1,5 +1,11 @@
+use std::{cell::RefCell, rc::Rc, collections::HashMap, any::Any};
+
+use gl_matrix4rust::mat4::Mat4;
+use uuid::Uuid;
+
 use crate::{
     entity::Entity,
+    geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -23,14 +29,19 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, entity: &Entity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
     fn instanced(&self) -> Option<i32>;
 
+    /// Preparation before entering drawing stage.
+    /// 
+    /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
+    /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
+    /// do not borrow material from entity.
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &RenderState, entity: &Entity) {}
+    fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
 }

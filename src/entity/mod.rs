@@ -50,6 +50,42 @@ impl Entity {
         }
     }
 
+    // pub(crate) fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
+    //     match self.geometry.as_mut() {
+    //         Some(geometry) => Some(geometry.as_mut()),
+    //         None => None,
+    //     }
+    // }
+
+    // pub(crate) fn material_raw(&mut self) -> Option<*mut dyn Material> {
+    //     match self.material.as_mut() {
+    //         Some(material) => Some(material.as_mut()),
+    //         None => None,
+    //     }
+    // }
+
+    // pub fn geometry(&self) -> Option<&Rc<RefCell<dyn Geometry>>> {
+    //     self.geometry.as_ref()
+    // }
+
+    // pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+    //     self.geometry = match geometry {
+    //         Some(geometry) => Some(Rc::new(RefCell::new(geometry))),
+    //         None => None,
+    //     }
+    // }
+
+    // pub fn material(&self) -> Option<&Rc<RefCell<dyn Material>>> {
+    //     self.material.as_ref()
+    // }
+
+    // pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
+    //     self.material = match material {
+    //         Some(material) => Some(Rc::new(RefCell::new(material))),
+    //         None => None,
+    //     }
+    // }
+
     pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
         &self.attributes
     }
@@ -118,7 +154,7 @@ impl Entity {
 
 pub struct EntityCollection {
     id: Uuid,
-    entities: Vec<Entity>,
+    entities: Vec<Rc<RefCell<Entity>>>,
     collections: Vec<EntityCollection>,
     local_matrix: Mat4,
     model_matrix: Mat4,
@@ -136,38 +172,38 @@ impl EntityCollection {
         }
     }
 
-    pub fn entities(&self) -> &Vec<Entity> {
+    pub fn entities(&self) -> &Vec<Rc<RefCell<Entity>>> {
         &self.entities
     }
 
-    pub fn entities_mut(&mut self) -> &mut Vec<Entity> {
+    pub fn entities_mut(&mut self) -> &mut Vec<Rc<RefCell<Entity>>> {
         &mut self.entities
     }
 
-    pub fn add_entity(&mut self, entity: Entity) {
-        // self.entities_hash.insert(entity.id, entity.as_mut());
-        self.entities.push(entity);
-    }
+    // pub fn add_entity(&mut self, entity: Entity) {
+    //     // self.entities_hash.insert(entity.id, entity.as_mut());
+    //     self.entities.push(Rc::new(RefCell::new(entity)));
+    // }
 
-    pub fn remove_entity_by_index(&mut self, index: usize) -> Option<Entity> {
-        if index >= self.entities.len() {
-            return None;
-        }
+    // pub fn remove_entity_by_index(&mut self, index: usize) -> Option<Rc<RefCell<Entity>>> {
+    //     if index >= self.entities.len() {
+    //         return None;
+    //     }
 
-        let entity = self.entities.remove(index);
-        // self.entities_hash.remove(&entity.id);
-        Some(entity)
-    }
+    //     let entity = self.entities.remove(index);
+    //     // self.entities_hash.remove(&entity.id);
+    //     Some(entity)
+    // }
 
-    pub fn remove_entity_by_id(&mut self, id: &Uuid) -> Option<Entity> {
-        let Some(index) = self.entities.iter().position(|entity| &entity.id == id) else {
-            return None;
-        };
+    // pub fn remove_entity_by_id(&mut self, id: &Uuid) -> Option<Rc<RefCell<Entity>>> {
+    //     let Some(index) = self.entities.iter().position(|entity| entity.borrow().id() == id) else {
+    //         return None;
+    //     };
 
-        let entity = self.entities.remove(index);
-        // self.entities_hash.remove(&entity.id);
-        Some(entity)
-    }
+    //     let entity = self.entities.remove(index);
+    //     // self.entities_hash.remove(&entity.id);
+    //     Some(entity)
+    // }
 
     pub fn collections(&self) -> &Vec<Self> {
         &self.collections
@@ -177,29 +213,29 @@ impl EntityCollection {
         &mut self.collections
     }
 
-    pub fn add_collection(self: &mut Box<Self>, collection: Self) {
-        self.collections.push(collection);
-    }
+    // pub fn add_collection(self: &mut Box<Self>, collection: Self) {
+    //     self.collections.push(collection);
+    // }
 
-    pub fn remove_collection_by_index(&mut self, index: usize) -> Option<Self> {
-        if index >= self.collections.len() {
-            return None;
-        }
+    // pub fn remove_collection_by_index(&mut self, index: usize) -> Option<Self> {
+    //     if index >= self.collections.len() {
+    //         return None;
+    //     }
 
-        let collection = self.collections.remove(index);
-        // self.entities_hash.remove(&entity.id);
-        Some(collection)
-    }
+    //     let collection = self.collections.remove(index);
+    //     // self.entities_hash.remove(&entity.id);
+    //     Some(collection)
+    // }
 
-    pub fn remove_collection_by_id(&mut self, id: &Uuid) -> Option<Self> {
-        let Some(index) = self.collections.iter().position(|entity| &entity.id == id) else {
-            return None;
-        };
+    // pub fn remove_collection_by_id(&mut self, id: &Uuid) -> Option<Self> {
+    //     let Some(index) = self.collections.iter().position(|entity| &entity.id == id) else {
+    //         return None;
+    //     };
 
-        let collection = self.collections.remove(index);
-        // self.entities_hash.remove(&entity.id);
-        Some(collection)
-    }
+    //     let collection = self.collections.remove(index);
+    //     // self.entities_hash.remove(&entity.id);
+    //     Some(collection)
+    // }
 
     pub fn local_matrix(&self) -> &Mat4 {
         &self.local_matrix
@@ -217,3 +253,5 @@ impl EntityCollection {
         self.model_matrix = *parent_model_matrix * self.local_matrix;
     }
 }
+
+pub struct RenderEntity(*mut Entity);

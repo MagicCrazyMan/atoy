@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{entity::Entity, geometry::Geometry, material::Material};
+use crate::{entity::Entity, geometry::Geometry, material::Material, render::webgl::RenderGroup};
 
 /// Material policy telling render program what material should be used of a entity.
 pub enum MaterialPolicy {
@@ -19,7 +19,21 @@ pub enum GeometryPolicy {
     /// Forces all entities render a specified geometry.
     Overwrite(Option<Rc<RefCell<dyn Geometry>>>),
     /// Decides what geometry to use of each entity by a custom callback function.
-    Custom(Box<dyn Fn(&Entity) -> Option<Rc<RefCell<dyn Geometry>>>>),
+    Custom(Box<dyn Fn(&Rc<RefCell<Entity>>) -> Option<Rc<RefCell<dyn Geometry>>>>),
 }
 
-pub enum ErrorPolicy {}
+/// Entity collect policy tells render program
+/// whether an entity should be collect into render list.
+pub enum CollectPolicy {
+    CollectAll,
+    Custom(
+        Box<
+            dyn Fn(
+                &HashMap<String, RenderGroup>,
+                &Rc<RefCell<Entity>>,
+                &Rc<RefCell<dyn Geometry>>,
+                &Rc<RefCell<dyn Material>>,
+            ) -> bool,
+        >,
+    ),
+}

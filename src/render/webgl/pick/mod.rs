@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use uuid::Uuid;
 use web_sys::{
@@ -14,7 +14,6 @@ use super::{
     pipeline::RenderState,
     program::ShaderSource,
     uniform::{UniformBinding, UniformValue},
-    RenderEntity,
 };
 
 pub(super) struct EntityPicker {
@@ -101,7 +100,7 @@ impl EntityPicker {
         Ok(())
     }
 
-    pub(super) fn pick(&mut self, x: i32, y: i32) -> Result<Option<&Entity>, Error> {
+    pub(super) fn pick(&mut self, x: i32, y: i32) -> Result<Option<Rc<RefCell<Entity>>>, Error> {
         // read index from texture
         let dst = Uint32Array::new_with_length(1);
         self.gl
@@ -119,10 +118,7 @@ impl EntityPicker {
         // gets entity from mapping
         let index = dst.get_index(0);
         let entity = if index != 0 {
-            self.material
-                .index2entity
-                .get(&index)
-                .map(|entity| unsafe { &**entity })
+            self.material.index2entity.get(&index).cloned()
         } else {
             None
         };
@@ -252,7 +248,7 @@ const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("./fragment.gl");
 
 pub(crate) struct PickDetectionMaterial {
     id2index: HashMap<Uuid, UniformValue>,
-    index2entity: HashMap<u32, *const Entity>,
+    index2entity: HashMap<u32, Rc<RefCell<Entity>>>,
 }
 
 impl PickDetectionMaterial {
@@ -292,13 +288,13 @@ impl Material for PickDetectionMaterial {
         ]
     }
 
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, state: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, state: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
         match name {
-            "u_Index" => self.id2index.get(state.id()).cloned(),
+            "u_Index" => self.id2index.get(state.borrow().id()).cloned(),
             _ => None,
         }
     }
@@ -311,7 +307,7 @@ impl Material for PickDetectionMaterial {
         None
     }
 
-    fn prepare(&mut self, _: &RenderState, entity: &Entity) {
+    fn prepare(&mut self, _: &RenderState, entity: &Rc<RefCell<Entity>>) {
         let index = self.id2index.len() + 1; // index 0 as nothing
         if index >= u32::MAX as usize {
             panic!("too may entities in scene");
@@ -319,7 +315,7 @@ impl Material for PickDetectionMaterial {
 
         let index = index as u32;
         self.id2index
-            .insert(*entity.id(), UniformValue::UnsignedInteger1(index));
-        self.index2entity.insert(index, entity);
+            .insert(*entity.borrow().id(), UniformValue::UnsignedInteger1(index));
+        self.index2entity.insert(index, Rc::clone(entity));
     }
 }

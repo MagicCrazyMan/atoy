@@ -4,10 +4,13 @@ pub mod raw;
 pub mod sphere;
 // pub mod plane;
 
-use std::any::Any;
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+
+use gl_matrix4rust::mat4::Mat4;
 
 use crate::{
     entity::Entity,
+    material::Material,
     render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
 };
 
@@ -20,9 +23,9 @@ pub trait Geometry {
 
     fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value(&self, name: &str, state: &Entity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, state: &Entity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 

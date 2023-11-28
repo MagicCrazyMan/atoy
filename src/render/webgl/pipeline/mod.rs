@@ -4,13 +4,12 @@ pub mod postprocess;
 pub mod preprocess;
 pub mod standard;
 
-use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
-    policy::{GeometryPolicy, MaterialPolicy},
+    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
     postprocess::PostprocessOp,
     preprocess::PreprocessOp,
 };
@@ -19,14 +18,6 @@ use super::error::Error;
 
 /// Basic stuffs for running the render program.
 pub trait RenderStuff {
-    /// Rendering canvas.
-    fn canvas(&self) -> &HtmlCanvasElement;
-
-    /// WebGL2 context options.
-    /// Checks [MDN References](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext)
-    /// for more details.
-    fn ctx_options(&self) -> Option<&JsValue>;
-
     /// Gets entity collection that should be draw on current frame.
     fn entity_collection(&self) -> &EntityCollection;
 
@@ -41,25 +32,9 @@ pub trait RenderStuff {
 }
 
 pub struct RenderState {
+    pub canvas: HtmlCanvasElement,
     pub gl: WebGl2RenderingContext,
     pub frame_time: f64,
-}
-
-impl RenderState {
-    pub(super) fn new(stuff: &dyn RenderStuff, frame_time: f64) -> Result<Self, Error> {
-        let gl = stuff
-            .canvas()
-            .get_context_with_context_options(
-                "webgl2",
-                stuff.ctx_options().unwrap_or(&JsValue::undefined()),
-            )
-            .ok()
-            .and_then(|context| context)
-            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
-            .ok_or(Error::WenGL2Unsupported)?;
-
-        Ok(Self { gl, frame_time })
-    }
 }
 
 pub trait RenderPipeline {
@@ -94,12 +69,11 @@ pub trait RenderPipeline {
         stuff: &dyn RenderStuff,
     ) -> Result<GeometryPolicy, Error>;
 
-    // fn collect_policy<'a>(
-    //     &'a mut self,
-    //     state: &'a mut RenderState<'a, S>,
-    // ) -> Result<(MaterialPolicy<'a, S>, GeometryPolicy<'a, S>), Error> {
-    //     Ok((self.material_policy(state)?, self.geometry_policy(state)?))
-    // }
+    fn collect_policy(
+        &mut self,
+        state: &RenderState,
+        stuff: &dyn RenderStuff,
+    ) -> Result<CollectPolicy, Error>;
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`

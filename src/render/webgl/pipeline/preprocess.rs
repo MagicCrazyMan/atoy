@@ -7,10 +7,15 @@ use super::{RenderState, RenderStuff};
 pub trait PreprocessOp {
     fn name(&self) -> &str;
 
-    fn pre_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error>;
+    fn pre_process(
+        &mut self,
+        state: &RenderState,
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<(), Error>;
 }
 
 pub enum InternalPreprocessOp {
+    UpdateStuffCamera,
     UpdateViewport,
     EnableDepthTest,
     EnableCullFace,
@@ -23,6 +28,7 @@ pub enum InternalPreprocessOp {
 impl PreprocessOp for InternalPreprocessOp {
     fn name(&self) -> &str {
         match self {
+            InternalPreprocessOp::UpdateStuffCamera => "UpdateStuffCamera",
             InternalPreprocessOp::UpdateViewport => "UpdateViewport",
             InternalPreprocessOp::EnableDepthTest => "EnableDepthTest",
             InternalPreprocessOp::EnableCullFace => "EnableCullFace",
@@ -33,13 +39,14 @@ impl PreprocessOp for InternalPreprocessOp {
         }
     }
 
-    fn pre_process(&self, state: &RenderState, stuff: &dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         match self {
+            InternalPreprocessOp::UpdateStuffCamera => todo!(),
             InternalPreprocessOp::UpdateViewport => state.gl.viewport(
                 0,
                 0,
-                stuff.canvas().width() as i32,
-                stuff.canvas().height() as i32,
+                state.canvas.width() as i32,
+                state.canvas.height() as i32,
             ),
             InternalPreprocessOp::EnableDepthTest => {
                 state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
