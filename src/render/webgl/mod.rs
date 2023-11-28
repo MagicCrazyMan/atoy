@@ -279,7 +279,7 @@ impl WebGL2Render {
             // render each entity
             for entity in entities {
                 // pre-render
-                // self.pre_render(&state);
+                self.before_draw(&state, &entity);
                 // binds attributes
                 self.bind_attributes(&state, &entity, attribute_locations);
                 // binds uniforms
@@ -287,12 +287,11 @@ impl WebGL2Render {
                 // draws
                 self.draw(&state, &entity);
                 // post-render
-                // self.post_render(&state);
+                self.after_draw(&state, &entity);
             }
         }
 
         // post-process stages
-        // pre-process stages
         for mut processor in pipeline.post_processors(state, stuff)? {
             processor.post_process(pipeline, state, stuff)?;
         }
@@ -352,11 +351,6 @@ impl WebGL2Render {
                 // trigger material preparation
                 material.borrow_mut().prepare(state, &entity);
 
-                // skip if not ready yet
-                if !material.borrow().ready() {
-                    continue;
-                }
-
                 // selects geometry
                 let geometry = match &geometry_policy {
                     GeometryPolicy::FollowEntity => entity.borrow_mut().geometry().cloned(),
@@ -366,6 +360,13 @@ impl WebGL2Render {
                 let Some(geometry) = geometry else {
                     continue;
                 };
+                // trigger material preparation
+                geometry.borrow_mut().prepare(state, &entity);
+
+                // skip if not ready yet
+                if !material.borrow().ready() {
+                    continue;
+                }
 
                 // check collectable
                 let collectable = match &collect_policy {
@@ -422,14 +423,16 @@ impl WebGL2Render {
         Ok(groups)
     }
 
-    /// Calls pre-render callback of the entity.
-    fn pre_render(&self, entity: &RenderEntity) {
-        // entity.material.borrow_mut().pre_render(entity);
+    /// Calls before draw callback of the entity.
+    fn before_draw(&self, state: &RenderState, entity: &RenderEntity) {
+        entity.geometry().borrow_mut().before_draw(state, entity);
+        entity.material().borrow_mut().before_draw(state, entity);
     }
 
-    /// Calls post-render callback of the entity.
-    fn post_render(&self, state: &RenderEntity) {
-        // state.material().post_render(state);
+    /// Calls after draw callback of the entity.
+    fn after_draw(&self, state: &RenderState, entity: &RenderEntity) {
+        entity.geometry().borrow_mut().after_draw(state, entity);
+        entity.material().borrow_mut().after_draw(state, entity);
     }
 
     /// Binds attributes of the entity.
