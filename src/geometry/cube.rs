@@ -10,10 +10,10 @@ use crate::{
         draw::{Draw, DrawMode},
         uniform::UniformValue,
     },
-    utils::slice_to_float32_array, entity::RenderEntity,
+    utils::slice_to_float32_array,
 };
 
-use super::Geometry;
+use super::{Geometry, GeometryRenderEntity};
 
 pub struct Cube {
     size: f64,
@@ -129,11 +129,11 @@ impl Geometry for Cube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &RenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<UniformValue> {
         None
     }
 

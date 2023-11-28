@@ -13,8 +13,8 @@ use web_sys::{
 };
 
 use crate::{
-    entity::{Entity, RenderEntity},
-    material::Material,
+    entity::Entity,
+    material::{Material, MaterialRenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         draw::CullFace,
@@ -390,11 +390,11 @@ impl Material for PickDetectionMaterial {
         ]
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, entity: &RenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, entity: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
             "u_Index" => self.id2index.get(entity.entity().borrow().id()).cloned(),
             _ => None,

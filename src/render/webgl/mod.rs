@@ -14,7 +14,9 @@ use web_sys::{
     WebGlProgram, WebGlUniformLocation,
 };
 
-use crate::{document, entity::RenderEntity};
+use crate::{
+    document, entity::RenderEntity, geometry::GeometryRenderEntity, material::MaterialRenderEntity,
+};
 
 use self::{
     attribute::{AttributeBinding, AttributeValue},
@@ -189,11 +191,11 @@ pub struct RenderGroup {
     program: *const WebGlProgram,
     attribute_locations: *const HashMap<AttributeBinding, GLuint>,
     uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
-    entities: Vec<RenderEntity>,
+    entities: Vec<(RenderEntity, GeometryRenderEntity, MaterialRenderEntity)>,
 }
 
 impl RenderGroup {
-    pub fn entities(&self) -> &[RenderEntity] {
+    pub fn entities(&self) -> &[(RenderEntity, GeometryRenderEntity, MaterialRenderEntity)] {
         &self.entities
     }
 }
@@ -250,17 +252,40 @@ impl WebGL2Render {
             state.gl.use_program(Some(program));
 
             // render each entity
-            for entity in entities {
+            for (render_entity, geometry_render_entity, material_render_entity) in entities {
                 // before draw
-                self.before_draw(&state, &entity);
+                self.before_draw(
+                    &state,
+                    &render_entity,
+                    &geometry_render_entity,
+                    &material_render_entity,
+                );
                 // binds attributes
-                self.bind_attributes(&state, &entity, attribute_locations);
+                self.bind_attributes(
+                    &state,
+                    &render_entity,
+                    &geometry_render_entity,
+                    &material_render_entity,
+                    attribute_locations,
+                );
                 // binds uniforms
-                self.bind_uniforms(&state, stuff, &entity, uniform_locations);
+                self.bind_uniforms(
+                    &state,
+                    stuff,
+                    &render_entity,
+                    &geometry_render_entity,
+                    &material_render_entity,
+                    uniform_locations,
+                );
                 // draws
-                self.draw(&state, &entity);
+                self.draw(&state, &render_entity);
                 // after draw
-                self.after_draw(&state, &entity);
+                self.after_draw(
+                    &state,
+                    &render_entity,
+                    &geometry_render_entity,
+                    &material_render_entity,
+                );
             }
         }
 
@@ -362,10 +387,14 @@ impl WebGL2Render {
                 let material_name = material.borrow().name().to_string();
                 match groups.entry(material_name) {
                     Entry::Occupied(mut occupied) => {
-                        occupied.get_mut().entities.push(RenderEntity::new(
-                            Rc::clone(&entity),
-                            geometry,
-                            material,
+                        occupied.get_mut().entities.push((
+                            RenderEntity::new(
+                                Rc::clone(&entity),
+                                Rc::clone(&geometry),
+                                Rc::clone(&material),
+                            ),
+                            GeometryRenderEntity::new(Rc::clone(&entity), Rc::clone(&material)),
+                            MaterialRenderEntity::new(Rc::clone(&entity), geometry),
                         ));
                     }
                     Entry::Vacant(vacant) => {
@@ -374,10 +403,14 @@ impl WebGL2Render {
                             program: item.program(),
                             attribute_locations: item.attribute_locations(),
                             uniform_locations: item.uniform_locations(),
-                            entities: vec![RenderEntity::new(
-                                Rc::clone(&entity),
-                                geometry,
-                                material,
+                            entities: vec![(
+                                RenderEntity::new(
+                                    Rc::clone(&entity),
+                                    Rc::clone(&geometry),
+                                    Rc::clone(&material),
+                                ),
+                                GeometryRenderEntity::new(Rc::clone(&entity), Rc::clone(&material)),
+                                MaterialRenderEntity::new(Rc::clone(&entity), geometry),
                             )],
                         });
                     }
@@ -397,38 +430,66 @@ impl WebGL2Render {
     }
 
     /// Calls before draw callback of the entity.
-    fn before_draw(&self, state: &RenderState, entity: &RenderEntity) {
-        entity.geometry().borrow_mut().before_draw(state, entity);
-        entity.material().borrow_mut().before_draw(state, entity);
+    fn before_draw(
+        &self,
+        state: &RenderState,
+        render_entity: &RenderEntity,
+        geometry_render_entity: &GeometryRenderEntity,
+        material_render_entity: &MaterialRenderEntity,
+    ) {
+        render_entity
+            .geometry()
+            .borrow_mut()
+            .before_draw(state, geometry_render_entity);
+        render_entity
+            .material()
+            .borrow_mut()
+            .before_draw(state, material_render_entity);
     }
 
     /// Calls after draw callback of the entity.
-    fn after_draw(&self, state: &RenderState, entity: &RenderEntity) {
-        entity.geometry().borrow_mut().after_draw(state, entity);
-        entity.material().borrow_mut().after_draw(state, entity);
+    fn after_draw(
+        &self,
+        state: &RenderState,
+        render_entity: &RenderEntity,
+        geometry_render_entity: &GeometryRenderEntity,
+        material_render_entity: &MaterialRenderEntity,
+    ) {
+        render_entity
+            .geometry()
+            .borrow_mut()
+            .after_draw(state, geometry_render_entity);
+        render_entity
+            .material()
+            .borrow_mut()
+            .after_draw(state, material_render_entity);
     }
 
     /// Binds attributes of the entity.
     fn bind_attributes(
         &mut self,
         RenderState { gl, .. }: &RenderState,
-        entity: &RenderEntity,
+        render_entity: &RenderEntity,
+        geometry_render_entity: &GeometryRenderEntity,
+        material_render_entity: &MaterialRenderEntity,
         attribute_locations: &HashMap<AttributeBinding, GLuint>,
     ) {
         for (binding, location) in attribute_locations {
             let value = match binding {
-                AttributeBinding::GeometryPosition => entity.geometry().borrow().vertices(),
+                AttributeBinding::GeometryPosition => render_entity.geometry().borrow().vertices(),
                 AttributeBinding::GeometryTextureCoordinate => {
-                    entity.geometry().borrow().texture_coordinates()
+                    render_entity.geometry().borrow().texture_coordinates()
                 }
-                AttributeBinding::GeometryNormal => entity.geometry().borrow().normals(),
-                AttributeBinding::FromGeometry(name) => {
-                    entity.geometry().borrow().attribute_value(name, entity)
-                }
-                AttributeBinding::FromMaterial(name) => {
-                    entity.material().borrow().attribute_value(name, entity)
-                }
-                AttributeBinding::FromEntity(name) => entity
+                AttributeBinding::GeometryNormal => render_entity.geometry().borrow().normals(),
+                AttributeBinding::FromGeometry(name) => render_entity
+                    .geometry()
+                    .borrow()
+                    .attribute_value(name, geometry_render_entity),
+                AttributeBinding::FromMaterial(name) => render_entity
+                    .material()
+                    .borrow()
+                    .attribute_value(name, material_render_entity),
+                AttributeBinding::FromEntity(name) => render_entity
                     .entity()
                     .borrow()
                     .attribute_values()
@@ -526,18 +587,22 @@ impl WebGL2Render {
         &mut self,
         RenderState { gl, .. }: &RenderState,
         stuff: &dyn RenderStuff,
-        entity: &RenderEntity,
+        render_entity: &RenderEntity,
+        geometry_render_entity: &GeometryRenderEntity,
+        material_render_entity: &MaterialRenderEntity,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
     ) {
         for (binding, location) in uniform_locations {
             let value = match binding {
-                UniformBinding::FromGeometry(name) => {
-                    entity.geometry().borrow().uniform_value(name, entity)
-                }
-                UniformBinding::FromMaterial(name) => {
-                    entity.material().borrow().uniform_value(name, entity)
-                }
-                UniformBinding::FromEntity(name) => entity
+                UniformBinding::FromGeometry(name) => render_entity
+                    .geometry()
+                    .borrow()
+                    .uniform_value(name, geometry_render_entity),
+                UniformBinding::FromMaterial(name) => render_entity
+                    .material()
+                    .borrow()
+                    .uniform_value(name, material_render_entity),
+                UniformBinding::FromEntity(name) => render_entity
                     .entity()
                     .borrow()
                     .uniform_values()
@@ -550,17 +615,19 @@ impl WebGL2Render {
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
                         UniformBinding::ModelMatrix => {
-                            entity.entity().borrow().model_matrix().to_gl()
+                            render_entity.entity().borrow().model_matrix().to_gl()
                         }
                         UniformBinding::NormalMatrix => {
-                            entity.entity().borrow().normal_matrix().to_gl()
+                            render_entity.entity().borrow().normal_matrix().to_gl()
                         }
                         UniformBinding::ModelViewMatrix => {
-                            entity.entity().borrow().model_view_matrix().to_gl()
+                            render_entity.entity().borrow().model_view_matrix().to_gl()
                         }
-                        UniformBinding::ModelViewProjMatrix => {
-                            entity.entity().borrow().model_view_proj_matrix().to_gl()
-                        }
+                        UniformBinding::ModelViewProjMatrix => render_entity
+                            .entity()
+                            .borrow()
+                            .model_view_proj_matrix()
+                            .to_gl(),
                         UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),
                         _ => unreachable!(),
                     };

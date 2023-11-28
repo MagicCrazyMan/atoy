@@ -2,20 +2,17 @@ use std::any::Any;
 
 use web_sys::js_sys::Float32Array;
 
-use crate::{
-    entity::RenderEntity,
-    render::webgl::{
-        attribute::AttributeValue,
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
-        },
-        draw::{Draw, DrawMode},
-        uniform::UniformValue,
+use crate::render::webgl::{
+    attribute::AttributeValue,
+    buffer::{
+        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+        BufferUsage,
     },
+    draw::{Draw, DrawMode},
+    uniform::UniformValue,
 };
 
-use super::Geometry;
+use super::{Geometry, GeometryRenderEntity};
 
 pub struct Sphere {
     radius: f64,
@@ -110,11 +107,11 @@ impl Geometry for Sphere {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &RenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<UniformValue> {
         None
     }
 

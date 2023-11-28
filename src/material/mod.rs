@@ -1,7 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    entity::{Entity, RenderEntity},
+    entity::Entity,
+    geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -25,9 +26,9 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, entity: &RenderEntity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &MaterialRenderEntity) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &RenderEntity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &MaterialRenderEntity) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
@@ -42,8 +43,29 @@ pub trait Material {
     fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
 
     #[allow(unused_variables)]
-    fn before_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
+    fn before_draw(&mut self, state: &RenderState, entity: &MaterialRenderEntity) {}
 
     #[allow(unused_variables)]
-    fn after_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
+    fn after_draw(&mut self, state: &RenderState, entity: &MaterialRenderEntity) {}
+}
+
+pub struct MaterialRenderEntity {
+    entity: Rc<RefCell<Entity>>,
+    geometry: Rc<RefCell<dyn Geometry>>,
+}
+
+impl MaterialRenderEntity {
+    pub(crate) fn new(entity: Rc<RefCell<Entity>>, geometry: Rc<RefCell<dyn Geometry>>) -> Self {
+        Self { entity, geometry }
+    }
+
+    #[inline]
+    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+        &self.entity
+    }
+
+    #[inline]
+    pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
+        &self.geometry
+    }
 }

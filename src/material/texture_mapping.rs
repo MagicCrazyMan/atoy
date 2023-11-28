@@ -5,7 +5,7 @@ use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::{Entity, RenderEntity},
+    entity::Entity,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use super::Material;
+use super::{Material, MaterialRenderEntity};
 
 const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
@@ -115,11 +115,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &RenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {

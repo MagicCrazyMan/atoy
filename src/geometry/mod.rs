@@ -8,7 +8,8 @@ pub mod sphere;
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::{
-    entity::{Entity, RenderEntity},
+    entity::Entity,
+    material::Material,
     render::webgl::{
         attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
     },
@@ -23,9 +24,9 @@ pub trait Geometry {
 
     fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value(&self, name: &str, entity: &RenderEntity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &GeometryRenderEntity) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &RenderEntity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &GeometryRenderEntity) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -35,8 +36,29 @@ pub trait Geometry {
     fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
 
     #[allow(unused_variables)]
-    fn before_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
+    fn before_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
 
     #[allow(unused_variables)]
-    fn after_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
+    fn after_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
+}
+
+pub struct GeometryRenderEntity {
+    entity: Rc<RefCell<Entity>>,
+    material: Rc<RefCell<dyn Material>>,
+}
+
+impl GeometryRenderEntity {
+    pub(crate) fn new(entity: Rc<RefCell<Entity>>, material: Rc<RefCell<dyn Material>>) -> Self {
+        Self { entity, material }
+    }
+
+    #[inline]
+    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+        &self.entity
+    }
+
+    #[inline]
+    pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
+        &self.material
+    }
 }
