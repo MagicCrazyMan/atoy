@@ -2,15 +2,17 @@ use gl_matrix4rust::mat4::Mat4;
 use palette::rgb::Rgb;
 use web_sys::js_sys::Float32Array;
 
-use crate::render::webgl::{
-    attribute::{AttributeBinding, AttributeValue},
-    buffer::{
-        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-        BufferUsage,
+use crate::{
+    entity::RenderEntity,
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
+        },
+        program::ShaderSource,
+        uniform::{UniformBinding, UniformValue},
     },
-    program::ShaderSource,
-    uniform::{UniformBinding, UniformValue},
-    RenderEntity,
 };
 
 use super::Material;

@@ -9,9 +9,8 @@ use crate::{
         },
         draw::{Draw, DrawElementType, DrawMode},
         uniform::UniformValue,
-        RenderEntity,
     },
-    utils::{slice_to_float32_array, slice_to_uint8_array},
+    utils::{slice_to_float32_array, slice_to_uint8_array}, entity::RenderEntity,
 };
 
 use super::Geometry;

@@ -5,7 +5,7 @@ use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::Entity,
+    entity::{Entity, RenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -15,7 +15,6 @@ use crate::{
             TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit,
         },
         uniform::{UniformBinding, UniformValue},
-        RenderEntity,
     },
 };
 

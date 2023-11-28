@@ -1,15 +1,17 @@
 pub mod cube;
 pub mod indexed_cube;
+pub mod plane;
 pub mod raw;
 pub mod sphere;
-pub mod plane;
 // pub mod plane;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::{
-    entity::Entity,
-    render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue, pipeline::RenderState, RenderEntity},
+    entity::{Entity, RenderEntity},
+    render::webgl::{
+        attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
+    },
 };
 
 pub trait Geometry {

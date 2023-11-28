@@ -1,7 +1,8 @@
 use std::{any::Any, collections::HashMap};
 
-use crate::render::webgl::{
-    attribute::AttributeValue, draw::Draw, uniform::UniformValue, RenderEntity,
+use crate::{
+    entity::RenderEntity,
+    render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
 };
 
 use super::Geometry;

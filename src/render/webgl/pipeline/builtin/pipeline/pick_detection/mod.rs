@@ -13,7 +13,7 @@ use web_sys::{
 };
 
 use crate::{
-    entity::Entity,
+    entity::{Entity, RenderEntity},
     material::Material,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -33,7 +33,6 @@ use crate::{
         },
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
-        RenderEntity,
     },
 };
 
@@ -411,7 +410,6 @@ impl Material for PickDetectionMaterial {
     }
 
     fn prepare(&mut self, _: &RenderState, entity: &Rc<RefCell<Entity>>) {
-
         let index = self.id2index.len() + 1; // index 0 as nothing
         if index >= u32::MAX as usize {
             panic!("too may entities in scene");

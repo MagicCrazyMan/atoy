@@ -273,3 +273,41 @@ impl EntityCollection {
         self.model_matrix = *parent_model_matrix * self.local_matrix;
     }
 }
+
+/// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
+/// Be aware, geometry and material may not extract from entity,
+/// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
+pub struct RenderEntity {
+    entity: Rc<RefCell<Entity>>,
+    geometry: Rc<RefCell<dyn Geometry>>,
+    material: Rc<RefCell<dyn Material>>,
+}
+
+impl RenderEntity {
+    pub fn new(
+        entity: Rc<RefCell<Entity>>,
+        geometry: Rc<RefCell<dyn Geometry>>,
+        material: Rc<RefCell<dyn Material>>,
+    ) -> Self {
+        Self {
+            entity,
+            geometry,
+            material,
+        }
+    }
+
+    #[inline]
+    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+        &self.entity
+    }
+
+    #[inline]
+    pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
+        &self.geometry
+    }
+
+    #[inline]
+    pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
+        &self.material
+    }
+}

@@ -1,10 +1,12 @@
 use palette::rgb::Rgb;
 
-use crate::render::webgl::{
-    attribute::{AttributeBinding, AttributeValue},
-    program::ShaderSource,
-    uniform::{UniformBinding, UniformValue},
-    RenderEntity,
+use crate::{
+    entity::RenderEntity,
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        program::ShaderSource,
+        uniform::{UniformBinding, UniformValue},
+    },
 };
 
 use super::Material;

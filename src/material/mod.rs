@@ -1,13 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    entity::Entity,
+    entity::{Entity, RenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
-        RenderEntity,
     },
 };
 

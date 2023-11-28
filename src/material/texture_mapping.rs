@@ -1,11 +1,11 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::Entity,
+    entity::{Entity, RenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -16,7 +16,6 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
-        RenderEntity,
     },
 };
 

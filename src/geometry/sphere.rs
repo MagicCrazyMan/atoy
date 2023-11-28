@@ -2,15 +2,17 @@ use std::any::Any;
 
 use web_sys::js_sys::Float32Array;
 
-use crate::render::webgl::{
-    attribute::AttributeValue,
-    buffer::{
-        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-        BufferUsage,
+use crate::{
+    entity::RenderEntity,
+    render::webgl::{
+        attribute::AttributeValue,
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
+        },
+        draw::{Draw, DrawMode},
+        uniform::UniformValue,
     },
-    draw::{Draw, DrawMode},
-    uniform::UniformValue,
-    RenderEntity,
 };
 
 use super::Geometry;

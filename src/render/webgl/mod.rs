@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{hash_map::Entry, HashMap, VecDeque},
     rc::Rc,
 };
@@ -15,7 +14,7 @@ use web_sys::{
     WebGlProgram, WebGlUniformLocation,
 };
 
-use crate::{document, entity::Entity, geometry::Geometry, material::Material};
+use crate::{document, entity::RenderEntity};
 
 use self::{
     attribute::{AttributeBinding, AttributeValue},
@@ -199,32 +198,6 @@ impl RenderGroup {
     }
 }
 
-/// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
-/// Be aware, geometry and material may not extract from entity,
-/// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
-pub struct RenderEntity {
-    entity: Rc<RefCell<Entity>>,
-    geometry: Rc<RefCell<dyn Geometry>>,
-    material: Rc<RefCell<dyn Material>>,
-}
-
-impl RenderEntity {
-    #[inline]
-    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
-        &self.entity
-    }
-
-    #[inline]
-    pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
-        &self.geometry
-    }
-
-    #[inline]
-    pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
-        &self.material
-    }
-}
-
 impl WebGL2Render {
     pub fn render<Stuff, Pipeline>(
         &mut self,
@@ -278,7 +251,7 @@ impl WebGL2Render {
 
             // render each entity
             for entity in entities {
-                // pre-render
+                // before draw
                 self.before_draw(&state, &entity);
                 // binds attributes
                 self.bind_attributes(&state, &entity, attribute_locations);
@@ -286,7 +259,7 @@ impl WebGL2Render {
                 self.bind_uniforms(&state, stuff, &entity, uniform_locations);
                 // draws
                 self.draw(&state, &entity);
-                // post-render
+                // after draw
                 self.after_draw(&state, &entity);
             }
         }
@@ -389,11 +362,11 @@ impl WebGL2Render {
                 let material_name = material.borrow().name().to_string();
                 match groups.entry(material_name) {
                     Entry::Occupied(mut occupied) => {
-                        occupied.get_mut().entities.push(RenderEntity {
-                            entity: Rc::clone(&entity),
+                        occupied.get_mut().entities.push(RenderEntity::new(
+                            Rc::clone(&entity),
                             geometry,
                             material,
-                        });
+                        ));
                     }
                     Entry::Vacant(vacant) => {
                         let item = self.program_store.use_program(&(*material.borrow()))?;
@@ -401,11 +374,11 @@ impl WebGL2Render {
                             program: item.program(),
                             attribute_locations: item.attribute_locations(),
                             uniform_locations: item.uniform_locations(),
-                            entities: vec![RenderEntity {
-                                entity: Rc::clone(&entity),
+                            entities: vec![RenderEntity::new(
+                                Rc::clone(&entity),
                                 geometry,
                                 material,
-                            }],
+                            )],
                         });
                     }
                 };
@@ -694,15 +667,9 @@ impl WebGL2Render {
         }
     }
 
-    fn draw(
-        &mut self,
-        RenderState { gl, .. }: &RenderState,
-        RenderEntity {
-            geometry, material, ..
-        }: &RenderEntity,
-    ) {
-        let material = material.borrow();
-        let geometry = geometry.borrow();
+    fn draw(&mut self, RenderState { gl, .. }: &RenderState, entity: &RenderEntity) {
+        let material = entity.material().borrow();
+        let geometry = entity.geometry().borrow();
 
         // draws entity
         if let Some(num_instances) = material.instanced() {

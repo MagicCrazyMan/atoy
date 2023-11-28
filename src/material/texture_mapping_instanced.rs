@@ -6,7 +6,7 @@ use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
-    entity::Entity,
+    entity::{Entity, RenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
@@ -21,7 +21,6 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
-        RenderEntity,
     },
 };
 
