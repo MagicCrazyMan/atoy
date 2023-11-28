@@ -49,17 +49,17 @@ impl<'a> RenderStuff for StandardRenderStuff<'a> {
 pub struct StandardPipeline;
 
 impl<'a> RenderPipeline for StandardPipeline {
-    fn dependencies(&self) -> Result<(), Error> {
+    fn dependencies(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         Ok(())
     }
 
     fn pre_process(
         &mut self,
-        _: &RenderState,
+        _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
         Ok(vec![
@@ -69,34 +69,38 @@ impl<'a> RenderPipeline for StandardPipeline {
             Box::new(EnableCullFace),
             Box::new(EnableBlend),
             Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            Box::new(ClearDepth::new(0.0)),
+            Box::new(ClearDepth::new(1.0)),
             Box::new(SetCullFaceMode::new(CullFace::Back)),
         ])
     }
 
     fn material_policy(
-        &self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
     ) -> Result<MaterialPolicy, Error> {
         Ok(MaterialPolicy::FollowEntity)
     }
 
     fn geometry_policy(
-        &self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
     ) -> Result<GeometryPolicy, Error> {
         Ok(GeometryPolicy::FollowEntity)
     }
 
-    fn collect_policy(&self, _: &RenderState, _: &dyn RenderStuff) -> Result<CollectPolicy, Error> {
+    fn collect_policy(
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<CollectPolicy, Error> {
         Ok(CollectPolicy::CollectAll)
     }
 
     fn post_precess(
         &mut self,
-        _: &RenderState,
+        _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
         Ok(vec![Box::new(Reset)])

@@ -236,22 +236,24 @@ impl WebGL2Render {
         Pipeline: RenderPipeline,
     {
         // constructs render state
-        let state = RenderState {
+        let mut state = RenderState {
             canvas: self.canvas.clone(),
             gl: self.gl.clone(),
             frame_time,
         };
 
+        let state = &mut state;
+
         // prepares stage, obtains a render stuff
-        pipeline.prepare(&state, stuff)?;
+        pipeline.prepare(state, stuff)?;
 
         // pre-process stages
-        for processor in pipeline.pre_process(&state, stuff)? {
-            processor.pre_process(&state, stuff)?;
+        for processor in pipeline.pre_process(state, stuff)? {
+            processor.pre_process(state, stuff)?;
         }
 
         // collects render groups
-        let groups = self.prepare_entities(pipeline, stuff, &state)?;
+        let groups = self.prepare_entities(pipeline, stuff, state)?;
 
         // render stage
         for (
@@ -287,7 +289,7 @@ impl WebGL2Render {
         }
 
         // post-process stages
-        pipeline.post_precess(&state, stuff)?;
+        pipeline.post_precess(state, stuff)?;
 
         Ok(())
     }
@@ -298,7 +300,7 @@ impl WebGL2Render {
         &mut self,
         pipeline: &mut Pipeline,
         stuff: &mut Stuff,
-        state: &RenderState,
+        state: &mut RenderState,
     ) -> Result<HashMap<String, RenderGroup>, Error>
     where
         Stuff: RenderStuff,

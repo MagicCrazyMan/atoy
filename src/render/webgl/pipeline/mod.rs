@@ -38,10 +38,10 @@ pub struct RenderState {
 }
 
 pub trait RenderPipeline {
-    fn dependencies(&self) -> Result<(), Error>;
+    fn dependencies(&mut self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    fn prepare(&mut self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
+    fn prepare(&mut self, state: &mut RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreProcessor`]s
@@ -49,30 +49,30 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn pre_process(
         &mut self,
-        state: &RenderState,
+        state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PreProcessor>>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
     fn material_policy(
-        &self,
-        state: &RenderState,
-        stuff: &dyn RenderStuff,
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
     ) -> Result<MaterialPolicy, Error>;
 
     /// Returns a [`GeometryPolicy`] which decides what geometry
     /// to use of each entity during entities collection procedure.
     fn geometry_policy(
-        &self,
-        state: &RenderState,
-        stuff: &dyn RenderStuff,
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
     ) -> Result<GeometryPolicy, Error>;
 
     fn collect_policy(
-        &self,
-        state: &RenderState,
-        stuff: &dyn RenderStuff,
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
     ) -> Result<CollectPolicy, Error>;
 
     /// Postprecess stages during render procedure.
@@ -82,7 +82,7 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn post_precess(
         &mut self,
-        state: &RenderState,
+        state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error>;
 }
