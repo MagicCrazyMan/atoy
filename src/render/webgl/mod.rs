@@ -225,16 +225,15 @@ impl RenderEntity {
 }
 
 impl WebGL2Render {
-    pub fn render<'a, Stuff, PreProcessors, Pipeline>(
+    pub fn render<Stuff, Pipeline>(
         &mut self,
-        pipeline: &'a mut Pipeline,
+        pipeline: &mut Pipeline,
         stuff: &mut Stuff,
         frame_time: f64,
     ) -> Result<(), Error>
     where
-        Stuff: RenderStuff + 'a ,
-        PreProcessors: IntoIterator<Item = &'a mut dyn PreProcessor>,
-        Pipeline: RenderPipeline<'a, PreProcessors>,
+        Stuff: RenderStuff,
+        Pipeline: RenderPipeline,
     {
         // constructs render state
         let state = RenderState {
@@ -295,16 +294,15 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare_entities<'a, Stuff, PreProcessors, Pipeline>(
+    fn prepare_entities<Stuff, Pipeline>(
         &mut self,
         pipeline: &mut Pipeline,
         stuff: &mut Stuff,
         state: &RenderState,
     ) -> Result<HashMap<String, RenderGroup>, Error>
     where
-        Stuff: RenderStuff + 'a,
-        PreProcessors: IntoIterator<Item = &'a mut dyn PreProcessor>,
-        Pipeline: RenderPipeline<'a, PreProcessors>,
+        Stuff: RenderStuff,
+        Pipeline: RenderPipeline,
     {
         let view_matrix = stuff.camera().view_matrix();
         let proj_matrix = stuff.camera().proj_matrix();

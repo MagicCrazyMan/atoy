@@ -134,7 +134,7 @@ fn create_scene(
 }
 
 fn create_standard_pipeline() -> StandardPipeline {
-    StandardPipeline::new()
+    StandardPipeline
 }
 
 fn create_render() -> Result<WebGL2Render, Error> {

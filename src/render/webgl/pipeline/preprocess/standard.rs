@@ -16,11 +16,7 @@ impl PreProcessor for UpdateCamera {
         "UpdateCamera"
     }
 
-    fn pre_process(
-        &mut self,
-        state: &RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error> {
         stuff.camera_mut().update_frame(state);
         Ok(())
     }
@@ -33,7 +29,7 @@ impl PreProcessor for UpdateViewport {
         "UpdateViewport"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.viewport(
             0,
             0,
@@ -51,7 +47,7 @@ impl PreProcessor for EnableDepthTest {
         "EnableDepthTest"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
         Ok(())
     }
@@ -64,7 +60,7 @@ impl PreProcessor for EnableCullFace {
         "EnableCullFace"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.enable(WebGl2RenderingContext::CULL_FACE);
         Ok(())
     }
@@ -83,7 +79,7 @@ impl PreProcessor for SetCullFaceMode {
         "SetCullFaceMode"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.cull_face(self.0.gl_enum());
         Ok(())
     }
@@ -96,7 +92,7 @@ impl PreProcessor for EnableBlend {
         "EnableBlend"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.enable(WebGl2RenderingContext::BLEND);
         Ok(())
     }
@@ -115,7 +111,7 @@ impl PreProcessor for ClearColor {
         "ClearColor"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.clear_color(self.0, self.1, self.2, self.3);
         state.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         Ok(())
@@ -135,7 +131,7 @@ impl PreProcessor for ClearDepth {
         "ClearDepth"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.clear_depth(self.0);
         state.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
         Ok(())

@@ -1,5 +1,3 @@
-use std::iter::Map;
-
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -48,28 +46,9 @@ impl<'a> RenderStuff for StandardRenderStuff<'a> {
     }
 }
 
-pub struct StandardPipeline {
-    pre_processors: Vec<Box<dyn PreProcessor>>,
-}
+pub struct StandardPipeline;
 
-impl StandardPipeline {
-    pub fn new() -> Self {
-        Self {
-            pre_processors: vec![
-                Box::new(UpdateCamera),
-                Box::new(UpdateViewport),
-                Box::new(EnableDepthTest),
-                Box::new(EnableCullFace),
-                Box::new(EnableBlend),
-                Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-                Box::new(ClearDepth::new(0.0)),
-                Box::new(SetCullFaceMode::new(CullFace::Back)),
-            ],
-        }
-    }
-}
-
-impl<'a> RenderPipeline<'a, Vec<&'a mut dyn PreProcessor>> for StandardPipeline {
+impl<'a> RenderPipeline for StandardPipeline {
     fn dependencies(&self) -> Result<(), Error> {
         Ok(())
     }
@@ -81,13 +60,18 @@ impl<'a> RenderPipeline<'a, Vec<&'a mut dyn PreProcessor>> for StandardPipeline 
     fn pre_process(
         &mut self,
         _: &RenderState,
-        _: &dyn RenderStuff,
-    ) -> Result<Vec<&'a mut dyn PreProcessor>, Error> {
-        Ok(self
-            .pre_processors
-            .iter_mut()
-            .map(|processor| processor.as_mut())
-            .collect::<Vec<&'a mut dyn PreProcessor>>())
+        _: &mut dyn RenderStuff,
+    ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
+        Ok(vec![
+            Box::new(UpdateCamera),
+            Box::new(UpdateViewport),
+            Box::new(EnableDepthTest),
+            Box::new(EnableCullFace),
+            Box::new(EnableBlend),
+            Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
+            Box::new(ClearDepth::new(0.0)),
+            Box::new(SetCullFaceMode::new(CullFace::Back)),
+        ])
     }
 
     fn material_policy(
@@ -106,18 +90,14 @@ impl<'a> RenderPipeline<'a, Vec<&'a mut dyn PreProcessor>> for StandardPipeline 
         Ok(GeometryPolicy::FollowEntity)
     }
 
-    fn collect_policy(
-        &mut self,
-        _: &RenderState,
-        _: &dyn RenderStuff,
-    ) -> Result<CollectPolicy, Error> {
+    fn collect_policy(&self, _: &RenderState, _: &dyn RenderStuff) -> Result<CollectPolicy, Error> {
         Ok(CollectPolicy::CollectAll)
     }
 
     fn post_precess(
         &mut self,
         _: &RenderState,
-        _: &dyn RenderStuff,
+        _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
         Ok(vec![Box::new(Reset)])
     }

@@ -37,10 +37,7 @@ pub struct RenderState {
     pub frame_time: f64,
 }
 
-pub trait RenderPipeline<'a, PreProcessors>
-where
-    PreProcessors: IntoIterator<Item = &'a mut dyn PreProcessor>,
-{
+pub trait RenderPipeline {
     fn dependencies(&self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
@@ -53,8 +50,8 @@ where
     fn pre_process(
         &mut self,
         state: &RenderState,
-        stuff: &dyn RenderStuff,
-    ) -> Result<PreProcessors, Error>;
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<Vec<Box<dyn PreProcessor>>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
@@ -73,7 +70,7 @@ where
     ) -> Result<GeometryPolicy, Error>;
 
     fn collect_policy(
-        &mut self,
+        &self,
         state: &RenderState,
         stuff: &dyn RenderStuff,
     ) -> Result<CollectPolicy, Error>;
@@ -86,6 +83,6 @@ where
     fn post_precess(
         &mut self,
         state: &RenderState,
-        stuff: &dyn RenderStuff,
+        stuff: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error>;
 }
