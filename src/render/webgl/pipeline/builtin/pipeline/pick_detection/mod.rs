@@ -171,7 +171,7 @@ impl RenderPipeline for PickDetection {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
+    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error> {
         Ok(vec![
             Box::new(UsePickDetectionFramebuffer),
             Box::new(UpdateCamera),
@@ -209,11 +209,11 @@ impl RenderPipeline for PickDetection {
         Ok(CollectPolicy::CollectAll)
     }
 
-    fn post_precessors(
+    fn post_processors(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
+    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error> {
         Ok(vec![Box::new(PickDetectionPickEntity), Box::new(Reset)])
     }
 
@@ -228,26 +228,22 @@ impl RenderPipeline for PickDetection {
 
 struct UsePickDetectionFramebuffer;
 
-impl PreProcessor for UsePickDetectionFramebuffer {
+impl PreProcessor<PickDetection> for UsePickDetectionFramebuffer {
     fn name(&self) -> &str {
         "UsePickDetectionFramebuffer"
     }
 
     fn pre_process(
         &mut self,
-        pipeline: &mut dyn RenderPipeline,
+        pipeline: &mut PickDetection,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
         let gl = &state.gl;
-        let pick_detection = pipeline
-            .as_any_mut()
-            .downcast_mut::<PickDetection>()
-            .unwrap(); // safe unwrap
 
-        let framebuffer = pick_detection.use_framebuffer(gl)?;
-        let renderbuffer = pick_detection.use_depth_renderbuffer(gl)?;
-        let texture = pick_detection.use_texture(gl)?;
+        let framebuffer = pipeline.use_framebuffer(gl)?;
+        let renderbuffer = pipeline.use_depth_renderbuffer(gl)?;
+        let texture = pipeline.use_texture(gl)?;
 
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&framebuffer));
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
@@ -273,14 +269,14 @@ impl PreProcessor for UsePickDetectionFramebuffer {
 
 struct PickDetectionClear;
 
-impl PreProcessor for PickDetectionClear {
+impl PreProcessor<PickDetection> for PickDetectionClear {
     fn name(&self) -> &str {
         "PickDetectionClear"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut PickDetection,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -296,28 +292,24 @@ impl PreProcessor for PickDetectionClear {
 
 struct PickDetectionPickEntity;
 
-impl PostProcessor for PickDetectionPickEntity {
+impl PostProcessor<PickDetection> for PickDetectionPickEntity {
     fn name(&self) -> &str {
         "PickDetectionPickEntity"
     }
 
     fn post_process(
         &mut self,
-        pipeline: &mut dyn RenderPipeline,
+        pipeline: &mut PickDetection,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
         let gl = &state.gl;
-        let pick_detection = pipeline
-            .as_any_mut()
-            .downcast_mut::<PickDetection>()
-            .unwrap(); // safe unwrap
 
-        let Some((x, y)) = pick_detection.position else {
+        let Some((x, y)) = pipeline.position else {
             return Ok(());
         };
 
-        let canvas = pick_detection.canvas_from_gl(gl)?;
+        let canvas = pipeline.canvas_from_gl(gl)?;
 
         gl.read_pixels_with_opt_array_buffer_view(
             x,
@@ -326,15 +318,15 @@ impl PostProcessor for PickDetectionPickEntity {
             1,
             WebGl2RenderingContext::RED_INTEGER,
             WebGl2RenderingContext::UNSIGNED_INT,
-            Some(&pick_detection.result),
+            Some(&pipeline.result),
         )
         .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
-        pick_detection.picked = pick_detection
+        pipeline.picked = pipeline
             .material
             .borrow()
             .index2entity
-            .get(&pick_detection.result.get_index(0))
+            .get(&pipeline.result.get_index(0))
             .map(|entity| Rc::clone(&entity));
 
         Ok(())

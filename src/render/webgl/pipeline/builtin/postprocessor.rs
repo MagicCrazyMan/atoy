@@ -7,14 +7,17 @@ use crate::render::webgl::{
 
 pub struct Reset;
 
-impl PostProcessor for Reset {
+impl<Pipeline> PostProcessor<Pipeline> for Reset
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "Reset"
     }
 
     fn post_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {

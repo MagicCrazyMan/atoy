@@ -66,7 +66,7 @@ impl<'a> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
+    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error> {
         Ok(vec![
             Box::new(UpdateCamera),
             Box::new(UpdateViewport),
@@ -103,11 +103,11 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(CollectPolicy::CollectAll)
     }
 
-    fn post_precessors(
+    fn post_processors(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
+    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error> {
         Ok(vec![Box::new(Reset)])
     }
 

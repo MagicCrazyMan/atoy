@@ -9,14 +9,17 @@ use crate::render::webgl::{
 
 pub struct UpdateCamera;
 
-impl PreProcessor for UpdateCamera {
+impl<Pipeline> PreProcessor<Pipeline> for UpdateCamera
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "UpdateCamera"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -27,14 +30,17 @@ impl PreProcessor for UpdateCamera {
 
 pub struct UpdateViewport;
 
-impl PreProcessor for UpdateViewport {
+impl<Pipeline> PreProcessor<Pipeline> for UpdateViewport
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "UpdateViewport"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -50,14 +56,17 @@ impl PreProcessor for UpdateViewport {
 
 pub struct EnableDepthTest;
 
-impl PreProcessor for EnableDepthTest {
+impl<Pipeline> PreProcessor<Pipeline> for EnableDepthTest
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "EnableDepthTest"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -68,14 +77,17 @@ impl PreProcessor for EnableDepthTest {
 
 pub struct EnableCullFace;
 
-impl PreProcessor for EnableCullFace {
+impl<Pipeline> PreProcessor<Pipeline> for EnableCullFace
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "EnableCullFace"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -92,14 +104,17 @@ impl SetCullFaceMode {
     }
 }
 
-impl PreProcessor for SetCullFaceMode {
+impl<Pipeline> PreProcessor<Pipeline> for SetCullFaceMode
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "SetCullFaceMode"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -110,14 +125,17 @@ impl PreProcessor for SetCullFaceMode {
 
 pub struct EnableBlend;
 
-impl PreProcessor for EnableBlend {
+impl<Pipeline> PreProcessor<Pipeline> for EnableBlend
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "EnableBlend"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -134,14 +152,17 @@ impl ClearColor {
     }
 }
 
-impl PreProcessor for ClearColor {
+impl<Pipeline> PreProcessor<Pipeline> for ClearColor
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "ClearColor"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -159,14 +180,17 @@ impl ClearDepth {
     }
 }
 
-impl PreProcessor for ClearDepth {
+impl<Pipeline> PreProcessor<Pipeline> for ClearDepth
+where
+    Pipeline: RenderPipeline,
+{
     fn name(&self) -> &str {
         "ClearDepth"
     }
 
     fn pre_process(
         &mut self,
-        _: &mut dyn RenderPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {

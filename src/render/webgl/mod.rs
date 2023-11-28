@@ -289,7 +289,7 @@ impl WebGL2Render {
 
         // post-process stages
         // pre-process stages
-        for mut processor in pipeline.post_precessors(state, stuff)? {
+        for mut processor in pipeline.post_processors(state, stuff)? {
             processor.post_process(pipeline, state, stuff)?;
         }
 

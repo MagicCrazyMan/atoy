@@ -52,7 +52,7 @@ pub trait RenderPipeline {
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PreProcessor>>, Error>;
+    ) -> Result<Vec<Box<dyn PreProcessor<Self>>>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
@@ -81,11 +81,11 @@ pub trait RenderPipeline {
     /// also accepts multiple [`PostProcessor`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precessors(
+    fn post_processors(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<Vec<Box<dyn PostProcessor>>, Error>;
+    ) -> Result<Vec<Box<dyn PostProcessor<Self>>>, Error>;
 
     fn as_any(&self) -> &dyn Any;
 
