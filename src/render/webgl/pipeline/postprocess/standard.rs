@@ -14,7 +14,7 @@ impl PostProcessor for Reset {
         "Reset"
     }
 
-    fn post_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn post_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.use_program(None);
         state
             .gl

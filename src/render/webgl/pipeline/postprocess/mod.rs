@@ -9,7 +9,7 @@ use super::{RenderState, RenderStuff};
 pub trait PostProcessor {
     fn name(&self) -> &str;
 
-    fn post_process(&mut self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
+    fn post_process(&self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
 }
 
 pub enum StandardPostProcess {
@@ -23,7 +23,7 @@ impl PostProcessor for StandardPostProcess {
         }
     }
 
-    fn post_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn post_process(&self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         match self {
             StandardPostProcess::Reset => {
                 state.gl.use_program(None);
