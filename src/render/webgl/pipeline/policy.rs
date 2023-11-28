@@ -2,6 +2,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{entity::Entity, geometry::Geometry, material::Material, render::webgl::RenderGroup};
 
+/// Policies of preparation stage, developer could abort render procedure in this stage.
+pub enum PreparationPolicy {
+    Abort,
+    Continue,
+}
+
 /// Material policy telling render program what material should be used of a entity.
 pub enum MaterialPolicy {
     /// Uses material provides by entity.

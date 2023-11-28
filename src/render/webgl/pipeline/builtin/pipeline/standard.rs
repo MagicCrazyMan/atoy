@@ -14,7 +14,7 @@ use crate::{
                 },
                 postprocessor::Reset,
             },
-            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
             postprocess::PostProcessor,
             preprocess::PreProcessor,
             RenderPipeline, RenderState, RenderStuff,
@@ -58,8 +58,8 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
-        Ok(())
+    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<PreparationPolicy, Error> {
+        Ok(PreparationPolicy::Continue)
     }
 
     fn pre_processors(

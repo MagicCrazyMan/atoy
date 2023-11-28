@@ -1,4 +1,9 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    collections::HashMap,
+    rc::{Rc, Weak},
+};
 
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
@@ -21,7 +26,7 @@ use crate::{
                     EnableCullFace, EnableDepthTest, SetCullFaceMode, UpdateCamera, UpdateViewport,
                 },
             },
-            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
             postprocess::PostProcessor,
             preprocess::PreProcessor,
             RenderPipeline, RenderState, RenderStuff,
@@ -33,7 +38,7 @@ use crate::{
 
 pub struct PickDetection {
     position: Option<(i32, i32)>,
-    picked: Option<Rc<RefCell<Entity>>>,
+    picked: Option<Weak<RefCell<Entity>>>,
     result: Uint32Array,
     material: Rc<RefCell<PickDetectionMaterial>>,
     framebuffer: Option<WebGlFramebuffer>,
@@ -58,8 +63,8 @@ impl PickDetection {
         self.position = Some((x, y));
     }
 
-    pub fn pick(&self) -> Option<&Rc<RefCell<Entity>>> {
-        self.picked.as_ref()
+    pub fn pick(&self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked.as_ref().and_then(|entity| entity.upgrade())
     }
 
     fn canvas_from_gl(&self, gl: &WebGl2RenderingContext) -> Result<HtmlCanvasElement, Error> {
@@ -161,10 +166,19 @@ impl RenderPipeline for PickDetection {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn prepare(
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<PreparationPolicy, Error> {
         self.picked = None;
         self.material.borrow_mut().clear();
-        Ok(())
+        // aborts if no position specified.
+        if self.position.is_some() {
+            Ok(PreparationPolicy::Continue)
+        } else {
+            Ok(PreparationPolicy::Abort)
+        }
     }
 
     fn pre_processors(
@@ -305,15 +319,13 @@ impl PostProcessor<PickDetection> for PickDetectionPickEntity {
     ) -> Result<(), Error> {
         let gl = &state.gl;
 
-        let Some((x, y)) = pipeline.position else {
-            return Ok(());
-        };
+        let (x, y) = pipeline.position.as_ref().unwrap(); // safe unwrap
 
         let canvas = pipeline.canvas_from_gl(gl)?;
 
         gl.read_pixels_with_opt_array_buffer_view(
-            x,
-            canvas.height() as i32 - y,
+            *x,
+            canvas.height() as i32 - *y,
             1,
             1,
             WebGl2RenderingContext::RED_INTEGER,
@@ -327,7 +339,7 @@ impl PostProcessor<PickDetection> for PickDetectionPickEntity {
             .borrow()
             .index2entity
             .get(&pipeline.result.get_index(0))
-            .map(|entity| Rc::clone(&entity));
+            .map(|entity| Rc::downgrade(&entity));
 
         Ok(())
     }

@@ -1,7 +1,7 @@
+pub mod builtin;
 pub mod policy;
 pub mod postprocess;
 pub mod preprocess;
-pub mod builtin;
 
 use std::any::Any;
 
@@ -10,7 +10,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
-    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
     postprocess::PostProcessor,
     preprocess::PreProcessor,
 };
@@ -42,7 +42,11 @@ pub trait RenderPipeline {
     fn dependencies(&mut self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    fn prepare(&mut self, state: &mut RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
+    fn prepare(
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<PreparationPolicy, Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`PreProcessor`]s

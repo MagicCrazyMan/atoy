@@ -703,7 +703,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                     entity
                         .borrow_mut()
                         .set_material(Some(SolidColorMaterial::with_color(rand::random())));
-                    *picked_entity.borrow_mut() = Some(Rc::clone(entity));
+                    *picked_entity.borrow_mut() = Some(entity);
                 }
                 None => {
                     console_log!("no entity picked");

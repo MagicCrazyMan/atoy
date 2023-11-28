@@ -24,7 +24,7 @@ use self::{
     draw::Draw,
     error::Error,
     pipeline::{
-        policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+        policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
         RenderPipeline, RenderState, RenderStuff,
     },
     program::ProgramStore,
@@ -243,7 +243,9 @@ impl WebGL2Render {
         let state = &mut state;
 
         // prepares stage, obtains a render stuff
-        pipeline.prepare(state, stuff)?;
+        if let PreparationPolicy::Abort = pipeline.prepare(state, stuff)? {
+            return Ok(());
+        };
 
         // pre-process stages
         for mut processor in pipeline.pre_processors(state, stuff)? {
