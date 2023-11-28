@@ -209,14 +209,17 @@ pub struct RenderEntity {
 }
 
 impl RenderEntity {
+    #[inline]
     pub fn entity(&self) -> &Rc<RefCell<Entity>> {
         &self.entity
     }
 
+    #[inline]
     pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
         &self.geometry
     }
 
+    #[inline]
     pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
         &self.material
     }
@@ -253,7 +256,7 @@ impl WebGL2Render {
         }
 
         // collects render groups
-        let groups = self.prepare_entities(pipeline, stuff, state)?;
+        let groups = self.prepare_and_collect_entities(pipeline, stuff, state)?;
 
         // render stage
         for (
@@ -299,7 +302,7 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare_entities<Stuff, Pipeline>(
+    fn prepare_and_collect_entities<Stuff, Pipeline>(
         &mut self,
         pipeline: &mut Pipeline,
         stuff: &mut Stuff,
@@ -433,29 +436,28 @@ impl WebGL2Render {
     fn bind_attributes(
         &mut self,
         RenderState { gl, .. }: &RenderState,
-        RenderEntity {
-            entity,
-            geometry,
-            material,
-        }: &RenderEntity,
+        entity: &RenderEntity,
         attribute_locations: &HashMap<AttributeBinding, GLuint>,
     ) {
         for (binding, location) in attribute_locations {
             let value = match binding {
-                AttributeBinding::GeometryPosition => geometry.borrow().vertices(),
+                AttributeBinding::GeometryPosition => entity.geometry().borrow().vertices(),
                 AttributeBinding::GeometryTextureCoordinate => {
-                    geometry.borrow().texture_coordinates()
+                    entity.geometry().borrow().texture_coordinates()
                 }
-                AttributeBinding::GeometryNormal => geometry.borrow().normals(),
+                AttributeBinding::GeometryNormal => entity.geometry().borrow().normals(),
                 AttributeBinding::FromGeometry(name) => {
-                    geometry.borrow().attribute_value(name, entity)
+                    entity.geometry().borrow().attribute_value(name, entity)
                 }
                 AttributeBinding::FromMaterial(name) => {
-                    material.borrow().attribute_value(name, entity)
+                    entity.material().borrow().attribute_value(name, entity)
                 }
-                AttributeBinding::FromEntity(name) => {
-                    entity.borrow().attribute_values().get(*name).cloned()
-                }
+                AttributeBinding::FromEntity(name) => entity
+                    .entity()
+                    .borrow()
+                    .attribute_values()
+                    .get(*name)
+                    .cloned(),
             };
             let Some(value) = value else {
                 // should log warning
@@ -548,33 +550,40 @@ impl WebGL2Render {
         &mut self,
         RenderState { gl, .. }: &RenderState,
         stuff: &dyn RenderStuff,
-        RenderEntity {
-            entity,
-            geometry,
-            material,
-        }: &RenderEntity,
+        entity: &RenderEntity,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
     ) {
         for (binding, location) in uniform_locations {
             let value = match binding {
-                UniformBinding::FromGeometry(name) => geometry.borrow().uniform_value(name, entity),
-                UniformBinding::FromMaterial(name) => material.borrow().uniform_value(name, entity),
-                UniformBinding::FromEntity(name) => {
-                    entity.borrow().uniform_values().get(*name).cloned()
+                UniformBinding::FromGeometry(name) => {
+                    entity.geometry().borrow().uniform_value(name, entity)
                 }
+                UniformBinding::FromMaterial(name) => {
+                    entity.material().borrow().uniform_value(name, entity)
+                }
+                UniformBinding::FromEntity(name) => entity
+                    .entity()
+                    .borrow()
+                    .uniform_values()
+                    .get(*name)
+                    .cloned(),
                 UniformBinding::ModelMatrix
                 | UniformBinding::NormalMatrix
                 | UniformBinding::ModelViewMatrix
                 | UniformBinding::ModelViewProjMatrix
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
-                        UniformBinding::ModelMatrix => entity.borrow().model_matrix().to_gl(),
-                        UniformBinding::NormalMatrix => entity.borrow().normal_matrix().to_gl(),
+                        UniformBinding::ModelMatrix => {
+                            entity.entity().borrow().model_matrix().to_gl()
+                        }
+                        UniformBinding::NormalMatrix => {
+                            entity.entity().borrow().normal_matrix().to_gl()
+                        }
                         UniformBinding::ModelViewMatrix => {
-                            entity.borrow().model_view_matrix().to_gl()
+                            entity.entity().borrow().model_view_matrix().to_gl()
                         }
                         UniformBinding::ModelViewProjMatrix => {
-                            entity.borrow().model_view_proj_matrix().to_gl()
+                            entity.entity().borrow().model_view_proj_matrix().to_gl()
                         }
                         UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),
                         _ => unreachable!(),

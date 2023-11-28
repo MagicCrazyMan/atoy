@@ -273,5 +273,3 @@ impl EntityCollection {
         self.model_matrix = *parent_model_matrix * self.local_matrix;
     }
 }
-
-pub struct RenderEntity(*mut Entity);

@@ -1,14 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
-
 use palette::rgb::Rgb;
 
-use crate::{
-    entity::Entity,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
-    },
+use crate::render::webgl::{
+    attribute::{AttributeBinding, AttributeValue},
+    program::ShaderSource,
+    uniform::{UniformBinding, UniformValue},
+    RenderEntity,
 };
 
 use super::Material;
@@ -88,11 +84,11 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderEntity) -> Option<UniformValue> {
         match name {
             COLOR_UNIFORM => Some(UniformValue::FloatVector3([
                 self.color.red,

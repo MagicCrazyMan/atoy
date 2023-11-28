@@ -1,20 +1,16 @@
-use std::{cell::RefCell, rc::Rc};
-
 use gl_matrix4rust::mat4::Mat4;
 use palette::rgb::Rgb;
 use web_sys::js_sys::Float32Array;
 
-use crate::{
-    entity::Entity,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
-        },
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
+use crate::render::webgl::{
+    attribute::{AttributeBinding, AttributeValue},
+    buffer::{
+        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+        BufferUsage,
     },
+    program::ShaderSource,
+    uniform::{UniformBinding, UniformValue},
+    RenderEntity,
 };
 
 use super::Material;
@@ -150,7 +146,7 @@ impl Material for SolidColorInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &RenderEntity) -> Option<AttributeValue> {
         match name {
             COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
@@ -174,7 +170,7 @@ impl Material for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &RenderEntity) -> Option<UniformValue> {
         None
     }
 }

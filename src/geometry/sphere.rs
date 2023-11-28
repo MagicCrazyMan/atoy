@@ -1,18 +1,16 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::any::Any;
 
 use web_sys::js_sys::Float32Array;
 
-use crate::{
-    entity::Entity,
-    render::webgl::{
-        attribute::AttributeValue,
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
-        },
-        draw::{Draw, DrawMode},
-        uniform::UniformValue,
+use crate::render::webgl::{
+    attribute::AttributeValue,
+    buffer::{
+        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+        BufferUsage,
     },
+    draw::{Draw, DrawMode},
+    uniform::UniformValue,
+    RenderEntity,
 };
 
 use super::Geometry;
@@ -110,11 +108,11 @@ impl Geometry for Sphere {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &RenderEntity) -> Option<UniformValue> {
         None
     }
 

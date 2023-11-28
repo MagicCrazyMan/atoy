@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{rc::Rc, cell::RefCell};
 
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::HtmlImageElement;
@@ -16,6 +16,7 @@ use crate::{
             TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformValue},
+        RenderEntity,
     },
 };
 
@@ -115,11 +116,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderEntity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {

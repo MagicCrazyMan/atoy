@@ -7,6 +7,7 @@ use crate::{
         pipeline::RenderState,
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
+        RenderEntity,
     },
 };
 
@@ -25,9 +26,9 @@ pub trait Material {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
-    fn attribute_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &RenderEntity) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &Rc<RefCell<Entity>>) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &RenderEntity) -> Option<UniformValue>;
 
     fn ready(&self) -> bool;
 
@@ -40,4 +41,10 @@ pub trait Material {
     /// do not borrow material from entity.
     #[allow(unused_variables)]
     fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
+
+    #[allow(unused_variables)]
+    fn before_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
+
+    #[allow(unused_variables)]
+    fn after_draw(&mut self, state: &RenderState, entity: &RenderEntity) {}
 }

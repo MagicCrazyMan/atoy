@@ -15,6 +15,7 @@ use crate::{
             TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit,
         },
         uniform::{UniformBinding, UniformValue},
+        RenderEntity,
     },
 };
 
@@ -120,11 +121,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &Rc<RefCell<Entity>>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &Rc<RefCell<Entity>>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &RenderEntity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {

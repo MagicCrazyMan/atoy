@@ -1,47 +1,39 @@
 use std::any::Any;
 
-use wasm_bindgen::prelude::wasm_bindgen;
-
 use crate::{
-    ncor::Ncor,
     render::webgl::{
+        attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferUsage,
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
         },
         draw::{Draw, DrawMode},
-        program::{AttributeValue, UniformValue},
+        uniform::UniformValue,
+        RenderEntity,
     },
+    utils::slice_to_float32_array,
 };
 
 use super::Geometry;
 
-#[wasm_bindgen]
 pub struct Plane {
-    vertices_buffer: BufferDescriptor,
-    texture_coordinates_buffer: BufferDescriptor,
-}
-
-#[wasm_bindgen]
-impl Plane {
-    #[wasm_bindgen(constructor)]
-    pub fn new_constructor() -> Self {
-        Self::new()
-    }
+    vertices: BufferDescriptor,
+    texture_coordinates: BufferDescriptor,
 }
 
 impl Plane {
     pub fn new() -> Plane {
         Self {
-            vertices_buffer: BufferDescriptor::with_binary(
-                get_vertices_buffer(),
-                0,
-                18 * 4,
+            vertices: BufferDescriptor::new(
+                BufferSource::from_float32_array(slice_to_float32_array(&VERTICES), 0, 18 * 4),
                 BufferUsage::StaticDraw,
             ),
-            texture_coordinates_buffer: BufferDescriptor::with_binary(
-                get_texture_coordinates(),
-                0,
-                12 * 4,
+            texture_coordinates: BufferDescriptor::new(
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&TEXTURE_COORDINATES),
+                    0,
+                    12 * 4,
+                ),
                 BufferUsage::StaticDraw,
             ),
         }
@@ -49,7 +41,7 @@ impl Plane {
 }
 
 impl Geometry for Plane {
-    fn draw<'a>(&'a self) -> Draw<'a> {
+    fn draw(&self) -> Draw {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
@@ -57,39 +49,39 @@ impl Geometry for Plane {
         }
     }
 
-    fn vertices<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.vertices_buffer),
-            target: BufferTarget::Buffer,
+    fn vertices(&self) -> Option<AttributeValue> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.vertices.clone(),
+            target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn normals<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
+    fn normals(&self) -> Option<AttributeValue> {
         None
     }
 
-    fn texture_coordinates<'a>(&'a self) -> Option<Ncor<'a, AttributeValue>> {
-        Some(Ncor::Owned(AttributeValue::Buffer {
-            descriptor: Ncor::Borrowed(&self.texture_coordinates_buffer),
-            target: BufferTarget::Buffer,
+    fn texture_coordinates(&self) -> Option<AttributeValue> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.texture_coordinates.clone(),
+            target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
-    fn attribute_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, AttributeValue>> {
+    fn attribute_value(&self, _: &str, _: &RenderEntity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value<'a>(&'a self, _name: &str) -> Option<Ncor<'a, UniformValue>> {
+    fn uniform_value(&self, _: &str, _: &RenderEntity) -> Option<UniformValue> {
         None
     }
 
@@ -107,17 +99,9 @@ const VERTICES: [f32; 18] = [
      0.5, 0.5, 0.0,  -0.5, 0.5, 0.0,  -0.5,-0.5, 0.0,
     -0.5,-0.5, 0.0,   0.5,-0.5, 0.0,   0.5, 0.5, 0.0,
 ];
-#[rustfmt::skip]
-fn get_vertices_buffer() -> &'static [u8] {
-    unsafe { std::mem::transmute::<&[f32; 18], &[u8; 18 * 4]>(&VERTICES) }
-}
 
 #[rustfmt::skip]
 const TEXTURE_COORDINATES: [f32; 12] = [
     1.0,1.0,  0.0,1.0,  0.0,0.0,
     0.0,0.0,  1.0,0.0,  1.0,1.0,
 ];
-#[inline]
-fn get_texture_coordinates() -> &'static [u8] {
-    unsafe { std::mem::transmute::<&[f32; 12], &[u8; 12 * 4]>(&TEXTURE_COORDINATES) }
-}
