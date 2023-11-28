@@ -1,9 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_test::console_log;
 use web_sys::{
-    HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+    js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer,
+    WebGlRenderbuffer, WebGlTexture,
 };
 
 use crate::{
@@ -15,11 +17,10 @@ use crate::{
         error::Error,
         pipeline::{
             builtin::{
-                postprocessor::{
-                    ClearColor, ClearDepth, EnableCullFace, EnableDepthTest, SetCullFaceMode,
-                    UpdateCamera, UpdateViewport,
+                postprocessor::Reset,
+                preprocessor::{
+                    EnableCullFace, EnableDepthTest, SetCullFaceMode, UpdateCamera, UpdateViewport,
                 },
-                preprocessor::Reset,
             },
             policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
             postprocess::PostProcessor,
@@ -34,6 +35,7 @@ use crate::{
 pub struct PickDetection {
     position: Option<(i32, i32)>,
     picked: Option<Rc<RefCell<Entity>>>,
+    result: Uint32Array,
     material: Rc<RefCell<PickDetectionMaterial>>,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
@@ -44,6 +46,7 @@ impl PickDetection {
     pub fn new() -> Self {
         Self {
             material: Rc::new(RefCell::new(PickDetectionMaterial::new())),
+            result: Uint32Array::new_with_length(1),
             framebuffer: None,
             renderbuffer: None,
             texture: None,
@@ -94,6 +97,8 @@ impl PickDetection {
         if let Some((renderbuffer, width, height)) = &self.renderbuffer {
             if w == *width || h == *height {
                 return Ok(renderbuffer.clone());
+            } else {
+                gl.delete_renderbuffer(Some(renderbuffer));
             }
         }
 
@@ -123,6 +128,8 @@ impl PickDetection {
         if let Some((texture, width, height)) = &self.texture {
             if w == *width || h == *height {
                 return Ok(texture.clone());
+            } else {
+                gl.delete_texture(Some(texture));
             }
         }
 
@@ -161,23 +168,18 @@ impl RenderPipeline for PickDetection {
         Ok(())
     }
 
-    fn pre_process(
+    fn pre_processors(
         &mut self,
-        state: &mut RenderState,
+        _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
         Ok(vec![
-            Box::new(PickDetectionPreProcessor::new(
-                self.use_framebuffer(&state.gl)?,
-                self.use_depth_renderbuffer(&state.gl)?,
-                self.use_texture(&state.gl)?,
-            )),
+            Box::new(UsePickDetectionFramebuffer),
             Box::new(UpdateCamera),
             Box::new(UpdateViewport),
             Box::new(EnableDepthTest),
             Box::new(EnableCullFace),
-            Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            Box::new(ClearDepth::new(1.0)),
+            Box::new(PickDetectionClear),
             Box::new(SetCullFaceMode::new(CullFace::Back)),
         ])
     }
@@ -208,60 +210,61 @@ impl RenderPipeline for PickDetection {
         Ok(CollectPolicy::CollectAll)
     }
 
-    fn post_precess(
+    fn post_precessors(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
-        Ok(vec![Box::new(Reset)])
+        Ok(vec![Box::new(PickDetectionPickEntity), Box::new(Reset)])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
-struct PickDetectionPreProcessor {
-    framebuffer: WebGlFramebuffer,
-    renderbuffer: WebGlRenderbuffer,
-    texture: WebGlTexture,
-}
+struct UsePickDetectionFramebuffer;
 
-impl PickDetectionPreProcessor {
-    fn new(
-        framebuffer: WebGlFramebuffer,
-        renderbuffer: WebGlRenderbuffer,
-        texture: WebGlTexture,
-    ) -> Self {
-        Self {
-            framebuffer,
-            renderbuffer,
-            texture,
-        }
-    }
-}
-
-impl PreProcessor for PickDetectionPreProcessor {
+impl PreProcessor for UsePickDetectionFramebuffer {
     fn name(&self) -> &str {
-        "PickDetectionPreProcessor"
+        "UsePickDetectionFramebuffer"
     }
 
-    fn pre_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn pre_process(
+        &mut self,
+        pipeline: &mut dyn RenderPipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
         let gl = &state.gl;
-        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&self.framebuffer));
-        gl.bind_renderbuffer(
-            WebGl2RenderingContext::RENDERBUFFER,
-            Some(&self.renderbuffer),
-        );
+        let pick_detection = pipeline
+            .as_any_mut()
+            .downcast_mut::<PickDetection>()
+            .unwrap(); // safe unwrap
+
+        let framebuffer = pick_detection.use_framebuffer(gl)?;
+        let renderbuffer = pick_detection.use_depth_renderbuffer(gl)?;
+        let texture = pick_detection.use_texture(gl)?;
+
+        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&framebuffer));
+        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
         gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&self.texture));
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
         gl.framebuffer_renderbuffer(
             WebGl2RenderingContext::FRAMEBUFFER,
             WebGl2RenderingContext::DEPTH_ATTACHMENT,
             WebGl2RenderingContext::RENDERBUFFER,
-            Some(&self.renderbuffer),
+            Some(&renderbuffer),
         );
         gl.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER,
             WebGl2RenderingContext::COLOR_ATTACHMENT0,
             WebGl2RenderingContext::TEXTURE_2D,
-            Some(&self.texture),
+            Some(&texture),
             0,
         );
 
@@ -269,17 +272,73 @@ impl PreProcessor for PickDetectionPreProcessor {
     }
 }
 
-struct PickDetectionPostProcessor {
-    position: (i32, i32),
-}
+struct PickDetectionClear;
 
-impl PostProcessor for PickDetectionPostProcessor {
+impl PreProcessor for PickDetectionClear {
     fn name(&self) -> &str {
-        "PickDetectionPostProcessor"
+        "PickDetectionClear"
     }
 
-    fn post_process(&mut self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error> {
-        todo!()
+    fn pre_process(
+        &mut self,
+        _: &mut dyn RenderPipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state
+            .gl
+            .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
+        state
+            .gl
+            .clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
+        Ok(())
+    }
+}
+
+struct PickDetectionPickEntity;
+
+impl PostProcessor for PickDetectionPickEntity {
+    fn name(&self) -> &str {
+        "PickDetectionPickEntity"
+    }
+
+    fn post_process(
+        &mut self,
+        pipeline: &mut dyn RenderPipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        let gl = &state.gl;
+        let pick_detection = pipeline
+            .as_any_mut()
+            .downcast_mut::<PickDetection>()
+            .unwrap(); // safe unwrap
+
+        let Some((x, y)) = pick_detection.position else {
+            return Ok(());
+        };
+
+        let canvas = pick_detection.canvas_from_gl(gl)?;
+
+        gl.read_pixels_with_opt_array_buffer_view(
+            x,
+            canvas.height() as i32 - y,
+            1,
+            1,
+            WebGl2RenderingContext::RED_INTEGER,
+            WebGl2RenderingContext::UNSIGNED_INT,
+            Some(&pick_detection.result),
+        )
+        .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
+
+        pick_detection.picked = pick_detection
+            .material
+            .borrow()
+            .index2entity
+            .get(&pick_detection.result.get_index(0))
+            .map(|entity| Rc::clone(&entity));
+
+        Ok(())
     }
 }
 

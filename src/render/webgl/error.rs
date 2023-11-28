@@ -21,6 +21,7 @@ pub enum Error {
     BufferUnexpectedDropped,
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
+    CommonWebGLError(Option<String>)
 }
 
 impl Error {}
@@ -47,6 +48,7 @@ impl std::fmt::Display for Error {
             Error::BufferUnexpectedDropped => f.write_str("buffer descriptor unexpected dropped"),
             Error::TexImageFailure(_) => todo!(),
             Error::TextureStorageNotFount(_) => todo!(),
+            Error::CommonWebGLError(_) => todo!(),
         }
     }
 }

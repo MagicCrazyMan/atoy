@@ -634,7 +634,7 @@ pub fn test_instanced_cube(
 
 #[wasm_bindgen]
 pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 10.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
     let mut standard_pipeline = create_standard_pipeline();
     let mut pick_detection_pipeline = PickDetection::new();

@@ -247,8 +247,8 @@ impl WebGL2Render {
         pipeline.prepare(state, stuff)?;
 
         // pre-process stages
-        for mut processor in pipeline.pre_process(state, stuff)? {
-            processor.pre_process(state, stuff)?;
+        for mut processor in pipeline.pre_processors(state, stuff)? {
+            processor.pre_process(pipeline, state, stuff)?;
         }
 
         // collects render groups
@@ -288,7 +288,10 @@ impl WebGL2Render {
         }
 
         // post-process stages
-        pipeline.post_precess(state, stuff)?;
+        // pre-process stages
+        for mut processor in pipeline.post_precessors(state, stuff)? {
+            processor.post_process(pipeline, state, stuff)?;
+        }
 
         Ok(())
     }

@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -6,11 +8,11 @@ use crate::{
         error::Error,
         pipeline::{
             builtin::{
-                postprocessor::{
+                preprocessor::{
                     ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest,
                     SetCullFaceMode, UpdateCamera, UpdateViewport,
                 },
-                preprocessor::Reset,
+                postprocessor::Reset,
             },
             policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
             postprocess::PostProcessor,
@@ -60,7 +62,7 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(())
     }
 
-    fn pre_process(
+    fn pre_processors(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -101,11 +103,19 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(CollectPolicy::CollectAll)
     }
 
-    fn post_precess(
+    fn post_precessors(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
         Ok(vec![Box::new(Reset)])
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

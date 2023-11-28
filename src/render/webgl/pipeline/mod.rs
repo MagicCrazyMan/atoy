@@ -3,6 +3,8 @@ pub mod postprocess;
 pub mod preprocess;
 pub mod builtin;
 
+use std::any::Any;
+
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::EntityCollection};
@@ -46,7 +48,7 @@ pub trait RenderPipeline {
     /// Developer could provide multiple [`PreProcessor`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn pre_process(
+    fn pre_processors(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
@@ -79,9 +81,13 @@ pub trait RenderPipeline {
     /// also accepts multiple [`PostProcessor`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
-    fn post_precess(
+    fn post_precessors(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<Vec<Box<dyn PostProcessor>>, Error>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
