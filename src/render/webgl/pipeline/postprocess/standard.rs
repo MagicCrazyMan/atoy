@@ -9,15 +9,12 @@ use super::PostProcessor;
 
 pub struct Reset;
 
-impl<Stuff> PostProcessor<Stuff> for Reset
-where
-    Stuff: RenderStuff,
-{
+impl PostProcessor for Reset {
     fn name(&self) -> &str {
         "Reset"
     }
 
-    fn post_process(&mut self, state: &RenderState, _: &mut Stuff) -> Result<(), Error> {
+    fn post_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         state.gl.use_program(None);
         state
             .gl

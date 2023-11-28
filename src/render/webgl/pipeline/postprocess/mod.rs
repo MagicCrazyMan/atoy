@@ -6,30 +6,24 @@ use crate::render::webgl::error::Error;
 
 use super::{RenderState, RenderStuff};
 
-pub trait PostProcessor<Stuff>
-where
-    Stuff: RenderStuff,
-{
+pub trait PostProcessor {
     fn name(&self) -> &str;
 
-    fn post_process(&mut self, state: &RenderState, stuff: &mut Stuff) -> Result<(), Error>;
+    fn post_process(&mut self, state: &RenderState, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
 }
 
 pub enum StandardPostProcess {
     Reset,
 }
 
-impl<Stuff> PostProcessor<Stuff> for StandardPostProcess
-where
-    Stuff: RenderStuff,
-{
+impl PostProcessor for StandardPostProcess {
     fn name(&self) -> &str {
         match self {
             StandardPostProcess::Reset => "Reset",
         }
     }
 
-    fn post_process(&mut self, state: &RenderState, _: &mut Stuff) -> Result<(), Error> {
+    fn post_process(&mut self, state: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         match self {
             StandardPostProcess::Reset => {
                 state.gl.use_program(None);

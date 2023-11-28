@@ -25,10 +25,11 @@ use self::{
     error::Error,
     pipeline::{
         policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+        preprocess::PreProcessor,
         RenderPipeline, RenderState, RenderStuff,
     },
     program::ProgramStore,
-    texture::{TextureStore, TextureUnit},
+    texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
 };
 
@@ -224,29 +225,30 @@ impl RenderEntity {
 }
 
 impl WebGL2Render {
-    pub fn render<Stuff, Pipeline>(
+    pub fn render<'a, Stuff, PreProcessors, Pipeline>(
         &mut self,
-        pipeline: &mut Pipeline,
+        pipeline: &'a mut Pipeline,
         stuff: &mut Stuff,
         frame_time: f64,
     ) -> Result<(), Error>
     where
-        Stuff: RenderStuff,
-        Pipeline: RenderPipeline<Stuff>,
+        Stuff: RenderStuff + 'a ,
+        PreProcessors: IntoIterator<Item = &'a mut dyn PreProcessor>,
+        Pipeline: RenderPipeline<'a, PreProcessors>,
     {
         // constructs render state
-        let mut state = RenderState {
+        let state = RenderState {
             canvas: self.canvas.clone(),
             gl: self.gl.clone(),
             frame_time,
         };
 
         // prepares stage, obtains a render stuff
-        pipeline.prepare(&mut state, stuff)?;
+        pipeline.prepare(&state, stuff)?;
 
         // pre-process stages
-        for mut pre_process in pipeline.pre_process(&mut state, stuff)? {
-            pre_process.pre_process(&state, stuff)?;
+        for processor in pipeline.pre_process(&state, stuff)? {
+            processor.pre_process(&state, stuff)?;
         }
 
         // collects render groups
@@ -286,22 +288,23 @@ impl WebGL2Render {
         }
 
         // post-process stages
-        pipeline.post_precess(&mut state, stuff)?;
+        pipeline.post_precess(&state, stuff)?;
 
         Ok(())
     }
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare_entities<Stuff, Pipeline>(
+    fn prepare_entities<'a, Stuff, PreProcessors, Pipeline>(
         &mut self,
         pipeline: &mut Pipeline,
         stuff: &mut Stuff,
         state: &RenderState,
     ) -> Result<HashMap<String, RenderGroup>, Error>
     where
-        Stuff: RenderStuff,
-        Pipeline: RenderPipeline<Stuff>,
+        Stuff: RenderStuff + 'a,
+        PreProcessors: IntoIterator<Item = &'a mut dyn PreProcessor>,
+        Pipeline: RenderPipeline<'a, PreProcessors>,
     {
         let view_matrix = stuff.camera().view_matrix();
         let proj_matrix = stuff.camera().proj_matrix();

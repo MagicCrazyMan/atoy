@@ -1,3 +1,5 @@
+use std::iter::Map;
+
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -18,17 +20,17 @@ use super::{
     RenderPipeline, RenderState, RenderStuff,
 };
 
-pub struct StandardRenderStuff<'s> {
-    scene: &'s mut Scene,
+pub struct StandardRenderStuff<'a> {
+    scene: &'a mut Scene,
 }
 
-impl<'s> StandardRenderStuff<'s> {
-    pub fn new(scene: &'s mut Scene) -> Self {
+impl<'a> StandardRenderStuff<'a> {
+    pub fn new(scene: &'a mut Scene) -> Self {
         Self { scene }
     }
 }
 
-impl<'s> RenderStuff for StandardRenderStuff<'s> {
+impl<'a> RenderStuff for StandardRenderStuff<'a> {
     fn camera(&self) -> &dyn Camera {
         self.scene.active_camera()
     }
@@ -47,69 +49,76 @@ impl<'s> RenderStuff for StandardRenderStuff<'s> {
 }
 
 pub struct StandardPipeline {
-    // pre_processor: Vec<Box<dyn PreProcessor>>,
+    pre_processors: Vec<Box<dyn PreProcessor>>,
 }
 
 impl StandardPipeline {
     pub fn new() -> Self {
         Self {
-            // pre_processor: vec![
-            //     Box::new(UpdateCamera),
-            //     Box::new(UpdateViewport),
-            //     Box::new(EnableDepthTest),
-            //     Box::new(EnableCullFace),
-            //     Box::new(EnableBlend),
-            //     Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            //     Box::new(ClearDepth::new(0.0)),
-            //     Box::new(SetCullFaceMode::new(CullFace::Back)),
-            // ],
+            pre_processors: vec![
+                Box::new(UpdateCamera),
+                Box::new(UpdateViewport),
+                Box::new(EnableDepthTest),
+                Box::new(EnableCullFace),
+                Box::new(EnableBlend),
+                Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
+                Box::new(ClearDepth::new(0.0)),
+                Box::new(SetCullFaceMode::new(CullFace::Back)),
+            ],
         }
     }
 }
 
-impl<'s, Stuff: RenderStuff> RenderPipeline<Stuff> for StandardPipeline {
+impl<'a> RenderPipeline<'a, Vec<&'a mut dyn PreProcessor>> for StandardPipeline {
     fn dependencies(&self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn prepare(&mut self, _: &mut RenderState, _: &mut Stuff) -> Result<(), Error> {
+    fn prepare(&mut self, _: &RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         Ok(())
     }
 
     fn pre_process(
         &mut self,
-        _: &mut RenderState,
-        _: &mut Stuff,
-    ) -> Result<Vec<Box<dyn PreProcessor<Stuff>>>, Error> {
-        Ok(vec![
-            Box::new(UpdateCamera),
-            Box::new(UpdateViewport),
-            Box::new(EnableDepthTest),
-            Box::new(EnableCullFace),
-            Box::new(EnableBlend),
-            Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            Box::new(ClearDepth::new(1.0)),
-            Box::new(SetCullFaceMode::new(CullFace::Back)),
-        ])
+        _: &RenderState,
+        _: &dyn RenderStuff,
+    ) -> Result<Vec<&'a mut dyn PreProcessor>, Error> {
+        Ok(self
+            .pre_processors
+            .iter_mut()
+            .map(|processor| processor.as_mut())
+            .collect::<Vec<&'a mut dyn PreProcessor>>())
     }
 
-    fn material_policy(&self, _: &RenderState, _: &Stuff) -> Result<MaterialPolicy, Error> {
+    fn material_policy(
+        &self,
+        _: &RenderState,
+        _: &dyn RenderStuff,
+    ) -> Result<MaterialPolicy, Error> {
         Ok(MaterialPolicy::FollowEntity)
     }
 
-    fn geometry_policy(&self, _: &RenderState, _: &Stuff) -> Result<GeometryPolicy, Error> {
+    fn geometry_policy(
+        &self,
+        _: &RenderState,
+        _: &dyn RenderStuff,
+    ) -> Result<GeometryPolicy, Error> {
         Ok(GeometryPolicy::FollowEntity)
     }
 
-    fn collect_policy(&mut self, _: &RenderState, _: &Stuff) -> Result<CollectPolicy, Error> {
+    fn collect_policy(
+        &mut self,
+        _: &RenderState,
+        _: &dyn RenderStuff,
+    ) -> Result<CollectPolicy, Error> {
         Ok(CollectPolicy::CollectAll)
     }
 
     fn post_precess(
         &mut self,
-        _: &mut RenderState,
-        _: &mut Stuff,
-    ) -> Result<Vec<Box<dyn PostProcessor<Stuff>>>, Error> {
+        _: &RenderState,
+        _: &dyn RenderStuff,
+    ) -> Result<Vec<Box<dyn PostProcessor>>, Error> {
         Ok(vec![Box::new(Reset)])
     }
 }
