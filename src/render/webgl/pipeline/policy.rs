@@ -1,5 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+use gl_matrix4rust::mat4::Mat4;
+
 use crate::{entity::Entity, geometry::Geometry, material::Material, render::webgl::RenderGroup};
 
 /// Policies of preparation stage, developer could abort render procedure in this stage.
@@ -53,6 +55,8 @@ pub enum CollectPolicy {
                 &Rc<RefCell<Entity>>,
                 &Rc<RefCell<dyn Geometry>>,
                 &Rc<RefCell<dyn Material>>,
+                &Mat4,
+                &Mat4,
             ) -> bool,
         >,
     ),

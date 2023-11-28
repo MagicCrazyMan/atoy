@@ -367,7 +367,14 @@ impl WebGL2Render {
                 // check collectable
                 let collectable = match &collect_policy {
                     CollectPolicy::CollectAll => true,
-                    CollectPolicy::Custom(func) => func(&groups, &entity, &geometry, &material),
+                    CollectPolicy::Custom(func) => func(
+                        &groups,
+                        &entity,
+                        &geometry,
+                        &material,
+                        &view_matrix,
+                        &proj_matrix,
+                    ),
                 };
 
                 if !collectable {
