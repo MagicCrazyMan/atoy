@@ -685,6 +685,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .entity_collection_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
+        let start = window().performance().unwrap().now();
+
         if let Some((x, y)) = pick_position.borrow_mut().take() {
             pick_detection_pipeline.set_position(x, y);
             render
@@ -717,6 +719,12 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 frame_time,
             )
             .unwrap();
+
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
