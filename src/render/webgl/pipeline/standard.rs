@@ -87,10 +87,10 @@ impl<'s> RenderPipeline for StandardPipeline {
             Box::new(UpdateCamera),
             Box::new(UpdateViewport),
             Box::new(EnableDepthTest),
-            // Box::new(EnableCullFace),
-            // Box::new(EnableBlend),
+            Box::new(EnableCullFace),
+            Box::new(EnableBlend),
             Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
-            Box::new(ClearDepth::new(0.0)),
+            Box::new(ClearDepth::new(1.0)),
             Box::new(SetCullFaceMode::new(CullFace::Back)),
         ])
     }
