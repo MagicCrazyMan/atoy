@@ -1,5 +1,3 @@
-pub mod standard;
-
 use web_sys::WebGl2RenderingContext;
 
 use crate::render::webgl::error::Error;

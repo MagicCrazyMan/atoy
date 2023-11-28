@@ -2,10 +2,8 @@ use web_sys::WebGl2RenderingContext;
 
 use crate::render::webgl::{
     error::Error,
-    pipeline::{RenderState, RenderStuff},
+    pipeline::{postprocess::PostProcessor, RenderState, RenderStuff},
 };
-
-use super::PostProcessor;
 
 pub struct Reset;
 

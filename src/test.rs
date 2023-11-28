@@ -25,7 +25,9 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::pipeline::standard::{StandardPipeline, StandardRenderStuff};
+use crate::render::webgl::pipeline::builtin::pipeline::standard::{
+    StandardPipeline, StandardRenderStuff,
+};
 use crate::render::webgl::pipeline::RenderPipeline;
 use crate::render::webgl::texture::TextureUnit;
 use crate::utils::slice_to_float32_array;

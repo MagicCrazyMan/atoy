@@ -2,7 +2,7 @@ pub mod pick;
 pub mod policy;
 pub mod postprocess;
 pub mod preprocess;
-pub mod standard;
+pub mod builtin;
 
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 

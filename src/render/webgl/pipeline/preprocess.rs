@@ -1,5 +1,3 @@
-pub mod standard;
-
 use crate::render::webgl::error::Error;
 
 use super::{RenderState, RenderStuff};

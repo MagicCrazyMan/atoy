@@ -4,10 +4,8 @@ use crate::render::webgl::{
     conversion::ToGlEnum,
     draw::CullFace,
     error::Error,
-    pipeline::{RenderState, RenderStuff},
+    pipeline::{preprocess::PreProcessor, RenderState, RenderStuff},
 };
-
-use super::PreProcessor;
 
 pub struct UpdateCamera;
 

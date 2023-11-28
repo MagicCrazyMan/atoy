@@ -1,21 +1,24 @@
 use crate::{
     camera::Camera,
     entity::EntityCollection,
-    render::webgl::{draw::CullFace, error::Error},
-    scene::Scene,
-};
-
-use super::{
-    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
-    postprocess::{standard::Reset, PostProcessor},
-    preprocess::{
-        standard::{
-            ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, SetCullFaceMode,
-            UpdateCamera, UpdateViewport,
+    render::webgl::{
+        draw::CullFace,
+        error::Error,
+        pipeline::{
+            builtin::{
+                postprocessor::{
+                    ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest,
+                    SetCullFaceMode, UpdateCamera, UpdateViewport,
+                },
+                preprocessor::Reset,
+            },
+            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+            postprocess::PostProcessor,
+            preprocess::PreProcessor,
+            RenderPipeline, RenderState, RenderStuff,
         },
-        PreProcessor,
     },
-    RenderPipeline, RenderState, RenderStuff,
+    scene::Scene,
 };
 
 pub struct StandardRenderStuff<'a> {
