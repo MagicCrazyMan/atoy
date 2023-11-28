@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
@@ -24,6 +24,22 @@ pub struct Entity {
 }
 
 impl Entity {
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            local_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::new_identity(),
+            normal_matrix: Mat4::new_identity(),
+            model_view_matrix: Mat4::new_identity(),
+            model_view_proj_matrix: Mat4::new_identity(),
+            attributes: HashMap::new(),
+            uniforms: HashMap::new(),
+            properties: HashMap::new(),
+            geometry: None,
+            material: None,
+        }
+    }
+
     pub fn id(&self) -> &Uuid {
         &self.id
     }
@@ -172,18 +188,22 @@ impl EntityCollection {
         }
     }
 
-    pub fn entities(&self) -> &Vec<Rc<RefCell<Entity>>> {
+    pub fn id(&self) -> &Uuid {
+        &self.id
+    }
+
+    pub fn entities(&self) -> &[Rc<RefCell<Entity>>] {
         &self.entities
     }
 
-    pub fn entities_mut(&mut self) -> &mut Vec<Rc<RefCell<Entity>>> {
+    pub fn entities_mut(&mut self) -> &mut [Rc<RefCell<Entity>>] {
         &mut self.entities
     }
 
-    // pub fn add_entity(&mut self, entity: Entity) {
-    //     // self.entities_hash.insert(entity.id, entity.as_mut());
-    //     self.entities.push(Rc::new(RefCell::new(entity)));
-    // }
+    pub fn add_entity(&mut self, entity: Entity) {
+        // self.entities_hash.insert(entity.id, entity.as_mut());
+        self.entities.push(Rc::new(RefCell::new(entity)));
+    }
 
     // pub fn remove_entity_by_index(&mut self, index: usize) -> Option<Rc<RefCell<Entity>>> {
     //     if index >= self.entities.len() {
@@ -205,11 +225,11 @@ impl EntityCollection {
     //     Some(entity)
     // }
 
-    pub fn collections(&self) -> &Vec<Self> {
+    pub fn collections(&self) -> &[Self] {
         &self.collections
     }
 
-    pub fn collections_mut(&mut self) -> &mut Vec<Self> {
+    pub fn collections_mut(&mut self) -> &mut [Self] {
         &mut self.collections
     }
 

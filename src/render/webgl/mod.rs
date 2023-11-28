@@ -8,11 +8,14 @@ use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::AsVec3,
 };
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_test::console_log;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation};
+use web_sys::{
+    HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry, WebGl2RenderingContext,
+    WebGlProgram, WebGlUniformLocation,
+};
 
-use crate::{entity::Entity, geometry::Geometry, material::Material};
+use crate::{document, entity::Entity, geometry::Geometry, material::Material};
 
 use self::{
     attribute::{AttributeBinding, AttributeValue},
@@ -52,17 +55,36 @@ pub mod uniform;
 // }
 
 pub struct WebGL2Render {
+    mount: Option<HtmlElement>,
     canvas: HtmlCanvasElement,
+    // require for storing callback closure function
+    resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     gl: WebGl2RenderingContext,
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
-    max_texture_unit: GLuint,
 }
 
 impl WebGL2Render {
+    pub fn new() -> Result<Self, Error> {
+        Self::new_inner(None)
+    }
+
+    pub fn with_mount(mount: &str) -> Result<Self, Error> {
+        Self::new_inner(Some(mount))
+    }
+
     /// Constructs a new WebGL2 render.
-    pub fn new(canvas: HtmlCanvasElement) -> Result<WebGL2Render, Error> {
+    fn new_inner(mount: Option<&str>) -> Result<Self, Error> {
+        let canvas = document()
+            .create_element("canvas")
+            .ok()
+            .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
+            .ok_or(Error::CreateCanvasFailure)?;
+        canvas.style().set_css_text("width: 100%; height: 100%;");
+
+        let resize_observer = Self::observer_canvas_size(&canvas);
+
         let gl = canvas
             .get_context_with_context_options("webgl2", &JsValue::undefined())
             .ok()
@@ -70,19 +92,92 @@ impl WebGL2Render {
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
             .ok_or(Error::WenGL2Unsupported)?;
 
-        Ok(Self {
+        let mut render = Self {
+            mount: None,
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::with_max_memory(gl.clone(), 2 * 1024 * 1024 * 1024),
             // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
             texture_store: TextureStore::new(gl.clone()),
-            max_texture_unit: TextureUnit::max_combined_texture_image_units(&gl),
             canvas,
             gl,
-        })
+            resize_observer,
+        };
+
+        render.set_mount(mount)?;
+
+        Ok(render)
+    }
+
+    fn observer_canvas_size(
+        canvas: &HtmlCanvasElement,
+    ) -> (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>) {
+        // create observer observing size change event of canvas
+        let resize_observer_callback = Closure::new(move |entries: Vec<ResizeObserverEntry>| {
+            // should have only one entry
+            let Some(target) = entries.get(0).map(|entry| entry.target()) else {
+                return;
+            };
+            let Some(canvas) = target.dyn_ref::<HtmlCanvasElement>() else {
+                return;
+            };
+
+            canvas.set_width(canvas.client_width() as u32);
+            canvas.set_height(canvas.client_height() as u32);
+        });
+
+        let resize_observer =
+            ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref()).unwrap();
+        resize_observer.observe(canvas);
+
+        (resize_observer, resize_observer_callback)
+    }
+}
+
+impl Drop for WebGL2Render {
+    fn drop(&mut self) {
+        // cleanups observers
+        self.resize_observer.0.disconnect();
     }
 }
 
 impl WebGL2Render {
+    /// Gets mount target.
+    pub fn mount(&self) -> Option<&HtmlElement> {
+        match &self.mount {
+            Some(mount) => Some(mount),
+            None => None,
+        }
+    }
+
+    /// Sets the mount target.
+    pub fn set_mount(&mut self, mount: Option<&str>) -> Result<(), Error> {
+        if let Some(mount) = mount {
+            if !mount.is_empty() {
+                // gets and sets mount target using `document.getElementById`
+                let mount = document()
+                    .get_element_by_id(&mount)
+                    .and_then(|ele| ele.dyn_into::<HtmlElement>().ok())
+                    .ok_or(Error::MountElementNotFound)?;
+
+                // mounts canvas to target (creates new if not exists)
+                mount.append_child(&self.canvas).unwrap();
+                let width = mount.client_width() as u32;
+                let height = mount.client_height() as u32;
+                self.canvas.set_width(width);
+                self.canvas.set_height(height);
+
+                self.mount = Some(mount);
+
+                return Ok(());
+            }
+        }
+
+        // for all other situations, removes canvas from mount target
+        self.canvas.remove();
+        self.mount = None;
+        Ok(())
+    }
+
     pub fn buffer_store(&self) -> &BufferStore {
         &self.buffer_store
     }
@@ -135,9 +230,6 @@ impl WebGL2Render {
         stuff: &mut dyn RenderStuff,
         frame_time: f64,
     ) -> Result<(), Error> {
-        // prepares stage, obtains a render stuff
-        pipeline.prepare(stuff)?;
-
         // constructs render state
         let mut state = RenderState {
             canvas: self.canvas.clone(),
@@ -145,13 +237,18 @@ impl WebGL2Render {
             frame_time,
         };
 
-        // preprocess stages
-        pipeline.pre_process(&mut state, stuff)?;
+        // prepares stage, obtains a render stuff
+        pipeline.prepare(&mut state, stuff)?;
+
+        // pre-process stages
+        for mut pre_process in pipeline.pre_process(&mut state, stuff)? {
+            pre_process.pre_process(&state, stuff)?;
+        }
 
         // collects render groups
         let groups = self.prepare_entities(pipeline, stuff, &state)?;
 
-        // render each entities group
+        // render stage
         for (
             _,
             RenderGroup {
@@ -162,6 +259,7 @@ impl WebGL2Render {
             },
         ) in groups
         {
+            // console_log!("{}", entities.len());
             let (program, attribute_locations, uniform_locations) =
                 unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
 
@@ -183,33 +281,10 @@ impl WebGL2Render {
             }
         }
 
-        self.reset(&state);
+        // post-process stages
+        pipeline.post_precess(&mut state, stuff)?;
 
         Ok(())
-    }
-
-    /// Resets WebGl status.
-    fn reset(&self, RenderState { gl, .. }: &RenderState) {
-        gl.use_program(None);
-        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
-        gl.bind_renderbuffer(WebGl2RenderingContext::READ_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
-        for index in 0..self.max_texture_unit {
-            gl.active_texture(WebGl2RenderingContext::TEXTURE0 + index);
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
-        }
-        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        gl.bind_vertex_array(None);
     }
 
     /// Prepares graphic scene.

@@ -10,8 +10,8 @@ use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
     policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
-    postprocess::PostprocessOp,
-    preprocess::PreprocessOp,
+    postprocess::PostProcessOp,
+    preprocess::PreProcessor,
 };
 
 use super::error::Error;
@@ -41,17 +41,21 @@ pub trait RenderPipeline {
     fn dependencies(&self) -> Result<(), Error>;
 
     /// Preparation stage during render procedure.
-    fn prepare(&mut self, stuff: &mut dyn RenderStuff) -> Result<(), Error>;
+    fn prepare(
+        &mut self,
+        state: &mut RenderState,
+        stuff: &mut dyn RenderStuff,
+    ) -> Result<(), Error>;
 
     /// Preprocess stages during render procedure.
-    /// Developer could provide multiple [`PreprocessOp`]s
+    /// Developer could provide multiple [`PreProcessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
     fn pre_process(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PreprocessOp], Error>;
+    ) -> Result<Vec<Box<dyn PreProcessor>>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
@@ -77,12 +81,12 @@ pub trait RenderPipeline {
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
-    /// also accepts multiple [`PostprocessOp`]s
+    /// also accepts multiple [`PostProcessOp`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
     fn post_precess(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PostprocessOp], Error>;
+    ) -> Result<&[&dyn PostProcessOp], Error>;
 }

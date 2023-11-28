@@ -1,8 +1,6 @@
 #[derive(Debug, Clone)]
 pub enum Error {
     ParseObjectFailure,
-    CreateCanvasFailure,
-    MountElementNotFound,
     WebGL2RenderError(crate::render::webgl::error::Error),
 }
 
@@ -12,8 +10,6 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::ParseObjectFailure => todo!(),
-            Error::CreateCanvasFailure => todo!(),
-            Error::MountElementNotFound => todo!(),
             Error::WebGL2RenderError(e) => e.fmt(f),
         }
     }

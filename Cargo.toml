@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-wasm-bindgen = { version = "0.2.88" }
+wasm-bindgen = { version = "0.2.89" }
 gl-matrix4rust = { path = "../gl-matrix4rust" }
 
 # The `console_error_panic_hook` crate provides better debugging of panics by

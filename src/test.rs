@@ -1,91 +1,93 @@
-// use std::collections::HashMap;
-// use std::{cell::RefCell, rc::Rc};
+use std::collections::HashMap;
+use std::{cell::RefCell, rc::Rc};
 
-// use gl_matrix4rust::mat4::Mat4;
-// use gl_matrix4rust::vec3::{AsVec3, Vec3};
-// use palette::rgb::Rgb;
-// use wasm_bindgen::prelude::wasm_bindgen;
-// use wasm_bindgen::{closure::Closure, JsCast};
-// use wasm_bindgen_test::console_log;
-// use web_sys::js_sys::{Date, Uint8Array};
-// use web_sys::MouseEvent;
+use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use palette::rgb::Rgb;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen_test::console_log;
+use web_sys::js_sys::{Date, Uint8Array};
+use web_sys::MouseEvent;
 
-// use crate::camera::perspective::PerspectiveCamera;
-// use crate::entity::Entity;
-// use crate::error::Error;
-// use crate::geometry::cube::{self, calculate_vertices};
-// use crate::geometry::indexed_cube::IndexedCube;
-// use crate::geometry::raw::RawGeometry;
-// use crate::geometry::sphere::Sphere;
-// use crate::material::environment_mapping::EnvironmentMaterial;
-// use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
-// use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
-// use crate::render::webgl::attribute::AttributeValue;
-// use crate::render::webgl::buffer::{
-//     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
-// };
-// use crate::render::webgl::draw::{Draw, DrawMode};
-// use crate::render::webgl::texture::TextureUnit;
-// use crate::utils::slice_to_float32_array;
-// use crate::{document, entity};
-// use crate::{
-//     geometry::cube::Cube,
-//     material::solid_color::SolidColorMaterial,
-//     render::webgl::{draw::CullFace, WebGL2Render},
-//     scene::{Scene, SceneOptions},
-//     window,
-// };
+use crate::camera::perspective::PerspectiveCamera;
+use crate::entity::Entity;
+use crate::error::Error;
+use crate::geometry::cube::{self, calculate_vertices};
+use crate::geometry::indexed_cube::IndexedCube;
+use crate::geometry::raw::RawGeometry;
+use crate::geometry::sphere::Sphere;
+use crate::material::environment_mapping::EnvironmentMaterial;
+use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
+use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::render::webgl::attribute::AttributeValue;
+use crate::render::webgl::buffer::{
+    BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
+};
+use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::pipeline::standard::{StandardPipeline, StandardRenderStuff};
+use crate::render::webgl::pipeline::RenderPipeline;
+use crate::render::webgl::texture::TextureUnit;
+use crate::utils::slice_to_float32_array;
+use crate::{document, entity};
+use crate::{
+    geometry::cube::Cube,
+    material::solid_color::SolidColorMaterial,
+    render::webgl::{draw::CullFace, WebGL2Render},
+    scene::{Scene, SceneOptions},
+    window,
+};
 
-// #[wasm_bindgen]
-// pub fn test_gl_matrix_4_rust() {
-//     struct Random {
-//         seed: f64,
-//     }
+#[wasm_bindgen]
+pub fn test_gl_matrix_4_rust() {
+    struct Random {
+        seed: f64,
+    }
 
-//     impl Random {
-//         fn new(seed: f64) -> Self {
-//             Self { seed }
-//         }
+    impl Random {
+        fn new(seed: f64) -> Self {
+            Self { seed }
+        }
 
-//         fn get(&mut self) -> f64 {
-//             let x = self.seed.sin() * 10000.0;
-//             self.seed += 1.0;
-//             return x - x.floor();
-//         }
-//     }
+        fn get(&mut self) -> f64 {
+            let x = self.seed.sin() * 10000.0;
+            self.seed += 1.0;
+            return x - x.floor();
+        }
+    }
 
-//     let performance = window()
-//         .performance()
-//         .expect("performance should be available");
+    let performance = window()
+        .performance()
+        .expect("performance should be available");
 
-//     console_log!("start benchmark");
+    console_log!("start benchmark");
 
-//     let start = performance.now();
+    let start = performance.now();
 
-//     let iteration = 10000000u32;
-//     let mut random_a = Random::new(1928473.0);
-//     let mut random_b = Random::new(1928473.0);
+    let iteration = 10000000u32;
+    let mut random_a = Random::new(1928473.0);
+    let mut random_b = Random::new(1928473.0);
 
-//     let mut values_a = [0.0; 4 * 4];
-//     let mut values_b = [0.0; 4 * 4];
-//     for i in 0..(4 * 4) {
-//         values_a[i] = random_a.get();
-//         values_b[i] = random_b.get();
-//     }
+    let mut values_a = [0.0; 4 * 4];
+    let mut values_b = [0.0; 4 * 4];
+    for i in 0..(4 * 4) {
+        values_a[i] = random_a.get();
+        values_b[i] = random_b.get();
+    }
 
-//     let mat_a = Mat4::from_slice(values_a);
-//     let mat_b = Mat4::from_slice(values_b);
-//     for _ in 0..iteration {
-//         let _ = mat_a * mat_b;
-//     }
+    let mat_a = Mat4::from_slice(values_a);
+    let mat_b = Mat4::from_slice(values_b);
+    for _ in 0..iteration {
+        let _ = mat_a * mat_b;
+    }
 
-//     let end = performance.now();
-//     console_log!(
-//         "gl-matrix4rust iterate {} times cost {}ms",
-//         iteration,
-//         end - start
-//     );
-// }
+    let end = performance.now();
+    console_log!(
+        "gl-matrix4rust iterate {} times cost {}ms",
+        iteration,
+        end - start
+    );
+}
 
 // // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
 
@@ -107,52 +109,39 @@
 // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 // // }
 
-// fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
-//     window()
-//         .request_animation_frame(f.as_ref().unchecked_ref())
-//         .expect("should register `requestAnimationFrame` OK");
-// }
+fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
 
-// fn create_scene(
-//     camera_position: impl AsVec3<f64>,
-//     camera_center: impl AsVec3<f64>,
-//     camera_up: impl AsVec3<f64>,
-// ) -> Result<Scene, Error> {
-//     let scene_options = SceneOptions::new()
-//         .with_mount("scene_container")
-//         .with_default_camera(PerspectiveCamera::new(
-//             camera_position,
-//             camera_center,
-//             camera_up,
-//             60.0f64.to_radians(),
-//             1.0,
-//             0.5,
-//             None,
-//         ));
+fn create_scene(
+    camera_position: impl AsVec3<f64>,
+    camera_center: impl AsVec3<f64>,
+    camera_up: impl AsVec3<f64>,
+) -> Result<Scene, Error> {
+    let scene_options = SceneOptions::new().with_default_camera(PerspectiveCamera::new(
+        camera_position,
+        camera_center,
+        camera_up,
+        60.0f64.to_radians(),
+        1.0,
+        0.5,
+        None,
+    ));
 
-//     Scene::with_options(scene_options)
-// }
+    Scene::with_options(scene_options)
+}
 
-// static mut RENDER_START: f64 = 0.0;
-// static mut RENDER_END: f64 = 0.0;
-// static mut PREPARE_START: f64 = 0.0;
-// static mut PREPARE_END: f64 = 0.0;
-// static mut BIND_ATTRIBUTES_START: f64 = 0.0;
-// static mut BIND_ATTRIBUTES_END: f64 = 0.0;
-// static mut BIND_ATTRIBUTES_TOTAL: f64 = 0.0;
-// static mut BIND_UNIFORMS_START: f64 = 0.0;
-// static mut BIND_UNIFORMS_END: f64 = 0.0;
-// static mut BIND_UNIFORMS_TOTAL: f64 = 0.0;
-// static mut DRAW_START: f64 = 0.0;
-// static mut DRAW_END: f64 = 0.0;
-// static mut DRAW_TOTAL: f64 = 0.0;
+fn create_standard_pipeline() -> StandardPipeline {
+    StandardPipeline::new()
+}
 
-// fn create_render(scene: &Scene) -> Result<WebGL2Render, Error> {
-//     let mut render = WebGL2Render::new(&scene)?;
-//     render.set_cull_face(Some(CullFace::Back));
+fn create_render() -> Result<WebGL2Render, Error> {
+    let render = WebGL2Render::with_mount("scene_container")?;
 
-//     Ok(render)
-// }
+    Ok(render)
+}
 
 // #[wasm_bindgen]
 // pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
@@ -164,53 +153,60 @@
 //     Ok(())
 // }
 
-// #[wasm_bindgen]
-// pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-//     let mut render = create_render(&scene)?;
+#[wasm_bindgen]
+pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render()?;
+    let mut pipeline = create_standard_pipeline();
 
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
 
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-//         let mut entity = Entity::new();
+        let mut entity = Entity::new();
 
-//         entity.set_geometry(Some(Cube::new()));
-//         // entity.set_geometry(Some(IndexedCube::new()));
-//         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-//         entity.set_local_matrix(model_matrix);
-//         scene.root_entity_mut().add_child(entity);
-//     }
+        entity.set_geometry(Some(Cube::new()));
+        // entity.set_geometry(Some(IndexedCube::new()));
+        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.set_local_matrix(model_matrix);
+        scene.entity_collection_mut().add_entity(entity);
+    }
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
+        scene
+            .entity_collection_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         render.render(&mut scene, timestamp).unwrap();
+        render
+            .render(
+                &mut pipeline,
+                &mut StandardRenderStuff::new(&mut scene),
+                frame_time,
+            )
+            .unwrap();
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 // #[wasm_bindgen]
 // pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {

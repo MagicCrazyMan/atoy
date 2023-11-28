@@ -1,3 +1,5 @@
+use wasm_bindgen_test::console_log;
+
 use crate::{
     camera::Camera,
     entity::EntityCollection,
@@ -6,42 +8,73 @@ use crate::{
 };
 
 use super::{
-    policy::{GeometryPolicy, MaterialPolicy},
-    postprocess::PostprocessOp,
-    preprocess::{InternalPreprocessOp, PreprocessOp},
+    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
+    postprocess::PostProcessOp,
+    preprocess::{
+        standard::{
+            ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, SetCullFaceMode,
+            UpdateCamera, UpdateViewport,
+        },
+        PreProcessor,
+    },
     RenderPipeline, RenderState, RenderStuff,
 };
 
-struct StandardRenderStuff<'s> {
+pub struct StandardRenderStuff<'s> {
     scene: &'s mut Scene,
+}
+
+impl<'s> StandardRenderStuff<'s> {
+    pub fn new(scene: &'s mut Scene) -> Self {
+        Self { scene }
+    }
 }
 
 impl<'s> RenderStuff for StandardRenderStuff<'s> {
     fn camera(&self) -> &dyn Camera {
-        self.scene.active_camera_mut()
+        self.scene.active_camera()
     }
 
     fn camera_mut(&mut self) -> &mut dyn Camera {
-        todo!()
+        self.scene.active_camera_mut()
     }
 
     fn entity_collection(&self) -> &EntityCollection {
-        todo!()
+        self.scene.entity_collection()
     }
 
     fn entity_collection_mut(&mut self) -> &mut EntityCollection {
-        todo!()
+        self.scene.entity_collection_mut()
     }
 }
 
-pub struct StandardPipeline;
+pub struct StandardPipeline {
+    // pre_processor: Vec<Box<dyn PreProcessor>>,
+}
+
+impl StandardPipeline {
+    pub fn new() -> Self {
+        Self {
+            // pre_processor: vec![
+            //     Box::new(UpdateCamera),
+            //     Box::new(UpdateViewport),
+            //     Box::new(EnableDepthTest),
+            //     Box::new(EnableCullFace),
+            //     Box::new(EnableBlend),
+            //     Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
+            //     Box::new(ClearDepth::new(0.0)),
+            //     Box::new(SetCullFaceMode::new(CullFace::Back)),
+            // ],
+        }
+    }
+}
 
 impl<'s> RenderPipeline for StandardPipeline {
     fn dependencies(&self) -> Result<(), Error> {
-        todo!()
+        Ok(())
     }
 
-    fn prepare(&mut self, _: &mut dyn RenderStuff) -> Result<(), Error> {
+    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<(), Error> {
         Ok(())
     }
 
@@ -49,15 +82,16 @@ impl<'s> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PreprocessOp], Error> {
-        Ok(&[
-            &InternalPreprocessOp::UpdateViewport,
-            &InternalPreprocessOp::EnableDepthTest,
-            &InternalPreprocessOp::EnableCullFace,
-            &InternalPreprocessOp::EnableBlend,
-            &InternalPreprocessOp::ClearColor(0.0, 0.0, 0.0, 0.0),
-            &InternalPreprocessOp::ClearDepth(0.0),
-            &InternalPreprocessOp::SetCullFaceMode(CullFace::Back),
+    ) -> Result<Vec<Box<dyn PreProcessor>>, Error> {
+        Ok(vec![
+            Box::new(UpdateCamera),
+            Box::new(UpdateViewport),
+            Box::new(EnableDepthTest),
+            // Box::new(EnableCullFace),
+            // Box::new(EnableBlend),
+            Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)),
+            Box::new(ClearDepth::new(0.0)),
+            Box::new(SetCullFaceMode::new(CullFace::Back)),
         ])
     }
 
@@ -81,15 +115,15 @@ impl<'s> RenderPipeline for StandardPipeline {
         &mut self,
         _: &RenderState,
         _: &dyn RenderStuff,
-    ) -> Result<super::policy::CollectPolicy, Error> {
-        todo!()
+    ) -> Result<CollectPolicy, Error> {
+        Ok(CollectPolicy::CollectAll)
     }
 
     fn post_precess(
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<&[&dyn PostprocessOp], Error> {
+    ) -> Result<&[&dyn PostProcessOp], Error> {
         Ok(&[])
     }
 }

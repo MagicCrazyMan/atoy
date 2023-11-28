@@ -5,6 +5,9 @@ use gl_matrix4rust::{
     vec3::{AsVec3, Vec3},
 };
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen_test::console_log;
+
+use crate::render::webgl::pipeline::RenderState;
 
 use super::Camera;
 
@@ -150,5 +153,9 @@ impl Camera for PerspectiveCamera {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn update_frame(&mut self, state: &RenderState) {
+        self.set_aspect(state.canvas.width() as f64 / state.canvas.height() as f64)
     }
 }

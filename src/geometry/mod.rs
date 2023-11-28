@@ -4,13 +4,10 @@ pub mod raw;
 pub mod sphere;
 // pub mod plane;
 
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
-
-use gl_matrix4rust::mat4::Mat4;
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::{
     entity::Entity,
-    material::Material,
     render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
 };
 

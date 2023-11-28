@@ -1,11 +1,7 @@
-use std::{cell::RefCell, rc::Rc, collections::HashMap, any::Any};
-
-use gl_matrix4rust::mat4::Mat4;
-use uuid::Uuid;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     entity::Entity,
-    geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -38,7 +34,7 @@ pub trait Material {
     fn instanced(&self) -> Option<i32>;
 
     /// Preparation before entering drawing stage.
-    /// 
+    ///
     /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
     /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
     /// do not borrow material from entity.

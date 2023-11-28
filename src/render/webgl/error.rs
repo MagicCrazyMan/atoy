@@ -4,6 +4,8 @@ use uuid::Uuid;
 pub enum Error {
     MatrixError(gl_matrix4rust::error::Error),
     WenGL2Unsupported,
+    MountElementNotFound,
+    CreateCanvasFailure,
     CreateProgramFailure,
     CreateBufferFailure,
     CreateFramebufferFailure,
@@ -26,6 +28,8 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::MatrixError(err) => err.fmt(f),
+            Error::MountElementNotFound => todo!(),
+            Error::CreateCanvasFailure => todo!(),
             Error::CreateProgramFailure => todo!(),
             Error::CreateBufferFailure => todo!(),
             Error::CreateFramebufferFailure => todo!(),

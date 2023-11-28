@@ -1,8 +1,7 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-use wasm_bindgen_test::console_log;
-
 use crate::{
+    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -12,7 +11,7 @@ use crate::{
         draw::{Draw, DrawMode},
         uniform::UniformValue,
     },
-    utils::slice_to_float32_array, entity::Entity,
+    utils::slice_to_float32_array,
 };
 
 use super::Geometry;
@@ -32,7 +31,7 @@ impl Cube {
 
     /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
-        let mut vertices = BufferDescriptor::new(
+        let vertices = BufferDescriptor::new(
             BufferSource::from_float32_array(
                 slice_to_float32_array(&calculate_vertices(size)),
                 0,
