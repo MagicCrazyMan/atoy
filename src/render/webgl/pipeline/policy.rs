@@ -9,7 +9,14 @@ pub enum MaterialPolicy {
     /// Forces all entities render with a specified material.
     Overwrite(Option<Rc<RefCell<dyn Material>>>),
     /// Decides what material to use of each entity by a custom callback function.
-    Custom(Box<dyn Fn(&Entity) -> Option<Rc<RefCell<dyn Material>>>>),
+    Custom(
+        Box<
+            dyn Fn(
+                &HashMap<String, RenderGroup>,
+                &Rc<RefCell<Entity>>,
+            ) -> Option<Rc<RefCell<dyn Material>>>,
+        >,
+    ),
 }
 
 /// Geometry policy telling render program what geometry should be used of a entity.
@@ -19,7 +26,14 @@ pub enum GeometryPolicy {
     /// Forces all entities render a specified geometry.
     Overwrite(Option<Rc<RefCell<dyn Geometry>>>),
     /// Decides what geometry to use of each entity by a custom callback function.
-    Custom(Box<dyn Fn(&Rc<RefCell<Entity>>) -> Option<Rc<RefCell<dyn Geometry>>>>),
+    Custom(
+        Box<
+            dyn Fn(
+                &HashMap<String, RenderGroup>,
+                &Rc<RefCell<Entity>>,
+            ) -> Option<Rc<RefCell<dyn Geometry>>>,
+        >,
+    ),
 }
 
 /// Entity collect policy tells render program

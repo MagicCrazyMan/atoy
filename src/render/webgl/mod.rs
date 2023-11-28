@@ -25,7 +25,6 @@ use self::{
     error::Error,
     pipeline::{
         policy::{CollectPolicy, GeometryPolicy, MaterialPolicy},
-        preprocess::PreProcessor,
         RenderPipeline, RenderState, RenderStuff,
     },
     program::ProgramStore,
@@ -340,7 +339,7 @@ impl WebGL2Render {
                 let material = match &material_policy {
                     MaterialPolicy::FollowEntity => entity.borrow_mut().material().cloned(),
                     MaterialPolicy::Overwrite(material) => material.as_ref().cloned(),
-                    MaterialPolicy::Custom(func) => func(&entity.borrow()),
+                    MaterialPolicy::Custom(func) => func(&groups, &entity),
                 };
                 let Some(material) = material else {
                     continue;
@@ -357,7 +356,7 @@ impl WebGL2Render {
                 let geometry = match &geometry_policy {
                     GeometryPolicy::FollowEntity => entity.borrow_mut().geometry().cloned(),
                     GeometryPolicy::Overwrite(geometry) => geometry.as_ref().cloned(),
-                    GeometryPolicy::Custom(func) => func(&entity),
+                    GeometryPolicy::Custom(func) => func(&groups, &entity),
                 };
                 let Some(geometry) = geometry else {
                     continue;
