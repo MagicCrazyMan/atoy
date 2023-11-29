@@ -47,21 +47,21 @@ impl Entity {
     pub fn geometry(&self) -> Option<&dyn Geometry> {
         match &self.geometry {
             Some(geometry) => Some(geometry.as_ref()),
-            None => todo!(),
+            None => None,
         }
     }
 
     pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
         match &mut self.geometry {
             Some(geometry) => Some(geometry.as_mut()),
-            None => todo!(),
+            None => None,
         }
     }
 
     pub fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
         match &mut self.geometry {
             Some(geometry) => Some(geometry.as_mut()),
-            None => todo!(),
+            None => None,
         }
     }
 
