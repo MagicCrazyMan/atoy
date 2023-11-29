@@ -243,109 +243,122 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     Ok(())
 }
 
-// #[wasm_bindgen]
-// pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-//     let mut render = create_render(&scene)?;
+#[wasm_bindgen]
+pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut render = create_render()?;
+    let mut pipeline = create_standard_pipeline();
 
-//     // reuses cube buffer
-//     let vertices = AttributeValue::Buffer {
-//         descriptor: BufferDescriptor::new(
-//             BufferSource::from_float32_array(
-//                 slice_to_float32_array(&calculate_vertices(1.0)),
-//                 0,
-//                 108,
-//             ),
-//             BufferUsage::StaticDraw,
-//         ),
-//         target: BufferTarget::ArrayBuffer,
-//         component_size: BufferComponentSize::Three,
-//         data_type: BufferDataType::Float,
-//         normalized: false,
-//         bytes_stride: 0,
-//         bytes_offset: 108,
-//     };
-//     let normals = AttributeValue::Buffer {
-//         descriptor: BufferDescriptor::new(
-//             BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144),
-//             BufferUsage::StaticDraw,
-//         ),
-//         target: BufferTarget::ArrayBuffer,
-//         component_size: BufferComponentSize::Four,
-//         data_type: BufferDataType::Float,
-//         normalized: false,
-//         bytes_stride: 0,
-//         bytes_offset: 108,
-//     };
-//     let tex_coords = AttributeValue::Buffer {
-//         descriptor: BufferDescriptor::new(
-//             BufferSource::from_float32_array(
-//                 slice_to_float32_array(&cube::TEXTURE_COORDINATES),
-//                 0,
-//                 48,
-//             ),
-//             BufferUsage::StaticDraw,
-//         ),
-//         target: BufferTarget::ArrayBuffer,
-//         component_size: BufferComponentSize::Four,
-//         data_type: BufferDataType::Float,
-//         normalized: false,
-//         bytes_stride: 0,
-//         bytes_offset: 48,
-//     };
+    // reuses cube buffer
+    let vertices = AttributeValue::Buffer {
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&calculate_vertices(1.0)),
+                0,
+                108,
+            ),
+            BufferUsage::StaticDraw,
+        ),
+        target: BufferTarget::ArrayBuffer,
+        component_size: BufferComponentSize::Three,
+        data_type: BufferDataType::Float,
+        normalized: false,
+        bytes_stride: 0,
+        bytes_offset: 108,
+    };
+    let normals = AttributeValue::Buffer {
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144),
+            BufferUsage::StaticDraw,
+        ),
+        target: BufferTarget::ArrayBuffer,
+        component_size: BufferComponentSize::Four,
+        data_type: BufferDataType::Float,
+        normalized: false,
+        bytes_stride: 0,
+        bytes_offset: 108,
+    };
+    let tex_coords = AttributeValue::Buffer {
+        descriptor: BufferDescriptor::new(
+            BufferSource::from_float32_array(
+                slice_to_float32_array(&cube::TEXTURE_COORDINATES),
+                0,
+                48,
+            ),
+            BufferUsage::StaticDraw,
+        ),
+        target: BufferTarget::ArrayBuffer,
+        component_size: BufferComponentSize::Four,
+        data_type: BufferDataType::Float,
+        normalized: false,
+        bytes_stride: 0,
+        bytes_offset: 48,
+    };
 
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
 
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-//         let mut entity = Entity::new();
+        let mut entity = Entity::new();
 
-//         entity.set_geometry(Some(RawGeometry::new(
-//             Draw::Arrays {
-//                 mode: DrawMode::Triangles,
-//                 first: 0,
-//                 count: 36,
-//             },
-//             Some(vertices.clone()),
-//             Some(normals.clone()),
-//             Some(tex_coords.clone()),
-//             HashMap::new(),
-//             HashMap::new(),
-//         )));
-//         entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-//         entity.set_local_matrix(model_matrix);
-//         scene.root_entity_mut().add_child(entity);
-//     }
+        entity.set_geometry(Some(RawGeometry::new(
+            Draw::Arrays {
+                mode: DrawMode::Triangles,
+                first: 0,
+                count: 36,
+            },
+            Some(vertices.clone()),
+            Some(normals.clone()),
+            Some(tex_coords.clone()),
+            HashMap::new(),
+            HashMap::new(),
+        )));
+        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.set_local_matrix(model_matrix);
+        scene.entity_collection_mut().add_entity(entity);
+    }
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-//         let seconds = timestamp / 1000.0;
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         scene
-//             .root_entity_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
+        scene
+            .entity_collection_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         render.render(&mut scene, timestamp).unwrap();
+        let start = window().performance().unwrap().now();
+        render
+            .render(
+                &mut pipeline,
+                &mut StandardRenderStuff::new(&mut scene),
+                frame_time,
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 #[wasm_bindgen]
 pub fn test_instanced_cube(
@@ -432,9 +445,9 @@ pub fn test_instanced_cube(
             let material = entity.material_mut().unwrap();
             material
                 .as_any_mut()
-                .downcast_mut::<SolidColorMaterial>()
+                .downcast_mut::<SolidColorInstancedMaterial>()
                 .unwrap()
-                .set_color(rand::random());
+                .random_colors();
         }
 
         request_animation_frame(f.borrow().as_ref().unwrap());

@@ -229,8 +229,9 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
+        let (x, y) = &self.position.take().unwrap(); // safe unwrap
+
         let gl = &state.gl;
-        let (x, y) = &self.position.unwrap(); // safe unwrap
         gl.read_pixels_with_opt_array_buffer_view(
             *x,
             self.canvas_from_gl(gl)?.height() as i32 - *y,
@@ -247,7 +248,6 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
             .map(|entity| Rc::downgrade(entity));
         pipeline.set_picked_entity(picked);
 
-        self.position = None;
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);

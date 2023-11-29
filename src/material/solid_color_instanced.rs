@@ -113,6 +113,22 @@ impl SolidColorInstancedMaterial {
             ),
         }
     }
+
+    pub fn random_colors(&mut self) {
+        let colors_length = (3 * self.count) as u32;
+        let colors_data = Float32Array::new_with_length(colors_length);
+        for index in 0..self.count {
+            let Rgb {
+                blue, green, red, ..
+            } = rand::random::<Rgb>();
+            colors_data.set_index((index * 3) as u32 + 0, red);
+            colors_data.set_index((index * 3) as u32 + 1, green);
+            colors_data.set_index((index * 3) as u32 + 2, blue);
+        }
+
+        self.colors
+            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, 0));
+    }
 }
 
 impl Material for SolidColorInstancedMaterial {
