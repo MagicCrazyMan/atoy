@@ -55,7 +55,7 @@ pub trait Material {
 
 pub struct MaterialRenderEntity<'a> {
     entity: Rc<RefCell<Entity>>,
-    geometry: Rc<RefCell<dyn Geometry>>,
+    geometry: *mut dyn Geometry,
     collected: &'a [Rc<RefCell<Entity>>],
     filtered: &'a [Rc<RefCell<Entity>>],
     filtered_index: usize,
@@ -64,7 +64,7 @@ pub struct MaterialRenderEntity<'a> {
 impl<'a> MaterialRenderEntity<'a> {
     pub(crate) fn new(
         entity: Rc<RefCell<Entity>>,
-        geometry: Rc<RefCell<dyn Geometry>>,
+        geometry: *mut dyn Geometry,
         collected: &'a [Rc<RefCell<Entity>>],
         filtered: &'a [Rc<RefCell<Entity>>],
         filtered_index: usize,
@@ -84,8 +84,18 @@ impl<'a> MaterialRenderEntity<'a> {
     }
 
     #[inline]
-    pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
-        &self.geometry
+    pub fn geometry(&self) -> &dyn Geometry {
+        unsafe { &*self.geometry }
+    }
+
+    #[inline]
+    pub fn geometry_raw(&self) -> *mut dyn Geometry {
+        self.geometry
+    }
+
+    #[inline]
+    pub fn geometry_mut(&mut self) -> &mut dyn Geometry {
+        unsafe { &mut *self.geometry }
     }
 
     #[inline]

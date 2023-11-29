@@ -29,8 +29,8 @@ pub trait Drawer<Pipeline: RenderPipeline> {
     ) -> Result<
         Option<(
             Rc<RefCell<Entity>>,
-            Rc<RefCell<dyn Geometry>>,
-            Rc<RefCell<dyn Material>>,
+            *mut dyn Geometry,
+            *mut dyn Material,
         )>,
         Error,
     >;

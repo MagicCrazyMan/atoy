@@ -25,7 +25,7 @@ use super::standard::StandardPipeline;
 pub(super) struct PickDetectionDrawer {
     position: Option<(i32, i32)>,
     result: Uint32Array,
-    material: Rc<RefCell<PickDetectionMaterial>>,
+    material: PickDetectionMaterial,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
@@ -34,7 +34,7 @@ pub(super) struct PickDetectionDrawer {
 impl PickDetectionDrawer {
     pub(super) fn new() -> Self {
         Self {
-            material: Rc::new(RefCell::new(PickDetectionMaterial)),
+            material: PickDetectionMaterial,
             result: Uint32Array::new_with_length(1),
             framebuffer: None,
             renderbuffer: None,
@@ -205,16 +205,16 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
     ) -> Result<
         Option<(
             Rc<RefCell<Entity>>,
-            Rc<RefCell<dyn Geometry>>,
-            Rc<RefCell<dyn Material>>,
+            *mut dyn Geometry,
+            *mut dyn Material,
         )>,
         Error,
     > {
-        if let Some(geometry) = entity.borrow().geometry() {
+        if let Some(geometry) = entity.borrow_mut().geometry_raw() {
             Ok(Some((
                 Rc::clone(entity),
-                Rc::clone(geometry),
-                Rc::clone(&self.material) as Rc<RefCell<dyn Material>>,
+                geometry,
+                &mut self.material as *mut dyn Material,
             )))
         } else {
             Ok(None)

@@ -226,8 +226,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         if let Some(entity) = pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
-            let entity = (*entity).borrow_mut();
-            let mut material = entity.material().unwrap().borrow_mut();
+            let mut entity = (*entity).borrow_mut();
+            let material = entity.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()
@@ -428,8 +428,8 @@ pub fn test_instanced_cube(
         if let Some(entity) = pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let entity = (*entity).borrow_mut();
-            let mut material = entity.material().unwrap().borrow_mut();
+            let mut entity = (*entity).borrow_mut();
+            let material = entity.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()
@@ -758,8 +758,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         if let Some(entity) = pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let entity = (*entity).borrow_mut();
-            let mut material = entity.material().unwrap().borrow_mut();
+            let mut entity = (*entity).borrow_mut();
+            let material = entity.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()

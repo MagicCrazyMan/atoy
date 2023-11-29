@@ -83,22 +83,12 @@ where
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<
-        Option<(
-            Rc<RefCell<Entity>>,
-            Rc<RefCell<dyn Geometry>>,
-            Rc<RefCell<dyn Material>>,
-        )>,
-        Error,
-    > {
-        let entity_guard = entity.borrow();
-        if let (Some(geometry), Some(material)) = (entity_guard.geometry(), entity_guard.material())
+    ) -> Result<Option<(Rc<RefCell<Entity>>, *mut dyn Geometry, *mut dyn Material)>, Error> {
+        let mut entity_guard = entity.borrow_mut();
+        if let (Some(geometry), Some(material)) =
+            (entity_guard.geometry_raw(), entity_guard.material_raw())
         {
-            Ok(Some((
-                Rc::clone(entity),
-                Rc::clone(geometry),
-                Rc::clone(material),
-            )))
+            Ok(Some((Rc::clone(entity), geometry, material)))
         } else {
             Ok(None)
         }

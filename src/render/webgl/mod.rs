@@ -285,109 +285,95 @@ impl WebGL2Render {
                 continue;
             };
             for (index, entity) in filtered.iter().enumerate() {
-                // before each draw of drawer
-                let Some((entity, geometry, material)) = drawer
-                    .before_each_draw(&entity, &filtered, &collected, pipeline, state, stuff)?
-                else {
-                    continue;
-                };
+                unsafe {
+                    // before each draw of drawer
+                    let Some((entity, geometry, material)) = drawer
+                        .before_each_draw(&entity, &filtered, &collected, pipeline, state, stuff)?
+                    else {
+                        continue;
+                    };
 
-                // prepare material and geometry
-                material.borrow_mut().prepare(state, &entity);
-                geometry.borrow_mut().prepare(state, &entity);
+                    // prepare material and geometry
+                    (&mut *material).prepare(state, &entity);
+                    (&mut *geometry).prepare(state, &entity);
 
-                // skip if not ready yet
-                if !material.borrow().ready() {
-                    continue;
+                    // skip if not ready yet
+                    if !(&mut *material).ready() {
+                        continue;
+                    }
+
+                    let render_entity = RenderEntity::new(
+                        Rc::clone(&entity),
+                        geometry,
+                        material,
+                        &collected,
+                        &filtered,
+                        index,
+                    );
+                    let geometry_render_entity = GeometryRenderEntity::new(
+                        Rc::clone(render_entity.entity()),
+                        material,
+                        &collected,
+                        &filtered,
+                        index,
+                    );
+                    let material_render_entity = MaterialRenderEntity::new(
+                        Rc::clone(render_entity.entity()),
+                        geometry,
+                        &collected,
+                        &filtered,
+                        index,
+                    );
+
+                    // compile and bind program only when last program isn't equals the material
+                    if last_program
+                        .as_ref()
+                        .map(|last_program| last_program.name() != (&*material).name())
+                        .unwrap_or(true)
+                    {
+                        let p = self.program_store.use_program(&*material)?;
+                        self.gl.use_program(Some(p.program()));
+                        last_program = Some(p.clone());
+                    }
+
+                    let program_item = last_program.as_ref().unwrap();
+
+                    // binds attributes
+                    self.bind_attributes(
+                        &state,
+                        &render_entity,
+                        &geometry_render_entity,
+                        &material_render_entity,
+                        program_item.attribute_locations(),
+                    );
+                    // binds uniforms
+                    self.bind_uniforms(
+                        &state,
+                        stuff,
+                        &render_entity,
+                        &geometry_render_entity,
+                        &material_render_entity,
+                        program_item.uniform_locations(),
+                    );
+
+                    // before draw of material and geometry
+                    (&mut *material).before_draw(state, &material_render_entity);
+                    (&mut *geometry).before_draw(state, &geometry_render_entity);
+                    // draws
+                    self.draw(&state, &render_entity);
+                    // after draw of material and geometry
+                    (&mut *material).after_draw(state, &material_render_entity);
+                    (&mut *geometry).after_draw(state, &geometry_render_entity);
+                    // after each draw of drawer
+                    drawer.after_each_draw(
+                        &render_entity,
+                        &filtered,
+                        &collected,
+                        pipeline,
+                        state,
+                        stuff,
+                    )?;
                 }
-
-                let render_entity = RenderEntity::new(
-                    Rc::clone(&entity),
-                    Rc::clone(&geometry),
-                    Rc::clone(&material),
-                    &collected,
-                    &filtered,
-                    index,
-                );
-                let geometry_render_entity = GeometryRenderEntity::new(
-                    Rc::clone(render_entity.entity()),
-                    Rc::clone(render_entity.material()),
-                    &collected,
-                    &filtered,
-                    index,
-                );
-                let material_render_entity = MaterialRenderEntity::new(
-                    Rc::clone(render_entity.entity()),
-                    Rc::clone(render_entity.geometry()),
-                    &collected,
-                    &filtered,
-                    index,
-                );
-
-                // compile and bind program only when last program isn't equals the material
-                if last_program
-                    .as_ref()
-                    .map(|last_program| {
-                        last_program.name() != render_entity.material().borrow().name()
-                    })
-                    .unwrap_or(true)
-                {
-                    let p = self
-                        .program_store
-                        .use_program(&*render_entity.material().borrow())?;
-                    self.gl.use_program(Some(p.program()));
-                    last_program = Some(p.clone());
-                }
-
-                let program_item = last_program.as_ref().unwrap();
-
-                // binds attributes
-                self.bind_attributes(
-                    &state,
-                    &render_entity,
-                    &geometry_render_entity,
-                    &material_render_entity,
-                    program_item.attribute_locations(),
-                );
-                // binds uniforms
-                self.bind_uniforms(
-                    &state,
-                    stuff,
-                    &render_entity,
-                    &geometry_render_entity,
-                    &material_render_entity,
-                    program_item.uniform_locations(),
-                );
-
-                // before draw of material and geometry
-                render_entity
-                    .material()
-                    .borrow_mut()
-                    .before_draw(state, &material_render_entity);
-                render_entity
-                    .geometry()
-                    .borrow_mut()
-                    .before_draw(state, &geometry_render_entity);
-                // draws
-                self.draw(&state, &render_entity);
-                // after draw of material and geometry
-                render_entity
-                    .material()
-                    .borrow_mut()
-                    .after_draw(state, &material_render_entity);
-                render_entity
-                    .geometry()
-                    .borrow_mut()
-                    .after_draw(state, &geometry_render_entity);
-                // after each draw of drawer
-                drawer.after_each_draw(
-                    &render_entity,
-                    &filtered,
-                    &collected,
-                    pipeline,
-                    state,
-                    stuff,
-                )?;
             }
             drawer.after_draw(&filtered, &collected, pipeline, state, stuff)?;
         }
@@ -459,18 +445,16 @@ impl WebGL2Render {
     ) {
         for (binding, location) in attribute_locations {
             let value = match binding {
-                AttributeBinding::GeometryPosition => render_entity.geometry().borrow().vertices(),
+                AttributeBinding::GeometryPosition => render_entity.geometry().vertices(),
                 AttributeBinding::GeometryTextureCoordinate => {
-                    render_entity.geometry().borrow().texture_coordinates()
+                    render_entity.geometry().texture_coordinates()
                 }
-                AttributeBinding::GeometryNormal => render_entity.geometry().borrow().normals(),
+                AttributeBinding::GeometryNormal => render_entity.geometry().normals(),
                 AttributeBinding::FromGeometry(name) => render_entity
                     .geometry()
-                    .borrow()
                     .attribute_value(name, geometry_render_entity),
                 AttributeBinding::FromMaterial(name) => render_entity
                     .material()
-                    .borrow()
                     .attribute_value(name, material_render_entity),
                 AttributeBinding::FromEntity(name) => render_entity
                     .entity()
@@ -579,11 +563,9 @@ impl WebGL2Render {
             let value = match binding {
                 UniformBinding::FromGeometry(name) => render_entity
                     .geometry()
-                    .borrow()
                     .uniform_value(name, geometry_render_entity),
                 UniformBinding::FromMaterial(name) => render_entity
                     .material()
-                    .borrow()
                     .uniform_value(name, material_render_entity),
                 UniformBinding::FromEntity(name) => render_entity
                     .entity()
@@ -722,13 +704,10 @@ impl WebGL2Render {
     }
 
     fn draw(&mut self, RenderState { gl, .. }: &RenderState, entity: &RenderEntity) {
-        let material = entity.material().borrow();
-        let geometry = entity.geometry().borrow();
-
         // draws entity
-        if let Some(num_instances) = material.instanced() {
+        if let Some(num_instances) = entity.material().instanced() {
             // draw instanced
-            match geometry.draw() {
+            match entity.geometry().draw() {
                 Draw::Arrays {
                     mode,
                     first,
@@ -765,7 +744,7 @@ impl WebGL2Render {
             }
         } else {
             // draw normally!
-            match geometry.draw() {
+            match entity.geometry().draw() {
                 Draw::Arrays {
                     mode,
                     first,

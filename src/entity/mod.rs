@@ -19,8 +19,8 @@ pub struct Entity {
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     properties: HashMap<String, Box<dyn Any>>,
-    geometry: Option<Rc<RefCell<dyn Geometry>>>,
-    material: Option<Rc<RefCell<dyn Material>>>,
+    geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn Material>>,
 }
 
 impl Entity {
@@ -44,24 +44,58 @@ impl Entity {
         &self.id
     }
 
-    pub fn geometry(&self) -> Option<&Rc<RefCell<dyn Geometry>>> {
-        self.geometry.as_ref()
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
+        match &self.geometry {
+            Some(geometry) => Some(geometry.as_ref()),
+            None => todo!(),
+        }
+    }
+
+    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        match &mut self.geometry {
+            Some(geometry) => Some(geometry.as_mut()),
+            None => todo!(),
+        }
+    }
+
+    pub fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
+        match &mut self.geometry {
+            Some(geometry) => Some(geometry.as_mut()),
+            None => todo!(),
+        }
     }
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
-            Some(geometry) => Some(Rc::new(RefCell::new(geometry))),
+            Some(geometry) => Some(Box::new(geometry)),
             None => None,
         }
     }
 
-    pub fn material(&self) -> Option<&Rc<RefCell<dyn Material>>> {
-        self.material.as_ref()
+    pub fn material(&self) -> Option<&dyn Material> {
+        match &self.material {
+            Some(material) => Some(material.as_ref()),
+            None => None,
+        }
+    }
+
+    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
+        match &mut self.material {
+            Some(material) => Some(material.as_mut()),
+            None => None,
+        }
+    }
+
+    pub fn material_raw(&mut self) -> Option<*mut dyn Material> {
+        match &mut self.material {
+            Some(material) => Some(material.as_mut()),
+            None => None,
+        }
     }
 
     pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
         self.material = match material {
-            Some(material) => Some(Rc::new(RefCell::new(material))),
+            Some(material) => Some(Box::new(material)),
             None => None,
         }
     }
@@ -279,18 +313,18 @@ impl EntityCollection {
 /// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
 pub struct RenderEntity<'a> {
     entity: Rc<RefCell<Entity>>,
-    geometry: Rc<RefCell<dyn Geometry>>,
-    material: Rc<RefCell<dyn Material>>,
+    geometry: *mut dyn Geometry,
+    material: *mut dyn Material,
     collected: &'a [Rc<RefCell<Entity>>],
     filtered: &'a [Rc<RefCell<Entity>>],
     filtered_index: usize,
 }
 
 impl<'a> RenderEntity<'a> {
-    pub fn new(
+    pub(crate) fn new(
         entity: Rc<RefCell<Entity>>,
-        geometry: Rc<RefCell<dyn Geometry>>,
-        material: Rc<RefCell<dyn Material>>,
+        geometry: *mut dyn Geometry,
+        material: *mut dyn Material,
         collected: &'a [Rc<RefCell<Entity>>],
         filtered: &'a [Rc<RefCell<Entity>>],
         filtered_index: usize,
@@ -311,13 +345,33 @@ impl<'a> RenderEntity<'a> {
     }
 
     #[inline]
-    pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
-        &self.geometry
+    pub fn geometry(&self) -> &dyn Geometry {
+        unsafe { &*self.geometry }
     }
 
     #[inline]
-    pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
-        &self.material
+    pub fn geometry_raw(&self) -> *mut dyn Geometry {
+        self.geometry
+    }
+
+    #[inline]
+    pub fn geometry_mut(&mut self) -> &mut dyn Geometry {
+        unsafe { &mut *self.geometry }
+    }
+
+    #[inline]
+    pub fn material(&self) -> &dyn Material {
+        unsafe { &*self.material }
+    }
+
+    #[inline]
+    pub fn material_raw(&self) -> *mut dyn Material {
+        self.material
+    }
+
+    #[inline]
+    pub fn material_mut(&mut self) -> &mut dyn Material {
+        unsafe { &mut *self.material }
     }
 
     #[inline]
