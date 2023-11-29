@@ -592,6 +592,8 @@ impl WebGL2Render {
                     .get(*name)
                     .cloned(),
                 UniformBinding::ModelMatrix
+                | UniformBinding::ViewMatrix
+                | UniformBinding::ProjMatrix
                 | UniformBinding::NormalMatrix
                 | UniformBinding::ModelViewMatrix
                 | UniformBinding::ModelViewProjMatrix
@@ -611,6 +613,8 @@ impl WebGL2Render {
                             .borrow()
                             .model_view_proj_matrix()
                             .to_gl(),
+                        UniformBinding::ViewMatrix => stuff.camera().view_matrix().to_gl(),
+                        UniformBinding::ProjMatrix => stuff.camera().proj_matrix().to_gl(),
                         UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),
                         _ => unreachable!(),
                     };

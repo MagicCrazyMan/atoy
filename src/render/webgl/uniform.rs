@@ -41,6 +41,8 @@ pub enum UniformValue {
 pub enum UniformBinding {
     ModelMatrix,
     NormalMatrix,
+    ViewMatrix,
+    ProjMatrix,
     ModelViewMatrix,
     ModelViewProjMatrix,
     ViewProjMatrix,
@@ -56,6 +58,8 @@ impl UniformBinding {
         match self {
             UniformBinding::ModelMatrix => "u_ModelMatrix",
             UniformBinding::NormalMatrix => "u_NormalMatrix",
+            UniformBinding::ViewMatrix => "u_ViewMatrix",
+            UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ModelViewMatrix => "u_ModelViewMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ModelViewProjMatrix => "u_ModelViewProjMatrix",
