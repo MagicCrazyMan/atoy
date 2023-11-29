@@ -268,8 +268,8 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
     }
 }
 
-const VERTEX_SHADER_SOURCE: &'static str = include_str!("./shaders/pick_detection_vertex.glsl");
-const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("./shaders/pick_detection_fragment.glsl");
+const VERTEX_SHADER_SOURCE: &'static str = include_str!("./shaders/picking_vertex.glsl");
+const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("./shaders/picking_fragment.glsl");
 
 struct PickDetectionMaterial;
 

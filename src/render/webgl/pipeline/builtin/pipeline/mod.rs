@@ -1,2 +1,2 @@
 pub mod standard;
-pub mod pick_detection;
+pub mod picking;

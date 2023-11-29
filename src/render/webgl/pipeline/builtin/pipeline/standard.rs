@@ -27,7 +27,7 @@ use crate::{
     scene::Scene,
 };
 
-use super::pick_detection::PickDetectionDrawer;
+use super::picking::PickDetectionDrawer;
 
 pub struct StandardRenderStuff<'a> {
     scene: &'a mut Scene,
