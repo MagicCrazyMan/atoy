@@ -32,23 +32,15 @@ use crate::{
 pub struct PickDetectionPipeline {
     drawer: Rc<RefCell<PickDetectionDrawer>>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
-    picked: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
 }
 
 impl PickDetectionPipeline {
     pub fn new() -> Self {
-        let picked = Rc::new(RefCell::new(None));
-        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(
-            &picked,
-        ))));
+        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new()));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
         drawers.push(Rc::clone(&drawer) as Rc<RefCell<dyn Drawer<Self>>>);
 
-        Self {
-            drawer,
-            drawers,
-            picked,
-        }
+        Self { drawer, drawers }
     }
 
     pub fn set_pick_position(&mut self, x: i32, y: i32) {
@@ -56,17 +48,11 @@ impl PickDetectionPipeline {
     }
 
     pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked
-            .borrow()
-            .as_ref()
-            .and_then(|entity| entity.upgrade())
+        self.drawer.borrow().picked_entity()
     }
 
     pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked
-            .borrow_mut()
-            .take()
-            .and_then(|entity| entity.upgrade())
+        self.drawer.borrow_mut().take_picked_entity()
     }
 }
 
@@ -128,11 +114,11 @@ pub(super) struct PickDetectionDrawer {
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
-    picked_result: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+    picked_result: Option<Weak<RefCell<Entity>>>,
 }
 
 impl PickDetectionDrawer {
-    pub(super) fn new(picked_result: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>) -> Self {
+    pub(super) fn new() -> Self {
         Self {
             material: PickDetectionMaterial,
             result: Uint32Array::new_with_length(1),
@@ -140,12 +126,24 @@ impl PickDetectionDrawer {
             renderbuffer: None,
             texture: None,
             position: None,
-            picked_result,
+            picked_result: None,
         }
     }
 
     pub(super) fn set_position(&mut self, x: i32, y: i32) {
         self.position = Some((x, y));
+    }
+
+    pub(super) fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked_result
+            .as_ref()
+            .and_then(|entity| entity.upgrade())
+    }
+
+    pub(super) fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked_result
+            .take()
+            .and_then(|entity| entity.upgrade())
     }
 
     fn canvas_from_gl(&self, gl: &WebGl2RenderingContext) -> Result<HtmlCanvasElement, Error> {
@@ -348,8 +346,8 @@ where
             .get(self.result.get_index(0) as usize - 1)
             .map(|entity| Rc::downgrade(entity))
         {
-            Some(entity) => *self.picked_result.borrow_mut() = Some(entity),
-            None => *self.picked_result.borrow_mut() = None,
+            Some(entity) => self.picked_result = Some(entity),
+            None => self.picked_result = None,
         }
 
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);

@@ -1,8 +1,4 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use smallvec::SmallVec;
 
@@ -114,7 +110,6 @@ where
 
 pub struct StandardPipeline {
     pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
-    picked_entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
     pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
@@ -135,17 +130,13 @@ impl StandardPipeline {
         let mut post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
         post_processors.push(Rc::new(RefCell::new(Reset)));
 
-        let picked_entity = Rc::new(RefCell::new(None));
-        let pick_drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(
-            &picked_entity,
-        ))));
+        let pick_drawer = Rc::new(RefCell::new(PickDetectionDrawer::new()));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
         drawers.push(Rc::clone(&pick_drawer) as Rc<RefCell<dyn Drawer<Self>>>);
         drawers.push(Rc::new(RefCell::new(StandardDrawer)));
 
         Self {
             pick_drawer,
-            picked_entity,
             pre_processors,
             post_processors,
             drawers,
@@ -157,17 +148,11 @@ impl StandardPipeline {
     }
 
     pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked_entity
-            .borrow()
-            .as_ref()
-            .and_then(|entity| entity.upgrade())
+        self.pick_drawer.borrow().picked_entity()
     }
 
     pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked_entity
-            .borrow_mut()
-            .take()
-            .and_then(|entity| entity.upgrade())
+        self.pick_drawer.borrow_mut().take_picked_entity()
     }
 }
 
