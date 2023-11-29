@@ -9,8 +9,6 @@ use smallvec::SmallVec;
 use crate::{
     camera::Camera,
     entity::{Entity, EntityCollection, RenderEntity},
-    geometry::Geometry,
-    material::Material,
     render::webgl::{
         draw::CullFace,
         error::Error,
@@ -20,6 +18,7 @@ use crate::{
                 SetCullFaceMode, UpdateCamera, UpdateViewport,
             },
             drawer::Drawer,
+            flow::{BeforeDrawFlow, BeforeEachDrawFlow, PreparationFlow},
             process::Processor,
             RenderPipeline, RenderState, RenderStuff,
         },
@@ -66,40 +65,33 @@ where
     #[inline(always)]
     fn before_draw(
         &mut self,
-        collected: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Option<Vec<Rc<RefCell<Entity>>>>, Error> {
-        Ok(Some(collected.clone()))
+    ) -> Result<BeforeDrawFlow, Error> {
+        Ok(BeforeDrawFlow::FollowCollectedEntities)
     }
 
     #[inline(always)]
     fn before_each_draw(
         &mut self,
-        entity: &Rc<RefCell<Entity>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &Rc<RefCell<Entity>>,
+        _: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Option<(Rc<RefCell<Entity>>, *mut dyn Geometry, *mut dyn Material)>, Error> {
-        let mut entity_guard = entity.borrow_mut();
-        if let (Some(geometry), Some(material)) =
-            (entity_guard.geometry_raw(), entity_guard.material_raw())
-        {
-            Ok(Some((Rc::clone(entity), geometry, material)))
-        } else {
-            Ok(None)
-        }
+    ) -> Result<BeforeEachDrawFlow, Error> {
+        Ok(BeforeEachDrawFlow::FollowEntity)
     }
 
     #[inline(always)]
     fn after_each_draw(
         &mut self,
         _: &RenderEntity,
-        _: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -110,8 +102,8 @@ where
     #[inline(always)]
     fn after_draw(
         &mut self,
-        _: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -180,14 +172,18 @@ impl StandardPipeline {
 
 impl RenderPipeline for StandardPipeline {
     #[inline(always)]
-    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<bool, Error> {
-        Ok(true)
+    fn prepare(
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<PreparationFlow, Error> {
+        Ok(PreparationFlow::Continue)
     }
 
     #[inline(always)]
     fn pre_processors(
         &mut self,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
@@ -197,7 +193,7 @@ impl RenderPipeline for StandardPipeline {
     #[inline(always)]
     fn drawers(
         &mut self,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
@@ -207,7 +203,7 @@ impl RenderPipeline for StandardPipeline {
     #[inline(always)]
     fn post_processors(
         &mut self,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {

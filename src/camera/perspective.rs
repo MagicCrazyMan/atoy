@@ -155,6 +155,6 @@ impl Camera for PerspectiveCamera {
     }
 
     fn update_frame(&mut self, state: &RenderState) {
-        self.set_aspect(state.canvas.width() as f64 / state.canvas.height() as f64)
+        self.set_aspect(state.canvas().width() as f64 / state.canvas().height() as f64)
     }
 }

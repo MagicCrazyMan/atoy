@@ -280,8 +280,8 @@ pub struct RenderEntity<'a> {
     geometry: *mut dyn Geometry,
     material: *mut dyn Material,
     collected: &'a [Rc<RefCell<Entity>>],
-    filtered: &'a [Rc<RefCell<Entity>>],
-    filtered_index: usize,
+    drawings: &'a [Rc<RefCell<Entity>>],
+    drawing_index: usize,
 }
 
 impl<'a> RenderEntity<'a> {
@@ -290,16 +290,16 @@ impl<'a> RenderEntity<'a> {
         geometry: *mut dyn Geometry,
         material: *mut dyn Material,
         collected: &'a [Rc<RefCell<Entity>>],
-        filtered: &'a [Rc<RefCell<Entity>>],
-        filtered_index: usize,
+        drawings: &'a [Rc<RefCell<Entity>>],
+        drawing_index: usize,
     ) -> Self {
         Self {
             entity,
             geometry,
             material,
             collected,
-            filtered,
-            filtered_index,
+            drawings,
+            drawing_index,
         }
     }
 
@@ -339,17 +339,17 @@ impl<'a> RenderEntity<'a> {
     }
 
     #[inline]
-    pub fn collected(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn collected_entities(&self) -> &[Rc<RefCell<Entity>>] {
         self.collected
     }
 
     #[inline]
-    pub fn filtered(&self) -> &[Rc<RefCell<Entity>>] {
-        self.filtered
+    pub fn drawing_entities(&self) -> &[Rc<RefCell<Entity>>] {
+        self.drawings
     }
 
     #[inline]
-    pub fn filtered_index(&self) -> usize {
-        self.filtered_index
+    pub fn drawing_index(&self) -> usize {
+        self.drawing_index
     }
 }

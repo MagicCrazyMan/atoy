@@ -9,12 +9,15 @@ use web_sys::{
 
 use crate::{
     entity::{Entity, RenderEntity},
-    geometry::Geometry,
     material::{Material, MaterialRenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         error::Error,
-        pipeline::{drawer::Drawer, RenderState, RenderStuff},
+        pipeline::{
+            drawer::Drawer,
+            flow::{BeforeDrawFlow, BeforeEachDrawFlow},
+            RenderState, RenderStuff,
+        },
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
     },
@@ -144,21 +147,21 @@ impl PickDetectionDrawer {
 impl Drawer<StandardPipeline> for PickDetectionDrawer {
     fn before_draw(
         &mut self,
-        collected: &Vec<Rc<RefCell<Entity>>>,
+        collected_entities: &[Rc<RefCell<Entity>>],
         _: &mut StandardPipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Option<Vec<Rc<RefCell<Entity>>>>, Error> {
+    ) -> Result<BeforeDrawFlow, Error> {
         if self.position.is_none() {
-            return Ok(None);
+            return Ok(BeforeDrawFlow::Skip);
         }
 
-        if collected.len() - 1 > u32::MAX as usize {
+        if collected_entities.len() - 1 > u32::MAX as usize {
             console_log!(
                 "too many entities: {}, skipping pick detection",
-                collected.len()
+                collected_entities.len()
             );
-            return Ok(None);
+            return Ok(BeforeDrawFlow::Skip);
         }
 
         // clear previous
@@ -191,41 +194,26 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         gl.clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
         gl.clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
 
-        Ok(Some(collected.clone()))
+        Ok(BeforeDrawFlow::FollowCollectedEntities)
     }
 
     fn before_each_draw(
         &mut self,
-        entity: &Rc<RefCell<Entity>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &Rc<RefCell<Entity>>,
+        _: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         _: &mut StandardPipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<
-        Option<(
-            Rc<RefCell<Entity>>,
-            *mut dyn Geometry,
-            *mut dyn Material,
-        )>,
-        Error,
-    > {
-        if let Some(geometry) = entity.borrow_mut().geometry_raw() {
-            Ok(Some((
-                Rc::clone(entity),
-                geometry,
-                &mut self.material as *mut dyn Material,
-            )))
-        } else {
-            Ok(None)
-        }
+    ) -> Result<BeforeEachDrawFlow, Error> {
+        Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
     }
 
     fn after_each_draw(
         &mut self,
         _: &RenderEntity,
-        _: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         _: &mut StandardPipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -235,8 +223,8 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
 
     fn after_draw(
         &mut self,
-        filtered: &Vec<Rc<RefCell<Entity>>>,
-        _: &Vec<Rc<RefCell<Entity>>>,
+        drawing_entities: &[Rc<RefCell<Entity>>],
+        _: &[Rc<RefCell<Entity>>],
         pipeline: &mut StandardPipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -254,7 +242,7 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         )
         .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
-        let picked = filtered
+        let picked = drawing_entities
             .get(self.result.get_index(0) as usize - 1)
             .map(|entity| Rc::downgrade(entity));
         pipeline.set_picked_entity(picked);
@@ -303,7 +291,7 @@ impl Material for PickDetectionMaterial {
     fn uniform_value(&self, name: &str, entity: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
             "u_Index" => Some(UniformValue::UnsignedInteger1(
-                (entity.filtered_index() + 1) as u32,
+                (entity.drawing_index() + 1) as u32,
             )),
             _ => None,
         }

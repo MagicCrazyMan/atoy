@@ -1,6 +1,7 @@
 pub mod builtin;
 pub mod drawer;
 pub mod process;
+pub mod flow;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
@@ -13,7 +14,7 @@ use crate::{
     entity::{Entity, EntityCollection},
 };
 
-use self::{drawer::Drawer, process::Processor};
+use self::{drawer::Drawer, process::Processor, flow::PreparationFlow};
 
 use super::error::Error;
 
@@ -33,11 +34,11 @@ pub trait RenderStuff {
 }
 
 pub struct RenderState {
-    pub canvas: HtmlCanvasElement,
-    pub gl: WebGl2RenderingContext,
-    pub frame_time: f64,
-    pub view_matrix: Mat4,
-    pub proj_matrix: Mat4,
+    canvas: HtmlCanvasElement,
+    gl: WebGl2RenderingContext,
+    frame_time: f64,
+    view_matrix: Mat4,
+    proj_matrix: Mat4,
 }
 
 impl RenderState {
@@ -55,42 +56,52 @@ impl RenderState {
             proj_matrix: stuff.camera().proj_matrix(),
         }
     }
+
+    pub fn canvas(&self) -> &HtmlCanvasElement {
+        &self.canvas
+    }
+
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
+    }
+
+    pub fn frame_time(&self) -> f64 {
+        self.frame_time
+    }
+
+    pub fn view_matrix(&self) -> &Mat4 {
+        &self.view_matrix
+    }
+
+    pub fn proj_matrix(&self) -> &Mat4 {
+        &self.proj_matrix
+    }
 }
 
 pub trait RenderPipeline {
-    /// Preparation stage during render procedure.
     fn prepare(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<bool, Error>;
+    ) -> Result<PreparationFlow, Error>;
 
-    /// Preprocess stages during render procedure.
-    /// Developer could provide multiple [`Processor`]s
-    /// and render program will execute them in order.
-    /// Returning a empty slice makes render program do nothing.
     fn pre_processors(
         &mut self,
-        collected: &Vec<Rc<RefCell<Entity>>>,
+        collected: &[Rc<RefCell<Entity>>],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;
 
     fn drawers(
         &mut self,
-        collected: &Vec<Rc<RefCell<Entity>>>,
+        collected: &[Rc<RefCell<Entity>>],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error>;
 
-    /// Postprecess stages during render procedure.
-    /// Just similar as `pre_process`,`post_precess`
-    /// also accepts multiple [`Processor`]s
-    /// and render program will execute them in order.
-    /// Returning a empty slice makes render program do nothing.
     fn post_processors(
         &mut self,
-        collected: &Vec<Rc<RefCell<Entity>>>,
+        collected: &[Rc<RefCell<Entity>>],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;

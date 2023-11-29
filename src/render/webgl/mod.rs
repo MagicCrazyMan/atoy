@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, VecDeque},
     rc::Rc,
@@ -28,7 +29,10 @@ use self::{
     conversion::{GLint, GLuint, ToGlEnum},
     draw::Draw,
     error::Error,
-    pipeline::{RenderPipeline, RenderState, RenderStuff},
+    pipeline::{
+        flow::{BeforeDrawFlow, BeforeEachDrawFlow, PreparationFlow},
+        RenderPipeline, RenderState, RenderStuff,
+    },
     program::{ProgramItem, ProgramStore},
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
@@ -264,32 +268,58 @@ impl WebGL2Render {
         let state = &mut state;
 
         // prepares stage, obtains a render stuff
-        if !pipeline.prepare(state, stuff)? {
-            return Ok(());
+        match pipeline.prepare(state, stuff)? {
+            PreparationFlow::Continue => {}
+            PreparationFlow::Abort => return Ok(()),
         };
 
         // collects render groups
-        let collected = self.collect_entities(stuff)?;
+        let collected_entities = self.collect_entities(stuff)?;
 
         // pre-process stages
-        for processor in pipeline.pre_processors(&collected, state, stuff)? {
+        for processor in pipeline.pre_processors(&collected_entities, state, stuff)? {
             processor.borrow_mut().process(pipeline, state, stuff)?;
         }
 
         // draw stage
-        let drawers = pipeline.drawers(&collected, state, stuff)?;
+        let drawers = pipeline.drawers(&collected_entities, state, stuff)?;
         let mut last_program = None as Option<ProgramItem>;
         for drawer in drawers {
             let mut drawer = drawer.borrow_mut();
-            let Some(filtered) = drawer.before_draw(&collected, pipeline, state, stuff)? else {
-                continue;
-            };
-            for (index, entity) in filtered.iter().enumerate() {
+            let drawing_entities =
+                match drawer.before_draw(&collected_entities, pipeline, state, stuff)? {
+                    BeforeDrawFlow::Skip => continue,
+                    BeforeDrawFlow::FollowCollectedEntities => Cow::Borrowed(&collected_entities),
+                    BeforeDrawFlow::Custom(entities) => Cow::Owned(entities),
+                };
+
+            for (index, entity) in drawing_entities.iter().enumerate() {
                 unsafe {
                     // before each draw of drawer
-                    let Some((entity, geometry, material)) = drawer
-                        .before_each_draw(&entity, &filtered, &collected, pipeline, state, stuff)?
-                    else {
+                    let (geometry, material) = match drawer.before_each_draw(
+                        entity,
+                        &drawing_entities,
+                        &collected_entities,
+                        pipeline,
+                        state,
+                        stuff,
+                    )? {
+                        BeforeEachDrawFlow::Skip => continue,
+                        BeforeEachDrawFlow::FollowEntity => {
+                            let mut entity = entity.borrow_mut();
+                            (entity.geometry_raw(), entity.material_raw())
+                        }
+                        BeforeEachDrawFlow::OverwriteMaterial(material) => {
+                            (entity.borrow_mut().geometry_raw(), Some(material))
+                        }
+                        BeforeEachDrawFlow::OverwriteGeometry(geometry) => {
+                            (Some(geometry), entity.borrow_mut().material_raw())
+                        }
+                        BeforeEachDrawFlow::Overwrite(geometry, material) => {
+                            (Some(geometry), Some(material))
+                        }
+                    };
+                    let (Some(geometry), Some(material)) = (geometry, material) else {
                         continue;
                     };
 
@@ -306,22 +336,22 @@ impl WebGL2Render {
                         Rc::clone(&entity),
                         geometry,
                         material,
-                        &collected,
-                        &filtered,
+                        &collected_entities,
+                        &drawing_entities,
                         index,
                     );
                     let geometry_render_entity = GeometryRenderEntity::new(
                         Rc::clone(render_entity.entity()),
                         material,
-                        &collected,
-                        &filtered,
+                        &collected_entities,
+                        &drawing_entities,
                         index,
                     );
                     let material_render_entity = MaterialRenderEntity::new(
                         Rc::clone(render_entity.entity()),
                         geometry,
-                        &collected,
-                        &filtered,
+                        &collected_entities,
+                        &drawing_entities,
                         index,
                     );
 
@@ -367,19 +397,25 @@ impl WebGL2Render {
                     // after each draw of drawer
                     drawer.after_each_draw(
                         &render_entity,
-                        &filtered,
-                        &collected,
+                        &drawing_entities,
+                        &collected_entities,
                         pipeline,
                         state,
                         stuff,
                     )?;
                 }
             }
-            drawer.after_draw(&filtered, &collected, pipeline, state, stuff)?;
+            drawer.after_draw(
+                &drawing_entities,
+                &collected_entities,
+                pipeline,
+                state,
+                stuff,
+            )?;
         }
 
         // post-process stages
-        for processor in pipeline.post_processors(&collected, state, stuff)? {
+        for processor in pipeline.post_processors(&collected_entities, state, stuff)? {
             processor.borrow_mut().process(pipeline, state, stuff)?;
         }
 
@@ -437,12 +473,14 @@ impl WebGL2Render {
     /// Binds attributes of the entity.
     fn bind_attributes(
         &mut self,
-        RenderState { gl, .. }: &RenderState,
+        state: &RenderState,
         render_entity: &RenderEntity,
         geometry_render_entity: &GeometryRenderEntity,
         material_render_entity: &MaterialRenderEntity,
         attribute_locations: &HashMap<AttributeBinding, GLuint>,
     ) {
+        let gl = state.gl();
+
         for (binding, location) in attribute_locations {
             let value = match binding {
                 AttributeBinding::GeometryPosition => render_entity.geometry().vertices(),
@@ -552,13 +590,15 @@ impl WebGL2Render {
     /// Binds uniform data of the entity.
     fn bind_uniforms(
         &mut self,
-        RenderState { gl, .. }: &RenderState,
+        state: &RenderState,
         stuff: &dyn RenderStuff,
         render_entity: &RenderEntity,
         geometry_render_entity: &GeometryRenderEntity,
         material_render_entity: &MaterialRenderEntity,
         uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
     ) {
+        let gl = state.gl();
+
         for (binding, location) in uniform_locations {
             let value = match binding {
                 UniformBinding::FromGeometry(name) => render_entity
@@ -703,7 +743,9 @@ impl WebGL2Render {
         }
     }
 
-    fn draw(&mut self, RenderState { gl, .. }: &RenderState, entity: &RenderEntity) {
+    fn draw(&mut self, state: &RenderState, entity: &RenderEntity) {
+        let gl = state.gl();
+
         // draws entity
         if let Some(num_instances) = entity.material().instanced() {
             // draw instanced
