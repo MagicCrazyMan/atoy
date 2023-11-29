@@ -5,10 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use gl_matrix4rust::{
-    mat4::{AsMat4, Mat4},
-    vec3::AsVec3,
-};
+use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::{
@@ -431,26 +428,23 @@ impl WebGL2Render {
     where
         Stuff: RenderStuff,
     {
-        let view_matrix = stuff.camera().view_matrix();
-        let proj_matrix = stuff.camera().proj_matrix();
-
         // let mut collected = HashMap::new();
         let mut collected = Vec::new();
-
-        let mut collections =
-            VecDeque::from([(Mat4::new_identity(), stuff.entity_collection_mut())]);
+        // entities collections waits for collecting. If parent model does not changed, set matrix to None.
+        let mut collections = VecDeque::from([(None, stuff.entity_collection_mut())]);
         while let Some((parent_model_matrix, collection)) = collections.pop_front() {
             // update collection matrices
-            collection.update_frame_matrices(&parent_model_matrix);
-            let collection_model_matrix = *collection.model_matrix();
+            let mut collection_model_matrix = None;
+            if collection.update_frame_matrices(parent_model_matrix) {
+                collection_model_matrix = Some(*collection.model_matrix());
+            }
 
             for entity in collection.entities() {
                 // update matrices
-                if let Err(err) = entity.borrow_mut().update_frame_matrices(
-                    &collection_model_matrix,
-                    &view_matrix,
-                    &proj_matrix,
-                ) {
+                if let Err(err) = entity
+                    .borrow_mut()
+                    .update_frame_matrices(collection_model_matrix)
+                {
                     // should log warning
                     console_log!("{}", err);
                     continue;
@@ -617,8 +611,6 @@ impl WebGL2Render {
                 | UniformBinding::ViewMatrix
                 | UniformBinding::ProjMatrix
                 | UniformBinding::NormalMatrix
-                | UniformBinding::ModelViewMatrix
-                | UniformBinding::ModelViewProjMatrix
                 | UniformBinding::ViewProjMatrix => {
                     let mat = match binding {
                         UniformBinding::ModelMatrix => {
@@ -627,14 +619,6 @@ impl WebGL2Render {
                         UniformBinding::NormalMatrix => {
                             render_entity.entity().borrow().normal_matrix().to_gl()
                         }
-                        UniformBinding::ModelViewMatrix => {
-                            render_entity.entity().borrow().model_view_matrix().to_gl()
-                        }
-                        UniformBinding::ModelViewProjMatrix => render_entity
-                            .entity()
-                            .borrow()
-                            .model_view_proj_matrix()
-                            .to_gl(),
                         UniformBinding::ViewMatrix => stuff.camera().view_matrix().to_gl(),
                         UniformBinding::ProjMatrix => stuff.camera().proj_matrix().to_gl(),
                         UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),

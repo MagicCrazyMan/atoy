@@ -43,8 +43,6 @@ pub enum UniformBinding {
     NormalMatrix,
     ViewMatrix,
     ProjMatrix,
-    ModelViewMatrix,
-    ModelViewProjMatrix,
     ViewProjMatrix,
     ActiveCameraPosition,
     ActiveCameraDirection,
@@ -60,9 +58,7 @@ impl UniformBinding {
             UniformBinding::NormalMatrix => "u_NormalMatrix",
             UniformBinding::ViewMatrix => "u_ViewMatrix",
             UniformBinding::ProjMatrix => "u_ProjMatrix",
-            UniformBinding::ModelViewMatrix => "u_ModelViewMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
-            UniformBinding::ModelViewProjMatrix => "u_ModelViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
             UniformBinding::ActiveCameraDirection => "u_ActiveCameraDirection",
             UniformBinding::FromGeometry(name)

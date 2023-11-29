@@ -272,7 +272,8 @@ impl Material for PickDetectionMaterial {
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
         &[
-            UniformBinding::ModelViewProjMatrix,
+            UniformBinding::ModelMatrix,
+            UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Index"),
         ]
     }

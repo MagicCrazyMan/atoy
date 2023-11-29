@@ -11,11 +11,10 @@ use crate::{
 
 pub struct Entity {
     id: Uuid,
+    local_matrix_changed: bool,
     local_matrix: Mat4,
     model_matrix: Mat4,
     normal_matrix: Mat4,
-    model_view_matrix: Mat4,
-    model_view_proj_matrix: Mat4,
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     properties: HashMap<String, Box<dyn Any>>,
@@ -27,11 +26,10 @@ impl Entity {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
+            local_matrix_changed: true,
             local_matrix: Mat4::new_identity(),
             model_matrix: Mat4::new_identity(),
             normal_matrix: Mat4::new_identity(),
-            model_view_matrix: Mat4::new_identity(),
-            model_view_proj_matrix: Mat4::new_identity(),
             attributes: HashMap::new(),
             uniforms: HashMap::new(),
             properties: HashMap::new(),
@@ -136,31 +134,34 @@ impl Entity {
         &self.normal_matrix
     }
 
-    pub fn model_view_matrix(&self) -> &Mat4 {
-        &self.model_view_matrix
-    }
-
-    pub fn model_view_proj_matrix(&self) -> &Mat4 {
-        &self.model_view_proj_matrix
-    }
-
     pub fn set_local_matrix(&mut self, mat: Mat4) {
         self.local_matrix = mat;
+        self.local_matrix_changed = true;
     }
 
+    /// Updates matrices of current frame.
+    /// Only updates matrices when parent model matrix changed
+    /// (`parent_model_matrix` is some) or local matrix changed.
     pub(crate) fn update_frame_matrices(
         &mut self,
-        parent_model_matrix: &Mat4,
-        view_matrix: &Mat4,
-        proj_matrix: &Mat4,
+        parent_model_matrix: Option<Mat4>,
     ) -> Result<(), Error> {
-        let model_matrix = *parent_model_matrix * self.local_matrix;
+        let model_matrix = match parent_model_matrix {
+            Some(parent_model_matrix) => parent_model_matrix * self.local_matrix,
+            None => {
+                if self.local_matrix_changed {
+                    self.local_matrix
+                } else {
+                    return Ok(());
+                }
+            }
+        };
         let normal_matrix = model_matrix.invert()?.transpose();
 
         self.model_matrix = model_matrix;
         self.normal_matrix = normal_matrix;
-        self.model_view_matrix = *view_matrix * model_matrix;
-        self.model_view_proj_matrix = *proj_matrix * self.model_view_matrix;
+
+        self.local_matrix_changed = false;
 
         Ok(())
     }
@@ -170,6 +171,7 @@ pub struct EntityCollection {
     id: Uuid,
     entities: Vec<Rc<RefCell<Entity>>>,
     collections: Vec<EntityCollection>,
+    local_matrix_changed: bool,
     local_matrix: Mat4,
     model_matrix: Mat4,
 }
@@ -181,6 +183,7 @@ impl EntityCollection {
             entities: Vec::new(),
             // entities_hash: HashMap::new(),
             collections: Vec::new(),
+            local_matrix_changed: true,
             local_matrix: Mat4::new_identity(),
             model_matrix: Mat4::new_identity(),
         }
@@ -265,10 +268,31 @@ impl EntityCollection {
 
     pub fn set_local_matrix(&mut self, mat: Mat4) {
         self.local_matrix = mat;
+        self.local_matrix_changed = true;
     }
 
-    pub(crate) fn update_frame_matrices(&mut self, parent_model_matrix: &Mat4) {
-        self.model_matrix = *parent_model_matrix * self.local_matrix;
+    /// Updates matrices of current frame and
+    /// returns a boolean value indicating whether matrices changed.
+    /// 
+    /// Only updates matrices when parent model matrix changed
+    /// (`parent_model_matrix` is some) or local matrix changed.
+    pub(crate) fn update_frame_matrices(&mut self, parent_model_matrix: Option<Mat4>) -> bool {
+        match parent_model_matrix {
+            Some(parent_model_matrix) => {
+                self.model_matrix = parent_model_matrix * self.local_matrix;
+                self.local_matrix_changed = false;
+                true
+            }
+            None => {
+                if self.local_matrix_changed {
+                    self.model_matrix = self.local_matrix;
+                    self.local_matrix_changed = false;
+                    true
+                } else {
+                    false
+                }
+            }
+        }
     }
 }
 

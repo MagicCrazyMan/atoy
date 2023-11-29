@@ -26,8 +26,8 @@ const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 in vec4 a_Position;
 in vec4 a_Normal;
 
-uniform mat4 u_ModelViewProjMatrix;
 uniform mat4 u_ModelMatrix;
+uniform mat4 u_ViewProjMatrix;
 uniform mat4 u_NormalMatrix;
 
 out vec3 v_Position;
@@ -99,7 +99,7 @@ impl Material for EnvironmentMaterial {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::NormalMatrix,
-            UniformBinding::ModelViewProjMatrix,
+            UniformBinding::ViewProjMatrix,
             UniformBinding::ActiveCameraPosition,
             UniformBinding::FromMaterial(SAMPLER_UNIFORM),
         ]
