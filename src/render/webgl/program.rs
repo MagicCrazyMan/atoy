@@ -21,6 +21,7 @@ pub enum ShaderSource<'a> {
 
 #[derive(Clone)]
 pub(super) struct ProgramItem {
+    name: String,
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
     attributes: Rc<HashMap<AttributeBinding, GLuint>>,
@@ -28,6 +29,10 @@ pub(super) struct ProgramItem {
 }
 
 impl ProgramItem {
+    pub(super) fn name(&self) -> &str {
+        &self.name
+    }
+
     pub(super) fn program(&self) -> &WebGlProgram {
         &self.program
     }
@@ -82,6 +87,7 @@ fn compile_material(
 
     let program = create_program(gl, &shaders)?;
     Ok(ProgramItem {
+        name: material.name().to_string(),
         attributes: Rc::new(collect_attribute_locations(
             gl,
             &program,

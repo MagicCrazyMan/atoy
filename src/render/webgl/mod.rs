@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, VecDeque},
     rc::Rc,
@@ -30,7 +31,7 @@ use self::{
     draw::Draw,
     error::Error,
     pipeline::{RenderPipeline, RenderState, RenderStuff},
-    program::ProgramStore,
+    program::{ProgramItem, ProgramStore},
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
 };
@@ -279,6 +280,7 @@ impl WebGL2Render {
 
         // draw stage
         let drawers = pipeline.drawers(&collected, state, stuff)?;
+        let mut last_program = None as Option<ProgramItem>;
         for mut drawer in drawers {
             let entities = drawer.before_draw(&collected, pipeline, state, stuff)?;
             for entity in entities {
@@ -304,10 +306,6 @@ impl WebGL2Render {
                     continue;
                 }
 
-                let program_item = self
-                    .program_store
-                    .use_program(&*render_entity.material().borrow())?;
-
                 let geometry_render_entity = GeometryRenderEntity::new(
                     Rc::clone(render_entity.entity()),
                     Rc::clone(render_entity.material()),
@@ -317,8 +315,23 @@ impl WebGL2Render {
                     Rc::clone(render_entity.geometry()),
                 );
 
-                // binds program
-                self.gl.use_program(Some(program_item.program()));
+                // compile and bind program only when last program isn't equals the material
+                if last_program
+                    .as_ref()
+                    .map(|last_program| {
+                        last_program.name() != render_entity.material().borrow().name()
+                    })
+                    .unwrap_or(true)
+                {
+                    let p = self
+                        .program_store
+                        .use_program(&*render_entity.material().borrow())?;
+                    self.gl.use_program(Some(p.program()));
+                    last_program = Some(p.clone());
+                }
+
+                let program_item = last_program.as_ref().unwrap();
+
                 // binds attributes
                 self.bind_attributes(
                     &state,

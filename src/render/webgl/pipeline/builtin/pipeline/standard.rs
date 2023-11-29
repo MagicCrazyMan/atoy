@@ -56,6 +56,7 @@ impl<Pipeline> Drawer<Pipeline> for StandardDrawer
 where
     Pipeline: RenderPipeline,
 {
+    #[inline]
     fn before_draw(
         &mut self,
         collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
@@ -70,6 +71,7 @@ where
             .collect::<Vec<_>>())
     }
 
+    #[inline]
     fn before_each_draw(
         &mut self,
         entity: &Rc<RefCell<Entity>>,
@@ -91,6 +93,7 @@ where
         }
     }
 
+    #[inline]
     fn after_each_draw(
         &mut self,
         _: &RenderEntity,
@@ -102,6 +105,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn after_draw(
         &mut self,
         _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
@@ -116,10 +120,12 @@ where
 pub struct StandardPipeline;
 
 impl RenderPipeline for StandardPipeline {
+    #[inline]
     fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<bool, Error> {
         Ok(true)
     }
 
+    #[inline]
     fn pre_processors(
         &mut self,
         _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
@@ -138,6 +144,7 @@ impl RenderPipeline for StandardPipeline {
         Ok(processors)
     }
 
+    #[inline]
     fn drawers(
         &mut self,
         _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
@@ -149,6 +156,7 @@ impl RenderPipeline for StandardPipeline {
         Ok(drawers)
     }
 
+    #[inline]
     fn post_processors(
         &mut self,
         _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
@@ -160,10 +168,12 @@ impl RenderPipeline for StandardPipeline {
         Ok(processors)
     }
 
+    #[inline]
     fn as_any(&self) -> &dyn Any {
         self
     }
 
+    #[inline]
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
