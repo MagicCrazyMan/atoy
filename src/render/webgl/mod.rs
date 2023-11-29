@@ -1,5 +1,6 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
     rc::Rc,
 };
 
@@ -7,15 +8,19 @@ use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::AsVec3,
 };
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use uuid::Uuid;
+use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::{
     HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry, WebGl2RenderingContext,
-    WebGlProgram, WebGlUniformLocation,
+    WebGlUniformLocation,
 };
 
 use crate::{
-    document, entity::RenderEntity, geometry::GeometryRenderEntity, material::MaterialRenderEntity,
+    document,
+    entity::{Entity, RenderEntity},
+    geometry::GeometryRenderEntity,
+    material::MaterialRenderEntity,
 };
 
 use self::{
@@ -24,10 +29,7 @@ use self::{
     conversion::{GLint, GLuint, ToGlEnum},
     draw::Draw,
     error::Error,
-    pipeline::{
-        policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
-        RenderPipeline, RenderState, RenderStuff,
-    },
+    pipeline::{RenderPipeline, RenderState, RenderStuff},
     program::ProgramStore,
     texture::TextureStore,
     uniform::{UniformBinding, UniformValue},
@@ -40,9 +42,9 @@ pub mod draw;
 pub mod error;
 pub mod pipeline;
 pub mod program;
+pub mod stencil;
 pub mod texture;
 pub mod uniform;
-pub mod stencil;
 
 // #[wasm_bindgen(typescript_custom_section)]
 // const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"
@@ -247,19 +249,6 @@ impl WebGL2Render {
     }
 }
 
-pub struct RenderGroup {
-    program: *const WebGlProgram,
-    attribute_locations: *const HashMap<AttributeBinding, GLuint>,
-    uniform_locations: *const HashMap<UniformBinding, WebGlUniformLocation>,
-    entities: Vec<(RenderEntity, GeometryRenderEntity, MaterialRenderEntity)>,
-}
-
-impl RenderGroup {
-    pub fn entities(&self) -> &[(RenderEntity, GeometryRenderEntity, MaterialRenderEntity)] {
-        &self.entities
-    }
-}
-
 impl WebGL2Render {
     pub fn render<Stuff, Pipeline>(
         &mut self,
@@ -272,61 +261,71 @@ impl WebGL2Render {
         Pipeline: RenderPipeline,
     {
         // constructs render state
-        let mut state = RenderState {
-            canvas: self.canvas.clone(),
-            gl: self.gl.clone(),
-            frame_time,
-        };
-
+        let mut state = RenderState::new(self.canvas.clone(), self.gl.clone(), stuff, frame_time);
         let state = &mut state;
 
         // prepares stage, obtains a render stuff
-        if let PreparationPolicy::Abort = pipeline.prepare(state, stuff)? {
+        if !pipeline.prepare(state, stuff)? {
             return Ok(());
         };
 
+        // collects render groups
+        let collected = self.collect_entities(stuff)?;
+
         // pre-process stages
-        for mut processor in pipeline.pre_processors(state, stuff)? {
+        for mut processor in pipeline.pre_processors(&collected, state, stuff)? {
             processor.process(pipeline, state, stuff)?;
         }
 
-        // collects render groups
-        let groups = self.prepare_and_collect_entities(pipeline, stuff, state)?;
+        // draw stage
+        let drawers = pipeline.drawers(&collected, state, stuff)?;
+        for mut drawer in drawers {
+            let entities = drawer.before_draw(&collected, pipeline, state, stuff)?;
+            for entity in entities {
+                // before each draw of drawer
+                let render_entity =
+                    drawer.before_each_draw(&entity, &collected, pipeline, state, stuff)?;
+                let Some(render_entity) = render_entity else {
+                    continue;
+                };
 
-        // render stage
-        for (
-            _,
-            RenderGroup {
-                program,
-                attribute_locations,
-                uniform_locations,
-                entities,
-            },
-        ) in groups
-        {
-            // console_log!("{}", entities.len());
-            let (program, attribute_locations, uniform_locations) =
-                unsafe { (&*program, &*attribute_locations, &*uniform_locations) };
+                // prepareof material and geometry
+                render_entity
+                    .material()
+                    .borrow_mut()
+                    .prepare(state, &entity);
+                render_entity
+                    .geometry()
+                    .borrow_mut()
+                    .prepare(state, &entity);
 
-            // binds program
-            state.gl.use_program(Some(program));
+                // skip if not ready yet
+                if !render_entity.material().borrow().ready() {
+                    continue;
+                }
 
-            // render each entity
-            for (render_entity, geometry_render_entity, material_render_entity) in entities {
-                // before draw
-                self.before_draw(
-                    &state,
-                    &render_entity,
-                    &geometry_render_entity,
-                    &material_render_entity,
+                let program_item = self
+                    .program_store
+                    .use_program(&*render_entity.material().borrow())?;
+
+                let geometry_render_entity = GeometryRenderEntity::new(
+                    Rc::clone(render_entity.entity()),
+                    Rc::clone(render_entity.material()),
                 );
+                let material_render_entity = MaterialRenderEntity::new(
+                    Rc::clone(render_entity.entity()),
+                    Rc::clone(render_entity.geometry()),
+                );
+
+                // binds program
+                self.gl.use_program(Some(program_item.program()));
                 // binds attributes
                 self.bind_attributes(
                     &state,
                     &render_entity,
                     &geometry_render_entity,
                     &material_render_entity,
-                    attribute_locations,
+                    program_item.attribute_locations(),
                 );
                 // binds uniforms
                 self.bind_uniforms(
@@ -335,22 +334,37 @@ impl WebGL2Render {
                     &render_entity,
                     &geometry_render_entity,
                     &material_render_entity,
-                    uniform_locations,
+                    program_item.uniform_locations(),
                 );
+
+                // before draw of material and geometry
+                render_entity
+                    .material()
+                    .borrow_mut()
+                    .before_draw(state, &material_render_entity);
+                render_entity
+                    .geometry()
+                    .borrow_mut()
+                    .before_draw(state, &geometry_render_entity);
                 // draws
                 self.draw(&state, &render_entity);
-                // after draw
-                self.after_draw(
-                    &state,
-                    &render_entity,
-                    &geometry_render_entity,
-                    &material_render_entity,
-                );
+                // after draw of material and geometry
+                render_entity
+                    .material()
+                    .borrow_mut()
+                    .after_draw(state, &material_render_entity);
+                render_entity
+                    .geometry()
+                    .borrow_mut()
+                    .after_draw(state, &geometry_render_entity);
+                // after each draw of drawer
+                drawer.after_each_draw(&render_entity, &collected, pipeline, state, stuff)?;
             }
+            drawer.after_draw(&collected, pipeline, state, stuff)?;
         }
 
         // post-process stages
-        for mut processor in pipeline.post_processors(state, stuff)? {
+        for mut processor in pipeline.post_processors(&collected, state, stuff)? {
             processor.process(pipeline, state, stuff)?;
         }
 
@@ -359,24 +373,17 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn prepare_and_collect_entities<Stuff, Pipeline>(
+    fn collect_entities<Stuff>(
         &mut self,
-        pipeline: &mut Pipeline,
         stuff: &mut Stuff,
-        state: &mut RenderState,
-    ) -> Result<HashMap<String, RenderGroup>, Error>
+    ) -> Result<HashMap<Uuid, Rc<RefCell<Entity>>>, Error>
     where
         Stuff: RenderStuff,
-        Pipeline: RenderPipeline,
     {
         let view_matrix = stuff.camera().view_matrix();
         let proj_matrix = stuff.camera().proj_matrix();
 
-        let material_policy = pipeline.material_policy(state, stuff)?;
-        let geometry_policy = pipeline.geometry_policy(state, stuff)?;
-        let collect_policy = pipeline.collect_policy(state, stuff)?;
-
-        let mut groups: HashMap<String, RenderGroup> = HashMap::new();
+        let mut collected = HashMap::new();
 
         let mut collections =
             VecDeque::from([(Mat4::new_identity(), stuff.entity_collection_mut())]);
@@ -397,84 +404,12 @@ impl WebGL2Render {
                     continue;
                 }
 
-                // selects material
-                let material = match &material_policy {
-                    MaterialPolicy::FollowEntity => entity.borrow_mut().material().cloned(),
-                    MaterialPolicy::Overwrite(material) => material.as_ref().cloned(),
-                    MaterialPolicy::Custom(func) => func(&groups, &entity),
-                };
-                let Some(material) = material else {
+                if collected.contains_key(entity.borrow().id()) {
+                    // should warning
                     continue;
-                };
-                // trigger material preparation
-                material.borrow_mut().prepare(state, &entity);
-
-                // selects geometry
-                let geometry = match &geometry_policy {
-                    GeometryPolicy::FollowEntity => entity.borrow_mut().geometry().cloned(),
-                    GeometryPolicy::Overwrite(geometry) => geometry.as_ref().cloned(),
-                    GeometryPolicy::Custom(func) => func(&groups, &entity),
-                };
-                let Some(geometry) = geometry else {
-                    continue;
-                };
-                // trigger material preparation
-                geometry.borrow_mut().prepare(state, &entity);
-
-                // skip if not ready yet
-                if !material.borrow().ready() {
-                    continue;
+                } else {
+                    collected.insert(*entity.borrow().id(), Rc::clone(entity));
                 }
-
-                // check collectable
-                let collectable = match &collect_policy {
-                    CollectPolicy::CollectAll => true,
-                    CollectPolicy::Custom(func) => func(
-                        &groups,
-                        &entity,
-                        &geometry,
-                        &material,
-                        &view_matrix,
-                        &proj_matrix,
-                    ),
-                };
-
-                if !collectable {
-                    continue;
-                }
-
-                // compile material collect entity
-                let material_name = material.borrow().name().to_string();
-                match groups.entry(material_name) {
-                    Entry::Occupied(mut occupied) => {
-                        occupied.get_mut().entities.push((
-                            RenderEntity::new(
-                                Rc::clone(&entity),
-                                Rc::clone(&geometry),
-                                Rc::clone(&material),
-                            ),
-                            GeometryRenderEntity::new(Rc::clone(&entity), Rc::clone(&material)),
-                            MaterialRenderEntity::new(Rc::clone(&entity), geometry),
-                        ));
-                    }
-                    Entry::Vacant(vacant) => {
-                        let item = self.program_store.use_program(&(*material.borrow()))?;
-                        vacant.insert(RenderGroup {
-                            program: item.program(),
-                            attribute_locations: item.attribute_locations(),
-                            uniform_locations: item.uniform_locations(),
-                            entities: vec![(
-                                RenderEntity::new(
-                                    Rc::clone(&entity),
-                                    Rc::clone(&geometry),
-                                    Rc::clone(&material),
-                                ),
-                                GeometryRenderEntity::new(Rc::clone(&entity), Rc::clone(&material)),
-                                MaterialRenderEntity::new(Rc::clone(&entity), geometry),
-                            )],
-                        });
-                    }
-                };
             }
 
             // add sub-collections to list
@@ -486,43 +421,7 @@ impl WebGL2Render {
             );
         }
 
-        Ok(groups)
-    }
-
-    /// Calls before draw callback of the entity.
-    fn before_draw(
-        &self,
-        state: &RenderState,
-        render_entity: &RenderEntity,
-        geometry_render_entity: &GeometryRenderEntity,
-        material_render_entity: &MaterialRenderEntity,
-    ) {
-        render_entity
-            .geometry()
-            .borrow_mut()
-            .before_draw(state, geometry_render_entity);
-        render_entity
-            .material()
-            .borrow_mut()
-            .before_draw(state, material_render_entity);
-    }
-
-    /// Calls after draw callback of the entity.
-    fn after_draw(
-        &self,
-        state: &RenderState,
-        render_entity: &RenderEntity,
-        geometry_render_entity: &GeometryRenderEntity,
-        material_render_entity: &MaterialRenderEntity,
-    ) {
-        render_entity
-            .geometry()
-            .borrow_mut()
-            .after_draw(state, geometry_render_entity);
-        render_entity
-            .material()
-            .borrow_mut()
-            .after_draw(state, material_render_entity);
+        Ok(collected)
     }
 
     /// Binds attributes of the entity.

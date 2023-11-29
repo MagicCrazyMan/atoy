@@ -1,18 +1,20 @@
 pub mod builtin;
-pub mod policy;
+pub mod drawer;
 pub mod process;
 
-use std::any::Any;
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
+use gl_matrix4rust::mat4::Mat4;
 use smallvec::SmallVec;
+use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, entity::EntityCollection};
-
-use self::{
-    policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
-    process::Processor,
+use crate::{
+    camera::Camera,
+    entity::{Entity, EntityCollection},
 };
+
+use self::{drawer::Drawer, process::Processor};
 
 use super::error::Error;
 
@@ -35,17 +37,34 @@ pub struct RenderState {
     pub canvas: HtmlCanvasElement,
     pub gl: WebGl2RenderingContext,
     pub frame_time: f64,
+    pub view_matrix: Mat4,
+    pub proj_matrix: Mat4,
+}
+
+impl RenderState {
+    pub(super) fn new(
+        canvas: HtmlCanvasElement,
+        gl: WebGl2RenderingContext,
+        stuff: &dyn RenderStuff,
+        frame_time: f64,
+    ) -> Self {
+        Self {
+            canvas,
+            gl,
+            frame_time,
+            view_matrix: stuff.camera().view_matrix(),
+            proj_matrix: stuff.camera().proj_matrix(),
+        }
+    }
 }
 
 pub trait RenderPipeline {
-    fn dependencies(&mut self) -> Result<(), Error>;
-
     /// Preparation stage during render procedure.
     fn prepare(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<PreparationPolicy, Error>;
+    ) -> Result<bool, Error>;
 
     /// Preprocess stages during render procedure.
     /// Developer could provide multiple [`Processor`]s
@@ -53,31 +72,17 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn pre_processors(
         &mut self,
+        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error>;
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
 
-    /// Returns a [`MaterialPolicy`] which decides what material
-    /// to use of each entity during entities collection procedure.
-    fn material_policy(
+    fn drawers(
         &mut self,
+        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<MaterialPolicy, Error>;
-
-    /// Returns a [`GeometryPolicy`] which decides what geometry
-    /// to use of each entity during entities collection procedure.
-    fn geometry_policy(
-        &mut self,
-        state: &mut RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<GeometryPolicy, Error>;
-
-    fn collect_policy(
-        &mut self,
-        state: &mut RenderState,
-        stuff: &mut dyn RenderStuff,
-    ) -> Result<CollectPolicy, Error>;
+    ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error>;
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
@@ -86,9 +91,10 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn post_processors(
         &mut self,
+        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error>;
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
 
     fn as_any(&self) -> &dyn Any;
 

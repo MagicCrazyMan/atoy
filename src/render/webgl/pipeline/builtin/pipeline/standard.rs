@@ -1,10 +1,11 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
 
 use smallvec::SmallVec;
+use uuid::Uuid;
 
 use crate::{
     camera::Camera,
-    entity::EntityCollection,
+    entity::{Entity, EntityCollection, RenderEntity},
     render::webgl::{
         draw::CullFace,
         error::Error,
@@ -13,7 +14,7 @@ use crate::{
                 ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, Reset,
                 SetCullFaceMode, UpdateCamera, UpdateViewport,
             },
-            policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
+            drawer::Drawer,
             process::Processor,
             RenderPipeline, RenderState, RenderStuff,
         },
@@ -49,27 +50,83 @@ impl<'a> RenderStuff for StandardRenderStuff<'a> {
     }
 }
 
-pub struct StandardPipeline;
+pub struct StandardDrawer;
 
-impl<'a> RenderPipeline for StandardPipeline {
-    fn dependencies(&mut self) -> Result<(), Error> {
+impl<Pipeline> Drawer<Pipeline> for StandardDrawer
+where
+    Pipeline: RenderPipeline,
+{
+    fn before_draw(
+        &mut self,
+        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &mut Pipeline,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<Vec<Rc<RefCell<Entity>>>, Error> {
+        Ok(collected
+            .values()
+            .into_iter()
+            .map(|entity| Rc::clone(entity))
+            .collect::<Vec<_>>())
+    }
+
+    fn before_each_draw(
+        &mut self,
+        entity: &Rc<RefCell<Entity>>,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &mut Pipeline,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<Option<RenderEntity>, Error> {
+        let entity_guard = entity.borrow();
+        if let (Some(geometry), Some(material)) = (entity_guard.geometry(), entity_guard.material())
+        {
+            Ok(Some(RenderEntity::new(
+                Rc::clone(entity),
+                Rc::clone(geometry),
+                Rc::clone(material),
+            )))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn after_each_draw(
+        &mut self,
+        _: &RenderEntity,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &mut Pipeline,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
         Ok(())
     }
 
-    fn prepare(
+    fn after_draw(
         &mut self,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<PreparationPolicy, Error> {
-        Ok(PreparationPolicy::Continue)
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+pub struct StandardPipeline;
+
+impl RenderPipeline for StandardPipeline {
+    fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<bool, Error> {
+        Ok(true)
     }
 
     fn pre_processors(
         &mut self,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 16]> = SmallVec::new();
         processors.push(Box::new(UpdateCamera));
         processors.push(Box::new(UpdateViewport));
         processors.push(Box::new(EnableDepthTest));
@@ -81,36 +138,24 @@ impl<'a> RenderPipeline for StandardPipeline {
         Ok(processors)
     }
 
-    fn material_policy(
+    fn drawers(
         &mut self,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<MaterialPolicy, Error> {
-        Ok(MaterialPolicy::FollowEntity)
-    }
-
-    fn geometry_policy(
-        &mut self,
-        _: &mut RenderState,
-        _: &mut dyn RenderStuff,
-    ) -> Result<GeometryPolicy, Error> {
-        Ok(GeometryPolicy::FollowEntity)
-    }
-
-    fn collect_policy(
-        &mut self,
-        _: &mut RenderState,
-        _: &mut dyn RenderStuff,
-    ) -> Result<CollectPolicy, Error> {
-        Ok(CollectPolicy::CollectAll)
+    ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error> {
+        let mut drawers: SmallVec<[Box<dyn Drawer<Self>>; 8]> = SmallVec::new();
+        drawers.push(Box::new(StandardDrawer));
+        Ok(drawers)
     }
 
     fn post_processors(
         &mut self,
+        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 16]> = SmallVec::new();
         processors.push(Box::new(Reset));
         Ok(processors)
     }

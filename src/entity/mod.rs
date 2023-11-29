@@ -284,7 +284,7 @@ pub struct RenderEntity {
 }
 
 impl RenderEntity {
-    pub(crate) fn new(
+    pub fn new(
         entity: Rc<RefCell<Entity>>,
         geometry: Rc<RefCell<dyn Geometry>>,
         material: Rc<RefCell<dyn Material>>,

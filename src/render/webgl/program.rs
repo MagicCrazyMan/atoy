@@ -1,6 +1,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Debug,
+    rc::Rc,
 };
 
 use wasm_bindgen_test::console_log;
@@ -18,36 +19,35 @@ pub enum ShaderSource<'a> {
     Fragment(&'a str),
 }
 
-#[derive(Debug)]
-pub struct ProgramItem {
+#[derive(Clone)]
+pub(super) struct ProgramItem {
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
-    attributes: HashMap<AttributeBinding, GLuint>,
-    uniforms: HashMap<UniformBinding, WebGlUniformLocation>,
+    attributes: Rc<HashMap<AttributeBinding, GLuint>>,
+    uniforms: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
 }
 
 impl ProgramItem {
-    pub fn program(&self) -> &WebGlProgram {
+    pub(super) fn program(&self) -> &WebGlProgram {
         &self.program
     }
 
-    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
+    pub(super) fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
         &self.attributes
     }
 
-    pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
+    pub(super) fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
         &self.uniforms
     }
 }
 
-#[derive(Debug)]
-pub struct ProgramStore {
+pub(super) struct ProgramStore {
     gl: WebGl2RenderingContext,
     store: HashMap<String, ProgramItem>,
 }
 
 impl ProgramStore {
-    pub fn new(gl: WebGl2RenderingContext) -> Self {
+    pub(super) fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             gl,
             store: HashMap::new(),
@@ -56,54 +56,18 @@ impl ProgramStore {
 }
 
 impl ProgramStore {
-    // pub fn add_material<M: WebGLMaterial>(&mut self, material: &M) -> Result<(), JsError> {
-    //     if self.store.contains_key(material.name()) {
-    //         return Err(JsError::new(&format!(
-    //             "duplicated material name {}",
-    //             material.name()
-    //         )));
-    //     }
-
-    //     let replaced = self.store.insert(
-    //         material.name().to_string(),
-    //         compile_material(&self.gl, material)?,
-    //     );
-
-    //     if let Some(material) = replaced {
-    //         delete_material(&self.gl, &material);
-    //     };
-
-    //     Ok(())
-    // }
-
-    // pub fn remove_material(&mut self, name: &str) {
-    //     if let Some(material) = self.store.remove(name) {
-    //         delete_material(&self.gl, &material);
-    //     }
-    // }
-
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub fn use_program<'a>(
-        &'a mut self,
-        material: &dyn Material,
-    ) -> Result<&'a ProgramItem, Error> {
+    pub(super) fn use_program(&mut self, material: &dyn Material) -> Result<ProgramItem, Error> {
         let store = &mut self.store;
 
         match store.entry(material.name().to_string()) {
-            Entry::Occupied(occupied) => {
-                let item: *const ProgramItem = occupied.get();
-                Ok(unsafe { &*item })
-            }
+            Entry::Occupied(occupied) => Ok(occupied.get().clone()),
             Entry::Vacant(vacant) => {
                 let item = vacant.insert(compile_material(&self.gl, material)?);
-                Ok(item)
+                Ok(item.clone())
             }
         }
     }
-
-    // pub fn material(&self, name: &str) -> Option<&ProgramItem> {
-    //     self.store.get(name)
-    // }
 }
 
 fn compile_material(
@@ -118,8 +82,16 @@ fn compile_material(
 
     let program = create_program(gl, &shaders)?;
     Ok(ProgramItem {
-        attributes: collect_attribute_locations(gl, &program, material.attribute_bindings())?,
-        uniforms: collect_uniform_locations(gl, &program, material.uniform_bindings())?,
+        attributes: Rc::new(collect_attribute_locations(
+            gl,
+            &program,
+            material.attribute_bindings(),
+        )?),
+        uniforms: Rc::new(collect_uniform_locations(
+            gl,
+            &program,
+            material.uniform_bindings(),
+        )?),
         program,
         // shaders,
     })
