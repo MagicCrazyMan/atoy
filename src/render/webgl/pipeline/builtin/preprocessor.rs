@@ -1,10 +1,11 @@
 use web_sys::WebGl2RenderingContext;
 
 use crate::render::webgl::{
-    conversion::ToGlEnum,
+    conversion::{GLint, GLuint, ToGlEnum},
     draw::CullFace,
     error::Error,
     pipeline::{preprocess::PreProcessor, RenderPipeline, RenderState, RenderStuff},
+    stencil::{StencilFunction, StencilOp},
 };
 
 pub struct UpdateCamera;
@@ -75,6 +76,33 @@ where
     }
 }
 
+pub struct SetDepthMask(bool);
+
+impl SetDepthMask {
+    pub fn new(enabled: bool) -> Self {
+        Self(enabled)
+    }
+}
+
+impl<Pipeline> PreProcessor<Pipeline> for SetDepthMask
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "SetDepthMask"
+    }
+
+    fn pre_process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.depth_mask(self.0);
+        Ok(())
+    }
+}
+
 pub struct EnableCullFace;
 
 impl<Pipeline> PreProcessor<Pipeline> for EnableCullFace
@@ -140,6 +168,110 @@ where
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
         state.gl.enable(WebGl2RenderingContext::BLEND);
+        Ok(())
+    }
+}
+
+pub struct EnableStencil;
+
+impl<Pipeline> PreProcessor<Pipeline> for EnableStencil
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "EnableStencil"
+    }
+
+    fn pre_process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.enable(WebGl2RenderingContext::STENCIL_TEST);
+        Ok(())
+    }
+}
+
+pub struct SetStencilMask(GLuint);
+
+impl SetStencilMask {
+    pub fn new(mask: GLuint) -> Self {
+        Self(mask)
+    }
+}
+
+impl<Pipeline> PreProcessor<Pipeline> for SetStencilMask
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "SetStencilMask"
+    }
+
+    fn pre_process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.stencil_mask(self.0);
+        Ok(())
+    }
+}
+
+pub struct SetStencilFunc(StencilFunction, GLint, GLuint);
+
+impl SetStencilFunc {
+    pub fn new(stencil_func: StencilFunction, ref_val: GLint, mask: GLuint) -> SetStencilFunc {
+        Self(stencil_func, ref_val, mask)
+    }
+}
+
+impl<Pipeline> PreProcessor<Pipeline> for SetStencilFunc
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "SetStencilFunc"
+    }
+
+    fn pre_process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.stencil_func(self.0.gl_enum(), self.1, self.2);
+        Ok(())
+    }
+}
+
+pub struct SetStencilOp(StencilOp, StencilOp, StencilOp);
+
+impl SetStencilOp {
+    pub fn new(fail: StencilOp, z_fail: StencilOp, z_pass: StencilOp) -> SetStencilOp {
+        Self(fail, z_fail, z_pass)
+    }
+}
+
+impl<Pipeline> PreProcessor<Pipeline> for SetStencilOp
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "SetStencilOp"
+    }
+
+    fn pre_process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state
+            .gl
+            .stencil_op(self.0.gl_enum(), self.1.gl_enum(), self.2.gl_enum());
         Ok(())
     }
 }

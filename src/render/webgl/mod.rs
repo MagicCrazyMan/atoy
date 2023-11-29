@@ -42,6 +42,7 @@ pub mod pipeline;
 pub mod program;
 pub mod texture;
 pub mod uniform;
+pub mod stencil;
 
 // #[wasm_bindgen(typescript_custom_section)]
 // const WEBGL2_RENDER_OPTIONS_TYPE: &'static str = r#"
@@ -53,6 +54,58 @@ pub mod uniform;
 //     #[wasm_bindgen(typescript_type = "WebGL2RenderOptions")]
 //     pub type WebGL2RenderOptionsObject;
 // }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all(serialize = "camelCase"))]
+pub struct WebGL2ContextOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alpha: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    depth: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stencil: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    desynchronized: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    antialias: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fail_if_major_performance_caveat: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    power_preference: Option<WebGL2ContextPowerPerformance>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    premultiplied_alpha: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preserve_drawing_buffer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    xr_compatible: Option<bool>,
+}
+
+impl Default for WebGL2ContextOptions {
+    fn default() -> Self {
+        Self {
+            alpha: Some(true),
+            depth: Some(true),
+            stencil: Some(true),
+            desynchronized: None,
+            antialias: Some(true),
+            fail_if_major_performance_caveat: None,
+            power_preference: None,
+            premultiplied_alpha: None,
+            preserve_drawing_buffer: None,
+            xr_compatible: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum WebGL2ContextPowerPerformance {
+    #[serde(rename = "default")]
+    Default,
+    #[serde(rename = "high-performance")]
+    HighPerformance,
+    #[serde(rename = "low-power")]
+    LowPower,
+}
 
 pub struct WebGL2Render {
     mount: Option<HtmlElement>,
@@ -67,15 +120,18 @@ pub struct WebGL2Render {
 
 impl WebGL2Render {
     pub fn new() -> Result<Self, Error> {
-        Self::new_inner(None)
+        Self::new_inner(None, None)
     }
 
     pub fn with_mount(mount: &str) -> Result<Self, Error> {
-        Self::new_inner(Some(mount))
+        Self::new_inner(Some(mount), None)
     }
 
     /// Constructs a new WebGL2 render.
-    fn new_inner(mount: Option<&str>) -> Result<Self, Error> {
+    fn new_inner(
+        mount: Option<&str>,
+        options: Option<WebGL2ContextOptions>,
+    ) -> Result<Self, Error> {
         let canvas = document()
             .create_element("canvas")
             .ok()
@@ -85,8 +141,12 @@ impl WebGL2Render {
 
         let resize_observer = Self::observer_canvas_size(&canvas);
 
+        let options = options.unwrap_or(WebGL2ContextOptions::default());
         let gl = canvas
-            .get_context_with_context_options("webgl2", &JsValue::undefined())
+            .get_context_with_context_options(
+                "webgl2",
+                &serde_wasm_bindgen::to_value(&options).unwrap(),
+            )
             .ok()
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())

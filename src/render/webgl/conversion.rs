@@ -3,6 +3,7 @@ use web_sys::WebGl2RenderingContext;
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     draw::{CullFace, DrawElementType, DrawMode},
+    stencil::{StencilFunction, StencilOp},
     texture::{
         TextureCompareFunction, TextureCompareMode, TextureDataType, TextureFormat,
         TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
@@ -349,6 +350,36 @@ impl ToGlEnum for TextureParameter {
             TextureParameter::MaxLevel(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
             TextureParameter::MaxLod(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
             TextureParameter::MinLod(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
+        }
+    }
+}
+
+impl ToGlEnum for StencilFunction {
+    fn gl_enum(&self) -> GLenum {
+        match self {
+            StencilFunction::Never => WebGl2RenderingContext::NEVER,
+            StencilFunction::Less => WebGl2RenderingContext::LESS,
+            StencilFunction::Equal => WebGl2RenderingContext::EQUAL,
+            StencilFunction::LessEqual => WebGl2RenderingContext::LEQUAL,
+            StencilFunction::Greater => WebGl2RenderingContext::GREATER,
+            StencilFunction::NotEqual => WebGl2RenderingContext::NOTEQUAL,
+            StencilFunction::GreaterEqual => WebGl2RenderingContext::GEQUAL,
+            StencilFunction::Always => WebGl2RenderingContext::ALWAYS,
+        }
+    }
+}
+
+impl ToGlEnum for StencilOp {
+    fn gl_enum(&self) -> GLenum {
+        match self {
+            StencilOp::Keep => WebGl2RenderingContext::KEEP,
+            StencilOp::Zero => WebGl2RenderingContext::ZERO,
+            StencilOp::Replace => WebGl2RenderingContext::REPLACE,
+            StencilOp::Increment => WebGl2RenderingContext::INCR,
+            StencilOp::IncrementWrap => WebGl2RenderingContext::INCR_WRAP,
+            StencilOp::Decrement => WebGl2RenderingContext::DECR,
+            StencilOp::DecrementWrap => WebGl2RenderingContext::DECR_WRAP,
+            StencilOp::Invert => WebGl2RenderingContext::INVERT,
         }
     }
 }
