@@ -114,7 +114,7 @@ where
 
 pub struct StandardPipeline {
     pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
-    picked_entity: Option<Weak<RefCell<Entity>>>,
+    picked_entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
     pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
@@ -135,38 +135,39 @@ impl StandardPipeline {
         let mut post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
         post_processors.push(Rc::new(RefCell::new(Reset)));
 
-        let pick_drawer = Rc::new(RefCell::new(PickDetectionDrawer::new()));
+        let picked_entity = Rc::new(RefCell::new(None));
+        let pick_drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(
+            &picked_entity,
+        ))));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
         drawers.push(Rc::clone(&pick_drawer) as Rc<RefCell<dyn Drawer<Self>>>);
         drawers.push(Rc::new(RefCell::new(StandardDrawer)));
 
         Self {
             pick_drawer,
-            picked_entity: None,
+            picked_entity,
             pre_processors,
             post_processors,
             drawers,
         }
     }
 
-    pub fn set_pick_detection(&mut self, x: i32, y: i32) {
+    pub fn set_pick_position(&mut self, x: i32, y: i32) {
         self.pick_drawer.borrow_mut().set_position(x, y);
     }
 
     pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
         self.picked_entity
+            .borrow()
             .as_ref()
             .and_then(|entity| entity.upgrade())
     }
 
     pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
         self.picked_entity
+            .borrow_mut()
             .take()
             .and_then(|entity| entity.upgrade())
-    }
-
-    pub(super) fn set_picked_entity(&mut self, entity: Option<Weak<RefCell<Entity>>>) {
-        self.picked_entity = entity;
     }
 }
 

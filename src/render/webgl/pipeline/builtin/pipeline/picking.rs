@@ -1,5 +1,10 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
+use smallvec::{smallvec, SmallVec};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::console_log;
 use web_sys::{
@@ -15,15 +20,106 @@ use crate::{
         error::Error,
         pipeline::{
             drawer::Drawer,
-            flow::{BeforeDrawFlow, BeforeEachDrawFlow},
-            RenderState, RenderStuff,
+            flow::{BeforeDrawFlow, BeforeEachDrawFlow, PreparationFlow},
+            process::Processor,
+            RenderPipeline, RenderState, RenderStuff,
         },
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
     },
 };
 
-use super::standard::StandardPipeline;
+pub struct PickDetectionPipeline {
+    drawer: Rc<RefCell<PickDetectionDrawer>>,
+    drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
+    picked: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+}
+
+impl PickDetectionPipeline {
+    pub fn new() -> Self {
+        let picked = Rc::new(RefCell::new(None));
+        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(
+            &picked,
+        ))));
+        let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
+        drawers.push(Rc::clone(&drawer) as Rc<RefCell<dyn Drawer<Self>>>);
+
+        Self {
+            drawer,
+            drawers,
+            picked,
+        }
+    }
+
+    pub fn set_pick_position(&mut self, x: i32, y: i32) {
+        self.drawer.borrow_mut().set_position(x, y);
+    }
+
+    pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked
+            .borrow()
+            .as_ref()
+            .and_then(|entity| entity.upgrade())
+    }
+
+    pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked
+            .borrow_mut()
+            .take()
+            .and_then(|entity| entity.upgrade())
+    }
+}
+
+impl RenderPipeline for PickDetectionPipeline {
+    #[inline(always)]
+    fn prepare(
+        &mut self,
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<PreparationFlow, Error> {
+        Ok(PreparationFlow::Continue)
+    }
+
+    #[inline(always)]
+    fn pre_processors(
+        &mut self,
+        _: &[Rc<RefCell<Entity>>],
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
+        Ok(smallvec![])
+    }
+
+    #[inline(always)]
+    fn drawers(
+        &mut self,
+        _: &[Rc<RefCell<Entity>>],
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
+        Ok(self.drawers.clone())
+    }
+
+    #[inline(always)]
+    fn post_processors(
+        &mut self,
+        _: &[Rc<RefCell<Entity>>],
+        _: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
+        Ok(smallvec![])
+    }
+
+    #[inline(always)]
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    #[inline(always)]
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 pub(super) struct PickDetectionDrawer {
     position: Option<(i32, i32)>,
@@ -32,10 +128,11 @@ pub(super) struct PickDetectionDrawer {
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
+    picked_result: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
 }
 
 impl PickDetectionDrawer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(picked_result: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>) -> Self {
         Self {
             material: PickDetectionMaterial,
             result: Uint32Array::new_with_length(1),
@@ -43,6 +140,7 @@ impl PickDetectionDrawer {
             renderbuffer: None,
             texture: None,
             position: None,
+            picked_result,
         }
     }
 
@@ -144,11 +242,14 @@ impl PickDetectionDrawer {
     }
 }
 
-impl Drawer<StandardPipeline> for PickDetectionDrawer {
+impl<Pipeline> Drawer<Pipeline> for PickDetectionDrawer
+where
+    Pipeline: RenderPipeline,
+{
     fn before_draw(
         &mut self,
         collected_entities: &[Rc<RefCell<Entity>>],
-        _: &mut StandardPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<BeforeDrawFlow, Error> {
@@ -202,7 +303,7 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         _: &Rc<RefCell<Entity>>,
         _: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
-        _: &mut StandardPipeline,
+        _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<BeforeEachDrawFlow, Error> {
@@ -214,7 +315,7 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         _: &RenderEntity,
         _: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
-        _: &mut StandardPipeline,
+        _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -225,7 +326,7 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         &mut self,
         drawing_entities: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
-        pipeline: &mut StandardPipeline,
+        _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -243,10 +344,13 @@ impl Drawer<StandardPipeline> for PickDetectionDrawer {
         )
         .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
-        let picked = drawing_entities
+        match drawing_entities
             .get(self.result.get_index(0) as usize - 1)
-            .map(|entity| Rc::downgrade(entity));
-        pipeline.set_picked_entity(picked);
+            .map(|entity| Rc::downgrade(entity))
+        {
+            Some(entity) => *self.picked_result.borrow_mut() = Some(entity),
+            None => *self.picked_result.borrow_mut() = None,
+        }
 
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
