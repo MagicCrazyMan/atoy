@@ -272,8 +272,8 @@ impl WebGL2Render {
         let collected = self.collect_entities(stuff)?;
 
         // pre-process stages
-        for mut processor in pipeline.pre_processors(&collected, state, stuff)? {
-            processor.process(pipeline, state, stuff)?;
+        for processor in pipeline.pre_processors(&collected, state, stuff)? {
+            processor.borrow_mut().process(pipeline, state, stuff)?;
         }
 
         // draw stage
@@ -379,8 +379,8 @@ impl WebGL2Render {
         }
 
         // post-process stages
-        for mut processor in pipeline.post_processors(&collected, state, stuff)? {
-            processor.process(pipeline, state, stuff)?;
+        for processor in pipeline.post_processors(&collected, state, stuff)? {
+            processor.borrow_mut().process(pipeline, state, stuff)?;
         }
 
         Ok(())

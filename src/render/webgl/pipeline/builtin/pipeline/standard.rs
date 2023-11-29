@@ -123,13 +123,37 @@ where
 pub struct StandardPipeline {
     pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
     picked_entity: Option<Weak<RefCell<Entity>>>,
+    pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
+    post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
+    drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
 }
 
 impl StandardPipeline {
     pub fn new() -> Self {
+        let mut pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
+        pre_processors.push(Rc::new(RefCell::new(UpdateCamera)));
+        pre_processors.push(Rc::new(RefCell::new(UpdateViewport)));
+        pre_processors.push(Rc::new(RefCell::new(EnableDepthTest)));
+        pre_processors.push(Rc::new(RefCell::new(EnableCullFace)));
+        pre_processors.push(Rc::new(RefCell::new(EnableBlend)));
+        pre_processors.push(Rc::new(RefCell::new(ClearColor::new(0.0, 0.0, 0.0, 0.0))));
+        pre_processors.push(Rc::new(RefCell::new(ClearDepth::new(1.0))));
+        pre_processors.push(Rc::new(RefCell::new(SetCullFaceMode::new(CullFace::Back))));
+
+        let mut post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
+        post_processors.push(Rc::new(RefCell::new(Reset)));
+
+        let pick_drawer = Rc::new(RefCell::new(PickDetectionDrawer::new()));
+        let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
+        drawers.push(Rc::clone(&pick_drawer) as Rc<RefCell<dyn Drawer<Self>>>);
+        drawers.push(Rc::new(RefCell::new(StandardDrawer)));
+
         Self {
-            pick_drawer: Rc::new(RefCell::new(PickDetectionDrawer::new())),
+            pick_drawer,
             picked_entity: None,
+            pre_processors,
+            post_processors,
+            drawers,
         }
     }
 
@@ -166,17 +190,8 @@ impl RenderPipeline for StandardPipeline {
         _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
-        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 16]> = SmallVec::new();
-        processors.push(Box::new(UpdateCamera));
-        processors.push(Box::new(UpdateViewport));
-        processors.push(Box::new(EnableDepthTest));
-        processors.push(Box::new(EnableCullFace));
-        processors.push(Box::new(EnableBlend));
-        processors.push(Box::new(ClearColor::new(0.0, 0.0, 0.0, 0.0)));
-        processors.push(Box::new(ClearDepth::new(1.0)));
-        processors.push(Box::new(SetCullFaceMode::new(CullFace::Back)));
-        Ok(processors)
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
+        Ok(self.pre_processors.clone())
     }
 
     #[inline(always)]
@@ -186,10 +201,7 @@ impl RenderPipeline for StandardPipeline {
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
-        let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
-        drawers.push(Rc::clone(&self.pick_drawer) as Rc<RefCell<dyn Drawer<Self>>>);
-        drawers.push(Rc::new(RefCell::new(StandardDrawer)));
-        Ok(drawers)
+        Ok(self.drawers.clone())
     }
 
     #[inline(always)]
@@ -198,10 +210,8 @@ impl RenderPipeline for StandardPipeline {
         _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
-        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 16]> = SmallVec::new();
-        processors.push(Box::new(Reset));
-        Ok(processors)
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
+        Ok(self.post_processors.clone())
     }
 
     #[inline(always)]

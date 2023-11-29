@@ -100,42 +100,6 @@ impl Entity {
         }
     }
 
-    // pub(crate) fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
-    //     match self.geometry.as_mut() {
-    //         Some(geometry) => Some(geometry.as_mut()),
-    //         None => None,
-    //     }
-    // }
-
-    // pub(crate) fn material_raw(&mut self) -> Option<*mut dyn Material> {
-    //     match self.material.as_mut() {
-    //         Some(material) => Some(material.as_mut()),
-    //         None => None,
-    //     }
-    // }
-
-    // pub fn geometry(&self) -> Option<&Rc<RefCell<dyn Geometry>>> {
-    //     self.geometry.as_ref()
-    // }
-
-    // pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
-    //     self.geometry = match geometry {
-    //         Some(geometry) => Some(Rc::new(RefCell::new(geometry))),
-    //         None => None,
-    //     }
-    // }
-
-    // pub fn material(&self) -> Option<&Rc<RefCell<dyn Material>>> {
-    //     self.material.as_ref()
-    // }
-
-    // pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
-    //     self.material = match material {
-    //         Some(material) => Some(Rc::new(RefCell::new(material))),
-    //         None => None,
-    //     }
-    // }
-
     pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
         &self.attributes
     }

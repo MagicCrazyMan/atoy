@@ -74,7 +74,7 @@ pub trait RenderPipeline {
         collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;
 
     fn drawers(
         &mut self,
@@ -93,7 +93,7 @@ pub trait RenderPipeline {
         collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;
 
     fn as_any(&self) -> &dyn Any;
 

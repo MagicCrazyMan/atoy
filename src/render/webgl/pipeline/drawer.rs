@@ -9,7 +9,10 @@ use crate::{
 
 use super::{RenderPipeline, RenderState, RenderStuff};
 
-pub trait Drawer<Pipeline: RenderPipeline> {
+pub trait Drawer<Pipeline>
+where
+    Pipeline: RenderPipeline,
+{
     fn before_draw(
         &mut self,
         collected: &Vec<Rc<RefCell<Entity>>>,
@@ -26,14 +29,7 @@ pub trait Drawer<Pipeline: RenderPipeline> {
         pipeline: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<
-        Option<(
-            Rc<RefCell<Entity>>,
-            *mut dyn Geometry,
-            *mut dyn Material,
-        )>,
-        Error,
-    >;
+    ) -> Result<Option<(Rc<RefCell<Entity>>, *mut dyn Geometry, *mut dyn Material)>, Error>;
 
     fn after_each_draw(
         &mut self,
