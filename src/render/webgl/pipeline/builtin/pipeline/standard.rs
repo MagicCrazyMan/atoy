@@ -1,4 +1,8 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use smallvec::SmallVec;
 
@@ -22,6 +26,8 @@ use crate::{
     },
     scene::Scene,
 };
+
+use super::pick_detection::PickDetectionDrawer;
 
 pub struct StandardRenderStuff<'a> {
     scene: &'a mut Scene,
@@ -125,18 +131,36 @@ where
 }
 
 pub struct StandardPipeline {
-    pick_detection_position: Option<(u32, u32)>,
+    pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
+    picked_entity: Option<Weak<RefCell<Entity>>>,
 }
 
 impl StandardPipeline {
     pub fn new() -> Self {
         Self {
-            pick_detection_position: None,
+            pick_drawer: Rc::new(RefCell::new(PickDetectionDrawer::new())),
+            picked_entity: None,
         }
     }
 
-    pub fn set_pick_detection(&mut self, x: u32, y: u32) {
-        self.pick_detection_position = Some((x, y));
+    pub fn set_pick_detection(&mut self, x: i32, y: i32) {
+        self.pick_drawer.borrow_mut().set_position(x, y);
+    }
+
+    pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked_entity
+            .as_ref()
+            .and_then(|entity| entity.upgrade())
+    }
+
+    pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
+        self.picked_entity
+            .take()
+            .and_then(|entity| entity.upgrade())
+    }
+
+    pub(super) fn set_picked_entity(&mut self, entity: Option<Weak<RefCell<Entity>>>) {
+        self.picked_entity = entity;
     }
 }
 
@@ -171,9 +195,10 @@ impl RenderPipeline for StandardPipeline {
         _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error> {
-        let mut drawers: SmallVec<[Box<dyn Drawer<Self>>; 8]> = SmallVec::new();
-        drawers.push(Box::new(StandardDrawer));
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
+        let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
+        drawers.push(Rc::clone(&self.pick_drawer) as Rc<RefCell<dyn Drawer<Self>>>);
+        drawers.push(Rc::new(RefCell::new(StandardDrawer)));
         Ok(drawers)
     }
 

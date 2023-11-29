@@ -279,7 +279,8 @@ impl WebGL2Render {
         // draw stage
         let drawers = pipeline.drawers(&collected, state, stuff)?;
         let mut last_program = None as Option<ProgramItem>;
-        for mut drawer in drawers {
+        for drawer in drawers {
+            let mut drawer = drawer.borrow_mut();
             let Some(filtered) = drawer.before_draw(&collected, pipeline, state, stuff)? else {
                 continue;
             };
@@ -388,7 +389,7 @@ impl WebGL2Render {
                     stuff,
                 )?;
             }
-            // drawer.after_draw(&collected, pipeline, state, stuff)?;
+            drawer.after_draw(&filtered, &collected, pipeline, state, stuff)?;
         }
 
         // post-process stages

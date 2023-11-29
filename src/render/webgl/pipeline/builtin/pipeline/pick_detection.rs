@@ -1,8 +1,4 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::console_log;
@@ -18,15 +14,16 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         error::Error,
-        pipeline::{drawer::Drawer, RenderPipeline, RenderState, RenderStuff},
+        pipeline::{drawer::Drawer, RenderState, RenderStuff},
         program::ShaderSource,
         uniform::{UniformBinding, UniformValue},
     },
 };
 
-pub struct PickDetectionDrawer {
+use super::standard::StandardPipeline;
+
+pub(super) struct PickDetectionDrawer {
     position: Option<(i32, i32)>,
-    picked: Option<Weak<RefCell<Entity>>>,
     result: Uint32Array,
     material: Rc<RefCell<PickDetectionMaterial>>,
     framebuffer: Option<WebGlFramebuffer>,
@@ -35,7 +32,7 @@ pub struct PickDetectionDrawer {
 }
 
 impl PickDetectionDrawer {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             material: Rc::new(RefCell::new(PickDetectionMaterial)),
             result: Uint32Array::new_with_length(1),
@@ -43,16 +40,11 @@ impl PickDetectionDrawer {
             renderbuffer: None,
             texture: None,
             position: None,
-            picked: None,
         }
     }
 
-    pub fn set_position(&mut self, x: i32, y: i32) {
+    pub(super) fn set_position(&mut self, x: i32, y: i32) {
         self.position = Some((x, y));
-    }
-
-    pub fn pick(&self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked.as_ref().and_then(|entity| entity.upgrade())
     }
 
     fn canvas_from_gl(&self, gl: &WebGl2RenderingContext) -> Result<HtmlCanvasElement, Error> {
@@ -149,14 +141,11 @@ impl PickDetectionDrawer {
     }
 }
 
-impl<Pipeline> Drawer<Pipeline> for PickDetectionDrawer
-where
-    Pipeline: RenderPipeline,
-{
+impl Drawer<StandardPipeline> for PickDetectionDrawer {
     fn before_draw(
         &mut self,
         collected: &Vec<Rc<RefCell<Entity>>>,
-        _: &mut Pipeline,
+        _: &mut StandardPipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<Option<Vec<Rc<RefCell<Entity>>>>, Error> {
@@ -164,7 +153,7 @@ where
             return Ok(None);
         }
 
-        if collected.len() > u32::MAX as usize {
+        if collected.len() - 1 > u32::MAX as usize {
             console_log!(
                 "too many entities: {}, skipping pick detection",
                 collected.len()
@@ -172,11 +161,16 @@ where
             return Ok(None);
         }
 
+        // clear previous
+        self.result.set_index(0, 0);
+
         let gl = &state.gl;
 
+        // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(gl)?;
         let renderbuffer = self.use_depth_renderbuffer(gl)?;
         let texture = self.use_texture(gl)?;
+        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&framebuffer));
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -189,10 +183,13 @@ where
         );
         gl.framebuffer_renderbuffer(
             WebGl2RenderingContext::FRAMEBUFFER,
-            WebGl2RenderingContext::DEPTH_COMPONENT24,
+            WebGl2RenderingContext::DEPTH_ATTACHMENT,
             WebGl2RenderingContext::RENDERBUFFER,
             Some(&renderbuffer),
         );
+
+        gl.clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
+        gl.clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
 
         Ok(Some(collected.clone()))
     }
@@ -202,7 +199,7 @@ where
         entity: &Rc<RefCell<Entity>>,
         _: &Vec<Rc<RefCell<Entity>>>,
         _: &Vec<Rc<RefCell<Entity>>>,
-        _: &mut Pipeline,
+        _: &mut StandardPipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<
@@ -229,7 +226,7 @@ where
         _: &RenderEntity,
         _: &Vec<Rc<RefCell<Entity>>>,
         _: &Vec<Rc<RefCell<Entity>>>,
-        _: &mut Pipeline,
+        _: &mut StandardPipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -240,7 +237,7 @@ where
         &mut self,
         filtered: &Vec<Rc<RefCell<Entity>>>,
         _: &Vec<Rc<RefCell<Entity>>>,
-        _: &mut Pipeline,
+        pipeline: &mut StandardPipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
@@ -257,13 +254,16 @@ where
         )
         .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
-        self.picked = filtered
-            .get(self.result.get_index(0) as usize)
+        let picked = filtered
+            .get(self.result.get_index(0) as usize - 1)
             .map(|entity| Rc::downgrade(entity));
+        pipeline.set_picked_entity(picked);
 
+        self.position = None;
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
         Ok(())
     }
 }
@@ -303,7 +303,7 @@ impl Material for PickDetectionMaterial {
     fn uniform_value(&self, name: &str, entity: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
             "u_Index" => Some(UniformValue::UnsignedInteger1(
-                entity.filtered_index() as u32
+                (entity.filtered_index() + 1) as u32,
             )),
             _ => None,
         }

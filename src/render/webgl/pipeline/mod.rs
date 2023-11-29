@@ -81,7 +81,7 @@ pub trait RenderPipeline {
         collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error>;
+    ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error>;
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
