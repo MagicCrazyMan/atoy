@@ -42,14 +42,29 @@ pub trait Geometry {
     fn after_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
 }
 
-pub struct GeometryRenderEntity {
+pub struct GeometryRenderEntity<'a> {
     entity: Rc<RefCell<Entity>>,
     material: Rc<RefCell<dyn Material>>,
+    collected: &'a [Rc<RefCell<Entity>>],
+    filtered: &'a [Rc<RefCell<Entity>>],
+    filtered_index: usize,
 }
 
-impl GeometryRenderEntity {
-    pub(crate) fn new(entity: Rc<RefCell<Entity>>, material: Rc<RefCell<dyn Material>>) -> Self {
-        Self { entity, material }
+impl<'a> GeometryRenderEntity<'a> {
+    pub(crate) fn new(
+        entity: Rc<RefCell<Entity>>,
+        material: Rc<RefCell<dyn Material>>,
+        collected: &'a [Rc<RefCell<Entity>>],
+        filtered: &'a [Rc<RefCell<Entity>>],
+        filtered_index: usize,
+    ) -> Self {
+        Self {
+            entity,
+            material,
+            collected,
+            filtered,
+            filtered_index,
+        }
     }
 
     #[inline]
@@ -60,5 +75,20 @@ impl GeometryRenderEntity {
     #[inline]
     pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
         &self.material
+    }
+
+    #[inline]
+    pub fn collected(&self) -> &[Rc<RefCell<Entity>>] {
+        self.collected
+    }
+
+    #[inline]
+    pub fn filtered(&self) -> &[Rc<RefCell<Entity>>] {
+        self.filtered
+    }
+
+    #[inline]
+    pub fn filtered_index(&self) -> usize {
+        self.filtered_index
     }
 }

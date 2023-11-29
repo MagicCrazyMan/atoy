@@ -277,22 +277,31 @@ impl EntityCollection {
 /// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
 /// Be aware, geometry and material may not extract from entity,
 /// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
-pub struct RenderEntity {
+pub struct RenderEntity<'a> {
     entity: Rc<RefCell<Entity>>,
     geometry: Rc<RefCell<dyn Geometry>>,
     material: Rc<RefCell<dyn Material>>,
+    collected: &'a [Rc<RefCell<Entity>>],
+    filtered: &'a [Rc<RefCell<Entity>>],
+    filtered_index: usize,
 }
 
-impl RenderEntity {
+impl<'a> RenderEntity<'a> {
     pub fn new(
         entity: Rc<RefCell<Entity>>,
         geometry: Rc<RefCell<dyn Geometry>>,
         material: Rc<RefCell<dyn Material>>,
+        collected: &'a [Rc<RefCell<Entity>>],
+        filtered: &'a [Rc<RefCell<Entity>>],
+        filtered_index: usize,
     ) -> Self {
         Self {
             entity,
             geometry,
             material,
+            collected,
+            filtered,
+            filtered_index,
         }
     }
 
@@ -309,5 +318,20 @@ impl RenderEntity {
     #[inline]
     pub fn material(&self) -> &Rc<RefCell<dyn Material>> {
         &self.material
+    }
+
+    #[inline]
+    pub fn collected(&self) -> &[Rc<RefCell<Entity>>] {
+        self.collected
+    }
+
+    #[inline]
+    pub fn filtered(&self) -> &[Rc<RefCell<Entity>>] {
+        self.filtered
+    }
+
+    #[inline]
+    pub fn filtered_index(&self) -> usize {
+        self.filtered_index
     }
 }

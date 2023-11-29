@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, VecDeque},
     rc::Rc,
@@ -9,7 +8,6 @@ use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::AsVec3,
 };
-use uuid::Uuid;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::{
@@ -282,37 +280,47 @@ impl WebGL2Render {
         let drawers = pipeline.drawers(&collected, state, stuff)?;
         let mut last_program = None as Option<ProgramItem>;
         for mut drawer in drawers {
-            let entities = drawer.before_draw(&collected, pipeline, state, stuff)?;
-            for entity in entities {
+            let Some(filtered) = drawer.before_draw(&collected, pipeline, state, stuff)? else {
+                continue;
+            };
+            for (index, entity) in filtered.iter().enumerate() {
                 // before each draw of drawer
-                let render_entity =
-                    drawer.before_each_draw(&entity, &collected, pipeline, state, stuff)?;
-                let Some(render_entity) = render_entity else {
+                let Some((entity, geometry, material)) = drawer
+                    .before_each_draw(&entity, &filtered, &collected, pipeline, state, stuff)?
+                else {
                     continue;
                 };
 
-                // prepareof material and geometry
-                render_entity
-                    .material()
-                    .borrow_mut()
-                    .prepare(state, &entity);
-                render_entity
-                    .geometry()
-                    .borrow_mut()
-                    .prepare(state, &entity);
+                // prepare material and geometry
+                material.borrow_mut().prepare(state, &entity);
+                geometry.borrow_mut().prepare(state, &entity);
 
                 // skip if not ready yet
-                if !render_entity.material().borrow().ready() {
+                if !material.borrow().ready() {
                     continue;
                 }
 
+                let render_entity = RenderEntity::new(
+                    Rc::clone(&entity),
+                    Rc::clone(&geometry),
+                    Rc::clone(&material),
+                    &collected,
+                    &filtered,
+                    index,
+                );
                 let geometry_render_entity = GeometryRenderEntity::new(
                     Rc::clone(render_entity.entity()),
                     Rc::clone(render_entity.material()),
+                    &collected,
+                    &filtered,
+                    index,
                 );
                 let material_render_entity = MaterialRenderEntity::new(
                     Rc::clone(render_entity.entity()),
                     Rc::clone(render_entity.geometry()),
+                    &collected,
+                    &filtered,
+                    index,
                 );
 
                 // compile and bind program only when last program isn't equals the material
@@ -371,9 +379,16 @@ impl WebGL2Render {
                     .borrow_mut()
                     .after_draw(state, &geometry_render_entity);
                 // after each draw of drawer
-                drawer.after_each_draw(&render_entity, &collected, pipeline, state, stuff)?;
+                drawer.after_each_draw(
+                    &render_entity,
+                    &filtered,
+                    &collected,
+                    pipeline,
+                    state,
+                    stuff,
+                )?;
             }
-            drawer.after_draw(&collected, pipeline, state, stuff)?;
+            // drawer.after_draw(&collected, pipeline, state, stuff)?;
         }
 
         // post-process stages
@@ -389,14 +404,15 @@ impl WebGL2Render {
     fn collect_entities<Stuff>(
         &mut self,
         stuff: &mut Stuff,
-    ) -> Result<HashMap<Uuid, Rc<RefCell<Entity>>>, Error>
+    ) -> Result<Vec<Rc<RefCell<Entity>>>, Error>
     where
         Stuff: RenderStuff,
     {
         let view_matrix = stuff.camera().view_matrix();
         let proj_matrix = stuff.camera().proj_matrix();
 
-        let mut collected = HashMap::new();
+        // let mut collected = HashMap::new();
+        let mut collected = Vec::new();
 
         let mut collections =
             VecDeque::from([(Mat4::new_identity(), stuff.entity_collection_mut())]);
@@ -416,13 +432,7 @@ impl WebGL2Render {
                     console_log!("{}", err);
                     continue;
                 }
-
-                if collected.contains_key(entity.borrow().id()) {
-                    // should warning
-                    continue;
-                } else {
-                    collected.insert(*entity.borrow().id(), Rc::clone(entity));
-                }
+                collected.push(Rc::clone(entity));
             }
 
             // add sub-collections to list

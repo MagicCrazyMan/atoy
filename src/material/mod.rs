@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, any::Any};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crate::{
     entity::Entity,
@@ -53,14 +53,29 @@ pub trait Material {
     fn after_draw(&mut self, state: &RenderState, entity: &MaterialRenderEntity) {}
 }
 
-pub struct MaterialRenderEntity {
+pub struct MaterialRenderEntity<'a> {
     entity: Rc<RefCell<Entity>>,
     geometry: Rc<RefCell<dyn Geometry>>,
+    collected: &'a [Rc<RefCell<Entity>>],
+    filtered: &'a [Rc<RefCell<Entity>>],
+    filtered_index: usize,
 }
 
-impl MaterialRenderEntity {
-    pub(crate) fn new(entity: Rc<RefCell<Entity>>, geometry: Rc<RefCell<dyn Geometry>>) -> Self {
-        Self { entity, geometry }
+impl<'a> MaterialRenderEntity<'a> {
+    pub(crate) fn new(
+        entity: Rc<RefCell<Entity>>,
+        geometry: Rc<RefCell<dyn Geometry>>,
+        collected: &'a [Rc<RefCell<Entity>>],
+        filtered: &'a [Rc<RefCell<Entity>>],
+        filtered_index: usize,
+    ) -> Self {
+        Self {
+            entity,
+            geometry,
+            collected,
+            filtered,
+            filtered_index,
+        }
     }
 
     #[inline]
@@ -71,5 +86,20 @@ impl MaterialRenderEntity {
     #[inline]
     pub fn geometry(&self) -> &Rc<RefCell<dyn Geometry>> {
         &self.geometry
+    }
+
+    #[inline]
+    pub fn collected(&self) -> &[Rc<RefCell<Entity>>] {
+        self.collected
+    }
+
+    #[inline]
+    pub fn filtered(&self) -> &[Rc<RefCell<Entity>>] {
+        self.filtered
+    }
+
+    #[inline]
+    pub fn filtered_index(&self) -> usize {
+        self.filtered_index
     }
 }

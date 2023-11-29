@@ -1,11 +1,12 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use smallvec::SmallVec;
-use uuid::Uuid;
 
 use crate::{
     camera::Camera,
     entity::{Entity, EntityCollection, RenderEntity},
+    geometry::Geometry,
+    material::Material,
     render::webgl::{
         draw::CullFace,
         error::Error,
@@ -56,34 +57,38 @@ impl<Pipeline> Drawer<Pipeline> for StandardDrawer
 where
     Pipeline: RenderPipeline,
 {
-    #[inline]
+    #[inline(always)]
     fn before_draw(
         &mut self,
-        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        collected: &Vec<Rc<RefCell<Entity>>>,
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Vec<Rc<RefCell<Entity>>>, Error> {
-        Ok(collected
-            .values()
-            .into_iter()
-            .map(|entity| Rc::clone(entity))
-            .collect::<Vec<_>>())
+    ) -> Result<Option<Vec<Rc<RefCell<Entity>>>>, Error> {
+        Ok(Some(collected.clone()))
     }
 
-    #[inline]
+    #[inline(always)]
     fn before_each_draw(
         &mut self,
         entity: &Rc<RefCell<Entity>>,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<Option<RenderEntity>, Error> {
+    ) -> Result<
+        Option<(
+            Rc<RefCell<Entity>>,
+            Rc<RefCell<dyn Geometry>>,
+            Rc<RefCell<dyn Material>>,
+        )>,
+        Error,
+    > {
         let entity_guard = entity.borrow();
         if let (Some(geometry), Some(material)) = (entity_guard.geometry(), entity_guard.material())
         {
-            Ok(Some(RenderEntity::new(
+            Ok(Some((
                 Rc::clone(entity),
                 Rc::clone(geometry),
                 Rc::clone(material),
@@ -93,11 +98,12 @@ where
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn after_each_draw(
         &mut self,
         _: &RenderEntity,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -105,10 +111,11 @@ where
         Ok(())
     }
 
-    #[inline]
+    #[inline(always)]
     fn after_draw(
         &mut self,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -117,18 +124,32 @@ where
     }
 }
 
-pub struct StandardPipeline;
+pub struct StandardPipeline {
+    pick_detection_position: Option<(u32, u32)>,
+}
+
+impl StandardPipeline {
+    pub fn new() -> Self {
+        Self {
+            pick_detection_position: None,
+        }
+    }
+
+    pub fn set_pick_detection(&mut self, x: u32, y: u32) {
+        self.pick_detection_position = Some((x, y));
+    }
+}
 
 impl RenderPipeline for StandardPipeline {
-    #[inline]
+    #[inline(always)]
     fn prepare(&mut self, _: &mut RenderState, _: &mut dyn RenderStuff) -> Result<bool, Error> {
         Ok(true)
     }
 
-    #[inline]
+    #[inline(always)]
     fn pre_processors(
         &mut self,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
@@ -144,10 +165,10 @@ impl RenderPipeline for StandardPipeline {
         Ok(processors)
     }
 
-    #[inline]
+    #[inline(always)]
     fn drawers(
         &mut self,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error> {
@@ -156,10 +177,10 @@ impl RenderPipeline for StandardPipeline {
         Ok(drawers)
     }
 
-    #[inline]
+    #[inline(always)]
     fn post_processors(
         &mut self,
-        _: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        _: &Vec<Rc<RefCell<Entity>>>,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error> {
@@ -168,12 +189,12 @@ impl RenderPipeline for StandardPipeline {
         Ok(processors)
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    #[inline]
+    #[inline(always)]
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

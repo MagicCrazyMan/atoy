@@ -2,11 +2,10 @@ pub mod builtin;
 pub mod drawer;
 pub mod process;
 
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
 use smallvec::SmallVec;
-use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
@@ -72,14 +71,14 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn pre_processors(
         &mut self,
-        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
 
     fn drawers(
         &mut self,
-        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Drawer<Self>>; 8]>, Error>;
@@ -91,7 +90,7 @@ pub trait RenderPipeline {
     /// Returning a empty slice makes render program do nothing.
     fn post_processors(
         &mut self,
-        collected: &HashMap<Uuid, Rc<RefCell<Entity>>>,
+        collected: &Vec<Rc<RefCell<Entity>>>,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 16]>, Error>;
