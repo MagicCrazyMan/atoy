@@ -2,13 +2,13 @@ use crate::render::webgl::error::Error;
 
 use super::{RenderPipeline, RenderState, RenderStuff};
 
-pub trait PreProcessor<Pipeline>
+pub trait Processor<Pipeline>
 where
     Pipeline: RenderPipeline,
 {
     fn name(&self) -> &str;
 
-    fn pre_process(
+    fn process(
         &mut self,
         pipeline: &mut Pipeline,
         state: &mut RenderState,

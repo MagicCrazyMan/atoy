@@ -21,15 +21,11 @@ use crate::{
         draw::CullFace,
         error::Error,
         pipeline::{
-            builtin::{
-                postprocessor::Reset,
-                preprocessor::{
-                    EnableCullFace, EnableDepthTest, SetCullFaceMode, UpdateCamera, UpdateViewport,
-                },
+            builtin::processor::{
+                EnableCullFace, EnableDepthTest, SetCullFaceMode, UpdateCamera, UpdateViewport, Reset,
             },
             policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
-            postprocess::PostProcessor,
-            preprocess::PreProcessor,
+            process::Processor,
             RenderPipeline, RenderState, RenderStuff,
         },
         program::ShaderSource,
@@ -186,8 +182,8 @@ impl RenderPipeline for PickDetection {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn PreProcessor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
         processors.push(Box::new(UsePickDetectionFramebuffer));
         processors.push(Box::new(UpdateCamera));
         processors.push(Box::new(UpdateViewport));
@@ -228,8 +224,8 @@ impl RenderPipeline for PickDetection {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn PostProcessor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
         processors.push(Box::new(PickDetectionPickEntity));
         processors.push(Box::new(Reset));
         Ok(processors)
@@ -246,12 +242,12 @@ impl RenderPipeline for PickDetection {
 
 struct UsePickDetectionFramebuffer;
 
-impl PreProcessor<PickDetection> for UsePickDetectionFramebuffer {
+impl Processor<PickDetection> for UsePickDetectionFramebuffer {
     fn name(&self) -> &str {
         "UsePickDetectionFramebuffer"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         pipeline: &mut PickDetection,
         state: &mut RenderState,
@@ -287,12 +283,12 @@ impl PreProcessor<PickDetection> for UsePickDetectionFramebuffer {
 
 struct PickDetectionClear;
 
-impl PreProcessor<PickDetection> for PickDetectionClear {
+impl Processor<PickDetection> for PickDetectionClear {
     fn name(&self) -> &str {
         "PickDetectionClear"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut PickDetection,
         state: &mut RenderState,
@@ -310,12 +306,12 @@ impl PreProcessor<PickDetection> for PickDetectionClear {
 
 struct PickDetectionPickEntity;
 
-impl PostProcessor<PickDetection> for PickDetectionPickEntity {
+impl Processor<PickDetection> for PickDetectionPickEntity {
     fn name(&self) -> &str {
         "PickDetectionPickEntity"
     }
 
-    fn post_process(
+    fn process(
         &mut self,
         pipeline: &mut PickDetection,
         state: &mut RenderState,

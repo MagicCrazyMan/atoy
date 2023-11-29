@@ -9,16 +9,12 @@ use crate::{
         draw::CullFace,
         error::Error,
         pipeline::{
-            builtin::{
-                postprocessor::Reset,
-                preprocessor::{
-                    ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest,
-                    SetCullFaceMode, UpdateCamera, UpdateViewport,
-                },
+            builtin::processor::{
+                ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, Reset,
+                SetCullFaceMode, UpdateCamera, UpdateViewport,
             },
             policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
-            postprocess::PostProcessor,
-            preprocess::PreProcessor,
+            process::Processor,
             RenderPipeline, RenderState, RenderStuff,
         },
     },
@@ -72,8 +68,8 @@ impl<'a> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn PreProcessor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
         processors.push(Box::new(UpdateCamera));
         processors.push(Box::new(UpdateViewport));
         processors.push(Box::new(EnableDepthTest));
@@ -113,8 +109,8 @@ impl<'a> RenderPipeline for StandardPipeline {
         &mut self,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error> {
-        let mut processors: SmallVec<[Box<dyn PostProcessor<Self>>; 12]> = SmallVec::new();
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error> {
+        let mut processors: SmallVec<[Box<dyn Processor<Self>>; 12]> = SmallVec::new();
         processors.push(Box::new(Reset));
         Ok(processors)
     }

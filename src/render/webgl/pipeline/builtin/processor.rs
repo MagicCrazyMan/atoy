@@ -4,13 +4,13 @@ use crate::render::webgl::{
     conversion::{GLint, GLuint, ToGlEnum},
     draw::CullFace,
     error::Error,
-    pipeline::{preprocess::PreProcessor, RenderPipeline, RenderState, RenderStuff},
+    pipeline::{process::Processor, RenderPipeline, RenderState, RenderStuff},
     stencil::{StencilFunction, StencilOp},
 };
 
 pub struct UpdateCamera;
 
-impl<Pipeline> PreProcessor<Pipeline> for UpdateCamera
+impl<Pipeline> Processor<Pipeline> for UpdateCamera
 where
     Pipeline: RenderPipeline,
 {
@@ -18,7 +18,7 @@ where
         "UpdateCamera"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -31,7 +31,7 @@ where
 
 pub struct UpdateViewport;
 
-impl<Pipeline> PreProcessor<Pipeline> for UpdateViewport
+impl<Pipeline> Processor<Pipeline> for UpdateViewport
 where
     Pipeline: RenderPipeline,
 {
@@ -39,7 +39,7 @@ where
         "UpdateViewport"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -57,7 +57,7 @@ where
 
 pub struct EnableDepthTest;
 
-impl<Pipeline> PreProcessor<Pipeline> for EnableDepthTest
+impl<Pipeline> Processor<Pipeline> for EnableDepthTest
 where
     Pipeline: RenderPipeline,
 {
@@ -65,7 +65,7 @@ where
         "EnableDepthTest"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -84,7 +84,7 @@ impl SetDepthMask {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for SetDepthMask
+impl<Pipeline> Processor<Pipeline> for SetDepthMask
 where
     Pipeline: RenderPipeline,
 {
@@ -92,7 +92,7 @@ where
         "SetDepthMask"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -105,7 +105,7 @@ where
 
 pub struct EnableCullFace;
 
-impl<Pipeline> PreProcessor<Pipeline> for EnableCullFace
+impl<Pipeline> Processor<Pipeline> for EnableCullFace
 where
     Pipeline: RenderPipeline,
 {
@@ -113,7 +113,7 @@ where
         "EnableCullFace"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -132,7 +132,7 @@ impl SetCullFaceMode {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for SetCullFaceMode
+impl<Pipeline> Processor<Pipeline> for SetCullFaceMode
 where
     Pipeline: RenderPipeline,
 {
@@ -140,7 +140,7 @@ where
         "SetCullFaceMode"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -153,7 +153,7 @@ where
 
 pub struct EnableBlend;
 
-impl<Pipeline> PreProcessor<Pipeline> for EnableBlend
+impl<Pipeline> Processor<Pipeline> for EnableBlend
 where
     Pipeline: RenderPipeline,
 {
@@ -161,7 +161,7 @@ where
         "EnableBlend"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -174,7 +174,7 @@ where
 
 pub struct EnableStencil;
 
-impl<Pipeline> PreProcessor<Pipeline> for EnableStencil
+impl<Pipeline> Processor<Pipeline> for EnableStencil
 where
     Pipeline: RenderPipeline,
 {
@@ -182,7 +182,7 @@ where
         "EnableStencil"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -201,7 +201,7 @@ impl SetStencilMask {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for SetStencilMask
+impl<Pipeline> Processor<Pipeline> for SetStencilMask
 where
     Pipeline: RenderPipeline,
 {
@@ -209,7 +209,7 @@ where
         "SetStencilMask"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -228,7 +228,7 @@ impl SetStencilFunc {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for SetStencilFunc
+impl<Pipeline> Processor<Pipeline> for SetStencilFunc
 where
     Pipeline: RenderPipeline,
 {
@@ -236,7 +236,7 @@ where
         "SetStencilFunc"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -255,7 +255,7 @@ impl SetStencilOp {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for SetStencilOp
+impl<Pipeline> Processor<Pipeline> for SetStencilOp
 where
     Pipeline: RenderPipeline,
 {
@@ -263,7 +263,7 @@ where
         "SetStencilOp"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -284,7 +284,7 @@ impl ClearColor {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for ClearColor
+impl<Pipeline> Processor<Pipeline> for ClearColor
 where
     Pipeline: RenderPipeline,
 {
@@ -292,7 +292,7 @@ where
         "ClearColor"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -312,7 +312,7 @@ impl ClearDepth {
     }
 }
 
-impl<Pipeline> PreProcessor<Pipeline> for ClearDepth
+impl<Pipeline> Processor<Pipeline> for ClearDepth
 where
     Pipeline: RenderPipeline,
 {
@@ -320,7 +320,7 @@ where
         "ClearDepth"
     }
 
-    fn pre_process(
+    fn process(
         &mut self,
         _: &mut Pipeline,
         state: &mut RenderState,
@@ -328,6 +328,91 @@ where
     ) -> Result<(), Error> {
         state.gl.clear_depth(self.0);
         state.gl.clear(WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+        Ok(())
+    }
+}
+
+pub struct Reset;
+
+impl<Pipeline> Processor<Pipeline> for Reset
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "Reset"
+    }
+
+    fn process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.use_program(None);
+        state
+            .gl
+            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        state
+            .gl
+            .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
+        state
+            .gl
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        state
+            .gl
+            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
+        state
+            .gl
+            .bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
+        for index in 0..32 {
+            state
+                .gl
+                .active_texture(WebGl2RenderingContext::TEXTURE0 + index);
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
+        }
+        state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        state.gl.bind_vertex_array(None);
+        state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl.disable(WebGl2RenderingContext::CULL_FACE);
+        state.gl.disable(WebGl2RenderingContext::BLEND);
+        state.gl.disable(WebGl2RenderingContext::DITHER);
+        state
+            .gl
+            .disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
+        state
+            .gl
+            .disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
+        state.gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
+        state.gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
+        state.gl.disable(WebGl2RenderingContext::STENCIL_TEST);
+        state.gl.disable(WebGl2RenderingContext::RASTERIZER_DISCARD);
+
         Ok(())
     }
 }

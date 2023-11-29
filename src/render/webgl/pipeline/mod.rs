@@ -1,7 +1,6 @@
 pub mod builtin;
 pub mod policy;
-pub mod postprocess;
-pub mod preprocess;
+pub mod process;
 
 use std::any::Any;
 
@@ -12,8 +11,7 @@ use crate::{camera::Camera, entity::EntityCollection};
 
 use self::{
     policy::{CollectPolicy, GeometryPolicy, MaterialPolicy, PreparationPolicy},
-    postprocess::PostProcessor,
-    preprocess::PreProcessor,
+    process::Processor,
 };
 
 use super::error::Error;
@@ -50,14 +48,14 @@ pub trait RenderPipeline {
     ) -> Result<PreparationPolicy, Error>;
 
     /// Preprocess stages during render procedure.
-    /// Developer could provide multiple [`PreProcessor`]s
+    /// Developer could provide multiple [`Processor`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
     fn pre_processors(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PreProcessor<Self>>; 12]>, Error>;
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error>;
 
     /// Returns a [`MaterialPolicy`] which decides what material
     /// to use of each entity during entities collection procedure.
@@ -83,14 +81,14 @@ pub trait RenderPipeline {
 
     /// Postprecess stages during render procedure.
     /// Just similar as `pre_process`,`post_precess`
-    /// also accepts multiple [`PostProcessor`]s
+    /// also accepts multiple [`Processor`]s
     /// and render program will execute them in order.
     /// Returning a empty slice makes render program do nothing.
     fn post_processors(
         &mut self,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
-    ) -> Result<SmallVec<[Box<dyn PostProcessor<Self>>; 12]>, Error>;
+    ) -> Result<SmallVec<[Box<dyn Processor<Self>>; 12]>, Error>;
 
     fn as_any(&self) -> &dyn Any;
 
