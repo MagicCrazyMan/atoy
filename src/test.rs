@@ -726,7 +726,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
     let mut picking_pipeline = PickDetectionPipeline::new();
-    let standard_pipeline = create_standard_pipeline();
+    let mut standard_pipeline = create_standard_pipeline();
+    standard_pipeline.set_outline_color([0.0, 1.0, 0.0, 1.0]);
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -795,7 +796,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
         let client_x = event.client_x();
         let client_y = event.client_y();
-        standard_pipeline_cloned.borrow_mut().set_pick_position(client_x, client_y);
+        standard_pipeline_cloned
+            .borrow_mut()
+            .set_pick_position(client_x, client_y);
     });
     window()
         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
