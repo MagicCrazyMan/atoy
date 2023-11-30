@@ -239,7 +239,6 @@ where
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
         let gl = state.gl();
-        gl.enable(WebGl2RenderingContext::DEPTH_TEST);
         gl.stencil_func(WebGl2RenderingContext::EQUAL, 0, 0xFF);
         gl.stencil_mask(0x00);
         gl.depth_mask(true);
