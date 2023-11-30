@@ -38,7 +38,10 @@ pub struct PickDetectionPipeline {
 impl PickDetectionPipeline {
     pub fn new() -> Self {
         let receiver = Rc::new(RefCell::new(None));
-        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(&receiver), true)));
+        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(
+            Rc::clone(&receiver),
+            true,
+        )));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
         drawers.push(Rc::clone(&drawer) as Rc<RefCell<dyn Drawer<Self>>>);
 
@@ -128,6 +131,7 @@ pub(super) struct PickDetectionDrawer {
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
     receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+    depth_test_enabled: bool,
 }
 
 impl PickDetectionDrawer {
@@ -141,6 +145,7 @@ impl PickDetectionDrawer {
             texture: None,
             position: None,
             receiver,
+            depth_test_enabled: false,
         }
     }
 
@@ -180,7 +185,7 @@ impl PickDetectionDrawer {
         let h = canvas.height();
 
         if let Some((renderbuffer, width, height)) = &self.renderbuffer {
-            if w == *width || h == *height {
+            if w == *width && h == *height {
                 return Ok(renderbuffer.clone());
             } else {
                 gl.delete_renderbuffer(Some(renderbuffer));
@@ -211,7 +216,7 @@ impl PickDetectionDrawer {
         let h = canvas.height();
 
         if let Some((texture, width, height)) = &self.texture {
-            if w == *width || h == *height {
+            if w == *width && h == *height {
                 return Ok(texture.clone());
             } else {
                 gl.delete_texture(Some(texture));
@@ -222,6 +227,7 @@ impl PickDetectionDrawer {
 
         gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tx));
+
         gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
             WebGl2RenderingContext::TEXTURE_2D,
             0,
@@ -270,6 +276,11 @@ where
         self.pixel.set_index(0, 0);
 
         let gl = &state.gl;
+
+        self.depth_test_enabled = gl.is_enabled(WebGl2RenderingContext::DEPTH_TEST);
+
+        // enable depth test
+        gl.enable(WebGl2RenderingContext::DEPTH_TEST);
 
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(gl)?;
@@ -340,6 +351,7 @@ where
         };
 
         let gl = &state.gl;
+
         gl.read_pixels_with_opt_array_buffer_view(
             x,
             self.canvas_from_gl(gl)?.height() as i32 - y,
@@ -363,12 +375,16 @@ where
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
+        // reset depth test
+        if self.depth_test_enabled {
+            gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+        } else {
+            gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        }
+
         Ok(())
     }
 }
-
-const VERTEX_SHADER_SOURCE: &'static str = include_str!("./shaders/picking_vertex.glsl");
-const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("./shaders/picking_fragment.glsl");
 
 struct PickDetectionMaterial;
 
@@ -391,8 +407,8 @@ impl Material for PickDetectionMaterial {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
         &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::Vertex(include_str!("./shaders/picking_vertex.glsl")),
+            ShaderSource::Fragment(include_str!("./shaders/picking_fragment.glsl")),
         ]
     }
 
