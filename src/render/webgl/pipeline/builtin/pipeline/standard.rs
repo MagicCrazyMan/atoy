@@ -18,9 +18,8 @@ use crate::{
         error::Error,
         pipeline::{
             builtin::processor::{
-                ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest,
-                EnableStencil, Reset, SetCullFaceMode, SetStencilFunc, UpdateCamera,
-                UpdateViewport,
+                ClearColor, ClearDepth, EnableBlend, EnableCullFace, EnableDepthTest, Reset,
+                SetCullFaceMode, UpdateCamera, UpdateViewport,
             },
             drawer::Drawer,
             flow::{BeforeDrawFlow, BeforeEachDrawFlow, PreparationFlow},
@@ -28,7 +27,6 @@ use crate::{
             RenderPipeline, RenderState, RenderStuff,
         },
         program::ShaderSource,
-        stencil::StencilFunction,
         uniform::{UniformBinding, UniformValue},
     },
     scene::Scene,
@@ -162,6 +160,7 @@ where
         };
 
         let gl = state.gl();
+        gl.enable(WebGl2RenderingContext::STENCIL_TEST);
         gl.stencil_mask(0xFF);
         gl.depth_mask(false); // disable depth writing here
 
@@ -240,6 +239,11 @@ where
     ) -> Result<(), Error> {
         let gl = state.gl();
         gl.stencil_func(WebGl2RenderingContext::EQUAL, 0, 0xFF);
+        gl.stencil_op(
+            WebGl2RenderingContext::KEEP,
+            WebGl2RenderingContext::KEEP,
+            WebGl2RenderingContext::KEEP,
+        );
         gl.stencil_mask(0x00);
         gl.depth_mask(true);
         Ok(())
@@ -318,17 +322,11 @@ impl StandardPipeline {
         pre_processors.push(Rc::new(RefCell::new(UpdateViewport)));
         pre_processors.push(Rc::new(RefCell::new(EnableDepthTest)));
         pre_processors.push(Rc::new(RefCell::new(EnableCullFace)));
-        pre_processors.push(Rc::new(RefCell::new(EnableStencil)));
         pre_processors.push(Rc::new(RefCell::new(EnableBlend)));
         pre_processors.push(Rc::new(RefCell::new(ClearColor::new(0.0, 0.0, 0.0, 0.0))));
         pre_processors.push(Rc::new(RefCell::new(ClearDepth::new(1.0))));
         pre_processors.push(Rc::new(RefCell::new(ClearDepth::new(1.0))));
         pre_processors.push(Rc::new(RefCell::new(SetCullFaceMode::new(CullFace::Back))));
-        pre_processors.push(Rc::new(RefCell::new(SetStencilFunc::new(
-            StencilFunction::Always,
-            0,
-            0xFF,
-        ))));
 
         let mut post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
         post_processors.push(Rc::new(RefCell::new(Reset)));

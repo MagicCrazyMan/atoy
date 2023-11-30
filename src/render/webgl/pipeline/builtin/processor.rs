@@ -441,6 +441,17 @@ where
         state.gl.disable(WebGl2RenderingContext::STENCIL_TEST);
         state.gl.disable(WebGl2RenderingContext::RASTERIZER_DISCARD);
 
+        state.gl.clear_color(0.0, 0.0, 0.0, 0.0);
+        state.gl.clear_depth(0.0);
+        state.gl.clear_stencil(0);
+        state.gl.stencil_func(WebGl2RenderingContext::ALWAYS, 0, 1);
+        state.gl.stencil_mask(1);
+        state.gl.stencil_op(
+            WebGl2RenderingContext::KEEP,
+            WebGl2RenderingContext::KEEP,
+            WebGl2RenderingContext::KEEP,
+        );
+
         Ok(())
     }
 }
