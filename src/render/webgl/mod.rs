@@ -295,6 +295,7 @@ impl WebGL2Render {
                     // before each draw of drawer
                     let (geometry, material) = match drawer.before_each_draw(
                         entity,
+                        index,
                         &drawing_entities,
                         &collected_entities,
                         pipeline,
@@ -394,6 +395,7 @@ impl WebGL2Render {
                     // after each draw of drawer
                     drawer.after_each_draw(
                         &render_entity,
+                        index,
                         &drawing_entities,
                         &collected_entities,
                         pipeline,

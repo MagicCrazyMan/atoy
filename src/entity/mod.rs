@@ -139,6 +139,10 @@ impl Entity {
         self.local_matrix_changed = true;
     }
 
+    pub fn set_model_matrix(&mut self, mat: Mat4) {
+        self.model_matrix = mat;
+    }
+
     /// Updates matrices of current frame.
     /// Only updates matrices when parent model matrix changed
     /// (`parent_model_matrix` is some) or local matrix changed.
@@ -269,6 +273,10 @@ impl EntityCollection {
     pub fn set_local_matrix(&mut self, mat: Mat4) {
         self.local_matrix = mat;
         self.local_matrix_changed = true;
+    }
+
+    pub fn set_model_matrix(&mut self, mat: Mat4) {
+        self.model_matrix = mat;
     }
 
     /// Updates matrices of current frame and

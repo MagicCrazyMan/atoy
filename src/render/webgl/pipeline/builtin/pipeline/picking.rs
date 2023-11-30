@@ -30,17 +30,23 @@ use crate::{
 };
 
 pub struct PickDetectionPipeline {
+    receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
     drawer: Rc<RefCell<PickDetectionDrawer>>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
 }
 
 impl PickDetectionPipeline {
     pub fn new() -> Self {
-        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new()));
+        let receiver = Rc::new(RefCell::new(None));
+        let drawer = Rc::new(RefCell::new(PickDetectionDrawer::new(Rc::clone(&receiver), true)));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
         drawers.push(Rc::clone(&drawer) as Rc<RefCell<dyn Drawer<Self>>>);
 
-        Self { drawer, drawers }
+        Self {
+            receiver,
+            drawer,
+            drawers,
+        }
     }
 
     pub fn set_pick_position(&mut self, x: i32, y: i32) {
@@ -48,11 +54,17 @@ impl PickDetectionPipeline {
     }
 
     pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
-        self.drawer.borrow().picked_entity()
+        self.receiver
+            .borrow()
+            .as_ref()
+            .and_then(|entity| entity.upgrade())
     }
 
     pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
-        self.drawer.borrow_mut().take_picked_entity()
+        self.receiver
+            .borrow_mut()
+            .take()
+            .and_then(|entity| entity.upgrade())
     }
 }
 
@@ -108,42 +120,32 @@ impl RenderPipeline for PickDetectionPipeline {
 }
 
 pub(super) struct PickDetectionDrawer {
+    once: bool,
     position: Option<(i32, i32)>,
-    result: Uint32Array,
+    pixel: Uint32Array,
     material: PickDetectionMaterial,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
-    picked_result: Option<Weak<RefCell<Entity>>>,
+    receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
 }
 
 impl PickDetectionDrawer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>, once: bool) -> Self {
         Self {
+            once,
             material: PickDetectionMaterial,
-            result: Uint32Array::new_with_length(1),
+            pixel: Uint32Array::new_with_length(1),
             framebuffer: None,
             renderbuffer: None,
             texture: None,
             position: None,
-            picked_result: None,
+            receiver,
         }
     }
 
     pub(super) fn set_position(&mut self, x: i32, y: i32) {
         self.position = Some((x, y));
-    }
-
-    pub(super) fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked_result
-            .as_ref()
-            .and_then(|entity| entity.upgrade())
-    }
-
-    pub(super) fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
-        self.picked_result
-            .take()
-            .and_then(|entity| entity.upgrade())
     }
 
     fn canvas_from_gl(&self, gl: &WebGl2RenderingContext) -> Result<HtmlCanvasElement, Error> {
@@ -264,7 +266,8 @@ where
         }
 
         // clear previous
-        self.result.set_index(0, 0);
+        *self.receiver.borrow_mut() = None;
+        self.pixel.set_index(0, 0);
 
         let gl = &state.gl;
 
@@ -299,6 +302,7 @@ where
     fn before_each_draw(
         &mut self,
         _: &Rc<RefCell<Entity>>,
+        _: usize,
         _: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
@@ -311,6 +315,7 @@ where
     fn after_each_draw(
         &mut self,
         _: &RenderEntity,
+        _: usize,
         _: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
         _: &mut Pipeline,
@@ -328,26 +333,30 @@ where
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
-        let (x, y) = &self.position.take().unwrap(); // safe unwrap
+        let (x, y) = if self.once {
+            self.position.take().unwrap() // safe unwrap
+        } else {
+            self.position.clone().unwrap()
+        };
 
         let gl = &state.gl;
         gl.read_pixels_with_opt_array_buffer_view(
-            *x,
-            self.canvas_from_gl(gl)?.height() as i32 - *y,
+            x,
+            self.canvas_from_gl(gl)?.height() as i32 - y,
             1,
             1,
             WebGl2RenderingContext::RED_INTEGER,
             WebGl2RenderingContext::UNSIGNED_INT,
-            Some(&self.result),
+            Some(&self.pixel),
         )
         .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
         match drawing_entities
-            .get(self.result.get_index(0) as usize - 1)
+            .get(self.pixel.get_index(0) as usize - 1)
             .map(|entity| Rc::downgrade(entity))
         {
-            Some(entity) => self.picked_result = Some(entity),
-            None => self.picked_result = None,
+            Some(entity) => *self.receiver.borrow_mut() = Some(entity),
+            None => *self.receiver.borrow_mut() = None,
         }
 
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);

@@ -332,6 +332,34 @@ where
     }
 }
 
+pub struct ClearStencil(i32);
+
+impl ClearStencil {
+    pub fn new(stencil: i32) -> Self {
+        Self(stencil)
+    }
+}
+
+impl<Pipeline> Processor<Pipeline> for ClearStencil
+where
+    Pipeline: RenderPipeline,
+{
+    fn name(&self) -> &str {
+        "ClearStencil"
+    }
+
+    fn process(
+        &mut self,
+        _: &mut Pipeline,
+        state: &mut RenderState,
+        _: &mut dyn RenderStuff,
+    ) -> Result<(), Error> {
+        state.gl.clear_stencil(self.0);
+        state.gl.clear(WebGl2RenderingContext::STENCIL_BUFFER_BIT);
+        Ok(())
+    }
+}
+
 pub struct Reset;
 
 impl<Pipeline> Processor<Pipeline> for Reset

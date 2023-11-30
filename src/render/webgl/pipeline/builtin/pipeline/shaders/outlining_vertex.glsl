@@ -1,4 +1,4 @@
-#version 300 es 
+#version 300 es
 
 in vec4 a_Position;
 

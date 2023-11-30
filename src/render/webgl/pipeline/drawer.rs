@@ -25,6 +25,7 @@ where
     fn before_each_draw(
         &mut self,
         entity: &Rc<RefCell<Entity>>,
+        drawing_index: usize,
         drawing_entities: &[Rc<RefCell<Entity>>],
         collected_entities: &[Rc<RefCell<Entity>>],
         pipeline: &mut Pipeline,
@@ -35,6 +36,7 @@ where
     fn after_each_draw(
         &mut self,
         entity: &RenderEntity,
+        drawing_index: usize,
         drawing_entities: &[Rc<RefCell<Entity>>],
         collected_entities: &[Rc<RefCell<Entity>>],
         pipeline: &mut Pipeline,

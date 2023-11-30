@@ -159,8 +159,11 @@ fn create_render() -> Result<WebGL2Render, Error> {
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-    let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline();
+    let render = create_render()?;
+    let render = Rc::new(RefCell::new(render));
+    let last_frame_time = Rc::new(RefCell::new(0.0));
+    let mut picking_pipeline = PickDetectionPipeline::new();
+    let mut standard_pipeline = create_standard_pipeline();
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -182,13 +185,42 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         entity.set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
+    let scene = Rc::new(RefCell::new(scene));
 
-    let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
-    let pick_position_cloned = Rc::clone(&pick_position);
+    let render_cloned = Rc::clone(&render);
+    let scene_cloned = Rc::clone(&scene);
+    let last_frame_time_cloned = Rc::clone(&last_frame_time);
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
         let client_x = event.client_x();
         let client_y = event.client_y();
-        *pick_position_cloned.borrow_mut() = Some((client_x, client_y));
+
+        let start = window().performance().unwrap().now();
+        picking_pipeline.set_pick_position(client_x, client_y);
+        render_cloned
+            .borrow_mut()
+            .render(
+                &mut picking_pipeline,
+                &mut StandardRenderStuff::new(&mut scene_cloned.borrow_mut()),
+                *last_frame_time_cloned.borrow(),
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("pick")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
+
+        if let Some(entity) = picking_pipeline.take_picked_entity() {
+            console_log!("pick entity {}", entity.borrow().id());
+
+            let mut entity = (*entity).borrow_mut();
+            let material = entity.material_mut().unwrap();
+            material
+                .as_any_mut()
+                .downcast_mut::<SolidColorMaterial>()
+                .unwrap()
+                .set_color(rand::random());
+        }
     });
     window()
         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
@@ -204,18 +236,16 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene
+            .borrow_mut()
             .entity_collection_mut()
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-        if let Some((x, y)) = pick_position.borrow_mut().take() {
-            pipeline.set_pick_position(x, y);
-        }
-
         let start = window().performance().unwrap().now();
         render
+            .borrow_mut()
             .render(
-                &mut pipeline,
-                &mut StandardRenderStuff::new(&mut scene),
+                &mut standard_pipeline,
+                &mut StandardRenderStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
             .unwrap();
@@ -224,17 +254,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .get_element_by_id("total")
             .unwrap()
             .set_inner_html(&format!("{:.2}", end - start));
-
-        if let Some(entity) = pipeline.take_picked_entity() {
-            console_log!("pick entity {}", entity.borrow().id());
-            let mut entity = (*entity).borrow_mut();
-            let material = entity.material_mut().unwrap();
-            material
-                .as_any_mut()
-                .downcast_mut::<SolidColorMaterial>()
-                .unwrap()
-                .set_color(rand::random());
-        }
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -702,12 +721,13 @@ pub fn test_instanced_cube(
 
 #[wasm_bindgen]
 pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 10.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
     let mut picking_pipeline = PickDetectionPipeline::new();
-    let mut standard_pipeline = create_standard_pipeline();
+    let standard_pipeline = create_standard_pipeline();
+    let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -738,6 +758,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let client_x = event.client_x();
         let client_y = event.client_y();
 
+        let start = window().performance().unwrap().now();
         picking_pipeline.set_pick_position(client_x, client_y);
         render_cloned
             .borrow_mut()
@@ -747,6 +768,11 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 *last_frame_time_cloned.borrow(),
             )
             .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("pick")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
         if let Some(entity) = picking_pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
@@ -765,6 +791,17 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         .unwrap();
     click.forget();
 
+    let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        let client_x = event.client_x();
+        let client_y = event.client_y();
+        standard_pipeline_cloned.borrow_mut().set_pick_position(client_x, client_y);
+    });
+    window()
+        .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
+
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
@@ -779,10 +816,12 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .set_local_matrix(Mat4::from_y_rotation(rotation));
 
         let start = window().performance().unwrap().now();
+        let mut standard_pipeline = standard_pipeline.borrow_mut();
+        let standard_pipeline = &mut *standard_pipeline;
         render
             .borrow_mut()
             .render(
-                &mut standard_pipeline,
+                standard_pipeline,
                 &mut StandardRenderStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
