@@ -119,14 +119,14 @@ where
         Ok(())
     }
 }
-struct OutliningDrawer {
+struct OutliningOnePassDrawer {
     entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
     entity_model_matrix: Mat4,
     scale: Mat4,
     material: OutliningMaterial,
 }
 
-impl OutliningDrawer {
+impl OutliningOnePassDrawer {
     fn new(entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>) -> Self {
         Self {
             entity,
@@ -139,7 +139,7 @@ impl OutliningDrawer {
     }
 }
 
-impl<Pipeline> Drawer<Pipeline> for OutliningDrawer
+impl<Pipeline> Drawer<Pipeline> for OutliningOnePassDrawer
 where
     Pipeline: RenderPipeline,
 {
@@ -161,11 +161,12 @@ where
 
         let gl = state.gl();
         gl.enable(WebGl2RenderingContext::STENCIL_TEST);
-        gl.stencil_mask(0xFF);
-        gl.depth_mask(false); // disable depth writing here
+        gl.clear_stencil(0);
+        gl.clear(WebGl2RenderingContext::STENCIL_BUFFER_BIT);
 
         // render twice
         Ok(BeforeDrawFlow::Custom(vec![
+            Rc::clone(entity),
             Rc::clone(entity),
             Rc::clone(entity),
         ]))
@@ -182,43 +183,57 @@ where
         _: &mut dyn RenderStuff,
     ) -> Result<BeforeEachDrawFlow, Error> {
         let gl = state.gl();
+
         match drawing_index {
             0 => {
-                // for the first draw, scale up the entity a bit larger, draw stencil to 1
                 self.entity_model_matrix = *entity.borrow().model_matrix();
                 entity
                     .borrow_mut()
                     .set_model_matrix(self.entity_model_matrix * self.scale);
+                gl.depth_mask(false);
+                gl.stencil_mask(0xFF);
                 gl.stencil_func(WebGl2RenderingContext::ALWAYS, 1, 0xFF);
                 gl.stencil_op(
                     WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::KEEP,
+                    WebGl2RenderingContext::REPLACE,
                     WebGl2RenderingContext::REPLACE,
                 );
                 Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
             }
             1 => {
-                // for the second draw, reset scaling, draw stencil to 0
-                entity
-                    .borrow_mut()
-                    .set_model_matrix(self.entity_model_matrix);
+                gl.depth_mask(false);
+                gl.stencil_mask(0xFF);
                 gl.stencil_func(WebGl2RenderingContext::ALWAYS, 0, 0xFF);
                 gl.stencil_op(
                     WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::ZERO,
-                    WebGl2RenderingContext::ZERO,
+                    WebGl2RenderingContext::REPLACE,
+                    WebGl2RenderingContext::REPLACE,
+                );
+                Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
+            }
+            2 => {
+                entity
+                    .borrow_mut()
+                    .set_model_matrix(self.entity_model_matrix * self.scale);
+                gl.depth_mask(true);
+                gl.stencil_mask(0x00);
+                gl.stencil_func(WebGl2RenderingContext::EQUAL, 1, 0xFF);
+                gl.stencil_op(
+                    WebGl2RenderingContext::KEEP,
+                    WebGl2RenderingContext::KEEP,
+                    WebGl2RenderingContext::KEEP,
                 );
                 Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
             }
             _ => {
-                panic!("unexpected drawing index when drawing outlining")
+                panic!("unexpected drawing index when outlining")
             }
         }
     }
 
     fn after_each_draw(
         &mut self,
-        _: &RenderEntity,
+        render_entity: &RenderEntity,
         _: usize,
         _: &[Rc<RefCell<Entity>>],
         _: &[Rc<RefCell<Entity>>],
@@ -226,6 +241,10 @@ where
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
+        render_entity
+            .entity()
+            .borrow_mut()
+            .set_model_matrix(self.entity_model_matrix);
         Ok(())
     }
 
@@ -238,14 +257,15 @@ where
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
         let gl = state.gl();
+        gl.disable(WebGl2RenderingContext::STENCIL_TEST);
+        gl.depth_mask(true);
+        gl.stencil_mask(0x00);
         gl.stencil_func(WebGl2RenderingContext::EQUAL, 0, 0xFF);
         gl.stencil_op(
             WebGl2RenderingContext::KEEP,
             WebGl2RenderingContext::KEEP,
             WebGl2RenderingContext::KEEP,
         );
-        gl.stencil_mask(0x00);
-        gl.depth_mask(true);
         Ok(())
     }
 }
@@ -309,7 +329,7 @@ impl Material for OutliningMaterial {
 pub struct StandardPipeline {
     pick_receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
     pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
-    outlining_drawer: Rc<RefCell<OutliningDrawer>>,
+    outlining_drawer: Rc<RefCell<OutliningOnePassDrawer>>,
     pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
@@ -325,7 +345,6 @@ impl StandardPipeline {
         pre_processors.push(Rc::new(RefCell::new(EnableBlend)));
         pre_processors.push(Rc::new(RefCell::new(ClearColor::new(0.0, 0.0, 0.0, 0.0))));
         pre_processors.push(Rc::new(RefCell::new(ClearDepth::new(1.0))));
-        pre_processors.push(Rc::new(RefCell::new(ClearDepth::new(1.0))));
         pre_processors.push(Rc::new(RefCell::new(SetCullFaceMode::new(CullFace::Back))));
 
         let mut post_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]> = SmallVec::new();
@@ -336,7 +355,7 @@ impl StandardPipeline {
             Rc::clone(&pick_receiver),
             false,
         )));
-        let outlining_drawer = Rc::new(RefCell::new(OutliningDrawer::new(Rc::clone(
+        let outlining_drawer = Rc::new(RefCell::new(OutliningOnePassDrawer::new(Rc::clone(
             &pick_receiver,
         ))));
         let mut drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]> = SmallVec::new();
