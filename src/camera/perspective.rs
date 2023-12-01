@@ -81,10 +81,6 @@ impl PerspectiveCamera {
         self.aspect
     }
 
-    pub fn near(&self) -> f64 {
-        self.near
-    }
-
     pub fn set_fovy(&mut self, fovy: f64) {
         self.fovy = fovy;
         self.update_proj();
@@ -130,8 +126,17 @@ impl Camera for PerspectiveCamera {
         self.position
     }
 
-    fn direction(&self) -> Vec3 {
-        self.center - self.position
+    fn center(&self) -> Vec3 {
+        self.center
+    }
+
+    fn near(&self) -> f64 {
+        self.near
+    }
+
+
+    fn far(&self) -> Option<f64> {
+        self.far
     }
 
     fn view_matrix(&self) -> Mat4 {

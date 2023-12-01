@@ -632,10 +632,10 @@ impl WebGL2Render {
                         transpose: false,
                     })
                 }
-                UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraDirection => {
+                UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraCenter => {
                     let vec = match binding {
                         UniformBinding::ActiveCameraPosition => stuff.camera().position().to_gl(),
-                        UniformBinding::ActiveCameraDirection => stuff.camera().direction().to_gl(),
+                        UniformBinding::ActiveCameraCenter => stuff.camera().center().to_gl(),
                         _ => unreachable!(),
                     };
 

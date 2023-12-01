@@ -9,7 +9,11 @@ use crate::render::webgl::pipeline::RenderState;
 pub trait Camera {
     fn position(&self) -> Vec3;
 
-    fn direction(&self) -> Vec3;
+    fn center(&self) -> Vec3;
+
+    fn near(&self) -> f64;
+
+    fn far(&self) -> Option<f64>;
 
     fn view_matrix(&self) -> Mat4;
 
