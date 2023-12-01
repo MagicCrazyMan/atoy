@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::ops::Mul;
 use std::{cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec4::{AsVec4, Vec4};
 use palette::rgb::Rgb;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -11,6 +13,7 @@ use web_sys::js_sys::{Date, Uint8Array};
 use web_sys::MouseEvent;
 
 use crate::camera::perspective::PerspectiveCamera;
+use crate::camera::Camera;
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::geometry::cube::{self, calculate_vertices};
@@ -158,7 +161,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
@@ -721,7 +724,7 @@ pub fn test_instanced_cube(
 
 #[wasm_bindgen]
 pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
@@ -794,11 +797,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        let client_x = event.client_x();
-        let client_y = event.client_y();
         standard_pipeline_cloned
             .borrow_mut()
-            .set_pick_position(client_x, client_y);
+            .set_pick_position(event.page_x(), event.page_y());
     });
     window()
         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
@@ -844,3 +845,101 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
     Ok(())
 }
+
+#[wasm_bindgen]
+pub fn test_camera() {
+    let camera = PerspectiveCamera::new(
+        (0.0, 0.0, 1.0),
+        (0.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        60.0f64.to_radians(),
+        1080.0 / 1920.0,
+        1.0,
+        Some(2.0),
+    );
+
+    // let camera = PerspectiveCamera::new(
+    //     (0.0, 1.0, 0.0),
+    //     (0.0, 0.0, 0.0),
+    //     (0.0, 0.0, -1.0),
+    //     60.0f64.to_radians(),
+    //     1080.0 / 1920.0,
+    //     0.1,
+    //     Some(2.0),
+    // );
+    let frustum = camera.viewing_frustum();
+    console_log!(
+        "near ({}), ({})",
+        frustum.near().normal(),
+        frustum.near().point()
+    );
+    console_log!(
+        "far ({:?}), ({:?})",
+        frustum.far().map(|p| p.normal()),
+        frustum.far().map(|p| p.point())
+    );
+    console_log!(
+        "top ({}), ({})",
+        frustum.top().normal(),
+        frustum.top().point()
+    );
+    console_log!(
+        "bottom ({}), ({})",
+        frustum.bottom().normal(),
+        frustum.bottom().point()
+    );
+    console_log!(
+        "left ({}), ({})",
+        frustum.left().normal(),
+        frustum.left().point()
+    );
+    console_log!(
+        "right ({}), ({})",
+        frustum.right().normal(),
+        frustum.right().point()
+    );
+
+    let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
+
+    let view_matrix = camera.view_matrix();
+    let view_inv_matrix = camera.view_matrix().invert().unwrap();
+    let proj_matrix = camera.proj_matrix();
+    let view_proj_matrix = camera.view_proj_matrix();
+
+    console_log!("{}", position.transform_mat4(&view_matrix));
+    console_log!("{}", position.transform_mat4(&view_proj_matrix));
+    console_log!(
+        "{}",
+        position.transform_mat4(&view_proj_matrix) / position.transform_mat4(&view_proj_matrix).w()
+    );
+}
+
+// #[wasm_bindgen]
+// pub fn test_simd() {
+//         let vec1 = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
+
+//     let count = 1500000000usize;
+//     let start = window().performance().unwrap().now();
+//     let mut result = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
+//     for _ in 0..count {
+//         result = result * vec1;
+//     }
+//     let end = window().performance().unwrap().now();
+
+//     console_log!("simd costs {}ms", end - start);
+// }
+
+// #[wasm_bindgen]
+// pub fn test_non_simd() {
+//         let vec1 = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
+
+//     let count = 1500000000usize;
+//     let start = window().performance().unwrap().now();
+//     let mut result = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
+//     for _ in 0..count {
+//         result = result * vec1;
+//     }
+//     let end = window().performance().unwrap().now();
+
+//     console_log!("non simd costs {}ms", end - start);
+// }

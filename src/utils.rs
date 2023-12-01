@@ -1,4 +1,8 @@
-use web_sys::js_sys::{Uint8Array, Int8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array};
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use web_sys::js_sys::{
+    BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array, Int8Array,
+    Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
+};
 
 pub fn set_panic_hook() {
     // When the `console_error_panic_hook` feature is enabled, we can call the
@@ -40,4 +44,54 @@ slice_to_typed_array! {
     (slice_to_float64_array, [f64], Float64Array, "[`Float64Array`]", r"`[f64]`"),
     (slice_to_big_int64_array, [i64], BigInt64Array, "[`BigInt64Array`]", r"`[i64]`"),
     (slice_to_big_uint64_array, [u64], BigUint64Array, "[`BigUint64Array`]", r"`[u64]`")
+}
+
+/// Calculates distance between a point and a plane.
+/// A plane is defined by a point on plane and a normal.
+/// Applies normalization to the normal before invoking this function,
+/// this function does not normalize it again.
+///
+/// Positive & Negative: if point inside the space the normal points to,
+/// returning a positive distance value, otherwise, returning a negative value.
+/// If you wish to get the positive value always, use [`distance_point_and_plane_abs`].
+pub fn distance_point_and_plane(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
+    let d = *p - *pop;
+    let len = d.length();
+
+    let nd = d.normalize();
+    let cos_a = nd.dot(n);
+
+    len * cos_a
+}
+
+/// Absolution version of [`distance_point_and_plane`].
+/// Sees [`distance_point_and_plane`] for more details.
+pub fn distance_point_and_plane_abs(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
+    distance_point_and_plane(p, pop, n).abs()
+}
+
+#[cfg(test)]
+mod tests {
+    use gl_matrix4rust::vec3::{AsVec3, Vec3};
+
+    use crate::utils::distance_point_and_plane;
+
+    #[test]
+    fn test_distance_point_and_plane() {
+        let pop = Vec3::from_values(0.0, 0.0, 0.0);
+        let n = Vec3::from_values(1.0, 1.0, 0.0).normalize();
+
+        assert_eq!(
+            7.071067811865475,
+            distance_point_and_plane(&Vec3::from_values(10.0, 0.0, 0.0), &pop, &n)
+        );
+        assert_eq!(
+            -7.071067811865475,
+            distance_point_and_plane(&Vec3::from_values(-10.0, 0.0, 0.0), &pop, &n)
+        );
+        assert_eq!(
+            14.142135623730947,
+            distance_point_and_plane(&Vec3::from_values(10.0, 10.0, 0.0), &pop, &n)
+        );
+    }
 }

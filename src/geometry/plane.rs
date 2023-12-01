@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use crate::{
+    bounding::BoundingVolume,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -46,6 +47,10 @@ impl Geometry for Plane {
             first: 0,
             count: 36,
         }
+    }
+
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        None
     }
 
     fn vertices(&self) -> Option<AttributeValue> {

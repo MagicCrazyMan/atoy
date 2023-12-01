@@ -1,12 +1,12 @@
 use std::any::Any;
 
 use gl_matrix4rust::{
-    mat4::Mat4,
+    mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
 };
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::render::webgl::pipeline::RenderState;
+use crate::{frustum::ViewingFrustum, plane::Plane, render::webgl::pipeline::RenderState};
 
 use super::Camera;
 
@@ -44,7 +44,7 @@ impl PerspectiveCamera {
         Self {
             position: Vec3::from_as_vec3(position),
             center: Vec3::from_as_vec3(center),
-            up: Vec3::from_as_vec3(up),
+            up: Vec3::from_as_vec3(up).normalize(),
             fovy,
             aspect,
             near,
@@ -116,7 +116,7 @@ impl PerspectiveCamera {
     where
         V: AsVec3<f64> + ?Sized,
     {
-        self.up.copy(up);
+        self.up = self.up.copy(up).normalize();
         self.update_view();
     }
 }
@@ -130,10 +130,17 @@ impl Camera for PerspectiveCamera {
         self.center
     }
 
+    fn up(&self) -> Vec3 {
+        self.up
+    }
+
+    fn aspect(&self) -> f64 {
+        self.aspect
+    }
+
     fn near(&self) -> f64 {
         self.near
     }
-
 
     fn far(&self) -> Option<f64> {
         self.far
@@ -149,6 +156,45 @@ impl Camera for PerspectiveCamera {
 
     fn view_proj_matrix(&self) -> Mat4 {
         self.view_proj
+    }
+
+    fn viewing_frustum(&self) -> ViewingFrustum {
+        let x = Vec3::from_values(self.view.m00(), self.view.m10(), self.view.m20());
+        let y = Vec3::from_values(self.view.m01(), self.view.m11(), self.view.m21());
+        let z = Vec3::from_values(self.view.m02(), self.view.m12(), self.view.m22());
+        let nz = z.negate();
+
+        let p = self.position + nz * self.near;
+        let hh = (self.fovy / 2.0).tan() * self.near;
+        let hw = self.aspect * hh;
+
+        let top = {
+            let pop = p + y * hh;
+            let d = (pop - self.position).normalize();
+            Plane::new(pop, x.cross(&d).normalize())
+        };
+        let bottom = {
+            let pop = p + y * -hh;
+            let d = (pop - self.position).normalize();
+            Plane::new(pop, d.cross(&x).normalize())
+        };
+        let left = {
+            let pop = p + x * -hw;
+            let d = (pop - self.position).normalize();
+            Plane::new(pop, y.cross(&d).normalize())
+        };
+        let right = {
+            let pop = p + x * hw;
+            let d = (pop - self.position).normalize();
+            Plane::new(pop, d.cross(&y).normalize())
+        };
+        let near = { Plane::new(p, z) };
+        let far = match self.far {
+            Some(far) => Some(Plane::new(self.position + nz * far, nz)),
+            None => None,
+        };
+
+        ViewingFrustum::new(left, right, top, bottom, near, far)
     }
 
     fn as_any(&self) -> &dyn Any {

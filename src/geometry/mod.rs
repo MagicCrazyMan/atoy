@@ -3,7 +3,6 @@ pub mod indexed_cube;
 pub mod plane;
 pub mod raw;
 pub mod sphere;
-// pub mod plane;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
@@ -12,11 +11,13 @@ use crate::{
     material::Material,
     render::webgl::{
         attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
-    },
+    }, bounding::BoundingVolume,
 };
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
+
+    fn bounding_volume(&self) -> Option<BoundingVolume>;
 
     fn vertices(&self) -> Option<AttributeValue>;
 

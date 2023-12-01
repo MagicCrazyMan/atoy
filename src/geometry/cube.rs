@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
+
 use crate::{
     render::webgl::{
         attribute::AttributeValue,
@@ -10,7 +12,7 @@ use crate::{
         draw::{Draw, DrawMode},
         uniform::UniformValue,
     },
-    utils::slice_to_float32_array,
+    utils::slice_to_float32_array, bounding::BoundingVolume,
 };
 
 use super::{Geometry, GeometryRenderEntity};
@@ -38,13 +40,6 @@ impl Cube {
             ),
             BufferUsage::StaticDraw,
         );
-        // vertices.enable_restore(move || {
-        //     BufferSource::from_float32_array(
-        //         slice_to_float32_array(&calculate_vertices(size)),
-        //         0,
-        //         108,
-        //     )
-        // });
 
         Self {
             size,
@@ -91,6 +86,14 @@ impl Geometry for Cube {
             first: 0,
             count: 36,
         }
+    }
+
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        let s = self.size / 2.0;
+        Some(BoundingVolume::Sphere {
+            origin: Vec3::from_values(0.0, 0.0, 0.0),
+            radius: (s * s + s * s + s * s).sqrt(),
+        })
     }
 
     fn vertices(&self) -> Option<AttributeValue> {

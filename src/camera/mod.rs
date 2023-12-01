@@ -4,12 +4,16 @@ use std::any::Any;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
-use crate::render::webgl::pipeline::RenderState;
+use crate::{render::webgl::pipeline::RenderState, frustum::ViewingFrustum};
 
 pub trait Camera {
     fn position(&self) -> Vec3;
 
     fn center(&self) -> Vec3;
+
+    fn up(&self) -> Vec3;
+
+    fn aspect(&self) -> f64;
 
     fn near(&self) -> f64;
 
@@ -20,6 +24,8 @@ pub trait Camera {
     fn proj_matrix(&self) -> Mat4;
 
     fn view_proj_matrix(&self) -> Mat4;
+
+    fn viewing_frustum(&self) -> ViewingFrustum;
 
     fn as_any(&self) -> &dyn Any;
 

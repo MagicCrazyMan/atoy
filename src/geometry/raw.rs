@@ -1,6 +1,9 @@
 use std::{any::Any, collections::HashMap};
 
-use crate::render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue};
+use crate::{
+    bounding::BoundingVolume,
+    render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
+};
 
 use super::{Geometry, GeometryRenderEntity};
 
@@ -36,6 +39,10 @@ impl RawGeometry {
 impl Geometry for RawGeometry {
     fn draw(&self) -> Draw {
         self.draw.clone()
+    }
+
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        None
     }
 
     fn vertices(&self) -> Option<AttributeValue> {

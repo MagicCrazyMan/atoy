@@ -1,8 +1,9 @@
 use std::any::Any;
 
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use web_sys::js_sys::Float32Array;
 
-use crate::render::webgl::{
+use crate::{render::webgl::{
     attribute::AttributeValue,
     buffer::{
         BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -10,7 +11,7 @@ use crate::render::webgl::{
     },
     draw::{Draw, DrawMode},
     uniform::UniformValue,
-};
+}, bounding::BoundingVolume};
 
 use super::{Geometry, GeometryRenderEntity};
 
@@ -77,6 +78,13 @@ impl Geometry for Sphere {
             first: 0,
             count: self.num_vertices as i32,
         }
+    }
+
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        Some(BoundingVolume::Sphere {
+            origin: Vec3::from_values(0.0, 0.0, 0.0),
+            radius: self.radius,
+        })
     }
 
     fn vertices(&self) -> Option<AttributeValue> {

@@ -14,6 +14,7 @@ use web_sys::{
 };
 
 use crate::{
+    bounding::Culling,
     document,
     entity::{Entity, RenderEntity},
     geometry::GeometryRenderEntity,
@@ -430,8 +431,18 @@ impl WebGL2Render {
     where
         Stuff: RenderStuff,
     {
-        // let mut collected = HashMap::new();
-        let mut collected = Vec::new();
+        struct BoundingEntity {
+            entity: Rc<RefCell<Entity>>,
+            // bounding: Bounding,
+            // transformed_bounding: Bounding,
+            /// Depth distance from bounding to camera
+            distance: f64,
+        }
+
+        let viewing_frustum = stuff.camera().viewing_frustum();
+
+        let mut bounding_entities = Vec::new();
+        let mut non_bounding_entities = Vec::new();
         // entities collections waits for collecting. If parent model does not changed, set matrix to None.
         let mut collections = VecDeque::from([(None, stuff.entity_collection_mut())]);
         while let Some((parent_model_matrix, collection)) = collections.pop_front() {
@@ -442,16 +453,39 @@ impl WebGL2Render {
             }
 
             for entity in collection.entities() {
+                let mut entity_borrowed = entity.borrow_mut();
                 // update matrices
-                if let Err(err) = entity
-                    .borrow_mut()
-                    .update_frame_matrices(collection_model_matrix)
-                {
+                if let Err(err) = entity_borrowed.update_frame_matrices(collection_model_matrix) {
                     // should log warning
                     console_log!("{}", err);
                     continue;
                 }
-                collected.push(Rc::clone(entity));
+
+                // collects to different container depending on whether having a bounding
+                match entity_borrowed
+                    .geometry()
+                    .and_then(|geometry| geometry.bounding_volume())
+                {
+                    Some(bounding) => {
+                        match bounding
+                            // should apply model matrix transformation
+                            .transform(entity_borrowed.model_matrix())
+                            .cull(&viewing_frustum)
+                        {
+                            // filters every entity outside frustum
+                            Culling::Outside => {
+                                continue;
+                            }
+                            Culling::Inside { near, .. } | Culling::Intersect { near, .. } => {
+                                bounding_entities.push(BoundingEntity {
+                                    entity: Rc::clone(entity),
+                                    distance: near,
+                                });
+                            }
+                        }
+                    }
+                    None => non_bounding_entities.push(Rc::clone(entity)),
+                }
             }
 
             // add sub-collections to list
@@ -463,7 +497,19 @@ impl WebGL2Render {
             );
         }
 
-        Ok(collected)
+        // do simple sorting for bounding entities, from nearest(smallest distance) to farthest(greatest distance)
+        bounding_entities.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+
+        // console_log!("{}", bounding_entities.iter().map(|e| e.distance.to_string()).collect::<Vec<_>>().join(", "));
+
+        // puts bounding entities at the front of entities
+        let entities = bounding_entities
+            .into_iter()
+            .map(|e| e.entity)
+            .chain(non_bounding_entities.into_iter())
+            .collect::<Vec<_>>();
+
+        Ok(entities)
     }
 
     /// Binds attributes of the entity.

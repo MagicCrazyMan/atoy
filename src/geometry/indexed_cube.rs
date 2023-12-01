@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
+
 use crate::{
     render::webgl::{
         attribute::AttributeValue,
@@ -10,7 +12,7 @@ use crate::{
         draw::{Draw, DrawElementType, DrawMode},
         uniform::UniformValue,
     },
-    utils::{slice_to_float32_array, slice_to_uint8_array},
+    utils::{slice_to_float32_array, slice_to_uint8_array}, bounding::BoundingVolume,
 };
 
 use super::{Geometry, GeometryRenderEntity};
@@ -88,6 +90,14 @@ impl Geometry for IndexedCube {
             offset: 0,
             indices: self.indices.clone(),
         }
+    }
+
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        let s = self.size / 2.0;
+        Some(BoundingVolume::Sphere {
+            origin: Vec3::from_values(0.0, 0.0, 0.0),
+            radius: (s * s + s * s + s * s).sqrt(),
+        })
     }
 
     fn vertices(&self) -> Option<AttributeValue> {
