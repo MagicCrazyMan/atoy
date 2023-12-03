@@ -55,13 +55,8 @@ slice_to_typed_array! {
 /// returning a positive distance value, otherwise, returning a negative value.
 /// If you wish to get the positive value always, use [`distance_point_and_plane_abs`].
 pub fn distance_point_and_plane(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
-    let d = *p - *pop;
-    let len = d.length();
-
-    let nd = d.normalize();
-    let cos_a = nd.dot(n);
-
-    len * cos_a
+    let v = *p - *pop;
+    v.dot(n)
 }
 
 /// Absolution version of [`distance_point_and_plane`].
@@ -90,7 +85,7 @@ mod tests {
             distance_point_and_plane(&Vec3::from_values(-10.0, 0.0, 0.0), &pop, &n)
         );
         assert_eq!(
-            14.142135623730947,
+            14.14213562373095,
             distance_point_and_plane(&Vec3::from_values(10.0, 10.0, 0.0), &pop, &n)
         );
     }
