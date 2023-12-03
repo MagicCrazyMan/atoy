@@ -3,7 +3,10 @@ use gl_matrix4rust::{
     vec3::{AsVec3, Vec3},
 };
 
-use crate::frustum::ViewingFrustum;
+use crate::{
+    frustum::ViewingFrustum,
+    utils::{distance_point_and_plane, distance_point_and_plane_abs},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BoundingVolume {
@@ -97,6 +100,7 @@ impl BoundingVolume {
     }
 }
 
+/// Culls bounding sphere from frustum by calculating distance between sphere center to each plane of frustum.
 fn cull_sphere(frustum: &ViewingFrustum, center: &Vec3, radius: f64) -> Culling {
     let mut inside_count = 0u8;
     let mut distances = [
@@ -133,7 +137,7 @@ fn cull_sphere(frustum: &ViewingFrustum, center: &Vec3, radius: f64) -> Culling 
                 }
             }
             None => {
-                // if no plane (far plane), regards as inside
+                // only far plane reaches here, regards as inside
                 inside_count += 1;
             }
         }
@@ -160,6 +164,7 @@ fn cull_sphere(frustum: &ViewingFrustum, center: &Vec3, radius: f64) -> Culling 
     }
 }
 
+/// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
 fn cull_aabb(
     frustum: &ViewingFrustum,
     min_x: f64,
@@ -169,8 +174,135 @@ fn cull_aabb(
     min_z: f64,
     max_z: f64,
 ) -> Culling {
-    let mut signs = 0;
-    todo!()
+    let center = Vec3::from_values(
+        (min_x + max_x) / 2.0,
+        (min_y + max_y) / 2.0,
+        (min_z + max_z) / 2.0,
+    );
+    let planes = [
+        Some(frustum.top()),
+        Some(frustum.bottom()),
+        Some(frustum.left()),
+        Some(frustum.right()),
+        Some(frustum.near()),
+        frustum.far(), // far plane may not exists
+    ];
+
+    let mut distances = [
+        Some(0.0),
+        Some(0.0),
+        Some(0.0),
+        Some(0.0),
+        Some(0.0),
+        Some(0.0),
+        None,
+    ];
+    let mut intersect = false;
+    for (index, plane) in planes.iter().enumerate() {
+        match plane {
+            Some(plane) => unsafe {
+                let point_on_plane = plane.point_on_plane();
+                let n = plane.normal();
+                let nx = n.x();
+                let ny = n.y();
+                let nz = n.z();
+
+                // finds n- and p-vertices
+                let mut signs = 0u8;
+                signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
+                signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
+                signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
+
+                let (nv, pv) = match signs {
+                    0b000 => (
+                        Vec3::from_values(min_x, min_y, min_z),
+                        Vec3::from_values(max_x, max_y, max_z),
+                    ),
+                    0b001 => (
+                        Vec3::from_values(max_x, min_y, min_z),
+                        Vec3::from_values(min_x, max_y, max_z),
+                    ),
+                    0b010 => (
+                        Vec3::from_values(min_x, max_y, min_z),
+                        Vec3::from_values(max_x, min_y, max_z),
+                    ),
+                    0b011 => (
+                        Vec3::from_values(max_x, max_y, min_z),
+                        Vec3::from_values(min_x, min_y, max_z),
+                    ),
+                    0b100 => (
+                        Vec3::from_values(min_x, min_y, max_z),
+                        Vec3::from_values(max_x, max_y, min_z),
+                    ),
+                    0b101 => (
+                        Vec3::from_values(max_x, min_y, max_z),
+                        Vec3::from_values(min_x, max_y, min_z),
+                    ),
+                    0b110 => (
+                        Vec3::from_values(min_x, max_y, max_z),
+                        Vec3::from_values(max_x, min_y, min_z),
+                    ),
+                    0b111 => (
+                        Vec3::from_values(max_x, max_y, max_z),
+                        Vec3::from_values(min_x, min_y, min_z),
+                    ),
+                    _ => unreachable!(),
+                };
+
+                let d = distance_point_and_plane_abs(&nv, &center, n);
+                let a = distance_point_and_plane(&nv, &point_on_plane, n) - d;
+                if a > 0.0 {
+                    return Culling::Outside;
+                }
+                let b = distance_point_and_plane(&pv, &point_on_plane, n) + d;
+                if b > 0.0 {
+                    intersect = true;
+                }
+
+                // uses distance between center of bounding volume and plane
+                distances[index] = Some(distance_point_and_plane(&center, &point_on_plane, n));
+            },
+            None => {
+                // only far plane reaches here, regards as inside, do nothing.
+            }
+        }
+    }
+
+    if intersect {
+        Culling::Intersect {
+            top: distances[0].unwrap(),
+            bottom: distances[1].unwrap(),
+            left: distances[2].unwrap(),
+            right: distances[3].unwrap(),
+            near: distances[4].unwrap(),
+            far: distances[5],
+        }
+    } else {
+        Culling::Inside {
+            top: distances[0].unwrap(),
+            bottom: distances[1].unwrap(),
+            left: distances[2].unwrap(),
+            right: distances[3].unwrap(),
+            near: distances[4].unwrap(),
+            far: distances[5],
+        }
+    }
+}
+
+#[test]
+fn bitfields() {
+    let nx = -1.0;
+    let ny = -2.0;
+    let nz = -3.0;
+
+    let mut signs = 0u8;
+    unsafe {
+        signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
+        signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
+        signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
+    }
+
+    println!("{:08b}", signs);
 }
 
 /// Culling status of a [`BoundingVolume`] and a [`ViewingFrustum`]

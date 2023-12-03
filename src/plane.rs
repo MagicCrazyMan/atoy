@@ -16,12 +16,12 @@ impl Plane {
         }
     }
 
-    pub fn point(&self) -> &Vec3 {
+    pub fn point_on_plane(&self) -> &Vec3 {
         &self.pop
     }
 
-    pub fn normal(&self) -> Vec3 {
-        self.normal
+    pub fn normal(&self) -> &Vec3 {
+        &self.normal
     }
 
     pub fn distance_to_point(&self, p: &Vec3) -> f64 {
