@@ -11,7 +11,7 @@ use crate::{render::webgl::{
     },
     draw::{Draw, DrawMode},
     uniform::UniformValue,
-}, bounding::BoundingVolume};
+}, bounding::BoundingVolumeKind};
 
 use super::{Geometry, GeometryRenderEntity};
 
@@ -80,8 +80,8 @@ impl Geometry for Sphere {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
-        Some(BoundingVolume::BoundingSphere {
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
+        Some(BoundingVolumeKind::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: self.radius,
         })

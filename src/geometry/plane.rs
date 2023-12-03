@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::{
-    bounding::BoundingVolume,
+    bounding::BoundingVolumeKind,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -49,7 +49,7 @@ impl Geometry for Plane {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
         None
     }
 

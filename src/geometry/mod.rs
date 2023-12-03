@@ -11,13 +11,13 @@ use crate::{
     material::Material,
     render::webgl::{
         attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
-    }, bounding::BoundingVolume,
+    }, bounding::BoundingVolumeKind,
 };
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
 
-    fn bounding_volume(&self) -> Option<BoundingVolume>;
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind>;
 
     fn vertices(&self) -> Option<AttributeValue>;
 

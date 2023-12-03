@@ -3,6 +3,7 @@ use std::any::Any;
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
+    bounding::BoundingVolumeKind,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -12,7 +13,7 @@ use crate::{
         draw::{Draw, DrawMode},
         uniform::UniformValue,
     },
-    utils::slice_to_float32_array, bounding::BoundingVolume,
+    utils::slice_to_float32_array,
 };
 
 use super::{Geometry, GeometryRenderEntity};
@@ -88,11 +89,19 @@ impl Geometry for Cube {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
         let s = self.size / 2.0;
-        Some(BoundingVolume::BoundingSphere {
-            center: Vec3::from_values(0.0, 0.0, 0.0),
-            radius: (s * s + s * s + s * s).sqrt(),
+        // Some(BoundingVolume::BoundingSphere {
+        //     center: Vec3::from_values(0.0, 0.0, 0.0),
+        //     radius: (s * s + s * s + s * s).sqrt(),
+        // })
+        Some(BoundingVolumeKind::AxisAlignedBoundingBox {
+            min_x: -s,
+            min_y: -s,
+            min_z: -s,
+            max_x: s,
+            max_y: s,
+            max_z: s,
         })
     }
 

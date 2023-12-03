@@ -12,7 +12,7 @@ use crate::{
         draw::{Draw, DrawElementType, DrawMode},
         uniform::UniformValue,
     },
-    utils::{slice_to_float32_array, slice_to_uint8_array}, bounding::BoundingVolume,
+    utils::{slice_to_float32_array, slice_to_uint8_array}, bounding::BoundingVolumeKind,
 };
 
 use super::{Geometry, GeometryRenderEntity};
@@ -92,9 +92,9 @@ impl Geometry for IndexedCube {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
         let s = self.size / 2.0;
-        Some(BoundingVolume::BoundingSphere {
+        Some(BoundingVolumeKind::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: (s * s + s * s + s * s).sqrt(),
         })

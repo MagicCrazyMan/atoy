@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume,
+    bounding::BoundingVolumeKind,
     render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
 };
 
@@ -41,7 +41,7 @@ impl Geometry for RawGeometry {
         self.draw.clone()
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
+    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
         None
     }
 
