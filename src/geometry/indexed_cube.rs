@@ -94,8 +94,8 @@ impl Geometry for IndexedCube {
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
         let s = self.size / 2.0;
-        Some(BoundingVolume::Sphere {
-            origin: Vec3::from_values(0.0, 0.0, 0.0),
+        Some(BoundingVolume::BoundingSphere {
+            center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: (s * s + s * s + s * s).sqrt(),
         })
     }
