@@ -448,32 +448,25 @@ impl WebGL2Render {
         while let Some((parent_model_matrix, collection)) = collections.pop_front() {
             // update collection matrices
             let mut collection_model_matrix = None;
-            if collection.update_frame_matrices(parent_model_matrix) {
+            if collection.update_frame(parent_model_matrix) {
                 collection_model_matrix = Some(*collection.model_matrix());
             }
 
             for entity in collection.entities() {
                 let mut entity_borrowed = entity.borrow_mut();
                 // update matrices
-                if let Err(err) = entity_borrowed.update_frame_matrices(collection_model_matrix) {
+                if let Err(err) = entity_borrowed.update_frame(collection_model_matrix) {
                     // should log warning
                     console_log!("{}", err);
                     continue;
                 }
 
                 // collects to different container depending on whether having a bounding
-                match entity_borrowed
-                    .geometry()
-                    .and_then(|geometry| geometry.bounding_volume())
-                {
+                match entity_borrowed.bounding_volume() {
                     Some(bounding) => {
-                        match bounding
-                            // should apply model matrix transformation
-                            .transform(entity_borrowed.model_matrix())
-                            .cull(&viewing_frustum)
-                        {
+                        match bounding.cull(&viewing_frustum) {
                             // filters every entity outside frustum
-                            Culling::Outside => {
+                            Culling::Outside(_) => {
                                 continue;
                             }
                             Culling::Inside { near, .. } | Culling::Intersect { near, .. } => {
@@ -501,6 +494,8 @@ impl WebGL2Render {
         bounding_entities.sort_by(|a, b| a.distance.total_cmp(&b.distance));
 
         // console_log!("{}", bounding_entities.iter().map(|e| e.distance.to_string()).collect::<Vec<_>>().join(", "));
+
+        // console_log!("{}", bounding_entities.len());
 
         // puts bounding entities at the front of entities
         let entities = bounding_entities

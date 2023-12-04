@@ -4,6 +4,7 @@ use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
 
 use crate::{
+    bounding::{BoundingVolume, BoundingVolumeKind},
     geometry::Geometry,
     material::Material,
     render::webgl::{attribute::AttributeValue, error::Error, uniform::UniformValue},
@@ -12,6 +13,7 @@ use crate::{
 pub struct Entity {
     id: Uuid,
     local_matrix_changed: bool,
+    bounding_volume: Option<BoundingVolume>,
     local_matrix: Mat4,
     model_matrix: Mat4,
     normal_matrix: Mat4,
@@ -27,6 +29,7 @@ impl Entity {
         Self {
             id: Uuid::new_v4(),
             local_matrix_changed: true,
+            bounding_volume: None,
             local_matrix: Mat4::new_identity(),
             model_matrix: Mat4::new_identity(),
             normal_matrix: Mat4::new_identity(),
@@ -51,7 +54,10 @@ impl Entity {
 
     pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
         match &mut self.geometry {
-            Some(geometry) => Some(geometry.as_mut()),
+            Some(geometry) => {
+                self.bounding_volume = None;
+                Some(geometry.as_mut())
+            }
             None => None,
         }
     }
@@ -65,9 +71,16 @@ impl Entity {
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         self.geometry = match geometry {
-            Some(geometry) => Some(Box::new(geometry)),
+            Some(geometry) => {
+                self.bounding_volume = None;
+                Some(Box::new(geometry))
+            }
             None => None,
         }
+    }
+
+    pub fn bounding_volume(&self) -> Option<&BoundingVolume> {
+        self.bounding_volume.as_ref()
     }
 
     pub fn material(&self) -> Option<&dyn Material> {
@@ -146,10 +159,7 @@ impl Entity {
     /// Updates matrices of current frame.
     /// Only updates matrices when parent model matrix changed
     /// (`parent_model_matrix` is some) or local matrix changed.
-    pub(crate) fn update_frame_matrices(
-        &mut self,
-        parent_model_matrix: Option<Mat4>,
-    ) -> Result<(), Error> {
+    pub(crate) fn update_frame(&mut self, parent_model_matrix: Option<Mat4>) -> Result<(), Error> {
         let model_matrix = match parent_model_matrix {
             Some(parent_model_matrix) => parent_model_matrix * self.local_matrix,
             None => {
@@ -164,6 +174,12 @@ impl Entity {
 
         self.model_matrix = model_matrix;
         self.normal_matrix = normal_matrix;
+        self.bounding_volume = self
+            .geometry
+            .as_ref()
+            .and_then(|geom| geom.bounding_volume())
+            .map(|bounding| bounding.transform(&self.model_matrix))
+            .map(|kind| BoundingVolume::new(kind));
 
         self.local_matrix_changed = false;
 
@@ -281,10 +297,10 @@ impl EntityCollection {
 
     /// Updates matrices of current frame and
     /// returns a boolean value indicating whether matrices changed.
-    /// 
+    ///
     /// Only updates matrices when parent model matrix changed
     /// (`parent_model_matrix` is some) or local matrix changed.
-    pub(crate) fn update_frame_matrices(&mut self, parent_model_matrix: Option<Mat4>) -> bool {
+    pub(crate) fn update_frame(&mut self, parent_model_matrix: Option<Mat4>) -> bool {
         match parent_model_matrix {
             Some(parent_model_matrix) => {
                 self.model_matrix = parent_model_matrix * self.local_matrix;

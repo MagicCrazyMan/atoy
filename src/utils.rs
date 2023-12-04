@@ -54,13 +54,14 @@ slice_to_typed_array! {
 /// Positive & Negative: if point inside the space the normal points to,
 /// returning a positive distance value, otherwise, returning a negative value.
 /// If you wish to get the positive value always, use [`distance_point_and_plane_abs`].
+#[inline]
 pub fn distance_point_and_plane(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
-    let v = *p - *pop;
-    v.dot(n)
+    (*p - *pop).dot(n)
 }
 
 /// Absolution version of [`distance_point_and_plane`].
 /// Sees [`distance_point_and_plane`] for more details.
+#[inline]
 pub fn distance_point_and_plane_abs(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
     distance_point_and_plane(p, pop, n).abs()
 }

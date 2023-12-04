@@ -52,6 +52,9 @@ impl BoundingVolume {
                 *min_z,
                 *max_z,
             ),
+            BoundingVolumeKind::OrientedBoundingBox(matrix) => {
+                cull_obb(frustum, previous_outside_plane.clone(), matrix)
+            }
         };
 
         if let Culling::Outside(plane) = &culling {
@@ -76,6 +79,14 @@ pub enum BoundingVolumeKind {
         min_z: f64,
         max_z: f64,
     },
+    /// An OBB is defined as a model matrix only.
+    /// When we need to restore vertex of the OBB,
+    /// we will apply the model matrix to to standard AABB
+    /// (with vertices `(1, 1, 1)`, `(1, 1, -1)`, `(-1, 1, 1)` and etc.).
+    ///
+    /// But storing a center as Vec3, a rotation and scaling together as Mat3 maybe a better idea.
+    /// Since this saves 4 bytes than Mat4
+    OrientedBoundingBox(Mat4),
 }
 
 impl BoundingVolumeKind {
@@ -150,6 +161,9 @@ impl BoundingVolumeKind {
                     max_z,
                 }
             }
+            BoundingVolumeKind::OrientedBoundingBox(matrix) => {
+                BoundingVolumeKind::OrientedBoundingBox(*transformation * *matrix)
+            }
         }
     }
 }
@@ -162,15 +176,7 @@ fn cull_sphere(
     radius: f64,
 ) -> Culling {
     let mut inside_count = 0u8;
-    let mut distances = [
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        None,
-    ];
+    let mut distances = [None, None, None, None, None, None, None];
 
     let mut planes = [
         (ViewingFrustumPlaneKind::Top, Some(frustum.top())),
@@ -210,21 +216,21 @@ fn cull_sphere(
 
     if inside_count == 6 {
         Culling::Inside {
-            top: distances[0].unwrap(),
-            bottom: distances[1].unwrap(),
-            left: distances[2].unwrap(),
-            right: distances[3].unwrap(),
-            near: distances[4].unwrap(),
-            far: distances[5],
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
         }
     } else {
         Culling::Intersect {
-            top: distances[0].unwrap(),
-            bottom: distances[1].unwrap(),
-            left: distances[2].unwrap(),
-            right: distances[3].unwrap(),
-            near: distances[4].unwrap(),
-            far: distances[5],
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
         }
     }
 }
@@ -259,15 +265,17 @@ fn cull_aabb(
         planes.swap(0, previous as usize);
     }
 
-    let mut distances = [
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        Some(0.0),
-        None,
+    let vertices = [
+        Vec3::from_values(max_x, max_y, max_z), // 000
+        Vec3::from_values(min_x, max_y, max_z), // 001
+        Vec3::from_values(max_x, min_y, max_z), // 010
+        Vec3::from_values(min_x, min_y, max_z), // 011
+        Vec3::from_values(max_x, max_y, min_z), // 100
+        Vec3::from_values(min_x, max_y, min_z), // 101
+        Vec3::from_values(max_x, min_y, min_z), // 110
+        Vec3::from_values(min_x, min_y, min_z), // 111
     ];
+    let mut distances = [None, None, None, None, None, None];
     let mut intersect = false;
     for (kind, plane) in planes.iter() {
         match plane {
@@ -283,45 +291,116 @@ fn cull_aabb(
                 signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
                 signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
                 signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
+                let pi = signs;
+                let ni = !signs & 0b00000111;
+                let pv = &vertices[pi as usize];
+                let nv = &vertices[ni as usize];
 
-                let (nv, pv) = match signs {
-                    0b000 => (
-                        Vec3::from_values(min_x, min_y, min_z),
-                        Vec3::from_values(max_x, max_y, max_z),
-                    ),
-                    0b001 => (
-                        Vec3::from_values(max_x, min_y, min_z),
-                        Vec3::from_values(min_x, max_y, max_z),
-                    ),
-                    0b010 => (
-                        Vec3::from_values(min_x, max_y, min_z),
-                        Vec3::from_values(max_x, min_y, max_z),
-                    ),
-                    0b011 => (
-                        Vec3::from_values(max_x, max_y, min_z),
-                        Vec3::from_values(min_x, min_y, max_z),
-                    ),
-                    0b100 => (
-                        Vec3::from_values(min_x, min_y, max_z),
-                        Vec3::from_values(max_x, max_y, min_z),
-                    ),
-                    0b101 => (
-                        Vec3::from_values(max_x, min_y, max_z),
-                        Vec3::from_values(min_x, max_y, min_z),
-                    ),
-                    0b110 => (
-                        Vec3::from_values(min_x, max_y, max_z),
-                        Vec3::from_values(max_x, min_y, min_z),
-                    ),
-                    0b111 => (
-                        Vec3::from_values(max_x, max_y, max_z),
-                        Vec3::from_values(min_x, min_y, min_z),
-                    ),
-                    _ => unreachable!(),
-                };
+                let d = distance_point_and_plane_abs(nv, &center, n);
+                let a = distance_point_and_plane(nv, &point_on_plane, n) - d;
+                if a > 0.0 {
+                    return Culling::Outside(*kind);
+                }
+                let b = distance_point_and_plane(pv, &point_on_plane, n) + d;
+                if b > 0.0 {
+                    intersect = true;
+                }
 
-                let d = distance_point_and_plane_abs(&nv, &center, n);
-                let a = distance_point_and_plane(&nv, &point_on_plane, n) - d;
+                // uses distance between center of bounding volume and plane
+                distances[*kind as usize] =
+                    Some(distance_point_and_plane(&center, &point_on_plane, n));
+            },
+            None => {
+                // only far plane reaches here, regards as inside, do nothing.
+            }
+        }
+    }
+
+    if intersect {
+        Culling::Intersect {
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
+        }
+    } else {
+        Culling::Inside {
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
+        }
+    }
+}
+
+/// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
+fn cull_obb(
+    frustum: &ViewingFrustum,
+    previous_outside_plane: Option<ViewingFrustumPlaneKind>,
+    matrix: &Mat4,
+) -> Culling {
+    let mut planes = [
+        (ViewingFrustumPlaneKind::Top, Some(frustum.top())),
+        (ViewingFrustumPlaneKind::Bottom, Some(frustum.bottom())),
+        (ViewingFrustumPlaneKind::Left, Some(frustum.left())),
+        (ViewingFrustumPlaneKind::Right, Some(frustum.right())),
+        (ViewingFrustumPlaneKind::Near, Some(frustum.near())),
+        // far plane may not exists
+        (ViewingFrustumPlaneKind::Far, frustum.far()),
+    ];
+    // puts previous outside plane to the top if exists
+    if let Some(previous) = previous_outside_plane {
+        planes.swap(0, previous as usize);
+    }
+
+    let center = matrix.translation();
+    let mut vertices = [
+        None, // 000
+        None, // 001
+        None, // 010
+        None, // 011
+        None, // 100
+        None, // 101
+        None, // 110
+        None, // 111
+    ]; // lazy evaluation
+    let mut distances = [None, None, None, None, None, None];
+    let mut intersect = false;
+    for (kind, plane) in planes.iter() {
+        match plane {
+            Some(plane) => unsafe {
+                let point_on_plane = plane.point_on_plane();
+                let n = plane.normal();
+                let nx = n.x();
+                let ny = n.y();
+                let nz = n.z();
+
+                // finds n- and p-vertices
+                let mut signs = 0u8;
+                signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
+                signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
+                signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
+                let pi = signs;
+                let ni = !signs & 0b00000111;
+                let pv = *vertices[pi as usize].get_or_insert_with(|| {
+                    let x = if pi & 0b00000001 == 0 { 1.0 } else { -1.0 };
+                    let y = if pi & 0b00000010 == 0 { 1.0 } else { -1.0 };
+                    let z = if pi & 0b00000100 == 0 { 1.0 } else { -1.0 };
+                    Vec3::from_values(x, y, z).transform_mat4(matrix)
+                });
+                let nv = vertices[ni as usize].get_or_insert_with(|| {
+                    let x = if ni & 0b00000001 == 0 { 1.0 } else { -1.0 };
+                    let y = if ni & 0b00000010 == 0 { 1.0 } else { -1.0 };
+                    let z = if ni & 0b00000100 == 0 { 1.0 } else { -1.0 };
+                    Vec3::from_values(x, y, z).transform_mat4(matrix)
+                });
+
+                let d = distance_point_and_plane_abs(nv, &center, n);
+                let a = distance_point_and_plane(nv, &point_on_plane, n) - d;
                 if a > 0.0 {
                     return Culling::Outside(*kind);
                 }
@@ -342,21 +421,21 @@ fn cull_aabb(
 
     if intersect {
         Culling::Intersect {
-            top: distances[0].unwrap(),
-            bottom: distances[1].unwrap(),
-            left: distances[2].unwrap(),
-            right: distances[3].unwrap(),
-            near: distances[4].unwrap(),
-            far: distances[5],
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
         }
     } else {
         Culling::Inside {
-            top: distances[0].unwrap(),
-            bottom: distances[1].unwrap(),
-            left: distances[2].unwrap(),
-            right: distances[3].unwrap(),
-            near: distances[4].unwrap(),
-            far: distances[5],
+            top: distances[ViewingFrustumPlaneKind::Top as usize].unwrap(),
+            bottom: distances[ViewingFrustumPlaneKind::Bottom as usize].unwrap(),
+            left: distances[ViewingFrustumPlaneKind::Left as usize].unwrap(),
+            right: distances[ViewingFrustumPlaneKind::Right as usize].unwrap(),
+            near: distances[ViewingFrustumPlaneKind::Near as usize].unwrap(),
+            far: distances[ViewingFrustumPlaneKind::Far as usize],
         }
     }
 }
@@ -364,7 +443,7 @@ fn cull_aabb(
 #[test]
 fn bitfields() {
     let nx = -1.0;
-    let ny = -2.0;
+    let ny = 2.0;
     let nz = -3.0;
 
     let mut signs = 0u8;
@@ -374,7 +453,7 @@ fn bitfields() {
         signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
     }
 
-    println!("{:08b}", signs);
+    println!("{:08b}", !signs);
 }
 
 /// Culling status of a [`BoundingVolume`] and a [`ViewingFrustum`]

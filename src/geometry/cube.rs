@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 use crate::{
     bounding::BoundingVolumeKind,
@@ -91,18 +91,18 @@ impl Geometry for Cube {
 
     fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
         let s = self.size / 2.0;
-        // Some(BoundingVolume::BoundingSphere {
-        //     center: Vec3::from_values(0.0, 0.0, 0.0),
-        //     radius: (s * s + s * s + s * s).sqrt(),
-        // })
-        Some(BoundingVolumeKind::AxisAlignedBoundingBox {
-            min_x: -s,
-            min_y: -s,
-            min_z: -s,
-            max_x: s,
-            max_y: s,
-            max_z: s,
+        Some(BoundingVolumeKind::BoundingSphere {
+            center: Vec3::from_values(0.0, 0.0, 0.0),
+            radius: (s * s + s * s + s * s).sqrt(),
         })
+        // Some(BoundingVolumeKind::AxisAlignedBoundingBox {
+        //     min_x: -s,
+        //     min_y: -s,
+        //     min_z: -s,
+        //     max_x: s,
+        //     max_y: s,
+        //     max_z: s,
+        // })
     }
 
     fn vertices(&self) -> Option<AttributeValue> {

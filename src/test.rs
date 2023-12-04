@@ -161,7 +161,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
@@ -235,13 +235,16 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
         let seconds = frame_time / 1000.0;
 
-        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
         scene
             .borrow_mut()
-            .entity_collection_mut()
-            .set_local_matrix(Mat4::from_y_rotation(rotation));
+            .active_camera_mut()
+            .as_any_mut()
+            .downcast_mut::<PerspectiveCamera>()
+            .unwrap()
+            .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
 
         let start = window().performance().unwrap().now();
         render
@@ -871,32 +874,32 @@ pub fn test_camera() {
     console_log!(
         "near ({}), ({})",
         frustum.near().normal(),
-        frustum.near().point()
+        frustum.near().point_on_plane()
     );
     console_log!(
         "far ({:?}), ({:?})",
         frustum.far().map(|p| p.normal()),
-        frustum.far().map(|p| p.point())
+        frustum.far().map(|p| p.point_on_plane())
     );
     console_log!(
         "top ({}), ({})",
         frustum.top().normal(),
-        frustum.top().point()
+        frustum.top().point_on_plane()
     );
     console_log!(
         "bottom ({}), ({})",
         frustum.bottom().normal(),
-        frustum.bottom().point()
+        frustum.bottom().point_on_plane()
     );
     console_log!(
         "left ({}), ({})",
         frustum.left().normal(),
-        frustum.left().point()
+        frustum.left().point_on_plane()
     );
     console_log!(
         "right ({}), ({})",
         frustum.right().normal(),
-        frustum.right().point()
+        frustum.right().point_on_plane()
     );
 
     let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
