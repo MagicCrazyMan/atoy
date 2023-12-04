@@ -53,14 +53,3 @@ impl ViewingFrustum {
         &self.bottom
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ViewingFrustumPlaneKind {
-    Top = 0,
-    Bottom = 1,
-    Left = 2,
-    Right = 3,
-    Near = 4,
-    Far = 5,
-}
