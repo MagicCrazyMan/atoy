@@ -6,7 +6,7 @@ use web_sys::WebGl2RenderingContext;
 
 use crate::{
     camera::Camera,
-    entity::{EntityCollection, RenderEntity, Strong, Weak},
+    entity::{collection::EntityCollection, RenderEntity, Strong, Weak},
     material::{Material, MaterialRenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},

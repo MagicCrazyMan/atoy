@@ -11,7 +11,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     camera::Camera,
-    entity::{EntityCollection, Strong},
+    entity::{collection::EntityCollection, Strong},
 };
 
 use self::{drawer::Drawer, flow::PreparationFlow, process::Processor};

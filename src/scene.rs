@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     camera::{perspective::PerspectiveCamera, Camera},
-    entity::EntityCollection,
+    entity::collection::EntityCollection,
     error::Error,
     utils::set_panic_hook,
 };
