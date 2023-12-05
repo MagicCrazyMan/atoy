@@ -3,15 +3,18 @@ use std::any::Any;
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use web_sys::js_sys::Float32Array;
 
-use crate::{render::webgl::{
-    attribute::AttributeValue,
-    buffer::{
-        BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-        BufferUsage,
+use crate::{
+    bounding::BoundingVolumeNative,
+    render::webgl::{
+        attribute::AttributeValue,
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
+        },
+        draw::{Draw, DrawMode},
+        uniform::UniformValue,
     },
-    draw::{Draw, DrawMode},
-    uniform::UniformValue,
-}, bounding::BoundingVolumeKind};
+};
 
 use super::{Geometry, GeometryRenderEntity};
 
@@ -22,6 +25,8 @@ pub struct Sphere {
     num_vertices: usize,
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
+    // non-clone fields
+    update_bounding_volume: bool,
 }
 
 impl Sphere {
@@ -47,6 +52,7 @@ impl Sphere {
                 BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::StaticDraw,
             ),
+            update_bounding_volume: true,
         }
     }
 }
@@ -68,6 +74,7 @@ impl Sphere {
             .buffer_sub_data(BufferSource::from_float32_array(vertices, 0, vertices_len));
         self.normals
             .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len));
+        self.update_bounding_volume = true;
     }
 }
 
@@ -80,8 +87,8 @@ impl Geometry for Sphere {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
-        Some(BoundingVolumeKind::BoundingSphere {
+    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
+        Some(BoundingVolumeNative::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: self.radius,
         })
@@ -129,6 +136,28 @@ impl Geometry for Sphere {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn update_bounding_volume(&self) -> bool {
+        self.update_bounding_volume
+    }
+
+    fn set_update_bounding_volume(&mut self, v: bool) {
+        self.update_bounding_volume = v;
+    }
+}
+
+impl Clone for Sphere {
+    fn clone(&self) -> Self {
+        Self {
+            radius: self.radius.clone(),
+            vertical_segments: self.vertical_segments.clone(),
+            horizontal_segments: self.horizontal_segments.clone(),
+            num_vertices: self.num_vertices.clone(),
+            vertices: self.vertices.clone(),
+            normals: self.normals.clone(),
+            update_bounding_volume: true,
+        }
     }
 }
 

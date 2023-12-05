@@ -1,23 +1,23 @@
 pub mod cube;
 pub mod indexed_cube;
-pub mod plane;
 pub mod raw;
 pub mod sphere;
 
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::any::Any;
 
 use crate::{
-    entity::Entity,
+    bounding::BoundingVolumeNative,
+    entity::Strong,
     material::Material,
     render::webgl::{
         attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
-    }, bounding::BoundingVolumeKind,
+    },
 };
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
 
-    fn bounding_volume(&self) -> Option<BoundingVolumeKind>;
+    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative>;
 
     fn vertices(&self) -> Option<AttributeValue>;
 
@@ -33,8 +33,22 @@ pub trait Geometry {
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    fn update_bounding_volume(&self) -> bool {
+        false
+    }
+
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
+    fn set_update_bounding_volume(&mut self, v: bool) {}
+
+    fn update_matrices(&self) -> bool {
+        false
+    }
+
+    #[allow(unused_variables)]
+    fn set_update_matrices(&mut self, v: bool) {}
+
+    #[allow(unused_variables)]
+    fn prepare(&mut self, state: &RenderState, entity: &Strong) {}
 
     #[allow(unused_variables)]
     fn before_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
@@ -44,19 +58,19 @@ pub trait Geometry {
 }
 
 pub struct GeometryRenderEntity<'a> {
-    entity: Rc<RefCell<Entity>>,
+    entity: Strong,
     material: *mut dyn Material,
-    collected: &'a [Rc<RefCell<Entity>>],
-    drawings: &'a [Rc<RefCell<Entity>>],
+    collected: &'a [Strong],
+    drawings: &'a [Strong],
     drawing_index: usize,
 }
 
 impl<'a> GeometryRenderEntity<'a> {
     pub(crate) fn new(
-        entity: Rc<RefCell<Entity>>,
+        entity: Strong,
         material: *mut dyn Material,
-        collected: &'a [Rc<RefCell<Entity>>],
-        drawings: &'a [Rc<RefCell<Entity>>],
+        collected: &'a [Strong],
+        drawings: &'a [Strong],
         drawing_index: usize,
     ) -> Self {
         Self {
@@ -69,7 +83,7 @@ impl<'a> GeometryRenderEntity<'a> {
     }
 
     #[inline]
-    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+    pub fn entity(&self) -> &Strong {
         &self.entity
     }
 
@@ -89,12 +103,12 @@ impl<'a> GeometryRenderEntity<'a> {
     }
 
     #[inline]
-    pub fn collected_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn collected_entities(&self) -> &[Strong] {
         self.collected
     }
 
     #[inline]
-    pub fn drawing_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn drawing_entities(&self) -> &[Strong] {
         self.drawings
     }
 

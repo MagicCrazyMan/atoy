@@ -1,22 +1,309 @@
-use std::{any::Any, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    any::Any,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
 
 use crate::{
-    bounding::{BoundingVolume, BoundingVolumeKind},
+    bounding::BoundingVolume,
     geometry::Geometry,
     material::Material,
     render::webgl::{attribute::AttributeValue, error::Error, uniform::UniformValue},
 };
 
-pub struct Entity {
+pub struct Borrowed<'a>(Ref<'a, Inner>);
+
+impl<'a> Borrowed<'a> {
+    pub fn id(&self) -> &Uuid {
+        &self.0.id
+    }
+
+    pub fn bounding_volume(&self) -> Option<&BoundingVolume> {
+        self.0.bounding_volume.as_ref()
+    }
+
+    pub fn local_matrix(&self) -> &Mat4 {
+        &self.0.local_matrix
+    }
+
+    pub fn model_matrix(&self) -> &Mat4 {
+        &self.0.model_matrix
+    }
+
+    pub fn normal_matrix(&self) -> &Mat4 {
+        &self.0.normal_matrix
+    }
+
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
+        self.0.geometry.as_ref().map(|geom| geom.as_ref())
+    }
+
+    pub fn material(&self) -> Option<&dyn Material> {
+        self.0.material.as_ref().map(|geom| geom.as_ref())
+    }
+
+    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
+        &self.0.attributes
+    }
+
+    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
+        &self.0.uniforms
+    }
+
+    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.0.properties
+    }
+}
+
+pub struct BorrowedMut<'a>(RefMut<'a, Inner>);
+
+impl<'a> BorrowedMut<'a> {
+    pub fn id(&self) -> &Uuid {
+        &self.0.id
+    }
+
+    pub fn bounding_volume(&self) -> Option<&BoundingVolume> {
+        self.0.bounding_volume.as_ref()
+    }
+
+    pub fn local_matrix(&self) -> &Mat4 {
+        &self.0.local_matrix
+    }
+
+    pub fn model_matrix(&self) -> &Mat4 {
+        &self.0.model_matrix
+    }
+
+    pub fn normal_matrix(&self) -> &Mat4 {
+        &self.0.normal_matrix
+    }
+
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
+        self.0.geometry.as_ref().map(|geom| geom.as_ref())
+    }
+
+    pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+        match geometry {
+            Some(geometry) => self.0.geometry = Some(Box::new(geometry)),
+            None => self.0.geometry = None,
+        };
+    }
+
+    pub(crate) fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
+        self.0
+            .geometry
+            .as_mut()
+            .map(|geom| geom.as_mut() as *mut dyn Geometry)
+    }
+
+    pub fn material(&self) -> Option<&dyn Material> {
+        self.0.material.as_ref().map(|geom| geom.as_ref())
+    }
+
+    pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
+        match material {
+            Some(material) => self.0.material = Some(Box::new(material)),
+            None => self.0.material = None,
+        };
+    }
+
+    pub(crate) fn material_raw(&mut self) -> Option<*mut dyn Material> {
+        self.0
+            .material
+            .as_mut()
+            .map(|material| material.as_mut() as *mut dyn Material)
+    }
+
+    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
+        &self.0.attributes
+    }
+
+    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
+        &self.0.uniforms
+    }
+
+    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.0.properties
+    }
+
+    pub fn set_local_matrix(&mut self, local_matrix: Mat4) {
+        self.0.local_matrix = local_matrix;
+    }
+
+    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        match &mut self.0.geometry {
+            Some(geometry) => Some(geometry.as_mut()),
+            None => None,
+        }
+    }
+
+    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
+        match &mut self.0.material {
+            Some(material) => Some(material.as_mut()),
+            None => None,
+        }
+    }
+
+    pub fn attribute_values_mut(&mut self) -> &mut HashMap<String, AttributeValue> {
+        &mut self.0.attributes
+    }
+
+    pub fn uniform_values_mut(&mut self) -> &mut HashMap<String, UniformValue> {
+        &mut self.0.uniforms
+    }
+
+    pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
+        &mut self.0.properties
+    }
+
+    /// Updates matrices of current frame.
+    /// Only updates matrices when parent model matrix changed
+    /// (`parent_model_matrix` is some) or local matrix changed.
+    pub(crate) fn update_frame(&mut self, parent_model_matrix: Option<Mat4>) -> Result<(), Error> {
+        enum Status {
+            ModelMatrixChanged(Mat4),
+            BoundingVolumeChanged,
+            Unchanged,
+        }
+
+        let status = match parent_model_matrix {
+            Some(parent_model_matrix) => {
+                Status::ModelMatrixChanged(parent_model_matrix * self.0.local_matrix)
+            }
+            None => {
+                let update_matrices = self.0.update_matrices
+                    || self
+                        .0
+                        .geometry
+                        .as_ref()
+                        .map(|geom| geom.update_matrices())
+                        .unwrap_or(false)
+                    || self
+                        .0
+                        .material
+                        .as_ref()
+                        .map(|m| m.update_matrices())
+                        .unwrap_or(false);
+                let update_bounding_volume: bool = self.0.update_bounding_volume
+                    || self
+                        .0
+                        .geometry
+                        .as_ref()
+                        .map(|geom| geom.update_bounding_volume())
+                        .unwrap_or(false)
+                    || self
+                        .0
+                        .material
+                        .as_ref()
+                        .map(|m| m.update_bounding_volume())
+                        .unwrap_or(false);
+
+                if update_matrices {
+                    // no parent model matrix, use local matrix as model matrix
+                    Status::ModelMatrixChanged(self.0.local_matrix)
+                } else if update_bounding_volume {
+                    Status::BoundingVolumeChanged
+                } else {
+                    Status::Unchanged
+                }
+            }
+        };
+
+        match status {
+            Status::ModelMatrixChanged(model_matrix) => {
+                let normal_matrix = model_matrix.invert()?.transpose();
+                self.0.model_matrix = model_matrix;
+                self.0.normal_matrix = normal_matrix;
+                self.0.bounding_volume = self
+                    .0
+                    .geometry
+                    .as_ref()
+                    .and_then(|geom| geom.bounding_volume_native())
+                    .map(|bounding| bounding.transform(&self.0.model_matrix))
+                    .map(|kind| BoundingVolume::new(kind));
+            }
+            Status::BoundingVolumeChanged => {
+                self.0.bounding_volume = self
+                    .0
+                    .geometry
+                    .as_ref()
+                    .and_then(|geom| geom.bounding_volume_native())
+                    .map(|bounding| bounding.transform(&self.0.model_matrix))
+                    .map(|kind| BoundingVolume::new(kind));
+            }
+            Status::Unchanged => {}
+        };
+
+        self.0.update_matrices = false;
+        self.0.update_bounding_volume = false;
+        self.0
+            .geometry
+            .as_mut()
+            .map(|geom| geom.set_update_matrices(false));
+        self.0
+            .geometry
+            .as_mut()
+            .map(|geom| geom.set_update_bounding_volume(false));
+        self.0
+            .material
+            .as_mut()
+            .map(|material| material.set_update_matrices(false));
+        self.0
+            .material
+            .as_mut()
+            .map(|material| material.set_update_bounding_volume(false));
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct Weak(std::rc::Weak<RefCell<Inner>>);
+
+impl Weak {
+    pub fn upgrade(&self) -> Option<Strong> {
+        self.0.upgrade().map(|entity| Strong(entity))
+    }
+}
+
+#[derive(Clone)]
+pub struct Strong(Rc<RefCell<Inner>>);
+
+impl Strong {
+    pub fn borrow(&self) -> Borrowed {
+        Borrowed(self.0.borrow())
+    }
+
+    pub fn borrow_mut(&self) -> BorrowedMut {
+        BorrowedMut(self.0.borrow_mut())
+    }
+
+    pub fn downgrade(&self) -> Weak {
+        Weak(Rc::downgrade(&self.0))
+    }
+
+    pub fn try_own(self) -> Result<Entity, Self> {
+        if Rc::strong_count(&self.0) == 1 {
+            Ok(Entity(self.0))
+        } else {
+            Err(self)
+        }
+    }
+}
+
+struct Inner {
     id: Uuid,
-    local_matrix_changed: bool,
+    update_matrices: bool,
+    update_bounding_volume: bool,
     bounding_volume: Option<BoundingVolume>,
     local_matrix: Mat4,
     model_matrix: Mat4,
     normal_matrix: Mat4,
+    // fields below are all sharable values
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     properties: HashMap<String, Box<dyn Any>>,
@@ -24,11 +311,14 @@ pub struct Entity {
     material: Option<Box<dyn Material>>,
 }
 
+pub struct Entity(Rc<RefCell<Inner>>);
+
 impl Entity {
     pub fn new() -> Self {
-        Self {
+        Self(Rc::new(RefCell::new(Inner {
             id: Uuid::new_v4(),
-            local_matrix_changed: true,
+            update_matrices: true,
+            update_bounding_volume: true,
             bounding_volume: None,
             local_matrix: Mat4::new_identity(),
             model_matrix: Mat4::new_identity(),
@@ -38,160 +328,31 @@ impl Entity {
             properties: HashMap::new(),
             geometry: None,
             material: None,
-        }
+        })))
     }
 
-    pub fn id(&self) -> &Uuid {
-        &self.id
+    pub fn borrow(&self) -> Borrowed {
+        Borrowed(self.0.borrow())
     }
 
-    pub fn geometry(&self) -> Option<&dyn Geometry> {
-        match &self.geometry {
-            Some(geometry) => Some(geometry.as_ref()),
-            None => None,
-        }
+    pub fn borrow_mut(&self) -> BorrowedMut {
+        BorrowedMut(self.0.borrow_mut())
     }
 
-    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
-        match &mut self.geometry {
-            Some(geometry) => {
-                self.bounding_volume = None;
-                Some(geometry.as_mut())
-            }
-            None => None,
-        }
+    pub fn weak(&self) -> Weak {
+        Weak(Rc::downgrade(&self.0))
     }
 
-    pub fn geometry_raw(&mut self) -> Option<*mut dyn Geometry> {
-        match &mut self.geometry {
-            Some(geometry) => Some(geometry.as_mut()),
-            None => None,
-        }
-    }
-
-    pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
-        self.geometry = match geometry {
-            Some(geometry) => {
-                self.bounding_volume = None;
-                Some(Box::new(geometry))
-            }
-            None => None,
-        }
-    }
-
-    pub fn bounding_volume(&self) -> Option<&BoundingVolume> {
-        self.bounding_volume.as_ref()
-    }
-
-    pub fn material(&self) -> Option<&dyn Material> {
-        match &self.material {
-            Some(material) => Some(material.as_ref()),
-            None => None,
-        }
-    }
-
-    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
-        match &mut self.material {
-            Some(material) => Some(material.as_mut()),
-            None => None,
-        }
-    }
-
-    pub fn material_raw(&mut self) -> Option<*mut dyn Material> {
-        match &mut self.material {
-            Some(material) => Some(material.as_mut()),
-            None => None,
-        }
-    }
-
-    pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
-        self.material = match material {
-            Some(material) => Some(Box::new(material)),
-            None => None,
-        }
-    }
-
-    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
-        &self.attributes
-    }
-
-    pub fn attribute_values_mut(&mut self) -> &mut HashMap<String, AttributeValue> {
-        &mut self.attributes
-    }
-
-    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
-        &self.uniforms
-    }
-
-    pub fn uniform_values_mut(&mut self) -> &mut HashMap<String, UniformValue> {
-        &mut self.uniforms
-    }
-
-    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
-        &self.properties
-    }
-
-    pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
-        &mut self.properties
-    }
-
-    pub fn local_matrix(&self) -> &Mat4 {
-        &self.local_matrix
-    }
-
-    pub fn model_matrix(&self) -> &Mat4 {
-        &self.model_matrix
-    }
-
-    pub fn normal_matrix(&self) -> &Mat4 {
-        &self.normal_matrix
-    }
-
-    pub fn set_local_matrix(&mut self, mat: Mat4) {
-        self.local_matrix = mat;
-        self.local_matrix_changed = true;
-    }
-
-    pub fn set_model_matrix(&mut self, mat: Mat4) {
-        self.model_matrix = mat;
-    }
-
-    /// Updates matrices of current frame.
-    /// Only updates matrices when parent model matrix changed
-    /// (`parent_model_matrix` is some) or local matrix changed.
-    pub(crate) fn update_frame(&mut self, parent_model_matrix: Option<Mat4>) -> Result<(), Error> {
-        let model_matrix = match parent_model_matrix {
-            Some(parent_model_matrix) => parent_model_matrix * self.local_matrix,
-            None => {
-                if self.local_matrix_changed {
-                    self.local_matrix
-                } else {
-                    return Ok(());
-                }
-            }
-        };
-        let normal_matrix = model_matrix.invert()?.transpose();
-
-        self.model_matrix = model_matrix;
-        self.normal_matrix = normal_matrix;
-        self.bounding_volume = self
-            .geometry
-            .as_ref()
-            .and_then(|geom| geom.bounding_volume())
-            .map(|bounding| bounding.transform(&self.model_matrix))
-            .map(|kind| BoundingVolume::new(kind));
-
-        self.local_matrix_changed = false;
-
-        Ok(())
+    pub fn strong(&self) -> Strong {
+        Strong(Rc::clone(&self.0))
     }
 }
 
 pub struct EntityCollection {
     id: Uuid,
-    entities: Vec<Rc<RefCell<Entity>>>,
+    entities: Vec<Entity>,
     collections: Vec<EntityCollection>,
-    local_matrix_changed: bool,
+    update_matrices: bool,
     local_matrix: Mat4,
     model_matrix: Mat4,
 }
@@ -201,9 +362,8 @@ impl EntityCollection {
         Self {
             id: Uuid::new_v4(),
             entities: Vec::new(),
-            // entities_hash: HashMap::new(),
             collections: Vec::new(),
-            local_matrix_changed: true,
+            update_matrices: true,
             local_matrix: Mat4::new_identity(),
             model_matrix: Mat4::new_identity(),
         }
@@ -213,17 +373,17 @@ impl EntityCollection {
         &self.id
     }
 
-    pub fn entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn entities(&self) -> &Vec<Entity> {
         &self.entities
     }
 
-    pub fn entities_mut(&mut self) -> &mut [Rc<RefCell<Entity>>] {
+    pub fn entities_mut(&mut self) -> &mut Vec<Entity> {
         &mut self.entities
     }
 
     pub fn add_entity(&mut self, entity: Entity) {
-        // self.entities_hash.insert(entity.id, entity.as_mut());
-        self.entities.push(Rc::new(RefCell::new(entity)));
+        entity.borrow_mut().0.update_matrices = true;
+        self.entities.push(entity);
     }
 
     // pub fn remove_entity_by_index(&mut self, index: usize) -> Option<Rc<RefCell<Entity>>> {
@@ -246,11 +406,11 @@ impl EntityCollection {
     //     Some(entity)
     // }
 
-    pub fn collections(&self) -> &[Self] {
+    pub fn collections(&self) -> &Vec<EntityCollection> {
         &self.collections
     }
 
-    pub fn collections_mut(&mut self) -> &mut [Self] {
+    pub fn collections_mut(&mut self) -> &mut Vec<EntityCollection> {
         &mut self.collections
     }
 
@@ -288,11 +448,7 @@ impl EntityCollection {
 
     pub fn set_local_matrix(&mut self, mat: Mat4) {
         self.local_matrix = mat;
-        self.local_matrix_changed = true;
-    }
-
-    pub fn set_model_matrix(&mut self, mat: Mat4) {
-        self.model_matrix = mat;
+        self.update_matrices = true;
     }
 
     /// Updates matrices of current frame and
@@ -304,13 +460,13 @@ impl EntityCollection {
         match parent_model_matrix {
             Some(parent_model_matrix) => {
                 self.model_matrix = parent_model_matrix * self.local_matrix;
-                self.local_matrix_changed = false;
+                self.update_matrices = false;
                 true
             }
             None => {
-                if self.local_matrix_changed {
+                if self.update_matrices {
                     self.model_matrix = self.local_matrix;
-                    self.local_matrix_changed = false;
+                    self.update_matrices = false;
                     true
                 } else {
                     false
@@ -324,21 +480,21 @@ impl EntityCollection {
 /// Be aware, geometry and material may not extract from entity,
 /// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
 pub struct RenderEntity<'a> {
-    entity: Rc<RefCell<Entity>>,
+    entity: Strong,
     geometry: *mut dyn Geometry,
     material: *mut dyn Material,
-    collected: &'a [Rc<RefCell<Entity>>],
-    drawings: &'a [Rc<RefCell<Entity>>],
+    collected: &'a [Strong],
+    drawings: &'a [Strong],
     drawing_index: usize,
 }
 
 impl<'a> RenderEntity<'a> {
     pub(crate) fn new(
-        entity: Rc<RefCell<Entity>>,
+        entity: Strong,
         geometry: *mut dyn Geometry,
         material: *mut dyn Material,
-        collected: &'a [Rc<RefCell<Entity>>],
-        drawings: &'a [Rc<RefCell<Entity>>],
+        collected: &'a [Strong],
+        drawings: &'a [Strong],
         drawing_index: usize,
     ) -> Self {
         Self {
@@ -352,7 +508,7 @@ impl<'a> RenderEntity<'a> {
     }
 
     #[inline]
-    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+    pub fn entity(&self) -> &Strong {
         &self.entity
     }
 
@@ -387,12 +543,12 @@ impl<'a> RenderEntity<'a> {
     }
 
     #[inline]
-    pub fn collected_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn collected_entities(&self) -> &[Strong] {
         self.collected
     }
 
     #[inline]
-    pub fn drawing_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn drawing_entities(&self) -> &[Strong] {
         self.drawings
     }
 

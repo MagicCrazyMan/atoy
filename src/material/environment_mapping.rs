@@ -1,11 +1,11 @@
-use std::{cell::RefCell, rc::Rc, any::Any};
+use std::any::Any;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::Entity,
+    entity::Strong,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -149,7 +149,7 @@ impl Material for EnvironmentMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Rc<RefCell<Entity>>) {
+    fn prepare(&mut self, _: &RenderState, _: &Strong) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;

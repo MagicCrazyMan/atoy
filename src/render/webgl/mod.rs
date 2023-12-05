@@ -1,8 +1,6 @@
 use std::{
     borrow::Cow,
-    cell::RefCell,
     collections::{HashMap, VecDeque},
-    rc::Rc,
 };
 
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
@@ -16,7 +14,7 @@ use web_sys::{
 use crate::{
     bounding::Culling,
     document,
-    entity::{Entity, RenderEntity},
+    entity::{RenderEntity, Strong},
     geometry::GeometryRenderEntity,
     material::MaterialRenderEntity,
 };
@@ -332,7 +330,7 @@ impl WebGL2Render {
                     }
 
                     let render_entity = RenderEntity::new(
-                        Rc::clone(&entity),
+                        entity.clone(),
                         geometry,
                         material,
                         &collected_entities,
@@ -340,14 +338,14 @@ impl WebGL2Render {
                         index,
                     );
                     let geometry_render_entity = GeometryRenderEntity::new(
-                        Rc::clone(render_entity.entity()),
+                        entity.clone(),
                         material,
                         &collected_entities,
                         &drawing_entities,
                         index,
                     );
                     let material_render_entity = MaterialRenderEntity::new(
-                        Rc::clone(render_entity.entity()),
+                        entity.clone(),
                         geometry,
                         &collected_entities,
                         &drawing_entities,
@@ -424,17 +422,12 @@ impl WebGL2Render {
 
     /// Prepares graphic scene.
     /// Updates entities matrices using current frame status, collects and groups all entities.
-    fn collect_entities<Stuff>(
-        &mut self,
-        stuff: &mut Stuff,
-    ) -> Result<Vec<Rc<RefCell<Entity>>>, Error>
+    fn collect_entities<Stuff>(&mut self, stuff: &mut Stuff) -> Result<Vec<Strong>, Error>
     where
         Stuff: RenderStuff,
     {
         struct BoundingEntity {
-            entity: Rc<RefCell<Entity>>,
-            // bounding: Bounding,
-            // transformed_bounding: Bounding,
+            entity: Strong,
             /// Depth distance from bounding to camera
             distance: f64,
         }
@@ -446,23 +439,23 @@ impl WebGL2Render {
         // entities collections waits for collecting. If parent model does not changed, set matrix to None.
         let mut collections = VecDeque::from([(None, stuff.entity_collection_mut())]);
         while let Some((parent_model_matrix, collection)) = collections.pop_front() {
-            // update collection matrices
+            // update frame for collection
             let mut collection_model_matrix = None;
             if collection.update_frame(parent_model_matrix) {
                 collection_model_matrix = Some(*collection.model_matrix());
             }
 
-            for entity in collection.entities() {
-                let mut entity_borrowed = entity.borrow_mut();
+            // travels each entity
+            for entity in collection.entities_mut() {
                 // update matrices
-                if let Err(err) = entity_borrowed.update_frame(collection_model_matrix) {
+                if let Err(err) = entity.borrow_mut().update_frame(collection_model_matrix) {
                     // should log warning
                     console_log!("{}", err);
                     continue;
                 }
 
                 // collects to different container depending on whether having a bounding
-                match entity_borrowed.bounding_volume() {
+                match entity.borrow_mut().bounding_volume() {
                     Some(bounding) => {
                         match bounding.cull(&viewing_frustum) {
                             // filters every entity outside frustum
@@ -471,17 +464,17 @@ impl WebGL2Render {
                             }
                             Culling::Inside { near, .. } | Culling::Intersect { near, .. } => {
                                 bounding_entities.push(BoundingEntity {
-                                    entity: Rc::clone(entity),
+                                    entity: entity.strong(),
                                     distance: near,
                                 });
                             }
                         }
                     }
-                    None => non_bounding_entities.push(Rc::clone(entity)),
+                    None => non_bounding_entities.push(entity.strong()),
                 }
             }
 
-            // add sub-collections to list
+            // adds sub-collections to list
             collections.extend(
                 collection
                     .collections_mut()

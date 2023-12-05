@@ -1,7 +1,5 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
-    entity::{Entity, RenderEntity},
+    entity::{RenderEntity, Strong},
     render::webgl::error::Error,
 };
 
@@ -16,7 +14,7 @@ where
 {
     fn before_draw(
         &mut self,
-        collected_entities: &[Rc<RefCell<Entity>>],
+        collected_entities: &[Strong],
         pipeline: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
@@ -24,10 +22,10 @@ where
 
     fn before_each_draw(
         &mut self,
-        entity: &Rc<RefCell<Entity>>,
+        entity: &Strong,
         drawing_index: usize,
-        drawing_entities: &[Rc<RefCell<Entity>>],
-        collected_entities: &[Rc<RefCell<Entity>>],
+        drawing_entities: &[Strong],
+        collected_entities: &[Strong],
         pipeline: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
@@ -37,8 +35,8 @@ where
         &mut self,
         entity: &RenderEntity,
         drawing_index: usize,
-        drawing_entities: &[Rc<RefCell<Entity>>],
-        collected_entities: &[Rc<RefCell<Entity>>],
+        drawing_entities: &[Strong],
+        collected_entities: &[Strong],
         pipeline: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
@@ -46,8 +44,8 @@ where
 
     fn after_draw(
         &mut self,
-        drawing_entities: &[Rc<RefCell<Entity>>],
-        collected_entities: &[Rc<RefCell<Entity>>],
+        drawing_entities: &[Strong],
+        collected_entities: &[Strong],
         pipeline: &mut Pipeline,
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,

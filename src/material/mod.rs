@@ -1,7 +1,7 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::any::Any;
 
 use crate::{
-    entity::Entity,
+    entity::Strong,
     geometry::Geometry,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -38,13 +38,27 @@ pub trait Material {
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
+    fn update_bounding_volume(&self) -> bool {
+        false
+    }
+
+    #[allow(unused_variables)]
+    fn set_update_bounding_volume(&self, v: bool) {}
+
+    fn update_matrices(&self) -> bool {
+        false
+    }
+
+    #[allow(unused_variables)]
+    fn set_update_matrices(&self, v: bool) {}
+
     /// Preparation before entering drawing stage.
     ///
     /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
     /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
     /// do not borrow material from entity.
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &RenderState, entity: &Rc<RefCell<Entity>>) {}
+    fn prepare(&mut self, state: &RenderState, entity: &Strong) {}
 
     #[allow(unused_variables)]
     fn before_draw(&mut self, state: &RenderState, entity: &MaterialRenderEntity) {}
@@ -54,19 +68,19 @@ pub trait Material {
 }
 
 pub struct MaterialRenderEntity<'a> {
-    entity: Rc<RefCell<Entity>>,
+    entity: Strong,
     geometry: *mut dyn Geometry,
-    collected: &'a [Rc<RefCell<Entity>>],
-    drawings: &'a [Rc<RefCell<Entity>>],
+    collected: &'a [Strong],
+    drawings: &'a [Strong],
     drawing_index: usize,
 }
 
 impl<'a> MaterialRenderEntity<'a> {
     pub(crate) fn new(
-        entity: Rc<RefCell<Entity>>,
+        entity: Strong,
         geometry: *mut dyn Geometry,
-        collected: &'a [Rc<RefCell<Entity>>],
-        drawings: &'a [Rc<RefCell<Entity>>],
+        collected: &'a [Strong],
+        drawings: &'a [Strong],
         drawing_index: usize,
     ) -> Self {
         Self {
@@ -79,7 +93,7 @@ impl<'a> MaterialRenderEntity<'a> {
     }
 
     #[inline]
-    pub fn entity(&self) -> &Rc<RefCell<Entity>> {
+    pub fn entity(&self) -> &Strong {
         &self.entity
     }
 
@@ -99,12 +113,12 @@ impl<'a> MaterialRenderEntity<'a> {
     }
 
     #[inline]
-    pub fn collected_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn collected_entities(&self) -> &[Strong] {
         self.collected
     }
 
     #[inline]
-    pub fn drawing_entities(&self) -> &[Rc<RefCell<Entity>>] {
+    pub fn drawing_entities(&self) -> &[Strong] {
         self.drawings
     }
 

@@ -1,8 +1,4 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use smallvec::{smallvec, SmallVec};
 use wasm_bindgen::JsCast;
@@ -13,7 +9,7 @@ use web_sys::{
 };
 
 use crate::{
-    entity::{Entity, RenderEntity},
+    entity::{RenderEntity, Strong, Weak},
     material::{Material, MaterialRenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -30,7 +26,7 @@ use crate::{
 };
 
 pub struct PickDetectionPipeline {
-    receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+    receiver: Rc<RefCell<Option<Weak>>>,
     drawer: Rc<RefCell<PickDetectionDrawer>>,
     drawers: SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>,
 }
@@ -56,14 +52,14 @@ impl PickDetectionPipeline {
         self.drawer.borrow_mut().set_position(x, y);
     }
 
-    pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
+    pub fn picked_entity(&self) -> Option<Strong> {
         self.receiver
             .borrow()
             .as_ref()
             .and_then(|entity| entity.upgrade())
     }
 
-    pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
+    pub fn take_picked_entity(&mut self) -> Option<Strong> {
         self.receiver
             .borrow_mut()
             .take()
@@ -84,7 +80,7 @@ impl RenderPipeline for PickDetectionPipeline {
     #[inline(always)]
     fn pre_processors(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
@@ -94,7 +90,7 @@ impl RenderPipeline for PickDetectionPipeline {
     #[inline(always)]
     fn drawers(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
@@ -104,7 +100,7 @@ impl RenderPipeline for PickDetectionPipeline {
     #[inline(always)]
     fn post_processors(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
@@ -130,12 +126,12 @@ pub(super) struct PickDetectionDrawer {
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
-    receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+    receiver: Rc<RefCell<Option<Weak>>>,
     depth_test_enabled: bool,
 }
 
 impl PickDetectionDrawer {
-    pub(super) fn new(receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>, once: bool) -> Self {
+    pub(super) fn new(receiver: Rc<RefCell<Option<Weak>>>, once: bool) -> Self {
         Self {
             once,
             material: PickDetectionMaterial,
@@ -254,7 +250,7 @@ where
 {
     fn before_draw(
         &mut self,
-        collected_entities: &[Rc<RefCell<Entity>>],
+        collected_entities: &[Strong],
         _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -312,10 +308,10 @@ where
 
     fn before_each_draw(
         &mut self,
-        _: &Rc<RefCell<Entity>>,
+        _: &Strong,
         _: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -327,8 +323,8 @@ where
         &mut self,
         _: &RenderEntity,
         _: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -338,8 +334,8 @@ where
 
     fn after_draw(
         &mut self,
-        drawing_entities: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        drawing_entities: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -365,7 +361,7 @@ where
 
         match drawing_entities
             .get(self.pixel.get_index(0) as usize - 1)
-            .map(|entity| Rc::downgrade(entity))
+            .map(|entity| entity.downgrade())
         {
             Some(entity) => *self.receiver.borrow_mut() = Some(entity),
             None => *self.receiver.borrow_mut() = None,

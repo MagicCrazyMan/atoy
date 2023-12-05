@@ -180,12 +180,14 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = Entity::new();
+        let entity = Entity::new();
 
-        entity.set_geometry(Some(Cube::new()));
+        entity.borrow_mut().set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
-        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-        entity.set_local_matrix(model_matrix);
+        entity
+            .borrow_mut()
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
     let scene = Rc::new(RefCell::new(scene));
@@ -216,8 +218,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         if let Some(entity) = picking_pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let mut entity = (*entity).borrow_mut();
-            let material = entity.material_mut().unwrap();
+            let mut material = entity.borrow_mut();
+            let material = material.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()
@@ -333,9 +335,9 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = Entity::new();
+        let entity = Entity::new();
 
-        entity.set_geometry(Some(RawGeometry::new(
+        entity.borrow_mut().set_geometry(Some(RawGeometry::new(
             Draw::Arrays {
                 mode: DrawMode::Triangles,
                 first: 0,
@@ -347,8 +349,10 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
             HashMap::new(),
             HashMap::new(),
         )));
-        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-        entity.set_local_matrix(model_matrix);
+        entity
+            .borrow_mut()
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
 
@@ -397,7 +401,7 @@ pub fn test_instanced_cube(
     let mut render = create_render()?;
     let mut pipeline = create_standard_pipeline();
 
-    let mut entity = Entity::new();
+    let entity = Entity::new();
 
     let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
     let pick_position_cloned = Rc::clone(&pick_position);
@@ -412,10 +416,12 @@ pub fn test_instanced_cube(
     click.forget();
 
     // entity.set_geometry(Some(Cube::new()));
-    entity.set_geometry(Some(IndexedCube::new()));
-    entity.set_material(Some(SolidColorInstancedMaterial::new(
-        count, grid, width, height,
-    )));
+    entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
+    entity
+        .borrow_mut()
+        .set_material(Some(SolidColorInstancedMaterial::new(
+            count, grid, width, height,
+        )));
     scene.entity_collection_mut().add_entity(entity);
 
     let f = Rc::new(RefCell::new(None));
@@ -467,8 +473,8 @@ pub fn test_instanced_cube(
         if let Some(entity) = pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let mut entity = (*entity).borrow_mut();
-            let material = entity.material_mut().unwrap();
+            let mut material = entity.borrow_mut();
+            let material = material.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorInstancedMaterial>()
@@ -748,12 +754,14 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = Entity::new();
+        let entity = Entity::new();
 
-        entity.set_geometry(Some(Cube::new()));
+        entity.borrow_mut().set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
-        entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-        entity.set_local_matrix(model_matrix);
+        entity
+            .borrow_mut()
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
     let scene = Rc::new(RefCell::new(scene));
@@ -784,8 +792,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         if let Some(entity) = picking_pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let mut entity = (*entity).borrow_mut();
-            let material = entity.material_mut().unwrap();
+            let mut material = entity.borrow_mut();
+            let material = material.material_mut().unwrap();
             material
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()

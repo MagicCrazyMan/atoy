@@ -1,6 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{entity::Entity, geometry::Geometry, material::Material};
+use crate::{entity::Strong, geometry::Geometry, material::Material};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PreparationFlow {
@@ -12,7 +10,7 @@ pub enum PreparationFlow {
 pub enum BeforeDrawFlow {
     Skip,
     FollowCollectedEntities,
-    Custom(Vec<Rc<RefCell<Entity>>>),
+    Custom(Vec<Strong>),
 }
 
 #[derive(Clone)]

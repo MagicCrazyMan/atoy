@@ -3,6 +3,7 @@ use std::any::Any;
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
+    bounding::BoundingVolumeNative,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -12,7 +13,7 @@ use crate::{
         draw::{Draw, DrawElementType, DrawMode},
         uniform::UniformValue,
     },
-    utils::{slice_to_float32_array, slice_to_uint8_array}, bounding::BoundingVolumeKind,
+    utils::{slice_to_float32_array, slice_to_uint8_array},
 };
 
 use super::{Geometry, GeometryRenderEntity};
@@ -23,6 +24,8 @@ pub struct IndexedCube {
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
     texture_coordinates: BufferDescriptor,
+    // non-clone fields
+    update_bounding_volume: bool,
 }
 
 impl IndexedCube {
@@ -59,6 +62,7 @@ impl IndexedCube {
                 ),
                 BufferUsage::StaticDraw,
             ),
+            update_bounding_volume: true,
         }
     }
 }
@@ -78,6 +82,7 @@ impl IndexedCube {
                 0,
                 72,
             ));
+        self.update_bounding_volume = true;
     }
 }
 
@@ -92,9 +97,9 @@ impl Geometry for IndexedCube {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
+    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
         let s = self.size / 2.0;
-        Some(BoundingVolumeKind::BoundingSphere {
+        Some(BoundingVolumeNative::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: (s * s + s * s + s * s).sqrt(),
         })
@@ -150,6 +155,27 @@ impl Geometry for IndexedCube {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn update_bounding_volume(&self) -> bool {
+        self.update_bounding_volume
+    }
+
+    fn set_update_bounding_volume(&mut self, v: bool) {
+        self.update_bounding_volume = v;
+    }
+}
+
+impl Clone for IndexedCube {
+    fn clone(&self) -> Self {
+        Self {
+            size: self.size.clone(),
+            indices: self.indices.clone(),
+            vertices: self.vertices.clone(),
+            normals: self.normals.clone(),
+            texture_coordinates: self.texture_coordinates.clone(),
+            update_bounding_volume: true,
+        }
     }
 }
 

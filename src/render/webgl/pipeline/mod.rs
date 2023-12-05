@@ -1,7 +1,7 @@
 pub mod builtin;
 pub mod drawer;
-pub mod process;
 pub mod flow;
+pub mod process;
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
@@ -11,10 +11,10 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     camera::Camera,
-    entity::{Entity, EntityCollection},
+    entity::{EntityCollection, Strong},
 };
 
-use self::{drawer::Drawer, process::Processor, flow::PreparationFlow};
+use self::{drawer::Drawer, flow::PreparationFlow, process::Processor};
 
 use super::error::Error;
 
@@ -87,21 +87,21 @@ pub trait RenderPipeline {
 
     fn pre_processors(
         &mut self,
-        collected: &[Rc<RefCell<Entity>>],
+        collected: &[Strong],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;
 
     fn drawers(
         &mut self,
-        collected: &[Rc<RefCell<Entity>>],
+        collected: &[Strong],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error>;
 
     fn post_processors(
         &mut self,
-        collected: &[Rc<RefCell<Entity>>],
+        collected: &[Strong],
         state: &mut RenderState,
         stuff: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error>;

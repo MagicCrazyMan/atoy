@@ -1,11 +1,11 @@
-use std::{cell::RefCell, rc::Rc, any::Any};
+use std::any::Any;
 
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::Entity,
+    entity::Strong,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         pipeline::RenderState,
@@ -148,7 +148,7 @@ impl Material for TextureMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Rc<RefCell<Entity>>) {
+    fn prepare(&mut self, _: &RenderState, _: &Strong) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

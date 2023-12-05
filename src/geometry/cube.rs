@@ -1,9 +1,9 @@
 use std::any::Any;
 
-use gl_matrix4rust::vec3::{Vec3, AsVec3};
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
-    bounding::BoundingVolumeKind,
+    bounding::BoundingVolumeNative,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -23,6 +23,8 @@ pub struct Cube {
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
     texture_coordinates: BufferDescriptor,
+    // non-clone fields
+    update_bounding_volume: bool,
 }
 
 impl Cube {
@@ -57,11 +59,10 @@ impl Cube {
                 ),
                 BufferUsage::StaticDraw,
             ),
+            update_bounding_volume: true,
         }
     }
-}
 
-impl Cube {
     /// Gets cube size.
     pub fn size(&self) -> f64 {
         self.size
@@ -70,13 +71,13 @@ impl Cube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-
         self.vertices
             .buffer_sub_data(BufferSource::from_float32_array(
                 slice_to_float32_array(&calculate_vertices(size)),
                 0,
                 108,
             ));
+        self.update_bounding_volume = true;
     }
 }
 
@@ -89,13 +90,13 @@ impl Geometry for Cube {
         }
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolumeKind> {
+    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
         let s = self.size / 2.0;
-        Some(BoundingVolumeKind::BoundingSphere {
+        Some(BoundingVolumeNative::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: (s * s + s * s + s * s).sqrt(),
         })
-        // Some(BoundingVolumeKind::AxisAlignedBoundingBox {
+        // Some(BoundingVolumeNative::AxisAlignedBoundingBox {
         //     min_x: -s,
         //     min_y: -s,
         //     min_z: -s,
@@ -155,6 +156,18 @@ impl Geometry for Cube {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+impl Clone for Cube {
+    fn clone(&self) -> Self {
+        Self {
+            size: self.size.clone(),
+            vertices: self.vertices.clone(),
+            normals: self.normals.clone(),
+            texture_coordinates: self.texture_coordinates.clone(),
+            update_bounding_volume: true,
+        }
     }
 }
 

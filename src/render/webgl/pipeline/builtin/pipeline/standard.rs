@@ -1,16 +1,12 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::{mat4::Mat4, vec4::AsVec4};
+use gl_matrix4rust::vec4::AsVec4;
 use smallvec::SmallVec;
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
     camera::Camera,
-    entity::{Entity, EntityCollection, RenderEntity},
+    entity::{EntityCollection, RenderEntity, Strong, Weak},
     material::{Material, MaterialRenderEntity},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -71,7 +67,7 @@ where
     #[inline(always)]
     fn before_draw(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -82,10 +78,10 @@ where
     #[inline(always)]
     fn before_each_draw(
         &mut self,
-        _: &Rc<RefCell<Entity>>,
+        _: &Strong,
         _: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -98,8 +94,8 @@ where
         &mut self,
         _: &RenderEntity,
         _: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -110,8 +106,8 @@ where
     #[inline(always)]
     fn after_draw(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -120,20 +116,17 @@ where
     }
 }
 struct OutliningOnePassDrawer {
-    entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
-    entity_model_matrix: Mat4,
-    scale: Mat4,
+    entity: Rc<RefCell<Option<Weak>>>,
     material: OutliningMaterial,
 }
 
 impl OutliningOnePassDrawer {
-    fn new(entity: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>) -> Self {
+    fn new(entity: Rc<RefCell<Option<Weak>>>) -> Self {
         Self {
             entity,
-            entity_model_matrix: Mat4::new_identity(),
-            scale: Mat4::from_scaling(&[1.1, 1.1, 1.1]),
             material: OutliningMaterial {
                 outline_color: [1.0, 0.0, 0.0, 1.0],
+                scaling: [1.0, 1.0, 1.0],
             },
         }
     }
@@ -145,7 +138,7 @@ where
 {
     fn before_draw(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -166,18 +159,18 @@ where
 
         // render twice
         Ok(BeforeDrawFlow::Custom(vec![
-            Rc::clone(entity),
-            Rc::clone(entity),
-            Rc::clone(entity),
+            entity.clone(),
+            entity.clone(),
+            entity.clone(),
         ]))
     }
 
     fn before_each_draw(
         &mut self,
-        entity: &Rc<RefCell<Entity>>,
+        _: &Strong,
         drawing_index: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -186,10 +179,7 @@ where
 
         match drawing_index {
             0 => {
-                self.entity_model_matrix = *entity.borrow().model_matrix();
-                entity
-                    .borrow_mut()
-                    .set_model_matrix(self.entity_model_matrix * self.scale);
+                self.material.scaling = [1.1, 1.1, 1.1];
                 gl.depth_mask(false);
                 gl.stencil_mask(0xFF);
                 gl.stencil_func(WebGl2RenderingContext::ALWAYS, 1, 0xFF);
@@ -212,9 +202,7 @@ where
                 Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
             }
             2 => {
-                entity
-                    .borrow_mut()
-                    .set_model_matrix(self.entity_model_matrix * self.scale);
+                self.material.scaling = [1.1, 1.1, 1.1];
                 gl.depth_mask(true);
                 gl.stencil_mask(0x00);
                 gl.stencil_func(WebGl2RenderingContext::EQUAL, 1, 0xFF);
@@ -233,25 +221,22 @@ where
 
     fn after_each_draw(
         &mut self,
-        render_entity: &RenderEntity,
+        _: &RenderEntity,
         _: usize,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
-        render_entity
-            .entity()
-            .borrow_mut()
-            .set_model_matrix(self.entity_model_matrix);
+        self.material.scaling = [1.0, 1.0, 1.0];
         Ok(())
     }
 
     fn after_draw(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
+        _: &[Strong],
         _: &mut Pipeline,
         state: &mut RenderState,
         _: &mut dyn RenderStuff,
@@ -272,6 +257,7 @@ where
 
 struct OutliningMaterial {
     outline_color: [f32; 4],
+    scaling: [f32; 3],
 }
 
 impl Material for OutliningMaterial {
@@ -287,6 +273,7 @@ impl Material for OutliningMaterial {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
+            UniformBinding::FromMaterial("u_Scaling"),
             UniformBinding::FromMaterial("u_Color"),
         ]
     }
@@ -305,6 +292,7 @@ impl Material for OutliningMaterial {
     fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
             "u_Color" => Some(UniformValue::FloatVector4(self.outline_color)),
+            "u_Scaling" => Some(UniformValue::FloatVector3(self.scaling)),
             _ => None,
         }
     }
@@ -327,7 +315,7 @@ impl Material for OutliningMaterial {
 }
 
 pub struct StandardPipeline {
-    pick_receiver: Rc<RefCell<Option<Weak<RefCell<Entity>>>>>,
+    pick_receiver: Rc<RefCell<Option<Weak>>>,
     pick_drawer: Rc<RefCell<PickDetectionDrawer>>,
     outlining_drawer: Rc<RefCell<OutliningOnePassDrawer>>,
     pre_processors: SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>,
@@ -381,14 +369,14 @@ impl StandardPipeline {
         self.pick_drawer.borrow_mut().set_position(x, y);
     }
 
-    pub fn picked_entity(&self) -> Option<Rc<RefCell<Entity>>> {
+    pub fn picked_entity(&self) -> Option<Strong> {
         self.pick_receiver
             .borrow()
             .as_ref()
             .and_then(|entity| entity.upgrade())
     }
 
-    pub fn take_picked_entity(&mut self) -> Option<Rc<RefCell<Entity>>> {
+    pub fn take_picked_entity(&mut self) -> Option<Strong> {
         self.pick_receiver
             .borrow_mut()
             .take()
@@ -409,7 +397,7 @@ impl RenderPipeline for StandardPipeline {
     #[inline(always)]
     fn pre_processors(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {
@@ -419,7 +407,7 @@ impl RenderPipeline for StandardPipeline {
     #[inline(always)]
     fn drawers(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Drawer<Self>>>; 8]>, Error> {
@@ -429,7 +417,7 @@ impl RenderPipeline for StandardPipeline {
     #[inline(always)]
     fn post_processors(
         &mut self,
-        _: &[Rc<RefCell<Entity>>],
+        _: &[Strong],
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<SmallVec<[Rc<RefCell<dyn Processor<Self>>>; 16]>, Error> {

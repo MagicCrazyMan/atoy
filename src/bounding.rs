@@ -13,29 +13,29 @@ use crate::{
 #[derive(Debug)]
 pub struct BoundingVolume {
     previous_outside_plane: RefCell<Option<ViewingFrustumPlane>>,
-    kind: BoundingVolumeKind,
+    native: BoundingVolumeNative,
 }
 
 impl BoundingVolume {
-    pub fn new(kind: BoundingVolumeKind) -> Self {
+    pub fn new(native: BoundingVolumeNative) -> Self {
         Self {
             previous_outside_plane: RefCell::new(None),
-            kind,
+            native,
         }
     }
 
-    pub fn kind(&self) -> BoundingVolumeKind {
-        self.kind
+    pub fn kind(&self) -> BoundingVolumeNative {
+        self.native
     }
 
     pub fn cull(&self, frustum: &ViewingFrustum) -> Culling {
         let mut previous_outside_plane = self.previous_outside_plane.borrow_mut();
 
-        let culling = match &self.kind {
-            BoundingVolumeKind::BoundingSphere { center, radius } => {
+        let culling = match &self.native {
+            BoundingVolumeNative::BoundingSphere { center, radius } => {
                 cull_sphere(frustum, previous_outside_plane.clone(), center, *radius)
             }
-            BoundingVolumeKind::AxisAlignedBoundingBox {
+            BoundingVolumeNative::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
@@ -52,7 +52,7 @@ impl BoundingVolume {
                 *min_z,
                 *max_z,
             ),
-            BoundingVolumeKind::OrientedBoundingBox(matrix) => {
+            BoundingVolumeNative::OrientedBoundingBox(matrix) => {
                 cull_obb(frustum, previous_outside_plane.clone(), matrix)
             }
         };
@@ -66,7 +66,7 @@ impl BoundingVolume {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BoundingVolumeKind {
+pub enum BoundingVolumeNative {
     BoundingSphere {
         center: Vec3,
         radius: f64,
@@ -89,7 +89,7 @@ pub enum BoundingVolumeKind {
     OrientedBoundingBox(Mat4),
 }
 
-impl BoundingVolumeKind {
+impl BoundingVolumeNative {
     // pub fn cull(&self, frustum: &ViewingFrustum) -> Culling {
     //     match self {
     //         BoundingVolumeKind::BoundingSphere { center, radius } => {
@@ -108,15 +108,15 @@ impl BoundingVolumeKind {
 
     pub fn transform(&self, transformation: &Mat4) -> Self {
         match self {
-            BoundingVolumeKind::BoundingSphere { center, radius } => {
+            BoundingVolumeNative::BoundingSphere { center, radius } => {
                 let scaling = transformation.scaling();
                 let max = scaling.x().max(scaling.y()).max(scaling.z());
-                BoundingVolumeKind::BoundingSphere {
+                BoundingVolumeNative::BoundingSphere {
                     center: center.transform_mat4(transformation),
                     radius: max * *radius,
                 }
             }
-            BoundingVolumeKind::AxisAlignedBoundingBox {
+            BoundingVolumeNative::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
@@ -152,7 +152,7 @@ impl BoundingVolumeKind {
                 let min_z = *z.iter().min_by(|a, b| a.total_cmp(&b)).unwrap();
                 let max_z = *z.iter().max_by(|a, b| a.total_cmp(&b)).unwrap();
 
-                BoundingVolumeKind::AxisAlignedBoundingBox {
+                BoundingVolumeNative::AxisAlignedBoundingBox {
                     min_x,
                     max_x,
                     min_y,
@@ -161,8 +161,8 @@ impl BoundingVolumeKind {
                     max_z,
                 }
             }
-            BoundingVolumeKind::OrientedBoundingBox(matrix) => {
-                BoundingVolumeKind::OrientedBoundingBox(*transformation * *matrix)
+            BoundingVolumeNative::OrientedBoundingBox(matrix) => {
+                BoundingVolumeNative::OrientedBoundingBox(*transformation * *matrix)
             }
         }
     }

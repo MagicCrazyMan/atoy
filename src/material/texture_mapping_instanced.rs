@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, any::Any};
+use std::any::Any;
 
 use gl_matrix4rust::mat4::Mat4;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -6,7 +6,7 @@ use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
-    entity::Entity,
+    entity::Strong,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
@@ -206,7 +206,7 @@ impl Material for TextureInstancedMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Rc<RefCell<Entity>>) {
+    fn prepare(&mut self, _: &RenderState, _: &Strong) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")
