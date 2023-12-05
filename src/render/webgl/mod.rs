@@ -675,6 +675,13 @@ impl WebGL2Render {
 
                     Some(UniformValue::FloatVector3(vec))
                 }
+                UniformBinding::CanvasSize => self
+                    .gl
+                    .canvas()
+                    .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
+                    .map(|canvas| {
+                        UniformValue::UnsignedIntegerVector2([canvas.width(), canvas.height()])
+                    }),
             };
             let Some(value) = value else {
                 // should log warning

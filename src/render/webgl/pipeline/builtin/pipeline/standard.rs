@@ -1,9 +1,6 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::{
-    mat4::{AsMat4, Mat4},
-    vec4::AsVec4,
-};
+use gl_matrix4rust::vec4::AsVec4;
 use smallvec::SmallVec;
 use web_sys::WebGl2RenderingContext;
 
@@ -129,7 +126,7 @@ impl OutliningOnePassDrawer {
             entity,
             material: OutliningMaterial {
                 outline_color: [1.0, 0.0, 0.0, 1.0],
-                scaling: Mat4::<f32>::new_identity().to_gl(),
+                should_scale: false,
             },
         }
     }
@@ -182,7 +179,7 @@ where
 
         match drawing_index {
             0 => {
-                self.material.scaling = Mat4::from_scaling(&[1.1, 1.1, 1.1]).to_gl();
+                self.material.should_scale = true;
                 gl.depth_mask(false);
                 gl.stencil_mask(0xFF);
                 gl.stencil_func(WebGl2RenderingContext::ALWAYS, 1, 0xFF);
@@ -205,7 +202,7 @@ where
                 Ok(BeforeEachDrawFlow::OverwriteMaterial(&mut self.material))
             }
             2 => {
-                self.material.scaling = Mat4::from_scaling(&[1.1, 1.1, 1.1]).to_gl();
+                self.material.should_scale = true;
                 gl.depth_mask(true);
                 gl.stencil_mask(0x00);
                 gl.stencil_func(WebGl2RenderingContext::EQUAL, 1, 0xFF);
@@ -232,7 +229,7 @@ where
         _: &mut RenderState,
         _: &mut dyn RenderStuff,
     ) -> Result<(), Error> {
-        self.material.scaling = Mat4::from_scaling(&[1.0, 1.0, 1.0]).to_gl();
+        self.material.should_scale = false;
         Ok(())
     }
 
@@ -260,7 +257,7 @@ where
 
 struct OutliningMaterial {
     outline_color: [f32; 4],
-    scaling: [f32; 16],
+    should_scale: bool,
 }
 
 impl Material for OutliningMaterial {
@@ -273,12 +270,23 @@ impl Material for OutliningMaterial {
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
-            UniformBinding::ModelMatrix,
-            UniformBinding::ViewProjMatrix,
-            UniformBinding::FromMaterial("u_Scaling"),
-            UniformBinding::FromMaterial("u_Color"),
-        ]
+        if self.should_scale {
+            &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::ViewProjMatrix,
+                UniformBinding::FromMaterial("u_Color"),
+                UniformBinding::FromMaterial("u_ShouldScale"),
+                UniformBinding::CanvasSize,
+                UniformBinding::FromMaterial("u_OutlineWidth"),
+            ]
+        } else {
+            &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::ViewProjMatrix,
+                UniformBinding::FromMaterial("u_Color"),
+                UniformBinding::FromMaterial("u_ShouldScale"),
+            ]
+        }
     }
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
@@ -294,11 +302,13 @@ impl Material for OutliningMaterial {
 
     fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
         match name {
+            "u_ShouldScale" => Some(UniformValue::UnsignedInteger1(if self.should_scale {
+                1
+            } else {
+                0
+            })),
             "u_Color" => Some(UniformValue::FloatVector4(self.outline_color)),
-            "u_Scaling" => Some(UniformValue::Matrix4 {
-                data: self.scaling,
-                transpose: false,
-            }),
+            "u_OutlineWidth" => Some(UniformValue::UnsignedInteger1(5)),
             _ => None,
         }
     }

@@ -11,13 +11,13 @@ pub enum UniformValue {
     FloatVector3([f32; 3]),
     FloatVector4([f32; 4]),
     IntegerVector1([i32; 1]),
-    IntegerVector2([i32; 1]),
-    IntegerVector3([i32; 1]),
-    IntegerVector4([i32; 1]),
+    IntegerVector2([i32; 2]),
+    IntegerVector3([i32; 3]),
+    IntegerVector4([i32; 4]),
     UnsignedIntegerVector1([u32; 1]),
-    UnsignedIntegerVector2([u32; 1]),
-    UnsignedIntegerVector3([u32; 1]),
-    UnsignedIntegerVector4([u32; 1]),
+    UnsignedIntegerVector2([u32; 2]),
+    UnsignedIntegerVector3([u32; 3]),
+    UnsignedIntegerVector4([u32; 4]),
     Matrix2 {
         data: [f32; 4],
         transpose: bool,
@@ -39,6 +39,7 @@ pub enum UniformValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
+    CanvasSize,
     ModelMatrix,
     NormalMatrix,
     ViewMatrix,
@@ -54,6 +55,7 @@ pub enum UniformBinding {
 impl UniformBinding {
     pub fn as_str(&self) -> &str {
         match self {
+            UniformBinding::CanvasSize => "u_CanvasSize",
             UniformBinding::ModelMatrix => "u_ModelMatrix",
             UniformBinding::NormalMatrix => "u_NormalMatrix",
             UniformBinding::ViewMatrix => "u_ViewMatrix",
