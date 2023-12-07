@@ -488,8 +488,6 @@ impl WebGL2Render {
 
         // console_log!("{}", bounding_entities.iter().map(|e| e.distance.to_string()).collect::<Vec<_>>().join(", "));
 
-        // console_log!("{}", bounding_entities.len());
-
         // puts bounding entities at the front of entities
         let entities = bounding_entities
             .into_iter()

@@ -1,4 +1,5 @@
 pub mod webgl;
+pub mod pp;
 
 use crate::scene::Scene;
 
