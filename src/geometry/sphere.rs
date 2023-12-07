@@ -5,6 +5,7 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     bounding::BoundingVolumeNative,
+    entity::BorrowedMut,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -16,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{Geometry, GeometryRenderEntity};
+use super::Geometry;
 
 pub struct Sphere {
     radius: f64,
@@ -122,11 +123,11 @@ impl Geometry for Sphere {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
         None
     }
 

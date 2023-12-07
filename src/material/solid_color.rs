@@ -2,13 +2,16 @@ use std::any::Any;
 
 use palette::rgb::Rgb;
 
-use crate::render::webgl::{
-    attribute::{AttributeBinding, AttributeValue},
-    program::ShaderSource,
-    uniform::{UniformBinding, UniformValue},
+use crate::{
+    entity::BorrowedMut,
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        program::ShaderSource,
+        uniform::{UniformBinding, UniformValue},
+    },
 };
 
-use super::{Material, MaterialRenderEntity};
+use super::Material;
 
 const COLOR_UNIFORM: &'static str = "u_Color";
 
@@ -97,11 +100,11 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
             COLOR_UNIFORM => Some(UniformValue::FloatVector3([
                 self.color.red,

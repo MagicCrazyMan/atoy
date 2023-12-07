@@ -351,84 +351,84 @@ impl Entity {
 }
 
 
-/// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
-/// Be aware, geometry and material may not extract from entity,
-/// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
-pub struct RenderEntity<'a> {
-    entity: Strong,
-    geometry: *mut dyn Geometry,
-    material: *mut dyn Material,
-    collected: &'a [Strong],
-    drawings: &'a [Strong],
-    drawing_index: usize,
-}
+// /// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
+// /// Be aware, geometry and material may not extract from entity,
+// /// which depending on [`MaterialPolicy`] and [`GeometryPolicy`].
+// pub struct RenderEntity<'a> {
+//     entity: Strong,
+//     geometry: *mut dyn Geometry,
+//     material: *mut dyn Material,
+//     collected: &'a [Strong],
+//     drawings: &'a [Strong],
+//     drawing_index: usize,
+// }
 
-impl<'a> RenderEntity<'a> {
-    pub(crate) fn new(
-        entity: Strong,
-        geometry: *mut dyn Geometry,
-        material: *mut dyn Material,
-        collected: &'a [Strong],
-        drawings: &'a [Strong],
-        drawing_index: usize,
-    ) -> Self {
-        Self {
-            entity,
-            geometry,
-            material,
-            collected,
-            drawings,
-            drawing_index,
-        }
-    }
+// impl<'a> RenderEntity<'a> {
+//     pub(crate) fn new(
+//         entity: Strong,
+//         geometry: *mut dyn Geometry,
+//         material: *mut dyn Material,
+//         collected: &'a [Strong],
+//         drawings: &'a [Strong],
+//         drawing_index: usize,
+//     ) -> Self {
+//         Self {
+//             entity,
+//             geometry,
+//             material,
+//             collected,
+//             drawings,
+//             drawing_index,
+//         }
+//     }
 
-    #[inline]
-    pub fn entity(&self) -> &Strong {
-        &self.entity
-    }
+//     #[inline]
+//     pub fn entity(&self) -> &Strong {
+//         &self.entity
+//     }
 
-    #[inline]
-    pub fn geometry(&self) -> &dyn Geometry {
-        unsafe { &*self.geometry }
-    }
+//     #[inline]
+//     pub fn geometry(&self) -> &dyn Geometry {
+//         unsafe { &*self.geometry }
+//     }
 
-    #[inline]
-    pub fn geometry_raw(&self) -> *mut dyn Geometry {
-        self.geometry
-    }
+//     #[inline]
+//     pub fn geometry_raw(&self) -> *mut dyn Geometry {
+//         self.geometry
+//     }
 
-    #[inline]
-    pub fn geometry_mut(&mut self) -> &mut dyn Geometry {
-        unsafe { &mut *self.geometry }
-    }
+//     #[inline]
+//     pub fn geometry_mut(&mut self) -> &mut dyn Geometry {
+//         unsafe { &mut *self.geometry }
+//     }
 
-    #[inline]
-    pub fn material(&self) -> &dyn Material {
-        unsafe { &*self.material }
-    }
+//     #[inline]
+//     pub fn material(&self) -> &dyn Material {
+//         unsafe { &*self.material }
+//     }
 
-    #[inline]
-    pub fn material_raw(&self) -> *mut dyn Material {
-        self.material
-    }
+//     #[inline]
+//     pub fn material_raw(&self) -> *mut dyn Material {
+//         self.material
+//     }
 
-    #[inline]
-    pub fn material_mut(&mut self) -> &mut dyn Material {
-        unsafe { &mut *self.material }
-    }
+//     #[inline]
+//     pub fn material_mut(&mut self) -> &mut dyn Material {
+//         unsafe { &mut *self.material }
+//     }
 
-    #[inline]
-    pub fn collected_entities(&self) -> &[Strong] {
-        self.collected
-    }
+//     #[inline]
+//     pub fn collected_entities(&self) -> &[Strong] {
+//         self.collected
+//     }
 
-    #[inline]
-    pub fn drawing_entities(&self) -> &[Strong] {
-        self.drawings
-    }
+//     #[inline]
+//     pub fn drawing_entities(&self) -> &[Strong] {
+//         self.drawings
+//     }
 
-    #[inline]
-    pub fn drawing_index(&self) -> usize {
-        self.drawing_index
-    }
-}
+//     #[inline]
+//     pub fn drawing_index(&self) -> usize {
+//         self.drawing_index
+//     }
+// }

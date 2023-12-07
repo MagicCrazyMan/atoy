@@ -20,7 +20,7 @@ pub enum ShaderSource<'a> {
 }
 
 #[derive(Clone)]
-pub(super) struct ProgramItem {
+pub struct Program {
     name: String,
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
@@ -28,31 +28,31 @@ pub(super) struct ProgramItem {
     uniforms: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
 }
 
-impl ProgramItem {
-    pub(super) fn name(&self) -> &str {
+impl Program {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub(super) fn program(&self) -> &WebGlProgram {
+    pub fn program(&self) -> &WebGlProgram {
         &self.program
     }
 
-    pub(super) fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
+    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
         &self.attributes
     }
 
-    pub(super) fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
+    pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
         &self.uniforms
     }
 }
 
-pub(super) struct ProgramStore {
+pub struct ProgramStore {
     gl: WebGl2RenderingContext,
-    store: HashMap<String, ProgramItem>,
+    store: HashMap<String, Program>,
 }
 
 impl ProgramStore {
-    pub(super) fn new(gl: WebGl2RenderingContext) -> Self {
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             gl,
             store: HashMap::new(),
@@ -62,7 +62,7 @@ impl ProgramStore {
 
 impl ProgramStore {
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub(super) fn use_program(&mut self, material: &dyn Material) -> Result<ProgramItem, Error> {
+    pub fn use_program(&mut self, material: &dyn Material) -> Result<Program, Error> {
         let store = &mut self.store;
 
         match store.entry(material.name().to_string()) {
@@ -78,7 +78,7 @@ impl ProgramStore {
 fn compile_material(
     gl: &WebGl2RenderingContext,
     material: &dyn Material,
-) -> Result<ProgramItem, Error> {
+) -> Result<Program, Error> {
     let mut shaders = Vec::with_capacity(material.sources().len());
     material.sources().iter().try_for_each(|source| {
         shaders.push(compile_shader(gl, source)?);
@@ -86,7 +86,7 @@ fn compile_material(
     })?;
 
     let program = create_program(gl, &shaders)?;
-    Ok(ProgramItem {
+    Ok(Program {
         name: material.name().to_string(),
         attributes: Rc::new(collect_attribute_locations(
             gl,
@@ -114,7 +114,7 @@ fn compile_material(
 //     gl.delete_program(Some(&program));
 // }
 
-pub fn compile_shader(
+fn compile_shader(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
 ) -> Result<WebGlShader, Error> {
@@ -151,7 +151,7 @@ pub fn compile_shader(
     }
 }
 
-pub fn create_program(
+fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
 ) -> Result<WebGlProgram, Error> {
@@ -179,7 +179,7 @@ pub fn create_program(
     }
 }
 
-pub fn collect_attribute_locations(
+fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
@@ -200,7 +200,7 @@ pub fn collect_attribute_locations(
     Ok(locations)
 }
 
-pub fn collect_uniform_locations(
+fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],

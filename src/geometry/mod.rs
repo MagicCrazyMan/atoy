@@ -7,10 +7,10 @@ use std::any::Any;
 
 use crate::{
     bounding::BoundingVolumeNative,
-    entity::Strong,
-    material::Material,
-    render::webgl::{
-        attribute::AttributeValue, draw::Draw, pipeline::RenderState, uniform::UniformValue,
+    entity::BorrowedMut,
+    render::{
+        pp::State,
+        webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
     },
 };
 
@@ -25,9 +25,9 @@ pub trait Geometry {
 
     fn texture_coordinates(&self) -> Option<AttributeValue>;
 
-    fn attribute_value(&self, name: &str, entity: &GeometryRenderEntity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &BorrowedMut) -> Option<AttributeValue>;
 
-    fn uniform_value(&self, name: &str, entity: &GeometryRenderEntity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformValue>;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -48,72 +48,72 @@ pub trait Geometry {
     fn set_update_matrices(&mut self, v: bool) {}
 
     #[allow(unused_variables)]
-    fn prepare(&mut self, state: &RenderState, entity: &Strong) {}
+    fn prepare(&mut self, state: &State, entity: &BorrowedMut) {}
 
     #[allow(unused_variables)]
-    fn before_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
+    fn before_draw(&mut self, state: &State, entity: &BorrowedMut) {}
 
     #[allow(unused_variables)]
-    fn after_draw(&mut self, state: &RenderState, entity: &GeometryRenderEntity) {}
+    fn after_draw(&mut self, state: &State, entity: &BorrowedMut) {}
 }
 
-pub struct GeometryRenderEntity<'a> {
-    entity: Strong,
-    material: *mut dyn Material,
-    collected: &'a [Strong],
-    drawings: &'a [Strong],
-    drawing_index: usize,
-}
+// pub struct GeometryRenderEntity<'a> {
+//     entity: Strong,
+//     material: *mut dyn Material,
+//     collected: &'a [Strong],
+//     drawings: &'a [Strong],
+//     drawing_index: usize,
+// }
 
-impl<'a> GeometryRenderEntity<'a> {
-    pub(crate) fn new(
-        entity: Strong,
-        material: *mut dyn Material,
-        collected: &'a [Strong],
-        drawings: &'a [Strong],
-        drawing_index: usize,
-    ) -> Self {
-        Self {
-            entity,
-            material,
-            collected,
-            drawings,
-            drawing_index,
-        }
-    }
+// impl<'a> GeometryRenderEntity<'a> {
+//     pub(crate) fn new(
+//         entity: Strong,
+//         material: *mut dyn Material,
+//         collected: &'a [Strong],
+//         drawings: &'a [Strong],
+//         drawing_index: usize,
+//     ) -> Self {
+//         Self {
+//             entity,
+//             material,
+//             collected,
+//             drawings,
+//             drawing_index,
+//         }
+//     }
 
-    #[inline]
-    pub fn entity(&self) -> &Strong {
-        &self.entity
-    }
+//     #[inline]
+//     pub fn entity(&self) -> &Strong {
+//         &self.entity
+//     }
 
-    #[inline]
-    pub fn material(&self) -> &dyn Material {
-        unsafe { &*self.material }
-    }
+//     #[inline]
+//     pub fn material(&self) -> &dyn Material {
+//         unsafe { &*self.material }
+//     }
 
-    #[inline]
-    pub fn material_raw(&self) -> *mut dyn Material {
-        self.material
-    }
+//     #[inline]
+//     pub fn material_raw(&self) -> *mut dyn Material {
+//         self.material
+//     }
 
-    #[inline]
-    pub fn material_mut(&mut self) -> &mut dyn Material {
-        unsafe { &mut *self.material }
-    }
+//     #[inline]
+//     pub fn material_mut(&mut self) -> &mut dyn Material {
+//         unsafe { &mut *self.material }
+//     }
 
-    #[inline]
-    pub fn collected_entities(&self) -> &[Strong] {
-        self.collected
-    }
+//     #[inline]
+//     pub fn collected_entities(&self) -> &[Strong] {
+//         self.collected
+//     }
 
-    #[inline]
-    pub fn drawing_entities(&self) -> &[Strong] {
-        self.drawings
-    }
+//     #[inline]
+//     pub fn drawing_entities(&self) -> &[Strong] {
+//         self.drawings
+//     }
 
-    #[inline]
-    pub fn drawing_index(&self) -> usize {
-        self.drawing_index
-    }
-}
+//     #[inline]
+//     pub fn drawing_index(&self) -> usize {
+//         self.drawing_index
+//     }
+// }

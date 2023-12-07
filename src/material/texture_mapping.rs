@@ -5,21 +5,23 @@ use web_sys::HtmlImageElement;
 
 use crate::{
     document,
-    entity::Strong,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        pipeline::RenderState,
-        program::ShaderSource,
-        texture::{
-            TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-            TextureWrapMethod,
+    entity::BorrowedMut,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            program::ShaderSource,
+            texture::{
+                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+                TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+                TextureWrapMethod,
+            },
+            uniform::{UniformBinding, UniformValue},
         },
-        uniform::{UniformBinding, UniformValue},
     },
 };
 
-use super::{Material, MaterialRenderEntity};
+use super::Material;
 
 const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
@@ -117,11 +119,11 @@ impl Material for TextureMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -148,7 +150,7 @@ impl Material for TextureMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Strong) {
+    fn prepare(&mut self, _: &State, _: &BorrowedMut) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

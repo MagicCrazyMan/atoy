@@ -4,13 +4,13 @@ pub mod standard;
 
 use std::{any::Any, collections::HashMap};
 
-use web_sys::WebGl2RenderingContext;
+use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::collection::EntityCollection};
 
 use self::graph::DirectedGraph;
 
-use super::webgl::error::Error;
+use super::webgl::{error::Error, program::ProgramStore, buffer::BufferStore, texture::TextureStore};
 
 pub trait Stuff {
     /// Gets entity collection that should be draw on current frame.
@@ -26,13 +26,34 @@ pub trait Stuff {
     fn camera_mut(&mut self) -> &mut dyn Camera;
 }
 
-#[derive(Clone)]
-pub struct State {
+pub struct State<'a> {
+    program_store: &'a mut ProgramStore,
+    buffer_store: &'a mut BufferStore,
+    texture_store: &'a mut TextureStore,
     gl: WebGl2RenderingContext,
+    canvas: HtmlCanvasElement,
     timestamp: f64,
 }
 
-impl State {
+impl<'a> State<'a> {
+    pub(crate) fn new(
+        gl: WebGl2RenderingContext,
+        canvas: HtmlCanvasElement,
+        timestamp: f64,
+        program_store: &'a mut ProgramStore,
+        buffer_store: &'a mut BufferStore,
+        texture_store: &'a mut TextureStore,
+    ) -> Self {
+        Self {
+            gl,
+            canvas,
+            timestamp,
+            program_store,
+            buffer_store,
+            texture_store,
+        }
+    }
+
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
     }
@@ -40,12 +61,40 @@ impl State {
     pub fn timestamp(&self) -> f64 {
         self.timestamp
     }
+
+    pub fn canvas(&self) -> &HtmlCanvasElement {
+        &self.canvas
+    }
+
+    pub fn program_store(&self) -> &ProgramStore {
+        &self.program_store
+    }
+
+    pub fn program_store_mut(&mut self) -> &mut ProgramStore {
+        &mut self.program_store
+    }
+
+    pub fn buffer_store(&self) -> &&'a mut BufferStore {
+        &self.buffer_store
+    }
+
+    pub fn buffer_store_mut(&mut self) -> &mut &'a mut BufferStore {
+        &mut self.buffer_store
+    }
+
+    pub fn texture_store(&self) -> &&'a mut TextureStore {
+        &self.texture_store
+    }
+
+    pub fn texture_store_mut(&mut self) -> &mut &'a mut TextureStore {
+        &mut self.texture_store
+    }
 }
 
 pub struct Pipeline {
     graph: DirectedGraph<Box<dyn Executor>>,
     name_to_index: HashMap<String, usize>,
-    runtime_data: HashMap<usize, Box<dyn Any>>,
+    resources: HashMap<String, Box<dyn Any>>,
 }
 
 impl Pipeline {
@@ -53,15 +102,17 @@ impl Pipeline {
         let mut instance = Self {
             graph: DirectedGraph::new(),
             name_to_index: HashMap::new(),
-            runtime_data: HashMap::new(),
+            resources: HashMap::new(),
         };
         instance.add_executor(StartExecutor);
         instance
     }
 
-    pub fn execute<S: Stuff>(&mut self, state: &State, stuff: &mut S) -> Result<(), Error> {
+    pub fn execute<S: Stuff>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Error> {
         for (_, executor) in self.graph.iter_mut()? {
-            executor.execute(state, stuff)?;
+            if !executor.skip() {
+                executor.execute(state, stuff, &mut self.resources)?;
+            }
         }
 
         self.clear();
@@ -70,7 +121,7 @@ impl Pipeline {
     }
 
     fn clear(&mut self) {
-        self.runtime_data.clear();
+        self.resources.clear();
     }
 
     pub fn add_executor<E: Executor + 'static>(&mut self, executor: E) {
@@ -159,7 +210,12 @@ impl Executor for StartExecutor {
     }
 
     #[inline]
-    fn execute(&mut self, _: &State, _: &mut dyn Stuff) -> Result<(), Error> {
+    fn execute(
+        &mut self,
+        _: &mut State,
+        _: &mut dyn Stuff,
+        _: &mut HashMap<String, Box<dyn Any>>,
+    ) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -167,5 +223,14 @@ impl Executor for StartExecutor {
 pub trait Executor {
     fn name(&self) -> &str;
 
-    fn execute(&mut self, state: &State, stuff: &mut dyn Stuff) -> Result<(), Error>;
+    fn skip(&self) -> bool {
+        false
+    }
+
+    fn execute(
+        &mut self,
+        state: &mut State,
+        stuff: &mut dyn Stuff,
+        resources: &mut HashMap<String, Box<dyn Any>>,
+    ) -> Result<(), Error>;
 }

@@ -6,25 +6,27 @@ use web_sys::{js_sys::Float32Array, HtmlImageElement};
 
 use crate::{
     document,
-    entity::Strong,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
+    entity::BorrowedMut,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            buffer::{
+                BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+                BufferUsage,
+            },
+            program::ShaderSource,
+            texture::{
+                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+                TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+                TextureWrapMethod,
+            },
+            uniform::{UniformBinding, UniformValue},
         },
-        pipeline::RenderState,
-        program::ShaderSource,
-        texture::{
-            TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-            TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-            TextureWrapMethod,
-        },
-        uniform::{UniformBinding, UniformValue},
     },
 };
 
-use super::{Material, MaterialRenderEntity};
+use super::Material;
 
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
@@ -164,7 +166,7 @@ impl Material for TextureInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         match name {
             INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
@@ -179,7 +181,7 @@ impl Material for TextureInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, name: &str, _: &MaterialRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -206,7 +208,7 @@ impl Material for TextureInstancedMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &RenderState, _: &Strong) {
+    fn prepare(&mut self, _: &State, _: &BorrowedMut) {
         if self.image.is_none() {
             let image = document()
                 .create_element("img")

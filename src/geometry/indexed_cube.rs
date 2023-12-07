@@ -4,6 +4,7 @@ use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
     bounding::BoundingVolumeNative,
+    entity::BorrowedMut,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -16,7 +17,7 @@ use crate::{
     utils::{slice_to_float32_array, slice_to_uint8_array},
 };
 
-use super::{Geometry, GeometryRenderEntity};
+use super::Geometry;
 
 pub struct IndexedCube {
     size: f64,
@@ -141,11 +142,11 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &GeometryRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
         None
     }
 

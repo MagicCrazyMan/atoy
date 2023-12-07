@@ -6,7 +6,7 @@ use gl_matrix4rust::{
 };
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{frustum::ViewingFrustum, plane::Plane, render::webgl::pipeline::RenderState};
+use crate::{frustum::ViewingFrustum, plane::Plane, render::pp::State};
 
 use super::Camera;
 
@@ -205,7 +205,7 @@ impl Camera for PerspectiveCamera {
         self
     }
 
-    fn update_frame(&mut self, state: &RenderState) {
+    fn update_frame(&mut self, state: &State) {
         self.set_aspect(state.canvas().width() as f64 / state.canvas().height() as f64)
     }
 }

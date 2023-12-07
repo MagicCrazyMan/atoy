@@ -260,7 +260,7 @@ pub enum TextureParameter {
 }
 
 impl TextureParameter {
-    pub(super) fn tex_parameteri(&self, gl: &WebGl2RenderingContext, target: GLenum) {
+    pub fn tex_parameteri(&self, gl: &WebGl2RenderingContext, target: GLenum) {
         match self {
             TextureParameter::MagFilter(v) => {
                 gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)

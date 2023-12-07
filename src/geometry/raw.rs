@@ -2,10 +2,11 @@ use std::{any::Any, collections::HashMap};
 
 use crate::{
     bounding::BoundingVolumeNative,
+    entity::BorrowedMut,
     render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
 };
 
-use super::{Geometry, GeometryRenderEntity};
+use super::Geometry;
 
 pub struct RawGeometry {
     draw: Draw,
@@ -57,11 +58,11 @@ impl Geometry for RawGeometry {
         self.texture_coordinates.clone()
     }
 
-    fn attribute_value(&self, name: &str, _: &GeometryRenderEntity) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         self.attributes.get(name).map(|v| v.clone())
     }
 
-    fn uniform_value(&self, name: &str, _: &GeometryRenderEntity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         self.uniforms.get(name).map(|v| v.clone())
     }
 
