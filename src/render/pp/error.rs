@@ -3,7 +3,7 @@ pub enum Error {
     NoSuchExecutor(String),
     SelfReferential,
     AlreadyConnected,
-    
+    InvalidateGraph,
 }
 
 impl std::fmt::Display for Error {
