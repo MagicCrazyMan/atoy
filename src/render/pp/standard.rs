@@ -31,21 +31,19 @@ use super::{Executor, Pipeline, State, Stuff};
 pub fn create_standard_pipeline() -> Pipeline {
     let mut pipeline = Pipeline::new();
     pipeline.add_executor(UpdateCameraFrame::new("update_camera"));
-    pipeline.add_executor(StandardEntitiesCollector::new(
-        "entities_collector",
-        "input_entities",
-    ));
-    pipeline.add_executor(StandardDrawer::new("drawer", "input_entities"));
+    pipeline.add_executor(StandardEntitiesCollector::new("collector", "entities"));
+    pipeline.add_executor(StandardDrawer::new("drawer", "entities"));
     pipeline.add_executor(ResetWebGLState::new("reset"));
 
     // safely unwraps
-    pipeline.connect("update_camera", "entities_collector").unwrap();
-    pipeline.connect("entities_collector", "drawer").unwrap();
+    pipeline.connect("update_camera", "collector").unwrap();
+    pipeline.connect("collector", "drawer").unwrap();
     pipeline.connect("drawer", "reset").unwrap();
 
     pipeline
 }
 
+/// Standard stuff provides [`Stuff`] data from [`Scene`].
 pub struct StandardStuff<'a> {
     scene: &'a mut Scene,
 }
@@ -74,16 +72,20 @@ impl<'a> Stuff for StandardStuff<'a> {
     }
 }
 
+/// Standard drawer, draws all entities with its own material and geometry.
+///
+/// # Get Resources & Data Type
+/// - `entities`: [`Vec<Strong>`], a list contains entities to draw.
 pub struct StandardDrawer {
     name: String,
-    resource_name: String,
+    entities: String,
 }
 
 impl StandardDrawer {
-    pub fn new(name: impl Into<String>, resource_name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>, entities: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            resource_name: resource_name.into(),
+            entities: entities.into(),
         }
     }
 
@@ -448,7 +450,7 @@ impl Executor for StandardDrawer {
         resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         let Some(entities) = resources
-            .get(&self.resource_name)
+            .get(&self.entities)
             .and_then(|resource| resource.downcast_ref::<Vec<Strong>>())
         else {
             return Ok(());
@@ -541,16 +543,19 @@ impl Executor for StandardDrawer {
 /// - Calculates model matrix for each entity.
 /// - Culls entities which has bounding volume and it is outside the viewing frustum.
 /// Entities which has no bounding volume will append to the last of the entity list.
+///
+/// # Provides Resources & Data Type
+/// - `entities`: [`Vec<Strong>`], a list contains entities collected by this collector.
 pub struct StandardEntitiesCollector {
     name: String,
-    resource_name: String,
+    entities: String,
 }
 
 impl StandardEntitiesCollector {
-    pub fn new(name: impl Into<String>, resource_name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>, entities: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            resource_name: resource_name.into(),
+            entities: entities.into(),
         }
     }
 }
@@ -628,7 +633,7 @@ impl Executor for StandardEntitiesCollector {
         // console_log!("entities count {}", entities.len());
 
         resources.insert(
-            self.resource_name.clone(),
+            self.entities.clone(),
             Box::new(
                 entities
                     .into_iter()
