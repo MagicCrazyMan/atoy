@@ -641,7 +641,7 @@ impl Executor for StandardEntitiesCollector {
     }
 }
 
-/// Executor sets camera.
+/// Executor update camera by current frame.
 pub struct UpdateCameraFrame(String);
 
 impl UpdateCameraFrame {

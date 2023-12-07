@@ -10,7 +10,9 @@ use crate::{camera::Camera, entity::collection::EntityCollection};
 
 use self::graph::DirectedGraph;
 
-use super::webgl::{error::Error, program::ProgramStore, buffer::BufferStore, texture::TextureStore};
+use super::webgl::{
+    buffer::BufferStore, error::Error, program::ProgramStore, texture::TextureStore,
+};
 
 pub trait Stuff {
     /// Gets entity collection that should be draw on current frame.
@@ -99,20 +101,16 @@ pub struct Pipeline {
 
 impl Pipeline {
     pub fn new() -> Self {
-        let mut instance = Self {
+        Self {
             graph: DirectedGraph::new(),
             name_to_index: HashMap::new(),
             resources: HashMap::new(),
-        };
-        instance.add_executor(StartExecutor);
-        instance
+        }
     }
 
     pub fn execute<S: Stuff>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Error> {
         for (_, executor) in self.graph.iter_mut()? {
-            if !executor.skip() {
-                executor.execute(state, stuff, &mut self.resources)?;
-            }
+            executor.execute(state, stuff, &mut self.resources)?;
         }
 
         self.clear();
@@ -197,35 +195,8 @@ impl Pipeline {
     }
 }
 
-pub const START_EXECUTOR_NAME: &'static str = "__StartExecutor__";
-
-/// An start executor doing nothing.
-/// `StartExecutor` is always placed as the first vertex of the graph.
-struct StartExecutor;
-
-impl Executor for StartExecutor {
-    #[inline]
-    fn name(&self) -> &str {
-        START_EXECUTOR_NAME
-    }
-
-    #[inline]
-    fn execute(
-        &mut self,
-        _: &mut State,
-        _: &mut dyn Stuff,
-        _: &mut HashMap<String, Box<dyn Any>>,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
 pub trait Executor {
     fn name(&self) -> &str;
-
-    fn skip(&self) -> bool {
-        false
-    }
 
     fn execute(
         &mut self,

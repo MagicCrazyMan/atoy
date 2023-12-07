@@ -320,21 +320,200 @@ impl<T> DirectedGraph<T> {
         }
     }
 
-    pub(super) fn iter(&self) -> Result<Iter<'_, T>, Error> {
+    /// As same as `dfs_iter()`.
+    pub(super) fn iter(&self) -> Result<DfsIter<'_, T>, Error> {
         // do validation first before constructing iterator
         if self.validate() {
-            Ok(Iter::new(self))
+            Ok(DfsIter::new(self))
         } else {
             Err(Error::InvalidateGraph)
         }
     }
 
-    pub(super) fn iter_mut(&mut self) -> Result<IterMut<'_, T>, Error> {
+    /// As same as `dfs_iter_mut()`.
+    pub(super) fn iter_mut(&mut self) -> Result<DfsIterMut<'_, T>, Error> {
         // do validation first before constructing iterator
         if self.validate() {
-            Ok(IterMut::new(self))
+            Ok(DfsIterMut::new(self))
         } else {
             Err(Error::InvalidateGraph)
+        }
+    }
+
+    pub(super) fn dfs_iter(&self) -> Result<DfsIter<'_, T>, Error> {
+        // do validation first before constructing iterator
+        if self.validate() {
+            Ok(DfsIter::new(self))
+        } else {
+            Err(Error::InvalidateGraph)
+        }
+    }
+
+    pub(super) fn dfs_iter_mut(&mut self) -> Result<DfsIterMut<'_, T>, Error> {
+        // do validation first before constructing iterator
+        if self.validate() {
+            Ok(DfsIterMut::new(self))
+        } else {
+            Err(Error::InvalidateGraph)
+        }
+    }
+
+    pub(super) fn bfs_iter(&self) -> Result<BfsIter<'_, T>, Error> {
+        // do validation first before constructing iterator
+        if self.validate() {
+            Ok(BfsIter::new(self))
+        } else {
+            Err(Error::InvalidateGraph)
+        }
+    }
+
+    pub(super) fn bfs_iter_mut(&mut self) -> Result<BfsIterMut<'_, T>, Error> {
+        // do validation first before constructing iterator
+        if self.validate() {
+            Ok(BfsIterMut::new(self))
+        } else {
+            Err(Error::InvalidateGraph)
+        }
+    }
+}
+
+/// Graph iterator using depth first search and inputs controlling.
+///
+/// Graph should be ensured to be a VOA network before constructing an iterator.
+pub(super) struct DfsIter<'a, T> {
+    graph: &'a DirectedGraph<T>,
+    stuff: Option<(Vec<usize>, VecDeque<(usize, &'a Vertex<T>)>, HashSet<usize>)>,
+}
+
+impl<'a, T> DfsIter<'a, T> {
+    pub(super) fn new(graph: &'a DirectedGraph<T>) -> Self {
+        Self { graph, stuff: None }
+    }
+}
+
+impl<'a, T> Iterator for DfsIter<'a, T> {
+    type Item = (usize, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stuff.is_none() {
+            let mut queue = VecDeque::with_capacity(self.graph.vertices_len());
+            let mut visited = HashSet::with_capacity(self.graph.vertices_len());
+            let mut input_counts = Vec::with_capacity(self.graph.vertices_len());
+            // finds all vertices that have no input and collects input count of all vertices
+            for (usize, vertex) in self.graph.vertices.iter().enumerate() {
+                input_counts.push(vertex.input_count);
+                if vertex.input_count == 0 {
+                    queue.push_back((usize, vertex));
+                    visited.insert(usize);
+                }
+            }
+
+            self.stuff = Some((input_counts, queue, visited));
+        }
+
+        let (input_counts, queue, visited) = self.stuff.as_mut().unwrap();
+
+        if queue.len() == 0 {
+            return None;
+        };
+
+        unsafe {
+            // finds first vertex that has no input
+            let list_index = queue
+                .iter()
+                .position(|(index, _)| input_counts[*index] == 0)
+                .unwrap(); // safely unwrap for a VOA network
+
+            let (vertex_index, vertex) = queue.remove(list_index).unwrap(); // safe
+
+            // subtracts input count for each to vertex
+            let mut next_ptr = vertex.first_out;
+            while let Some(current_ptr) = next_ptr.take() {
+                let current = &*current_ptr;
+
+                input_counts[current.to_index] -= 1;
+                if !visited.contains(&current.to_index) {
+                    queue.push_front((current.to_index, &self.graph.vertices[current.to_index]));
+                    visited.insert(current.to_index);
+                }
+
+                next_ptr = current.right;
+            }
+
+            Some((vertex_index, &vertex.data))
+        }
+    }
+}
+
+/// Graph mutable iterator using depth first search and inputs controlling.
+///
+/// Graph should be ensured to be a VOA network before constructing an iterator.
+pub(super) struct DfsIterMut<'a, T> {
+    graph: &'a mut DirectedGraph<T>,
+    stuff: Option<(
+        Vec<usize>,
+        VecDeque<(usize, *mut Vertex<T>)>,
+        HashSet<usize>,
+    )>,
+}
+
+impl<'a, T> DfsIterMut<'a, T> {
+    pub(super) fn new(graph: &'a mut DirectedGraph<T>) -> Self {
+        Self { graph, stuff: None }
+    }
+}
+
+impl<'a, T> Iterator for DfsIterMut<'a, T> {
+    type Item = (usize, &'a mut T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stuff.is_none() {
+            let mut queue = VecDeque::with_capacity(self.graph.vertices_len());
+            let mut visited = HashSet::with_capacity(self.graph.vertices_len());
+            let mut input_counts = Vec::with_capacity(self.graph.vertices_len());
+            // finds all vertices that have no input and collects input count of all vertices
+            for (usize, vertex) in self.graph.vertices.iter_mut().enumerate() {
+                input_counts.push(vertex.input_count);
+                if vertex.input_count == 0 {
+                    queue.push_back((usize, vertex as *mut Vertex<T>));
+                    visited.insert(usize);
+                }
+            }
+
+            self.stuff = Some((input_counts, queue, visited));
+        }
+
+        let (input_counts, queue, visited) = self.stuff.as_mut().unwrap();
+
+        if queue.len() == 0 {
+            return None;
+        };
+
+        unsafe {
+            // finds first vertex that has no input
+            let list_index = queue
+                .iter()
+                .position(|(index, _)| input_counts[*index] == 0)
+                .unwrap(); // safely unwrap for a VOA network
+
+            let (vertex_index, vertex) = queue.remove(list_index).unwrap(); // safe
+
+            // subtracts input count for each to vertex
+            let mut next_ptr = (*vertex).first_out;
+            while let Some(current_ptr) = next_ptr.take() {
+                let current = &*current_ptr;
+
+                input_counts[current.to_index] -= 1;
+                if !visited.contains(&current.to_index) {
+                    queue
+                        .push_front((current.to_index, &mut self.graph.vertices[current.to_index]));
+                    visited.insert(current.to_index);
+                }
+
+                next_ptr = current.right;
+            }
+
+            Some((vertex_index, &mut (*vertex).data))
         }
     }
 }
@@ -342,38 +521,38 @@ impl<T> DirectedGraph<T> {
 /// Graph iterator using breadth first search and inputs controlling.
 ///
 /// Graph should be ensured to be a VOA network before constructing an iterator.
-pub(super) struct Iter<'a, T> {
+pub(super) struct BfsIter<'a, T> {
     graph: &'a DirectedGraph<T>,
     stuff: Option<(Vec<usize>, Vec<(usize, &'a Vertex<T>)>, HashSet<usize>)>,
 }
 
-impl<'a, T> Iter<'a, T> {
+impl<'a, T> BfsIter<'a, T> {
     pub(super) fn new(graph: &'a DirectedGraph<T>) -> Self {
         Self { graph, stuff: None }
     }
 }
 
-impl<'a, T> Iterator for Iter<'a, T> {
+impl<'a, T> Iterator for BfsIter<'a, T> {
     type Item = (usize, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.stuff.is_none() {
             let mut list = Vec::with_capacity(self.graph.vertices_len());
-            let mut dedup = HashSet::with_capacity(self.graph.vertices_len());
+            let mut visited = HashSet::with_capacity(self.graph.vertices_len());
             let mut input_counts = Vec::with_capacity(self.graph.vertices_len());
             // finds all vertices that have no input and collects input count of all vertices
             for (usize, vertex) in self.graph.vertices.iter().enumerate() {
                 input_counts.push(vertex.input_count);
                 if vertex.input_count == 0 {
                     list.push((usize, vertex));
-                    dedup.insert(usize);
+                    visited.insert(usize);
                 }
             }
 
-            self.stuff = Some((input_counts, list, dedup));
+            self.stuff = Some((input_counts, list, visited));
         }
 
-        let (input_counts, list, dedup) = self.stuff.as_mut().unwrap();
+        let (input_counts, list, visited) = self.stuff.as_mut().unwrap();
 
         if list.len() == 0 {
             return None;
@@ -394,9 +573,9 @@ impl<'a, T> Iterator for Iter<'a, T> {
                 let current = &*current_ptr;
 
                 input_counts[current.to_index] -= 1;
-                if !dedup.contains(&current.to_index) {
+                if !visited.contains(&current.to_index) {
                     list.push((current.to_index, &self.graph.vertices[current.to_index]));
-                    dedup.insert(current.to_index);
+                    visited.insert(current.to_index);
                 }
 
                 next_ptr = current.right;
@@ -410,38 +589,38 @@ impl<'a, T> Iterator for Iter<'a, T> {
 /// Graph mutable iterator using breadth first search and inputs controlling.
 ///
 /// Graph should be ensured to be a VOA network before constructing an iterator.
-pub(super) struct IterMut<'a, T> {
+pub(super) struct BfsIterMut<'a, T> {
     graph: &'a mut DirectedGraph<T>,
     stuff: Option<(Vec<usize>, Vec<(usize, *mut Vertex<T>)>, HashSet<usize>)>,
 }
 
-impl<'a, T> IterMut<'a, T> {
+impl<'a, T> BfsIterMut<'a, T> {
     pub(super) fn new(graph: &'a mut DirectedGraph<T>) -> Self {
         Self { graph, stuff: None }
     }
 }
 
-impl<'a, T> Iterator for IterMut<'a, T> {
+impl<'a, T> Iterator for BfsIterMut<'a, T> {
     type Item = (usize, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.stuff.is_none() {
             let mut list = Vec::with_capacity(self.graph.vertices_len());
-            let mut dedup = HashSet::with_capacity(self.graph.vertices_len());
+            let mut visited = HashSet::with_capacity(self.graph.vertices_len());
             let mut input_counts = Vec::with_capacity(self.graph.vertices_len());
             // finds all vertices that have no input and collects input count of all vertices
             for (usize, vertex) in self.graph.vertices.iter_mut().enumerate() {
                 input_counts.push(vertex.input_count);
                 if vertex.input_count == 0 {
                     list.push((usize, vertex as *mut Vertex<T>));
-                    dedup.insert(usize);
+                    visited.insert(usize);
                 }
             }
 
-            self.stuff = Some((input_counts, list, dedup));
+            self.stuff = Some((input_counts, list, visited));
         }
 
-        let (input_counts, list, dedup) = self.stuff.as_mut().unwrap();
+        let (input_counts, list, visited) = self.stuff.as_mut().unwrap();
 
         if list.len() == 0 {
             return None;
@@ -462,9 +641,9 @@ impl<'a, T> Iterator for IterMut<'a, T> {
                 let current = &*current_ptr;
 
                 input_counts[current.to_index] -= 1;
-                if !dedup.contains(&current.to_index) {
+                if !visited.contains(&current.to_index) {
                     list.push((current.to_index, &mut self.graph.vertices[current.to_index]));
-                    dedup.insert(current.to_index);
+                    visited.insert(current.to_index);
                 }
 
                 next_ptr = current.right;
@@ -838,7 +1017,70 @@ mod tests {
     }
 
     #[test]
-    fn test_iter() -> Result<(), Error> {
+    fn test_dfs_iter() -> Result<(), Error> {
+        let mut graph = DirectedGraph::<usize>::new();
+
+        graph.add_vertex(0);
+        graph.add_vertex(1);
+        graph.add_vertex(2);
+        graph.add_vertex(3);
+        graph.add_vertex(4);
+        graph.add_vertex(5);
+        graph.add_vertex(6);
+        assert_eq!(graph.vertices_len(), 7);
+
+        graph.add_arc(0, 1)?;
+        graph.add_arc(0, 2)?;
+        graph.add_arc(0, 3)?;
+        graph.add_arc(1, 6)?;
+        graph.add_arc(2, 4)?;
+        graph.add_arc(3, 5)?;
+        graph.add_arc(3, 4)?;
+        graph.add_arc(4, 6)?;
+        graph.add_arc(5, 6)?;
+        assert_eq!(graph.arcs_len(), 9);
+
+        let data = graph.dfs_iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
+
+        assert_eq!(&data, &[0, 3, 5, 2, 4, 1, 6]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dfs_iter_mut() -> Result<(), Error> {
+        let mut graph = DirectedGraph::<usize>::new();
+
+        graph.add_vertex(0);
+        graph.add_vertex(1);
+        graph.add_vertex(2);
+        graph.add_vertex(3);
+        graph.add_vertex(4);
+        graph.add_vertex(5);
+        graph.add_vertex(6);
+        assert_eq!(graph.vertices_len(), 7);
+
+        graph.add_arc(0, 1)?;
+        graph.add_arc(0, 2)?;
+        graph.add_arc(0, 3)?;
+        graph.add_arc(1, 6)?;
+        graph.add_arc(2, 4)?;
+        graph.add_arc(3, 5)?;
+        graph.add_arc(3, 4)?;
+        graph.add_arc(4, 6)?;
+        graph.add_arc(5, 6)?;
+        assert_eq!(graph.arcs_len(), 9);
+
+        graph.dfs_iter_mut()?.for_each(|(_, data)| *data *= 20);
+        let data = graph.dfs_iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
+
+        assert_eq!(&data, &[0, 60, 100, 40, 80, 20, 120]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bfs_iter() -> Result<(), Error> {
         let mut graph = DirectedGraph::<usize>::new();
 
         graph.add_vertex(0);
@@ -861,7 +1103,7 @@ mod tests {
         graph.add_arc(5, 6)?;
         assert_eq!(graph.arcs_len(), 9);
 
-        let data = graph.iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
+        let data = graph.bfs_iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
 
         assert_eq!(&data, &[0, 1, 2, 3, 4, 5, 6]);
 
@@ -869,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn test_iter_mut() -> Result<(), Error> {
+    fn test_bfs_iter_mut() -> Result<(), Error> {
         let mut graph = DirectedGraph::<usize>::new();
 
         graph.add_vertex(0);
@@ -892,9 +1134,9 @@ mod tests {
         graph.add_arc(5, 6)?;
         assert_eq!(graph.arcs_len(), 9);
 
-        graph.iter_mut()?.for_each(|(_, data)| *data += 10);
+        graph.bfs_iter_mut()?.for_each(|(_, data)| *data += 10);
 
-        let data = graph.iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
+        let data = graph.bfs_iter()?.map(|(_, data)| *data).collect::<Vec<_>>();
 
         assert_eq!(&data, &[10, 11, 12, 13, 14, 15, 16]);
 
