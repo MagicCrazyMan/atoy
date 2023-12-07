@@ -30,7 +30,7 @@ use super::{Executor, Pipeline, State, Stuff};
 
 pub fn create_standard_pipeline() -> Pipeline {
     let mut pipeline = Pipeline::new();
-    pipeline.add_executor(SetCameraByCanvas::new("set_camera"));
+    pipeline.add_executor(UpdateCameraFrame::new("update_camera"));
     pipeline.add_executor(StandardEntitiesCollector::new(
         "entities_collector",
         "input_entities",
@@ -38,7 +38,8 @@ pub fn create_standard_pipeline() -> Pipeline {
     pipeline.add_executor(StandardDrawer::new("drawer", "input_entities"));
     pipeline.add_executor(ResetWebGLState::new("reset"));
 
-    pipeline.connect("set_camera", "entities_collector").unwrap();
+    // safely unwraps
+    pipeline.connect("update_camera", "entities_collector").unwrap();
     pipeline.connect("entities_collector", "drawer").unwrap();
     pipeline.connect("drawer", "reset").unwrap();
 
@@ -641,15 +642,15 @@ impl Executor for StandardEntitiesCollector {
 }
 
 /// Executor sets camera.
-pub struct SetCameraByCanvas(String);
+pub struct UpdateCameraFrame(String);
 
-impl SetCameraByCanvas {
+impl UpdateCameraFrame {
     pub fn new(name: impl Into<String>) -> Self {
-        SetCameraByCanvas(name.into())
+        UpdateCameraFrame(name.into())
     }
 }
 
-impl Executor for SetCameraByCanvas {
+impl Executor for UpdateCameraFrame {
     fn name(&self) -> &str {
         &self.0
     }
