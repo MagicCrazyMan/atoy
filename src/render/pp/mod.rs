@@ -1,19 +1,45 @@
 pub mod error;
 pub mod graph;
+pub mod standard;
 
-use std::{
-    any::Any,
-    collections::{HashMap, VecDeque},
-};
+use std::{any::Any, collections::HashMap};
 
 use web_sys::WebGl2RenderingContext;
 
-use self::{error::Error, graph::DirectedGraph};
+use crate::{camera::Camera, entity::collection::EntityCollection};
+
+use self::graph::DirectedGraph;
+
+use super::webgl::error::Error;
+
+pub trait Stuff {
+    /// Gets entity collection that should be draw on current frame.
+    fn entity_collection(&self) -> &EntityCollection;
+
+    /// Gets mutable entity collection that should be draw on current frame.
+    fn entity_collection_mut(&mut self) -> &mut EntityCollection;
+
+    /// Gets the main camera for current frame.
+    fn camera(&self) -> &dyn Camera;
+
+    /// Gets mutable the main camera for current frame.
+    fn camera_mut(&mut self) -> &mut dyn Camera;
+}
 
 #[derive(Clone)]
 pub struct State {
     gl: WebGl2RenderingContext,
     timestamp: f64,
+}
+
+impl State {
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
+    }
+
+    pub fn timestamp(&self) -> f64 {
+        self.timestamp
+    }
 }
 
 pub struct Pipeline {
@@ -33,10 +59,9 @@ impl Pipeline {
         instance
     }
 
-    pub fn execute(&mut self, state: &State) -> Result<(), super::webgl::error::Error> {
-        let mut executors = VecDeque::from([self.graph.vertex_mut(0).unwrap()]);
-        while let Some(executor) = executors.pop_front() {
-            executor.execute(state)?;
+    pub fn execute<S: Stuff>(&mut self, state: &State, stuff: &mut S) -> Result<(), Error> {
+        for (_, executor) in self.graph.iter_mut()? {
+            executor.execute(state, stuff)?;
         }
 
         self.clear();
@@ -56,7 +81,7 @@ impl Pipeline {
 
     pub fn remove_executor(&mut self, name: &str) -> Result<(), Error> {
         let Some(index) = self.name_to_index.remove(name) else {
-            return Err(Error::NoSuchExecutor(name.to_string()));
+            return Err(self::error::Error::NoSuchExecutor(name.to_string()))?;
         };
         self.graph.remove_vertex(index);
         self.name_to_index.iter_mut().for_each(|(_, v)| {
@@ -70,7 +95,7 @@ impl Pipeline {
 
     pub fn executor(&self, name: &str) -> Result<Option<&dyn Executor>, Error> {
         let Some(index) = self.name_to_index.get(name) else {
-            return Err(Error::NoSuchExecutor(name.to_string()));
+            return Err(self::error::Error::NoSuchExecutor(name.to_string()))?;
         };
 
         match self.graph.vertex(*index) {
@@ -81,7 +106,7 @@ impl Pipeline {
 
     pub fn executor_mut(&mut self, name: &str) -> Result<Option<&mut dyn Executor>, Error> {
         let Some(index) = self.name_to_index.get(name) else {
-            return Err(Error::NoSuchExecutor(name.to_string()));
+            return Err(self::error::Error::NoSuchExecutor(name.to_string()))?;
         };
 
         match self.graph.vertex_mut(*index) {
@@ -94,11 +119,11 @@ impl Pipeline {
         let from_index = self
             .name_to_index
             .get(from)
-            .ok_or(Error::NoSuchExecutor(from.to_string()))?;
+            .ok_or(self::error::Error::NoSuchExecutor(from.to_string()))?;
         let to_index = self
             .name_to_index
             .get(to)
-            .ok_or(Error::NoSuchExecutor(to.to_string()))?;
+            .ok_or(self::error::Error::NoSuchExecutor(to.to_string()))?;
 
         self.graph.add_arc(*from_index, *to_index)?;
 
@@ -109,20 +134,16 @@ impl Pipeline {
         let from_index = self
             .name_to_index
             .get(from)
-            .ok_or(Error::NoSuchExecutor(from.to_string()))?;
+            .ok_or(self::error::Error::NoSuchExecutor(from.to_string()))?;
         let to_index = self
             .name_to_index
             .get(to)
-            .ok_or(Error::NoSuchExecutor(to.to_string()))?;
+            .ok_or(self::error::Error::NoSuchExecutor(to.to_string()))?;
 
         self.graph.remove_arc(*from_index, *to_index);
 
         Ok(())
     }
-}
-
-struct RuntimeData {
-    data: Box<dyn Any>,
 }
 
 pub const START_EXECUTOR_NAME: &'static str = "__StartExecutor__";
@@ -138,7 +159,7 @@ impl Executor for StartExecutor {
     }
 
     #[inline]
-    fn execute(&mut self, _: &State) -> Result<(), super::webgl::error::Error> {
+    fn execute(&mut self, _: &State, _: &mut dyn Stuff) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -146,5 +167,5 @@ impl Executor for StartExecutor {
 pub trait Executor {
     fn name(&self) -> &str;
 
-    fn execute(&mut self, state: &State) -> Result<(), super::webgl::error::Error>;
+    fn execute(&mut self, state: &State, stuff: &mut dyn Stuff) -> Result<(), Error>;
 }
