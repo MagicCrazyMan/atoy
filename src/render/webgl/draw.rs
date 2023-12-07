@@ -61,11 +61,11 @@ pub enum DrawMode {
 }
 
 /// Binds attributes of the entity.
-pub(crate) unsafe fn bind_attributes(
+pub(crate) fn bind_attributes(
     state: &mut State,
     entity: &BorrowedMut,
-    geometry: *const dyn Geometry,
-    material: *const dyn Material,
+    geometry: &dyn Geometry,
+    material: &dyn Material,
     attribute_locations: &HashMap<AttributeBinding, GLuint>,
 ) {
     for (binding, location) in attribute_locations {
@@ -172,12 +172,12 @@ pub(crate) unsafe fn bind_attributes(
 }
 
 /// Binds uniform data of the entity.
-pub(crate) unsafe fn bind_uniforms(
+pub(crate) fn bind_uniforms(
     state: &mut State,
     stuff: &dyn Stuff,
     entity: &BorrowedMut,
-    geometry: *const dyn Geometry,
-    material: *const dyn Material,
+    geometry: &dyn Geometry,
+    material: &dyn Material,
     uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
 ) {
     for (binding, location) in uniform_locations {
@@ -313,11 +313,7 @@ pub(crate) unsafe fn bind_uniforms(
     }
 }
 
-pub(crate) unsafe fn draw(
-    state: &mut State,
-    geometry: *const dyn Geometry,
-    material: *const dyn Material,
-) {
+pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material) {
     // draws entity
     if let Some(num_instances) = (*material).instanced() {
         // draw instanced

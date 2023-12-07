@@ -153,8 +153,8 @@ impl Executor for StandardDrawer {
                 bind_attributes(
                     state,
                     &entity,
-                    geometry,
-                    material,
+                    &*geometry,
+                    &*material,
                     program.attribute_locations(),
                 );
                 // binds uniforms
@@ -162,8 +162,8 @@ impl Executor for StandardDrawer {
                     state,
                     stuff,
                     &entity,
-                    geometry,
-                    material,
+                    &*geometry,
+                    &*material,
                     program.uniform_locations(),
                 );
 
@@ -171,7 +171,7 @@ impl Executor for StandardDrawer {
                 (&mut *material).before_draw(state, &entity);
                 (&mut *geometry).before_draw(state, &entity);
                 // draws
-                draw(state, geometry, material);
+                draw(state, &*geometry, &*material);
                 // after draw of material and geometry
                 (&mut *material).after_draw(state, &entity);
                 (&mut *geometry).after_draw(state, &entity);

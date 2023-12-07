@@ -1,7 +1,6 @@
 use std::{any::Any, collections::HashMap};
 
 use wasm_bindgen::JsCast;
-use wasm_bindgen_test::console_log;
 use web_sys::{
     js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer,
     WebGlRenderbuffer, WebGlTexture,
@@ -258,32 +257,30 @@ impl Executor for Picking {
 
         // render each entity by material
         for (index, entity) in entities.iter().enumerate() {
-            let mut entity = entity.borrow_mut();
-            let Some(geometry) = entity.geometry_raw() else {
+            let entity = entity.borrow_mut();
+            let Some(geometry) = entity.geometry() else {
                 continue;
             };
 
             // sets index for current draw
             material.0 = (index + 1) as u32;
 
-            unsafe {
-                bind_attributes(
-                    state,
-                    &entity,
-                    geometry,
-                    &material,
-                    program.attribute_locations(),
-                );
-                bind_uniforms(
-                    state,
-                    stuff,
-                    &entity,
-                    geometry,
-                    &material,
-                    program.uniform_locations(),
-                );
-                draw(state, geometry, &material);
-            }
+            bind_attributes(
+                state,
+                &entity,
+                geometry,
+                &material,
+                program.attribute_locations(),
+            );
+            bind_uniforms(
+                state,
+                stuff,
+                &entity,
+                geometry,
+                &material,
+                program.uniform_locations(),
+            );
+            draw(state, &*geometry, &material);
         }
 
         // get result
