@@ -1,7 +1,8 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use super::error::Error;
 
+/// An orthogonal linked list based directed graph.
 pub(super) struct DirectedGraph<T> {
     vertices: Vec<Vertex<T>>,
     arcs_len: usize,
@@ -23,9 +24,54 @@ impl<T> DirectedGraph<T> {
         self.arcs_len
     }
 
+    /// Validates whether this graph is Activity On Vertex Network or not.
+    pub(super) fn validate(&self) -> bool {
+        if self.vertices.len() == 0 {
+            return true;
+        }
+
+        let mut input_counts = Vec::with_capacity(self.vertices.len());
+        let mut stack = VecDeque::with_capacity(self.vertices.len());
+        let mut count = 0;
+        // finds all vertices that have no input arc, and saves all input count of each vertex
+        for vertex in self.vertices.iter() {
+            input_counts.push(vertex.input_count);
+            if vertex.input_count == 0 {
+                stack.push_back(vertex);
+            }
+        }
+
+        unsafe {
+            while let Some(vertex) = stack.pop_back() {
+                count += 1;
+
+                // finds all output arc of this vertex
+                let mut next_ptr = vertex.first_out;
+                while let Some(current_ptr) = next_ptr.take() {
+                    let current = &*current_ptr;
+                    next_ptr = current.right;
+
+                    // subtract 1 for input count of each input vertex
+                    let input_count = &mut input_counts[current.to_index];
+                    *input_count -= 1;
+
+                    // adds vertex to stack if input count is 0
+                    if *input_count == 0 {
+                        stack.push_back(&self.vertices[current.to_index]);
+                    }
+                }
+            }
+        }
+
+        // it is a validate AOV Network if count equals vertices len
+        count == self.vertices.len()
+    }
+
     pub(super) fn add_vertex(&mut self, data: T) -> usize {
         self.vertices.push(Vertex {
             data,
+            input_count: 0,
+            output_count: 0,
             first_in: None,
             first_out: None,
         });
@@ -34,9 +80,8 @@ impl<T> DirectedGraph<T> {
 
     pub(super) fn remove_vertex(&mut self, index: usize) {
         // deletes all arcs that associated with removed vertex
-        let vertex = self.vertices.remove(index);
         unsafe {
-            let mut next_ptr = vertex.first_out;
+            let mut next_ptr = self.vertices[index].first_out;
             while let Some(current_ptr) = next_ptr.take() {
                 let current = &mut *current_ptr;
 
@@ -48,16 +93,10 @@ impl<T> DirectedGraph<T> {
                 }
                 next_ptr = current.right;
 
-                // resets first out
-                {
-                    let to_index = if current.to_index < index {
-                        current.to_index
-                    } else {
-                        current.to_index - 1
-                    };
-                    if current_ptr == self.vertices[to_index].first_in.unwrap() {
-                        self.vertices[to_index].first_in = current.bottom;
-                    }
+                // resets first in and input count
+                self.vertices[current.to_index].input_count -= 1;
+                if current_ptr == self.vertices[current.to_index].first_in.unwrap() {
+                    self.vertices[current.to_index].first_in = current.bottom;
                 }
 
                 drop(Box::from_raw(current_ptr));
@@ -65,7 +104,7 @@ impl<T> DirectedGraph<T> {
             }
         }
         unsafe {
-            let mut next_ptr = vertex.first_in;
+            let mut next_ptr = self.vertices[index].first_in;
             while let Some(current_ptr) = next_ptr.take() {
                 let current = &mut *current_ptr;
 
@@ -77,16 +116,10 @@ impl<T> DirectedGraph<T> {
                 }
                 next_ptr = current.bottom;
 
-                // resets first in
-                {
-                    let from_index = if current.from_index < index {
-                        current.from_index
-                    } else {
-                        current.from_index - 1
-                    };
-                    if current_ptr == self.vertices[from_index].first_out.unwrap() {
-                        self.vertices[from_index].first_out = current.right;
-                    }
+                // resets first out and output count
+                self.vertices[current.from_index].output_count -= 1;
+                if current_ptr == self.vertices[current.from_index].first_out.unwrap() {
+                    self.vertices[current.from_index].first_out = current.right;
                 }
 
                 // do not drop from_index == to_index here, it may cause double free
@@ -101,13 +134,13 @@ impl<T> DirectedGraph<T> {
         unsafe {
             // splits matrix into 4 parts
             // 1. for partition with `from_index` < `index` and `to_index` < `index`, do nothings
-            // 2. for partition with `from_index` >= `index`, subtract 1 for `from_index` of each arc
-            // 3. for partition with `to_index` >= `index`, subtract 1 for `to_index` of each arc
+            // 2. for partition with `from_index` > `index`, subtract 1 for `from_index` of each arc
+            // 3. for partition with `to_index` > `index`, subtract 1 for `to_index` of each arc
 
             let len = self.vertices.len();
             // 2.
             {
-                for from_index in index..len {
+                for from_index in index + 1..len {
                     let vertex = &mut self.vertices[from_index];
                     let mut next_ptr = vertex.first_out;
                     while let Some(current_ptr) = next_ptr.take() {
@@ -120,7 +153,7 @@ impl<T> DirectedGraph<T> {
             }
             // 3.
             {
-                for to_index in index..len {
+                for to_index in index + 1..len {
                     let vertex = &mut self.vertices[to_index];
                     let mut next_ptr = vertex.first_in;
                     while let Some(current_ptr) = next_ptr.take() {
@@ -132,6 +165,8 @@ impl<T> DirectedGraph<T> {
                 }
             }
         }
+
+        self.vertices.remove(index);
     }
 
     pub(super) fn vertex(&self, index: usize) -> Option<&T> {
@@ -183,6 +218,9 @@ impl<T> DirectedGraph<T> {
                     (*new_arc).right = right;
                     if let Some(left) = left {
                         (*left).right = Some(new_arc);
+                    } else {
+                        // marks as first out if nothing on left
+                        out_vertex.first_out = Some(new_arc);
                     }
                     if let Some(right) = right {
                         (*right).left = Some(new_arc);
@@ -217,6 +255,9 @@ impl<T> DirectedGraph<T> {
                     (*new_arc).bottom = bottom;
                     if let Some(top) = top {
                         (*top).bottom = Some(new_arc);
+                    }else {
+                        // marks as first in if nothing on top
+                        in_vertex.first_in = Some(new_arc);
                     }
                     if let Some(bottom) = bottom {
                         (*bottom).top = Some(new_arc);
@@ -228,6 +269,8 @@ impl<T> DirectedGraph<T> {
         }
 
         self.arcs_len += 1;
+        self.vertices[from_index].output_count += 1;
+        self.vertices[to_index].input_count += 1;
 
         Ok(())
     }
@@ -268,6 +311,8 @@ impl<T> DirectedGraph<T> {
                     drop(arc);
 
                     self.arcs_len -= 1;
+                    self.vertices[from_index].output_count -= 1;
+                    self.vertices[to_index].input_count -= 1;
                 } else if current.to_index < to_index {
                     next_ptr = current.right;
                 }
@@ -362,6 +407,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 struct Vertex<T> {
     data: T,
+    input_count: usize,
+    output_count: usize,
     first_in: Option<*mut Arc>,
     first_out: Option<*mut Arc>,
 }
@@ -445,10 +492,25 @@ mod tests {
         graph.add_arc(0, 4)?;
         graph.add_arc(1, 0)?;
         graph.add_arc(1, 2)?;
-        graph.add_arc(2, 0)?;
         graph.add_arc(2, 3)?;
+        graph.add_arc(2, 0)?;
         graph.add_arc(3, 4)?;
         assert_eq!(graph.arcs_len(), 7);
+
+        assert_eq!(graph.vertices[0].output_count, 2);
+        assert_eq!(graph.vertices[0].input_count, 2);
+
+        assert_eq!(graph.vertices[1].output_count, 2);
+        assert_eq!(graph.vertices[1].input_count, 1);
+
+        assert_eq!(graph.vertices[2].output_count, 2);
+        assert_eq!(graph.vertices[2].input_count, 1);
+
+        assert_eq!(graph.vertices[3].output_count, 1);
+        assert_eq!(graph.vertices[3].input_count, 1);
+
+        assert_eq!(graph.vertices[4].output_count, 0);
+        assert_eq!(graph.vertices[4].input_count, 2);
 
         let e = graph.add_arc(0, 1);
         assert_eq!(e, Err(Error::AlreadyConnected));
@@ -481,20 +543,91 @@ mod tests {
 
         graph.remove_arc(0, 1);
         assert_eq!(graph.arcs_len(), 6);
-        graph.remove_arc(0, 1); // test delete again
+        assert_eq!(graph.vertices[0].output_count, 1);
+        assert_eq!(graph.vertices[0].input_count, 2);
+        assert_eq!(graph.vertices[1].output_count, 2);
+        assert_eq!(graph.vertices[1].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_some(), true);
+        assert_eq!(graph.vertices[0].first_in.is_some(), true);
+        assert_eq!(graph.vertices[1].first_out.is_some(), true);
+        assert_eq!(graph.vertices[1].first_in.is_none(), true);
+        // test delete again
+        graph.remove_arc(0, 1);
         assert_eq!(graph.arcs_len(), 6);
+        assert_eq!(graph.vertices[0].output_count, 1);
+        assert_eq!(graph.vertices[0].input_count, 2);
+        assert_eq!(graph.vertices[1].output_count, 2);
+        assert_eq!(graph.vertices[1].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_some(), true);
+        assert_eq!(graph.vertices[0].first_in.is_some(), true);
+        assert_eq!(graph.vertices[1].first_out.is_some(), true);
+        assert_eq!(graph.vertices[1].first_in.is_none(), true);
+
         graph.remove_arc(3, 4);
         assert_eq!(graph.arcs_len(), 5);
+        assert_eq!(graph.vertices[3].output_count, 0);
+        assert_eq!(graph.vertices[3].input_count, 1);
+        assert_eq!(graph.vertices[4].output_count, 0);
+        assert_eq!(graph.vertices[4].input_count, 1);
+        assert_eq!(graph.vertices[3].first_out.is_none(), true);
+        assert_eq!(graph.vertices[3].first_in.is_some(), true);
+        assert_eq!(graph.vertices[4].first_out.is_none(), true);
+        assert_eq!(graph.vertices[4].first_in.is_some(), true);
+
         graph.remove_arc(2, 3);
         assert_eq!(graph.arcs_len(), 4);
+        assert_eq!(graph.vertices[2].output_count, 1);
+        assert_eq!(graph.vertices[2].input_count, 1);
+        assert_eq!(graph.vertices[3].output_count, 0);
+        assert_eq!(graph.vertices[3].input_count, 0);
+        assert_eq!(graph.vertices[2].first_out.is_some(), true);
+        assert_eq!(graph.vertices[2].first_in.is_some(), true);
+        assert_eq!(graph.vertices[3].first_out.is_none(), true);
+        assert_eq!(graph.vertices[3].first_in.is_none(), true);
+
         graph.remove_arc(0, 4);
         assert_eq!(graph.arcs_len(), 3);
+        assert_eq!(graph.vertices[0].output_count, 0);
+        assert_eq!(graph.vertices[0].input_count, 2);
+        assert_eq!(graph.vertices[4].output_count, 0);
+        assert_eq!(graph.vertices[4].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_none(), true);
+        assert_eq!(graph.vertices[0].first_in.is_some(), true);
+        assert_eq!(graph.vertices[4].first_out.is_none(), true);
+        assert_eq!(graph.vertices[4].first_in.is_none(), true);
+
         graph.remove_arc(1, 0);
         assert_eq!(graph.arcs_len(), 2);
+        assert_eq!(graph.vertices[0].output_count, 0);
+        assert_eq!(graph.vertices[0].input_count, 1);
+        assert_eq!(graph.vertices[1].output_count, 1);
+        assert_eq!(graph.vertices[1].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_none(), true);
+        assert_eq!(graph.vertices[0].first_in.is_some(), true);
+        assert_eq!(graph.vertices[1].first_out.is_some(), true);
+        assert_eq!(graph.vertices[1].first_in.is_none(), true);
+
         graph.remove_arc(1, 2);
         assert_eq!(graph.arcs_len(), 1);
+        assert_eq!(graph.vertices[1].output_count, 0);
+        assert_eq!(graph.vertices[1].input_count, 0);
+        assert_eq!(graph.vertices[2].output_count, 1);
+        assert_eq!(graph.vertices[2].input_count, 0);
+        assert_eq!(graph.vertices[1].first_out.is_none(), true);
+        assert_eq!(graph.vertices[1].first_in.is_none(), true);
+        assert_eq!(graph.vertices[2].first_out.is_some(), true);
+        assert_eq!(graph.vertices[2].first_in.is_none(), true);
+
         graph.remove_arc(2, 0);
         assert_eq!(graph.arcs_len(), 0);
+        assert_eq!(graph.vertices[0].output_count, 0);
+        assert_eq!(graph.vertices[0].input_count, 0);
+        assert_eq!(graph.vertices[2].output_count, 0);
+        assert_eq!(graph.vertices[2].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_none(), true);
+        assert_eq!(graph.vertices[0].first_in.is_none(), true);
+        assert_eq!(graph.vertices[2].first_out.is_none(), true);
+        assert_eq!(graph.vertices[2].first_in.is_none(), true);
 
         // Adds iterate test after deleting in the future
 
@@ -524,24 +657,125 @@ mod tests {
         graph.remove_vertex(0);
         assert_eq!(graph.vertices_len(), 4);
         assert_eq!(graph.arcs_len(), 3);
+        assert_eq!(graph.vertices[0].output_count, 1);
+        assert_eq!(graph.vertices[0].input_count, 0);
+        assert_eq!(graph.vertices[1].output_count, 1);
+        assert_eq!(graph.vertices[1].input_count, 1);
+        assert_eq!(graph.vertices[2].output_count, 1);
+        assert_eq!(graph.vertices[2].input_count, 1);
+        assert_eq!(graph.vertices[3].output_count, 0);
+        assert_eq!(graph.vertices[3].input_count, 1);
+        assert_eq!(graph.vertices[0].first_out.is_some(), true);
+        assert_eq!(graph.vertices[0].first_in.is_none(), true);
+        assert_eq!(graph.vertices[1].first_out.is_some(), true);
+        assert_eq!(graph.vertices[1].first_in.is_some(), true);
+        assert_eq!(graph.vertices[2].first_out.is_some(), true);
+        assert_eq!(graph.vertices[2].first_in.is_some(), true);
+        assert_eq!(graph.vertices[3].first_out.is_none(), true);
+        assert_eq!(graph.vertices[3].first_in.is_some(), true);
 
         graph.remove_vertex(0);
         assert_eq!(graph.vertices_len(), 3);
         assert_eq!(graph.arcs_len(), 2);
+        assert_eq!(graph.vertices[0].output_count, 1);
+        assert_eq!(graph.vertices[0].input_count, 0);
+        assert_eq!(graph.vertices[1].output_count, 1);
+        assert_eq!(graph.vertices[1].input_count, 1);
+        assert_eq!(graph.vertices[2].output_count, 0);
+        assert_eq!(graph.vertices[2].input_count, 1);
+        assert_eq!(graph.vertices[0].first_out.is_some(), true);
+        assert_eq!(graph.vertices[0].first_in.is_none(), true);
+        assert_eq!(graph.vertices[1].first_out.is_some(), true);
+        assert_eq!(graph.vertices[1].first_in.is_some(), true);
+        assert_eq!(graph.vertices[2].first_out.is_none(), true);
+        assert_eq!(graph.vertices[2].first_in.is_some(), true);
 
         graph.remove_vertex(1);
         assert_eq!(graph.vertices_len(), 2);
         assert_eq!(graph.arcs_len(), 0);
+        assert_eq!(graph.vertices[0].output_count, 0);
+        assert_eq!(graph.vertices[0].input_count, 0);
+        assert_eq!(graph.vertices[1].output_count, 0);
+        assert_eq!(graph.vertices[1].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_none(), true);
+        assert_eq!(graph.vertices[0].first_in.is_none(), true);
+        assert_eq!(graph.vertices[1].first_out.is_none(), true);
+        assert_eq!(graph.vertices[1].first_in.is_none(), true);
 
         graph.remove_vertex(0);
         assert_eq!(graph.vertices_len(), 1);
         assert_eq!(graph.arcs_len(), 0);
+        assert_eq!(graph.vertices[0].output_count, 0);
+        assert_eq!(graph.vertices[0].input_count, 0);
+        assert_eq!(graph.vertices[0].first_out.is_none(), true);
+        assert_eq!(graph.vertices[0].first_in.is_none(), true);
 
         graph.remove_vertex(0);
         assert_eq!(graph.vertices_len(), 0);
         assert_eq!(graph.arcs_len(), 0);
 
         // Adds iterate test after deleting in the future
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_validation() -> Result<(), Error> {
+        let mut graph = DirectedGraph::<usize>::new();
+
+        graph.add_vertex(0);
+        graph.add_vertex(1);
+        graph.add_vertex(2);
+        graph.add_vertex(3);
+        graph.add_vertex(4);
+        graph.add_vertex(5);
+        graph.add_vertex(6);
+        graph.add_vertex(7);
+        graph.add_vertex(8);
+        graph.add_vertex(9);
+        graph.add_vertex(10);
+        graph.add_vertex(11);
+        graph.add_vertex(12);
+        graph.add_vertex(13);
+        assert_eq!(graph.vertices_len(), 14);
+
+        graph.add_arc(0, 4)?;
+        graph.add_arc(0, 5)?;
+        graph.add_arc(0, 11)?;
+        graph.add_arc(1, 4)?;
+        graph.add_arc(1, 8)?;
+        graph.add_arc(1, 2)?;
+        graph.add_arc(2, 5)?;
+        graph.add_arc(2, 6)?;
+        graph.add_arc(2, 9)?;
+        graph.add_arc(3, 2)?;
+        graph.add_arc(3, 13)?;
+        graph.add_arc(4, 7)?;
+        graph.add_arc(5, 8)?;
+        graph.add_arc(5, 12)?;
+        graph.add_arc(6, 5)?;
+        graph.add_arc(9, 10)?;
+        graph.add_arc(9, 11)?;
+        graph.add_arc(10, 13)?;
+        graph.add_arc(12, 9)?;
+        assert_eq!(graph.arcs_len(), 19);
+        assert_eq!(graph.validate(), true);
+
+        graph.add_arc(0, 1)?;
+        assert_eq!(graph.arcs_len(), 20);
+        assert_eq!(graph.validate(), true);
+
+        graph.add_arc(2, 0)?;
+        assert_eq!(graph.arcs_len(), 21);
+        assert_eq!(graph.validate(), false);
+
+        graph.remove_arc(2, 0);
+        assert_eq!(graph.arcs_len(), 20);
+        assert_eq!(graph.validate(), true);
+
+        graph.remove_arc(0, 1);
+        assert_eq!(graph.arcs_len(), 19);
+        assert_eq!(graph.validate(), true);
 
         Ok(())
     }
