@@ -3,42 +3,40 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
-use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
-use wasm_bindgen::JsCast;
 use wasm_bindgen_test::console_log;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlUniformLocation};
+use web_sys::WebGl2RenderingContext;
 
 use crate::{
     bounding::Culling,
     camera::Camera,
-    entity::{collection::EntityCollection, BorrowedMut, Strong},
-    geometry::Geometry,
-    material::Material,
+    entity::{collection::EntityCollection, Strong},
     render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        buffer::BufferTarget,
-        conversion::{GLint, GLuint, ToGlEnum},
-        draw::Draw,
+        draw::{bind_attributes, bind_uniforms, draw},
         error::Error,
         program::Program,
-        uniform::{UniformBinding, UniformValue},
     },
     scene::Scene,
 };
 
-use super::{Executor, Pipeline, State, Stuff};
+use super::{Executor, Pipeline, ResourceSource, State, Stuff};
 
 pub fn create_standard_pipeline() -> Pipeline {
     let mut pipeline = Pipeline::new();
-    pipeline.add_executor(UpdateCameraFrame::new("update_camera"));
-    pipeline.add_executor(StandardEntitiesCollector::new("collector", "entities"));
-    pipeline.add_executor(StandardDrawer::new("drawer", "entities"));
-    pipeline.add_executor(ResetWebGLState::new("reset"));
+    pipeline.add_executor("__update_camera", UpdateCameraFrame);
+    pipeline.add_executor(
+        "__collector",
+        StandardEntitiesCollector::new(ResourceSource::runtime("entities")),
+    );
+    pipeline.add_executor(
+        "__drawer",
+        StandardDrawer::new(ResourceSource::runtime("entities")),
+    );
+    pipeline.add_executor("__reset", ResetWebGLState);
 
     // safely unwraps
-    pipeline.connect("update_camera", "collector").unwrap();
-    pipeline.connect("collector", "drawer").unwrap();
-    pipeline.connect("drawer", "reset").unwrap();
+    pipeline.connect("__update_camera", "__collector").unwrap();
+    pipeline.connect("__collector", "__drawer").unwrap();
+    pipeline.connect("__drawer", "__reset").unwrap();
 
     pipeline
 }
@@ -77,381 +75,28 @@ impl<'a> Stuff for StandardStuff<'a> {
 /// # Get Resources & Data Type
 /// - `entities`: [`Vec<Strong>`], a list contains entities to draw.
 pub struct StandardDrawer {
-    name: String,
-    entities: String,
+    entities: ResourceSource,
 }
 
 impl StandardDrawer {
-    pub fn new(name: impl Into<String>, entities: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            entities: entities.into(),
-        }
-    }
-
-    /// Binds attributes of the entity.
-    unsafe fn bind_attributes(
-        &mut self,
-        state: &mut State,
-        entity: &BorrowedMut,
-        geometry: *const dyn Geometry,
-        material: *const dyn Material,
-        attribute_locations: &HashMap<AttributeBinding, GLuint>,
-    ) {
-        for (binding, location) in attribute_locations {
-            let value = match binding {
-                AttributeBinding::GeometryPosition => (*geometry).vertices(),
-                AttributeBinding::GeometryTextureCoordinate => (*geometry).texture_coordinates(),
-                AttributeBinding::GeometryNormal => (*geometry).normals(),
-                AttributeBinding::FromGeometry(name) => (*geometry).attribute_value(name, entity),
-                AttributeBinding::FromMaterial(name) => (*material).attribute_value(name, entity),
-                AttributeBinding::FromEntity(name) => entity.attribute_values().get(*name).cloned(),
-            };
-            let Some(value) = value else {
-                // should log warning
-                console_log!("3");
-                continue;
-            };
-
-            match value {
-                AttributeValue::Buffer {
-                    descriptor,
-                    target,
-                    component_size,
-                    data_type,
-                    normalized,
-                    bytes_stride,
-                    bytes_offset,
-                } => {
-                    let buffer = match state.buffer_store.use_buffer(descriptor, target) {
-                        Ok(buffer) => buffer,
-                        Err(err) => {
-                            // should log error
-                            console_log!("{}", err);
-                            continue;
-                        }
-                    };
-
-                    state.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                    state.gl.vertex_attrib_pointer_with_i32(
-                        *location,
-                        component_size as GLint,
-                        data_type.gl_enum(),
-                        normalized,
-                        bytes_stride,
-                        bytes_offset,
-                    );
-                    state.gl.enable_vertex_attrib_array(*location);
-                }
-                AttributeValue::InstancedBuffer {
-                    descriptor,
-                    target,
-                    component_size,
-                    data_type,
-                    normalized,
-                    component_count_per_instance: components_length_per_instance,
-                    divisor,
-                } => {
-                    let buffer = match state.buffer_store.use_buffer(descriptor, target) {
-                        Ok(buffer) => buffer,
-                        Err(err) => {
-                            // should log error
-                            console_log!("{}", err);
-                            continue;
-                        }
-                    };
-
-                    state.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-
-                    let component_size = component_size as GLint;
-                    // binds each instance
-                    for i in 0..components_length_per_instance {
-                        let offset_location = *location + (i as GLuint);
-                        state.gl.vertex_attrib_pointer_with_i32(
-                            offset_location,
-                            component_size,
-                            data_type.gl_enum(),
-                            normalized,
-                            data_type.bytes_length()
-                                * component_size
-                                * components_length_per_instance,
-                            i * data_type.bytes_length() * component_size,
-                        );
-                        state.gl.enable_vertex_attrib_array(offset_location);
-                        state.gl.vertex_attrib_divisor(offset_location, divisor);
-                    }
-                }
-                AttributeValue::Vertex1f(x) => state.gl.vertex_attrib1f(*location, x),
-                AttributeValue::Vertex2f(x, y) => state.gl.vertex_attrib2f(*location, x, y),
-                AttributeValue::Vertex3f(x, y, z) => state.gl.vertex_attrib3f(*location, x, y, z),
-                AttributeValue::Vertex4f(x, y, z, w) => {
-                    state.gl.vertex_attrib4f(*location, x, y, z, w)
-                }
-                AttributeValue::Vertex1fv(v) => {
-                    state.gl.vertex_attrib1fv_with_f32_array(*location, &v)
-                }
-                AttributeValue::Vertex2fv(v) => {
-                    state.gl.vertex_attrib2fv_with_f32_array(*location, &v)
-                }
-                AttributeValue::Vertex3fv(v) => {
-                    state.gl.vertex_attrib3fv_with_f32_array(*location, &v)
-                }
-                AttributeValue::Vertex4fv(v) => {
-                    state.gl.vertex_attrib4fv_with_f32_array(*location, &v)
-                }
-            };
-        }
-    }
-
-    /// Binds uniform data of the entity.
-    unsafe fn bind_uniforms(
-        &mut self,
-        state: &mut State,
-        stuff: &dyn Stuff,
-        entity: &BorrowedMut,
-        geometry: *const dyn Geometry,
-        material: *const dyn Material,
-        uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
-    ) {
-        for (binding, location) in uniform_locations {
-            let value = match binding {
-                UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name, entity),
-                UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
-                UniformBinding::FromEntity(name) => entity.uniform_values().get(*name).cloned(),
-                UniformBinding::ModelMatrix
-                | UniformBinding::ViewMatrix
-                | UniformBinding::ProjMatrix
-                | UniformBinding::NormalMatrix
-                | UniformBinding::ViewProjMatrix => {
-                    let mat = match binding {
-                        UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
-                        UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
-                        UniformBinding::ViewMatrix => stuff.camera().view_matrix().to_gl(),
-                        UniformBinding::ProjMatrix => stuff.camera().proj_matrix().to_gl(),
-                        UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),
-                        _ => unreachable!(),
-                    };
-
-                    Some(UniformValue::Matrix4 {
-                        data: mat,
-                        transpose: false,
-                    })
-                }
-                UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraCenter => {
-                    let vec = match binding {
-                        UniformBinding::ActiveCameraPosition => stuff.camera().position().to_gl(),
-                        UniformBinding::ActiveCameraCenter => stuff.camera().center().to_gl(),
-                        _ => unreachable!(),
-                    };
-
-                    Some(UniformValue::FloatVector3(vec))
-                }
-                UniformBinding::CanvasSize => state
-                    .gl
-                    .canvas()
-                    .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
-                    .map(|canvas| {
-                        UniformValue::UnsignedIntegerVector2([canvas.width(), canvas.height()])
-                    }),
-            };
-            let Some(value) = value else {
-                // should log warning
-                continue;
-            };
-
-            match value {
-                UniformValue::UnsignedInteger1(x) => state.gl.uniform1ui(Some(location), x),
-                UniformValue::UnsignedInteger2(x, y) => state.gl.uniform2ui(Some(location), x, y),
-                UniformValue::UnsignedInteger3(x, y, z) => {
-                    state.gl.uniform3ui(Some(location), x, y, z)
-                }
-                UniformValue::UnsignedInteger4(x, y, z, w) => {
-                    state.gl.uniform4ui(Some(location), x, y, z, w)
-                }
-                UniformValue::FloatVector1(data) => {
-                    state.gl.uniform1fv_with_f32_array(Some(location), &data)
-                }
-                UniformValue::FloatVector2(data) => {
-                    state.gl.uniform2fv_with_f32_array(Some(location), &data)
-                }
-                UniformValue::FloatVector3(data) => {
-                    state.gl.uniform3fv_with_f32_array(Some(location), &data)
-                }
-                UniformValue::FloatVector4(data) => {
-                    state.gl.uniform4fv_with_f32_array(Some(location), &data)
-                }
-                UniformValue::IntegerVector1(data) => {
-                    state.gl.uniform1iv_with_i32_array(Some(location), &data)
-                }
-                UniformValue::IntegerVector2(data) => {
-                    state.gl.uniform2iv_with_i32_array(Some(location), &data)
-                }
-                UniformValue::IntegerVector3(data) => {
-                    state.gl.uniform3iv_with_i32_array(Some(location), &data)
-                }
-                UniformValue::IntegerVector4(data) => {
-                    state.gl.uniform4iv_with_i32_array(Some(location), &data)
-                }
-                UniformValue::UnsignedIntegerVector1(data) => {
-                    state.gl.uniform1uiv_with_u32_array(Some(location), &data)
-                }
-                UniformValue::UnsignedIntegerVector2(data) => {
-                    state.gl.uniform2uiv_with_u32_array(Some(location), &data)
-                }
-                UniformValue::UnsignedIntegerVector3(data) => {
-                    state.gl.uniform3uiv_with_u32_array(Some(location), &data)
-                }
-                UniformValue::UnsignedIntegerVector4(data) => {
-                    state.gl.uniform4uiv_with_u32_array(Some(location), &data)
-                }
-                UniformValue::Matrix2 { data, transpose } => state
-                    .gl
-                    .uniform_matrix2fv_with_f32_array(Some(location), transpose, &data),
-                UniformValue::Matrix3 { data, transpose } => state
-                    .gl
-                    .uniform_matrix3fv_with_f32_array(Some(location), transpose, &data),
-                UniformValue::Matrix4 { data, transpose } => state
-                    .gl
-                    .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data),
-                UniformValue::Texture {
-                    descriptor,
-                    params,
-                    texture_unit,
-                } => {
-                    // active texture
-                    state.gl.active_texture(texture_unit.gl_enum());
-
-                    let (target, texture) = match state.texture_store.use_texture(&descriptor) {
-                        Ok(texture) => texture,
-                        Err(err) => {
-                            // should log warning
-                            console_log!("{}", err);
-                            continue;
-                        }
-                    };
-
-                    // binds texture
-                    state.gl.bind_texture(target, Some(texture));
-                    // setups sampler parameters
-                    params
-                        .iter()
-                        .for_each(|param| param.tex_parameteri(&state.gl, target));
-                    // binds to shader
-                    state
-                        .gl
-                        .uniform1i(Some(location), texture_unit.unit_index());
-                }
-            };
-        }
-    }
-
-    unsafe fn draw(
-        &mut self,
-        state: &mut State,
-        geometry: *const dyn Geometry,
-        material: *const dyn Material,
-    ) {
-        // draws entity
-        if let Some(num_instances) = (*material).instanced() {
-            // draw instanced
-            match (*geometry).draw() {
-                Draw::Arrays {
-                    mode,
-                    first,
-                    count: num_vertices,
-                } => state.gl.draw_arrays_instanced(
-                    mode.gl_enum(),
-                    first,
-                    num_vertices,
-                    num_instances,
-                ),
-                Draw::Elements {
-                    mode,
-                    count: num_vertices,
-                    element_type,
-                    offset,
-                    indices,
-                } => {
-                    let buffer = match state
-                        .buffer_store
-                        .use_buffer(indices, BufferTarget::ElementArrayBuffer)
-                    {
-                        Ok(buffer) => buffer,
-                        Err(err) => {
-                            // should log warning
-                            console_log!("{}", err);
-                            return;
-                        }
-                    };
-
-                    state
-                        .gl
-                        .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
-                    state.gl.draw_elements_instanced_with_i32(
-                        mode.gl_enum(),
-                        num_vertices,
-                        element_type.gl_enum(),
-                        offset,
-                        num_instances,
-                    );
-                }
-            }
-        } else {
-            // draw normally!
-            match (*geometry).draw() {
-                Draw::Arrays {
-                    mode,
-                    first,
-                    count: num_vertices,
-                } => state.gl.draw_arrays(mode.gl_enum(), first, num_vertices),
-                Draw::Elements {
-                    mode,
-                    count: num_vertices,
-                    element_type,
-                    offset,
-                    indices,
-                } => {
-                    let buffer = match state
-                        .buffer_store
-                        .use_buffer(indices, BufferTarget::ElementArrayBuffer)
-                    {
-                        Ok(buffer) => buffer,
-                        Err(err) => {
-                            // should log warning
-                            console_log!("{}", err);
-                            return;
-                        }
-                    };
-
-                    state
-                        .gl
-                        .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
-                    state.gl.draw_elements_with_i32(
-                        mode.gl_enum(),
-                        num_vertices,
-                        element_type.gl_enum(),
-                        offset,
-                    );
-                }
-            }
-        }
+    pub fn new(entities: ResourceSource) -> Self {
+        Self { entities }
     }
 }
 
 impl Executor for StandardDrawer {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
-        resources: &mut HashMap<String, Box<dyn Any>>,
+        runtime_resources: &mut HashMap<String, Box<dyn Any>>,
+        persist_resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
-        let Some(entities) = resources
-            .get(&self.entities)
-            .and_then(|resource| resource.downcast_ref::<Vec<Strong>>())
+        let entities = match &self.entities {
+            ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
+            ResourceSource::Persist(key) => persist_resources.get(key.as_str()),
+        };
+        let Some(entities) = entities.and_then(|resource| resource.downcast_ref::<Vec<Strong>>())
         else {
             return Ok(());
         };
@@ -498,14 +143,14 @@ impl Executor for StandardDrawer {
                     .unwrap_or(true)
                 {
                     let p = state.program_store.use_program(&*material)?;
-                    state.gl.use_program(Some(p.program()));
+                    state.gl.use_program(Some(p.gl_program()));
                     last_program = Some(p.clone());
                 }
 
                 let program = last_program.as_ref().unwrap();
 
                 // binds attributes
-                self.bind_attributes(
+                bind_attributes(
                     state,
                     &entity,
                     geometry,
@@ -513,7 +158,7 @@ impl Executor for StandardDrawer {
                     program.attribute_locations(),
                 );
                 // binds uniforms
-                self.bind_uniforms(
+                bind_uniforms(
                     state,
                     stuff,
                     &entity,
@@ -526,7 +171,7 @@ impl Executor for StandardDrawer {
                 (&mut *material).before_draw(state, &entity);
                 (&mut *geometry).before_draw(state, &entity);
                 // draws
-                self.draw(state, geometry, material);
+                draw(state, geometry, material);
                 // after draw of material and geometry
                 (&mut *material).after_draw(state, &entity);
                 (&mut *geometry).after_draw(state, &entity);
@@ -547,29 +192,22 @@ impl Executor for StandardDrawer {
 /// # Provides Resources & Data Type
 /// - `entities`: [`Vec<Strong>`], a list contains entities collected by this collector.
 pub struct StandardEntitiesCollector {
-    name: String,
-    entities: String,
+    entities: ResourceSource,
 }
 
 impl StandardEntitiesCollector {
-    pub fn new(name: impl Into<String>, entities: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            entities: entities.into(),
-        }
+    pub fn new(entities: ResourceSource) -> Self {
+        Self { entities }
     }
 }
 
 impl Executor for StandardEntitiesCollector {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
     fn execute(
         &mut self,
         _: &mut State,
         stuff: &mut dyn Stuff,
-        resources: &mut HashMap<String, Box<dyn Any>>,
+        runtime_resources: &mut HashMap<String, Box<dyn Any>>,
+        persist_resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         struct FilteringEntity {
             entity: Strong,
@@ -632,38 +270,30 @@ impl Executor for StandardEntitiesCollector {
         // console_log!("{}", bounding_entities.iter().map(|e| e.distance.to_string()).collect::<Vec<_>>().join(", "));
         // console_log!("entities count {}", entities.len());
 
-        resources.insert(
-            self.entities.clone(),
-            Box::new(
-                entities
-                    .into_iter()
-                    .map(|entity| entity.entity)
-                    .collect::<Vec<_>>(),
-            ),
+        let entities = Box::new(
+            entities
+                .into_iter()
+                .map(|entity| entity.entity)
+                .collect::<Vec<_>>(),
         );
+        match &self.entities {
+            ResourceSource::Runtime(key) => runtime_resources.insert(key.clone(), entities),
+            ResourceSource::Persist(key) => persist_resources.insert(key.clone(), entities),
+        };
 
         Ok(())
     }
 }
 
 /// Executor update camera by current frame.
-pub struct UpdateCameraFrame(String);
-
-impl UpdateCameraFrame {
-    pub fn new(name: impl Into<String>) -> Self {
-        UpdateCameraFrame(name.into())
-    }
-}
+pub struct UpdateCameraFrame;
 
 impl Executor for UpdateCameraFrame {
-    fn name(&self) -> &str {
-        &self.0
-    }
-
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
+        _: &mut HashMap<String, Box<dyn Any>>,
         _: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         stuff.camera_mut().update_frame(state);
@@ -672,23 +302,14 @@ impl Executor for UpdateCameraFrame {
 }
 
 /// Executor resets [`WebGl2RenderingContext`] to default state.
-pub struct ResetWebGLState(String);
-
-impl ResetWebGLState {
-    pub fn new(name: impl Into<String>) -> Self {
-        ResetWebGLState(name.into())
-    }
-}
+pub struct ResetWebGLState;
 
 impl Executor for ResetWebGLState {
-    fn name(&self) -> &str {
-        &self.0
-    }
-
     fn execute(
         &mut self,
         state: &mut State,
         _: &mut dyn Stuff,
+        _: &mut HashMap<String, Box<dyn Any>>,
         _: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         state.gl.use_program(None);

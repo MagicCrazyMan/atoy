@@ -33,7 +33,7 @@ impl Program {
         &self.name
     }
 
-    pub fn program(&self) -> &WebGlProgram {
+    pub fn gl_program(&self) -> &WebGlProgram {
         &self.program
     }
 

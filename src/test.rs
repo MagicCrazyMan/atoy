@@ -14,7 +14,7 @@ use web_sys::MouseEvent;
 
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::Camera;
-use crate::entity::Entity;
+use crate::entity::{Entity, Weak};
 use crate::error::Error;
 use crate::geometry::cube::{self, calculate_vertices};
 use crate::geometry::indexed_cube::IndexedCube;
@@ -23,6 +23,7 @@ use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::render::pp::picking::create_picking_pipeline;
 use crate::render::pp::standard::{create_standard_pipeline, StandardStuff};
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
@@ -157,7 +158,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    // let mut picking_pipeline = PickDetectionPipeline::new();
+    let mut picking_pipeline = create_picking_pipeline("position", "picked");
     let mut standard_pipeline = create_standard_pipeline();
 
     let cell_width = width / (grid as f64);
@@ -192,32 +193,43 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let client_y = event.client_y();
 
         let start = window().performance().unwrap().now();
-        // picking_pipeline.set_pick_position(client_x, client_y);
-        // render_cloned
-        //     .borrow_mut()
-        //     .render(
-        //         &mut picking_pipeline,
-        //         &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
-        //         *last_frame_time_cloned.borrow(),
-        //     )
-        //     .unwrap();
-        // let end = window().performance().unwrap().now();
-        // document()
-        //     .get_element_by_id("pick")
-        //     .unwrap()
-        //     .set_inner_html(&format!("{:.2}", end - start));
+        // sets pick position
+        picking_pipeline
+            .persist_resources_mut()
+            .insert("position".to_string(), Box::new((client_x, client_y)));
 
-        // if let Some(entity) = picking_pipeline.take_picked_entity() {
-        //     console_log!("pick entity {}", entity.borrow().id());
+        // pick
+        render_cloned
+            .borrow_mut()
+            .render(
+                &mut picking_pipeline,
+                &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
+                *last_frame_time_cloned.borrow(),
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("pick")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
-        //     let mut material = entity.borrow_mut();
-        //     let material = material.material_mut().unwrap();
-        //     material
-        //         .as_any_mut()
-        //         .downcast_mut::<SolidColorMaterial>()
-        //         .unwrap()
-        //         .set_color(rand::random());
-        // }
+        // get result
+        if let Some(entity) = picking_pipeline
+            .persist_resources()
+            .get("picked")
+            .and_then(|e| e.downcast_ref::<Weak>())
+            .and_then(|e| e.upgrade())
+        {
+            console_log!("pick entity {}", entity.borrow().id());
+
+            let mut material = entity.borrow_mut();
+            let material = material.material_mut().unwrap();
+            material
+                .as_any_mut()
+                .downcast_mut::<SolidColorMaterial>()
+                .unwrap()
+                .set_color(rand::random());
+        }
     });
     window()
         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
@@ -232,13 +244,13 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-        scene
-            .borrow_mut()
-            .active_camera_mut()
-            .as_any_mut()
-            .downcast_mut::<PerspectiveCamera>()
-            .unwrap()
-            .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+        // scene
+        //     .borrow_mut()
+        //     .active_camera_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<PerspectiveCamera>()
+        //     .unwrap()
+        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
 
         let start = window().performance().unwrap().now();
         render

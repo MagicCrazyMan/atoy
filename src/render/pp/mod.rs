@@ -1,5 +1,6 @@
 pub mod error;
 pub mod graph;
+pub mod picking;
 pub mod standard;
 
 use std::{any::Any, collections::HashMap};
@@ -96,7 +97,8 @@ impl<'a> State<'a> {
 pub struct Pipeline {
     graph: DirectedGraph<Box<dyn Executor>>,
     name_to_index: HashMap<String, usize>,
-    resources: HashMap<String, Box<dyn Any>>,
+    runtime_resources: HashMap<String, Box<dyn Any>>,
+    persist_resources: HashMap<String, Box<dyn Any>>,
 }
 
 impl Pipeline {
@@ -104,26 +106,29 @@ impl Pipeline {
         Self {
             graph: DirectedGraph::new(),
             name_to_index: HashMap::new(),
-            resources: HashMap::new(),
+            runtime_resources: HashMap::new(),
+            persist_resources: HashMap::new(),
         }
     }
 
     pub fn execute<S: Stuff>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Error> {
         for (_, executor) in self.graph.iter_mut()? {
-            executor.execute(state, stuff, &mut self.resources)?;
+            executor.execute(
+                state,
+                stuff,
+                &mut self.runtime_resources,
+                &mut self.persist_resources,
+            )?;
         }
 
-        self.clear();
+        // clears runtime resources
+        self.runtime_resources.clear();
 
         Ok(())
     }
 
-    fn clear(&mut self) {
-        self.resources.clear();
-    }
-
-    pub fn add_executor<E: Executor + 'static>(&mut self, executor: E) {
-        let name = executor.name().to_string();
+    pub fn add_executor<E: Executor + 'static>(&mut self, name: impl Into<String>, executor: E) {
+        let name = name.into();
         let index = self.graph.add_vertex(Box::new(executor));
         self.name_to_index.insert(name, index);
     }
@@ -193,15 +198,46 @@ impl Pipeline {
 
         Ok(())
     }
+
+    pub fn persist_resources(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.persist_resources
+    }
+
+    pub fn persist_resources_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
+        &mut self.persist_resources
+    }
+
+    pub fn runtime_resources(&self) -> &HashMap<String, Box<dyn Any>> {
+        &self.runtime_resources
+    }
+
+    pub fn runtime_resources_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
+        &mut self.runtime_resources
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ResourceSource {
+    Runtime(String),
+    Persist(String),
+}
+
+impl ResourceSource {
+    pub fn runtime(key: impl Into<String>) -> Self {
+        Self::Runtime(key.into())
+    }
+
+    pub fn persist(key: impl Into<String>) -> Self {
+        Self::Persist(key.into())
+    }
 }
 
 pub trait Executor {
-    fn name(&self) -> &str;
-
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
-        resources: &mut HashMap<String, Box<dyn Any>>,
+        runtime_resources: &mut HashMap<String, Box<dyn Any>>,
+        persist_resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error>;
 }
