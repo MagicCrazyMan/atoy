@@ -14,7 +14,6 @@ pub mod buffer;
 pub mod conversion;
 pub mod draw;
 pub mod error;
-// pub mod pipeline;
 pub mod program;
 pub mod stencil;
 pub mod texture;

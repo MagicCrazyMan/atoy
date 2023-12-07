@@ -1,9 +1,7 @@
 use std::{any::Any, collections::HashMap};
 
-use wasm_bindgen::JsCast;
 use web_sys::{
-    js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer,
-    WebGlRenderbuffer, WebGlTexture,
+    js_sys::Uint32Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
 use crate::{
@@ -19,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    standard::{ResetWebGLState, StandardEntitiesCollector, UpdateCameraFrame, StandardSetup},
+    standard::{ResetWebGLState, StandardEntitiesCollector, StandardSetup, UpdateCameraFrame},
     Executor, Pipeline, ResourceSource, State, Stuff,
 };
 
@@ -85,13 +83,6 @@ impl Picking {
         }
     }
 
-    fn canvas_from_gl(&self, gl: &WebGl2RenderingContext) -> Result<HtmlCanvasElement, Error> {
-        gl.canvas()
-            .ok_or(Error::CanvasNotFound)?
-            .dyn_into::<HtmlCanvasElement>()
-            .or(Err(Error::CanvasNotFound))
-    }
-
     fn use_framebuffer(&mut self, gl: &WebGl2RenderingContext) -> Result<WebGlFramebuffer, Error> {
         let framebuffer = &mut self.framebuffer;
         let framebuffer = match framebuffer {
@@ -108,71 +99,80 @@ impl Picking {
         Ok(framebuffer)
     }
 
-    fn use_depth_renderbuffer(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-    ) -> Result<WebGlRenderbuffer, Error> {
-        let canvas = self.canvas_from_gl(gl)?;
-        let w = canvas.width();
-        let h = canvas.height();
+    fn use_depth_renderbuffer(&mut self, state: &State) -> Result<WebGlRenderbuffer, Error> {
+        let w = state.canvas.width();
+        let h = state.canvas.height();
 
         if let Some((renderbuffer, width, height)) = &self.renderbuffer {
             if w == *width && h == *height {
                 return Ok(renderbuffer.clone());
             } else {
-                gl.delete_renderbuffer(Some(renderbuffer));
+                state.gl.delete_renderbuffer(Some(renderbuffer));
             }
         }
 
-        let rb = gl
+        let rb = state
+            .gl
             .create_renderbuffer()
             .ok_or(Error::CreateRenderbufferFailure)?;
 
-        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&rb));
-        gl.renderbuffer_storage(
+        state
+            .gl
+            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&rb));
+        state.gl.renderbuffer_storage(
             WebGl2RenderingContext::RENDERBUFFER,
             WebGl2RenderingContext::DEPTH_COMPONENT16,
             w as i32,
             h as i32,
         );
-        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+        state
+            .gl
+            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
 
         self.renderbuffer = Some((rb.clone(), w, h));
 
         Ok(rb)
     }
 
-    fn use_texture(&mut self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
-        let canvas = self.canvas_from_gl(gl)?;
-        let w = canvas.width();
-        let h = canvas.height();
+    fn use_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+        let w = state.canvas.width();
+        let h = state.canvas.height();
 
         if let Some((texture, width, height)) = &self.texture {
             if w == *width && h == *height {
                 return Ok(texture.clone());
             } else {
-                gl.delete_texture(Some(texture));
+                state.gl.delete_texture(Some(texture));
             }
         }
 
-        let tx = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
+        let tx = state
+            .gl
+            .create_texture()
+            .ok_or(Error::CreateTextureFailure)?;
 
-        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tx));
+        state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tx));
 
-        gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-            WebGl2RenderingContext::TEXTURE_2D,
-            0,
-            WebGl2RenderingContext::R32UI as i32,
-            w as i32,
-            h as i32,
-            0,
-            WebGl2RenderingContext::RED_INTEGER,
-            WebGl2RenderingContext::UNSIGNED_INT,
-            None,
-        )
-        .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        state
+            .gl
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                WebGl2RenderingContext::TEXTURE_2D,
+                0,
+                WebGl2RenderingContext::R32UI as i32,
+                w as i32,
+                h as i32,
+                0,
+                WebGl2RenderingContext::RED_INTEGER,
+                WebGl2RenderingContext::UNSIGNED_INT,
+                None,
+            )
+            .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
         self.texture = Some((tx.clone(), w, h));
 
@@ -213,8 +213,8 @@ impl Executor for Picking {
 
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(&state.gl)?;
-        let renderbuffer = self.use_depth_renderbuffer(&state.gl)?;
-        let texture = self.use_texture(&state.gl)?;
+        let renderbuffer = self.use_depth_renderbuffer(state)?;
+        let texture = self.use_texture(state)?;
         state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl
@@ -284,7 +284,7 @@ impl Executor for Picking {
             .gl
             .read_pixels_with_opt_array_buffer_view(
                 *x,
-                self.canvas_from_gl(&state.gl)?.height() as i32 - *y,
+                state.canvas.height() as i32 - *y,
                 1,
                 1,
                 WebGl2RenderingContext::RED_INTEGER,
