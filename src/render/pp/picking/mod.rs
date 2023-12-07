@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    standard::{ResetWebGLState, StandardEntitiesCollector, UpdateCameraFrame},
+    standard::{ResetWebGLState, StandardEntitiesCollector, UpdateCameraFrame, StandardSetup},
     Executor, Pipeline, ResourceSource, State, Stuff,
 };
 
@@ -29,6 +29,7 @@ pub fn create_picking_pipeline(
 ) -> Pipeline {
     let mut pipeline = Pipeline::new();
 
+    pipeline.add_executor("__clear", StandardSetup);
     pipeline.add_executor("__update_camera", UpdateCameraFrame);
     pipeline.add_executor(
         "__collector",
@@ -44,6 +45,7 @@ pub fn create_picking_pipeline(
     );
     pipeline.add_executor("__reset", ResetWebGLState);
 
+    pipeline.connect("__clear", "__update_camera").unwrap();
     pipeline.connect("__update_camera", "__collector").unwrap();
     pipeline.connect("__collector", "__picking").unwrap();
     pipeline.connect("__picking", "__reset").unwrap();
@@ -209,12 +211,6 @@ impl Executor for Picking {
             return Ok(());
         }
 
-        // records previous WebGL status
-        let depth_test_enabled = state.gl.is_enabled(WebGl2RenderingContext::DEPTH_TEST);
-
-        // enable depth test
-        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(&state.gl)?;
         let renderbuffer = self.use_depth_renderbuffer(&state.gl)?;
@@ -318,11 +314,6 @@ impl Executor for Picking {
         state
             .gl
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-        // restores DEPTH_TEST
-        if !depth_test_enabled {
-            state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-        }
 
         Ok(())
     }

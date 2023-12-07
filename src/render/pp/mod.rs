@@ -2,6 +2,7 @@ pub mod error;
 pub mod graph;
 pub mod picking;
 pub mod standard;
+pub mod outlining;
 
 use std::{any::Any, collections::HashMap};
 

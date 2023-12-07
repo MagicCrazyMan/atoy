@@ -154,12 +154,13 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (6.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
     let mut picking_pipeline = create_picking_pipeline("position", "picked");
-    let mut standard_pipeline = create_standard_pipeline();
+    let standard_pipeline = create_standard_pipeline("position");
+    let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -189,14 +190,14 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let scene_cloned = Rc::clone(&scene);
     let last_frame_time_cloned = Rc::clone(&last_frame_time);
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        let client_x = event.client_x();
-        let client_y = event.client_y();
+        let x = event.page_x();
+        let y = event.page_y();
 
         let start = window().performance().unwrap().now();
         // sets pick position
         picking_pipeline
             .persist_resources_mut()
-            .insert("position".to_string(), Box::new((client_x, client_y)));
+            .insert("position".to_string(), Box::new((x, y)));
 
         // pick
         render_cloned
@@ -236,6 +237,21 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         .unwrap();
     click.forget();
 
+    let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        standard_pipeline_cloned
+            .borrow_mut()
+            .persist_resources_mut()
+            .insert(
+                "position".to_string(),
+                Box::new((event.page_x(), event.page_y())),
+            );
+    });
+    window()
+        .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
+
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
@@ -244,19 +260,19 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-        scene
-            .borrow_mut()
-            .active_camera_mut()
-            .as_any_mut()
-            .downcast_mut::<PerspectiveCamera>()
-            .unwrap()
-            .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+        // scene
+        //     .borrow_mut()
+        //     .active_camera_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<PerspectiveCamera>()
+        //     .unwrap()
+        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
 
         let start = window().performance().unwrap().now();
         render
             .borrow_mut()
             .render(
-                &mut standard_pipeline,
+                &mut standard_pipeline.borrow_mut(),
                 &mut StandardStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
@@ -279,7 +295,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline();
+    let mut pipeline = create_standard_pipeline("position");
 
     // reuses cube buffer
     let vertices = AttributeValue::Buffer {
@@ -403,16 +419,16 @@ pub fn test_instanced_cube(
 ) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline();
+    let mut pipeline = create_standard_pipeline("position");
 
     let entity = Entity::new();
 
     let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
     let pick_position_cloned = Rc::clone(&pick_position);
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        let client_x = event.client_x();
-        let client_y = event.client_y();
-        *pick_position_cloned.borrow_mut() = Some((client_x, client_y));
+        let x = event.page_x();
+        let y = event.page_y();
+        *pick_position_cloned.borrow_mut() = Some((x, y));
     });
     window()
         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
@@ -719,130 +735,145 @@ pub fn test_instanced_cube(
 //         .unwrap();
 // }
 
-// #[wasm_bindgen]
-// pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
-//     let render = create_render()?;
-//     let render = Rc::new(RefCell::new(render));
-//     let last_frame_time = Rc::new(RefCell::new(0.0));
-//     // let mut picking_pipeline = PickDetectionPipeline::new();
-//     let mut standard_pipeline = create_standard_pipeline();
-//     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
+#[wasm_bindgen]
+pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let render = create_render()?;
+    let render = Rc::new(RefCell::new(render));
+    let last_frame_time = Rc::new(RefCell::new(0.0));
+    let mut picking_pipeline = create_picking_pipeline("position", "picked");
+    let mut standard_pipeline = create_standard_pipeline("position");
+    let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
 
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-//         let entity = Entity::new();
+        let entity = Entity::new();
 
-//         entity.borrow_mut().set_geometry(Some(Cube::new()));
-//         // entity.set_geometry(Some(IndexedCube::new()));
-//         entity
-//             .borrow_mut()
-//             .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-//         entity.borrow_mut().set_local_matrix(model_matrix);
-//         scene.entity_collection_mut().add_entity(entity);
-//     }
-//     let scene = Rc::new(RefCell::new(scene));
+        entity.borrow_mut().set_geometry(Some(Cube::new()));
+        // entity.set_geometry(Some(IndexedCube::new()));
+        entity
+            .borrow_mut()
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+        entity.borrow_mut().set_local_matrix(model_matrix);
+        scene.entity_collection_mut().add_entity(entity);
+    }
+    let scene = Rc::new(RefCell::new(scene));
 
-//     let render_cloned = Rc::clone(&render);
-//     let scene_cloned = Rc::clone(&scene);
-//     let last_frame_time_cloned = Rc::clone(&last_frame_time);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         let client_x = event.client_x();
-//         let client_y = event.client_y();
+    let render_cloned = Rc::clone(&render);
+    let scene_cloned = Rc::clone(&scene);
+    let last_frame_time_cloned = Rc::clone(&last_frame_time);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        let x = event.page_x();
+        let y = event.page_y();
 
-//         let start = window().performance().unwrap().now();
-//         picking_pipeline.set_pick_position(client_x, client_y);
-//         render_cloned
-//             .borrow_mut()
-//             .render(
-//                 &mut picking_pipeline,
-//                 &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
-//                 *last_frame_time_cloned.borrow(),
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("pick")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
+        let start = window().performance().unwrap().now();
+        // sets pick position
+        picking_pipeline
+            .persist_resources_mut()
+            .insert("position".to_string(), Box::new((x, y)));
 
-//         if let Some(entity) = picking_pipeline.take_picked_entity() {
-//             console_log!("pick entity {}", entity.borrow().id());
+        // pick
+        render_cloned
+            .borrow_mut()
+            .render(
+                &mut picking_pipeline,
+                &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
+                *last_frame_time_cloned.borrow(),
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("pick")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
-//             let mut material = entity.borrow_mut();
-//             let material = material.material_mut().unwrap();
-//             material
-//                 .as_any_mut()
-//                 .downcast_mut::<SolidColorMaterial>()
-//                 .unwrap()
-//                 .set_color(rand::random());
-//         }
-//     });
-//     window()
-//         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
+        // get result
+        if let Some(entity) = picking_pipeline
+            .persist_resources()
+            .get("picked")
+            .and_then(|e| e.downcast_ref::<Weak>())
+            .and_then(|e| e.upgrade())
+        {
+            console_log!("pick entity {}", entity.borrow().id());
 
-//     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         standard_pipeline_cloned
-//             .borrow_mut()
-//             .set_pick_position(event.page_x(), event.page_y());
-//     });
-//     window()
-//         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
+            let mut material = entity.borrow_mut();
+            let material = material.material_mut().unwrap();
+            material
+                .as_any_mut()
+                .downcast_mut::<SolidColorMaterial>()
+                .unwrap()
+                .set_color(rand::random());
+        }
+    });
+    window()
+        .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
 
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-//         let seconds = frame_time / 1000.0;
+    let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        standard_pipeline_cloned
+            .borrow_mut()
+            .persist_resources_mut()
+            .insert(
+                "position".to_string(),
+                Box::new((event.page_x(), event.page_y())),
+            );
+    });
+    window()
+        .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
 
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
 
-//         scene
-//             .borrow_mut()
-//             .entity_collection_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-//         let start = window().performance().unwrap().now();
-//         let mut standard_pipeline = standard_pipeline.borrow_mut();
-//         let standard_pipeline = &mut *standard_pipeline;
-//         render
-//             .borrow_mut()
-//             .render(
-//                 standard_pipeline,
-//                 &mut StandardStuff::new(&mut scene.borrow_mut()),
-//                 frame_time,
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("total")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
+        scene
+            .borrow_mut()
+            .entity_collection_mut()
+            .set_local_matrix(Mat4::from_y_rotation(rotation));
 
-//         *last_frame_time.borrow_mut() = frame_time;
+        let start = window().performance().unwrap().now();
+        let mut standard_pipeline = standard_pipeline.borrow_mut();
+        let standard_pipeline = &mut *standard_pipeline;
+        render
+            .borrow_mut()
+            .render(
+                standard_pipeline,
+                &mut StandardStuff::new(&mut scene.borrow_mut()),
+                frame_time,
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
 
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
+        *last_frame_time.borrow_mut() = frame_time;
 
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
 
-//     Ok(())
-// }
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
 
 #[wasm_bindgen]
 pub fn test_camera() {

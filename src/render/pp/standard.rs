@@ -18,14 +18,29 @@ use crate::{
     scene::Scene,
 };
 
-use super::{Executor, Pipeline, ResourceSource, State, Stuff};
+use super::{
+    outlining::Outlining, picking::Picking, Executor, Pipeline, ResourceSource, State, Stuff,
+};
 
-pub fn create_standard_pipeline() -> Pipeline {
+pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
     let mut pipeline = Pipeline::new();
+    pipeline.add_executor("__setup", StandardSetup);
     pipeline.add_executor("__update_camera", UpdateCameraFrame);
     pipeline.add_executor(
         "__collector",
         StandardEntitiesCollector::new(ResourceSource::runtime("entities")),
+    );
+    pipeline.add_executor(
+        "__picking",
+        Picking::new(
+            ResourceSource::persist(position_key),
+            ResourceSource::runtime("entities"),
+            ResourceSource::runtime("picked"),
+        ),
+    );
+    pipeline.add_executor(
+        "__outlining",
+        Outlining::new(ResourceSource::runtime("picked")),
     );
     pipeline.add_executor(
         "__drawer",
@@ -34,8 +49,12 @@ pub fn create_standard_pipeline() -> Pipeline {
     pipeline.add_executor("__reset", ResetWebGLState);
 
     // safely unwraps
+    pipeline.connect("__setup", "__update_camera").unwrap();
     pipeline.connect("__update_camera", "__collector").unwrap();
+    pipeline.connect("__collector", "__picking").unwrap();
     pipeline.connect("__collector", "__drawer").unwrap();
+    pipeline.connect("__picking", "__outlining").unwrap();
+    pipeline.connect("__outlining", "__drawer").unwrap();
     pipeline.connect("__drawer", "__reset").unwrap();
 
     pipeline
@@ -108,11 +127,6 @@ impl Executor for StandardDrawer {
             state.canvas.height() as i32,
         );
         state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl.clear_color(0.0, 0.0, 0.0, 0.0);
-        state.gl.clear_depth(1.0);
-        state.gl.clear(
-            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-        );
 
         let mut last_program = None as Option<Program>;
         for entity in entities.iter() {
@@ -297,6 +311,36 @@ impl Executor for UpdateCameraFrame {
         _: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         stuff.camera_mut().update_frame(state);
+        Ok(())
+    }
+}
+
+/// Executor setup to default status.
+pub struct StandardSetup;
+
+impl Executor for StandardSetup {
+    fn execute(
+        &mut self,
+        state: &mut State,
+        _: &mut dyn Stuff,
+        _: &mut HashMap<String, Box<dyn Any>>,
+        _: &mut HashMap<String, Box<dyn Any>>,
+    ) -> Result<(), Error> {
+        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl.enable(WebGl2RenderingContext::BLEND);
+        state.gl.enable(WebGl2RenderingContext::CULL_FACE);
+        state.gl.cull_face(WebGl2RenderingContext::BACK);
+        state.gl.blend_equation(WebGl2RenderingContext::FUNC_ADD);
+        state.gl.blend_func(WebGl2RenderingContext::SRC_ALPHA, WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA);
+        state.gl.clear_color(0.0, 0.0, 0.0, 0.0);
+        state.gl.clear_depth(1.0);
+        state.gl.clear_stencil(0);
+        state.gl.clear(
+            WebGl2RenderingContext::COLOR_BUFFER_BIT
+                | WebGl2RenderingContext::DEPTH_BUFFER_BIT
+                | WebGl2RenderingContext::STENCIL_BUFFER_BIT,
+        );
+        
         Ok(())
     }
 }
