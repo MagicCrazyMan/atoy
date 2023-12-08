@@ -68,6 +68,7 @@ pub struct Picking {
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
     texture: Option<(WebGlTexture, u32, u32)>,
+    material: PickingMaterial,
 }
 
 impl Picking {
@@ -80,6 +81,7 @@ impl Picking {
             framebuffer: None,
             renderbuffer: None,
             texture: None,
+            material: PickingMaterial { index: 0 },
         }
     }
 
@@ -247,8 +249,7 @@ impl Executor for Picking {
             .clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
 
         // prepare material
-        let mut material = PickingMaterial(0);
-        let program = state.program_store.use_program(&material)?;
+        let program = state.program_store.use_program(&self.material)?;
         state.gl.use_program(Some(program.gl_program()));
 
         // render each entity by material
@@ -258,14 +259,14 @@ impl Executor for Picking {
                 continue;
             };
 
-            // sets index for current draw
-            material.0 = (index + 1) as u32;
+            // sets index and window position for current draw
+            self.material.index = (index + 1) as u32;
 
             bind_attributes(
                 state,
                 &entity,
                 geometry,
-                &material,
+                &self.material,
                 program.attribute_locations(),
             );
             bind_uniforms(
@@ -273,10 +274,10 @@ impl Executor for Picking {
                 stuff,
                 &entity,
                 geometry,
-                &material,
+                &self.material,
                 program.uniform_locations(),
             );
-            draw(state, &*geometry, &material);
+            draw(state, &*geometry, &self.material);
         }
 
         // get result
@@ -319,7 +320,9 @@ impl Executor for Picking {
     }
 }
 
-struct PickingMaterial(u32);
+struct PickingMaterial {
+    index: u32,
+}
 
 impl Material for PickingMaterial {
     fn name(&self) -> &'static str {
@@ -351,7 +354,7 @@ impl Material for PickingMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            "u_Index" => Some(UniformValue::UnsignedInteger1(self.0)),
+            "u_Index" => Some(UniformValue::UnsignedInteger1(self.index)),
             _ => None,
         }
     }
