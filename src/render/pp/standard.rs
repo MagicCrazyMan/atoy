@@ -120,12 +120,6 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
-        state.gl.viewport(
-            0,
-            0,
-            state.canvas.width() as i32,
-            state.canvas.height() as i32,
-        );
         state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
 
         let mut last_program = None as Option<Program>;
@@ -326,6 +320,12 @@ impl Executor for StandardSetup {
         _: &mut HashMap<String, Box<dyn Any>>,
         _: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
+        state.gl.viewport(
+            0,
+            0,
+            state.canvas.width() as i32,
+            state.canvas.height() as i32,
+        );
         state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl.enable(WebGl2RenderingContext::BLEND);
         state.gl.enable(WebGl2RenderingContext::CULL_FACE);
