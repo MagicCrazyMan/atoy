@@ -235,6 +235,14 @@ pub(crate) fn bind_uniforms(
             UniformValue::UnsignedInteger4(x, y, z, w) => {
                 state.gl().uniform4ui(Some(location), x, y, z, w)
             }
+            UniformValue::Float1(x) => state.gl().uniform1f(Some(location), x),
+            UniformValue::Float2(x, y) => state.gl().uniform2f(Some(location), x, y),
+            UniformValue::Float3(x, y, z) => state.gl().uniform3f(Some(location), x, y, z),
+            UniformValue::Float4(x, y, z, w) => state.gl().uniform4f(Some(location), x, y, z, w),
+            UniformValue::Integer1(x) => state.gl().uniform1i(Some(location), x),
+            UniformValue::Integer2(x, y) => state.gl().uniform2i(Some(location), x, y),
+            UniformValue::Integer3(x, y, z) => state.gl().uniform3i(Some(location), x, y, z),
+            UniformValue::Integer4(x, y, z, w) => state.gl().uniform4i(Some(location), x, y, z, w),
             UniformValue::FloatVector1(data) => {
                 state.gl().uniform1fv_with_f32_array(Some(location), &data)
             }

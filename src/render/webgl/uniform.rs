@@ -2,10 +2,18 @@ use super::texture::{TextureDescriptor, TextureParameter, TextureUnit};
 
 #[derive(Clone)]
 pub enum UniformValue {
+    Float1(f32),
+    Float2(f32, f32),
+    Float3(f32, f32, f32),
+    Float4(f32, f32, f32, f32),
     UnsignedInteger1(u32),
     UnsignedInteger2(u32, u32),
     UnsignedInteger3(u32, u32, u32),
     UnsignedInteger4(u32, u32, u32, u32),
+    Integer1(i32),
+    Integer2(i32, i32),
+    Integer3(i32, i32, i32),
+    Integer4(i32, i32, i32, i32),
     FloatVector1([f32; 1]),
     FloatVector2([f32; 2]),
     FloatVector3([f32; 3]),
