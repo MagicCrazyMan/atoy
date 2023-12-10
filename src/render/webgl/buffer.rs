@@ -1,5 +1,4 @@
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
     collections::HashMap,
     hash::Hash,
@@ -21,6 +20,7 @@ use super::{
     error::Error,
 };
 
+/// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferTarget {
     ArrayBuffer,
@@ -33,6 +33,8 @@ pub enum BufferTarget {
     PixelUnpackBuffer,
 }
 
+/// Available size of a value get from buffer.
+/// According to WebGL definition, it should only be `1`, `2`, `3` or `4`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum BufferComponentSize {
@@ -42,6 +44,7 @@ pub enum BufferComponentSize {
     Four = 4,
 }
 
+/// Available buffer data types mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferDataType {
@@ -58,6 +61,7 @@ pub enum BufferDataType {
 }
 
 impl BufferDataType {
+    /// Gets bytes length of a data type.
     pub fn bytes_length(&self) -> GLint {
         match self {
             BufferDataType::Float => 4,
@@ -74,6 +78,7 @@ impl BufferDataType {
     }
 }
 
+/// Available buffer usages mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferUsage {
     StaticDraw,
@@ -87,83 +92,84 @@ pub enum BufferUsage {
     StreamCopy,
 }
 
-/// Since the linear memory of WASM runtime is impossible to shrink (for now),
-/// high memory usage could happen if you create a large WASM native buffer, for example, Vec\<u8\>.
-/// Thus, always creates TypedArrayBuffer from JavaScript and buffer data via
-/// From\[TypedArray\] to prevent creating large WASM buffer.
+/// Available buffer sources.
 ///
-/// Note: Feels freely to clone the [`ArrayBuffer`], it only clones a reference from JavaScript heap.
+/// # Note
+///
+/// Since the linear memory of WASM runtime is impossible to shrink for now,
+/// high memory usage could happen if developer create a large WASM native buffer, for example, `Vec<u8>`.
+/// So, it is a good idea to avoid creating native buffer, and use `TypedArrayBuffer` from JavaScript instead.
 pub enum BufferSource {
     Preallocate {
         size: GLsizeiptr,
     },
-    FromBinary {
+    Binary {
         data: Box<dyn AsRef<[u8]>>,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromInt8Array {
+    Int8Array {
         data: Int8Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromUint8Array {
+    Uint8Array {
         data: Uint8Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromUint8ClampedArray {
+    Uint8ClampedArray {
         data: Uint8ClampedArray,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromInt16Array {
+    Int16Array {
         data: Int16Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromUint16Array {
+    Uint16Array {
         data: Uint16Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromInt32Array {
+    Int32Array {
         data: Int32Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromUint32Array {
+    Uint32Array {
         data: Uint32Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromFloat32Array {
+    Float32Array {
         data: Float32Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromFloat64Array {
+    Float64Array {
         data: Float64Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromBigInt64Array {
+    BigInt64Array {
         data: BigInt64Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
-    FromBigUint64Array {
+    BigUint64Array {
         data: BigUint64Array,
         dst_byte_offset: GLintptr,
         src_offset: GLuint,
@@ -174,70 +180,70 @@ pub enum BufferSource {
 impl BufferSource {
     fn collect_typed_array_buffer(&self) -> (&Object, GLintptr, GLuint, GLuint) {
         match self {
-            BufferSource::Preallocate { .. } | BufferSource::FromBinary { .. } => {
+            BufferSource::Preallocate { .. } | BufferSource::Binary { .. } => {
                 unreachable!()
             }
-            BufferSource::FromInt8Array {
+            BufferSource::Int8Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromUint8Array {
+            BufferSource::Uint8Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromUint8ClampedArray {
+            BufferSource::Uint8ClampedArray {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromInt16Array {
+            BufferSource::Int16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromUint16Array {
+            BufferSource::Uint16Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromInt32Array {
+            BufferSource::Int32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromUint32Array {
+            BufferSource::Uint32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromFloat32Array {
+            BufferSource::Float32Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromFloat64Array {
+            BufferSource::Float64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromBigInt64Array {
+            BufferSource::BigInt64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
                 src_length,
             } => (data, *dst_byte_offset, *src_offset, *src_length),
-            BufferSource::FromBigUint64Array {
+            BufferSource::BigUint64Array {
                 data,
                 dst_byte_offset,
                 src_offset,
@@ -246,12 +252,13 @@ impl BufferSource {
         }
     }
 
+    /// Buffers data to WebGL runtime.
     fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
         let target = target.gl_enum();
         let usage = usage.gl_enum();
         match self {
             BufferSource::Preallocate { size } => gl.buffer_data_with_i32(target, *size, usage),
-            BufferSource::FromBinary {
+            BufferSource::Binary {
                 data,
                 src_offset,
                 src_length,
@@ -272,11 +279,12 @@ impl BufferSource {
         }
     }
 
+    /// Buffers sub data to WebGL runtime.
     fn buffer_sub_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget) {
         let target = target.gl_enum();
         match self {
             BufferSource::Preallocate { .. } => unreachable!(),
-            BufferSource::FromBinary {
+            BufferSource::Binary {
                 data,
                 dst_byte_offset,
                 src_offset,
@@ -304,21 +312,18 @@ impl BufferSource {
 }
 
 impl BufferSource {
-    /// Constructs a new buffer descriptor with preallocate buffer only.
+    /// Constructs a new preallocation only buffer source.
     pub fn preallocate(size: GLsizeiptr) -> Self {
         Self::Preallocate { size }
     }
 
-    /// Constructs a new buffer descriptor with data from WASM binary.
-    ///
-    /// DO NOT buffer a huge binary data using this method,
-    /// use [`from_uint8_array()`](Self@from_uint8_array) or those `from_[TypedArray]()` methods instead.
+    /// Constructs a new buffer source from WASM native buffer.
     pub fn from_binary<D: AsRef<[u8]> + 'static>(
         data: D,
         src_offset: GLuint,
         src_length: GLuint,
     ) -> Self {
-        Self::FromBinary {
+        Self::Binary {
             data: Box::new(data),
             dst_byte_offset: 0,
             src_offset,
@@ -326,17 +331,14 @@ impl BufferSource {
         }
     }
 
-    /// Constructs a new buffer descriptor with data from WASM binary.
-    ///
-    /// DO NOT buffer a huge binary data using this method,
-    /// use [`from_uint8_array()`](Self@from_uint8_array) or those `from_[TypedArray]()` methods instead.
+    /// Constructs a new buffer source from WASM native buffer with dest byte offset.
     pub fn from_binary_with_dst_byte_offset<D: AsRef<[u8]> + 'static>(
         data: D,
         src_offset: GLuint,
         src_length: GLuint,
         dst_byte_offset: GLsizeiptr,
     ) -> Self {
-        Self::FromBinary {
+        Self::Binary {
             data: Box::new(data),
             dst_byte_offset,
             src_offset,
@@ -346,9 +348,12 @@ impl BufferSource {
 }
 
 macro_rules! impl_typed_array {
-    ($(($from: ident, $from_with: ident, $source: tt, $kind: ident)),+) => {
+    ($(($from: ident, $from_with: ident, $source: tt, $kind: ident, $name: expr)),+) => {
         impl BufferSource {
             $(
+                #[doc = "Constructs a new buffer source from "]
+                #[doc = $name]
+                #[doc = "."]
                 pub fn $from(
                     data: $source,
                     src_offset: GLuint,
@@ -362,6 +367,9 @@ macro_rules! impl_typed_array {
                     }
                 }
 
+                #[doc = "Constructs a new buffer source from "]
+                #[doc = $name]
+                #[doc = " with dest byte offset."]
                 pub fn $from_with(
                     data: $source,
                     src_offset: GLuint,
@@ -381,32 +389,32 @@ macro_rules! impl_typed_array {
 }
 
 impl_typed_array! {
-    (from_int8_array, from_int8_array_with_dst_byte_length, Int8Array, FromInt8Array),
-    (from_uint8_array, from_uint8_array_with_dst_byte_length, Uint8Array, FromUint8Array),
-    (from_uint8_clamped_array, from_uint8_clamped_array_with_dst_byte_length, Uint8ClampedArray, FromUint8ClampedArray),
-    (from_int16_array, from_int16_array_with_dst_byte_length, Int16Array, FromInt16Array),
-    (from_uint16_array, from_uint16_array_with_dst_byte_length, Uint16Array, FromUint16Array),
-    (from_int32_array, from_int32_array_with_dst_byte_length, Int32Array, FromInt32Array),
-    (from_uint32_array, from_uint32_array_with_dst_byte_length, Uint32Array, FromUint32Array),
-    (from_float32_array, from_float32_array_with_dst_byte_length, Float32Array, FromFloat32Array),
-    (from_float64_array, from_float64_array_with_dst_byte_length, Float64Array, FromFloat64Array),
-    (from_big_int64_array, from_big_int64_array_with_dst_byte_length, BigInt64Array, FromBigInt64Array),
-    (from_big_uint64_array, from_big_uint64_array_with_dst_byte_length, BigUint64Array, FromBigUint64Array)
+    (from_int8_array, from_int8_array_with_dst_byte_length, Int8Array, Int8Array, "[`Int8Array`]"),
+    (from_uint8_array, from_uint8_array_with_dst_byte_length, Uint8Array, Uint8Array, "[`Uint8Array`]"),
+    (from_uint8_clamped_array, from_uint8_clamped_array_with_dst_byte_length, Uint8ClampedArray, Uint8ClampedArray, "[`Uint8ClampedArray`]"),
+    (from_int16_array, from_int16_array_with_dst_byte_length, Int16Array, Int16Array, "[`Int16Array`]"),
+    (from_uint16_array, from_uint16_array_with_dst_byte_length, Uint16Array, Uint16Array, "[`Uint16Array`]"),
+    (from_int32_array, from_int32_array_with_dst_byte_length, Int32Array, Int32Array, "[`Int32Array`]"),
+    (from_uint32_array, from_uint32_array_with_dst_byte_length, Uint32Array, Uint32Array, "[`Uint32Array`]"),
+    (from_float32_array, from_float32_array_with_dst_byte_length, Float32Array, Float32Array, "[`Float32Array`]"),
+    (from_float64_array, from_float64_array_with_dst_byte_length, Float64Array, Float64Array, "[`Float64Array`]"),
+    (from_big_int64_array, from_big_int64_array_with_dst_byte_length, BigInt64Array, BigInt64Array, "[`BigInt64Array`]"),
+    (from_big_uint64_array, from_big_uint64_array_with_dst_byte_length, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-/// An buffer agency is an unique identifier to save the runtime status of a buffer descriptor.
-/// `BufferDescriptorAgency` is aimed for doing automatic WebGlBuffer cleanup when a buffer no more usable.
+/// `BufferDescriptorAgency` is the thing for achieving [`BufferDescriptor`] reusing and automatic dropping purpose.
+///
+/// [`BufferStore`] creates a [`Rc`] wrapped agency for
+/// a descriptor for the first time descriptor being used.
+/// Cloned descriptors share the same agency.
+/// [`BufferStore`] always returns a same [`WebGlBuffer`] with a same agency.
+///
+/// After all referencing of an agency dropped, agency will drop [`WebGlBuffer`] automatically in [`Drop`].
 #[derive(Clone)]
 struct BufferDescriptorAgency(Uuid, Weak<RefCell<StoreContainer>>, WebGl2RenderingContext);
 
 impl BufferDescriptorAgency {
-    fn try_container(&self) -> Option<Rc<RefCell<StoreContainer>>> {
-        self.1.upgrade()
-    }
-}
-
-impl BufferDescriptorAgency {
-    fn raw_id(&self) -> &Uuid {
+    fn key(&self) -> &Uuid {
         &self.0
     }
 }
@@ -432,7 +440,7 @@ impl Drop for BufferDescriptorAgency {
             return;
         };
         let Ok(mut container) = (*container).try_borrow_mut() else {
-            // if it is borrowed, buffer is dropping by store, skip here
+            // if it is borrowed, buffer is dropping by store, skip
             return;
         };
 
@@ -447,7 +455,7 @@ impl Drop for BufferDescriptorAgency {
         };
 
         self.2.delete_buffer(Some(&buffer));
-        container.memory_usage -= size;
+        container.used_memory -= size;
 
         // updates most and least LRU
         if let Some(most_recently) = container.most_recently {
@@ -476,15 +484,21 @@ impl Drop for BufferDescriptorAgency {
     }
 }
 
-/// An enum describing current status of a descriptor.
+/// Buffer descriptor lifetime status.
+///
+/// Cloned descriptors share the same status.
 enum BufferDescriptorStatus {
+    /// Buffer associated with this descriptor dropped already.
     Dropped,
-    Unchanged {
-        agency: Rc<BufferDescriptorAgency>,
-    },
-    UpdateBuffer {
-        source: BufferSource,
-    },
+    /// Buffer associated with this descriptor does not change.
+    Unchanged { agency: Rc<BufferDescriptorAgency> },
+    /// Buffers data into WebGL2 runtime.
+    ///
+    /// Drops source data after buffering into WebGL2 runtime.
+    UpdateBuffer { source: BufferSource },
+    /// Buffers sub data into WebGL2 runtime.
+    ///
+    /// Drops source data after buffering into WebGL2 runtime.
     UpdateSubBuffer {
         agency: Rc<BufferDescriptorAgency>,
         source: BufferSource,
@@ -492,6 +506,7 @@ enum BufferDescriptorStatus {
 }
 
 impl BufferDescriptorStatus {
+    /// Gets [`BufferDescriptorAgency`] associated with this buffer descriptor.
     fn agency(&self) -> Option<Rc<BufferDescriptorAgency>> {
         match self {
             BufferDescriptorStatus::Dropped => None,
@@ -502,17 +517,23 @@ impl BufferDescriptorStatus {
     }
 }
 
-/// An identifier telling [`BufferStore`] what to do with WebGlBuffer.
+/// Buffer descriptor is a reuseable key to set and get [`WebGlBuffer`] from [`BufferStore`].
 ///
-/// `BufferDescriptor` instance is cloneable, developer could reuse a
-/// `BufferDescriptor` and its associated WebGlBuffer by cloning it
-/// (cloning a descriptor does not create a new WebGlBuffer).
+/// # Reusing
 ///
-/// Dropping all `BufferDescriptor` instances will drop associated WebGlBuffer as well.
+/// `BufferDescriptor` is cloneable for reusing purpose.
+/// Cloning a descriptor lets you reuse the [`WebGlBuffer`] associated with this descriptor.
+///
+/// # Dropping
+///
+/// [`WebGlBuffer`] associated with the descriptor will be automatically deleted when the
+/// buffer descriptor eventually dropped.
+///
+/// # Memory Freeing Policy
 #[derive(Clone)]
 pub struct BufferDescriptor {
-    status: Rc<RefCell<BufferDescriptorStatus>>,
     usage: BufferUsage,
+    status: Rc<RefCell<BufferDescriptorStatus>>,
     restore: Option<Rc<RefCell<Box<dyn FnMut() -> BufferSource>>>>,
 }
 
@@ -561,7 +582,7 @@ impl BufferDescriptor {
         let Some(agency) = status.agency() else {
             return;
         };
-        let Some(container) = agency.try_container() else {
+        let Some(container) = agency.1.upgrade() else {
             return;
         };
         let mut container = (*container).borrow_mut();
@@ -571,6 +592,7 @@ impl BufferDescriptor {
         item.restorable = self.restore.is_some();
     }
 
+    /// Buffers new data to WebGL runtime.
     pub fn buffer_data(&mut self, source: BufferSource) {
         self.status.replace_with(|old| match old {
             BufferDescriptorStatus::Unchanged { .. } => {
@@ -586,6 +608,7 @@ impl BufferDescriptor {
         });
     }
 
+    /// Buffers sub data to WebGL runtime.
     pub fn buffer_sub_data(&mut self, source: BufferSource) {
         self.status.replace_with(|old| match old {
             BufferDescriptorStatus::Unchanged { agency }
@@ -603,6 +626,13 @@ impl BufferDescriptor {
     }
 }
 
+pub enum MemoryPolicy {
+    Default,
+    Restorable,
+    Unfree,
+}
+
+/// Inner item of a [`BufferStore`].
 struct StorageItem {
     target: BufferTarget,
     buffer: WebGlBuffer,
@@ -612,13 +642,15 @@ struct StorageItem {
     restorable: bool,
 }
 
+/// Inner container of a [`BufferStore`].
 struct StoreContainer {
     store: HashMap<Uuid, StorageItem>,
-    memory_usage: usize,
+    used_memory: usize,
     most_recently: Option<*mut LruNode>,
     least_recently: Option<*mut LruNode>,
 }
 
+/// LRU node for GPU memory management.
 struct LruNode {
     raw_id: Uuid,
     less_recently: Option<*mut LruNode>,
@@ -677,6 +709,49 @@ macro_rules! to_most_recently_lru {
     };
 }
 
+/// A centralize store managing large amount of [`WebGlBuffer`]s and its data.
+///
+/// # Buffer Descriptor
+///
+/// [`BufferDescriptor`] is the key to control the [`WebGlBuffer`].
+/// Developer could create a descriptor, tells it the data for use in WebGL runtime
+/// and even reuses the [`WebGlBuffer`] by cloning descriptor for possible purpose.
+/// Checks [`BufferDescriptor`] struct for more details.
+///
+/// # Reusing
+///
+/// Reusing a [`WebGlBuffer`] is easy, all you have to do is clone a descriptor you want to reuse.
+///
+/// # Dropping
+///
+/// It is easy to drop a [`WebGlBuffer`] as well, it is done by dropping the descriptor (and all the cloned ones of course).
+/// Considering not accidentally dropping a reusing buffer, buffer store does not provide an explicit method to manually drop a buffer.
+/// You should always remember where your descriptors are.
+///
+/// # Memory Management
+///
+/// Buffer store records memory consumption when [`WebGlBuffer`]s create or delete
+/// and updates its usage status using LRU algorithm.
+/// Since WebGL does not provide a way to get the max available memory of the GPU hardware,
+/// developer could set a maximum available memory manually to the buffer store (or never free memory if not specified).
+/// But store does not prevent creating more buffer even if memory overloaded.
+///
+/// When buffer store detects the used memory exceeds the max available memory,
+/// a memory freeing procedure is triggered to free up WebGL memory automatically for different [`MemoryPolicy`]:
+///
+/// - For [`MemoryPolicy::Restorable`], buffer stores simply drops the [`WebGlBuffer`].
+/// On the next time when the descriptor being used again, it is restored from the restore function.
+/// - For [`MemoryPolicy::Unfree`], store never drops the [`WebGlBuffer`] even if used memory exceeds the max available memory already.
+/// - For [`MemoryPolicy::Default`], store retrieves data back from WebGL runtime and stores it in CPU memory before dropping [`WebGlBuffer`].
+/// It is not recommended to use this policy because getting data back from WebGL is an extremely high overhead.
+/// Always considering proving a restore function for a better performance, or marking it as unfree if you sure to do that.
+///
+/// [`MemoryPolicy`] of a descriptor is changeable, feels free to change it and it use be used in next freeing procedure.
+///
+/// ## One More Thing You Should Know
+///
+/// Under the most implementations of WebGL, the data sent to WebGL with `bufferData` is not sent to GPU memory immediately.
+/// Thus, you may discover that, the memory used recorded by the store is always greater than the actual used by the GPU.
 pub struct BufferStore {
     gl: WebGl2RenderingContext,
     max_memory: usize,
@@ -684,30 +759,40 @@ pub struct BufferStore {
 }
 
 impl BufferStore {
-    /// Constructs a new buffer store with unlimited GPU memory size.
+    /// Constructs a new buffer store with unlimited memory.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self::with_max_memory(gl, usize::MAX)
     }
 
-    /// Constructs a new buffer store with maximum GPU memory size.
+    /// Constructs a new buffer store with a maximum available memory.
     pub fn with_max_memory(gl: WebGl2RenderingContext, max_memory: usize) -> Self {
         Self {
             gl,
             max_memory,
             container: Rc::new(RefCell::new(StoreContainer {
                 store: HashMap::new(),
-                memory_usage: 0,
+                used_memory: 0,
                 most_recently: None,
                 least_recently: None,
             })),
         }
     }
+
+    /// Gets the maximum available memory of the store.
+    ///
+    /// Returns `usize::MAX` if not specified.
+    pub fn max_memory(&self) -> usize {
+        self.max_memory
+    }
+
+    /// Gets current used memory size.
+    pub fn used_memory(&self) -> usize {
+        self.container.borrow().used_memory
+    }
 }
 
 impl BufferStore {
-    /// gets a [`WebGlBuffer`] and binds it to [`BufferTarget`] with the associated [`BufferDescriptor`].
-    /// If WebGlBuffer not created yet, buffer store creates and one and buffers data into it, then caches it.
-    /// On the next time
+    /// Gets a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
     pub fn use_buffer(
         &mut self,
         buffer_descriptor: BufferDescriptor,
@@ -716,7 +801,7 @@ impl BufferStore {
         let BufferDescriptor {
             status,
             usage,
-            mut restore,
+            restore,
         } = buffer_descriptor;
 
         let mut container_guard = (*self.container).borrow_mut();
@@ -724,14 +809,15 @@ impl BufferStore {
 
         let mut status_guard = (*status).borrow_mut();
         let status_mut = &mut *status_guard;
+
         let buffer = match status_mut {
             BufferDescriptorStatus::Unchanged { agency, .. } => {
                 let StorageItem {
                     buffer, lru_node, ..
                 } = container_mut
                     .store
-                    .get_mut(agency.raw_id())
-                    .ok_or(Error::BufferStorageNotFound(*agency.raw_id()))?;
+                    .get_mut(agency.key())
+                    .ok_or(Error::BufferStorageNotFound(*agency.key()))?;
 
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
@@ -744,13 +830,10 @@ impl BufferStore {
                 let source = match status_mut {
                     // gets buffer source from restore in Dropped if exists, or throws error otherwise.
                     BufferDescriptorStatus::Dropped => {
-                        let Some(restore) = restore.borrow_mut() else {
+                        let Some(restore) = restore.clone() else {
                             return Err(Error::BufferUnexpectedDropped);
                         };
-                        let mut restore = (**restore).borrow_mut();
-                        let restore = restore.as_mut();
-
-                        tmp_source = restore();
+                        tmp_source = restore.borrow_mut()();
                         &tmp_source
                     }
                     // gets buffer source from status in UpdateBuffer, and delete an old buffer if exists.
@@ -758,22 +841,18 @@ impl BufferStore {
                     _ => unreachable!(),
                 };
 
-                // creates buffer and buffers data into it
+                // creates buffer
                 let Some(buffer) = self.gl.create_buffer() else {
                     return Err(Error::CreateBufferFailure);
                 };
-
-                // buffers data
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 source.buffer_data(&self.gl, target, usage);
-
-                // gets and updates memory usage
                 let size = self
                     .gl
                     .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
                     .as_f64()
-                    .unwrap() as usize;
-                container_mut.memory_usage += size;
+                    .unwrap() as usize; // gets and updates memory usage
+                container_mut.used_memory += size;
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // stores it and caches it into LRU
@@ -796,7 +875,7 @@ impl BufferStore {
                     },
                 );
 
-                // replace descriptor status
+                // replaces descriptor status
                 *status_mut = BufferDescriptorStatus::Unchanged {
                     agency: Rc::new(BufferDescriptorAgency(
                         raw_id,
@@ -804,18 +883,20 @@ impl BufferStore {
                         self.gl.clone(),
                     )),
                 };
+                
 
                 buffer
             }
             BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
                 let Some(StorageItem {
                     buffer, lru_node, ..
-                }) = container_mut.store.get_mut(agency.raw_id())
+                }) = container_mut.store.get_mut(agency.key())
                 else {
-                    return Err(Error::BufferStorageNotFound(*agency.raw_id()));
+                    return Err(Error::BufferStorageNotFound(*agency.key()));
                 };
 
-                // binds and buffers sub data
+                // binds and buffers sub data.
+                // buffer sub data may not change the allocated memory size
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 source.buffer_sub_data(&self.gl, target);
                 self.gl.bind_buffer(target.gl_enum(), None);
@@ -840,17 +921,17 @@ impl BufferStore {
         Ok(buffer)
     }
 
-    /// Tries to free memory if current memory usage exceeds the maximum memory limitation.
+    /// Frees memory if used memory exceeds the maximum available memory.
     fn free(&mut self) {
         let mut container = (*self.container).borrow_mut();
 
-        if container.memory_usage < self.max_memory {
+        if container.used_memory < self.max_memory {
             return;
         }
 
         // removes buffer from the least recently used until memory usage lower than limitation
         let mut next_node = container.least_recently;
-        while container.memory_usage >= self.max_memory {
+        while container.used_memory >= self.max_memory {
             let Some(current_node) = next_node else {
                 break;
             };
@@ -877,9 +958,9 @@ impl BufferStore {
                 self.gl.delete_buffer(Some(&buffer));
 
                 // updates status
-                status
-                    .upgrade()
-                    .map(|mut status| status.borrow_mut().replace(BufferDescriptorStatus::Dropped));
+                if let Some(status) = status.upgrade() {
+                    *status.borrow_mut() = BufferDescriptorStatus::Dropped;
+                }
             } else {
                 // if not restorable, gets buffer data back from WebGlBuffer
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
@@ -892,17 +973,15 @@ impl BufferStore {
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // updates status
-                status.upgrade().map(|mut status| {
-                    status
-                        .borrow_mut()
-                        .replace(BufferDescriptorStatus::UpdateBuffer {
-                            source: BufferSource::from_uint8_array(data, 0, size as u32),
-                        })
-                });
+                if let Some(status) = status.upgrade() {
+                    *status.borrow_mut() = BufferDescriptorStatus::UpdateBuffer {
+                        source: BufferSource::from_uint8_array(data, 0, size as u32),
+                    };
+                };
             }
 
             // reduces memory usage
-            container.memory_usage -= size;
+            container.used_memory -= size;
 
             // updates LRU
             if let Some(more_recently) = lru_node.more_recently {
@@ -944,18 +1023,15 @@ impl Drop for BufferStore {
     fn drop(&mut self) {
         let gl = &self.gl;
 
-        (*self.container)
-            .borrow_mut()
-            .borrow_mut()
-            .store
-            .iter()
-            .for_each(|(_, StorageItem { buffer, status, .. })| {
+        self.container.borrow_mut().store.iter().for_each(
+            |(_, StorageItem { buffer, status, .. })| {
                 gl.delete_buffer(Some(&buffer));
                 status.upgrade().map(|status| {
                     *(*status).borrow_mut() = BufferDescriptorStatus::Dropped;
                 });
 
                 // store dropped, no need to update LRU anymore
-            });
+            },
+        );
     }
 }
