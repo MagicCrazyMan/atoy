@@ -120,8 +120,6 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
-        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-
         let mut last_program = None as Option<Program>;
         for entity in entities.iter() {
             unsafe {

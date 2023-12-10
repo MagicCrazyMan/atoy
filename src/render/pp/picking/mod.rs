@@ -123,7 +123,7 @@ impl Picking {
             .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&rb));
         state.gl.renderbuffer_storage(
             WebGl2RenderingContext::RENDERBUFFER,
-            WebGl2RenderingContext::DEPTH_COMPONENT16,
+            WebGl2RenderingContext::DEPTH_COMPONENT32F,
             w as i32,
             h as i32,
         );
