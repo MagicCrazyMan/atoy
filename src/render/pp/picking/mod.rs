@@ -343,8 +343,8 @@ impl Material for PickingMaterial {
 
     fn sources(&self) -> &[ShaderSource] {
         &[
-            ShaderSource::Vertex(include_str!("./vertex.glsl")),
-            ShaderSource::Fragment(include_str!("./fragment.glsl")),
+            ShaderSource::Vertex(include_str!("./picking.vert")),
+            ShaderSource::Fragment(include_str!("./picking.frag")),
         ]
     }
 
