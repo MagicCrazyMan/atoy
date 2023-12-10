@@ -25,6 +25,7 @@ use super::{Executor, ResourceSource, State, Stuff};
 
 pub struct Outlining {
     entity: ResourceSource,
+    outline_color: [f32; 4],
     outline_material: OutliningMaterial,
     outline_blur_geometry: OutliningBlurGeometry,
     outline_blur_material: OutliningBlurMaterial,
@@ -44,9 +45,10 @@ impl Outlining {
     pub fn new(entity: ResourceSource) -> Self {
         Self {
             entity,
+            outline_color: [1.0, 0.0, 0.0, 1.0],
             outline_material: OutliningMaterial {
                 outline_width: 15,
-                outline_color: [1.0, 0.0, 0.0, 1.0],
+                outline_color: [0.0, 0.0, 0.0, 0.0],
                 should_scale: true,
             },
             outline_blur_geometry: OutliningBlurGeometry::new(),
@@ -379,6 +381,7 @@ impl Executor for Outlining {
             // one pass, enable stencil test, disable depth test, draw entity with scaling up, sets stencil values to 1
             {
                 self.outline_material.should_scale = true;
+                self.outline_material.outline_color = [0.0, 0.0, 0.0, 0.0];
 
                 state.gl.depth_mask(false);
                 state.gl.stencil_mask(0xFF);
@@ -405,6 +408,7 @@ impl Executor for Outlining {
             // two pass, enable stencil test, disable depth test, draw entity with no scaling, sets stencil values to 0
             {
                 self.outline_material.should_scale = false;
+                self.outline_material.outline_color = [0.0, 0.0, 0.0, 0.0];
 
                 state.gl.depth_mask(false);
                 state.gl.stencil_mask(0xFF);
@@ -431,6 +435,7 @@ impl Executor for Outlining {
             // three pass, disable stencil test, enable depth test, draw entity with scaling up, draws depth of where stencil value is 1
             {
                 self.outline_material.should_scale = true;
+                self.outline_material.outline_color = self.outline_color;
 
                 state.gl.depth_mask(true);
                 state.gl.stencil_mask(0);

@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use palette::rgb::Rgb;
+use palette::rgb::Rgba;
 
 use crate::{
     entity::BorrowedMut,
@@ -33,36 +33,36 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
     precision mediump float;
 #endif
 
-uniform vec3 u_Color;
+uniform vec4 u_Color;
 
 out vec4 out_Color;
 
 void main() {
-    out_Color = vec4(u_Color, 1.0);
+    out_Color = u_Color;
 }
 ";
 
 #[derive(Debug, Clone, Copy)]
 pub struct SolidColorMaterial {
-    color: Rgb,
+    color: Rgba,
 }
 
 impl SolidColorMaterial {
     pub fn new() -> Self {
         Self {
-            color: Rgb::default(),
+            color: Rgba::default(),
         }
     }
 
-    pub fn with_color(color: Rgb) -> Self {
+    pub fn with_color(color: Rgba) -> Self {
         Self { color }
     }
 
-    pub fn color(&self) -> Rgb {
+    pub fn color(&self) -> Rgba {
         self.color
     }
 
-    pub fn set_color(&mut self, color: Rgb) {
+    pub fn set_color(&mut self, color: Rgba) {
         self.color = color;
     }
 }
@@ -106,11 +106,12 @@ impl Material for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            COLOR_UNIFORM => Some(UniformValue::FloatVector3([
+            COLOR_UNIFORM => Some(UniformValue::Float4(
                 self.color.red,
                 self.color.green,
                 self.color.blue,
-            ])),
+                self.color.alpha,
+            )),
             _ => None,
         }
     }

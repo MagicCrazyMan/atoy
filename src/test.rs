@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use gl_matrix4rust::vec4::{AsVec4, Vec4};
-use palette::rgb::Rgb;
+use palette::rgb::{Rgb, Rgba};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
@@ -180,7 +180,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -371,7 +371,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         )));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -763,7 +763,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
