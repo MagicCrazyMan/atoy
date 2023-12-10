@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::Material;
+use super::{Material, Transparency};
 
 const SAMPLER_UNIFORM: &'static str = "u_Sampler";
 
@@ -87,6 +87,10 @@ impl TextureMaterial {
 impl Material for TextureMaterial {
     fn name(&self) -> &'static str {
         "TextureMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

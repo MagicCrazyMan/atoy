@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::Material;
+use super::{Material, Transparency};
 
 const COLOR_UNIFORM: &'static str = "u_Color";
 
@@ -70,6 +70,16 @@ impl SolidColorMaterial {
 impl Material for SolidColorMaterial {
     fn name(&self) -> &'static str {
         "SolidColorMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        if self.color.alpha == 0.0 {
+            Transparency::Transparent
+        } else if self.color.alpha == 1.0 {
+            Transparency::Opaque
+        } else {
+            Transparency::Translucent(self.color.alpha)
+        }
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

@@ -260,13 +260,13 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-        // scene
-        //     .borrow_mut()
-        //     .active_camera_mut()
-        //     .as_any_mut()
-        //     .downcast_mut::<PerspectiveCamera>()
-        //     .unwrap()
-        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+        scene
+            .borrow_mut()
+            .active_camera_mut()
+            .as_any_mut()
+            .downcast_mut::<PerspectiveCamera>()
+            .unwrap()
+            .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
 
         let start = window().performance().unwrap().now();
         render
@@ -935,7 +935,7 @@ pub fn test_camera() {
     let proj_matrix = camera.proj_matrix();
     let view_proj_matrix = camera.view_proj_matrix();
 
-    console_log!("{}", position.transform_mat4(&view_matrix));
+    // console_log!("{}", position.transform_mat4(&view_matrix));
     console_log!("{}", position.transform_mat4(&view_proj_matrix));
     console_log!(
         "{}",

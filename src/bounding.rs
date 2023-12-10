@@ -201,10 +201,10 @@ fn cull_sphere(
                 } else if distance < -radius {
                     // inside
                     inside_count += 1;
-                    distances[*kind as usize] = Some(distance + radius);
+                    distances[*kind as usize] = Some((distance + radius).abs()); // distance should always returns positive value
                 } else {
                     // intersect, do nothing
-                    distances[*kind as usize] = Some(distance);
+                    distances[*kind as usize] = Some(distance.abs());
                 }
             }
             None => {

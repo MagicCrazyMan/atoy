@@ -6,7 +6,7 @@ use web_sys::{
 
 use crate::{
     entity::{BorrowedMut, Strong},
-    material::Material,
+    material::{Material, Transparency},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         draw::{bind_attributes, bind_uniforms, draw},
@@ -259,6 +259,15 @@ impl Executor for Picking {
                 continue;
             };
 
+            // do not pick entity has no material or transparent material
+            if let Some(material) = entity.material() {
+                if material.transparency() == Transparency::Transparent {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
             // sets index and window position for current draw
             self.material.index = (index + 1) as u32;
 
@@ -327,6 +336,10 @@ struct PickingMaterial {
 impl Material for PickingMaterial {
     fn name(&self) -> &'static str {
         "PickingMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

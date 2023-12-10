@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::Material;
+use super::{Material, Transparency};
 
 const COLOR_ATTRIBUTE: &'static str = "a_Color";
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
@@ -137,6 +137,10 @@ impl SolidColorInstancedMaterial {
 impl Material for SolidColorInstancedMaterial {
     fn name(&self) -> &'static str {
         "SolidColorInstancedMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

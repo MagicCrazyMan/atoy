@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-use super::Material;
+use super::{Material, Transparency};
 
 const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
 
@@ -133,6 +133,10 @@ impl TextureInstancedMaterial {
 impl Material for TextureInstancedMaterial {
     fn name(&self) -> &'static str {
         "TextureInstancedMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

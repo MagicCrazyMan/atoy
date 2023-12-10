@@ -7,7 +7,7 @@ use crate::{
     bounding::BoundingVolumeNative,
     entity::{BorrowedMut, Weak},
     geometry::Geometry,
-    material::Material,
+    material::{Material, Transparency},
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         buffer::{
@@ -628,6 +628,10 @@ impl Material for OutliningMaterial {
         "OutliningMaterial"
     }
 
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
+    }
+
     fn attribute_bindings(&self) -> &[AttributeBinding] {
         &[AttributeBinding::GeometryPosition]
     }
@@ -803,6 +807,10 @@ impl OutliningBlurMaterial {
 impl Material for OutliningBlurMaterial {
     fn name(&self) -> &'static str {
         "OutliningBlurMaterial"
+    }
+
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {

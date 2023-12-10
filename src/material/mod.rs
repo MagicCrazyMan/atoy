@@ -21,6 +21,8 @@ pub mod texture_mapping_instanced;
 pub trait Material {
     fn name(&self) -> &'static str;
 
+    fn transparency(&self) -> Transparency;
+
     fn attribute_bindings(&self) -> &[AttributeBinding];
 
     fn uniform_bindings(&self) -> &[UniformBinding];
@@ -66,6 +68,13 @@ pub trait Material {
 
     #[allow(unused_variables)]
     fn after_draw(&mut self, state: &State, entity: &BorrowedMut) {}
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Transparency {
+    Opaque,
+    Transparent,
+    Translucent(f32)
 }
 
 // pub struct MaterialRenderEntity<'a> {
