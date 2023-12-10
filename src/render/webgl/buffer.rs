@@ -534,18 +534,27 @@ impl BufferDescriptorStatus {
 pub struct BufferDescriptor {
     usage: BufferUsage,
     status: Rc<RefCell<BufferDescriptorStatus>>,
-    restore: Option<Rc<RefCell<Box<dyn FnMut() -> BufferSource>>>>,
+    memory_policy: MemoryPolicy,
 }
 
 impl BufferDescriptor {
-    /// Constructs a new buffer descriptor with specified [`BufferSource`] and [`BufferUsage`]
+    /// Constructs a new buffer descriptor with specified [`BufferSource`] and [`BufferUsage`].
     pub fn new(source: BufferSource, usage: BufferUsage) -> Self {
+        Self::with_memory_policy(source, usage, MemoryPolicy::Default)
+    }
+
+    /// Constructs a new buffer descriptor with specified [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
+    pub fn with_memory_policy(
+        source: BufferSource,
+        usage: BufferUsage,
+        memory_policy: MemoryPolicy,
+    ) -> Self {
         Self {
             status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
                 source,
             })),
             usage,
-            restore: None,
+            memory_policy,
         }
     }
 
@@ -554,30 +563,19 @@ impl BufferDescriptor {
         self.usage
     }
 
-    /// Sets this buffer descriptor not restorable.
-    ///
-    /// If not restorable, buffer store retrieves data back from WebGlBuffer when freeing GPU memory.
-    /// This is a fallback operation, usually resulting a worser performance.
-    pub fn disable_restore(&mut self) {
-        self.restore = None;
-        self.update_restorable();
+    /// Gets the [`MemoryPolicy`] of this buffer descriptor.
+    pub fn memory_policy(&self) -> &MemoryPolicy {
+        &self.memory_policy
     }
 
-    /// Sets this buffer descriptor restorable.
-    ///
-    /// If restorable, buffer store does not get data back from WebGlBuffer when freeing GPU memory.
-    /// A restore function returning a new [`BufferSource`] is required for restoring data when
-    /// this buffer descriptor being used again.
-    pub fn enable_restore<F>(&mut self, restore: F)
-    where
-        F: FnMut() -> BufferSource + 'static,
-    {
-        self.restore = Some(Rc::new(RefCell::new(Box::new(restore))));
-        self.update_restorable();
+    /// Sets the [`MemoryPolicy`] of this buffer descriptor.
+    pub fn set_memory_policy(&mut self, policy: MemoryPolicy) {
+        self.memory_policy = policy;
+        self.update_memory_policy();
     }
 
-    /// Tells storage item whether restorable if already buffered.
-    fn update_restorable(&mut self) {
+    /// Updates memory policy to the storage item if exists.
+    fn update_memory_policy(&mut self) {
         let status = (*self.status).borrow_mut();
         let Some(agency) = status.agency() else {
             return;
@@ -589,7 +587,7 @@ impl BufferDescriptor {
         let Some(item) = container.store.get_mut(&agency.0) else {
             return;
         };
-        item.restorable = self.restore.is_some();
+        item.memory_policy_kind = self.memory_policy.to_kind();
     }
 
     /// Buffers new data to WebGL runtime.
@@ -626,7 +624,42 @@ impl BufferDescriptor {
     }
 }
 
+/// Memory policy.
+/// Checks [`BufferStore`] for more details.
+#[derive(Clone)]
 pub enum MemoryPolicy {
+    Default,
+    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
+    Unfree,
+}
+
+impl MemoryPolicy {
+    /// Constructs a default memory policy.
+    pub fn default() -> Self {
+        Self::Default
+    }
+
+    /// Constructs a unfreeable memory policy.
+    pub fn unfree() -> Self {
+        Self::Unfree
+    }
+
+    /// Constructs a restorable memory policy.
+    pub fn restorable<F: Fn() -> BufferSource + 'static>(f: F) -> Self {
+        Self::Restorable(Rc::new(RefCell::new(f)))
+    }
+
+    fn to_kind(&self) -> MemoryPolicyKind {
+        match self {
+            MemoryPolicy::Default => MemoryPolicyKind::Default,
+            MemoryPolicy::Restorable(_) => MemoryPolicyKind::Restorable,
+            MemoryPolicy::Unfree => MemoryPolicyKind::Unfree,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MemoryPolicyKind {
     Default,
     Restorable,
     Unfree,
@@ -639,7 +672,7 @@ struct StorageItem {
     status: Weak<RefCell<BufferDescriptorStatus>>,
     size: usize,
     lru_node: Box<LruNode>,
-    restorable: bool,
+    memory_policy_kind: MemoryPolicyKind,
 }
 
 /// Inner container of a [`BufferStore`].
@@ -801,7 +834,7 @@ impl BufferStore {
         let BufferDescriptor {
             status,
             usage,
-            restore,
+            memory_policy,
         } = buffer_descriptor;
 
         let mut container_guard = (*self.container).borrow_mut();
@@ -830,7 +863,7 @@ impl BufferStore {
                 let source = match status_mut {
                     // gets buffer source from restore in Dropped if exists, or throws error otherwise.
                     BufferDescriptorStatus::Dropped => {
-                        let Some(restore) = restore.clone() else {
+                        let MemoryPolicy::Restorable(restore) = &memory_policy else {
                             return Err(Error::BufferUnexpectedDropped);
                         };
                         tmp_source = restore.borrow_mut()();
@@ -871,7 +904,7 @@ impl BufferStore {
                         size,
                         status: Rc::downgrade(&status),
                         lru_node,
-                        restorable: restore.is_some(),
+                        memory_policy_kind: memory_policy.to_kind(),
                     },
                 );
 
@@ -883,7 +916,6 @@ impl BufferStore {
                         self.gl.clone(),
                     )),
                 };
-                
 
                 buffer
             }
@@ -938,49 +970,68 @@ impl BufferStore {
             let current_node = unsafe { &*current_node };
 
             let Some(StorageItem {
+                memory_policy_kind, ..
+            }) = container.store.get(&current_node.raw_id)
+            else {
+                next_node = current_node.more_recently;
+                continue;
+            };
+
+            // skips if unfreeable
+            if MemoryPolicyKind::Unfree == *memory_policy_kind {
+                next_node = current_node.more_recently;
+                continue;
+            }
+
+            let Some(StorageItem {
                 target,
                 status,
                 buffer,
                 size,
                 lru_node,
-                restorable,
+                memory_policy_kind,
             }) = container.store.remove(&current_node.raw_id)
             else {
                 next_node = current_node.more_recently;
                 continue;
             };
 
-            // checks if buffer restorable
-            if restorable {
-                // if restorable, drops buffer directly
+            // skips if status not exists any more
+            let Some(status) = status.upgrade() else {
+                next_node = current_node.more_recently;
+                continue;
+            };
 
-                // deletes WebGlBuffer
-                self.gl.delete_buffer(Some(&buffer));
+            match memory_policy_kind {
+                MemoryPolicyKind::Default => {
+                    // default, gets buffer data back from WebGlBuffer
+                    self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                    let data = Uint8Array::new_with_length(size as u32);
+                    self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                        target.gl_enum(),
+                        0,
+                        &data,
+                    );
+                    self.gl.bind_buffer(target.gl_enum(), None);
 
-                // updates status
-                if let Some(status) = status.upgrade() {
-                    *status.borrow_mut() = BufferDescriptorStatus::Dropped;
-                }
-            } else {
-                // if not restorable, gets buffer data back from WebGlBuffer
-                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                let data = Uint8Array::new_with_length(size as u32);
-                self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-                    target.gl_enum(),
-                    0,
-                    &data,
-                );
-                self.gl.bind_buffer(target.gl_enum(), None);
-
-                // updates status
-                if let Some(status) = status.upgrade() {
+                    // updates status
                     *status.borrow_mut() = BufferDescriptorStatus::UpdateBuffer {
                         source: BufferSource::from_uint8_array(data, 0, size as u32),
                     };
-                };
+                }
+                MemoryPolicyKind::Restorable => {
+                    // if restorable, drops buffer directly
+
+                    // deletes WebGlBuffer
+                    self.gl.delete_buffer(Some(&buffer));
+
+                    // updates status
+                    *status.borrow_mut() = BufferDescriptorStatus::Dropped;
+                }
+                MemoryPolicyKind::Unfree => unreachable!(),
             }
 
-            // reduces memory usage
+            // reduces memory
             container.used_memory -= size;
 
             // updates LRU
@@ -996,14 +1047,16 @@ impl BufferStore {
 
             // console_log!(
             //     "buffer {} dropped, {} memory freed, {} total",
-            //     node.raw_id,
+            //     current_node.raw_id,
             //     size,
-            //     container.memory_usage
+            //     container.used_memory
             // );
         }
 
+        // console_log!("len {}", container.store.len());
+
         // let mut ids = Vec::new();
-        // let mut node = (*self.container).borrow_mut().most_recently;
+        // let mut node = container.most_recently;
         // while let Some(lru_node) = node {
         //     let lru_node = unsafe { &*lru_node };
         //     // console_log!("{}", lru_node.raw_id);

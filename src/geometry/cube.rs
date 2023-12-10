@@ -9,7 +9,7 @@ use crate::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
+            BufferUsage, MemoryPolicy,
         },
         draw::{Draw, DrawMode},
         uniform::UniformValue,
@@ -36,29 +36,46 @@ impl Cube {
 
     /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
-        let vertices = BufferDescriptor::new(
+        let vertices = BufferDescriptor::with_memory_policy(
             BufferSource::from_float32_array(
                 slice_to_float32_array(&calculate_vertices(size)),
                 0,
                 108,
             ),
             BufferUsage::StaticDraw,
+            MemoryPolicy::restorable(move || {
+                BufferSource::from_float32_array(
+                    slice_to_float32_array(&calculate_vertices(size)),
+                    0,
+                    108,
+                )
+            }),
         );
 
         Self {
             size,
             vertices,
-            normals: BufferDescriptor::new(
+            normals: BufferDescriptor::with_memory_policy(
                 BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144),
                 BufferUsage::StaticDraw,
+                MemoryPolicy::restorable(|| {
+                    BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144)
+                }),
             ),
-            texture_coordinates: BufferDescriptor::new(
+            texture_coordinates: BufferDescriptor::with_memory_policy(
                 BufferSource::from_float32_array(
                     slice_to_float32_array(&TEXTURE_COORDINATES),
                     0,
                     48,
                 ),
                 BufferUsage::StaticDraw,
+                MemoryPolicy::restorable(|| {
+                    BufferSource::from_float32_array(
+                        slice_to_float32_array(&TEXTURE_COORDINATES),
+                        0,
+                        144,
+                    )
+                }),
             ),
             update_bounding_volume: true,
         }
