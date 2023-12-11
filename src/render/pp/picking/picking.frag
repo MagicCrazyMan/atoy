@@ -6,10 +6,14 @@ precision highp float;
 precision mediump float;
 #endif
 
-uniform uint u_Index;
+layout(location = 0) out uint out_Index;
+layout(location = 1) out uvec3 out_Position;
 
-out uint out_Index;
+in vec3 v_Position;
+
+uniform uint u_Index;
 
 void main() {
     out_Index = u_Index;
+    out_Position = uvec3(floatBitsToUint(v_Position.x), floatBitsToUint(v_Position.y), floatBitsToUint(v_Position.z));
 }

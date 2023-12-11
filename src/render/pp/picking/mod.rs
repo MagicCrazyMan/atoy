@@ -1,7 +1,9 @@
 use std::{any::Any, collections::HashMap};
 
+use wasm_bindgen::JsValue;
 use web_sys::{
-    js_sys::Uint32Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+    js_sys::{Array, Uint32Array},
+    WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
 use crate::{
@@ -23,7 +25,8 @@ use super::{
 
 pub fn create_picking_pipeline(
     position_key: impl Into<String>,
-    picked_key: impl Into<String>,
+    picked_entity_key: impl Into<String>,
+    picked_position_key: impl Into<String>,
 ) -> Pipeline {
     let mut pipeline = Pipeline::new();
 
@@ -38,7 +41,8 @@ pub fn create_picking_pipeline(
         Picking::new(
             ResourceSource::persist(position_key),
             ResourceSource::runtime("entities"),
-            ResourceSource::persist(picked_key),
+            ResourceSource::persist(picked_entity_key),
+            ResourceSource::persist(picked_position_key),
         ),
     );
     pipeline.add_executor("__reset", ResetWebGLState);
@@ -58,29 +62,38 @@ pub fn create_picking_pipeline(
 /// - `position`: `(i32, i32)`, a window coordinate position, skip picking if none.
 ///
 /// # Provide Resources & Data Type
-/// - `pick`: [`Weak`](crate::entity::Weak), picked result.
-/// - `persist`: If `true`, provides data in both `runtime_resources` and `persist_resources`.
+/// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
+/// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
     entities: ResourceSource,
     position: ResourceSource,
-    picked: ResourceSource,
+    picked_entity: ResourceSource,
+    picked_position: ResourceSource,
     pixel: Uint32Array,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
-    texture: Option<(WebGlTexture, u32, u32)>,
+    indices_texture: Option<(WebGlTexture, u32, u32)>,
+    positions_texture: Option<(WebGlTexture, u32, u32)>,
     material: PickingMaterial,
 }
 
 impl Picking {
-    pub fn new(position: ResourceSource, entities: ResourceSource, result: ResourceSource) -> Self {
+    pub fn new(
+        position: ResourceSource,
+        entities: ResourceSource,
+        picked_entity: ResourceSource,
+        picked_position: ResourceSource,
+    ) -> Self {
         Self {
             entities,
             position,
-            picked: result,
-            pixel: Uint32Array::new_with_length(1),
+            picked_entity,
+            picked_position,
+            pixel: Uint32Array::new_with_length(4),
             framebuffer: None,
             renderbuffer: None,
-            texture: None,
+            indices_texture: None,
+            positions_texture: None,
             material: PickingMaterial { index: 0 },
         }
     }
@@ -136,11 +149,11 @@ impl Picking {
         Ok(rb)
     }
 
-    fn use_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+    fn use_indices_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
         let w = state.canvas.width();
         let h = state.canvas.height();
 
-        if let Some((texture, width, height)) = &self.texture {
+        if let Some((texture, width, height)) = &self.indices_texture {
             if w == *width && h == *height {
                 return Ok(texture.clone());
             } else {
@@ -176,7 +189,52 @@ impl Picking {
             .gl
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
-        self.texture = Some((tx.clone(), w, h));
+        self.indices_texture = Some((tx.clone(), w, h));
+
+        Ok(tx)
+    }
+
+    fn use_positions_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+        let w = state.canvas.width();
+        let h = state.canvas.height();
+
+        if let Some((texture, width, height)) = &self.positions_texture {
+            if w == *width && h == *height {
+                return Ok(texture.clone());
+            } else {
+                state.gl.delete_texture(Some(texture));
+            }
+        }
+
+        let tx = state
+            .gl
+            .create_texture()
+            .ok_or(Error::CreateTextureFailure)?;
+
+        state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tx));
+
+        state
+            .gl
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                WebGl2RenderingContext::TEXTURE_2D,
+                0,
+                WebGl2RenderingContext::RGBA32UI as i32,
+                w as i32,
+                h as i32,
+                0,
+                WebGl2RenderingContext::RGBA_INTEGER,
+                WebGl2RenderingContext::UNSIGNED_INT,
+                None,
+            )
+            .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        self.positions_texture = Some((tx.clone(), w, h));
 
         Ok(tx)
     }
@@ -191,7 +249,11 @@ impl Executor for Picking {
         persist_resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
         // clear first
-        match &self.picked {
+        match &self.picked_entity {
+            ResourceSource::Runtime(key) => runtime_resources.remove(key),
+            ResourceSource::Persist(key) => persist_resources.remove(key),
+        };
+        match &self.picked_position {
             ResourceSource::Runtime(key) => runtime_resources.remove(key),
             ResourceSource::Persist(key) => persist_resources.remove(key),
         };
@@ -204,6 +266,7 @@ impl Executor for Picking {
         else {
             return Ok(());
         };
+        let (x, y) = (*x, *y);
 
         let entities = match &self.entities {
             ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
@@ -222,7 +285,8 @@ impl Executor for Picking {
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(&state.gl)?;
         let renderbuffer = self.use_depth_renderbuffer(state)?;
-        let texture = self.use_texture(state)?;
+        let indices_texture = self.use_indices_texture(state)?;
+        let positions_texture = self.use_positions_texture(state)?;
         state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl
@@ -230,29 +294,53 @@ impl Executor for Picking {
         state
             .gl
             .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-        state
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-        state.gl.framebuffer_texture_2d(
-            WebGl2RenderingContext::FRAMEBUFFER,
-            WebGl2RenderingContext::COLOR_ATTACHMENT0,
-            WebGl2RenderingContext::TEXTURE_2D,
-            Some(&texture),
-            0,
-        );
         state.gl.framebuffer_renderbuffer(
             WebGl2RenderingContext::FRAMEBUFFER,
             WebGl2RenderingContext::DEPTH_ATTACHMENT,
             WebGl2RenderingContext::RENDERBUFFER,
             Some(&renderbuffer),
         );
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&indices_texture));
+        state.gl.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&indices_texture),
+            0,
+        );
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&positions_texture));
+        state.gl.framebuffer_texture_2d(
+            WebGl2RenderingContext::FRAMEBUFFER,
+            WebGl2RenderingContext::COLOR_ATTACHMENT1,
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&positions_texture),
+            0,
+        );
+
+        let draw_buffers = Array::new();
+        draw_buffers.push(&JsValue::from_f64(
+            WebGl2RenderingContext::COLOR_ATTACHMENT0 as f64,
+        ));
+        draw_buffers.push(&JsValue::from_f64(
+            WebGl2RenderingContext::COLOR_ATTACHMENT1 as f64,
+        ));
+        state.gl.draw_buffers(&draw_buffers);
 
         state
             .gl
             .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
         state
             .gl
+            .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 1, &[0, 0, 0, 0]);
+        state
+            .gl
             .clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
+
+        state.gl.disable(WebGl2RenderingContext::BLEND);
 
         // prepare material
         let program = state.program_store.use_program(&self.material)?;
@@ -297,12 +385,15 @@ impl Executor for Picking {
             drop(items);
         }
 
-        // get result
+        // gets picking entity
+        state
+            .gl
+            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0);
         state
             .gl
             .read_pixels_with_opt_array_buffer_view(
-                *x,
-                state.canvas.height() as i32 - *y,
+                x,
+                state.canvas.height() as i32 - y,
                 1,
                 1,
                 WebGl2RenderingContext::RED_INTEGER,
@@ -315,14 +406,51 @@ impl Executor for Picking {
         if index > 0 {
             if let Some(entity) = entities.get(index - 1).map(|entity| entity.downgrade()) {
                 let picked = Box::new(entity.clone());
-                match &self.picked {
+                match &self.picked_entity {
                     ResourceSource::Runtime(key) => runtime_resources.insert(key.clone(), picked),
                     ResourceSource::Persist(key) => persist_resources.insert(key.clone(), picked),
                 };
             }
         }
 
+        // gets picking position
+        state
+            .gl
+            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT1);
+        state
+            .gl
+            .read_pixels_with_opt_array_buffer_view(
+                x,
+                state.canvas.height() as i32 - y,
+                1,
+                1,
+                WebGl2RenderingContext::RGBA_INTEGER,
+                WebGl2RenderingContext::UNSIGNED_INT,
+                Some(&self.pixel),
+            )
+            .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
+        let position = [
+            f32::from_ne_bytes(self.pixel.get_index(0).to_ne_bytes()),
+            f32::from_ne_bytes(self.pixel.get_index(1).to_ne_bytes()),
+            f32::from_ne_bytes(self.pixel.get_index(2).to_ne_bytes()),
+            f32::from_ne_bytes(self.pixel.get_index(3).to_ne_bytes()),
+        ]; // converts unsigned int back to float
+        if position != [0.0, 0.0, 0.0, 0.0] {
+            match &self.picked_position {
+                ResourceSource::Runtime(key) => {
+                    runtime_resources.insert(key.to_string(), Box::new(position))
+                }
+                ResourceSource::Persist(key) => {
+                    persist_resources.insert(key.to_string(), Box::new(position))
+                }
+            };
+        }
+
         // resets WebGL status
+        state
+            .gl
+            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0);
+        state.gl.enable(WebGl2RenderingContext::BLEND);
         state
             .gl
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);

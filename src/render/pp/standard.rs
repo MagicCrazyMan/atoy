@@ -37,12 +37,13 @@ pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
         Picking::new(
             ResourceSource::persist(position_key),
             ResourceSource::runtime("entities"),
-            ResourceSource::runtime("picked"),
+            ResourceSource::runtime("picked_entity"),
+            ResourceSource::runtime("picked_position"),
         ),
     );
     pipeline.add_executor(
         "__outlining",
-        Outlining::new(ResourceSource::runtime("picked")),
+        Outlining::new(ResourceSource::runtime("picked_entity")),
     );
     pipeline.add_executor(
         "__drawer",

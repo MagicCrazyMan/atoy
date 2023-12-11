@@ -160,7 +160,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline = create_picking_pipeline("position", "picked");
+    let mut picking_pipeline =
+        create_picking_pipeline("position", "picked_entity", "picked_position");
     let standard_pipeline = create_standard_pipeline("position");
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
@@ -222,10 +223,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .unwrap()
             .set_inner_html(&format!("{:.2}", end - start));
 
-        // get result
+        // get entity
         if let Some(entity) = picking_pipeline
             .persist_resources()
-            .get("picked")
+            .get("picked_entity")
             .and_then(|e| e.downcast_ref::<Weak>())
             .and_then(|e| e.upgrade())
         {
@@ -238,6 +239,17 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 .downcast_mut::<SolidColorMaterial>()
                 .unwrap()
                 .set_color(rand::random());
+        }
+        // get position
+        if let Some(position) = picking_pipeline
+            .persist_resources()
+            .get("picked_position")
+            .and_then(|e| e.downcast_ref::<[f32; 4]>())
+        {
+            console_log!(
+                "pick position {}",
+                position.map(|c| c.to_string()).join(", ")
+            );
         }
     });
     window()
@@ -268,14 +280,14 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-        scene
-            .borrow_mut()
-            .active_camera_mut()
-            .as_any_mut()
-            .downcast_mut::<PerspectiveCamera>()
-            .unwrap()
-            .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
-            // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
+        // scene
+        //     .borrow_mut()
+        //     .active_camera_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<PerspectiveCamera>()
+        //     .unwrap()
+        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+        // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
 
         let start = window().performance().unwrap().now();
         render
@@ -750,8 +762,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline = create_picking_pipeline("position", "picked");
-    let mut standard_pipeline = create_standard_pipeline("position");
+    let mut picking_pipeline =
+        create_picking_pipeline("position", "picked_entity", "picked_position");
+    let standard_pipeline = create_standard_pipeline("position");
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -806,10 +819,10 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .unwrap()
             .set_inner_html(&format!("{:.2}", end - start));
 
-        // get result
+        // get entity
         if let Some(entity) = picking_pipeline
             .persist_resources()
-            .get("picked")
+            .get("picked_entity")
             .and_then(|e| e.downcast_ref::<Weak>())
             .and_then(|e| e.upgrade())
         {
@@ -822,6 +835,17 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 .downcast_mut::<SolidColorMaterial>()
                 .unwrap()
                 .set_color(rand::random());
+        }
+        // get position
+        if let Some(position) = picking_pipeline
+            .persist_resources()
+            .get("picked_position")
+            .and_then(|e| e.downcast_ref::<[f32; 4]>())
+        {
+            console_log!(
+                "pick position {}",
+                position.map(|c| c.to_string()).join(", ")
+            );
         }
     });
     window()
