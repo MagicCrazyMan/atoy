@@ -25,6 +25,7 @@ void main() {
             0.0, 0.0, 0.0, 1.0
         );
         
+        // move entity back to origin and then scale
         gl_Position = mvp * scale * a_Position;
     } else {
         gl_Position = position;

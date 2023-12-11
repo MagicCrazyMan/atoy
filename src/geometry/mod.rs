@@ -3,6 +3,7 @@ pub mod indexed_cube;
 pub mod raw;
 pub mod sphere;
 pub mod multicube;
+pub mod rectangle;
 
 use std::any::Any;
 

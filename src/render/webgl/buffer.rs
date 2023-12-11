@@ -655,17 +655,17 @@ pub enum MemoryPolicy {
 
 impl MemoryPolicy {
     /// Constructs a default memory policy.
-    pub fn default() -> Self {
+    pub fn from_default() -> Self {
         Self::Default
     }
 
     /// Constructs a unfreeable memory policy.
-    pub fn unfree() -> Self {
+    pub fn from_unfree() -> Self {
         Self::Unfree
     }
 
     /// Constructs a restorable memory policy.
-    pub fn restorable<F: Fn() -> BufferSource + 'static>(f: F) -> Self {
+    pub fn from_restorable<F: Fn() -> BufferSource + 'static>(f: F) -> Self {
         Self::Restorable(Rc::new(RefCell::new(f)))
     }
 

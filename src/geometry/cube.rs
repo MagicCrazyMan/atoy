@@ -43,7 +43,7 @@ impl Cube {
                 108,
             ),
             BufferUsage::StaticDraw,
-            MemoryPolicy::restorable(move || {
+            MemoryPolicy::from_restorable(move || {
                 BufferSource::from_float32_array(
                     slice_to_float32_array(&calculate_vertices(size)),
                     0,
@@ -58,7 +58,7 @@ impl Cube {
             normals: BufferDescriptor::with_memory_policy(
                 BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144),
                 BufferUsage::StaticDraw,
-                MemoryPolicy::restorable(|| {
+                MemoryPolicy::from_restorable(|| {
                     BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144)
                 }),
             ),
@@ -69,7 +69,7 @@ impl Cube {
                     48,
                 ),
                 BufferUsage::StaticDraw,
-                MemoryPolicy::restorable(|| {
+                MemoryPolicy::from_restorable(|| {
                     BufferSource::from_float32_array(
                         slice_to_float32_array(&TEXTURE_COORDINATES),
                         0,

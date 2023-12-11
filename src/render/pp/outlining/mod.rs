@@ -874,7 +874,7 @@ impl OutliningBlurMaterial {
                     BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4),
                     // BufferSource::from_binary([0; 81], 0, 81 * 4 * 4),
                     BufferUsage::StaticDraw,
-                    MemoryPolicy::restorable(move || {
+                    MemoryPolicy::from_restorable(move || {
                         BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4)
                     }),
                 ),

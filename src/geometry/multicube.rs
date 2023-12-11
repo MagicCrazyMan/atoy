@@ -44,7 +44,7 @@ impl MultiCube {
         let vertices = BufferDescriptor::with_memory_policy(
             BufferSource::from_float32_array(calculate_vertices(count, size), 0, 0),
             BufferUsage::StaticDraw,
-            MemoryPolicy::restorable(move || {
+            MemoryPolicy::from_restorable(move || {
                 BufferSource::from_float32_array(calculate_vertices(count, size), 0, 0)
             }),
         );

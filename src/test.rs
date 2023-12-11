@@ -3,6 +3,7 @@ use std::ops::Mul;
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::vec2::{AsVec2, Vec2};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use gl_matrix4rust::vec4::{AsVec4, Vec4};
 use palette::rgb::{Rgb, Rgba};
@@ -20,10 +21,14 @@ use crate::geometry::cube::{self, calculate_vertices};
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::multicube::MultiCube;
 use crate::geometry::raw::RawGeometry;
+use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
+use crate::material::icon::IconMaterial;
+use crate::material::loader::TextureLoader;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::material::{self, Transparency};
 use crate::render::pp::picking::create_picking_pipeline;
 use crate::render::pp::standard::{create_standard_pipeline, StandardStuff};
 use crate::render::webgl::attribute::AttributeValue;
@@ -31,7 +36,12 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::texture::TextureUnit;
+use crate::render::webgl::texture::{
+    TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+    TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+    TextureWrapMethod,
+};
+use crate::render::webgl::uniform::UniformValue;
 use crate::utils::slice_to_float32_array;
 use crate::{document, entity};
 use crate::{
@@ -155,7 +165,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (6.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 15.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -187,12 +197,37 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
-    // let entity = Entity::new();
-    // entity.borrow_mut().set_geometry(Some(MultiCube::new(count)));
-    // entity
-    //     .borrow_mut()
-    //     .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
-    // scene.entity_collection_mut().add_entity(entity);
+
+    let entity = Entity::new();
+    entity.borrow_mut().set_geometry(Some(Rectangle::new(
+        Vec2::from_values(0.0, 0.0),
+        Placement::TopCenter,
+        8.0,
+        8.0,
+    )));
+    entity.borrow_mut().set_material(Some(IconMaterial::new(
+        TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
+            descriptor: TextureDescriptor::texture_2d_with_html_image_element(
+                image,
+                TextureDataType::UnsignedByte,
+                TextureFormat::RGB,
+                TextureFormat::RGB,
+                0,
+                vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+                true,
+            ),
+            params: vec![
+                TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
+                TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
+                TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
+                TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
+            ],
+            texture_unit: TextureUnit::TEXTURE0,
+        }),
+        Transparency::Opaque,
+    )));
+    scene.entity_collection_mut().add_entity(entity);
+
     let scene = Rc::new(RefCell::new(scene));
 
     let render_cloned = Rc::clone(&render);
@@ -232,13 +267,11 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         {
             console_log!("pick entity {}", entity.borrow().id());
 
-            let mut material = entity.borrow_mut();
-            let material = material.material_mut().unwrap();
-            material
-                .as_any_mut()
-                .downcast_mut::<SolidColorMaterial>()
-                .unwrap()
-                .set_color(rand::random());
+            entity
+                .borrow_mut()
+                .material_mut()
+                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+                .map(|material| material.set_color(rand::random()));
         }
         // get position
         if let Some(position) = picking_pipeline

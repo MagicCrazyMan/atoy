@@ -36,7 +36,7 @@ out vec3 v_Position;
 out vec3 v_Normal;
 
 void main() {
-    gl_Position = u_ModelViewProjMatrix * a_Position;
+    gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
     v_Normal = vec3(u_NormalMatrix * a_Normal);
     v_Position = vec3(u_ModelMatrix * a_Position);
 }
