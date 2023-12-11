@@ -8,32 +8,25 @@ precision mediump float;
 
 in vec2 v_TexCoord;
 
-uniform bool u_Horizontal;
 uniform sampler2D u_ColorSampler;
 
-// contribution weights of each pixel under gaussian blur
-float weights[5] = float[](0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f);
+// kernel of the gaussian blur
+int kernel_width = 9;
+int kernel_height = 9;
+float kernel[81] = float[](0.000262958656, 0.000876539664, 0.0019722158656, 0.0031555460336000003, 0.0036814698320000003, 0.0031555460336000003, 0.0019722158656, 0.000876539664, 0.000262958656, 0.000876539664, 0.0029218349159999997, 0.006574133966399999, 0.0105186165084, 0.012271717458, 0.0105186165084, 0.006574133966399999, 0.0029218349159999997, 0.000876539664, 0.0019722158656, 0.006574133966399999, 0.01479181358656, 0.02366690660336, 0.0276113869832, 0.02366690660336, 0.01479181358656, 0.006574133966399999, 0.0019722158656, 0.0031555460336000003, 0.0105186165084, 0.02366690660336, 0.03786705834916, 0.0441782282542, 0.03786705834916, 0.02366690660336, 0.0105186165084, 0.0031555460336000003, 0.0036814698320000003, 0.012271717458, 0.0276113869832, 0.0441782282542, 0.051541258729000006, 0.0441782282542, 0.0276113869832, 0.012271717458, 0.0036814698320000003, 0.0031555460336000003, 0.0105186165084, 0.02366690660336, 0.03786705834916, 0.0441782282542, 0.03786705834916, 0.02366690660336, 0.0105186165084, 0.0031555460336000003, 0.0019722158656, 0.006574133966399999, 0.01479181358656, 0.02366690660336, 0.0276113869832, 0.02366690660336, 0.01479181358656, 0.006574133966399999, 0.0019722158656, 0.000876539664, 0.0029218349159999997, 0.006574133966399999, 0.0105186165084, 0.012271717458, 0.0105186165084, 0.006574133966399999, 0.0029218349159999997, 0.000876539664, 0.000262958656, 0.000876539664, 0.0019722158656, 0.0031555460336000003, 0.0036814698320000003, 0.0031555460336000003, 0.0019722158656, 0.000876539664, 0.000262958656);
 
 out vec4 out_Color;
 
 void main() {
     // calculates gussian blur
     vec2 tex_size = 1.0f / vec2(textureSize(u_ColorSampler, 0)); // units per texture pixel size
-    // collect contribution of each pixel around current pixel
-    vec4 color = texture(u_ColorSampler, v_TexCoord) * weights[0];
-    if(u_Horizontal) {
-    // in s direction
-        for(int i = 1; i < weights.length(); i++) {
-            float offset = tex_size.s * float(i);
-            color += texture(u_ColorSampler, vec2(v_TexCoord.s - offset, v_TexCoord.t)) * weights[i];
-            color += texture(u_ColorSampler, vec2(v_TexCoord.s + offset, v_TexCoord.t)) * weights[i];
-        }
-    } else {
-    // in t direction
-        for(int i = 1; i < weights.length(); i++) {
-            float offset = tex_size.t * float(i);
-            color += texture(u_ColorSampler, vec2(v_TexCoord.s, v_TexCoord.t - offset)) * weights[i];
-            color += texture(u_ColorSampler, vec2(v_TexCoord.s, v_TexCoord.t + offset)) * weights[i];
+    vec4 color = vec4(0.0);
+    for(int row = 0; row < kernel_height; row++) {
+        for(int col = 0; col < kernel_width; col++) {
+            int offset_s = row - 4;
+            int offset_t = col - 4;
+            vec2 tex_coord = vec2(v_TexCoord.s + float(offset_s) * tex_size.s, v_TexCoord.t + float(offset_t) * tex_size.t);
+            color += texture(u_ColorSampler, tex_coord) * kernel[row * kernel_width + col];
         }
     }
 

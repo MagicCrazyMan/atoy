@@ -47,13 +47,13 @@ impl Outlining {
             entity,
             outline_color: [1.0, 0.0, 0.0, 1.0],
             outline_material: OutliningMaterial {
-                outline_width: 15,
+                outline_width: 10,
                 outline_color: [0.0, 0.0, 0.0, 0.0],
                 should_scale: true,
             },
             outline_blur_geometry: OutliningBlurGeometry::new(),
             outline_blur_material: OutliningBlurMaterial::new(),
-            blur_times: 10,
+            blur_times: 2 * 5,
             framebuffer: None,
             depth_stencil_texture: None,
             color_texture: None,
@@ -510,19 +510,23 @@ impl Executor for Outlining {
         {
             state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
             state.gl.disable(WebGl2RenderingContext::BLEND);
-            let blur_h_framebuffer = self.use_blur_h_framebuffer(state).unwrap();
-            let blur_h_texture = self.use_blur_h_texture(state).unwrap();
-            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_h_framebuffer));
-            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_h_texture));
-            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_h_texture), 0);
 
-            let blur_v_framebuffer = self.use_blur_v_framebuffer(state).unwrap();
-            let blur_v_texture = self.use_blur_v_texture(state).unwrap();
-            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_v_framebuffer));
-            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_v_texture));
-            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_v_texture), 0);
+            // copy outline color buffer to two pass first
+            let blur_twopass_texture = self.use_blur_v_texture(state).unwrap();
+            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture));
+            state.gl.copy_tex_image_2d(WebGl2RenderingContext::TEXTURE_2D, 0, WebGl2RenderingContext::RGBA, 0, 0, state.canvas.width() as i32, state.canvas.height() as i32, 0);
 
-            // disable depth test
+            let blur_onepass_framebuffer = self.use_blur_h_framebuffer(state).unwrap();
+            let blur_onepass_texture = self.use_blur_h_texture(state).unwrap();
+            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_onepass_framebuffer));
+            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture));
+            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture), 0);
+
+            let blur_twopass_framebuffer = self.use_blur_v_framebuffer(state).unwrap();
+            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_twopass_framebuffer));
+            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture), 0);
+
+
             state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
 
             // prepares material
@@ -540,29 +544,18 @@ impl Executor for Outlining {
                 program.attribute_locations(),
             );
 
-            for i in 0..self.blur_times * 2 {
+            for i in 0..self.blur_times {
                 if i % 2 == 0 {
-                    // draw horizontal
-                    state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_h_framebuffer));
-                    if i == 0 {
-                        // for the first draw, we should use `color_texture`
-                        state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&color_texture));
-                    } else {
-                        state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_v_texture));
-                    }
-                    
-                    self.outline_blur_material.horizontal = true;
+                    state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_onepass_framebuffer));
+                    state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture));
                 } else {
-                    // draw vertical
-                    if i == self.blur_times * 2 - 1 {
+                    if i == self.blur_times - 1 {
                         // for the last draw, we draw it to canvas framebuffer
                         state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
                     } else {
-                        state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_v_framebuffer));
+                        state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_twopass_framebuffer));
                     }
-                    state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_h_texture));
-                    
-                    self.outline_blur_material.horizontal = false;
+                    state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture));
                 }
 
                 state.gl.clear_bufferfv_with_f32_array(
@@ -800,12 +793,10 @@ impl Geometry for OutliningBlurGeometry {
     }
 }
 
-struct OutliningBlurMaterial {
-    horizontal: bool   
-}
+struct OutliningBlurMaterial;
 
 impl OutliningBlurMaterial {
-    fn new() -> Self { Self { horizontal: true } }
+    fn new() -> Self { Self }
 }
 
 impl Material for OutliningBlurMaterial {
@@ -825,7 +816,7 @@ impl Material for OutliningBlurMaterial {
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[UniformBinding::FromMaterial("u_ColorSampler"), UniformBinding::FromMaterial("u_Horizontal")]
+        &[UniformBinding::FromMaterial("u_ColorSampler")]
     }
 
     fn sources(&self) -> &[ShaderSource] {
@@ -842,11 +833,6 @@ impl Material for OutliningBlurMaterial {
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
             "u_ColorSampler" => Some(UniformValue::Integer1(0)),
-            "u_Horizontal" => Some(if self.horizontal {
-                UniformValue::Integer1(1)
-            } else {
-                UniformValue::Integer1(0)
-            }) ,
             _ => None,
         }
     }
