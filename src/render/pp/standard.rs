@@ -12,11 +12,7 @@ use crate::{
     entity::{collection::EntityCollection, BorrowedMut, Strong},
     geometry::Geometry,
     material::{Material, Transparency},
-    render::webgl::{
-        draw::{bind_attributes, bind_uniforms, draw},
-        error::Error,
-        program::Program,
-    },
+    render::webgl::{attribute::bind_attributes, draw::draw, error::Error, program::Program, uniform::bind_uniforms},
     scene::Scene,
 };
 

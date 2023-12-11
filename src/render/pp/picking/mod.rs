@@ -10,11 +10,11 @@ use crate::{
     entity::{BorrowedMut, Strong},
     material::{Material, Transparency},
     render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        draw::{bind_attributes, bind_uniforms, draw},
+        attribute::{bind_attributes, AttributeBinding, AttributeValue},
+        draw::draw,
         error::Error,
         program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
+        uniform::{UniformBinding, UniformValue, bind_uniforms},
     },
 };
 

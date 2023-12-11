@@ -9,15 +9,15 @@ use crate::{
     geometry::Geometry,
     material::{Material, Transparency},
     render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
+        attribute::{AttributeBinding, AttributeValue, bind_attributes},
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        draw::{bind_attributes, bind_uniforms, draw, Draw, DrawMode},
+        draw::{draw, Draw, DrawMode},
         error::Error,
         program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
+        uniform::{UniformBinding, UniformValue, bind_uniforms},
     }, document,
 };
 
