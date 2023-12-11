@@ -9,6 +9,7 @@ pub enum Error {
     MountElementNotFound,
     CreateCanvasFailure,
     CreateProgramFailure,
+    GetUniformIndicesFailure,
     CreateBufferFailure,
     CreateFramebufferFailure,
     CreateRenderbufferFailure,

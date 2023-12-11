@@ -1,24 +1,30 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, sync::OnceLock};
 
 use wasm_bindgen::{Clamped, JsCast};
-use web_sys::{WebGl2RenderingContext, WebGlFramebuffer, WebGlTexture, ImageData, HtmlCanvasElement, CanvasRenderingContext2d};
+use web_sys::{
+    js_sys::Float32Array, CanvasRenderingContext2d, HtmlCanvasElement, ImageData,
+    WebGl2RenderingContext, WebGlFramebuffer, WebGlTexture,
+};
 
 use crate::{
     bounding::BoundingVolumeNative,
+    document,
     entity::{BorrowedMut, Weak},
     geometry::Geometry,
     material::{Material, Transparency},
     render::webgl::{
-        attribute::{AttributeBinding, AttributeValue, bind_attributes},
+        attribute::{bind_attributes, AttributeBinding, AttributeValue},
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
+            BufferUsage, MemoryPolicy,
         },
         draw::{draw, Draw, DrawMode},
         error::Error,
         program::ShaderSource,
-        uniform::{UniformBinding, UniformValue, bind_uniforms},
-    }, document,
+        uniform::{
+            bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue,
+        },
+    },
 };
 
 use super::{Executor, ResourceSource, State, Stuff};
@@ -33,7 +39,7 @@ pub struct Outlining {
     framebuffer: Option<WebGlFramebuffer>,
     depth_stencil_texture: Option<(WebGlTexture, u32, u32)>,
     color_texture: Option<(WebGlTexture, u32, u32)>,
-    
+
     blur_h_framebuffer: Option<WebGlFramebuffer>,
     blur_h_texture: Option<(WebGlTexture, u32, u32)>,
     blur_v_framebuffer: Option<WebGlFramebuffer>,
@@ -70,7 +76,8 @@ impl Outlining {
         let framebuffer = match framebuffer {
             Some(framebuffer) => framebuffer.clone(),
             None => {
-                let fbo = state.gl
+                let fbo = state
+                    .gl
                     .create_framebuffer()
                     .ok_or(Error::CreateFramebufferFailure)?;
                 *framebuffer = Some(fbo.clone());
@@ -81,12 +88,13 @@ impl Outlining {
         Ok(framebuffer)
     }
 
-    fn use_blur_h_framebuffer(&mut self, state: &State) -> Result<WebGlFramebuffer, Error> {
+    fn use_blur_onepass_framebuffer(&mut self, state: &State) -> Result<WebGlFramebuffer, Error> {
         let framebuffer = &mut self.blur_h_framebuffer;
         let framebuffer = match framebuffer {
             Some(framebuffer) => framebuffer.clone(),
             None => {
-                let fbo = state.gl
+                let fbo = state
+                    .gl
                     .create_framebuffer()
                     .ok_or(Error::CreateFramebufferFailure)?;
                 *framebuffer = Some(fbo.clone());
@@ -97,12 +105,13 @@ impl Outlining {
         Ok(framebuffer)
     }
 
-    fn use_blur_v_framebuffer(&mut self, state: &State) -> Result<WebGlFramebuffer, Error> {
+    fn use_blur_twopass_framebuffer(&mut self, state: &State) -> Result<WebGlFramebuffer, Error> {
         let framebuffer = &mut self.blur_v_framebuffer;
         let framebuffer = match framebuffer {
             Some(framebuffer) => framebuffer.clone(),
             None => {
-                let fbo = state.gl
+                let fbo = state
+                    .gl
                     .create_framebuffer()
                     .ok_or(Error::CreateFramebufferFailure)?;
                 *framebuffer = Some(fbo.clone());
@@ -203,7 +212,7 @@ impl Outlining {
         Ok(tx)
     }
 
-    fn use_blur_h_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+    fn use_blur_onepass_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
         let w = state.canvas.width();
         let h = state.canvas.height();
 
@@ -248,7 +257,7 @@ impl Outlining {
         Ok(texture)
     }
 
-    fn use_blur_v_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+    fn use_blur_twopass_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
         let w = state.canvas.width();
         let h = state.canvas.height();
 
@@ -340,9 +349,10 @@ impl Executor for Outlining {
             Some(&color_texture),
             0,
         );
-        state
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&depth_stencil_texture));
+        state.gl.bind_texture(
+            WebGl2RenderingContext::TEXTURE_2D,
+            Some(&depth_stencil_texture),
+        );
         state.gl.framebuffer_texture_2d(
             WebGl2RenderingContext::FRAMEBUFFER,
             WebGl2RenderingContext::DEPTH_STENCIL_ATTACHMENT,
@@ -370,13 +380,7 @@ impl Executor for Outlining {
             state.gl.enable(WebGl2RenderingContext::STENCIL_TEST);
 
             // only have to binds attribute once
-            let items = bind_attributes(
-                state,
-                &entity,
-                geometry,
-                &self.outline_material,
-                program.attribute_locations(),
-            );
+            let items = bind_attributes(state, &entity, geometry, &self.outline_material, &program);
 
             // one pass, enable stencil test, disable depth test, draw entity with scaling up, sets stencil values to 1
             {
@@ -400,7 +404,7 @@ impl Executor for Outlining {
                     &entity,
                     geometry,
                     &self.outline_material,
-                    program.uniform_locations(),
+                    &program,
                 );
                 draw(state, geometry, &self.outline_material);
             }
@@ -427,7 +431,7 @@ impl Executor for Outlining {
                     &entity,
                     geometry,
                     &self.outline_material,
-                    program.uniform_locations(),
+                    &program,
                 );
                 draw(state, geometry, &self.outline_material);
             }
@@ -454,7 +458,7 @@ impl Executor for Outlining {
                     &entity,
                     geometry,
                     &self.outline_material,
-                    program.uniform_locations(),
+                    &program,
                 );
                 draw(state, geometry, &self.outline_material);
             }
@@ -511,21 +515,41 @@ impl Executor for Outlining {
             state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
             state.gl.disable(WebGl2RenderingContext::BLEND);
 
-            // copy outline color buffer to two pass first
-            let blur_twopass_texture = self.use_blur_v_texture(state).unwrap();
-            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture));
-            state.gl.copy_tex_image_2d(WebGl2RenderingContext::TEXTURE_2D, 0, WebGl2RenderingContext::RGBA, 0, 0, state.canvas.width() as i32, state.canvas.height() as i32, 0);
+            let blur_onepass_framebuffer = self.use_blur_onepass_framebuffer(state).unwrap();
+            let blur_onepass_texture = self.use_blur_onepass_texture(state).unwrap();
+            state.gl.bind_framebuffer(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                Some(&blur_onepass_framebuffer),
+            );
+            state.gl.bind_texture(
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&blur_onepass_texture),
+            );
+            state.gl.framebuffer_texture_2d(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                WebGl2RenderingContext::COLOR_ATTACHMENT0,
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&blur_onepass_texture),
+                0,
+            );
 
-            let blur_onepass_framebuffer = self.use_blur_h_framebuffer(state).unwrap();
-            let blur_onepass_texture = self.use_blur_h_texture(state).unwrap();
-            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_onepass_framebuffer));
-            state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture));
-            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture), 0);
-
-            let blur_twopass_framebuffer = self.use_blur_v_framebuffer(state).unwrap();
-            state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_twopass_framebuffer));
-            state.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture), 0);
-
+            let blur_twopass_texture = self.use_blur_twopass_texture(state).unwrap();
+            state.gl.bind_texture(
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&blur_twopass_texture),
+            );
+            let blur_twopass_framebuffer = self.use_blur_twopass_framebuffer(state).unwrap();
+            state.gl.bind_framebuffer(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                Some(&blur_twopass_framebuffer),
+            );
+            state.gl.framebuffer_texture_2d(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                WebGl2RenderingContext::COLOR_ATTACHMENT0,
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&blur_twopass_texture),
+                0,
+            );
 
             state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
 
@@ -541,21 +565,43 @@ impl Executor for Outlining {
                 &entity,
                 &self.outline_blur_geometry,
                 &self.outline_blur_material,
-                program.attribute_locations(),
+                &program,
             );
 
             for i in 0..self.blur_times {
                 if i % 2 == 0 {
-                    state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_onepass_framebuffer));
-                    state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_twopass_texture));
+                    state.gl.bind_framebuffer(
+                        WebGl2RenderingContext::FRAMEBUFFER,
+                        Some(&blur_onepass_framebuffer),
+                    );
+
+                    if i == 0 {
+                        // use color texture for the first time
+                        state
+                            .gl
+                            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&color_texture));
+                    } else {
+                        state.gl.bind_texture(
+                            WebGl2RenderingContext::TEXTURE_2D,
+                            Some(&blur_twopass_texture),
+                        );
+                    }
                 } else {
                     if i == self.blur_times - 1 {
                         // for the last draw, we draw it to canvas framebuffer
-                        state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+                        state
+                            .gl
+                            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
                     } else {
-                        state.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&blur_twopass_framebuffer));
+                        state.gl.bind_framebuffer(
+                            WebGl2RenderingContext::FRAMEBUFFER,
+                            Some(&blur_twopass_framebuffer),
+                        );
                     }
-                    state.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&blur_onepass_texture));
+                    state.gl.bind_texture(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        Some(&blur_onepass_texture),
+                    );
                 }
 
                 state.gl.clear_bufferfv_with_f32_array(
@@ -563,7 +609,6 @@ impl Executor for Outlining {
                     0,
                     &[0.0, 0.0, 0.0, 0.0],
                 );
-    
 
                 state.gl.tex_parameteri(
                     WebGl2RenderingContext::TEXTURE_2D,
@@ -591,7 +636,7 @@ impl Executor for Outlining {
                     &entity,
                     &self.outline_blur_geometry,
                     &self.outline_blur_material,
-                    program.uniform_locations(),
+                    &program,
                 );
                 draw(
                     state,
@@ -703,7 +748,7 @@ impl OutliningBlurGeometry {
     fn new() -> Self {
         #[rustfmt::skip]
         const VERTICES: [f32; 12] = [
-            1.0,-1.0,  1.0, 1.0, -1.0, 1.0,  
+            1.0,-1.0,  1.0, 1.0, -1.0, 1.0,
            -1.0, 1.0, -1.0,-1.0,  1.0,-1.0,
         ];
         #[rustfmt::skip]
@@ -793,10 +838,51 @@ impl Geometry for OutliningBlurGeometry {
     }
 }
 
-struct OutliningBlurMaterial;
+#[rustfmt::skip]
+const GAUSSIAN_KERNEL: [f32; 81] = [
+    0.000262958656, 0.000876539664, 0.0019722158656, 0.0031555460336000003, 0.0036814698320000003, 0.0031555460336000003, 0.0019722158656, 0.000876539664, 0.000262958656,
+    0.000876539664, 0.0029218349159999997, 0.006574133966399999, 0.0105186165084, 0.012271717458, 0.0105186165084, 0.006574133966399999, 0.0029218349159999997, 0.000876539664,
+    0.0019722158656, 0.006574133966399999, 0.01479181358656, 0.02366690660336, 0.0276113869832, 0.02366690660336, 0.01479181358656, 0.006574133966399999, 0.0019722158656,
+    0.0031555460336000003, 0.0105186165084, 0.02366690660336, 0.03786705834916, 0.0441782282542, 0.03786705834916, 0.02366690660336, 0.0105186165084, 0.0031555460336000003,
+    0.0036814698320000003, 0.012271717458, 0.0276113869832, 0.0441782282542, 0.051541258729000006, 0.0441782282542, 0.0276113869832, 0.012271717458, 0.0036814698320000003,
+    0.0031555460336000003, 0.0105186165084, 0.02366690660336, 0.03786705834916, 0.0441782282542, 0.03786705834916, 0.02366690660336, 0.0105186165084, 0.0031555460336000003,
+    0.0019722158656, 0.006574133966399999, 0.01479181358656, 0.02366690660336, 0.0276113869832, 0.02366690660336, 0.01479181358656, 0.006574133966399999, 0.0019722158656,
+    0.000876539664, 0.0029218349159999997, 0.006574133966399999, 0.0105186165084, 0.012271717458, 0.0105186165084, 0.006574133966399999, 0.0029218349159999997, 0.000876539664,
+    0.000262958656, 0.000876539664, 0.0019722158656, 0.0031555460336000003, 0.0036814698320000003, 0.0031555460336000003, 0.0019722158656, 0.000876539664, 0.000262958656,
+];
+
+struct OutliningBlurMaterial {
+    kernel: UniformBlockValue,
+}
 
 impl OutliningBlurMaterial {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        // creates padded uniform buffer data for kernel
+        let kernel_uniform_buffer = {
+            let kernel_uniform_buffer = Float32Array::new_with_length(81 * 4);
+            // pads kernel weights
+            for (i, v) in GAUSSIAN_KERNEL.iter().enumerate() {
+                kernel_uniform_buffer.set_index((i * 4 + 0) as u32, *v);
+            }
+
+            kernel_uniform_buffer
+        };
+
+        Self {
+            kernel: UniformBlockValue::BufferBase {
+                descriptor: BufferDescriptor::with_memory_policy(
+                    BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4),
+                    // BufferSource::from_binary([0; 81], 0, 81 * 4 * 4),
+                    BufferUsage::StaticDraw,
+                    MemoryPolicy::restorable(move || {
+                        BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4)
+                    }),
+                ),
+                target: BufferTarget::UniformBuffer,
+                binding: 0,
+            },
+        }
+    }
 }
 
 impl Material for OutliningBlurMaterial {
@@ -819,6 +905,10 @@ impl Material for OutliningBlurMaterial {
         &[UniformBinding::FromMaterial("u_ColorSampler")]
     }
 
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[UniformBlockBinding::FromMaterial("Kernel")]
+    }
+
     fn sources(&self) -> &[ShaderSource] {
         &[
             ShaderSource::Vertex(include_str!("./outlining_blur.vert")),
@@ -833,6 +923,13 @@ impl Material for OutliningBlurMaterial {
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
             "u_ColorSampler" => Some(UniformValue::Integer1(0)),
+            _ => None,
+        }
+    }
+
+    fn uniform_block_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        match name {
+            "Kernel" => Some(self.kernel.clone()),
             _ => None,
         }
     }

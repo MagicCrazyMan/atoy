@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::console_log;
-use web_sys::{HtmlCanvasElement, WebGlUniformLocation};
+use web_sys::HtmlCanvasElement;
 
 use crate::{
     entity::BorrowedMut,
@@ -13,7 +11,9 @@ use crate::{
 };
 
 use super::{
-    conversion::ToGlEnum,
+    buffer::{BufferDescriptor, BufferTarget},
+    conversion::{GLintptr, GLsizeiptr, ToGlEnum},
+    program::ProgramItem,
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
@@ -62,7 +62,23 @@ pub enum UniformValue {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
+pub enum UniformBlockValue {
+    BufferBase {
+        descriptor: BufferDescriptor,
+        target: BufferTarget,
+        binding: u32,
+    },
+    BufferRange {
+        descriptor: BufferDescriptor,
+        target: BufferTarget,
+        offset: GLintptr,
+        size: GLsizeiptr,
+        binding: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
     CanvasSize,
     ModelMatrix,
@@ -78,7 +94,7 @@ pub enum UniformBinding {
 }
 
 impl UniformBinding {
-    pub fn as_str(&self) -> &str {
+    pub fn variable_name(&self) -> &str {
         match self {
             UniformBinding::CanvasSize => "u_CanvasSize",
             UniformBinding::ModelMatrix => "u_ModelMatrix",
@@ -95,6 +111,23 @@ impl UniformBinding {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UniformBlockBinding {
+    FromGeometry(&'static str),
+    FromMaterial(&'static str),
+    FromEntity(&'static str),
+}
+
+impl UniformBlockBinding {
+    pub fn variable_name(&self) -> &str {
+        match self {
+            UniformBlockBinding::FromGeometry(name)
+            | UniformBlockBinding::FromMaterial(name)
+            | UniformBlockBinding::FromEntity(name) => name,
+        }
+    }
+}
+
 /// Binds uniform data of the entity.
 pub(crate) fn bind_uniforms(
     state: &mut State,
@@ -102,9 +135,9 @@ pub(crate) fn bind_uniforms(
     entity: &BorrowedMut,
     geometry: &dyn Geometry,
     material: &dyn Material,
-    uniform_locations: &HashMap<UniformBinding, WebGlUniformLocation>,
+    program: &ProgramItem,
 ) {
-    for (binding, location) in uniform_locations {
+    for (binding, location) in program.uniform_locations() {
         let value = match binding {
             UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name, entity),
             UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
@@ -242,5 +275,71 @@ pub(crate) fn bind_uniforms(
                     .uniform1i(Some(location), texture_unit.unit_index());
             }
         };
+    }
+
+    for (binding, index) in program.uniform_block_indices() {
+        let value = match binding {
+            UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
+            UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
+            UniformBlockBinding::FromEntity(name) => {
+                entity.uniform_block_values().get(*name).cloned()
+            }
+        };
+        let Some(value) = value else {
+            continue;
+        };
+
+        match value {
+            UniformBlockValue::BufferBase {
+                descriptor,
+                target,
+                binding,
+            } => {
+                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                    Ok(buffer) => buffer,
+                    Err(err) => {
+                        // should log error
+                        console_log!("{}", err);
+                        continue;
+                    }
+                };
+
+                state
+                    .gl()
+                    .uniform_block_binding(program.gl_program(), *index, binding);
+                state.gl().bind_buffer_base(
+                    target.gl_enum(),
+                    *index,
+                    Some(&buffer_item.gl_buffer()),
+                );
+            }
+            UniformBlockValue::BufferRange {
+                descriptor,
+                target,
+                offset,
+                size,
+                binding,
+            } => {
+                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                    Ok(buffer) => buffer,
+                    Err(err) => {
+                        // should log error
+                        console_log!("{}", err);
+                        continue;
+                    }
+                };
+
+                state
+                    .gl()
+                    .uniform_block_binding(program.gl_program(), *index, binding);
+                state.gl().bind_buffer_range_with_i32_and_i32(
+                    target.gl_enum(),
+                    *index,
+                    Some(&buffer_item.gl_buffer()),
+                    offset,
+                    size,
+                );
+            }
+        }
     }
 }

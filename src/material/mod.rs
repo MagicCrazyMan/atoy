@@ -7,7 +7,7 @@ use crate::{
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
             program::ShaderSource,
-            uniform::{UniformBinding, UniformValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
         },
     },
 };
@@ -27,11 +27,20 @@ pub trait Material {
 
     fn uniform_bindings(&self) -> &[UniformBinding];
 
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
     fn attribute_value(&self, name: &str, entity: &BorrowedMut) -> Option<AttributeValue>;
 
     fn uniform_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformValue>;
+
+    #[allow(unused_variables)]
+    fn uniform_block_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
+    }
 
     fn ready(&self) -> bool;
 

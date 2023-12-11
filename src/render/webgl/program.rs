@@ -10,7 +10,10 @@ use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLoc
 use crate::material::Material;
 
 use super::{
-    attribute::AttributeBinding, conversion::GLuint, error::Error, uniform::UniformBinding,
+    attribute::AttributeBinding,
+    conversion::GLuint,
+    error::Error,
+    uniform::{UniformBinding, UniformBlockBinding},
 };
 
 #[derive(Debug, Clone)]
@@ -20,15 +23,16 @@ pub enum ShaderSource<'a> {
 }
 
 #[derive(Clone)]
-pub struct Program {
+pub struct ProgramItem {
     name: String,
     program: WebGlProgram,
     // shaders: Vec<WebGlShader>,
     attributes: Rc<HashMap<AttributeBinding, GLuint>>,
-    uniforms: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
+    uniform_locations: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
+    uniform_block_indices: Rc<HashMap<UniformBlockBinding, u32>>,
 }
 
-impl Program {
+impl ProgramItem {
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -42,13 +46,17 @@ impl Program {
     }
 
     pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
-        &self.uniforms
+        &self.uniform_locations
+    }
+
+    pub fn uniform_block_indices(&self) -> &HashMap<UniformBlockBinding, u32> {
+        &self.uniform_block_indices
     }
 }
 
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
-    store: HashMap<String, Program>,
+    store: HashMap<String, ProgramItem>,
 }
 
 impl ProgramStore {
@@ -62,7 +70,7 @@ impl ProgramStore {
 
 impl ProgramStore {
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub fn use_program(&mut self, material: &dyn Material) -> Result<Program, Error> {
+    pub fn use_program(&mut self, material: &dyn Material) -> Result<ProgramItem, Error> {
         let store = &mut self.store;
 
         match store.entry(material.name().to_string()) {
@@ -78,7 +86,7 @@ impl ProgramStore {
 fn compile_material(
     gl: &WebGl2RenderingContext,
     material: &dyn Material,
-) -> Result<Program, Error> {
+) -> Result<ProgramItem, Error> {
     let mut shaders = Vec::with_capacity(material.sources().len());
     material.sources().iter().try_for_each(|source| {
         shaders.push(compile_shader(gl, source)?);
@@ -86,18 +94,23 @@ fn compile_material(
     })?;
 
     let program = create_program(gl, &shaders)?;
-    Ok(Program {
+    Ok(ProgramItem {
         name: material.name().to_string(),
         attributes: Rc::new(collect_attribute_locations(
             gl,
             &program,
             material.attribute_bindings(),
         )?),
-        uniforms: Rc::new(collect_uniform_locations(
+        uniform_locations: Rc::new(collect_uniform_locations(
             gl,
             &program,
             material.uniform_bindings(),
         )?),
+        uniform_block_indices: Rc::new(collect_uniform_block_indices(
+            gl,
+            &program,
+            material.uniform_block_bindings(),
+        )),
         program,
         // shaders,
     })
@@ -187,7 +200,7 @@ fn collect_attribute_locations(
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
-        let variable_name = binding.as_str();
+        let variable_name = binding.variable_name();
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
             // should log warning
@@ -208,7 +221,7 @@ fn collect_uniform_locations(
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
-        let variable_name = binding.as_str();
+        let variable_name = binding.variable_name();
         let location = gl.get_uniform_location(program, variable_name);
         match location {
             None => {
@@ -222,4 +235,20 @@ fn collect_uniform_locations(
     });
 
     Ok(locations)
+}
+
+fn collect_uniform_block_indices(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+    bindings: &[UniformBlockBinding],
+) -> HashMap<UniformBlockBinding, u32> {
+    let mut indices = HashMap::with_capacity(bindings.len());
+
+    bindings.into_iter().for_each(|binding| {
+        let variable_name = binding.variable_name();
+        let index = gl.get_uniform_block_index(program, variable_name);
+        indices.insert(*binding, index);
+    });
+
+    indices
 }

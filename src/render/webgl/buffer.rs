@@ -625,10 +625,7 @@ impl BufferDescriptor {
 
 /// Buffer item usable for outside the [`BufferStore`].
 #[derive(Clone)]
-pub struct BufferItem(
-    Rc<RefCell<StorageItem>>,
-    Rc<BufferDescriptorAgency>,
-);
+pub struct BufferItem(Rc<RefCell<StorageItem>>, BufferDescriptor);
 
 impl BufferItem {
     /// Gets [`WebGlBuffer`].
@@ -691,6 +688,7 @@ enum MemoryPolicyKind {
 
 /// Inner item of a [`BufferStore`].
 struct StorageItem {
+    id: Uuid,
     target: BufferTarget,
     buffer: WebGlBuffer,
     status: Weak<RefCell<BufferDescriptorStatus>>,
@@ -850,36 +848,108 @@ impl BufferStore {
 }
 
 impl BufferStore {
-    /// Gets a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
+    /// Uses a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
     pub fn use_buffer(
+        &mut self,
+        buffer_descriptor: BufferDescriptor,
+        target: BufferTarget,
+    ) -> Result<BufferItem, Error> {
+        let buffer_item = self.create_buffer(buffer_descriptor, target)?;
+        self.buffer_data(&buffer_item)?;
+
+        Ok(buffer_item)
+    }
+
+    /// Creates or gets an existing a [`WebGlBuffer`] by a [`BufferDescriptor`] only, no buffering data into it.
+    pub fn create_buffer(
         &mut self,
         buffer_descriptor: BufferDescriptor,
         target: BufferTarget,
     ) -> Result<BufferItem, Error> {
         let BufferDescriptor {
             status,
-            usage,
             memory_policy,
-        } = buffer_descriptor;
+            ..
+        } = &buffer_descriptor;
 
-        let mut container_guard = (*self.container).borrow_mut();
-        let container_mut = &mut *container_guard;
+        let mut container = (*self.container).borrow_mut();
+        let container = &mut *container;
 
-        let mut status_guard = (*status).borrow_mut();
-        let status_mut = &mut *status_guard;
-
-        let (item, agency) = match status_mut {
+        let item = match &*status.borrow() {
             BufferDescriptorStatus::Unchanged { agency, .. } => {
-                let item = container_mut
+                let storage = container
                     .store
                     .get_mut(agency.key())
                     .ok_or(Error::BufferStorageNotFound(*agency.key()))?;
 
                 // updates LRU
-                let lru_node = &mut item.borrow_mut().lru_node;
-                to_most_recently_lru!(container_mut, lru_node);
+                let lru_node = &mut storage.borrow_mut().lru_node;
+                to_most_recently_lru!(container, lru_node);
 
-                (Rc::clone(item), Rc::clone(agency))
+                Rc::clone(storage)
+            }
+            BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
+                // creates buffer
+                let Some(buffer) = self.gl.create_buffer() else {
+                    return Err(Error::CreateBufferFailure);
+                };
+
+                let id = Uuid::new_v4();
+                // caches it into LRU
+                let mut lru_node = Box::new(LruNode {
+                    id,
+                    less_recently: None,
+                    more_recently: None,
+                });
+                to_most_recently_lru!(container, lru_node);
+
+                // stores it
+                let storage = Rc::new(RefCell::new(StorageItem {
+                    id,
+                    target,
+                    buffer: buffer.clone(),
+                    size: 0,
+                    status: Rc::downgrade(&status),
+                    lru_node,
+                    memory_policy_kind: memory_policy.to_kind(),
+                }));
+                container.store.insert(id, Rc::clone(&storage));
+
+                storage
+            }
+            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
+                let Some(storage) = container.store.get_mut(agency.key()) else {
+                    return Err(Error::BufferStorageNotFound(*agency.key()));
+                };
+                let StorageItem { lru_node, .. } = &mut *storage.borrow_mut();
+
+                // updates LRU
+                to_most_recently_lru!(container, lru_node);
+
+                Rc::clone(&storage)
+            }
+        };
+
+        Ok(BufferItem(item, buffer_descriptor))
+    }
+
+    /// Buffers a [`BufferItem`] if necessary.
+    pub fn buffer_data(&mut self, buffer_item: &BufferItem) -> Result<(), Error> {
+        let BufferItem(storage, descriptor) = buffer_item;
+
+        let target = storage.borrow().target;
+        let buffer = &storage.borrow().buffer;
+        let usage = descriptor.usage;
+
+        let mut container_guard = (*self.container).borrow_mut();
+        let container_mut = &mut *container_guard;
+
+        let mut status_guard = descriptor.status.borrow_mut();
+        let status_mut = &mut *status_guard;
+
+        match status_mut {
+            BufferDescriptorStatus::Unchanged { .. } => {
+                // do nothing
             }
             BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
                 // gets buffer source
@@ -887,7 +957,7 @@ impl BufferStore {
                 let source = match status_mut {
                     // gets buffer source from restore in Dropped if exists, or throws error otherwise.
                     BufferDescriptorStatus::Dropped => {
-                        let MemoryPolicy::Restorable(restore) = &memory_policy else {
+                        let MemoryPolicy::Restorable(restore) = &descriptor.memory_policy else {
                             return Err(Error::BufferUnexpectedDropped);
                         };
                         tmp_source = restore.borrow_mut()();
@@ -898,11 +968,7 @@ impl BufferStore {
                     _ => unreachable!(),
                 };
 
-                // creates buffer
-                let Some(buffer) = self.gl.create_buffer() else {
-                    return Err(Error::CreateBufferFailure);
-                };
-                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                self.gl.bind_buffer(target.gl_enum(), Some(buffer));
                 source.buffer_data(&self.gl, target, usage);
                 let size = self
                     .gl
@@ -912,49 +978,18 @@ impl BufferStore {
                 container_mut.used_memory += size;
                 self.gl.bind_buffer(target.gl_enum(), None);
 
-                let id = Uuid::new_v4();
-                // caches it into LRU
-                let mut lru_node = Box::new(LruNode {
-                    id,
-                    less_recently: None,
-                    more_recently: None,
-                });
-                to_most_recently_lru!(container_mut, lru_node);
-
-                // stores it
-                let item = Rc::new(RefCell::new(StorageItem {
-                    target,
-                    buffer: buffer.clone(),
-                    size,
-                    status: Rc::downgrade(&status),
-                    lru_node,
-                    memory_policy_kind: memory_policy.to_kind(),
-                }));
-                container_mut.store.insert(id, Rc::clone(&item));
-
                 // replaces descriptor status
-                let agency = Rc::new(BufferDescriptorAgency(
-                    id,
-                    Rc::downgrade(&self.container),
-                    self.gl.clone(),
-                ));
                 *status_mut = BufferDescriptorStatus::Unchanged {
-                    agency: Rc::clone(&agency),
+                    agency: Rc::new(BufferDescriptorAgency(
+                        storage.borrow().id,
+                        Rc::downgrade(&self.container),
+                        self.gl.clone(),
+                    )),
                 };
-
-                (item, agency)
             }
             BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
-                let Some(item) = container_mut.store.get_mut(agency.key()) else {
-                    return Err(Error::BufferStorageNotFound(*agency.key()));
-                };
-                let StorageItem {
-                    buffer, lru_node, ..
-                } = &mut *item.borrow_mut();
-
-                // binds and buffers sub data.
                 // buffer sub data may not change the allocated memory size
-                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                self.gl.bind_buffer(target.gl_enum(), Some(buffer));
                 source.buffer_sub_data(&self.gl, target);
                 self.gl.bind_buffer(target.gl_enum(), None);
 
@@ -963,11 +998,6 @@ impl BufferStore {
                 *status_mut = BufferDescriptorStatus::Unchanged {
                     agency: Rc::clone(&agency),
                 };
-
-                // updates LRU
-                to_most_recently_lru!(container_mut, lru_node);
-
-                (Rc::clone(&item), Rc::clone(&agency))
             }
         };
 
@@ -976,7 +1006,7 @@ impl BufferStore {
 
         self.free();
 
-        Ok(BufferItem(item, agency))
+        Ok(())
     }
 
     /// Frees memory if used memory exceeds the maximum available memory.
@@ -1023,6 +1053,7 @@ impl BufferStore {
                 size,
                 lru_node,
                 memory_policy_kind,
+                ..
             } = &mut *item.borrow_mut();
 
             // skips if status not exists any more

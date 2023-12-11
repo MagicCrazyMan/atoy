@@ -12,7 +12,7 @@ use crate::{
     entity::{collection::EntityCollection, BorrowedMut, Strong},
     geometry::Geometry,
     material::{Material, Transparency},
-    render::webgl::{attribute::bind_attributes, draw::draw, error::Error, program::Program, uniform::bind_uniforms},
+    render::webgl::{attribute::bind_attributes, draw::draw, error::Error, program::ProgramItem, uniform::bind_uniforms},
     scene::Scene,
 };
 
@@ -94,7 +94,7 @@ impl<'a> Stuff for StandardStuff<'a> {
 /// - `entities`: [`Vec<Strong>`], a list contains entities to draw.
 pub struct StandardDrawer {
     entities: ResourceSource,
-    last_program: Option<Program>,
+    last_program: Option<ProgramItem>,
 }
 
 impl StandardDrawer {
@@ -134,7 +134,7 @@ impl StandardDrawer {
                 &entity,
                 &*geometry,
                 &*material,
-                program.attribute_locations(),
+                program,
             );
             // binds uniforms
             bind_uniforms(
@@ -143,7 +143,7 @@ impl StandardDrawer {
                 &entity,
                 &*geometry,
                 &*material,
-                program.uniform_locations(),
+                program,
             );
 
             // before draw of material and geometry

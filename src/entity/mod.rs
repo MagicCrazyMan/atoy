@@ -14,7 +14,11 @@ use crate::{
     bounding::BoundingVolume,
     geometry::Geometry,
     material::Material,
-    render::webgl::{attribute::AttributeValue, error::Error, uniform::UniformValue},
+    render::webgl::{
+        attribute::AttributeValue,
+        error::Error,
+        uniform::{UniformBlockValue, UniformValue},
+    },
 };
 
 pub struct Borrowed<'a>(Ref<'a, Inner>);
@@ -54,6 +58,10 @@ impl<'a> Borrowed<'a> {
 
     pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
         &self.0.uniforms
+    }
+
+    pub fn uniform_block_values(&self) -> &HashMap<String, UniformBlockValue> {
+        &self.0.uniform_blocks
     }
 
     pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
@@ -128,6 +136,10 @@ impl<'a> BorrowedMut<'a> {
         &self.0.uniforms
     }
 
+    pub fn uniform_block_values(&self) -> &HashMap<String, UniformBlockValue> {
+        &self.0.uniform_blocks
+    }
+
     pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
         &self.0.properties
     }
@@ -156,6 +168,10 @@ impl<'a> BorrowedMut<'a> {
 
     pub fn uniform_values_mut(&mut self) -> &mut HashMap<String, UniformValue> {
         &mut self.0.uniforms
+    }
+
+    pub fn uniform_block_values_mut(&mut self) -> &mut HashMap<String, UniformBlockValue> {
+        &mut self.0.uniform_blocks
     }
 
     pub fn properties_mut(&mut self) -> &mut HashMap<String, Box<dyn Any>> {
@@ -308,6 +324,7 @@ struct Inner {
     // fields below are all sharable values
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
+    uniform_blocks: HashMap<String, UniformBlockValue>,
     properties: HashMap<String, Box<dyn Any>>,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn Material>>,
@@ -327,6 +344,7 @@ impl Entity {
             normal_matrix: Mat4::new_identity(),
             attributes: HashMap::new(),
             uniforms: HashMap::new(),
+            uniform_blocks: HashMap::new(),
             properties: HashMap::new(),
             geometry: None,
             material: None,
@@ -349,7 +367,6 @@ impl Entity {
         Strong(Rc::clone(&self.0))
     }
 }
-
 
 // /// [`Entity`] and associated [`Material`] and [`Geometry`] for rendering.
 // /// Be aware, geometry and material may not extract from entity,

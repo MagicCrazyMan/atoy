@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-
 use wasm_bindgen_test::console_log;
 
-use crate::{render::pp::State, entity::BorrowedMut, geometry::Geometry, material::Material};
+use crate::{entity::BorrowedMut, geometry::Geometry, material::Material, render::pp::State};
 
 use super::{
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget, BufferItem},
-    conversion::{GLboolean, GLintptr, GLsizei, GLuint, GLint, ToGlEnum},
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferItem, BufferTarget},
+    conversion::{GLboolean, GLint, GLintptr, GLsizei, GLuint, ToGlEnum},
+    program::ProgramItem,
 };
 
 #[derive(Clone)]
@@ -39,7 +38,7 @@ pub enum AttributeValue {
     Vertex4fv([f32; 4]),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
@@ -50,7 +49,7 @@ pub enum AttributeBinding {
 }
 
 impl AttributeBinding {
-    pub fn as_str(&self) -> &str {
+    pub fn variable_name(&self) -> &str {
         match self {
             AttributeBinding::GeometryPosition => "a_Position",
             AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
@@ -62,7 +61,6 @@ impl AttributeBinding {
     }
 }
 
-
 /// Binds attributes of the entity.
 /// Holds returning values until finishing next draw call
 /// to prevent buffer store drops the binding buffer unexpectedly.
@@ -71,10 +69,10 @@ pub fn bind_attributes(
     entity: &BorrowedMut,
     geometry: &dyn Geometry,
     material: &dyn Material,
-    attribute_locations: &HashMap<AttributeBinding, GLuint>,
+    program: &ProgramItem,
 ) -> Vec<BufferItem> {
-    let mut buffer_items = Vec::with_capacity(attribute_locations.len());
-    for (binding, location) in attribute_locations {
+    let mut buffer_items = Vec::with_capacity(program.attribute_locations().len());
+    for (binding, location) in program.attribute_locations() {
         let value = match binding {
             AttributeBinding::GeometryPosition => (*geometry).vertices(),
             AttributeBinding::GeometryTextureCoordinate => (*geometry).texture_coordinates(),
@@ -99,7 +97,7 @@ pub fn bind_attributes(
                 bytes_stride,
                 bytes_offset,
             } => {
-                let item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         // should log error
@@ -110,7 +108,8 @@ pub fn bind_attributes(
 
                 state
                     .gl()
-                    .bind_buffer(target.gl_enum(), Some(&item.gl_buffer()));
+                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
+
                 state.gl().vertex_attrib_pointer_with_i32(
                     *location,
                     component_size as GLint,
@@ -121,7 +120,9 @@ pub fn bind_attributes(
                 );
                 state.gl().enable_vertex_attrib_array(*location);
 
-                buffer_items.push(item);
+                state.gl().bind_buffer(target.gl_enum(), None);
+
+                buffer_items.push(buffer_item);
             }
             AttributeValue::InstancedBuffer {
                 descriptor,
@@ -132,7 +133,7 @@ pub fn bind_attributes(
                 component_count_per_instance: components_length_per_instance,
                 divisor,
             } => {
-                let item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         // should log error
@@ -143,7 +144,7 @@ pub fn bind_attributes(
 
                 state
                     .gl()
-                    .bind_buffer(target.gl_enum(), Some(&item.gl_buffer()));
+                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
 
                 let component_size = component_size as GLint;
                 // binds each instance
@@ -161,7 +162,9 @@ pub fn bind_attributes(
                     state.gl().vertex_attrib_divisor(offset_location, divisor);
                 }
 
-                buffer_items.push(item);
+                state.gl().bind_buffer(target.gl_enum(), None);
+
+                buffer_items.push(buffer_item);
             }
             AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),
             AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(*location, x, y),

@@ -11,7 +11,7 @@ use crate::{
     entity::BorrowedMut,
     render::{
         pp::State,
-        webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
+        webgl::{attribute::AttributeValue, draw::Draw, uniform::{UniformValue, UniformBlockValue}},
     },
 };
 
@@ -29,6 +29,11 @@ pub trait Geometry {
     fn attribute_value(&self, name: &str, entity: &BorrowedMut) -> Option<AttributeValue>;
 
     fn uniform_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformValue>;
+
+    #[allow(unused_variables)]
+    fn uniform_block_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
+    }
 
     fn as_any(&self) -> &dyn Any;
 

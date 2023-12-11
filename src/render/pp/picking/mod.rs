@@ -370,7 +370,7 @@ impl Executor for Picking {
                 &entity,
                 geometry,
                 &self.material,
-                program.attribute_locations(),
+                &program,
             );
             bind_uniforms(
                 state,
@@ -378,7 +378,7 @@ impl Executor for Picking {
                 &entity,
                 geometry,
                 &self.material,
-                program.uniform_locations(),
+                &program,
             );
             draw(state, &*geometry, &self.material);
 
