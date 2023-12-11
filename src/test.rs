@@ -18,6 +18,7 @@ use crate::entity::{Entity, Weak};
 use crate::error::Error;
 use crate::geometry::cube::{self, calculate_vertices};
 use crate::geometry::indexed_cube::IndexedCube;
+use crate::geometry::multicube::MultiCube;
 use crate::geometry::raw::RawGeometry;
 use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
@@ -155,6 +156,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 5.0, 0.0), (6.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
@@ -184,6 +186,12 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
+    // let entity = Entity::new();
+    // entity.borrow_mut().set_geometry(Some(MultiCube::new(count)));
+    // entity
+    //     .borrow_mut()
+    //     .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
+    // scene.entity_collection_mut().add_entity(entity);
     let scene = Rc::new(RefCell::new(scene));
 
     let render_cloned = Rc::clone(&render);
@@ -267,6 +275,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .downcast_mut::<PerspectiveCamera>()
             .unwrap()
             .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+            // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
 
         let start = window().performance().unwrap().now();
         render

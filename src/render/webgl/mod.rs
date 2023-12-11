@@ -130,8 +130,8 @@ impl WebGL2Render {
         let mut render = Self {
             mount: None,
             program_store: ProgramStore::new(gl.clone()),
-            buffer_store: BufferStore::with_max_memory(gl.clone(), 5000),
-            // buffer_store: BufferStore::with_max_memory(gl.clone(), 2000),
+            buffer_store: BufferStore::new(gl.clone()),
+            // buffer_store: BufferStore::with_max_memory(gl.clone(), 200),
             texture_store: TextureStore::new(gl.clone()),
             canvas,
             gl,

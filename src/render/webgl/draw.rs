@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     attribute::{AttributeBinding, AttributeValue},
-    buffer::{BufferDescriptor, BufferTarget},
+    buffer::{BufferDescriptor, BufferTarget, BufferItem},
     conversion::{GLint, GLintptr, GLsizei, GLuint, ToGlEnum},
     uniform::{UniformBinding, UniformValue},
 };
@@ -61,13 +61,16 @@ pub enum DrawMode {
 }
 
 /// Binds attributes of the entity.
+/// Holds returning values until finishing next draw call
+/// to prevent buffer store drops the binding buffer unexpectedly.
 pub(crate) fn bind_attributes(
     state: &mut State,
     entity: &BorrowedMut,
     geometry: &dyn Geometry,
     material: &dyn Material,
     attribute_locations: &HashMap<AttributeBinding, GLuint>,
-) {
+) -> Vec<BufferItem> {
+    let mut buffer_items = Vec::with_capacity(attribute_locations.len());
     for (binding, location) in attribute_locations {
         let value = match binding {
             AttributeBinding::GeometryPosition => (*geometry).vertices(),
@@ -93,7 +96,7 @@ pub(crate) fn bind_attributes(
                 bytes_stride,
                 bytes_offset,
             } => {
-                let buffer = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         // should log error
@@ -102,7 +105,9 @@ pub(crate) fn bind_attributes(
                     }
                 };
 
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
+                state
+                    .gl()
+                    .bind_buffer(target.gl_enum(), Some(&item.gl_buffer()));
                 state.gl().vertex_attrib_pointer_with_i32(
                     *location,
                     component_size as GLint,
@@ -112,6 +117,8 @@ pub(crate) fn bind_attributes(
                     bytes_offset,
                 );
                 state.gl().enable_vertex_attrib_array(*location);
+
+                buffer_items.push(item);
             }
             AttributeValue::InstancedBuffer {
                 descriptor,
@@ -122,7 +129,7 @@ pub(crate) fn bind_attributes(
                 component_count_per_instance: components_length_per_instance,
                 divisor,
             } => {
-                let buffer = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         // should log error
@@ -131,7 +138,9 @@ pub(crate) fn bind_attributes(
                     }
                 };
 
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
+                state
+                    .gl()
+                    .bind_buffer(target.gl_enum(), Some(&item.gl_buffer()));
 
                 let component_size = component_size as GLint;
                 // binds each instance
@@ -148,6 +157,8 @@ pub(crate) fn bind_attributes(
                     state.gl().enable_vertex_attrib_array(offset_location);
                     state.gl().vertex_attrib_divisor(offset_location, divisor);
                 }
+
+                buffer_items.push(item);
             }
             AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),
             AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(*location, x, y),
@@ -169,6 +180,8 @@ pub(crate) fn bind_attributes(
             }
         };
     }
+
+    buffer_items
 }
 
 /// Binds uniform data of the entity.
@@ -342,7 +355,7 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                 offset,
                 indices,
             } => {
-                let buffer = match state
+                let item = match state
                     .buffer_store_mut()
                     .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                 {
@@ -354,9 +367,10 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                     }
                 };
 
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
+                state.gl().bind_buffer(
+                    BufferTarget::ElementArrayBuffer.gl_enum(),
+                    Some(&item.gl_buffer()),
+                );
                 state.gl().draw_elements_instanced_with_i32(
                     mode.gl_enum(),
                     num_vertices,
@@ -381,7 +395,7 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                 offset,
                 indices,
             } => {
-                let buffer = match state
+                let item = match state
                     .buffer_store_mut()
                     .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                 {
@@ -393,9 +407,10 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                     }
                 };
 
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
+                state.gl().bind_buffer(
+                    BufferTarget::ElementArrayBuffer.gl_enum(),
+                    Some(&item.gl_buffer()),
+                );
                 state.gl().draw_elements_with_i32(
                     mode.gl_enum(),
                     num_vertices,

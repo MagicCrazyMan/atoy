@@ -370,7 +370,7 @@ impl Executor for Outlining {
             state.gl.enable(WebGl2RenderingContext::STENCIL_TEST);
 
             // only have to binds attribute once
-            bind_attributes(
+            let items = bind_attributes(
                 state,
                 &entity,
                 geometry,
@@ -464,6 +464,8 @@ impl Executor for Outlining {
             state
                 .gl
                 .stencil_func(WebGl2RenderingContext::EQUAL, 0, 0xff);
+
+            drop(items);
         }
 
         // let mut binary =
@@ -530,7 +532,7 @@ impl Executor for Outlining {
             state.gl.use_program(Some(program.gl_program()));
 
             // only have to bind attribute once
-            bind_attributes(
+            let items = bind_attributes(
                 state,
                 &entity,
                 &self.outline_blur_geometry,
@@ -611,6 +613,8 @@ impl Executor for Outlining {
             // enable depth test
             state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
             state.gl.enable(WebGl2RenderingContext::BLEND);
+
+            drop(items);
         }
 
         Ok(())

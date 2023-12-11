@@ -190,6 +190,12 @@ impl Executor for Picking {
         runtime_resources: &mut HashMap<String, Box<dyn Any>>,
         persist_resources: &mut HashMap<String, Box<dyn Any>>,
     ) -> Result<(), Error> {
+        // clear first
+        match &self.picked {
+            ResourceSource::Runtime(key) => runtime_resources.remove(key),
+            ResourceSource::Persist(key) => persist_resources.remove(key),
+        };
+
         let position = match &self.position {
             ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
             ResourceSource::Persist(key) => persist_resources.get(key.as_str()),
@@ -271,7 +277,7 @@ impl Executor for Picking {
             // sets index and window position for current draw
             self.material.index = (index + 1) as u32;
 
-            bind_attributes(
+            let items = bind_attributes(
                 state,
                 &entity,
                 geometry,
@@ -287,6 +293,8 @@ impl Executor for Picking {
                 program.uniform_locations(),
             );
             draw(state, &*geometry, &self.material);
+
+            drop(items);
         }
 
         // get result
@@ -303,15 +311,15 @@ impl Executor for Picking {
             )
             .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
 
-        if let Some(entity) = entities
-            .get(self.pixel.get_index(0) as usize - 1)
-            .map(|entity| entity.downgrade())
-        {
-            let picked = Box::new(entity.clone());
-            match &self.picked {
-                ResourceSource::Runtime(key) => runtime_resources.insert(key.clone(), picked),
-                ResourceSource::Persist(key) => persist_resources.insert(key.clone(), picked),
-            };
+        let index = self.pixel.get_index(0) as usize;
+        if index > 0 {
+            if let Some(entity) = entities.get(index - 1).map(|entity| entity.downgrade()) {
+                let picked = Box::new(entity.clone());
+                match &self.picked {
+                    ResourceSource::Runtime(key) => runtime_resources.insert(key.clone(), picked),
+                    ResourceSource::Persist(key) => persist_resources.insert(key.clone(), picked),
+                };
+            }
         }
 
         // resets WebGL status

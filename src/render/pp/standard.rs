@@ -132,7 +132,7 @@ impl StandardDrawer {
             let program = self.last_program.as_ref().unwrap();
 
             // binds attributes
-            bind_attributes(
+            let items = bind_attributes(
                 state,
                 &entity,
                 &*geometry,
@@ -157,6 +157,8 @@ impl StandardDrawer {
             // after draw of material and geometry
             (&mut *material).after_draw(state, &entity);
             (&mut *geometry).after_draw(state, &entity);
+
+            drop(items);
         }
 
         Ok(())

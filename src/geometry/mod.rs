@@ -2,6 +2,7 @@ pub mod cube;
 pub mod indexed_cube;
 pub mod raw;
 pub mod sphere;
+pub mod multicube;
 
 use std::any::Any;
 

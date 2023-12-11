@@ -444,29 +444,28 @@ impl Drop for BufferDescriptorAgency {
             return;
         };
 
-        let Some(StorageItem {
+        let Some(storage) = container.store.remove(&self.0) else {
+            return;
+        };
+        let StorageItem {
             buffer,
             size,
             lru_node,
             ..
-        }) = container.store.remove(&self.0)
-        else {
-            return;
-        };
-
+        } = &*storage.borrow();
         self.2.delete_buffer(Some(&buffer));
         container.used_memory -= size;
 
         // updates most and least LRU
         if let Some(most_recently) = container.most_recently {
             let most_recently = unsafe { &*most_recently };
-            if most_recently.raw_id == lru_node.raw_id {
+            if most_recently.id == lru_node.id {
                 container.most_recently = lru_node.less_recently;
             }
         }
         if let Some(least_recently) = container.least_recently {
             let least_recently = unsafe { &*least_recently };
-            if least_recently.raw_id == lru_node.raw_id {
+            if least_recently.id == lru_node.id {
                 container.least_recently = lru_node.more_recently;
             }
         }
@@ -587,7 +586,7 @@ impl BufferDescriptor {
         let Some(item) = container.store.get_mut(&agency.0) else {
             return;
         };
-        item.memory_policy_kind = self.memory_policy.to_kind();
+        item.borrow_mut().memory_policy_kind = self.memory_policy.to_kind();
     }
 
     /// Buffers new data to WebGL runtime.
@@ -621,6 +620,30 @@ impl BufferDescriptor {
             }
             BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer { source },
         });
+    }
+}
+
+/// Buffer item usable for outside the [`BufferStore`].
+#[derive(Clone)]
+pub struct BufferItem(
+    Rc<RefCell<StorageItem>>,
+    Rc<BufferDescriptorAgency>,
+);
+
+impl BufferItem {
+    /// Gets [`WebGlBuffer`].
+    pub fn gl_buffer(&self) -> WebGlBuffer {
+        self.0.borrow().buffer.clone()
+    }
+
+    /// Gets [`BufferTarget`].
+    pub fn target(&self) -> BufferTarget {
+        self.0.borrow().target
+    }
+
+    /// Gets memory in bytes size of this buffer used.
+    pub fn size(&self) -> usize {
+        self.0.borrow().size
     }
 }
 
@@ -658,6 +681,7 @@ impl MemoryPolicy {
     }
 }
 
+/// Inner memory policy kind for checking only.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MemoryPolicyKind {
     Default,
@@ -677,7 +701,7 @@ struct StorageItem {
 
 /// Inner container of a [`BufferStore`].
 struct StoreContainer {
-    store: HashMap<Uuid, StorageItem>,
+    store: HashMap<Uuid, Rc<RefCell<StorageItem>>>,
     used_memory: usize,
     most_recently: Option<*mut LruNode>,
     least_recently: Option<*mut LruNode>,
@@ -685,7 +709,7 @@ struct StoreContainer {
 
 /// LRU node for GPU memory management.
 struct LruNode {
-    raw_id: Uuid,
+    id: Uuid,
     less_recently: Option<*mut LruNode>,
     more_recently: Option<*mut LruNode>,
 }
@@ -720,7 +744,7 @@ macro_rules! to_most_recently_lru {
                         $container.most_recently = Some($lru.as_mut());
                         $container.least_recently = Some($lru.as_mut());
                         break 'to_most_recently_lru;
-                    } else if unsafe { &mut *$container.most_recently.unwrap() }.raw_id == $lru.raw_id {
+                    } else if unsafe { &mut *$container.most_recently.unwrap() }.id == $lru.id {
                         // i am the single node in LRU, do nothing!
                         break 'to_most_recently_lru;
                     } else {
@@ -772,6 +796,7 @@ macro_rules! to_most_recently_lru {
 /// When buffer store detects the used memory exceeds the max available memory,
 /// a memory freeing procedure is triggered to free up WebGL memory automatically for different [`MemoryPolicy`]:
 ///
+/// - Never drops all in use [`WebGlBuffer`]s, preventing accidentally deleting a buffer preparing for next draw call.
 /// - For [`MemoryPolicy::Restorable`], buffer stores simply drops the [`WebGlBuffer`].
 /// On the next time when the descriptor being used again, it is restored from the restore function.
 /// - For [`MemoryPolicy::Unfree`], store never drops the [`WebGlBuffer`] even if used memory exceeds the max available memory already.
@@ -779,7 +804,7 @@ macro_rules! to_most_recently_lru {
 /// It is not recommended to use this policy because getting data back from WebGL is an extremely high overhead.
 /// Always considering proving a restore function for a better performance, or marking it as unfree if you sure to do that.
 ///
-/// [`MemoryPolicy`] of a descriptor is changeable, feels free to change it and it use be used in next freeing procedure.
+/// [`MemoryPolicy`] of a descriptor is changeable, feels free to change it and it will be used in next freeing procedure.
 ///
 /// ## One More Thing You Should Know
 ///
@@ -830,7 +855,7 @@ impl BufferStore {
         &mut self,
         buffer_descriptor: BufferDescriptor,
         target: BufferTarget,
-    ) -> Result<WebGlBuffer, Error> {
+    ) -> Result<BufferItem, Error> {
         let BufferDescriptor {
             status,
             usage,
@@ -843,19 +868,18 @@ impl BufferStore {
         let mut status_guard = (*status).borrow_mut();
         let status_mut = &mut *status_guard;
 
-        let buffer = match status_mut {
+        let (item, agency) = match status_mut {
             BufferDescriptorStatus::Unchanged { agency, .. } => {
-                let StorageItem {
-                    buffer, lru_node, ..
-                } = container_mut
+                let item = container_mut
                     .store
                     .get_mut(agency.key())
                     .ok_or(Error::BufferStorageNotFound(*agency.key()))?;
 
                 // updates LRU
+                let lru_node = &mut item.borrow_mut().lru_node;
                 to_most_recently_lru!(container_mut, lru_node);
 
-                buffer.clone()
+                (Rc::clone(item), Rc::clone(agency))
             }
             BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
                 // gets buffer source
@@ -888,44 +912,45 @@ impl BufferStore {
                 container_mut.used_memory += size;
                 self.gl.bind_buffer(target.gl_enum(), None);
 
-                // stores it and caches it into LRU
-                let raw_id = Uuid::new_v4();
+                let id = Uuid::new_v4();
+                // caches it into LRU
                 let mut lru_node = Box::new(LruNode {
-                    raw_id,
+                    id,
                     less_recently: None,
                     more_recently: None,
                 });
                 to_most_recently_lru!(container_mut, lru_node);
-                container_mut.store.insert(
-                    raw_id,
-                    StorageItem {
-                        target,
-                        buffer: buffer.clone(),
-                        size,
-                        status: Rc::downgrade(&status),
-                        lru_node,
-                        memory_policy_kind: memory_policy.to_kind(),
-                    },
-                );
+
+                // stores it
+                let item = Rc::new(RefCell::new(StorageItem {
+                    target,
+                    buffer: buffer.clone(),
+                    size,
+                    status: Rc::downgrade(&status),
+                    lru_node,
+                    memory_policy_kind: memory_policy.to_kind(),
+                }));
+                container_mut.store.insert(id, Rc::clone(&item));
 
                 // replaces descriptor status
+                let agency = Rc::new(BufferDescriptorAgency(
+                    id,
+                    Rc::downgrade(&self.container),
+                    self.gl.clone(),
+                ));
                 *status_mut = BufferDescriptorStatus::Unchanged {
-                    agency: Rc::new(BufferDescriptorAgency(
-                        raw_id,
-                        Rc::downgrade(&self.container),
-                        self.gl.clone(),
-                    )),
+                    agency: Rc::clone(&agency),
                 };
 
-                buffer
+                (item, agency)
             }
             BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
-                let Some(StorageItem {
-                    buffer, lru_node, ..
-                }) = container_mut.store.get_mut(agency.key())
-                else {
+                let Some(item) = container_mut.store.get_mut(agency.key()) else {
                     return Err(Error::BufferStorageNotFound(*agency.key()));
                 };
+                let StorageItem {
+                    buffer, lru_node, ..
+                } = &mut *item.borrow_mut();
 
                 // binds and buffers sub data.
                 // buffer sub data may not change the allocated memory size
@@ -933,15 +958,16 @@ impl BufferStore {
                 source.buffer_sub_data(&self.gl, target);
                 self.gl.bind_buffer(target.gl_enum(), None);
 
-                // replace descriptor status
+                // replaces descriptor status
+                let agency = Rc::clone(agency);
                 *status_mut = BufferDescriptorStatus::Unchanged {
-                    agency: agency.clone(),
+                    agency: Rc::clone(&agency),
                 };
 
                 // updates LRU
                 to_most_recently_lru!(container_mut, lru_node);
 
-                buffer.clone()
+                (Rc::clone(&item), Rc::clone(&agency))
             }
         };
 
@@ -950,7 +976,7 @@ impl BufferStore {
 
         self.free();
 
-        Ok(buffer)
+        Ok(BufferItem(item, agency))
     }
 
     /// Frees memory if used memory exceeds the maximum available memory.
@@ -969,32 +995,35 @@ impl BufferStore {
             };
             let current_node = unsafe { &*current_node };
 
-            let Some(StorageItem {
-                memory_policy_kind, ..
-            }) = container.store.get(&current_node.raw_id)
-            else {
+            let Some(item) = container.store.get(&current_node.id) else {
                 next_node = current_node.more_recently;
                 continue;
             };
 
-            // skips if unfreeable
-            if MemoryPolicyKind::Unfree == *memory_policy_kind {
+            // skips if in use
+            if Rc::strong_count(item) > 1 {
                 next_node = current_node.more_recently;
                 continue;
             }
 
-            let Some(StorageItem {
+            // skips if unfreeable
+            if MemoryPolicyKind::Unfree == item.borrow().memory_policy_kind {
+                next_node = current_node.more_recently;
+                continue;
+            }
+
+            let Some(item) = container.store.remove(&current_node.id) else {
+                next_node = current_node.more_recently;
+                continue;
+            };
+            let StorageItem {
                 target,
                 status,
                 buffer,
                 size,
                 lru_node,
                 memory_policy_kind,
-            }) = container.store.remove(&current_node.raw_id)
-            else {
-                next_node = current_node.more_recently;
-                continue;
-            };
+            } = &mut *item.borrow_mut();
 
             // skips if status not exists any more
             let Some(status) = status.upgrade() else {
@@ -1006,7 +1035,7 @@ impl BufferStore {
                 MemoryPolicyKind::Default => {
                     // default, gets buffer data back from WebGlBuffer
                     self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                    let data = Uint8Array::new_with_length(size as u32);
+                    let data = Uint8Array::new_with_length(*size as u32);
                     self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
                         target.gl_enum(),
                         0,
@@ -1016,7 +1045,7 @@ impl BufferStore {
 
                     // updates status
                     *status.borrow_mut() = BufferDescriptorStatus::UpdateBuffer {
-                        source: BufferSource::from_uint8_array(data, 0, size as u32),
+                        source: BufferSource::from_uint8_array(data, 0, *size as u32),
                     };
                 }
                 MemoryPolicyKind::Restorable => {
@@ -1032,7 +1061,7 @@ impl BufferStore {
             }
 
             // reduces memory
-            container.used_memory -= size;
+            container.used_memory -= *size;
 
             // updates LRU
             if let Some(more_recently) = lru_node.more_recently {
@@ -1069,22 +1098,24 @@ impl BufferStore {
     }
 }
 
-/// Deletes all WebGlBuffer from WebGL runtime and
-/// changes all buffer descriptor status to [`BufferDescriptorStatus::Dropped`]
-/// when buffer store drops.
+/// Deletes all [`WebGlBuffer`] from WebGL runtime and
+/// changes descriptors status to [`BufferDescriptorStatus::Dropped`].
 impl Drop for BufferStore {
     fn drop(&mut self) {
         let gl = &self.gl;
 
-        self.container.borrow_mut().store.iter().for_each(
-            |(_, StorageItem { buffer, status, .. })| {
+        self.container
+            .borrow_mut()
+            .store
+            .iter()
+            .for_each(|(_, item)| {
+                let StorageItem { buffer, status, .. } = &mut *item.borrow_mut();
                 gl.delete_buffer(Some(&buffer));
                 status.upgrade().map(|status| {
                     *(*status).borrow_mut() = BufferDescriptorStatus::Dropped;
                 });
 
                 // store dropped, no need to update LRU anymore
-            },
-        );
+            });
     }
 }
