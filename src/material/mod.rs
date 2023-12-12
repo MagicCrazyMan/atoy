@@ -23,6 +23,10 @@ pub mod loader;
 pub trait Material {
     fn name(&self) -> &'static str;
 
+    /// Transparency of this material.
+    /// 
+    /// Unexpected render result may happens if you assign
+    /// [`Transparency::Transparent`] or [`Transparency::Translucent`] to an opaque material.
     fn transparency(&self) -> Transparency;
 
     fn attribute_bindings(&self) -> &[AttributeBinding];

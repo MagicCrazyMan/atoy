@@ -5,7 +5,6 @@ use crate::{
     camera::{perspective::PerspectiveCamera, Camera},
     entity::collection::EntityCollection,
     error::Error,
-    utils::set_panic_hook,
 };
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -87,8 +86,6 @@ impl Scene {
     }
 
     fn new_inner(mut options: Option<SceneOptions>) -> Result<Self, Error> {
-        set_panic_hook();
-
         let active_camera = options
             .as_mut()
             .and_then(|opts| opts.take_camera())

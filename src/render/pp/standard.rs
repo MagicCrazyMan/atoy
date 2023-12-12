@@ -179,6 +179,8 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
+        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+
         // splits into opaques and translucents
         let mut opaques = Vec::new();
         let mut translucents = Vec::new();

@@ -165,7 +165,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 15.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -191,20 +191,33 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         entity.borrow_mut().set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
+        let mut color = rand::random::<Rgba>();
+        color.alpha = 1.0;
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
+            .set_material(Some(SolidColorMaterial::with_color(color)));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
+    
+    // let entity = Entity::new();
+    // entity.borrow_mut().set_geometry(Some(Cube::new()));
+    // let mut color = rand::random::<Rgba>();
+    // color.alpha = 1.0;
+    // entity
+    //     .borrow_mut()
+    //     .set_material(Some(SolidColorMaterial::with_color(color)));
+    // entity.borrow_mut().set_local_matrix(Mat4::from_translation(&(0.0, 0.0, -3.0)));
+    // scene.entity_collection_mut().add_entity(entity);
 
     let entity = Entity::new();
     entity.borrow_mut().set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
-        Placement::TopCenter,
-        8.0,
-        8.0,
+        Placement::Center,
+        4.0,
+        4.0,
     )));
+
     entity.borrow_mut().set_material(Some(IconMaterial::new(
         TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
             descriptor: TextureDescriptor::texture_2d_with_html_image_element(

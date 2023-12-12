@@ -19,6 +19,7 @@ use super::{
 
 #[derive(Clone)]
 pub enum UniformValue {
+    Bool(bool),
     Float1(f32),
     Float2(f32, f32),
     Float3(f32, f32, f32),
@@ -184,6 +185,13 @@ pub(crate) fn bind_uniforms(
         };
 
         match value {
+            UniformValue::Bool(v) => {
+                if v {
+                    state.gl().uniform1i(Some(location), 1)
+                } else {
+                    state.gl().uniform1i(Some(location), 0)
+                }
+            }
             UniformValue::UnsignedInteger1(x) => state.gl().uniform1ui(Some(location), x),
             UniformValue::UnsignedInteger2(x, y) => state.gl().uniform2ui(Some(location), x, y),
             UniformValue::UnsignedInteger3(x, y, z) => {

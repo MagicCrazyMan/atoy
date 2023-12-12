@@ -1,6 +1,7 @@
 use std::{any::Any, collections::HashMap, sync::OnceLock};
 
 use wasm_bindgen::{Clamped, JsCast};
+use wasm_bindgen_test::console_log;
 use web_sys::{
     js_sys::Float32Array, CanvasRenderingContext2d, HtmlCanvasElement, ImageData,
     WebGl2RenderingContext, WebGlFramebuffer, WebGlTexture,
@@ -31,14 +32,14 @@ use super::{Executor, ResourceSource, State, Stuff};
 
 pub struct Outlining {
     entity: ResourceSource,
-    outline_color: [f32; 4],
     outline_material: OutliningMaterial,
     outline_blur_geometry: OutliningBlurGeometry,
     outline_blur_material: OutliningBlurMaterial,
     blur_times: usize,
     framebuffer: Option<WebGlFramebuffer>,
     depth_stencil_texture: Option<(WebGlTexture, u32, u32)>,
-    color_texture: Option<(WebGlTexture, u32, u32)>,
+    texture_one: Option<(WebGlTexture, u32, u32)>,
+    texture_two: Option<(WebGlTexture, u32, u32)>,
 
     blur_h_framebuffer: Option<WebGlFramebuffer>,
     blur_h_texture: Option<(WebGlTexture, u32, u32)>,
@@ -51,18 +52,18 @@ impl Outlining {
     pub fn new(entity: ResourceSource) -> Self {
         Self {
             entity,
-            outline_color: [1.0, 0.0, 0.0, 1.0],
             outline_material: OutliningMaterial {
-                outline_width: 10,
-                outline_color: [0.0, 0.0, 0.0, 0.0],
-                should_scale: true,
+                outline_color: [1.0, 0.0, 0.0, 1.0],
+                stage: 0,
+                outline_width: 5,
             },
             outline_blur_geometry: OutliningBlurGeometry::new(),
             outline_blur_material: OutliningBlurMaterial::new(),
-            blur_times: 2 * 5,
+            blur_times: 2 * 1,
             framebuffer: None,
             depth_stencil_texture: None,
-            color_texture: None,
+            texture_one: None,
+            texture_two: None,
             blur_h_framebuffer: None,
             blur_h_texture: None,
             blur_v_framebuffer: None,
@@ -167,11 +168,11 @@ impl Outlining {
         Ok(texture)
     }
 
-    fn use_color_texture(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+    fn use_texture_one(&mut self, state: &State) -> Result<WebGlTexture, Error> {
         let w = state.canvas.width();
         let h = state.canvas.height();
 
-        if let Some((texture, width, height)) = &self.color_texture {
+        if let Some((texture, width, height)) = &self.texture_one {
             if w == *width && h == *height {
                 return Ok(texture.clone());
             } else {
@@ -207,7 +208,52 @@ impl Outlining {
             .gl
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
-        self.color_texture = Some((tx.clone(), w, h));
+        self.texture_one = Some((tx.clone(), w, h));
+
+        Ok(tx)
+    }
+
+    fn use_texture_two(&mut self, state: &State) -> Result<WebGlTexture, Error> {
+        let w = state.canvas.width();
+        let h = state.canvas.height();
+
+        if let Some((texture, width, height)) = &self.texture_two {
+            if w == *width && h == *height {
+                return Ok(texture.clone());
+            } else {
+                state.gl.delete_texture(Some(texture));
+            }
+        }
+
+        let tx = state
+            .gl
+            .create_texture()
+            .ok_or(Error::CreateTextureFailure)?;
+
+        state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tx));
+
+        state
+            .gl
+            .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                WebGl2RenderingContext::TEXTURE_2D,
+                0,
+                WebGl2RenderingContext::RGBA as i32,
+                w as i32,
+                h as i32,
+                0,
+                WebGl2RenderingContext::RGBA,
+                WebGl2RenderingContext::UNSIGNED_BYTE,
+                None,
+            )
+            .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+        state
+            .gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
+        self.texture_two = Some((tx.clone(), w, h));
 
         Ok(tx)
     }
@@ -331,24 +377,18 @@ impl Executor for Outlining {
             return Ok(());
         };
 
+        state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl.disable(WebGl2RenderingContext::BLEND);
+
         // setups framebuffer
         let framebuffer = self.use_framebuffer(state)?;
         let depth_stencil_texture = self.use_depth_stencil_texture(state)?;
-        let color_texture = self.use_color_texture(state)?;
+        let texture_one = self.use_texture_one(state)?;
+        let texture_two = self.use_texture_two(state)?;
         state.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, Some(&framebuffer));
-        state
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&color_texture));
-        state.gl.framebuffer_texture_2d(
-            WebGl2RenderingContext::FRAMEBUFFER,
-            WebGl2RenderingContext::COLOR_ATTACHMENT0,
-            WebGl2RenderingContext::TEXTURE_2D,
-            Some(&color_texture),
-            0,
-        );
         state.gl.bind_texture(
             WebGl2RenderingContext::TEXTURE_2D,
             Some(&depth_stencil_texture),
@@ -361,11 +401,6 @@ impl Executor for Outlining {
             0,
         );
 
-        state.gl.clear_bufferfv_with_f32_array(
-            WebGl2RenderingContext::COLOR,
-            0,
-            &[0.0, 0.0, 0.0, 0.0],
-        );
         state
             .gl
             .clear_bufferfi(WebGl2RenderingContext::DEPTH_STENCIL, 0, 1.0, 0);
@@ -376,100 +411,111 @@ impl Executor for Outlining {
             let program = state.program_store.use_program(&self.outline_material)?;
             state.gl.use_program(Some(program.gl_program()));
 
-            // setups webgl
-            state.gl.enable(WebGl2RenderingContext::STENCIL_TEST);
-
-            // only have to binds attribute once
-            let items = bind_attributes(state, &entity, geometry, &self.outline_material, &program);
-
-            // one pass, enable stencil test, disable depth test, draw entity with scaling up, sets stencil values to 1
-            {
-                self.outline_material.should_scale = true;
-                self.outline_material.outline_color = [0.0, 0.0, 0.0, 0.0];
-
-                state.gl.depth_mask(false);
-                state.gl.stencil_mask(0xFF);
-                state
-                    .gl
-                    .stencil_func(WebGl2RenderingContext::ALWAYS, 1, 0xff);
-                state.gl.stencil_op(
-                    WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::REPLACE,
-                    WebGl2RenderingContext::REPLACE,
-                );
-
-                bind_uniforms(
-                    state,
-                    stuff,
-                    &entity,
-                    geometry,
-                    &self.outline_material,
-                    &program,
-                );
-                draw(state, geometry, &self.outline_material);
-            }
-
-            // two pass, enable stencil test, disable depth test, draw entity with no scaling, sets stencil values to 0
-            {
-                self.outline_material.should_scale = false;
-                self.outline_material.outline_color = [0.0, 0.0, 0.0, 0.0];
-
-                state.gl.depth_mask(false);
-                state.gl.stencil_mask(0xFF);
-                state
-                    .gl
-                    .stencil_func(WebGl2RenderingContext::ALWAYS, 0, 0xff);
-                state.gl.stencil_op(
-                    WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::REPLACE,
-                    WebGl2RenderingContext::REPLACE,
-                );
-
-                bind_uniforms(
-                    state,
-                    stuff,
-                    &entity,
-                    geometry,
-                    &self.outline_material,
-                    &program,
-                );
-                draw(state, geometry, &self.outline_material);
-            }
-
-            // three pass, disable stencil test, enable depth test, draw entity with scaling up, draws depth of where stencil value is 1
-            {
-                self.outline_material.should_scale = true;
-                self.outline_material.outline_color = self.outline_color;
-
-                state.gl.depth_mask(true);
-                state.gl.stencil_mask(0);
-                state
-                    .gl
-                    .stencil_func(WebGl2RenderingContext::EQUAL, 1, 0xff);
-                state.gl.stencil_op(
-                    WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::KEEP,
-                    WebGl2RenderingContext::KEEP,
-                );
-
-                bind_uniforms(
-                    state,
-                    stuff,
-                    &entity,
-                    geometry,
-                    &self.outline_material,
-                    &program,
-                );
-                draw(state, geometry, &self.outline_material);
-            }
-
-            // resets webgl
-            state.gl.disable(WebGl2RenderingContext::STENCIL_TEST);
+            // draw once with outline color
+            self.outline_material.stage = 0;
             state
                 .gl
-                .stencil_func(WebGl2RenderingContext::EQUAL, 0, 0xff);
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture_one));
+            state.gl.framebuffer_texture_2d(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                WebGl2RenderingContext::COLOR_ATTACHMENT0,
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&texture_one),
+                0,
+            );
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            state.gl.clear_bufferfv_with_f32_array(
+                WebGl2RenderingContext::COLOR,
+                0,
+                &[0.0, 0.0, 0.0, 0.0],
+            );
+            let _items =
+                bind_attributes(state, &entity, geometry, &self.outline_material, &program);
+            bind_uniforms(
+                state,
+                stuff,
+                &entity,
+                geometry,
+                &self.outline_material,
+                &program,
+            );
+            draw(state, geometry, &self.outline_material);
 
-            drop(items);
+            // swap texture, draw outline with convolution
+            self.outline_material.stage = 1;
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture_two));
+            state.gl.framebuffer_texture_2d(
+                WebGl2RenderingContext::FRAMEBUFFER,
+                WebGl2RenderingContext::COLOR_ATTACHMENT0,
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&texture_two),
+                0,
+            );
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            state.gl.clear_bufferfv_with_f32_array(
+                WebGl2RenderingContext::COLOR,
+                0,
+                &[0.0, 0.0, 0.0, 0.0],
+            );
+            state
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture_one));
+            state.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+                WebGl2RenderingContext::LINEAR as i32,
+            );
+            state.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+                WebGl2RenderingContext::LINEAR as i32,
+            );
+            state.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_S,
+                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+            );
+            state.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_T,
+                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+            );
+            let _items = bind_attributes(
+                state,
+                &entity,
+                &self.outline_blur_geometry,
+                &self.outline_material,
+                &program,
+            );
+            bind_uniforms(
+                state,
+                stuff,
+                &entity,
+                &self.outline_blur_geometry,
+                &self.outline_material,
+                &program,
+            );
+            draw(state, &self.outline_blur_geometry, &self.outline_material);
+
+            // swap texture again, clear base draw
+            self.outline_material.stage = 2;
+            let _items =
+                bind_attributes(state, &entity, geometry, &self.outline_material, &program);
+            bind_uniforms(
+                state,
+                stuff,
+                &entity,
+                geometry,
+                &self.outline_material,
+                &program,
+            );
+            draw(state, geometry, &self.outline_material);
         }
 
         // let mut binary =
@@ -512,9 +558,6 @@ impl Executor for Outlining {
 
         // draws gaussian blur
         {
-            state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-            state.gl.disable(WebGl2RenderingContext::BLEND);
-
             let blur_onepass_framebuffer = self.use_blur_onepass_framebuffer(state).unwrap();
             let blur_onepass_texture = self.use_blur_onepass_texture(state).unwrap();
             state.gl.bind_framebuffer(
@@ -551,8 +594,6 @@ impl Executor for Outlining {
                 0,
             );
 
-            state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-
             // prepares material
             let program = state
                 .program_store
@@ -579,7 +620,7 @@ impl Executor for Outlining {
                         // use color texture for the first time
                         state
                             .gl
-                            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&color_texture));
+                            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture_two));
                     } else {
                         state.gl.bind_texture(
                             WebGl2RenderingContext::TEXTURE_2D,
@@ -660,9 +701,9 @@ impl Executor for Outlining {
 }
 
 struct OutliningMaterial {
-    outline_width: u32,
+    stage: i32,
     outline_color: [f32; 4],
-    should_scale: bool,
+    outline_width: i32,
 }
 
 impl Material for OutliningMaterial {
@@ -675,27 +716,22 @@ impl Material for OutliningMaterial {
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[AttributeBinding::GeometryPosition]
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryTextureCoordinate,
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        if self.should_scale {
-            &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::ViewProjMatrix,
-                UniformBinding::FromMaterial("u_Color"),
-                UniformBinding::FromMaterial("u_ShouldScale"),
-                UniformBinding::CanvasSize,
-                UniformBinding::FromMaterial("u_OutlineWidth"),
-            ]
-        } else {
-            &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::ViewProjMatrix,
-                UniformBinding::FromMaterial("u_Color"),
-                UniformBinding::FromMaterial("u_ShouldScale"),
-            ]
-        }
+        &[
+            UniformBinding::ModelMatrix,
+            UniformBinding::ViewProjMatrix,
+            UniformBinding::FromMaterial("u_StageVertex"),
+            UniformBinding::FromMaterial("u_StageFrag"),
+            UniformBinding::FromMaterial("u_OutlineColor"),
+            UniformBinding::FromMaterial("u_OutlineWidth"),
+            UniformBinding::FromMaterial("u_OutlineSampler"),
+        ]
     }
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
@@ -711,13 +747,11 @@ impl Material for OutliningMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            "u_ShouldScale" => Some(UniformValue::UnsignedInteger1(if self.should_scale {
-                1
-            } else {
-                0
-            })),
-            "u_Color" => Some(UniformValue::FloatVector4(self.outline_color)),
-            "u_OutlineWidth" => Some(UniformValue::UnsignedInteger1(self.outline_width)),
+            "u_StageVertex" => Some(UniformValue::Integer1(self.stage)),
+            "u_StageFrag" => Some(UniformValue::Integer1(self.stage)),
+            "u_OutlineColor" => Some(UniformValue::FloatVector4(self.outline_color)),
+            "u_OutlineWidth" => Some(UniformValue::Integer1(self.outline_width)),
+            "u_OutlineSampler" => Some(UniformValue::Integer1(0)),
             _ => None,
         }
     }
@@ -747,26 +781,24 @@ struct OutliningBlurGeometry {
 impl OutliningBlurGeometry {
     fn new() -> Self {
         #[rustfmt::skip]
-        const VERTICES: [f32; 12] = [
-            1.0,-1.0,  1.0, 1.0, -1.0, 1.0,
-           -1.0, 1.0, -1.0,-1.0,  1.0,-1.0,
+        const COMPOSITIONS: [f32; 16] = [
+            // vertices
+            1.0,-1.0,  1.0, 1.0, -1.0, 1.0, -1.0,-1.0, 
+            // textures
+            1.0, 0.0,  1.0, 1.0,  0.0, 1.0,  0.0, 0.0,
         ];
-        #[rustfmt::skip]
-        const TEXTURE_COORDINATES: [f32; 12] = [
-            1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
-            0.0, 1.0,  0.0, 0.0,  1.0, 0.0,
-        ];
+        let descriptor  = BufferDescriptor::new(
+            BufferSource::from_binary(
+                unsafe { std::mem::transmute_copy::<[f32; 16], [u8; 64]>(&COMPOSITIONS) },
+                0,
+                64,
+            ),
+            BufferUsage::StaticDraw,
+        );
 
         Self {
             vertices: AttributeValue::Buffer {
-                descriptor: BufferDescriptor::new(
-                    BufferSource::from_binary(
-                        unsafe { std::mem::transmute_copy::<[f32; 12], [u8; 48]>(&VERTICES) },
-                        0,
-                        48,
-                    ),
-                    BufferUsage::StaticDraw,
-                ),
+                descriptor: descriptor.clone(),
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::Float,
@@ -775,22 +807,13 @@ impl OutliningBlurGeometry {
                 bytes_offset: 0,
             },
             texture_coordinates: AttributeValue::Buffer {
-                descriptor: BufferDescriptor::new(
-                    BufferSource::from_binary(
-                        unsafe {
-                            std::mem::transmute_copy::<[f32; 12], [u8; 48]>(&TEXTURE_COORDINATES)
-                        },
-                        0,
-                        48,
-                    ),
-                    BufferUsage::StaticDraw,
-                ),
+                descriptor,
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 bytes_stride: 0,
-                bytes_offset: 0,
+                bytes_offset: 32,
             },
         }
     }
@@ -799,9 +822,9 @@ impl OutliningBlurGeometry {
 impl Geometry for OutliningBlurGeometry {
     fn draw(&self) -> Draw {
         Draw::Arrays {
-            mode: DrawMode::Triangles,
+            mode: DrawMode::TriangleFan,
             first: 0,
-            count: 6,
+            count: 4,
         }
     }
 

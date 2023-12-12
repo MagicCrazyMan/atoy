@@ -29,6 +29,9 @@ palette = { version = "0.7.3", features = ["random"] }
 half = "2.3.1"
 rand = "0.8.5"
 smallvec = "1.11.2"
+log = "0.4.20"
+console_log = "1.0.0"
+fern = "0.6.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
