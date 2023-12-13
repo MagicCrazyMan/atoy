@@ -15,7 +15,10 @@ use web_sys::{
     WebGl2RenderingContext, WebGlBuffer,
 };
 
-use crate::utils::format_bytes_length;
+use crate::{
+    lru::{Lru, LruNode},
+    utils::format_bytes_length,
+};
 
 use super::{
     conversion::{GLint, GLintptr, GLsizeiptr, GLuint, ToGlEnum},
@@ -536,27 +539,8 @@ impl Drop for BufferAgency {
         self.2.delete_buffer(Some(&buffer));
         container.used_memory -= size;
 
-        // updates most and least LRU
-        if let Some(most_recently) = container.most_recently {
-            let most_recently = unsafe { &*most_recently };
-            if most_recently.id == lru_node.id {
-                container.most_recently = lru_node.less_recently;
-            }
-        }
-        if let Some(least_recently) = container.least_recently {
-            let least_recently = unsafe { &*least_recently };
-            if least_recently.id == lru_node.id {
-                container.least_recently = lru_node.more_recently;
-            }
-        }
-        // updates self connecting LRU
-        if let Some(less_recently) = lru_node.less_recently {
-            let less_recently = unsafe { &mut *less_recently };
-            less_recently.more_recently = lru_node.more_recently;
-        }
-        if let Some(more_recently) = lru_node.more_recently {
-            let more_recently = unsafe { &mut *more_recently };
-            more_recently.less_recently = lru_node.less_recently;
+        unsafe {
+            container.lru.remove(*lru_node);
         }
 
         debug!(target: "buffer_store", "drop buffer {}. freed memory {}, used {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
@@ -875,75 +859,15 @@ struct StorageItem {
     buffer: WebGlBuffer,
     status: Weak<RefCell<BufferStatus>>,
     size: u32,
-    lru_node: Box<LruNode>,
     memory_policy_kind: MemoryPolicyKind,
+    lru_node: *mut LruNode<Uuid>,
 }
 
 /// Inner container of a [`BufferStore`].
 struct StoreContainer {
     store: HashMap<Uuid, Rc<RefCell<StorageItem>>>,
     used_memory: u32,
-    most_recently: Option<*mut LruNode>,
-    least_recently: Option<*mut LruNode>,
-}
-
-/// LRU node for GPU memory management.
-struct LruNode {
-    id: Uuid,
-    less_recently: Option<*mut LruNode>,
-    more_recently: Option<*mut LruNode>,
-}
-
-macro_rules! to_most_recently_lru {
-    ($container: expr, $lru: expr) => {
-        'to_most_recently_lru: {
-            match ($lru.more_recently, $lru.less_recently) {
-                (Some(more_recently), Some(less_recently)) => {
-                    // i am a node in the middle of the LRU, chains up prev and next nodes
-                    let more_recently = unsafe { &mut *more_recently };
-                    let less_recently = unsafe { &mut *less_recently };
-
-                    more_recently.less_recently = Some(less_recently);
-                    less_recently.more_recently = Some(more_recently);
-                }
-                (Some(more_recently), None) => {
-                    // i must be the least recently node, let prev node to be the least node
-                    let more_recently = unsafe { &mut *more_recently };
-                    more_recently.less_recently = None;
-                    $container.least_recently = Some(more_recently);
-                }
-                (None, Some(_)) => {
-                    // i must be the most recently node, do nothing!
-                    break 'to_most_recently_lru;
-                }
-                (None, None) => {
-                    // i am a new node or the single node in LRU.
-
-                    if $container.most_recently.is_none() && $container.least_recently.is_none() {
-                        // i am the first node in LRU cache! it is ok to just set the most and least recently to me.
-                        $container.most_recently = Some($lru.as_mut());
-                        $container.least_recently = Some($lru.as_mut());
-                        break 'to_most_recently_lru;
-                    } else if unsafe { &mut *$container.most_recently.unwrap() }.id == $lru.id {
-                        // i am the single node in LRU, do nothing!
-                        break 'to_most_recently_lru;
-                    } else {
-                        // for any other situations, step next to be the most recently node
-                    }
-
-                    // note, most recently and least recently should both carry a node or both not carry any node at the same time.
-                }
-            }
-
-            // sets myself as the most recently node
-            let most_recently = unsafe { &mut *$container.most_recently.unwrap() }; // if reach here, there must be something in most recently.
-
-            $lru.more_recently = None;
-            $lru.less_recently = $container.most_recently;
-            most_recently.more_recently = Some($lru.as_mut());
-            $container.most_recently = Some($lru.as_mut());
-        };
-    };
+    lru: Lru<Uuid>,
 }
 
 /// A centralize store managing large amount of [`WebGlBuffer`]s and its data.
@@ -1010,8 +934,7 @@ impl BufferStore {
             container: Rc::new(RefCell::new(StoreContainer {
                 store: HashMap::new(),
                 used_memory: 0,
-                most_recently: None,
-                least_recently: None,
+                lru: Lru::new(),
             })),
         }
     }
@@ -1065,8 +988,9 @@ impl BufferStore {
                     .ok_or(Error::BufferStorageNotFound(*agency.key()))?;
 
                 // updates LRU
-                let lru_node = &mut storage.borrow_mut().lru_node;
-                to_most_recently_lru!(container, lru_node);
+                unsafe {
+                    container.lru.cache(storage.borrow_mut().lru_node);
+                }
 
                 Rc::clone(storage)
             }
@@ -1078,12 +1002,11 @@ impl BufferStore {
 
                 let id = Uuid::new_v4();
                 // caches it into LRU
-                let mut lru_node = Box::new(LruNode {
-                    id,
-                    less_recently: None,
-                    more_recently: None,
-                });
-                to_most_recently_lru!(container, lru_node);
+                let lru_node = unsafe {
+                    let lru_node = LruNode::new(id);
+                    container.lru.cache(lru_node);
+                    lru_node
+                };
 
                 // stores it
                 let storage = Rc::new(RefCell::new(StorageItem {
@@ -1092,8 +1015,8 @@ impl BufferStore {
                     buffer: buffer.clone(),
                     size: 0,
                     status: Rc::downgrade(&status),
-                    lru_node,
                     memory_policy_kind: memory_policy.to_kind(),
+                    lru_node,
                 }));
                 container.store.insert(id, Rc::clone(&storage));
 
@@ -1108,7 +1031,9 @@ impl BufferStore {
                 let StorageItem { lru_node, .. } = &mut *storage.borrow_mut();
 
                 // updates LRU
-                to_most_recently_lru!(container, lru_node);
+                unsafe {
+                    container.lru.cache(*lru_node);
+                }
 
                 Rc::clone(&storage)
             }
@@ -1264,114 +1189,109 @@ impl BufferStore {
         }
 
         // removes buffer from the least recently used until memory usage lower than limitation
-        let mut next_node = container.least_recently;
-        while container.used_memory >= self.max_memory {
-            let Some(current_node) = next_node else {
-                break;
-            };
-            let current_node = unsafe { &*current_node };
+        unsafe {
+            let mut next_node = container.lru.least_recently();
+            while container.used_memory >= self.max_memory {
+                let Some(current_node) = next_node.take() else {
+                    break;
+                };
 
-            let Some(item) = container.store.get(&current_node.id) else {
-                next_node = current_node.more_recently;
-                continue;
-            };
+                let Some(item) = container.store.get((*current_node).data()) else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
 
-            // skips if in use
-            if Rc::strong_count(item) > 1 {
-                next_node = current_node.more_recently;
-                continue;
-            }
-
-            // skips if unfreeable
-            if MemoryPolicyKind::Unfree == item.borrow().memory_policy_kind {
-                next_node = current_node.more_recently;
-                continue;
-            }
-
-            let Some(item) = container.store.remove(&current_node.id) else {
-                next_node = current_node.more_recently;
-                continue;
-            };
-            let StorageItem {
-                target,
-                status,
-                buffer,
-                size,
-                lru_node,
-                memory_policy_kind,
-                id,
-            } = &mut *item.borrow_mut();
-
-            // skips if status not exists any more
-            let Some(status) = status.upgrade() else {
-                next_node = current_node.more_recently;
-                continue;
-            };
-
-            match memory_policy_kind {
-                MemoryPolicyKind::Default => {
-                    // default, gets buffer data back from WebGlBuffer
-                    self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                    let data = Uint8Array::new_with_length(*size as u32);
-                    self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-                        target.gl_enum(),
-                        0,
-                        &data,
-                    );
-                    self.gl.bind_buffer(target.gl_enum(), None);
-
-                    // updates status
-                    *status.borrow_mut() = BufferStatus::UpdateBuffer {
-                        source: BufferSource::from_uint8_array(data, 0, *size as u32),
-                        subs: VecDeque::new(),
-                    };
+                // skips if in use
+                if Rc::strong_count(item) > 1 {
+                    next_node = (*current_node).more_recently();
+                    continue;
                 }
-                MemoryPolicyKind::Restorable => {
-                    // if restorable, drops buffer directly
 
-                    // deletes WebGlBuffer
-                    self.gl.delete_buffer(Some(&buffer));
-
-                    // updates status
-                    *status.borrow_mut() = BufferStatus::Dropped;
+                // skips if unfreeable
+                if MemoryPolicyKind::Unfree == item.borrow().memory_policy_kind {
+                    next_node = (*current_node).more_recently();
+                    continue;
                 }
-                MemoryPolicyKind::Unfree => unreachable!(),
-            }
 
-            // reduces memory
-            container.used_memory -= *size;
+                let Some(item) = container.store.remove((*current_node).data()) else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+                let StorageItem {
+                    target,
+                    status,
+                    buffer,
+                    size,
+                    lru_node,
+                    memory_policy_kind,
+                    id,
+                } = &mut *item.borrow_mut();
 
-            // updates LRU
-            if let Some(more_recently) = lru_node.more_recently {
-                let more_recently = unsafe { &mut *more_recently };
-                more_recently.less_recently = None;
-                container.least_recently = Some(more_recently);
-                next_node = Some(more_recently);
-            } else {
-                container.least_recently = None;
-                next_node = None;
-            }
+                // skips if status not exists any more
+                let Some(status) = status.upgrade() else {
+                    next_node = (**lru_node).more_recently();
+                    continue;
+                };
 
-            match memory_policy_kind {
-                MemoryPolicyKind::Default => {
-                    debug!(
-                        target: "buffer_store",
-                        "free buffer (default) {}. freed memory {}, used {}",
-                        id,
-                        format_bytes_length(*size),
-                        format_bytes_length(container.used_memory)
-                    );
+                match memory_policy_kind {
+                    MemoryPolicyKind::Default => {
+                        // default, gets buffer data back from WebGlBuffer
+                        self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+                        let data = Uint8Array::new_with_length(*size as u32);
+                        self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                            target.gl_enum(),
+                            0,
+                            &data,
+                        );
+                        self.gl.bind_buffer(target.gl_enum(), None);
+
+                        // updates status
+                        *status.borrow_mut() = BufferStatus::UpdateBuffer {
+                            source: BufferSource::from_uint8_array(data, 0, *size as u32),
+                            subs: VecDeque::new(),
+                        };
+                    }
+                    MemoryPolicyKind::Restorable => {
+                        // if restorable, drops buffer directly
+
+                        // deletes WebGlBuffer
+                        self.gl.delete_buffer(Some(&buffer));
+
+                        // updates status
+                        *status.borrow_mut() = BufferStatus::Dropped;
+                    }
+                    MemoryPolicyKind::Unfree => unreachable!(),
                 }
-                MemoryPolicyKind::Restorable => {
-                    debug!(
-                        target: "buffer_store",
-                        "free buffer (restorable) {}. freed memory {}, used {}",
-                        id,
-                        format_bytes_length(*size),
-                        format_bytes_length(container.used_memory)
-                    );
+
+                // reduces memory
+                container.used_memory -= *size;
+
+                // updates LRU
+                next_node = (**lru_node).more_recently();
+                container.lru.remove(*lru_node);
+
+                // logs
+                match memory_policy_kind {
+                    MemoryPolicyKind::Default => {
+                        debug!(
+                            target: "buffer_store",
+                            "free buffer (default) {}. freed memory {}, used {}",
+                            id,
+                            format_bytes_length(*size),
+                            format_bytes_length(container.used_memory)
+                        );
+                    }
+                    MemoryPolicyKind::Restorable => {
+                        debug!(
+                            target: "buffer_store",
+                            "free buffer (restorable) {}. freed memory {}, used {}",
+                            id,
+                            format_bytes_length(*size),
+                            format_bytes_length(container.used_memory)
+                        );
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
     }

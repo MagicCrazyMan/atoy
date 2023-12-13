@@ -4,7 +4,6 @@ use gl_matrix4rust::{
     mat4::Mat4,
     vec3::{AsVec3, Vec3},
 };
-use wasm_bindgen_test::console_log;
 use web_sys::js_sys::Float32Array;
 
 use crate::{

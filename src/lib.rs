@@ -5,6 +5,7 @@ pub mod error;
 pub mod event;
 pub mod frustum;
 pub mod geometry;
+pub mod lru;
 pub mod material;
 pub mod plane;
 pub mod render;
