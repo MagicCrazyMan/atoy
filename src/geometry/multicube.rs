@@ -87,12 +87,10 @@ impl MultiCube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices
-            .buffer_sub_data(BufferSource::from_float32_array(
-                calculate_vertices(self.count, size),
-                0,
-                108,
-            ));
+        self.vertices.buffer_sub_data(
+            BufferSource::from_float32_array(calculate_vertices(self.count, size), 0, 108),
+            0,
+        );
         self.update_bounding_volume = true;
     }
 }

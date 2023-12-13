@@ -5,7 +5,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use log::debug;
+use log::{debug, warn};
 use uuid::Uuid;
 use web_sys::{
     js_sys::{
@@ -104,154 +104,130 @@ pub enum BufferUsage {
 pub enum BufferSource {
     Preallocate {
         size: GLsizeiptr,
-        dst_byte_offset: GLintptr,
     },
     Binary {
         data: Box<dyn AsRef<[u8]>>,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Int8Array {
         data: Int8Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Uint8Array {
         data: Uint8Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Uint8ClampedArray {
         data: Uint8ClampedArray,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Int16Array {
         data: Int16Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Uint16Array {
         data: Uint16Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Int32Array {
         data: Int32Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Uint32Array {
         data: Uint32Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Float32Array {
         data: Float32Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     Float64Array {
         data: Float64Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     BigInt64Array {
         data: BigInt64Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
     BigUint64Array {
         data: BigUint64Array,
-        dst_byte_offset: GLintptr,
         src_offset: GLuint,
         src_length: GLuint,
     },
 }
 
 impl BufferSource {
-    fn collect_typed_array_buffer(&self) -> (&Object, GLintptr, GLuint, GLuint) {
+    fn collect_typed_array_buffer(&self) -> (&Object, GLuint, GLuint) {
         match self {
             BufferSource::Preallocate { .. } | BufferSource::Binary { .. } => {
                 unreachable!()
             }
             BufferSource::Int8Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Uint8Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Uint8ClampedArray {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Int16Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Uint16Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Int32Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Uint32Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Float32Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::Float64Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::BigInt64Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
             BufferSource::BigUint64Array {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
-            } => (data, *dst_byte_offset, *src_offset, *src_length),
+            } => (data, *src_offset, *src_length),
         }
     }
 
@@ -260,12 +236,11 @@ impl BufferSource {
         let target = target.gl_enum();
         let usage = usage.gl_enum();
         match self {
-            BufferSource::Preallocate { size, dst_byte_offset } => gl.buffer_data_with_i32(target, *size, usage),
+            BufferSource::Preallocate { size } => gl.buffer_data_with_i32(target, *size, usage),
             BufferSource::Binary {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
                 target,
                 data.as_ref().as_ref(),
@@ -274,7 +249,7 @@ impl BufferSource {
                 *src_length,
             ),
             _ => {
-                let (data, _, src_offset, src_length) = self.collect_typed_array_buffer();
+                let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
                     target, data, usage, src_offset, src_length,
                 );
@@ -283,32 +258,28 @@ impl BufferSource {
     }
 
     /// Buffers sub data to WebGL runtime.
-    fn buffer_sub_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget) {
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: i32,
+    ) {
         let target = target.gl_enum();
         match self {
-            BufferSource::Preallocate { size } => gl
-                .buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target,
-                    dst_byte_offset,
-                    src_data,
-                    src_offset,
-                    length,
-                ),
+            BufferSource::Preallocate { .. } => unreachable!(),
             BufferSource::Binary {
                 data,
-                dst_byte_offset,
                 src_offset,
                 src_length,
             } => gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
                 target,
-                *dst_byte_offset,
+                dst_byte_offset,
                 data.as_ref().as_ref(),
                 *src_offset,
                 *src_length,
             ),
             _ => {
-                let (data, dst_byte_offset, src_offset, src_length) =
-                    self.collect_typed_array_buffer();
+                let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
                     target,
                     dst_byte_offset,
@@ -317,48 +288,6 @@ impl BufferSource {
                     src_length,
                 )
             }
-        }
-    }
-
-    fn dst_src_offset(&self) -> u32 {
-        match self {
-            BufferSource::Preallocate { size } => 0,
-            BufferSource::Binary {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Int8Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Uint8Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Uint8ClampedArray {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Int16Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Uint16Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Int32Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Uint32Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Float32Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::Float64Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::BigInt64Array {
-                dst_byte_offset, ..
-            }
-            | BufferSource::BigUint64Array {
-                dst_byte_offset, ..
-            } => *dst_byte_offset as u32,
         }
     }
 
@@ -507,19 +436,8 @@ impl BufferSource {
         src_offset: GLuint,
         src_length: GLuint,
     ) -> Self {
-        Self::from_binary_with_dst_byte_offset(data, src_offset, src_length, 0)
-    }
-
-    /// Constructs a new buffer source from WASM native buffer with dest byte offset.
-    pub fn from_binary_with_dst_byte_offset<D: AsRef<[u8]> + 'static>(
-        data: D,
-        src_offset: GLuint,
-        src_length: GLuint,
-        dst_byte_offset: GLsizeiptr,
-    ) -> Self {
         Self::Binary {
             data: Box::new(data),
-            dst_byte_offset,
             src_offset,
             src_length,
         }
@@ -527,7 +445,7 @@ impl BufferSource {
 }
 
 macro_rules! impl_typed_array {
-    ($(($from: ident, $from_with: ident, $source: tt, $kind: ident, $name: expr)),+) => {
+    ($(($from: ident, $source: tt, $kind: ident, $name: expr)),+) => {
         impl BufferSource {
             $(
                 #[doc = "Constructs a new buffer source from "]
@@ -538,23 +456,10 @@ macro_rules! impl_typed_array {
                     src_offset: GLuint,
                     src_length: GLuint,
                 ) -> Self {
-                    Self::$from_with(data, src_offset, src_length, 0)
-                }
-
-                #[doc = "Constructs a new buffer source from "]
-                #[doc = $name]
-                #[doc = " with dest byte offset."]
-                pub fn $from_with(
-                    data: $source,
-                    src_offset: GLuint,
-                    src_length: GLuint,
-                    dst_byte_offset: GLsizeiptr,
-                ) -> Self {
                     Self::$kind {
                         data,
-                        dst_byte_offset,
                         src_offset,
-                        src_length,
+                        src_length
                     }
                 }
             )+
@@ -563,17 +468,17 @@ macro_rules! impl_typed_array {
 }
 
 impl_typed_array! {
-    (from_int8_array, from_int8_array_with_dst_byte_length, Int8Array, Int8Array, "[`Int8Array`]"),
-    (from_uint8_array, from_uint8_array_with_dst_byte_length, Uint8Array, Uint8Array, "[`Uint8Array`]"),
-    (from_uint8_clamped_array, from_uint8_clamped_array_with_dst_byte_length, Uint8ClampedArray, Uint8ClampedArray, "[`Uint8ClampedArray`]"),
-    (from_int16_array, from_int16_array_with_dst_byte_length, Int16Array, Int16Array, "[`Int16Array`]"),
-    (from_uint16_array, from_uint16_array_with_dst_byte_length, Uint16Array, Uint16Array, "[`Uint16Array`]"),
-    (from_int32_array, from_int32_array_with_dst_byte_length, Int32Array, Int32Array, "[`Int32Array`]"),
-    (from_uint32_array, from_uint32_array_with_dst_byte_length, Uint32Array, Uint32Array, "[`Uint32Array`]"),
-    (from_float32_array, from_float32_array_with_dst_byte_length, Float32Array, Float32Array, "[`Float32Array`]"),
-    (from_float64_array, from_float64_array_with_dst_byte_length, Float64Array, Float64Array, "[`Float64Array`]"),
-    (from_big_int64_array, from_big_int64_array_with_dst_byte_length, BigInt64Array, BigInt64Array, "[`BigInt64Array`]"),
-    (from_big_uint64_array, from_big_uint64_array_with_dst_byte_length, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
+    (from_int8_array, Int8Array, Int8Array, "[`Int8Array`]"),
+    (from_uint8_array, Uint8Array, Uint8Array, "[`Uint8Array`]"),
+    (from_uint8_clamped_array, Uint8ClampedArray, Uint8ClampedArray, "[`Uint8ClampedArray`]"),
+    (from_int16_array, Int16Array, Int16Array, "[`Int16Array`]"),
+    (from_uint16_array, Uint16Array, Uint16Array, "[`Uint16Array`]"),
+    (from_int32_array, Int32Array, Int32Array, "[`Int32Array`]"),
+    (from_uint32_array, Uint32Array, Uint32Array, "[`Uint32Array`]"),
+    (from_float32_array, Float32Array, Float32Array, "[`Float32Array`]"),
+    (from_float64_array, Float64Array, Float64Array, "[`Float64Array`]"),
+    (from_big_int64_array, BigInt64Array, BigInt64Array, "[`BigInt64Array`]"),
+    (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
 /// The thing for achieving [`BufferDescriptor`] reusing and automatic dropping purpose.
@@ -654,7 +559,7 @@ impl Drop for BufferAgency {
             more_recently.less_recently = lru_node.less_recently;
         }
 
-        debug!(target: "buffer_store", "drop buffer {}. freed memory {}, used memory {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
+        debug!(target: "buffer_store", "drop buffer {}. freed memory {}, used {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
     }
 }
 
@@ -671,7 +576,7 @@ enum BufferStatus {
     /// Drops source data after buffering into WebGL2 runtime.
     UpdateBuffer {
         source: BufferSource,
-        subs: VecDeque<BufferSource>,
+        subs: VecDeque<(BufferSource, GLintptr)>,
     },
     /// Buffers sub data into WebGL2 runtime.
     ///
@@ -679,7 +584,8 @@ enum BufferStatus {
     UpdateSubBuffer {
         size: u32,
         agency: Rc<BufferAgency>,
-        subs: VecDeque<BufferSource>,
+        overflow: bool,
+        subs: VecDeque<(BufferSource, GLintptr)>,
     },
 }
 
@@ -737,6 +643,16 @@ impl BufferDescriptor {
         }
     }
 
+    /// Gets the bytes length of the data in this descriptor.
+    pub fn size(&self) -> u32 {
+        match &*self.status.borrow() {
+            BufferStatus::Dropped => 0,
+            BufferStatus::Unchanged { size, .. } => *size,
+            BufferStatus::UpdateBuffer { source, .. } => source.bytes_length(),
+            BufferStatus::UpdateSubBuffer { size, .. } => *size,
+        }
+    }
+
     /// Gets the [`BufferTarget`] of this buffer descriptor.
     pub fn usage(&self) -> BufferUsage {
         self.usage
@@ -769,7 +685,8 @@ impl BufferDescriptor {
         item.borrow_mut().memory_policy_kind = self.memory_policy.to_kind();
     }
 
-    /// Buffers new data to WebGL runtime.
+    /// Buffers new data to [`WebGlBuffer`].
+    /// This operation overrides existing data forcedly.
     pub fn buffer_data(&mut self, source: BufferSource) {
         self.status.replace(BufferStatus::UpdateBuffer {
             source,
@@ -777,8 +694,51 @@ impl BufferDescriptor {
         });
     }
 
-    /// Buffers sub data to WebGL runtime.
-    pub fn buffer_sub_data(&mut self, source: BufferSource) {
+    /// Buffers sub data to [`WebGlBuffer`].
+    ///
+    /// # Preallocation
+    ///
+    /// [`BufferSource::Preallocate`] is not allowed here, even if it is not denied.
+    /// It will be converted to an empty [`Uint8Array`] with a same size.
+    ///
+    /// # In Practice
+    ///
+    /// It is never a good to buffer a sub data with greater size and dest byte offset to an existing data.
+    /// Under current memory management strategy, if you do such an operation,
+    /// buffer store have to do a list of works to ensure the data consistency:
+    ///
+    /// 1. Gets data back from WebGL runtime (or restores it if [`MemoryPolicy::Restorable`]).
+    /// 2. Preallocates a new buffer with the new size.
+    /// 3. Buffers old data again
+    /// 4. BUffers new data
+    ///
+    /// It is a extremely high overhead works!
+    ///
+    /// For the best performance, tries your best to prevent buffer sub data.
+    /// If you must buffer sub data for dynamic data, it is a good practice to preallocate a large enough buffer first.
+    /// And remember to set the buffer usage to [`BufferUsage::DynamicDraw`].
+    pub fn buffer_sub_data(&mut self, source: BufferSource, dst_byte_offset: GLintptr) {
+        // no preallocation allowed here, replaces with empty Buffer
+        let source = match &source {
+            BufferSource::Preallocate { size } => BufferSource::Uint8Array {
+                data: Uint8Array::new_with_length(*size as u32),
+                src_offset: 0,
+                src_length: *size as u32,
+            },
+            BufferSource::Binary { .. }
+            | BufferSource::Int8Array { .. }
+            | BufferSource::Uint8Array { .. }
+            | BufferSource::Uint8ClampedArray { .. }
+            | BufferSource::Int16Array { .. }
+            | BufferSource::Uint16Array { .. }
+            | BufferSource::Int32Array { .. }
+            | BufferSource::Uint32Array { .. }
+            | BufferSource::Float32Array { .. }
+            | BufferSource::Float64Array { .. }
+            | BufferSource::BigInt64Array { .. }
+            | BufferSource::BigUint64Array { .. } => source,
+        };
+
         let mut status = self.status.borrow_mut();
         let status = &mut *status;
         match status {
@@ -789,23 +749,28 @@ impl BufferDescriptor {
                 }
             }
             BufferStatus::Unchanged { size, agency } => {
-                *status = match &source {
-                    BufferSource::Preallocate { size } => BufferStatus::UpdateBuffer {
-                        source,
-                        subs: VecDeque::new(),
-                    },
-                    _ => {
-                        if size.saturating_sub(source.dst_src_offset()) >= source.bytes_length() {
-                            BufferStatus::UpdateSubBuffer {
-                                size: *size,
-                                agency: agency.clone(),
-                                subs: VecDeque::from([source]),
-                            }
-                        } else {
-                            BufferStatus::UpdateBuffer {
-                                source,
-                                subs: VecDeque::new(),
-                            }
+                if size.saturating_sub(dst_byte_offset as u32) >= source.bytes_length() {
+                    // update sub buffer is source bytes length smaller than available size
+                    *status = BufferStatus::UpdateSubBuffer {
+                        size: *size,
+                        agency: agency.clone(),
+                        overflow: false,
+                        subs: VecDeque::from([(source, dst_byte_offset)]),
+                    }
+                } else {
+                    if dst_byte_offset == 0 {
+                        // if dst_byte_offset is 0, do a completely new buffer simply
+                        *status = BufferStatus::UpdateBuffer {
+                            source,
+                            subs: VecDeque::new(),
+                        }
+                    } else {
+                        // if else, heavy work need to apply
+                        *status = BufferStatus::UpdateSubBuffer {
+                            size: dst_byte_offset as u32 + source.bytes_length(),
+                            agency: agency.clone(),
+                            overflow: true,
+                            subs: VecDeque::from([(source, dst_byte_offset)]),
                         }
                     }
                 }
@@ -817,13 +782,16 @@ impl BufferDescriptor {
                     BufferStatus::UpdateSubBuffer { size, subs, .. } => (*size, subs),
                 };
 
-                if size.saturating_sub(source.dst_src_offset()) >= source.bytes_length() {
-                    subs.push_back(source);
+                if size.saturating_sub(dst_byte_offset as u32) >= source.bytes_length() {
+                    // add to subs queue if source bytes length smaller than available size
+                    subs.push_back((source, dst_byte_offset));
                 } else {
+                    // otherwise, buffer a new preallocate source with new size first
+                    // then buffer each subs in the queue in order.
                     let allocated_size =
-                        (size + source.dst_src_offset() + source.bytes_length()) as i32;
-                    let mut new_subs = subs.drain(..).collect::<VecDeque<BufferSource>>();
-                    new_subs.push_back(source);
+                        (size + dst_byte_offset as u32 + source.bytes_length()) as i32;
+                    let mut new_subs = subs.drain(..).collect::<VecDeque<_>>();
+                    new_subs.push_back((source, dst_byte_offset));
 
                     *status = BufferStatus::UpdateBuffer {
                         source: BufferSource::Preallocate {
@@ -1154,7 +1122,6 @@ impl BufferStore {
         let BufferItem(storage, descriptor) = buffer_item;
 
         let target = storage.borrow().target;
-        let buffer = &storage.borrow().buffer;
         let id = storage.borrow().id;
         let usage = descriptor.usage;
 
@@ -1170,7 +1137,6 @@ impl BufferStore {
             }
             BufferStatus::Dropped | BufferStatus::UpdateBuffer { .. } => {
                 // gets buffer source
-                let tmp_subs: *mut VecDeque<BufferSource>;
                 let tmp_source: BufferSource;
                 let (source, subs) = match status_mut {
                     BufferStatus::Dropped => {
@@ -1181,19 +1147,20 @@ impl BufferStore {
                         (&tmp_source, std::ptr::null_mut())
                     }
                     BufferStatus::UpdateBuffer { source, subs } => {
-                        (&*source, subs as *mut VecDeque<BufferSource>)
+                        (&*source, subs as *mut VecDeque<(BufferSource, GLintptr)>)
                     }
                     _ => unreachable!(),
                 };
 
-                self.gl.bind_buffer(target.gl_enum(), Some(buffer));
+                self.gl
+                    .bind_buffer(target.gl_enum(), Some(&storage.borrow().buffer));
                 source.buffer_data(&self.gl, target, usage);
                 // travels and buffer each sub data
                 if !subs.is_null() {
                     unsafe {
                         let subs = &mut *subs;
-                        while let Some(sub) = subs.pop_front() {
-                            sub.buffer_sub_data(&self.gl, target);
+                        while let Some((sub, dst_byte_offset)) = subs.pop_front() {
+                            sub.buffer_sub_data(&self.gl, target, dst_byte_offset);
                         }
                     }
                 }
@@ -1203,6 +1170,7 @@ impl BufferStore {
                     .as_f64()
                     .unwrap() as u32; // gets and updates memory usage
                 container_mut.used_memory += size;
+                storage.borrow_mut().size = size;
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replaces descriptor status
@@ -1215,15 +1183,56 @@ impl BufferStore {
                     )),
                 };
 
-                debug!(target: "buffer_store", "buffer data to {}. consumed memory {}, used memory {}", id, format_bytes_length(size), format_bytes_length(container_mut.used_memory));
+                debug!(target: "buffer_store", "buffer data to {}. consumed memory {}, used {}", id, format_bytes_length(size), format_bytes_length(container_mut.used_memory));
             }
             BufferStatus::UpdateSubBuffer {
-                size, agency, subs, ..
+                size,
+                agency,
+                subs,
+                overflow,
             } => {
-                // buffer sub data may not change the allocated memory size
-                self.gl.bind_buffer(target.gl_enum(), Some(buffer));
-                while let Some(sub) = subs.pop_front() {
-                    sub.buffer_sub_data(&self.gl, target);
+                self.gl
+                    .bind_buffer(target.gl_enum(), Some(&storage.borrow().buffer));
+                if *overflow {
+                    let osize = self
+                        .gl
+                        .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
+                        .as_f64()
+                        .unwrap() as u32; // gets and updates memory usage
+
+                    let data = Uint8Array::new_with_length(osize);
+                    self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                        target.gl_enum(),
+                        0,
+                        &data,
+                    );
+                    subs.push_front((
+                        BufferSource::Uint8Array {
+                            data,
+                            src_offset: 0,
+                            src_length: osize,
+                        },
+                        0,
+                    ));
+
+                    // allocates for new buffer
+                    self.gl
+                        .buffer_data_with_i32(target.gl_enum(), *size as i32, usage.gl_enum());
+
+                    storage.borrow_mut().size = *size;
+                    container_mut.used_memory += *size - osize;
+
+                    warn!(
+                        target: "buffer_store",
+                        "buffer sub data overflow {}. previous {}, current {}, used {}",
+                        id,
+                        format_bytes_length(osize),
+                        format_bytes_length(*size),
+                        format_bytes_length(container_mut.used_memory)
+                    );
+                }
+                while let Some((sub, dst_byte_offset)) = subs.pop_front() {
+                    sub.buffer_sub_data(&self.gl, target, dst_byte_offset);
                 }
                 self.gl.bind_buffer(target.gl_enum(), None);
 
@@ -1234,7 +1243,7 @@ impl BufferStore {
                     agency: Rc::clone(&agency),
                 };
 
-                debug!(target: "buffer_store", "buffer sub data to {}. used memory {}", id, format_bytes_length(container_mut.used_memory));
+                debug!(target: "buffer_store", "buffer sub data to {}. used {}", id, format_bytes_length(container_mut.used_memory));
             }
         };
 
@@ -1343,22 +1352,28 @@ impl BufferStore {
                 next_node = None;
             }
 
-            debug!(target: "buffer_store", "free buffer {}. freed memory {}, used memory {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
+            match memory_policy_kind {
+                MemoryPolicyKind::Default => {
+                    debug!(
+                        target: "buffer_store",
+                        "free buffer (default) {}. freed memory {}, used {}",
+                        id,
+                        format_bytes_length(*size),
+                        format_bytes_length(container.used_memory)
+                    );
+                }
+                MemoryPolicyKind::Restorable => {
+                    debug!(
+                        target: "buffer_store",
+                        "free buffer (restorable) {}. freed memory {}, used {}",
+                        id,
+                        format_bytes_length(*size),
+                        format_bytes_length(container.used_memory)
+                    );
+                }
+                _ => {}
+            }
         }
-
-        // console_log!("len {}", container.store.len());
-
-        // let mut ids = Vec::new();
-        // let mut node = container.most_recently;
-        // while let Some(lru_node) = node {
-        //     let lru_node = unsafe { &*lru_node };
-        //     // console_log!("{}", lru_node.raw_id);
-
-        //     ids.push(lru_node.raw_id.to_string());
-        //     node = lru_node.less_recently;
-        // }
-
-        // console_log!("{}", ids.join(", "));
     }
 }
 

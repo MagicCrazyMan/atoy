@@ -77,12 +77,14 @@ impl IndexedCube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices
-            .buffer_sub_data(BufferSource::from_float32_array(
+        self.vertices.buffer_sub_data(
+            BufferSource::from_float32_array(
                 slice_to_float32_array(&calculate_vertices(size)),
                 0,
                 72,
-            ));
+            ),
+            0,
+        );
         self.update_bounding_volume = true;
     }
 }

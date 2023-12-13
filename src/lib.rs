@@ -28,14 +28,31 @@ pub fn init() {
 }
 
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn init_with_log_level(level: u32) {
-    match level {
-        0 => init_logger(log::LevelFilter::Trace),
-        1 => init_logger(log::LevelFilter::Debug),
-        2 => init_logger(log::LevelFilter::Info),
-        3 => init_logger(log::LevelFilter::Warn),
-        4 => init_logger(log::LevelFilter::Error),
-        _ => init_logger(log::LevelFilter::Info),
+pub fn init_with_log_level(level: LogLevel) {
+    init_logger(level.to_native())
+}
+
+#[wasm_bindgen::prelude::wasm_bindgen]
+#[repr(u8)]
+pub enum LogLevel {
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warn = 3,
+    Error = 4,
+    Off = 5,
+}
+
+impl LogLevel {
+    fn to_native(&self) -> log::LevelFilter {
+        match self {
+            LogLevel::Trace => log::LevelFilter::Trace,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Error => log::LevelFilter::Error,
+            LogLevel::Off => log::LevelFilter::Off,
+        }
     }
 }
 

@@ -71,10 +71,12 @@ impl Sphere {
         let normals_len = normals.length();
 
         self.num_vertices = num_vertices;
-        self.vertices
-            .buffer_sub_data(BufferSource::from_float32_array(vertices, 0, vertices_len));
+        self.vertices.buffer_sub_data(
+            BufferSource::from_float32_array(vertices, 0, vertices_len),
+            0,
+        );
         self.normals
-            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len));
+            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
         self.update_bounding_volume = true;
     }
 }

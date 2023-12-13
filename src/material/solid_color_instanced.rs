@@ -130,7 +130,7 @@ impl SolidColorInstancedMaterial {
         }
 
         self.colors
-            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, 0));
+            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, 0), 0);
     }
 }
 
