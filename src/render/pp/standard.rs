@@ -180,6 +180,7 @@ impl Executor for StandardDrawer {
         };
 
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl().enable(WebGl2RenderingContext::BLEND);
 
         // splits into opaques and translucents
         let mut opaques = Vec::new();
@@ -376,7 +377,7 @@ impl Executor for StandardSetup {
         state.gl.blend_equation(WebGl2RenderingContext::FUNC_ADD);
         state.gl.blend_func(
             WebGl2RenderingContext::SRC_ALPHA,
-            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+            WebGl2RenderingContext::DST_ALPHA,
         );
         state.gl.clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl.clear_depth(1.0);

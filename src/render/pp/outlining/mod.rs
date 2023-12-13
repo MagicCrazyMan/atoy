@@ -895,7 +895,6 @@ impl OutliningBlurMaterial {
             kernel: UniformBlockValue::BufferBase {
                 descriptor: BufferDescriptor::with_memory_policy(
                     BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4),
-                    // BufferSource::from_binary([0; 81], 0, 81 * 4 * 4),
                     BufferUsage::StaticDraw,
                     MemoryPolicy::from_restorable(move || {
                         BufferSource::from_float32_array(kernel_uniform_buffer.clone(), 0, 81 * 4)

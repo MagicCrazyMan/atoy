@@ -66,6 +66,25 @@ pub fn distance_point_and_plane_abs(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
     distance_point_and_plane(p, pop, n).abs()
 }
 
+/// Formats bytes length to human readable string following rules below:
+///
+/// - For `N == 0 || N == 1`, uses unit `Byte`.
+/// - For `N <= 10240`, uses unit `Bytes`.
+/// - For `12034 < N <= 10485760`, uses unit `KiB` and no digit.
+/// - For others, uses unit `MiB` and no digit.
+#[inline]
+pub fn format_bytes_length(len: u32) -> String {
+    if len == 0 || len == 1 {
+        format!("{} Byte", len)
+    } else if len <= 10240 {
+        format!("{} Bytes", len)
+    } else if len <= 10485760 {
+        format!("{} KiB", len / 1024)
+    } else {
+        format!("{} MiB", len / 1024 / 1024)
+    } 
+}
+
 #[cfg(test)]
 mod tests {
     use gl_matrix4rust::vec3::{AsVec3, Vec3};

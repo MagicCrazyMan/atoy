@@ -1,12 +1,12 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
-    hash::Hash,
+    collections::{HashMap, VecDeque},
+    hash::{Hash, Hasher},
     rc::{Rc, Weak},
 };
 
+use log::debug;
 use uuid::Uuid;
-use wasm_bindgen_test::console_log;
 use web_sys::{
     js_sys::{
         BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array,
@@ -14,6 +14,8 @@ use web_sys::{
     },
     WebGl2RenderingContext, WebGlBuffer,
 };
+
+use crate::utils::format_bytes_length;
 
 use super::{
     conversion::{GLint, GLintptr, GLsizeiptr, GLuint, ToGlEnum},
@@ -98,10 +100,11 @@ pub enum BufferUsage {
 ///
 /// Since the linear memory of WASM runtime is impossible to shrink for now,
 /// high memory usage could happen if developer create a large WASM native buffer, for example, `Vec<u8>`.
-/// So, it is a good idea to avoid creating native buffer, and use `TypedArrayBuffer` from JavaScript instead.
+/// It is always a good idea to avoid creating native buffer, use `TypedArrayBuffer` from JavaScript instead.
 pub enum BufferSource {
     Preallocate {
         size: GLsizeiptr,
+        dst_byte_offset: GLintptr,
     },
     Binary {
         data: Box<dyn AsRef<[u8]>>,
@@ -257,7 +260,7 @@ impl BufferSource {
         let target = target.gl_enum();
         let usage = usage.gl_enum();
         match self {
-            BufferSource::Preallocate { size } => gl.buffer_data_with_i32(target, *size, usage),
+            BufferSource::Preallocate { size, dst_byte_offset } => gl.buffer_data_with_i32(target, *size, usage),
             BufferSource::Binary {
                 data,
                 src_offset,
@@ -283,7 +286,14 @@ impl BufferSource {
     fn buffer_sub_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget) {
         let target = target.gl_enum();
         match self {
-            BufferSource::Preallocate { .. } => unreachable!(),
+            BufferSource::Preallocate { size } => gl
+                .buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
+                    target,
+                    dst_byte_offset,
+                    src_data,
+                    src_offset,
+                    length,
+                ),
             BufferSource::Binary {
                 data,
                 dst_byte_offset,
@@ -309,6 +319,180 @@ impl BufferSource {
             }
         }
     }
+
+    fn dst_src_offset(&self) -> u32 {
+        match self {
+            BufferSource::Preallocate { size } => 0,
+            BufferSource::Binary {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Int8Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Uint8Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Uint8ClampedArray {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Int16Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Uint16Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Int32Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Uint32Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Float32Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::Float64Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::BigInt64Array {
+                dst_byte_offset, ..
+            }
+            | BufferSource::BigUint64Array {
+                dst_byte_offset, ..
+            } => *dst_byte_offset as u32,
+        }
+    }
+
+    fn bytes_length(&self) -> u32 {
+        let (raw_length, src_offset, src_length) = match self {
+            BufferSource::Preallocate { size } => (*size as u32, 0, 0),
+            BufferSource::Binary {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.as_ref().as_ref().len() as u32,
+                *src_offset,
+                *src_length,
+            ),
+            BufferSource::Int8Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Uint8Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Uint8ClampedArray {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Int16Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Uint16Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Int32Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Uint32Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Float32Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::Float64Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::BigInt64Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+            BufferSource::BigUint64Array {
+                data,
+                src_offset,
+                src_length,
+                ..
+            } => (
+                data.byte_length(),
+                data.byte_offset() + *src_offset,
+                *src_length,
+            ),
+        };
+
+        if src_length == 0 {
+            raw_length.saturating_sub(src_offset)
+        } else {
+            src_length
+        }
+    }
 }
 
 impl BufferSource {
@@ -323,12 +507,7 @@ impl BufferSource {
         src_offset: GLuint,
         src_length: GLuint,
     ) -> Self {
-        Self::Binary {
-            data: Box::new(data),
-            dst_byte_offset: 0,
-            src_offset,
-            src_length,
-        }
+        Self::from_binary_with_dst_byte_offset(data, src_offset, src_length, 0)
     }
 
     /// Constructs a new buffer source from WASM native buffer with dest byte offset.
@@ -359,12 +538,7 @@ macro_rules! impl_typed_array {
                     src_offset: GLuint,
                     src_length: GLuint,
                 ) -> Self {
-                    Self::$kind {
-                        data,
-                        dst_byte_offset: 0,
-                        src_offset,
-                        src_length,
-                    }
+                    Self::$from_with(data, src_offset, src_length, 0)
                 }
 
                 #[doc = "Constructs a new buffer source from "]
@@ -402,7 +576,7 @@ impl_typed_array! {
     (from_big_uint64_array, from_big_uint64_array_with_dst_byte_length, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-/// `BufferDescriptorAgency` is the thing for achieving [`BufferDescriptor`] reusing and automatic dropping purpose.
+/// The thing for achieving [`BufferDescriptor`] reusing and automatic dropping purpose.
 ///
 /// [`BufferStore`] creates a [`Rc`] wrapped agency for
 /// a descriptor for the first time descriptor being used.
@@ -411,30 +585,30 @@ impl_typed_array! {
 ///
 /// After all referencing of an agency dropped, agency will drop [`WebGlBuffer`] automatically in [`Drop`].
 #[derive(Clone)]
-struct BufferDescriptorAgency(Uuid, Weak<RefCell<StoreContainer>>, WebGl2RenderingContext);
+struct BufferAgency(Uuid, Weak<RefCell<StoreContainer>>, WebGl2RenderingContext);
 
-impl BufferDescriptorAgency {
+impl BufferAgency {
     fn key(&self) -> &Uuid {
         &self.0
     }
 }
 
-impl PartialEq for BufferDescriptorAgency {
+impl PartialEq for BufferAgency {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for BufferDescriptorAgency {}
+impl Eq for BufferAgency {}
 
-impl Hash for BufferDescriptorAgency {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for BufferAgency {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
 /// Deletes associated WebGlBuffer from store(if exists) when descriptor id drops.
-impl Drop for BufferDescriptorAgency {
+impl Drop for BufferAgency {
     fn drop(&mut self) {
         let Some(container) = self.1.upgrade() else {
             return;
@@ -451,6 +625,7 @@ impl Drop for BufferDescriptorAgency {
             buffer,
             size,
             lru_node,
+            id,
             ..
         } = &*storage.borrow();
         self.2.delete_buffer(Some(&buffer));
@@ -479,39 +654,43 @@ impl Drop for BufferDescriptorAgency {
             more_recently.less_recently = lru_node.less_recently;
         }
 
-        console_log!("buffer {} dropped by itself", &self.0);
+        debug!(target: "buffer_store", "drop buffer {}. freed memory {}, used memory {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
     }
 }
 
 /// Buffer descriptor lifetime status.
 ///
 /// Cloned descriptors share the same status.
-enum BufferDescriptorStatus {
+enum BufferStatus {
     /// Buffer associated with this descriptor dropped already.
     Dropped,
     /// Buffer associated with this descriptor does not change.
-    Unchanged { agency: Rc<BufferDescriptorAgency> },
+    Unchanged { size: u32, agency: Rc<BufferAgency> },
     /// Buffers data into WebGL2 runtime.
     ///
     /// Drops source data after buffering into WebGL2 runtime.
-    UpdateBuffer { source: BufferSource },
+    UpdateBuffer {
+        source: BufferSource,
+        subs: VecDeque<BufferSource>,
+    },
     /// Buffers sub data into WebGL2 runtime.
     ///
     /// Drops source data after buffering into WebGL2 runtime.
     UpdateSubBuffer {
-        agency: Rc<BufferDescriptorAgency>,
-        source: BufferSource,
+        size: u32,
+        agency: Rc<BufferAgency>,
+        subs: VecDeque<BufferSource>,
     },
 }
 
-impl BufferDescriptorStatus {
+impl BufferStatus {
     /// Gets [`BufferDescriptorAgency`] associated with this buffer descriptor.
-    fn agency(&self) -> Option<Rc<BufferDescriptorAgency>> {
+    fn agency(&self) -> Option<Rc<BufferAgency>> {
         match self {
-            BufferDescriptorStatus::Dropped => None,
-            BufferDescriptorStatus::Unchanged { agency } => Some(Rc::clone(agency)),
-            BufferDescriptorStatus::UpdateBuffer { .. } => None,
-            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => Some(Rc::clone(agency)),
+            BufferStatus::Dropped => None,
+            BufferStatus::Unchanged { agency, .. } => Some(Rc::clone(agency)),
+            BufferStatus::UpdateBuffer { .. } => None,
+            BufferStatus::UpdateSubBuffer { agency, .. } => Some(Rc::clone(agency)),
         }
     }
 }
@@ -532,7 +711,7 @@ impl BufferDescriptorStatus {
 #[derive(Clone)]
 pub struct BufferDescriptor {
     usage: BufferUsage,
-    status: Rc<RefCell<BufferDescriptorStatus>>,
+    status: Rc<RefCell<BufferStatus>>,
     memory_policy: MemoryPolicy,
 }
 
@@ -549,8 +728,9 @@ impl BufferDescriptor {
         memory_policy: MemoryPolicy,
     ) -> Self {
         Self {
-            status: Rc::new(RefCell::new(BufferDescriptorStatus::UpdateBuffer {
+            status: Rc::new(RefCell::new(BufferStatus::UpdateBuffer {
                 source,
+                subs: VecDeque::new(),
             })),
             usage,
             memory_policy,
@@ -591,35 +771,69 @@ impl BufferDescriptor {
 
     /// Buffers new data to WebGL runtime.
     pub fn buffer_data(&mut self, source: BufferSource) {
-        self.status.replace_with(|old| match old {
-            BufferDescriptorStatus::Unchanged { .. } => {
-                BufferDescriptorStatus::UpdateBuffer { source }
-            }
-            BufferDescriptorStatus::UpdateBuffer { .. } => {
-                BufferDescriptorStatus::UpdateBuffer { source }
-            }
-            BufferDescriptorStatus::UpdateSubBuffer { .. } => {
-                BufferDescriptorStatus::UpdateBuffer { source }
-            }
-            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer { source },
+        self.status.replace(BufferStatus::UpdateBuffer {
+            source,
+            subs: VecDeque::new(),
         });
     }
 
     /// Buffers sub data to WebGL runtime.
     pub fn buffer_sub_data(&mut self, source: BufferSource) {
-        self.status.replace_with(|old| match old {
-            BufferDescriptorStatus::Unchanged { agency }
-            | BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
-                BufferDescriptorStatus::UpdateSubBuffer {
-                    agency: agency.clone(),
+        let mut status = self.status.borrow_mut();
+        let status = &mut *status;
+        match status {
+            BufferStatus::Dropped => {
+                *status = BufferStatus::UpdateBuffer {
                     source,
+                    subs: VecDeque::new(),
                 }
             }
-            BufferDescriptorStatus::UpdateBuffer { .. } => {
-                BufferDescriptorStatus::UpdateBuffer { source }
+            BufferStatus::Unchanged { size, agency } => {
+                *status = match &source {
+                    BufferSource::Preallocate { size } => BufferStatus::UpdateBuffer {
+                        source,
+                        subs: VecDeque::new(),
+                    },
+                    _ => {
+                        if size.saturating_sub(source.dst_src_offset()) >= source.bytes_length() {
+                            BufferStatus::UpdateSubBuffer {
+                                size: *size,
+                                agency: agency.clone(),
+                                subs: VecDeque::from([source]),
+                            }
+                        } else {
+                            BufferStatus::UpdateBuffer {
+                                source,
+                                subs: VecDeque::new(),
+                            }
+                        }
+                    }
+                }
             }
-            BufferDescriptorStatus::Dropped => BufferDescriptorStatus::UpdateBuffer { source },
-        });
+            _ => {
+                let (size, subs) = match status {
+                    BufferStatus::Dropped | BufferStatus::Unchanged { .. } => unreachable!(),
+                    BufferStatus::UpdateBuffer { source, subs } => (source.bytes_length(), subs),
+                    BufferStatus::UpdateSubBuffer { size, subs, .. } => (*size, subs),
+                };
+
+                if size.saturating_sub(source.dst_src_offset()) >= source.bytes_length() {
+                    subs.push_back(source);
+                } else {
+                    let allocated_size =
+                        (size + source.dst_src_offset() + source.bytes_length()) as i32;
+                    let mut new_subs = subs.drain(..).collect::<VecDeque<BufferSource>>();
+                    new_subs.push_back(source);
+
+                    *status = BufferStatus::UpdateBuffer {
+                        source: BufferSource::Preallocate {
+                            size: allocated_size,
+                        },
+                        subs: new_subs,
+                    };
+                }
+            }
+        };
     }
 }
 
@@ -639,7 +853,7 @@ impl BufferItem {
     }
 
     /// Gets memory in bytes size of this buffer used.
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u32 {
         self.0.borrow().size
     }
 }
@@ -691,8 +905,8 @@ struct StorageItem {
     id: Uuid,
     target: BufferTarget,
     buffer: WebGlBuffer,
-    status: Weak<RefCell<BufferDescriptorStatus>>,
-    size: usize,
+    status: Weak<RefCell<BufferStatus>>,
+    size: u32,
     lru_node: Box<LruNode>,
     memory_policy_kind: MemoryPolicyKind,
 }
@@ -700,7 +914,7 @@ struct StorageItem {
 /// Inner container of a [`BufferStore`].
 struct StoreContainer {
     store: HashMap<Uuid, Rc<RefCell<StorageItem>>>,
-    used_memory: usize,
+    used_memory: u32,
     most_recently: Option<*mut LruNode>,
     least_recently: Option<*mut LruNode>,
 }
@@ -810,18 +1024,18 @@ macro_rules! to_most_recently_lru {
 /// Thus, you may discover that, the memory used recorded by the store is always greater than the actual used by the GPU.
 pub struct BufferStore {
     gl: WebGl2RenderingContext,
-    max_memory: usize,
+    max_memory: u32,
     container: Rc<RefCell<StoreContainer>>,
 }
 
 impl BufferStore {
     /// Constructs a new buffer store with unlimited memory.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
-        Self::with_max_memory(gl, usize::MAX)
+        Self::with_max_memory(gl, u32::MAX)
     }
 
     /// Constructs a new buffer store with a maximum available memory.
-    pub fn with_max_memory(gl: WebGl2RenderingContext, max_memory: usize) -> Self {
+    pub fn with_max_memory(gl: WebGl2RenderingContext, max_memory: u32) -> Self {
         Self {
             gl,
             max_memory,
@@ -837,12 +1051,12 @@ impl BufferStore {
     /// Gets the maximum available memory of the store.
     ///
     /// Returns `usize::MAX` if not specified.
-    pub fn max_memory(&self) -> usize {
+    pub fn max_memory(&self) -> u32 {
         self.max_memory
     }
 
     /// Gets current used memory size.
-    pub fn used_memory(&self) -> usize {
+    pub fn used_memory(&self) -> u32 {
         self.container.borrow().used_memory
     }
 }
@@ -876,7 +1090,7 @@ impl BufferStore {
         let container = &mut *container;
 
         let item = match &*status.borrow() {
-            BufferDescriptorStatus::Unchanged { agency, .. } => {
+            BufferStatus::Unchanged { agency, .. } => {
                 let storage = container
                     .store
                     .get_mut(agency.key())
@@ -888,7 +1102,7 @@ impl BufferStore {
 
                 Rc::clone(storage)
             }
-            BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
+            BufferStatus::Dropped | BufferStatus::UpdateBuffer { .. } => {
                 // creates buffer
                 let Some(buffer) = self.gl.create_buffer() else {
                     return Err(Error::CreateBufferFailure);
@@ -915,9 +1129,11 @@ impl BufferStore {
                 }));
                 container.store.insert(id, Rc::clone(&storage));
 
+                debug!(target: "buffer_store", "create buffer {}", id);
+
                 storage
             }
-            BufferDescriptorStatus::UpdateSubBuffer { agency, .. } => {
+            BufferStatus::UpdateSubBuffer { agency, .. } => {
                 let Some(storage) = container.store.get_mut(agency.key()) else {
                     return Err(Error::BufferStorageNotFound(*agency.key()));
                 };
@@ -939,6 +1155,7 @@ impl BufferStore {
 
         let target = storage.borrow().target;
         let buffer = &storage.borrow().buffer;
+        let id = storage.borrow().id;
         let usage = descriptor.usage;
 
         let mut container_guard = (*self.container).borrow_mut();
@@ -948,56 +1165,76 @@ impl BufferStore {
         let status_mut = &mut *status_guard;
 
         match status_mut {
-            BufferDescriptorStatus::Unchanged { .. } => {
+            BufferStatus::Unchanged { .. } => {
                 // do nothing
             }
-            BufferDescriptorStatus::Dropped | BufferDescriptorStatus::UpdateBuffer { .. } => {
+            BufferStatus::Dropped | BufferStatus::UpdateBuffer { .. } => {
                 // gets buffer source
+                let tmp_subs: *mut VecDeque<BufferSource>;
                 let tmp_source: BufferSource;
-                let source = match status_mut {
-                    // gets buffer source from restore in Dropped if exists, or throws error otherwise.
-                    BufferDescriptorStatus::Dropped => {
+                let (source, subs) = match status_mut {
+                    BufferStatus::Dropped => {
                         let MemoryPolicy::Restorable(restore) = &descriptor.memory_policy else {
                             return Err(Error::BufferUnexpectedDropped);
                         };
                         tmp_source = restore.borrow_mut()();
-                        &tmp_source
+                        (&tmp_source, std::ptr::null_mut())
                     }
-                    // gets buffer source from status in UpdateBuffer, and delete an old buffer if exists.
-                    BufferDescriptorStatus::UpdateBuffer { source } => source,
+                    BufferStatus::UpdateBuffer { source, subs } => {
+                        (&*source, subs as *mut VecDeque<BufferSource>)
+                    }
                     _ => unreachable!(),
                 };
 
                 self.gl.bind_buffer(target.gl_enum(), Some(buffer));
                 source.buffer_data(&self.gl, target, usage);
+                // travels and buffer each sub data
+                if !subs.is_null() {
+                    unsafe {
+                        let subs = &mut *subs;
+                        while let Some(sub) = subs.pop_front() {
+                            sub.buffer_sub_data(&self.gl, target);
+                        }
+                    }
+                }
                 let size = self
                     .gl
                     .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
                     .as_f64()
-                    .unwrap() as usize; // gets and updates memory usage
+                    .unwrap() as u32; // gets and updates memory usage
                 container_mut.used_memory += size;
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replaces descriptor status
-                *status_mut = BufferDescriptorStatus::Unchanged {
-                    agency: Rc::new(BufferDescriptorAgency(
-                        storage.borrow().id,
+                *status_mut = BufferStatus::Unchanged {
+                    size,
+                    agency: Rc::new(BufferAgency(
+                        id,
                         Rc::downgrade(&self.container),
                         self.gl.clone(),
                     )),
                 };
+
+                debug!(target: "buffer_store", "buffer data to {}. consumed memory {}, used memory {}", id, format_bytes_length(size), format_bytes_length(container_mut.used_memory));
             }
-            BufferDescriptorStatus::UpdateSubBuffer { agency, source, .. } => {
+            BufferStatus::UpdateSubBuffer {
+                size, agency, subs, ..
+            } => {
                 // buffer sub data may not change the allocated memory size
                 self.gl.bind_buffer(target.gl_enum(), Some(buffer));
-                source.buffer_sub_data(&self.gl, target);
+                while let Some(sub) = subs.pop_front() {
+                    sub.buffer_sub_data(&self.gl, target);
+                }
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 // replaces descriptor status
                 let agency = Rc::clone(agency);
-                *status_mut = BufferDescriptorStatus::Unchanged {
+                *status_mut = BufferStatus::Unchanged {
+                    size: *size,
                     agency: Rc::clone(&agency),
                 };
+
+                debug!(target: "buffer_store", "buffer sub data to {}. used memory {}", id, format_bytes_length(container_mut.used_memory));
             }
         };
 
@@ -1053,7 +1290,7 @@ impl BufferStore {
                 size,
                 lru_node,
                 memory_policy_kind,
-                ..
+                id,
             } = &mut *item.borrow_mut();
 
             // skips if status not exists any more
@@ -1075,8 +1312,9 @@ impl BufferStore {
                     self.gl.bind_buffer(target.gl_enum(), None);
 
                     // updates status
-                    *status.borrow_mut() = BufferDescriptorStatus::UpdateBuffer {
+                    *status.borrow_mut() = BufferStatus::UpdateBuffer {
                         source: BufferSource::from_uint8_array(data, 0, *size as u32),
+                        subs: VecDeque::new(),
                     };
                 }
                 MemoryPolicyKind::Restorable => {
@@ -1086,7 +1324,7 @@ impl BufferStore {
                     self.gl.delete_buffer(Some(&buffer));
 
                     // updates status
-                    *status.borrow_mut() = BufferDescriptorStatus::Dropped;
+                    *status.borrow_mut() = BufferStatus::Dropped;
                 }
                 MemoryPolicyKind::Unfree => unreachable!(),
             }
@@ -1105,12 +1343,7 @@ impl BufferStore {
                 next_node = None;
             }
 
-            // console_log!(
-            //     "buffer {} dropped, {} memory freed, {} total",
-            //     current_node.raw_id,
-            //     size,
-            //     container.used_memory
-            // );
+            debug!(target: "buffer_store", "free buffer {}. freed memory {}, used memory {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
         }
 
         // console_log!("len {}", container.store.len());
@@ -1143,7 +1376,7 @@ impl Drop for BufferStore {
                 let StorageItem { buffer, status, .. } = &mut *item.borrow_mut();
                 gl.delete_buffer(Some(&buffer));
                 status.upgrade().map(|status| {
-                    *(*status).borrow_mut() = BufferDescriptorStatus::Dropped;
+                    *(*status).borrow_mut() = BufferStatus::Dropped;
                 });
 
                 // store dropped, no need to update LRU anymore

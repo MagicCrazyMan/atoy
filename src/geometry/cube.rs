@@ -73,7 +73,7 @@ impl Cube {
                     BufferSource::from_float32_array(
                         slice_to_float32_array(&TEXTURE_COORDINATES),
                         0,
-                        144,
+                        48,
                     )
                 }),
             ),
