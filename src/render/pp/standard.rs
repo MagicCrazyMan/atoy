@@ -3,6 +3,7 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
+use log::info;
 use wasm_bindgen_test::console_log;
 use web_sys::WebGl2RenderingContext;
 
@@ -118,12 +119,12 @@ impl StandardDrawer {
             if self
                 .last_program
                 .as_ref()
-                .map(|last_program| last_program.name() != (&*material).name())
+                .map(|last_program| last_program.name() != (*material).name())
                 .unwrap_or(true)
             {
-                let p = state.program_store.use_program(&*material)?;
-                state.gl.use_program(Some(p.gl_program()));
-                self.last_program = Some(p.clone());
+                let item = state.program_store.use_program(&*material)?;
+                state.gl.use_program(Some(item.gl_program()));
+                self.last_program = Some(item.clone());
             }
 
             let program = self.last_program.as_ref().unwrap();

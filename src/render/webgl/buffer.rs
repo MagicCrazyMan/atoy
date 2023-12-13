@@ -484,7 +484,7 @@ impl_typed_array! {
     (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-/// The thing for achieving [`BufferDescriptor`] reusing and automatic dropping purpose.
+/// The final holder of the [`WebGlBuffer`] after the first use of a buffer descriptor.
 ///
 /// [`BufferStore`] creates a [`Rc`] wrapped agency for
 /// a descriptor for the first time descriptor being used.
@@ -585,19 +585,8 @@ impl BufferStatus {
     }
 }
 
-/// Buffer descriptor is a reuseable key to set and get [`WebGlBuffer`] from [`BufferStore`].
-///
-/// # Reusing
-///
-/// `BufferDescriptor` is cloneable for reusing purpose.
-/// Cloning a descriptor lets you reuse the [`WebGlBuffer`] associated with this descriptor.
-///
-/// # Dropping
-///
-/// [`WebGlBuffer`] associated with the descriptor will be automatically deleted when the
-/// buffer descriptor eventually dropped.
-///
-/// # Memory Freeing Policy
+/// A key to share and control the [`WebGlBuffer`].
+/// Checks [`BufferStore`] for more details.
 #[derive(Clone)]
 pub struct BufferDescriptor {
     usage: BufferUsage,
@@ -789,7 +778,8 @@ impl BufferDescriptor {
     }
 }
 
-/// Buffer item usable for outside the [`BufferStore`].
+/// Buffer item lets developer always [`BufferStore`].
+/// Checks [`BufferStore`] for more details.
 #[derive(Clone)]
 pub struct BufferItem(Rc<RefCell<StorageItem>>, BufferDescriptor);
 
@@ -810,7 +800,7 @@ impl BufferItem {
     }
 }
 
-/// Memory policy.
+/// Memory freeing policies.
 /// Checks [`BufferStore`] for more details.
 #[derive(Clone)]
 pub enum MemoryPolicy {
@@ -874,10 +864,28 @@ struct StoreContainer {
 ///
 /// # Buffer Descriptor
 ///
-/// [`BufferDescriptor`] is the key to control the [`WebGlBuffer`].
+/// [`BufferDescriptor`] is the key to share and control the [`WebGlBuffer`].
 /// Developer could create a descriptor, tells it the data for use in WebGL runtime
 /// and even reuses the [`WebGlBuffer`] by cloning descriptor for possible purpose.
-/// Checks [`BufferDescriptor`] struct for more details.
+/// 
+/// # Buffer Agency
+/// 
+/// [`BufferAgency`] is the final holder of the [`WebGlBuffer`] after the first use of a buffer descriptor.
+/// [`WebGlBuffer`] lives alive as long as the agency alive and [`WebGlBuffer`] is dropped when the agency drops.
+/// [`BufferAgency`] and its clones stay in different places to ensure the [`WebGlBuffer`] is always accessible.
+/// Accessing the buffer agency is not allowed outside this module. Developer has no need to worries about where
+/// the agencies are, they will stay in the right places.
+/// 
+/// However, though the [`WebGlBuffer`] keeps alive, it still freeable depending on [`MemoryPolicy`].
+/// Checks Memory Management section for more details about memory freeing.
+/// 
+/// # Buffer Item
+/// 
+/// Memory freeing could be annoying sometimes, especially when we bind [`WebGlBuffer`] to WebGL runtime
+/// and prepare for draw calls. It may unexpectedly drops our data before finishing a draw procedure.
+/// [`BufferItem`] is designed for preventing such a situation. When developer holds a [`BufferItem`]
+/// somewhere outside the store, memory freeing procedure never free the [`WebGlBuffer`] associated with
+/// that [`BufferItem`]. Do remember to drop the [`BufferItem`] once you finish using the buffer.
 ///
 /// # Reusing
 ///

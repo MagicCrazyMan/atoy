@@ -1,6 +1,6 @@
-/// Memory unsafe LRU cache line.
+/// Memory unsafe Lru cache line.
 /// If there is only one node in the cache,
-/// `most_recently` and `least_recently` are both point to the same node.
+/// `most_recently` and `least_recently` are both point to a same node.
 ///
 /// # Unsafe
 ///
