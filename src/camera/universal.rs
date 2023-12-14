@@ -1,13 +1,14 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
+use std::{any::Any, borrow::Cow, cell::RefCell, f64::consts::PI, rc::Rc};
 
 use crate::{frustum::ViewFrustum, render::pp::State};
 use gl_matrix4rust::{
-    mat4::Mat4,
+    mat4::{AsMat4, Mat4},
+    quat2::Quat2,
     vec3::{AsVec3, Vec3},
 };
 use log::error;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{HtmlCanvasElement, KeyboardEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent};
 
 use super::{perspective::frustum, Camera};
 
@@ -35,9 +36,12 @@ struct Shareable {
     down_movement: f64,
     toward_movement: f64,
     backward_movement: f64,
+    horizontal_rotation: f64,
+    vertical_rotation: f64,
 
     binding_canvas: Option<HtmlCanvasElement>,
     keyboard_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
+    mousemove_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
 }
 
 impl Shareable {
@@ -104,8 +108,14 @@ impl Shareable {
     }
 
     #[inline]
-    fn rotate(&mut self) {
-        
+    fn rotate(&mut self, horizontal_rad: f64, vertical_rad: f64) {
+        // project toward to XZ plane
+        let to = Vec3::from_values(self.toward.x(), 0.0, self.toward.z());
+
+        self.view = self.view.rotate_x(vertical_rad);
+        self.view = self.view.rotate_y(horizontal_rad);
+        self.view_proj = self.proj * self.view;
+        self.update_frustum();
     }
 
     fn fovy(&self) -> f64 {
@@ -251,10 +261,22 @@ impl Drop for Shareable {
                 );
             }
         }
+
+        if let Some(callback) = self.mousemove_callback.take() {
+            if let Err(err) = canvas
+                .remove_event_listener_with_callback("mousemove", callback.as_ref().unchecked_ref())
+            {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to unbind mousemove event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+        }
     }
 }
 
-/// An controllable perspective camera with mouse, keyboard or screen touching.
+/// An first personal based, controllable perspective camera with mouse, keyboard or screen touching.
 ///
 /// UniversalCamera is shareable by cloning, making it convenient to control outside [`Scene`].
 #[derive(Clone)]
@@ -289,9 +311,11 @@ impl UniversalCamera {
         let frustum = frustum(position, center, up, fovy, aspect, near, far);
 
         let view = Mat4::from_look_at(&position, &pseudo_center, &up);
+        let quat = Quat2::from_mat4(&view);
         let proj = Mat4::from_perspective(fovy, aspect, near, far);
 
         let default_movement = 0.5;
+        let default_rotation = PI / 240.0;
 
         let sharable = Shareable {
             position,
@@ -316,9 +340,12 @@ impl UniversalCamera {
             down_movement: default_movement,
             toward_movement: default_movement,
             backward_movement: default_movement,
+            horizontal_rotation: default_rotation,
+            vertical_rotation: default_rotation,
 
             binding_canvas: None,
             keyboard_callback: None,
+            mousemove_callback: None,
         };
 
         Self {
@@ -358,6 +385,12 @@ impl UniversalCamera {
 
     pub fn move_backward_locking(&mut self) {
         self.sharable.borrow_mut().move_backward_locking()
+    }
+
+    pub fn rotate(&mut self, horizontal_rad: f64, vertical_rad: f64) {
+        self.sharable
+            .borrow_mut()
+            .rotate(horizontal_rad, vertical_rad)
     }
 
     pub fn fovy(&self) -> f64 {
@@ -514,8 +547,11 @@ impl Camera for UniversalCamera {
                     "a" => shareable.move_left(),
                     "s" => shareable.move_backward(),
                     "d" => shareable.move_right(),
-                    _ => {}
+                    _ => return,
                 }
+
+                event.prevent_default();
+                event.stop_propagation();
             }));
             if let Err(err) = canvas.add_event_listener_with_callback(
                 "keydown",
@@ -529,6 +565,57 @@ impl Camera for UniversalCamera {
                 error!(
                     target: "UniversalCamera",
                     "failed to bind keyboard event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            let previous_mouse = Rc::new(RefCell::new(None));
+            shareable.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+
+                let mut previous_event = previous_mouse.borrow_mut();
+
+                if event.buttons() == 4 {
+                    let Some(p) = previous_event.take() else {
+                        *previous_event = Some(event);
+                        return;
+                    };
+
+                    let px = p.x();
+                    let py = p.y();
+                    let x = event.x();
+                    let y = event.y();
+                    let ox = x - px;
+                    let oy = y - py;
+
+                    let rh = ox as f64 * shareable.horizontal_rotation;
+                    let rv = oy as f64 * shareable.vertical_rotation;
+                    shareable.rotate(rh, rv);
+
+                    event.prevent_default();
+                    event.stop_propagation();
+
+                    *previous_event = Some(event);
+                } else {
+                    *previous_event = None;
+                }
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "mousemove",
+                shareable
+                    .mousemove_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind mousemove event: {}",
                     err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
                 );
             }
