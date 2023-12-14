@@ -1,4 +1,4 @@
-use gl_matrix4rust::mat4::Mat4;
+use gl_matrix4rust::{mat4::{Mat4, AsMat4}, vec3::{Vec3, AsVec3}};
 
 use crate::plane::Plane;
 
@@ -65,10 +65,4 @@ pub enum FrustumPlaneIndex {
     Right = 3,
     Near = 4,
     Far = 5,
-}
-
-impl From<Mat4> for ViewFrustum {
-    fn from(value: Mat4) -> Self {
-        todo!()
-    }
 }

@@ -963,7 +963,7 @@ pub fn test_camera() {
     //     0.1,
     //     Some(2.0),
     // );
-    let frustum = camera.viewing_frustum();
+    let frustum = camera.view_frustum();
     console_log!(
         "near ({}), ({})",
         frustum.near().normal(),

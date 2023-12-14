@@ -1,16 +1,14 @@
 use std::any::Any;
 
 use gl_matrix4rust::{
-    mat4::{AsMat4, Mat4},
+    mat4::Mat4,
     vec3::{AsVec3, Vec3},
 };
-use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{frustum::ViewingFrustum, plane::Plane, render::pp::State};
+use crate::{frustum::ViewFrustum, plane::Plane, render::pp::State};
 
 use super::Camera;
 
-#[wasm_bindgen]
 pub struct PerspectiveCamera {
     position: Vec3,
     center: Vec3,
@@ -22,6 +20,7 @@ pub struct PerspectiveCamera {
     view: Mat4,
     proj: Mat4,
     view_proj: Mat4,
+    frustum: ViewFrustum,
 }
 
 impl PerspectiveCamera {
@@ -41,10 +40,14 @@ impl PerspectiveCamera {
     {
         let view = Mat4::from_look_at(&position, &center, &up);
         let proj = Mat4::from_perspective(fovy, aspect, near, far);
+        let position = Vec3::from_as_vec3(position);
+        let center = Vec3::from_as_vec3(center);
+        let up = Vec3::from_as_vec3(up).normalize();
+        let frustum = frustum(position, center, up, fovy, aspect, near, far);
         Self {
-            position: Vec3::from_as_vec3(position),
-            center: Vec3::from_as_vec3(center),
-            up: Vec3::from_as_vec3(up).normalize(),
+            position,
+            center,
+            up,
             fovy,
             aspect,
             near,
@@ -52,17 +55,36 @@ impl PerspectiveCamera {
             view,
             proj,
             view_proj: proj * view,
+            frustum,
         }
     }
 
     fn update_view(&mut self) {
         self.view = Mat4::from_look_at(&self.position, &self.center, &self.up);
-        self.view_proj = self.proj * self.view
+        self.view_proj = self.proj * self.view;
+        self.frustum = frustum(
+            self.position,
+            self.center,
+            self.up,
+            self.fovy,
+            self.aspect,
+            self.near,
+            self.far,
+        );
     }
 
     fn update_proj(&mut self) {
         self.proj = Mat4::from_perspective(self.fovy, self.aspect, self.near, self.far);
-        self.view_proj = self.proj * self.view
+        self.view_proj = self.proj * self.view;
+        self.frustum = frustum(
+            self.position,
+            self.center,
+            self.up,
+            self.fovy,
+            self.aspect,
+            self.near,
+            self.far,
+        );
     }
 
     pub fn center(&self) -> Vec3 {
@@ -158,43 +180,8 @@ impl Camera for PerspectiveCamera {
         self.view_proj
     }
 
-    fn viewing_frustum(&self) -> ViewingFrustum {
-        let x = Vec3::from_values(self.view.m00(), self.view.m10(), self.view.m20());
-        let y = Vec3::from_values(self.view.m01(), self.view.m11(), self.view.m21());
-        let z = Vec3::from_values(self.view.m02(), self.view.m12(), self.view.m22());
-        let nz = z.negate();
-
-        let p = self.position + nz * self.near;
-        let hh = (self.fovy / 2.0).tan() * self.near;
-        let hw = self.aspect * hh;
-
-        let top = {
-            let pop = p + y * hh;
-            let d = (pop - self.position).normalize();
-            Plane::new(pop, x.cross(&d).normalize())
-        };
-        let bottom = {
-            let pop = p + y * -hh;
-            let d = (pop - self.position).normalize();
-            Plane::new(pop, d.cross(&x).normalize())
-        };
-        let left = {
-            let pop = p + x * -hw;
-            let d = (pop - self.position).normalize();
-            Plane::new(pop, y.cross(&d).normalize())
-        };
-        let right = {
-            let pop = p + x * hw;
-            let d = (pop - self.position).normalize();
-            Plane::new(pop, d.cross(&y).normalize())
-        };
-        let near = { Plane::new(p, z) };
-        let far = match self.far {
-            Some(far) => Some(Plane::new(self.position + nz * far, nz)),
-            None => None,
-        };
-
-        ViewingFrustum::new(left, right, top, bottom, near, far)
+    fn view_frustum(&self) -> ViewFrustum {
+        self.frustum
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -206,6 +193,56 @@ impl Camera for PerspectiveCamera {
     }
 
     fn update_frame(&mut self, state: &State) {
-        self.set_aspect(state.canvas().width() as f64 / state.canvas().height() as f64)
+        let aspect = state.canvas().width() as f64 / state.canvas().height() as f64;
+        if aspect != self.aspect {
+            self.set_aspect(aspect);
+        }
     }
+}
+
+fn frustum(
+    position: Vec3,
+    center: Vec3,
+    up: Vec3,
+    fovy: f64,
+    aspect: f64,
+    near: f64,
+    far: Option<f64>,
+) -> ViewFrustum {
+    let z = (position - center).normalize();
+    let x = up.cross(&z).normalize();
+    let y = z.cross(&x).normalize();
+    let nz = z.negate();
+
+    let p = position + nz * near;
+    let hh = (fovy / 2.0).tan() * near;
+    let hw = aspect * hh;
+
+    let top = {
+        let pop = p + y * hh;
+        let d = (pop - position).normalize();
+        Plane::new(pop, x.cross(&d).normalize())
+    };
+    let bottom = {
+        let pop = p + y * -hh;
+        let d = (pop - position).normalize();
+        Plane::new(pop, d.cross(&x).normalize())
+    };
+    let left = {
+        let pop = p + x * -hw;
+        let d = (pop - position).normalize();
+        Plane::new(pop, y.cross(&d).normalize())
+    };
+    let right = {
+        let pop = p + x * hw;
+        let d = (pop - position).normalize();
+        Plane::new(pop, d.cross(&y).normalize())
+    };
+    let near = { Plane::new(p, z) };
+    let far = match far {
+        Some(far) => Some(Plane::new(position + nz * far, nz)),
+        None => None,
+    };
+
+    ViewFrustum::new(left, right, top, bottom, near, far)
 }

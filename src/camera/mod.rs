@@ -5,7 +5,7 @@ use std::any::Any;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
-use crate::{frustum::ViewingFrustum, render::pp::State};
+use crate::{frustum::ViewFrustum, render::pp::State};
 
 pub trait Camera {
     fn position(&self) -> Vec3;
@@ -26,7 +26,7 @@ pub trait Camera {
 
     fn view_proj_matrix(&self) -> Mat4;
 
-    fn viewing_frustum(&self) -> ViewingFrustum;
+    fn view_frustum(&self) -> ViewFrustum;
 
     fn as_any(&self) -> &dyn Any;
 

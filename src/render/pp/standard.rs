@@ -260,7 +260,7 @@ impl Executor for StandardEntitiesCollector {
             distance: f64,
         }
 
-        let viewing_frustum = stuff.camera().viewing_frustum();
+        let viewing_frustum = stuff.camera().view_frustum();
 
         let mut entities = Vec::new();
 
