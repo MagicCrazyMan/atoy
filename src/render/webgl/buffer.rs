@@ -867,20 +867,21 @@ struct StoreContainer {
 /// [`BufferDescriptor`] is the key to share and control the [`WebGlBuffer`].
 /// Developer could create a descriptor, tells it the data for use in WebGL runtime
 /// and even reuses the [`WebGlBuffer`] by cloning descriptor for possible purpose.
-/// 
+///
 /// # Buffer Agency
-/// 
+///
 /// [`BufferAgency`] is the final holder of the [`WebGlBuffer`] after the first use of a buffer descriptor.
 /// [`WebGlBuffer`] lives alive as long as the agency alive and [`WebGlBuffer`] is dropped when the agency drops.
 /// [`BufferAgency`] and its clones stay in different places to ensure the [`WebGlBuffer`] is always accessible.
 /// Accessing the buffer agency is not allowed outside this module. Developer has no need to worries about where
-/// the agencies are, they will stay in the right places.
-/// 
-/// However, though the [`WebGlBuffer`] keeps alive, it still freeable depending on [`MemoryPolicy`].
+/// the agencies are, they will stay in the right places ([`BufferDescriptor`] always holds a clone of buffer agency).
+///
+/// However, even the [`WebGlBuffer`] should be alive as long as the agency alive,
+/// it still possible to be dropped and freed in background depending on [`MemoryPolicy`].
 /// Checks Memory Management section for more details about memory freeing.
-/// 
+///
 /// # Buffer Item
-/// 
+///
 /// Memory freeing could be annoying sometimes, especially when we bind [`WebGlBuffer`] to WebGL runtime
 /// and prepare for draw calls. It may unexpectedly drops our data before finishing a draw procedure.
 /// [`BufferItem`] is designed for preventing such a situation. When developer holds a [`BufferItem`]
@@ -1206,23 +1207,27 @@ impl BufferStore {
 
                 let Some(item) = container.store.get((*current_node).data()) else {
                     next_node = (*current_node).more_recently();
+                    debug!("1 {} {}", container.store.len(), container.lru.len());
                     continue;
                 };
 
                 // skips if in use
                 if Rc::strong_count(item) > 1 {
                     next_node = (*current_node).more_recently();
+                    debug!("2");
                     continue;
                 }
 
                 // skips if unfreeable
                 if MemoryPolicyKind::Unfree == item.borrow().memory_policy_kind {
                     next_node = (*current_node).more_recently();
+                    debug!("3");
                     continue;
                 }
 
                 let Some(item) = container.store.remove((*current_node).data()) else {
                     next_node = (*current_node).more_recently();
+                    debug!("4");
                     continue;
                 };
                 let StorageItem {
@@ -1235,9 +1240,9 @@ impl BufferStore {
                     id,
                 } = &mut *item.borrow_mut();
 
-                // skips if status not exists any more
                 let Some(status) = status.upgrade() else {
                     next_node = (**lru_node).more_recently();
+                    debug!("5");
                     continue;
                 };
 

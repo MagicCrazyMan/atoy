@@ -217,7 +217,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         4.0,
         4.0,
     )));
-
     entity.borrow_mut().set_material(Some(IconMaterial::new(
         TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
             descriptor: TextureDescriptor::texture_2d_with_html_image_element(
