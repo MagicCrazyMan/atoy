@@ -191,24 +191,13 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         entity.borrow_mut().set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
-        let mut color = rand::random::<Rgba>();
-        color.alpha = 1.0;
+        let color = rand::random::<Rgba>();
         entity
             .borrow_mut()
             .set_material(Some(SolidColorMaterial::with_color(color)));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
-    
-    // let entity = Entity::new();
-    // entity.borrow_mut().set_geometry(Some(Cube::new()));
-    // let mut color = rand::random::<Rgba>();
-    // color.alpha = 1.0;
-    // entity
-    //     .borrow_mut()
-    //     .set_material(Some(SolidColorMaterial::with_color(color)));
-    // entity.borrow_mut().set_local_matrix(Mat4::from_translation(&(0.0, 0.0, -3.0)));
-    // scene.entity_collection_mut().add_entity(entity);
 
     let entity = Entity::new();
     entity.borrow_mut().set_geometry(Some(Rectangle::new(

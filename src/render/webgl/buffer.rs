@@ -574,7 +574,7 @@ enum BufferStatus {
 }
 
 impl BufferStatus {
-    /// Gets [`BufferDescriptorAgency`] associated with this buffer descriptor.
+    /// Gets [`BufferAgency`] associated with this buffer descriptor.
     fn agency(&self) -> Option<Rc<BufferAgency>> {
         match self {
             BufferStatus::Dropped => None,
@@ -781,7 +781,7 @@ impl BufferDescriptor {
 /// Buffer item lets developer always [`BufferStore`].
 /// Checks [`BufferStore`] for more details.
 #[derive(Clone)]
-pub struct BufferItem(Rc<RefCell<StorageItem>>, BufferDescriptor);
+pub struct BufferItem(pub(crate) Rc<RefCell<StorageItem>>, BufferDescriptor);
 
 impl BufferItem {
     /// Gets [`WebGlBuffer`].
@@ -843,7 +843,7 @@ enum MemoryPolicyKind {
 }
 
 /// Inner item of a [`BufferStore`].
-struct StorageItem {
+pub(crate) struct StorageItem {
     id: Uuid,
     target: BufferTarget,
     buffer: WebGlBuffer,
@@ -989,7 +989,7 @@ impl BufferStore {
         let mut container = (*self.container).borrow_mut();
         let container = &mut *container;
 
-        let item = match &*status.borrow() {
+        let storage = match &*status.borrow() {
             BufferStatus::Unchanged { agency, .. } => {
                 let storage = container
                     .store
@@ -1021,7 +1021,7 @@ impl BufferStore {
                 let storage = Rc::new(RefCell::new(StorageItem {
                     id,
                     target,
-                    buffer: buffer.clone(),
+                    buffer,
                     size: 0,
                     status: Rc::downgrade(&status),
                     memory_policy_kind: memory_policy.to_kind(),
@@ -1048,7 +1048,7 @@ impl BufferStore {
             }
         };
 
-        Ok(BufferItem(item, buffer_descriptor))
+        Ok(BufferItem(storage, buffer_descriptor))
     }
 
     /// Buffers a [`BufferItem`] if necessary.
@@ -1207,27 +1207,23 @@ impl BufferStore {
 
                 let Some(item) = container.store.get((*current_node).data()) else {
                     next_node = (*current_node).more_recently();
-                    debug!("1 {} {}", container.store.len(), container.lru.len());
                     continue;
                 };
 
                 // skips if in use
                 if Rc::strong_count(item) > 1 {
                     next_node = (*current_node).more_recently();
-                    debug!("2");
                     continue;
                 }
 
                 // skips if unfreeable
                 if MemoryPolicyKind::Unfree == item.borrow().memory_policy_kind {
                     next_node = (*current_node).more_recently();
-                    debug!("3");
                     continue;
                 }
 
                 let Some(item) = container.store.remove((*current_node).data()) else {
                     next_node = (*current_node).more_recently();
-                    debug!("4");
                     continue;
                 };
                 let StorageItem {
@@ -1242,7 +1238,6 @@ impl BufferStore {
 
                 let Some(status) = status.upgrade() else {
                     next_node = (**lru_node).more_recently();
-                    debug!("5");
                     continue;
                 };
 
@@ -1258,6 +1253,8 @@ impl BufferStore {
                         );
                         self.gl.bind_buffer(target.gl_enum(), None);
 
+                        self.gl.delete_buffer(Some(&buffer));
+
                         // updates status
                         *status.borrow_mut() = BufferStatus::UpdateBuffer {
                             source: BufferSource::from_uint8_array(data, 0, *size as u32),
@@ -1265,9 +1262,7 @@ impl BufferStore {
                         };
                     }
                     MemoryPolicyKind::Restorable => {
-                        // if restorable, drops buffer directly
-
-                        // deletes WebGlBuffer
+                        // restorable, drops buffer directly
                         self.gl.delete_buffer(Some(&buffer));
 
                         // updates status

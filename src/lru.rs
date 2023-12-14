@@ -329,26 +329,53 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(["D", "C", "B"], *m2l);
 
+            let f = LruNode::new("F");
+            lru.cache(f);
+            assert_eq!(4, lru.len());
+            let l2m = lru
+                .iter_least_to_most()
+                .map(|node| (*node).data().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(["B", "C", "D", "F"], *l2m);
+            let m2l = lru
+                .iter_most_to_least()
+                .map(|node| (*node).data().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(["F", "D", "C", "B"], *m2l);
+
             lru.remove(c);
+            assert_eq!(3, lru.len());
+            let l2m = lru
+                .iter_least_to_most()
+                .map(|node| (*node).data().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(["B", "D", "F"], *l2m);
+            let m2l = lru
+                .iter_most_to_least()
+                .map(|node| (*node).data().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(["F", "D", "B"], *m2l);
+
+            lru.remove(b);
             assert_eq!(2, lru.len());
             let l2m = lru
                 .iter_least_to_most()
                 .map(|node| (*node).data().to_string())
                 .collect::<Vec<_>>();
-            assert_eq!(["B", "D"], *l2m);
+            assert_eq!(["D", "F"], *l2m);
             let m2l = lru
                 .iter_most_to_least()
                 .map(|node| (*node).data().to_string())
                 .collect::<Vec<_>>();
-            assert_eq!(["D", "B"], *m2l);
+            assert_eq!(["F", "D"], *m2l);
 
-            lru.remove(b);
+            lru.remove(f);
             assert_eq!(1, lru.len());
             let l2m = lru
                 .iter_least_to_most()
                 .map(|node| (*node).data().to_string())
                 .collect::<Vec<_>>();
-            assert_eq!(["D"], *l2m);
+            assert_eq!(["D"] , *l2m);
             let m2l = lru
                 .iter_most_to_least()
                 .map(|node| (*node).data().to_string())

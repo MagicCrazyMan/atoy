@@ -1,4 +1,4 @@
-use wasm_bindgen_test::console_log;
+use log::warn;
 
 use crate::{entity::BorrowedMut, geometry::Geometry, material::Material, render::pp::State};
 
@@ -61,7 +61,7 @@ impl AttributeBinding {
     }
 }
 
-/// Binds attributes of the entity.
+/// Binds attributes for the entity.
 /// Holds returning values until finishing next draw call
 /// to prevent buffer store drops the binding buffer unexpectedly.
 pub fn bind_attributes(
@@ -70,7 +70,7 @@ pub fn bind_attributes(
     geometry: &dyn Geometry,
     material: &dyn Material,
     program: &ProgramItem,
-) -> Vec<BufferItem> {
+) -> Vec<(u32, BufferItem)> {
     let mut buffer_items = Vec::with_capacity(program.attribute_locations().len());
     for (binding, location) in program.attribute_locations() {
         let value = match binding {
@@ -82,8 +82,11 @@ pub fn bind_attributes(
             AttributeBinding::FromEntity(name) => entity.attribute_values().get(*name).cloned(),
         };
         let Some(value) = value else {
-            // should log warning
-            console_log!("3");
+            warn!(
+                target: "bind_attributes",
+                "no value specified for attribute {}",
+                binding.variable_name()
+            );
             continue;
         };
 
@@ -100,8 +103,11 @@ pub fn bind_attributes(
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log error
-                        console_log!("{}", err);
+                        warn!(
+                            target: "bind_attributes",
+                            "use buffer store error: {}",
+                            err
+                        );
                         continue;
                     }
                 };
@@ -122,7 +128,7 @@ pub fn bind_attributes(
 
                 state.gl().bind_buffer(target.gl_enum(), None);
 
-                buffer_items.push(buffer_item);
+                buffer_items.push((*location, buffer_item));
             }
             AttributeValue::InstancedBuffer {
                 descriptor,
@@ -136,8 +142,11 @@ pub fn bind_attributes(
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log error
-                        console_log!("{}", err);
+                        warn!(
+                            target: "bind_attributes",
+                            "use buffer store error: {}",
+                            err
+                        );
                         continue;
                     }
                 };
@@ -164,7 +173,7 @@ pub fn bind_attributes(
 
                 state.gl().bind_buffer(target.gl_enum(), None);
 
-                buffer_items.push(buffer_item);
+                buffer_items.push((*location, buffer_item));
             }
             AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),
             AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(*location, x, y),
@@ -188,4 +197,14 @@ pub fn bind_attributes(
     }
 
     buffer_items
+}
+
+/// Unbinds all attributes after draw calls.
+///
+/// If you bind buffer attributes ever,
+/// remember to unbind them by yourself or use this function.
+pub fn unbind_attributes(state: &mut State, bounds: Vec<(u32, BufferItem)>) {
+    for (location, _) in bounds {
+        state.gl().disable_vertex_attrib_array(location);
+    }
 }

@@ -1,4 +1,4 @@
-use wasm_bindgen_test::console_log;
+use log::warn;
 
 use crate::{geometry::Geometry, material::Material, render::pp::State};
 
@@ -53,41 +53,40 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
     if let Some(num_instances) = (*material).instanced() {
         // draw instanced
         match (*geometry).draw() {
-            Draw::Arrays {
-                mode,
-                first,
-                count: num_vertices,
-            } => {
+            Draw::Arrays { mode, first, count } => {
                 state
                     .gl()
-                    .draw_arrays_instanced(mode.gl_enum(), first, num_vertices, num_instances)
+                    .draw_arrays_instanced(mode.gl_enum(), first, count, num_instances)
             }
             Draw::Elements {
                 mode,
-                count: num_vertices,
+                count,
                 element_type,
                 offset,
                 indices,
             } => {
-                let item = match state
+                let buffer_item = match state
                     .buffer_store_mut()
                     .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                 {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log warning
-                        console_log!("{}", err);
+                        warn!(
+                            target: "draw",
+                            "use buffer store error: {}",
+                            err
+                        );
                         return;
                     }
                 };
 
                 state.gl().bind_buffer(
                     BufferTarget::ElementArrayBuffer.gl_enum(),
-                    Some(&item.gl_buffer()),
+                    Some(&buffer_item.gl_buffer()),
                 );
                 state.gl().draw_elements_instanced_with_i32(
                     mode.gl_enum(),
-                    num_vertices,
+                    count,
                     element_type.gl_enum(),
                     offset,
                     num_instances,
@@ -97,37 +96,38 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
     } else {
         // draw normally!
         match (*geometry).draw() {
-            Draw::Arrays {
-                mode,
-                first,
-                count: num_vertices,
-            } => state.gl().draw_arrays(mode.gl_enum(), first, num_vertices),
+            Draw::Arrays { mode, first, count } => {
+                state.gl().draw_arrays(mode.gl_enum(), first, count)
+            }
             Draw::Elements {
                 mode,
-                count: num_vertices,
+                count,
                 element_type,
                 offset,
                 indices,
             } => {
-                let item = match state
+                let buffer_item = match state
                     .buffer_store_mut()
                     .use_buffer(indices, BufferTarget::ElementArrayBuffer)
                 {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log warning
-                        console_log!("{}", err);
+                        warn!(
+                            target: "draw",
+                            "use buffer store error: {}",
+                            err
+                        );
                         return;
                     }
                 };
 
                 state.gl().bind_buffer(
                     BufferTarget::ElementArrayBuffer.gl_enum(),
-                    Some(&item.gl_buffer()),
+                    Some(&buffer_item.gl_buffer()),
                 );
                 state.gl().draw_elements_with_i32(
                     mode.gl_enum(),
-                    num_vertices,
+                    count,
                     element_type.gl_enum(),
                     offset,
                 );

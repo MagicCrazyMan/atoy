@@ -3,7 +3,6 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
-use log::info;
 use wasm_bindgen_test::console_log;
 use web_sys::WebGl2RenderingContext;
 
@@ -13,7 +12,13 @@ use crate::{
     entity::{collection::EntityCollection, BorrowedMut, Strong},
     geometry::Geometry,
     material::{Material, Transparency},
-    render::webgl::{attribute::bind_attributes, draw::draw, error::Error, program::ProgramItem, uniform::bind_uniforms},
+    render::webgl::{
+        attribute::{bind_attributes, unbind_attributes},
+        draw::draw,
+        error::Error,
+        program::ProgramItem,
+        uniform::bind_uniforms,
+    },
     scene::Scene,
 };
 
@@ -29,19 +34,19 @@ pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
         "__collector",
         StandardEntitiesCollector::new(ResourceSource::runtime("entities")),
     );
-    pipeline.add_executor(
-        "__picking",
-        Picking::new(
-            ResourceSource::persist(position_key),
-            ResourceSource::runtime("entities"),
-            ResourceSource::runtime("picked_entity"),
-            ResourceSource::runtime("picked_position"),
-        ),
-    );
-    pipeline.add_executor(
-        "__outlining",
-        Outlining::new(ResourceSource::runtime("picked_entity")),
-    );
+    // pipeline.add_executor(
+    //     "__picking",
+    //     Picking::new(
+    //         ResourceSource::persist(position_key),
+    //         ResourceSource::runtime("entities"),
+    //         ResourceSource::runtime("picked_entity"),
+    //         ResourceSource::runtime("picked_position"),
+    //     ),
+    // );
+    // pipeline.add_executor(
+    //     "__outlining",
+    //     Outlining::new(ResourceSource::runtime("picked_entity")),
+    // );
     pipeline.add_executor(
         "__drawer",
         StandardDrawer::new(ResourceSource::runtime("entities")),
@@ -51,10 +56,10 @@ pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
     // safely unwraps
     pipeline.connect("__setup", "__update_camera").unwrap();
     pipeline.connect("__update_camera", "__collector").unwrap();
-    pipeline.connect("__collector", "__picking").unwrap();
+    // pipeline.connect("__collector", "__picking").unwrap();
     pipeline.connect("__collector", "__drawer").unwrap();
-    pipeline.connect("__picking", "__outlining").unwrap();
-    pipeline.connect("__outlining", "__drawer").unwrap();
+    // pipeline.connect("__picking", "__outlining").unwrap();
+    // pipeline.connect("__outlining", "__drawer").unwrap();
     pipeline.connect("__drawer", "__reset").unwrap();
 
     pipeline
@@ -130,22 +135,9 @@ impl StandardDrawer {
             let program = self.last_program.as_ref().unwrap();
 
             // binds attributes
-            let items = bind_attributes(
-                state,
-                &entity,
-                &*geometry,
-                &*material,
-                program,
-            );
+            let items = bind_attributes(state, &entity, &*geometry, &*material, program);
             // binds uniforms
-            bind_uniforms(
-                state,
-                stuff,
-                &entity,
-                &*geometry,
-                &*material,
-                program,
-            );
+            bind_uniforms(state, stuff, &entity, &*geometry, &*material, program);
 
             // before draw of material and geometry
             (&mut *material).before_draw(state, &entity);
@@ -156,7 +148,7 @@ impl StandardDrawer {
             (&mut *material).after_draw(state, &entity);
             (&mut *geometry).after_draw(state, &entity);
 
-            drop(items);
+            unbind_attributes(state, items);
         }
 
         Ok(())

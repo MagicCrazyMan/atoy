@@ -10,7 +10,7 @@ use crate::{
     entity::{BorrowedMut, Strong},
     material::{Material, Transparency},
     render::webgl::{
-        attribute::{bind_attributes, AttributeBinding, AttributeValue},
+        attribute::{bind_attributes, AttributeBinding, AttributeValue, unbind_attributes},
         draw::draw,
         error::Error,
         program::ShaderSource,
@@ -381,8 +381,7 @@ impl Executor for Picking {
                 &program,
             );
             draw(state, &*geometry, &self.material);
-
-            drop(items);
+            unbind_attributes(state, items);
         }
 
         // gets picking entity

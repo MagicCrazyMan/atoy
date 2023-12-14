@@ -14,7 +14,7 @@ use crate::{
     geometry::Geometry,
     material::{Material, Transparency},
     render::webgl::{
-        attribute::{bind_attributes, AttributeBinding, AttributeValue},
+        attribute::{bind_attributes, AttributeBinding, AttributeValue, unbind_attributes},
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage, MemoryPolicy,
@@ -686,14 +686,14 @@ impl Executor for Outlining {
                 );
             }
 
+            unbind_attributes(state, items);
+
             state
                 .gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
             // enable depth test
             state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
             state.gl.enable(WebGl2RenderingContext::BLEND);
-
-            drop(items);
         }
 
         Ok(())

@@ -36,10 +36,7 @@ impl Rectangle {
         let share_descriptor = BufferDescriptor::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len() as u32),
             BufferUsage::StaticDraw,
-            MemoryPolicy::from_restorable(move || {
-                let composition = create_rectangle(anchor, placement, width, height).0;
-                BufferSource::from_binary(composition, 0, composition.len() as u32)
-            }),
+            MemoryPolicy::Default,
         );
 
         Self {
