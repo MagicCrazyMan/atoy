@@ -6,13 +6,13 @@ use gl_matrix4rust::{
 };
 
 use crate::{
-    frustum::ViewingFrustum,
+    frustum::{ViewFrustum, FrustumPlaneIndex},
     utils::{distance_point_and_plane, distance_point_and_plane_abs},
 };
 
 #[derive(Debug)]
 pub struct BoundingVolume {
-    previous_outside_plane: RefCell<Option<ViewingFrustumPlane>>,
+    previous_outside_plane: RefCell<Option<FrustumPlaneIndex>>,
     native: BoundingVolumeNative,
 }
 
@@ -28,7 +28,7 @@ impl BoundingVolume {
         self.native
     }
 
-    pub fn cull(&self, frustum: &ViewingFrustum) -> Culling {
+    pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
         let mut previous_outside_plane = self.previous_outside_plane.borrow_mut();
 
         let culling = match &self.native {
@@ -90,21 +90,24 @@ pub enum BoundingVolumeNative {
 }
 
 impl BoundingVolumeNative {
-    // pub fn cull(&self, frustum: &ViewingFrustum) -> Culling {
-    //     match self {
-    //         BoundingVolumeKind::BoundingSphere { center, radius } => {
-    //             cull_sphere(frustum, center, *radius)
-    //         }
-    //         BoundingVolumeKind::AxisAlignedBoundingBox {
-    //             min_x,
-    //             max_x,
-    //             min_y,
-    //             max_y,
-    //             min_z,
-    //             max_z,
-    //         } => cull_aabb(frustum, *min_x, *max_x, *min_y, *max_y, *min_z, *max_z),
-    //     }
-    // }
+    pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
+        match self {
+            BoundingVolumeNative::BoundingSphere { center, radius } => {
+                cull_sphere(frustum, None, center, *radius)
+            }
+            BoundingVolumeNative::AxisAlignedBoundingBox {
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+                min_z,
+                max_z,
+            } => cull_aabb(
+                frustum, None, *min_x, *max_x, *min_y, *max_y, *min_z, *max_z,
+            ),
+            BoundingVolumeNative::OrientedBoundingBox(mat) => cull_obb(frustum, None, mat),
+        }
+    }
 
     pub fn transform(&self, transformation: &Mat4) -> Self {
         match self {
@@ -170,8 +173,8 @@ impl BoundingVolumeNative {
 
 /// Culls bounding sphere from frustum by calculating distance between sphere center to each plane of frustum.
 fn cull_sphere(
-    frustum: &ViewingFrustum,
-    previous_outside_plane: Option<ViewingFrustumPlane>,
+    frustum: &ViewFrustum,
+    previous_outside_plane: Option<FrustumPlaneIndex>,
     center: &Vec3,
     radius: f64,
 ) -> Culling {
@@ -179,13 +182,13 @@ fn cull_sphere(
     let mut distances = [None, None, None, None, None, None, None];
 
     let mut planes = [
-        (ViewingFrustumPlane::Top, Some(frustum.top())),
-        (ViewingFrustumPlane::Bottom, Some(frustum.bottom())),
-        (ViewingFrustumPlane::Left, Some(frustum.left())),
-        (ViewingFrustumPlane::Right, Some(frustum.right())),
-        (ViewingFrustumPlane::Near, Some(frustum.near())),
+        (FrustumPlaneIndex::Top, Some(frustum.top())),
+        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
+        (FrustumPlaneIndex::Left, Some(frustum.left())),
+        (FrustumPlaneIndex::Right, Some(frustum.right())),
+        (FrustumPlaneIndex::Near, Some(frustum.near())),
         // far plane may not exists
-        (ViewingFrustumPlane::Far, frustum.far()),
+        (FrustumPlaneIndex::Far, frustum.far()),
     ];
     // puts previous outside plane to the top if exists
     if let Some(previous) = previous_outside_plane {
@@ -201,7 +204,8 @@ fn cull_sphere(
                 } else if distance < -radius {
                     // inside
                     inside_count += 1;
-                    distances[*kind as usize] = Some((distance + radius).abs()); // distance should always returns positive value
+                    distances[*kind as usize] = Some((distance + radius).abs());
+                // distance should always returns positive value
                 } else {
                     // intersect, do nothing
                     distances[*kind as usize] = Some(distance.abs());
@@ -216,29 +220,29 @@ fn cull_sphere(
 
     if inside_count == 6 {
         Culling::Inside {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     } else {
         Culling::Intersect {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     }
 }
 
 /// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
 fn cull_aabb(
-    frustum: &ViewingFrustum,
-    previous_outside_plane: Option<ViewingFrustumPlane>,
+    frustum: &ViewFrustum,
+    previous_outside_plane: Option<FrustumPlaneIndex>,
     min_x: f64,
     max_x: f64,
     min_y: f64,
@@ -252,13 +256,13 @@ fn cull_aabb(
         (min_z + max_z) / 2.0,
     );
     let mut planes = [
-        (ViewingFrustumPlane::Top, Some(frustum.top())),
-        (ViewingFrustumPlane::Bottom, Some(frustum.bottom())),
-        (ViewingFrustumPlane::Left, Some(frustum.left())),
-        (ViewingFrustumPlane::Right, Some(frustum.right())),
-        (ViewingFrustumPlane::Near, Some(frustum.near())),
+        (FrustumPlaneIndex::Top, Some(frustum.top())),
+        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
+        (FrustumPlaneIndex::Left, Some(frustum.left())),
+        (FrustumPlaneIndex::Right, Some(frustum.right())),
+        (FrustumPlaneIndex::Near, Some(frustum.near())),
         // far plane may not exists
-        (ViewingFrustumPlane::Far, frustum.far()),
+        (FrustumPlaneIndex::Far, frustum.far()),
     ];
     // puts previous outside plane to the top if exists
     if let Some(previous) = previous_outside_plane {
@@ -318,39 +322,39 @@ fn cull_aabb(
 
     if intersect {
         Culling::Intersect {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     } else {
         Culling::Inside {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     }
 }
 
 /// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
 fn cull_obb(
-    frustum: &ViewingFrustum,
-    previous_outside_plane: Option<ViewingFrustumPlane>,
+    frustum: &ViewFrustum,
+    previous_outside_plane: Option<FrustumPlaneIndex>,
     matrix: &Mat4,
 ) -> Culling {
     let mut planes = [
-        (ViewingFrustumPlane::Top, Some(frustum.top())),
-        (ViewingFrustumPlane::Bottom, Some(frustum.bottom())),
-        (ViewingFrustumPlane::Left, Some(frustum.left())),
-        (ViewingFrustumPlane::Right, Some(frustum.right())),
-        (ViewingFrustumPlane::Near, Some(frustum.near())),
+        (FrustumPlaneIndex::Top, Some(frustum.top())),
+        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
+        (FrustumPlaneIndex::Left, Some(frustum.left())),
+        (FrustumPlaneIndex::Right, Some(frustum.right())),
+        (FrustumPlaneIndex::Near, Some(frustum.near())),
         // far plane may not exists
-        (ViewingFrustumPlane::Far, frustum.far()),
+        (FrustumPlaneIndex::Far, frustum.far()),
     ];
     // puts previous outside plane to the top if exists
     if let Some(previous) = previous_outside_plane {
@@ -421,39 +425,23 @@ fn cull_obb(
 
     if intersect {
         Culling::Intersect {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     } else {
         Culling::Inside {
-            top: distances[ViewingFrustumPlane::Top as usize].unwrap(),
-            bottom: distances[ViewingFrustumPlane::Bottom as usize].unwrap(),
-            left: distances[ViewingFrustumPlane::Left as usize].unwrap(),
-            right: distances[ViewingFrustumPlane::Right as usize].unwrap(),
-            near: distances[ViewingFrustumPlane::Near as usize].unwrap(),
-            far: distances[ViewingFrustumPlane::Far as usize],
+            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
+            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
+            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
+            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
+            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
+            far: distances[FrustumPlaneIndex::Far as usize],
         }
     }
-}
-
-#[test]
-fn bitfields() {
-    let nx = -1.0;
-    let ny = 2.0;
-    let nz = -3.0;
-
-    let mut signs = 0u8;
-    unsafe {
-        signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
-        signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
-        signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
-    }
-
-    println!("{:08b}", !signs);
 }
 
 /// Culling status of a [`BoundingVolume`] and a [`ViewingFrustum`]
@@ -463,7 +451,7 @@ fn bitfields() {
 /// ([`Camera::far()`](crate::camera::Camera::far) is none).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Culling {
-    Outside(ViewingFrustumPlane),
+    Outside(FrustumPlaneIndex),
     Inside {
         near: f64,
         far: Option<f64>,
@@ -480,15 +468,4 @@ pub enum Culling {
         left: f64,
         right: f64,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ViewingFrustumPlane {
-    Top = 0,
-    Bottom = 1,
-    Left = 2,
-    Right = 3,
-    Near = 4,
-    Far = 5,
 }

@@ -1,7 +1,9 @@
+use gl_matrix4rust::mat4::Mat4;
+
 use crate::plane::Plane;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ViewingFrustum {
+pub struct ViewFrustum {
     left: Plane,
     right: Plane,
     top: Plane,
@@ -10,7 +12,7 @@ pub struct ViewingFrustum {
     far: Option<Plane>,
 }
 
-impl ViewingFrustum {
+impl ViewFrustum {
     pub fn new(
         left: Plane,
         right: Plane,
@@ -51,5 +53,22 @@ impl ViewingFrustum {
 
     pub fn bottom(&self) -> &Plane {
         &self.bottom
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum FrustumPlaneIndex {
+    Top = 0,
+    Bottom = 1,
+    Left = 2,
+    Right = 3,
+    Near = 4,
+    Far = 5,
+}
+
+impl From<Mat4> for ViewFrustum {
+    fn from(value: Mat4) -> Self {
+        todo!()
     }
 }
