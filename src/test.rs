@@ -15,6 +15,7 @@ use web_sys::MouseEvent;
 
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::Camera;
+use crate::camera::universal::UniversalCamera;
 use crate::entity::{Entity, Weak};
 use crate::error::Error;
 use crate::geometry::cube::{self, calculate_vertices};
@@ -134,7 +135,7 @@ fn create_scene(
     camera_center: impl AsVec3<f64>,
     camera_up: impl AsVec3<f64>,
 ) -> Result<Scene, Error> {
-    let scene_options = SceneOptions::new().with_default_camera(PerspectiveCamera::new(
+    let scene_options = SceneOptions::new().with_camera(UniversalCamera::new(
         camera_position,
         camera_center,
         camera_up,

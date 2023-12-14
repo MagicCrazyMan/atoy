@@ -1,5 +1,3 @@
-use gl_matrix4rust::{mat4::{Mat4, AsMat4}, vec3::{Vec3, AsVec3}};
-
 use crate::plane::Plane;
 
 #[derive(Debug, Clone, Copy)]

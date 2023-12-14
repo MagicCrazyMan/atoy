@@ -10,16 +10,6 @@ use crate::{frustum::ViewFrustum, render::pp::State};
 pub trait Camera {
     fn position(&self) -> Vec3;
 
-    fn center(&self) -> Vec3;
-
-    fn up(&self) -> Vec3;
-
-    fn aspect(&self) -> f64;
-
-    fn near(&self) -> f64;
-
-    fn far(&self) -> Option<f64>;
-
     fn view_matrix(&self) -> Mat4;
 
     fn proj_matrix(&self) -> Mat4;

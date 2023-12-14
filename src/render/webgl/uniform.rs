@@ -88,7 +88,6 @@ pub enum UniformBinding {
     ProjMatrix,
     ViewProjMatrix,
     ActiveCameraPosition,
-    ActiveCameraCenter,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -104,7 +103,6 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
-            UniformBinding::ActiveCameraCenter => "u_ActiveCameraDirection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
@@ -162,15 +160,9 @@ pub(crate) fn bind_uniforms(
                     transpose: false,
                 })
             }
-            UniformBinding::ActiveCameraPosition | UniformBinding::ActiveCameraCenter => {
-                let vec = match binding {
-                    UniformBinding::ActiveCameraPosition => stuff.camera().position().to_gl(),
-                    UniformBinding::ActiveCameraCenter => stuff.camera().center().to_gl(),
-                    _ => unreachable!(),
-                };
-
-                Some(UniformValue::FloatVector3(vec))
-            }
+            UniformBinding::ActiveCameraPosition => Some(UniformValue::FloatVector3(
+                stuff.camera().position().to_gl(),
+            )),
             UniformBinding::CanvasSize => state
                 .gl()
                 .canvas()

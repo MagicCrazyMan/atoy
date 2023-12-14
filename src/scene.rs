@@ -2,7 +2,7 @@ use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
-    camera::{perspective::PerspectiveCamera, Camera},
+    camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
     error::Error,
 };
@@ -35,12 +35,12 @@ impl SceneOptions {
         Self { camera: None }
     }
 
-    pub fn with_default_camera<C: Camera + 'static>(mut self, camera: C) -> Self {
+    pub fn with_camera<C: Camera + 'static>(mut self, camera: C) -> Self {
         self.camera = Some(Box::new(camera));
         self
     }
 
-    pub fn without_default_camera(mut self) -> Self {
+    pub fn without_camera(mut self) -> Self {
         self.camera = None;
         self
     }
@@ -100,7 +100,7 @@ impl Scene {
     }
 
     fn create_camera() -> Box<dyn Camera> {
-        Box::new(PerspectiveCamera::new(
+        Box::new(UniversalCamera::new(
             Vec3::from_values(0.0, 0.0, 2.0),
             Vec3::new(),
             Vec3::from_values(0.0, 1.0, 0.0),
