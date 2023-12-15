@@ -34,19 +34,19 @@ pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
         "__collector",
         StandardEntitiesCollector::new(ResourceSource::runtime("entities")),
     );
-    // pipeline.add_executor(
-    //     "__picking",
-    //     Picking::new(
-    //         ResourceSource::persist(position_key),
-    //         ResourceSource::runtime("entities"),
-    //         ResourceSource::runtime("picked_entity"),
-    //         ResourceSource::runtime("picked_position"),
-    //     ),
-    // );
-    // pipeline.add_executor(
-    //     "__outlining",
-    //     Outlining::new(ResourceSource::runtime("picked_entity")),
-    // );
+    pipeline.add_executor(
+        "__picking",
+        Picking::new(
+            ResourceSource::persist(position_key),
+            ResourceSource::runtime("entities"),
+            ResourceSource::runtime("picked_entity"),
+            ResourceSource::runtime("picked_position"),
+        ),
+    );
+    pipeline.add_executor(
+        "__outlining",
+        Outlining::new(ResourceSource::runtime("picked_entity")),
+    );
     pipeline.add_executor(
         "__drawer",
         StandardDrawer::new(ResourceSource::runtime("entities")),
@@ -56,10 +56,10 @@ pub fn create_standard_pipeline(position_key: impl Into<String>) -> Pipeline {
     // safely unwraps
     pipeline.connect("__setup", "__update_camera").unwrap();
     pipeline.connect("__update_camera", "__collector").unwrap();
-    // pipeline.connect("__collector", "__picking").unwrap();
+    pipeline.connect("__collector", "__picking").unwrap();
     pipeline.connect("__collector", "__drawer").unwrap();
-    // pipeline.connect("__picking", "__outlining").unwrap();
-    // pipeline.connect("__outlining", "__drawer").unwrap();
+    pipeline.connect("__picking", "__outlining").unwrap();
+    pipeline.connect("__outlining", "__drawer").unwrap();
     pipeline.connect("__drawer", "__reset").unwrap();
 
     pipeline
@@ -210,14 +210,22 @@ impl Executor for StandardDrawer {
             }
         });
 
-        // draws translucents first with DEPTH_TEST unchanged and draws theme from farthest to nearest
-        state.gl.depth_mask(false);
-        for (entity, geometry, material) in translucents.into_iter().rev() {
-            self.draw(state, stuff, entity, geometry, material)?;
-        }
-        // and then draws opaque with DEPTH_TEST and draws them from nearest to farthest
+        // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
+        state.gl.disable(WebGl2RenderingContext::BLEND);
         state.gl.depth_mask(true);
         for (entity, geometry, material) in opaques {
+            self.draw(state, stuff, entity, geometry, material)?;
+        }
+
+        // then draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws theme from farthest to nearest
+        state.gl.enable(WebGl2RenderingContext::BLEND);
+        state.gl.blend_equation(WebGl2RenderingContext::FUNC_ADD);
+        state.gl.blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
+        state.gl.depth_mask(false);
+        for (entity, geometry, material) in translucents.into_iter().rev() {
             self.draw(state, stuff, entity, geometry, material)?;
         }
 
@@ -364,14 +372,8 @@ impl Executor for StandardSetup {
             state.canvas.height() as i32,
         );
         state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl.enable(WebGl2RenderingContext::BLEND);
-        state.gl.enable(WebGl2RenderingContext::CULL_FACE);
-        state.gl.cull_face(WebGl2RenderingContext::BACK);
-        state.gl.blend_equation(WebGl2RenderingContext::FUNC_ADD);
-        state.gl.blend_func(
-            WebGl2RenderingContext::SRC_ALPHA,
-            WebGl2RenderingContext::DST_ALPHA,
-        );
+        // state.gl.enable(WebGl2RenderingContext::CULL_FACE);
+        // state.gl.cull_face(WebGl2RenderingContext::BACK);
         state.gl.clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl.clear_depth(1.0);
         state.gl.clear_stencil(0);

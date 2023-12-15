@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
     bounding::BoundingVolumeNative,

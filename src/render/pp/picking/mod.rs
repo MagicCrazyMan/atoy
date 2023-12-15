@@ -282,6 +282,10 @@ impl Executor for Picking {
             return Ok(());
         }
 
+        state.gl.disable(WebGl2RenderingContext::BLEND);
+        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl.depth_mask(true);
+
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(&state.gl)?;
         let renderbuffer = self.use_depth_renderbuffer(state)?;
@@ -340,8 +344,6 @@ impl Executor for Picking {
             .gl
             .clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
 
-        state.gl.disable(WebGl2RenderingContext::BLEND);
-
         // prepare material
         let program = state.program_store.use_program(&self.material)?;
         state.gl.use_program(Some(program.gl_program()));
@@ -380,7 +382,7 @@ impl Executor for Picking {
                 &self.material,
                 &program,
             );
-            draw(state, &*geometry, &self.material);
+            draw(state, geometry, &self.material);
             unbind_attributes(state, items);
         }
 
