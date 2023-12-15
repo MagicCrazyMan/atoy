@@ -113,9 +113,9 @@ impl WebGL2Render {
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
             .ok_or(Error::CreateCanvasFailure)?;
         canvas
-            .set_attribute("contentEditable", "")
+            .set_attribute("tabindex", "0")
             .map_err(|_| Error::CreateCanvasFailure)?;
-        canvas.style().set_css_text("width: 100%; height: 100%;");
+        canvas.style().set_css_text("width: 100%; height: 100%; outline: none;");
 
         let resize_observer = Self::observer_canvas_size(&canvas);
 

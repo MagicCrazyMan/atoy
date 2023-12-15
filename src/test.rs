@@ -166,7 +166,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((5.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -999,11 +999,20 @@ pub fn test_camera() {
     let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
 
     let view_matrix = camera.view_matrix();
-    let view_inv_matrix = camera.view_matrix().invert().unwrap();
+    let view_translated_matrix = view_matrix.translate(&(0.0, 0.0, 2.0));
+    let view_inv_matrix = view_matrix.invert().unwrap();
     let proj_matrix = camera.proj_matrix();
     let view_proj_matrix = camera.view_proj_matrix();
 
-    // console_log!("{}", position.transform_mat4(&view_matrix));
+    console_log!("{}", position.transform_mat4(&view_matrix));
+    console_log!("{}", position.transform_mat4(&view_translated_matrix));
+    console_log!("{}", Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix));
+    console_log!("{}", Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix));
+    console_log!("{}", Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix));
+    console_log!("{}", Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix));
+    console_log!("{}", Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix));
+    console_log!("{}", Vec3::new().transform_mat4(&view_matrix));
+    console_log!("{}", Vec3::new().transform_mat4(&view_inv_matrix));
     console_log!("{}", position.transform_mat4(&view_proj_matrix));
     console_log!(
         "{}",

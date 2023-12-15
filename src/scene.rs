@@ -89,7 +89,7 @@ impl Scene {
         let active_camera = options
             .as_mut()
             .and_then(|opts| opts.take_camera())
-            .unwrap_or(Self::create_camera());
+            .unwrap_or_else(|| Self::create_camera());
 
         let scene = Self {
             active_camera,
