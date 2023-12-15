@@ -10,15 +10,14 @@ use gl_matrix4rust::{
 };
 use log::{error, info};
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 use super::Camera;
 
-const BASIC_RIGHTWARD: (f64, f64, f64) = (1.0, 0.0, 0.0);
-const BASIC_UPWARD: (f64, f64, f64) = (0.0, 1.0, 0.0);
+const BASE_UPWARD: (f64, f64, f64) = (0.0, 1.0, 0.0);
 // camera coordinate system is a right hand side coordinate system
 // flip z axis to convert it to left hand side
-const BASIC_FORWARD: (f64, f64, f64) = (0.0, 0.0, -1.0);
+const BASE_FORWARD: (f64, f64, f64) = (0.0, 0.0, -1.0);
 
 struct Shareable {
     forward: Vec3,
@@ -47,6 +46,7 @@ struct Shareable {
     binding_canvas: Option<HtmlCanvasElement>,
     keyboard_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
     mousemove_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
+    wheel_callback: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
 impl Shareable {
@@ -110,27 +110,20 @@ impl Shareable {
 
     #[inline]
     fn rotate_rad(&mut self, rx: f64, ry: f64) {
-        let p = self.view.translation();
-        self.view = self.view.translate(&p.negate()).rotate_y(ry).translate(&p);
+        self.view = Mat4::from_y_rotation(ry) * Mat4::from_x_rotation(rx) * self.view;
         self.view_proj = self.proj * self.view;
 
-        self.forward = Vec3::from_as_vec3(BASIC_FORWARD)
-            .transform_mat4(&self.view)
+        let tview = self.view.transpose();
+        self.forward = Vec3::from_as_vec3(BASE_FORWARD)
+            .transform_mat4(&tview)
             .normalize();
-        self.rightward = Vec3::from_as_vec3(BASIC_RIGHTWARD)
-            .transform_mat4(&self.view)
-            .normalize();
-        self.upward = Vec3::from_as_vec3(BASIC_UPWARD)
-            .transform_mat4(&self.view)
+        self.upward = Vec3::from_as_vec3(BASE_UPWARD)
+            .transform_mat4(&tview)
             .normalize();
 
         // ensuring perpendicular to each other
         self.rightward = self.forward.cross(&self.upward).normalize();
         self.upward = self.rightward.cross(&self.forward).normalize();
-
-        info!("{:?}", self.forward);
-        info!("{:?}", self.rightward);
-        info!("{:?}", self.upward);
 
         self.update_frustum();
     }
@@ -234,16 +227,17 @@ impl Shareable {
     }
 
     fn update_frustum(&mut self) {
-        self.frustum = frustum(
-            self.view.translation().negate(),
-            self.forward,
-            self.rightward,
-            self.upward,
-            self.fovy,
-            self.aspect,
-            self.near,
-            self.far,
-        );
+        // self.frustum = frustum(
+        //     self.view.translation().negate(),
+        //     self.forward,
+        //     self.rightward,
+        //     self.upward,
+        //     self.fovy,
+        //     self.aspect,
+        //     self.near,
+        //     self.far,
+        // );
+        self.frustum = aaa(&self.view, self.fovy, self.aspect, self.near, self.far);
     }
 }
 
@@ -272,6 +266,18 @@ impl Drop for Shareable {
                 error!(
                     target: "UniversalCamera",
                     "failed to unbind mousemove event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+        }
+
+        if let Some(callback) = self.wheel_callback.take() {
+            if let Err(err) = canvas
+                .remove_event_listener_with_callback("wheel", callback.as_ref().unchecked_ref())
+            {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to unbind wheel event: {}",
                     err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
                 );
             }
@@ -306,39 +312,24 @@ impl UniversalCamera {
         let center = Vec3::from_as_vec3(center);
         let up = Vec3::from_as_vec3(up);
 
-        let forward = (center - position).normalize();
-        // let backward = forward.negate();
-        // let rightward = forward.cross(&up).normalize();
-        // let upward = rightward.cross(&forward).normalize();
-        // info!("{:?}", forward);
-        // info!("{:?}", rightward);
-        // info!("{:?}", upward);
-
         let view = Mat4::from_look_at(&position, &center, &up);
-        let forward = Vec3::from_as_vec3(BASIC_FORWARD)
-            .transform_mat4(&view)
+        let tview = view.transpose();
+        let forward = Vec3::from_as_vec3(BASE_FORWARD)
+            .transform_mat4(&tview)
             .normalize();
-        let rightward = Vec3::from_as_vec3(BASIC_RIGHTWARD)
-            .transform_mat4(&view)
+        let upward = Vec3::from_as_vec3(BASE_UPWARD)
+            .transform_mat4(&tview)
             .normalize();
-        let upward = Vec3::from_as_vec3(BASIC_UPWARD)
-            .transform_mat4(&view)
-            .normalize();
-        info!("{:?}", forward);
-        info!("{:?}", rightward);
-        info!("{:?}", upward);
         let rightward = forward.cross(&upward).normalize();
         let upward = rightward.cross(&forward).normalize();
-        info!("{:?}", forward);
-        info!("{:?}", rightward);
-        info!("{:?}", upward);
         let proj = Mat4::from_perspective(fovy, aspect, near, far);
-        let frustum = frustum(
-            position, forward, rightward, upward, fovy, aspect, near, far,
-        );
+        // let frustum = frustum(
+        //     position, forward, rightward, upward, fovy, aspect, near, far,
+        // );
+        let frustum = aaa(&view, fovy, aspect, near, far);
 
         let default_movement = 0.5;
-        let default_rotation = 0.0005;
+        let default_rotation = 0.005;
 
         let sharable = Shareable {
             rightward,
@@ -349,6 +340,7 @@ impl UniversalCamera {
             aspect,
             near,
             far,
+
             view,
             proj,
             view_proj: proj * view,
@@ -366,6 +358,7 @@ impl UniversalCamera {
             binding_canvas: None,
             keyboard_callback: None,
             mousemove_callback: None,
+            wheel_callback: None,
         };
 
         Self {
@@ -550,7 +543,6 @@ impl Camera for UniversalCamera {
                 let mut shareable = shareable.borrow_mut();
 
                 let key = event.key();
-                info!("{}", key);
                 match key.as_str() {
                     "w" => shareable.move_forward(),
                     "a" => shareable.move_left(),
@@ -633,9 +625,89 @@ impl Camera for UniversalCamera {
                 );
             }
 
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            shareable.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "wheel",
+                shareable
+                    .wheel_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind wheel event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
             shareable.binding_canvas = Some(canvas.clone());
         }
     }
+}
+
+fn aaa(view: &Mat4, fovy: f64, aspect: f64, near: f64, far: Option<f64>) -> ViewFrustum {
+    let x = Vec3::from_values(view.m00(), view.m10(), view.m20());
+    let y = Vec3::from_values(view.m01(), view.m11(), view.m21());
+    let nz = Vec3::from_values(view.m02(), view.m12(), view.m22());
+    let z = nz.negate();
+    let position = view.invert().unwrap().translation();
+
+    info!("{}", fovy);
+    info!("{}", aspect);
+    info!("{}", near);
+
+    info!("{}", position);
+    info!("{}", x);
+    info!("{}", y);
+    info!("{}", z);
+    info!("{}", nz);
+
+    let p = position + z * near;
+    let hh = (fovy / 2.0).tan() * near;
+    let hw = aspect * hh;
+
+    let top = {
+        let pop = p + y * hh;
+        let d = (pop - position).normalize();
+        Plane::new(pop, x.cross(&d).normalize())
+    };
+    let bottom = {
+        let pop = p + y * -hh;
+        let d = (pop - position).normalize();
+        Plane::new(pop, d.cross(&x).normalize())
+    };
+    let left = {
+        let pop = p + x * -hw;
+        let d = (pop - position).normalize();
+        Plane::new(pop, y.cross(&d).normalize())
+    };
+    let right = {
+        let pop = p + x * hw;
+        let d = (pop - position).normalize();
+        Plane::new(pop, d.cross(&y).normalize())
+    };
+    let near = { Plane::new(p, nz) };
+    let far = match far {
+        Some(far) => Some(Plane::new(p + z * far, z)),
+        None => None,
+    };
+
+    info!("{:?}", top);
+    info!("{:?}", bottom);
+    info!("{:?}", left);
+    info!("{:?}", right);
+    info!("{:?}", near);
+    info!("{:?}", far);
+
+    ViewFrustum::new(left, right, top, bottom, near, far)
 }
 
 pub(super) fn frustum(
@@ -652,6 +724,11 @@ pub(super) fn frustum(
     let y = upward;
     let z = forward;
     let nz = forward.negate();
+
+    info!("{}", x);
+    info!("{}", y);
+    info!("{}", z);
+    info!("{}", nz);
 
     let p = position + z * near;
     let hh = (fovy / 2.0).tan() * near;
@@ -682,6 +759,13 @@ pub(super) fn frustum(
         Some(far) => Some(Plane::new(position + z * far, z)),
         None => None,
     };
+
+    info!("{:?}", top);
+    info!("{:?}", bottom);
+    info!("{:?}", left);
+    info!("{:?}", right);
+    info!("{:?}", near);
+    info!("{:?}", far);
 
     ViewFrustum::new(left, right, top, bottom, near, far)
 }

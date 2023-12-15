@@ -4,6 +4,7 @@ use gl_matrix4rust::{
     mat4::Mat4,
     vec3::{AsVec3, Vec3},
 };
+use log::info;
 
 use crate::{frustum::ViewFrustum, plane::Plane, render::pp::State};
 
@@ -202,6 +203,16 @@ pub(super) fn frustum(
     let x = up.cross(&nz).normalize();
     let y = nz.cross(&x).normalize();
     let z = nz.negate();
+    
+    info!("{}", fovy);
+    info!("{}", aspect);
+    info!("{}", near);
+
+    info!("{}", position);
+    info!("{}", x);
+    info!("{}", y);
+    info!("{}", z);
+    info!("{}", nz);
 
     let p = position + z * near;
     let hh = (fovy / 2.0).tan() * near;
@@ -232,6 +243,13 @@ pub(super) fn frustum(
         Some(far) => Some(Plane::new(position + z * far, z)),
         None => None,
     };
+
+    info!("{:?}", top);
+    info!("{:?}", bottom);
+    info!("{:?}", left);
+    info!("{:?}", right);
+    info!("{:?}", near);
+    info!("{:?}", far);
 
     ViewFrustum::new(left, right, top, bottom, near, far)
 }
