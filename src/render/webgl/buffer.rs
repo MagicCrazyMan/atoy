@@ -543,7 +543,7 @@ impl Drop for BufferAgency {
             container.lru.remove(*lru_node);
         }
 
-        debug!(target: "buffer_store", "drop buffer {}. freed memory {}, used {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
+        debug!(target: "BufferStore", "drop buffer {}. freed memory {}, used {}", id, format_bytes_length(*size), format_bytes_length(container.used_memory));
     }
 }
 
@@ -1029,7 +1029,7 @@ impl BufferStore {
                 }));
                 container.store.insert(id, Rc::clone(&storage));
 
-                debug!(target: "buffer_store", "create buffer {}", id);
+                debug!(target: "BufferStore", "create buffer {}", id);
 
                 storage
             }
@@ -1117,7 +1117,7 @@ impl BufferStore {
                     )),
                 };
 
-                debug!(target: "buffer_store", "buffer data to {}. consumed memory {}, used {}", id, format_bytes_length(size), format_bytes_length(container_mut.used_memory));
+                debug!(target: "BufferStore", "buffer data to {}. consumed memory {}, used {}", id, format_bytes_length(size), format_bytes_length(container_mut.used_memory));
             }
             BufferStatus::UpdateSubBuffer {
                 size,
@@ -1157,7 +1157,7 @@ impl BufferStore {
                     container_mut.used_memory += *size - osize;
 
                     warn!(
-                        target: "buffer_store",
+                        target: "BufferStore",
                         "buffer sub data overflow {}. previous {}, current {}, used {}",
                         id,
                         format_bytes_length(osize),
@@ -1177,7 +1177,7 @@ impl BufferStore {
                     agency: Rc::clone(&agency),
                 };
 
-                debug!(target: "buffer_store", "buffer sub data to {}. used {}", id, format_bytes_length(container_mut.used_memory));
+                debug!(target: "BufferStore", "buffer sub data to {}. used {}", id, format_bytes_length(container_mut.used_memory));
             }
         };
 
@@ -1282,7 +1282,7 @@ impl BufferStore {
                 match memory_policy_kind {
                     MemoryPolicyKind::Default => {
                         debug!(
-                            target: "buffer_store",
+                            target: "BufferStore",
                             "free buffer (default) {}. freed memory {}, used {}",
                             id,
                             format_bytes_length(*size),
@@ -1291,7 +1291,7 @@ impl BufferStore {
                     }
                     MemoryPolicyKind::Restorable => {
                         debug!(
-                            target: "buffer_store",
+                            target: "BufferStore",
                             "free buffer (restorable) {}. freed memory {}, used {}",
                             id,
                             format_bytes_length(*size),

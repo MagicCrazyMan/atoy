@@ -142,7 +142,7 @@ fn create_scene(
         60.0f64.to_radians(),
         1.0,
         0.5,
-        None,
+        Some(200.0),
     ));
 
     Scene::with_options(scene_options)
@@ -166,7 +166,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -349,7 +349,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
 #[wasm_bindgen]
 pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
     let mut pipeline = create_standard_pipeline("position");
 
@@ -368,7 +368,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         data_type: BufferDataType::Float,
         normalized: false,
         bytes_stride: 0,
-        bytes_offset: 108,
+        bytes_offset: 0,
     };
     let normals = AttributeValue::Buffer {
         descriptor: BufferDescriptor::new(
@@ -380,7 +380,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         data_type: BufferDataType::Float,
         normalized: false,
         bytes_stride: 0,
-        bytes_offset: 108,
+        bytes_offset: 0,
     };
     let tex_coords = AttributeValue::Buffer {
         descriptor: BufferDescriptor::new(
@@ -396,7 +396,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         data_type: BufferDataType::Float,
         normalized: false,
         bytes_stride: 0,
-        bytes_offset: 48,
+        bytes_offset: 0,
     };
 
     let cell_width = width / (grid as f64);
@@ -473,7 +473,7 @@ pub fn test_instanced_cube(
     width: f64,
     height: f64,
 ) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
     let mut pipeline = create_standard_pipeline("position");
 
@@ -491,7 +491,6 @@ pub fn test_instanced_cube(
         .unwrap();
     click.forget();
 
-    // entity.set_geometry(Some(Cube::new()));
     entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
     entity
         .borrow_mut()
@@ -504,22 +503,6 @@ pub fn test_instanced_cube(
     let g = f.clone();
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
         let seconds = frame_time / 1000.0;
-
-        // static MAX_SIZE: f64 = 3.0;
-        // static MIN_SIZE: f64 = 1.0;
-        // static SIZE_PER_SECOND: f64 = 0.5;
-        // let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-        // scene
-        //     .root_entity_mut()
-        //     .children_mut()
-        //     .get_mut(0)
-        //     .unwrap()
-        //     .geometry_mut()
-        //     .unwrap()
-        //     .as_any_mut()
-        //     .downcast_mut::<IndexedCube>()
-        //     .unwrap()
-        //     .set_size(size);
 
         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
