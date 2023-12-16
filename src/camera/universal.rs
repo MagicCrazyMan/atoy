@@ -123,12 +123,15 @@ impl Shareable {
                 .view
                 .invert() // inverts the view matrix, gets a camera transform matrix
                 .map(|rto| rto.transpose()) // transposes it, makes it available to transform a vector
-                .map(|trto| BASE_UPWARD.transform_mat4(&trto)) // transforms BASE_UPWARD vector by that matrix, we gets the Y axis of the view matrix but representing in world space
+                .map(|trto| BASE_UPWARD.transform_mat4(&trto).normalize()) // transforms BASE_UPWARD vector by that matrix, we gets the Y axis of the view matrix but representing in world space
                 .and_then(|up| Mat4::from_rotation(ry,&up)) // then, makes a rotation matrix from it
             {
                 Ok(r) => r,
                 Err(err) => {
-                    warn!("unexpected rotation: {}", err);
+                    warn!(
+                        target: "UniversalCamera",
+                        "unexpected rotation: {err}"
+                    );
                     return;
                 }
             };

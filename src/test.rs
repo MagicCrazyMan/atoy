@@ -29,6 +29,7 @@ use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
+use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::{self, Transparency};
 use crate::render::pp::picking::create_picking_pipeline;
 use crate::render::pp::standard::{create_standard_pipeline, StandardStuff};
@@ -166,7 +167,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 8.0, 10.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -200,34 +201,44 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         scene.entity_collection_mut().add_entity(entity);
     }
 
+    // let entity = Entity::new();
+    // entity.borrow_mut().set_geometry(Some(Rectangle::new(
+    //     Vec2::from_values(0.0, 0.0),
+    //     Placement::Center,
+    //     4.0,
+    //     4.0,
+    // )));
+    // entity.borrow_mut().set_material(Some(IconMaterial::new(
+    //     TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
+    //         descriptor: TextureDescriptor::texture_2d_with_html_image_element(
+    //             image,
+    //             TextureDataType::UnsignedByte,
+    //             TextureFormat::RGB,
+    //             TextureFormat::RGB,
+    //             0,
+    //             vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+    //             true,
+    //         ),
+    //         params: vec![
+    //             TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
+    //             TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
+    //             TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
+    //             TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
+    //         ],
+    //         texture_unit: TextureUnit::TEXTURE0,
+    //     }),
+    //     Transparency::Opaque,
+    // )));
+    // scene.entity_collection_mut().add_entity(entity);
+
     let entity = Entity::new();
     entity.borrow_mut().set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
-        Placement::Center,
-        4.0,
-        4.0,
+        Placement::TopLeft,
+        0.25,
+        0.25,
     )));
-    entity.borrow_mut().set_material(Some(IconMaterial::new(
-        TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
-            descriptor: TextureDescriptor::texture_2d_with_html_image_element(
-                image,
-                TextureDataType::UnsignedByte,
-                TextureFormat::RGB,
-                TextureFormat::RGB,
-                0,
-                vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                true,
-            ),
-            params: vec![
-                TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
-                TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
-                TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
-                TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
-            ],
-            texture_unit: TextureUnit::TEXTURE0,
-        }),
-        Transparency::Opaque,
-    )));
+    entity.borrow_mut().set_material(Some(MultipleTexturesInstanced::new()));
     scene.entity_collection_mut().add_entity(entity);
 
     let scene = Rc::new(RefCell::new(scene));

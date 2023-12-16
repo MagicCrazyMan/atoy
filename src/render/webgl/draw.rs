@@ -1,4 +1,4 @@
-use log::warn;
+use log::{warn, info};
 
 use crate::{geometry::Geometry, material::Material, render::pp::State};
 

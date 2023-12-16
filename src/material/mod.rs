@@ -19,6 +19,7 @@ pub mod texture_mapping;
 pub mod texture_mapping_instanced;
 pub mod icon;
 pub mod loader;
+pub mod multiple_textures_instanced;
 
 pub trait Material {
     fn name(&self) -> &'static str;

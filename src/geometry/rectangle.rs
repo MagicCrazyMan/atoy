@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use gl_matrix4rust::vec2::Vec2;
+use log::info;
 
 use crate::{
     bounding::BoundingVolumeNative,
@@ -209,6 +210,7 @@ fn create_rectangle(
         // normal
         0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0
     ];
+
 
     (
         unsafe {
