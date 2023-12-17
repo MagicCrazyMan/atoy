@@ -1,7 +1,6 @@
 use std::any::Any;
 
 use gl_matrix4rust::vec2::Vec2;
-use log::info;
 
 use crate::{
     bounding::BoundingVolumeNative,

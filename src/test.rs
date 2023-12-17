@@ -14,8 +14,8 @@ use web_sys::js_sys::{Date, Uint8Array};
 use web_sys::MouseEvent;
 
 use crate::camera::perspective::PerspectiveCamera;
-use crate::camera::Camera;
 use crate::camera::universal::UniversalCamera;
+use crate::camera::Camera;
 use crate::entity::{Entity, Weak};
 use crate::error::Error;
 use crate::geometry::cube::{self, calculate_vertices};
@@ -27,12 +27,13 @@ use crate::geometry::sphere::Sphere;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
+use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
-use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::{self, Transparency};
 use crate::render::pp::picking::create_picking_pipeline;
-use crate::render::pp::standard::{create_standard_pipeline, StandardStuff};
+use crate::render::pp::standard::create_standard_pipeline;
+use crate::render::pp::ResourceKey;
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -44,6 +45,7 @@ use crate::render::webgl::texture::{
     TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
+use crate::scene::SceneStuff;
 use crate::utils::slice_to_float32_array;
 use crate::{document, entity};
 use crate::{
@@ -167,14 +169,17 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline =
-        create_picking_pipeline("position", "picked_entity", "picked_position");
-    let standard_pipeline = create_standard_pipeline("position");
+    let mut picking_pipeline = create_picking_pipeline(
+        ResourceKey::persist_str("position"),
+        ResourceKey::persist_str("picked_entity"),
+        ResourceKey::persist_str("picked_position"),
+    );
+    let standard_pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -238,7 +243,9 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         0.25,
         0.25,
     )));
-    entity.borrow_mut().set_material(Some(MultipleTexturesInstanced::new()));
+    entity
+        .borrow_mut()
+        .set_material(Some(MultipleTexturesInstanced::new()));
     scene.entity_collection_mut().add_entity(entity);
 
     let scene = Rc::new(RefCell::new(scene));
@@ -253,15 +260,15 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let start = window().performance().unwrap().now();
         // sets pick position
         picking_pipeline
-            .persist_resources_mut()
-            .insert("position".to_string(), Box::new((x, y)));
+            .resources_mut()
+            .insert(ResourceKey::persist_str("position"), (x, y));
 
         // pick
         render_cloned
             .borrow_mut()
             .render(
                 &mut picking_pipeline,
-                &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
+                &mut SceneStuff::new(&mut scene_cloned.borrow_mut()),
                 *last_frame_time_cloned.borrow(),
             )
             .unwrap();
@@ -273,9 +280,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         // get entity
         if let Some(entity) = picking_pipeline
-            .persist_resources()
-            .get("picked_entity")
-            .and_then(|e| e.downcast_ref::<Weak>())
+            .resources()
+            .get_downcast_ref::<Weak>(&ResourceKey::persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -288,9 +294,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         }
         // get position
         if let Some(position) = picking_pipeline
-            .persist_resources()
-            .get("picked_position")
-            .and_then(|e| e.downcast_ref::<[f32; 4]>())
+            .resources()
+            .get_downcast_ref::<[f32; 4]>(&ResourceKey::persist_str("picked_position"))
         {
             console_log!(
                 "pick position {}",
@@ -307,10 +312,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
         standard_pipeline_cloned
             .borrow_mut()
-            .persist_resources_mut()
+            .resources_mut()
             .insert(
-                "position".to_string(),
-                Box::new((event.page_x(), event.page_y())),
+                ResourceKey::persist_str("position"),
+                (event.page_x(), event.page_y()),
             );
     });
     window()
@@ -340,7 +345,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .render(
                 &mut standard_pipeline.borrow_mut(),
-                &mut StandardStuff::new(&mut scene.borrow_mut()),
+                &mut SceneStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
             .unwrap();
@@ -362,7 +367,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline("position");
+    let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
 
     // reuses cube buffer
     let vertices = AttributeValue::Buffer {
@@ -457,11 +462,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
 
         let start = window().performance().unwrap().now();
         render
-            .render(
-                &mut pipeline,
-                &mut StandardStuff::new(&mut scene),
-                frame_time,
-            )
+            .render(&mut pipeline, &mut SceneStuff::new(&mut scene), frame_time)
             .unwrap();
         let end = window().performance().unwrap().now();
         document()
@@ -486,7 +487,7 @@ pub fn test_instanced_cube(
 ) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline("position");
+    let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
 
     let entity = Entity::new();
 
@@ -524,11 +525,7 @@ pub fn test_instanced_cube(
 
         let start = window().performance().unwrap().now();
         render
-            .render(
-                &mut pipeline,
-                &mut StandardStuff::new(&mut scene),
-                frame_time,
-            )
+            .render(&mut pipeline, &mut SceneStuff::new(&mut scene), frame_time)
             .unwrap();
         let end = window().performance().unwrap().now();
         document()
@@ -791,9 +788,12 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline =
-        create_picking_pipeline("position", "picked_entity", "picked_position");
-    let standard_pipeline = create_standard_pipeline("position");
+    let mut picking_pipeline = create_picking_pipeline(
+        ResourceKey::persist_str("position"),
+        ResourceKey::persist_str("picked_entity"),
+        ResourceKey::persist_str("picked_position"),
+    );
+    let standard_pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -830,15 +830,15 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let start = window().performance().unwrap().now();
         // sets pick position
         picking_pipeline
-            .persist_resources_mut()
-            .insert("position".to_string(), Box::new((x, y)));
+            .resources_mut()
+            .insert(ResourceKey::persist_str("position"), (x, y));
 
         // pick
         render_cloned
             .borrow_mut()
             .render(
                 &mut picking_pipeline,
-                &mut StandardStuff::new(&mut scene_cloned.borrow_mut()),
+                &mut SceneStuff::new(&mut scene_cloned.borrow_mut()),
                 *last_frame_time_cloned.borrow(),
             )
             .unwrap();
@@ -850,9 +850,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         // get entity
         if let Some(entity) = picking_pipeline
-            .persist_resources()
-            .get("picked_entity")
-            .and_then(|e| e.downcast_ref::<Weak>())
+            .resources_mut()
+            .get_downcast_ref::<Weak>(&ResourceKey::persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -867,9 +866,8 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         }
         // get position
         if let Some(position) = picking_pipeline
-            .persist_resources()
-            .get("picked_position")
-            .and_then(|e| e.downcast_ref::<[f32; 4]>())
+            .resources_mut()
+            .get_downcast_ref::<[f32; 4]>(&ResourceKey::persist_str("picked_position"))
         {
             console_log!(
                 "pick position {}",
@@ -886,9 +884,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
         standard_pipeline_cloned
             .borrow_mut()
-            .persist_resources_mut()
+            .resources_mut()
             .insert(
-                "position".to_string(),
+                ResourceKey::persist_str("position"),
                 Box::new((event.page_x(), event.page_y())),
             );
     });
@@ -917,7 +915,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .render(
                 standard_pipeline,
-                &mut StandardStuff::new(&mut scene.borrow_mut()),
+                &mut SceneStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
             .unwrap();
@@ -1000,11 +998,26 @@ pub fn test_camera() {
 
     console_log!("{}", position.transform_mat4(&view_matrix));
     console_log!("{}", position.transform_mat4(&view_translated_matrix));
-    console_log!("{}", Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix));
-    console_log!("{}", Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix));
-    console_log!("{}", Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix));
-    console_log!("{}", Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix));
-    console_log!("{}", Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix));
+    console_log!(
+        "{}",
+        Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix)
+    );
+    console_log!(
+        "{}",
+        Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix)
+    );
+    console_log!(
+        "{}",
+        Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix)
+    );
+    console_log!(
+        "{}",
+        Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix)
+    );
+    console_log!(
+        "{}",
+        Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix)
+    );
     console_log!("{}", Vec3::new().transform_mat4(&view_matrix));
     console_log!("{}", Vec3::new().transform_mat4(&view_inv_matrix));
     console_log!("{}", position.transform_mat4(&view_proj_matrix));

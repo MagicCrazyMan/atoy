@@ -28,10 +28,10 @@ use crate::{
     },
 };
 
-use super::{Executor, ResourceSource, State, Stuff};
+use super::{Executor, ResourceKey, State, Stuff, Resources};
 
 pub struct Outlining {
-    entity: ResourceSource,
+    entity: ResourceKey,
     outline_material: OutliningMaterial,
     outline_blur_geometry: OutliningBlurGeometry,
     outline_blur_material: OutliningBlurMaterial,
@@ -49,7 +49,7 @@ pub struct Outlining {
 }
 
 impl Outlining {
-    pub fn new(entity: ResourceSource) -> Self {
+    pub fn new(entity: ResourceKey) -> Self {
         Self {
             entity,
             outline_material: OutliningMaterial {
@@ -350,25 +350,27 @@ impl Outlining {
 }
 
 impl Executor for Outlining {
+    fn before(
+        &mut self,
+        state: &mut State,
+        stuff: &mut dyn Stuff,
+        resources: &mut Resources,
+    ) -> Result<bool, Error> {
+        if self.test {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
-        runtime_resources: &mut HashMap<String, Box<dyn Any>>,
-        persist_resources: &mut HashMap<String, Box<dyn Any>>,
+        resources: &mut Resources,
     ) -> Result<(), Error> {
-        if self.test {
-            return Ok(());
-        }
 
-        let entity = match &self.entity {
-            ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
-            ResourceSource::Persist(key) => persist_resources.get(key.as_str()),
-        };
-        let Some(entity) = entity
-            .and_then(|resource| resource.downcast_ref::<Weak>())
-            .and_then(|e| e.upgrade())
-        else {
+        let Some(entity) = resources.get_downcast_ref::<Weak>(&self.entity).and_then(|entity| entity.upgrade()) else {
             return Ok(());
         };
 
@@ -376,9 +378,6 @@ impl Executor for Outlining {
         let Some(geometry) = entity.geometry() else {
             return Ok(());
         };
-
-        state.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl.disable(WebGl2RenderingContext::BLEND);
 
         // setups framebuffer
         let framebuffer = self.use_framebuffer(state)?;
@@ -687,13 +686,6 @@ impl Executor for Outlining {
             }
 
             unbind_attributes(state, items);
-
-            state
-                .gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            // enable depth test
-            state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-            state.gl.enable(WebGl2RenderingContext::BLEND);
         }
 
         Ok(())

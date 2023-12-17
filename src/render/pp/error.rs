@@ -1,6 +1,8 @@
+use super::ItemKey;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    NoSuchExecutor(String),
+    NoSuchExecutor(ItemKey),
     SelfReferential,
     AlreadyConnected,
     InvalidateGraph,

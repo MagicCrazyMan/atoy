@@ -1,4 +1,4 @@
-use log::{warn, info};
+use log::warn;
 
 use crate::{geometry::Geometry, material::Material, render::pp::State};
 
@@ -72,7 +72,7 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
-                            target: "draw",
+                            target: "Draw",
                             "use buffer store error: {}",
                             err
                         );
@@ -113,7 +113,7 @@ pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Ma
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
-                            target: "draw",
+                            target: "Draw",
                             "use buffer store error: {}",
                             err
                         );

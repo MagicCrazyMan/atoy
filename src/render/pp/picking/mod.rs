@@ -1,5 +1,6 @@
-use std::{any::Any, collections::HashMap};
+use std::any::Any;
 
+use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
     js_sys::{Array, Uint32Array},
@@ -9,48 +10,49 @@ use web_sys::{
 use crate::{
     entity::{BorrowedMut, Strong},
     material::{Material, Transparency},
-    render::webgl::{
-        attribute::{bind_attributes, AttributeBinding, AttributeValue, unbind_attributes},
-        draw::draw,
-        error::Error,
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue, bind_uniforms},
+    render::{
+        pp::ItemKey,
+        webgl::{
+            attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
+            draw::draw,
+            error::Error,
+            program::ShaderSource,
+            uniform::{bind_uniforms, UniformBinding, UniformValue},
+        },
     },
 };
 
 use super::{
-    standard::{ResetWebGLState, StandardEntitiesCollector, StandardSetup, UpdateCameraFrame},
-    Executor, Pipeline, ResourceSource, State, Stuff,
+    standard::StandardEntitiesCollector, Executor, Pipeline, ResourceKey, Resources, State, Stuff,
 };
 
 pub fn create_picking_pipeline(
-    position_key: impl Into<String>,
-    picked_entity_key: impl Into<String>,
-    picked_position_key: impl Into<String>,
+    window_position: ResourceKey,
+    picked_entity: ResourceKey,
+    picked_position: ResourceKey,
 ) -> Pipeline {
+    let collector = ItemKey::from_uuid();
+    let picking = ItemKey::from_uuid();
+
+    let collected_entities = ResourceKey::runtime_uuid();
+
     let mut pipeline = Pipeline::new();
 
-    pipeline.add_executor("__clear", StandardSetup);
-    pipeline.add_executor("__update_camera", UpdateCameraFrame);
     pipeline.add_executor(
-        "__collector",
-        StandardEntitiesCollector::new(ResourceSource::runtime("entities")),
+        collector.clone(),
+        StandardEntitiesCollector::new(collected_entities.clone()),
     );
     pipeline.add_executor(
-        "__picking",
+        picking.clone(),
         Picking::new(
-            ResourceSource::persist(position_key),
-            ResourceSource::runtime("entities"),
-            ResourceSource::persist(picked_entity_key),
-            ResourceSource::persist(picked_position_key),
+            window_position,
+            collected_entities,
+            picked_entity,
+            picked_position,
         ),
     );
-    pipeline.add_executor("__reset", ResetWebGLState);
 
-    pipeline.connect("__clear", "__update_camera").unwrap();
-    pipeline.connect("__update_camera", "__collector").unwrap();
-    pipeline.connect("__collector", "__picking").unwrap();
-    pipeline.connect("__picking", "__reset").unwrap();
+    pipeline.connect(&collector, &picking).unwrap();
 
     pipeline
 }
@@ -65,10 +67,10 @@ pub fn create_picking_pipeline(
 /// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
-    entities: ResourceSource,
-    position: ResourceSource,
-    picked_entity: ResourceSource,
-    picked_position: ResourceSource,
+    entities: ResourceKey,
+    window_position: ResourceKey,
+    picked_entity: ResourceKey,
+    picked_position: ResourceKey,
     pixel: Uint32Array,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
@@ -79,14 +81,14 @@ pub struct Picking {
 
 impl Picking {
     pub fn new(
-        position: ResourceSource,
-        entities: ResourceSource,
-        picked_entity: ResourceSource,
-        picked_position: ResourceSource,
+        position: ResourceKey,
+        entities: ResourceKey,
+        picked_entity: ResourceKey,
+        picked_position: ResourceKey,
     ) -> Self {
         Self {
             entities,
-            position,
+            window_position: position,
             picked_entity,
             picked_position,
             pixel: Uint32Array::new_with_length(4),
@@ -241,50 +243,55 @@ impl Picking {
 }
 
 impl Executor for Picking {
+    fn before(
+        &mut self,
+        state: &mut State,
+        _: &mut dyn Stuff,
+        resources: &mut Resources,
+    ) -> Result<bool, Error> {
+        resources.remove(&self.picked_entity);
+        resources.remove(&self.picked_position);
+
+        if !resources.contains_key(&self.window_position) {
+            return Ok(false);
+        }
+        if !resources.contains_key(&self.entities) {
+            return Ok(false);
+        }
+
+        state.gl.viewport(
+            0,
+            0,
+            state.canvas.width() as i32,
+            state.canvas.height() as i32,
+        );
+        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+
+        Ok(true)
+    }
+
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
-        runtime_resources: &mut HashMap<String, Box<dyn Any>>,
-        persist_resources: &mut HashMap<String, Box<dyn Any>>,
+        resources: &mut Resources,
     ) -> Result<(), Error> {
-        // clear first
-        match &self.picked_entity {
-            ResourceSource::Runtime(key) => runtime_resources.remove(key),
-            ResourceSource::Persist(key) => persist_resources.remove(key),
-        };
-        match &self.picked_position {
-            ResourceSource::Runtime(key) => runtime_resources.remove(key),
-            ResourceSource::Persist(key) => persist_resources.remove(key),
-        };
-
-        let position = match &self.position {
-            ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
-            ResourceSource::Persist(key) => persist_resources.get(key.as_str()),
-        };
-        let Some((x, y)) = position.and_then(|position| position.downcast_ref::<(i32, i32)>())
-        else {
+        let Some((x, y)) = resources.get_downcast_ref::<(i32, i32)>(&self.window_position) else {
             return Ok(());
         };
-        let (x, y) = (*x, *y);
-
-        let entities = match &self.entities {
-            ResourceSource::Runtime(key) => runtime_resources.get(key.as_str()),
-            ResourceSource::Persist(key) => persist_resources.get(key.as_str()),
-        };
-        let Some(entities) = entities.and_then(|entities| entities.downcast_ref::<Vec<Strong>>())
-        else {
+        let Some(entities) = resources.get_downcast_ref::<Vec<Strong>>(&self.entities) else {
             return Ok(());
         };
 
         if entities.len() - 1 > u32::MAX as usize {
-            // should warning
+            warn!(
+                target: "Picking",
+                "too many entities, skip picking."
+            );
             return Ok(());
         }
 
-        state.gl.disable(WebGl2RenderingContext::BLEND);
-        state.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl.depth_mask(true);
+        let (x, y) = (*x, *y);
 
         // replace framebuffer for pick detection
         let framebuffer = self.use_framebuffer(&state.gl)?;
@@ -367,21 +374,8 @@ impl Executor for Picking {
             // sets index and window position for current draw
             self.material.index = (index + 1) as u32;
 
-            let items = bind_attributes(
-                state,
-                &entity,
-                geometry,
-                &self.material,
-                &program,
-            );
-            bind_uniforms(
-                state,
-                stuff,
-                &entity,
-                geometry,
-                &self.material,
-                &program,
-            );
+            let items = bind_attributes(state, &entity, geometry, &self.material, &program);
+            bind_uniforms(state, stuff, &entity, geometry, &self.material, &program);
             draw(state, geometry, &self.material);
             unbind_attributes(state, items);
         }
@@ -406,11 +400,7 @@ impl Executor for Picking {
         let index = self.pixel.get_index(0) as usize;
         if index > 0 {
             if let Some(entity) = entities.get(index - 1).map(|entity| entity.downgrade()) {
-                let picked = Box::new(entity.clone());
-                match &self.picked_entity {
-                    ResourceSource::Runtime(key) => runtime_resources.insert(key.clone(), picked),
-                    ResourceSource::Persist(key) => persist_resources.insert(key.clone(), picked),
-                };
+                resources.insert(self.picked_entity.clone(), entity.clone());
             }
         }
 
@@ -437,14 +427,7 @@ impl Executor for Picking {
             f32::from_ne_bytes(self.pixel.get_index(3).to_ne_bytes()),
         ]; // converts unsigned int back to float
         if position != [0.0, 0.0, 0.0, 0.0] {
-            match &self.picked_position {
-                ResourceSource::Runtime(key) => {
-                    runtime_resources.insert(key.to_string(), Box::new(position))
-                }
-                ResourceSource::Persist(key) => {
-                    persist_resources.insert(key.to_string(), Box::new(position))
-                }
-            };
+            resources.insert(self.picked_position.clone(), position);
         }
 
         // resets WebGL status

@@ -1,10 +1,11 @@
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec3::Vec3;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
     error::Error,
+    render::pp::Stuff,
 };
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -131,5 +132,34 @@ impl Scene {
     /// Gets current active camera.
     pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
         self.active_camera.as_mut()
+    }
+}
+
+/// A [`Stuff`] source from [`Scene`].
+pub struct SceneStuff<'a> {
+    scene: &'a mut Scene,
+}
+
+impl<'a> SceneStuff<'a> {
+    pub fn new(scene: &'a mut Scene) -> Self {
+        Self { scene }
+    }
+}
+
+impl<'a> Stuff for SceneStuff<'a> {
+    fn camera(&self) -> &dyn Camera {
+        self.scene.active_camera()
+    }
+
+    fn camera_mut(&mut self) -> &mut dyn Camera {
+        self.scene.active_camera_mut()
+    }
+
+    fn entity_collection(&self) -> &EntityCollection {
+        self.scene.entity_collection()
+    }
+
+    fn entity_collection_mut(&mut self) -> &mut EntityCollection {
+        self.scene.entity_collection_mut()
     }
 }

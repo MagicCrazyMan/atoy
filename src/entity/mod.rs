@@ -80,6 +80,10 @@ impl<'a> BorrowedMut<'a> {
         self.0.bounding_volume.as_ref()
     }
 
+    pub fn bounding_volume_mut(&mut self) -> Option<&mut BoundingVolume> {
+        self.0.bounding_volume.as_mut()
+    }
+
     pub fn local_matrix(&self) -> &Mat4 {
         &self.0.local_matrix
     }

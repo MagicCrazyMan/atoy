@@ -128,7 +128,7 @@ impl UniformBlockBinding {
 }
 
 /// Binds uniform data of the entity.
-pub(crate) fn bind_uniforms(
+pub fn bind_uniforms(
     state: &mut State,
     stuff: &dyn Stuff,
     entity: &BorrowedMut,

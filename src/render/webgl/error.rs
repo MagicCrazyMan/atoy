@@ -7,6 +7,7 @@ pub enum Error {
     WenGL2Unsupported,
     CanvasNotFound,
     MountElementNotFound,
+    MountElementFailure,
     CreateCanvasFailure,
     CreateProgramFailure,
     GetUniformIndicesFailure,

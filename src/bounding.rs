@@ -1,39 +1,41 @@
-use std::cell::RefCell;
-
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
 };
 
 use crate::{
-    frustum::{ViewFrustum, FrustumPlaneIndex},
+    frustum::{FrustumPlaneIndex, ViewFrustum},
     utils::{distance_point_and_plane, distance_point_and_plane_abs},
 };
 
+/// An bounding volume for culling detection purpose.
+/// This structure collects more information than [`BoundingVolumeNative`]
+/// to speed up the culling detection procedure.
 #[derive(Debug)]
 pub struct BoundingVolume {
-    previous_outside_plane: RefCell<Option<FrustumPlaneIndex>>,
+    previous_outside_plane: Option<FrustumPlaneIndex>,
     native: BoundingVolumeNative,
 }
 
 impl BoundingVolume {
+    /// Constructs a new bounding volume from a [`BoundingVolumeNative`].
     pub fn new(native: BoundingVolumeNative) -> Self {
         Self {
-            previous_outside_plane: RefCell::new(None),
+            previous_outside_plane: None,
             native,
         }
     }
 
-    pub fn kind(&self) -> BoundingVolumeNative {
+    /// Gets the [`BoundingVolumeNative`] associated with this bounding volume.
+    pub fn native(&self) -> BoundingVolumeNative {
         self.native
     }
 
-    pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
-        let mut previous_outside_plane = self.previous_outside_plane.borrow_mut();
-
+    /// Applies culling detection against a frustum.
+    pub fn cull(&mut self, frustum: &ViewFrustum) -> Culling {
         let culling = match &self.native {
             BoundingVolumeNative::BoundingSphere { center, radius } => {
-                cull_sphere(frustum, previous_outside_plane.clone(), center, *radius)
+                cull_sphere(frustum, self.previous_outside_plane, center, *radius)
             }
             BoundingVolumeNative::AxisAlignedBoundingBox {
                 min_x,
@@ -44,7 +46,7 @@ impl BoundingVolume {
                 max_z,
             } => cull_aabb(
                 frustum,
-                previous_outside_plane.clone(),
+                self.previous_outside_plane,
                 *min_x,
                 *max_x,
                 *min_y,
@@ -53,18 +55,30 @@ impl BoundingVolume {
                 *max_z,
             ),
             BoundingVolumeNative::OrientedBoundingBox(matrix) => {
-                cull_obb(frustum, previous_outside_plane.clone(), matrix)
+                cull_obb(frustum, self.previous_outside_plane, matrix)
             }
         };
 
         if let Culling::Outside(plane) = &culling {
-            *previous_outside_plane = Some(*plane);
+            self.previous_outside_plane = Some(*plane);
         }
 
         culling
     }
+
+    /// Gets center of this bounding volume.
+    pub fn center(&self) -> Vec3 {
+        self.native.center()
+    }
+
+    /// Transforms this bounding volume native by a transformation matrix.
+    pub fn transform(&mut self, transformation: &Mat4) {
+        self.native = self.native.transform(transformation);
+        self.previous_outside_plane = None;
+    }
 }
 
+/// Native bounding volume definition.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BoundingVolumeNative {
     BoundingSphere {
@@ -90,6 +104,27 @@ pub enum BoundingVolumeNative {
 }
 
 impl BoundingVolumeNative {
+    /// Gets center of this bounding volume.
+    pub fn center(&self) -> Vec3 {
+        match self {
+            BoundingVolumeNative::BoundingSphere { center, .. } => *center,
+            BoundingVolumeNative::AxisAlignedBoundingBox {
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+                min_z,
+                max_z,
+            } => Vec3::from_values(
+                (min_x + max_x) / 2.0,
+                (min_y + max_y) / 2.0,
+                (min_z + max_z) / 2.0,
+            ),
+            BoundingVolumeNative::OrientedBoundingBox(mat) => mat.translation(),
+        }
+    }
+
+    /// Applies culling detection against a frustum.
     pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
         match self {
             BoundingVolumeNative::BoundingSphere { center, radius } => {
@@ -109,6 +144,7 @@ impl BoundingVolumeNative {
         }
     }
 
+    /// Transforms this bounding volume native by a transformation matrix.
     pub fn transform(&self, transformation: &Mat4) -> Self {
         match self {
             BoundingVolumeNative::BoundingSphere { center, radius } => {
@@ -171,7 +207,8 @@ impl BoundingVolumeNative {
     }
 }
 
-/// Culls bounding sphere from frustum by calculating distance between sphere center to each plane of frustum.
+/// Applies culling detection to a bounding sphere against a frustum
+/// by calculating distances between sphere center to each plane of frustum.
 fn cull_sphere(
     frustum: &ViewFrustum,
     previous_outside_plane: Option<FrustumPlaneIndex>,
@@ -444,11 +481,11 @@ fn cull_obb(
     }
 }
 
-/// Culling status of a [`BoundingVolume`] and a [`ViewingFrustum`]
-/// with shortest distance of each plane if inside or intersect.
+/// Culling status of a [`BoundingVolume`]\(or [`BoundingVolumeNative`]\) against a [`ViewFrustum`]
+/// with the shortest distance to each plane if inside or intersect.
 ///
-/// Far value is none If viewing frustum accepts entities infinity far away
-/// ([`Camera::far()`](crate::camera::Camera::far) is none).
+/// Since far distance of a camera is optional,
+/// shortest distance is optional for far plane as well.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Culling {
     Outside(FrustumPlaneIndex),

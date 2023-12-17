@@ -115,7 +115,9 @@ impl WebGL2Render {
         canvas
             .set_attribute("tabindex", "0")
             .map_err(|_| Error::CreateCanvasFailure)?;
-        canvas.style().set_css_text("width: 100%; height: 100%; outline: none;");
+        canvas
+            .style()
+            .set_css_text("width: 100%; height: 100%; outline: none;");
 
         let resize_observer = Self::observer_canvas_size(&canvas);
 
@@ -171,15 +173,8 @@ impl WebGL2Render {
     }
 }
 
-impl Drop for WebGL2Render {
-    fn drop(&mut self) {
-        // cleanups observers
-        self.resize_observer.0.disconnect();
-    }
-}
-
 impl WebGL2Render {
-    /// Gets mount target.
+    /// Gets mounted target element.
     pub fn mount(&self) -> Option<&HtmlElement> {
         match &self.mount {
             Some(mount) => Some(mount),
@@ -187,7 +182,7 @@ impl WebGL2Render {
         }
     }
 
-    /// Sets the mount target.
+    /// Mounts WebGl canvas to an element.
     pub fn set_mount(&mut self, mount: Option<&str>) -> Result<(), Error> {
         if let Some(mount) = mount {
             if !mount.is_empty() {
@@ -197,8 +192,10 @@ impl WebGL2Render {
                     .and_then(|ele| ele.dyn_into::<HtmlElement>().ok())
                     .ok_or(Error::MountElementNotFound)?;
 
-                // mounts canvas to target (creates new if not exists)
-                mount.append_child(&self.canvas).unwrap();
+                // mounts canvas to target
+                if let Err(err) = mount.append_child(&self.canvas) {
+                    return Err(Error::MountElementFailure);
+                };
                 let width = mount.client_width() as u32;
                 let height = mount.client_height() as u32;
                 self.canvas.set_width(width);
@@ -215,17 +212,10 @@ impl WebGL2Render {
         self.mount = None;
         Ok(())
     }
-
-    pub fn buffer_store(&self) -> &BufferStore {
-        &self.buffer_store
-    }
-
-    pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
-        &mut self.buffer_store
-    }
 }
 
 impl WebGL2Render {
+    /// Renders a frame with stuff and a pipeline.
     pub fn render<S>(
         &mut self,
         pipeline: &mut Pipeline,
@@ -249,5 +239,12 @@ impl WebGL2Render {
         pipeline.execute(state, stuff)?;
 
         Ok(())
+    }
+}
+
+impl Drop for WebGL2Render {
+    fn drop(&mut self) {
+        // cleanups observers
+        self.resize_observer.0.disconnect();
     }
 }

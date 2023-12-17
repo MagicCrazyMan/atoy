@@ -5,7 +5,7 @@ use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
 };
-use log::{error, info, warn};
+use log::{error, warn};
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
