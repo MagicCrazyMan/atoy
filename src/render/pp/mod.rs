@@ -4,7 +4,7 @@ pub mod outlining;
 pub mod picking;
 pub mod standard;
 
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, marker::PhantomData};
 
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
@@ -308,36 +308,36 @@ impl Pipeline {
 /// Resource key based on [`ItemKey`].
 /// Distinguish between runtime resource and persist resource.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ResourceKey {
-    Runtime(ItemKey),
-    Persist(ItemKey),
+pub enum ResourceKey<V> {
+    Runtime(ItemKey, PhantomData<V>),
+    Persist(ItemKey, PhantomData<V>),
 }
 
-impl ResourceKey {
+impl<V> ResourceKey<V> {
     /// Constructs a new string runtime resource key.
-    pub fn rusntime_str(key: impl Into<String>) -> Self {
-        Self::Runtime(ItemKey::from_string(key))
+    pub fn runtime_str<S: Into<String>>(key: S) -> Self {
+        Self::Runtime(ItemKey::from_string(key), PhantomData::<V>)
     }
 
     /// Constructs a new string persist resource key.
-    pub fn persist_str(key: impl Into<String>) -> Self {
-        Self::Persist(ItemKey::from_string(key))
+    pub fn persist_str<S: Into<String>>(key: S) -> Self {
+        Self::Persist(ItemKey::from_string(key), PhantomData::<V>)
     }
 
     /// Constructs a new runtime resource key with random uuid.
     pub fn runtime_uuid() -> Self {
-        Self::Runtime(ItemKey::from_uuid())
+        Self::Runtime(ItemKey::from_uuid(), PhantomData::<V>)
     }
 
     /// Constructs a new persist resource key with random uuid.
     pub fn persist_uuid() -> Self {
-        Self::Persist(ItemKey::from_uuid())
+        Self::Persist(ItemKey::from_uuid(), PhantomData::<V>)
     }
 
     pub fn raw(&self) -> &ItemKey {
         match self {
-            ResourceKey::Runtime(key) => key,
-            ResourceKey::Persist(key) => key,
+            ResourceKey::Runtime(key, _) => key,
+            ResourceKey::Persist(key, _) => key,
         }
     }
 }
@@ -361,78 +361,52 @@ impl Resources {
     }
 
     /// Gets a resource by a specified [`ResourceKey`].
-    pub fn get(&self, key: &ResourceKey) -> Option<&dyn Any> {
+    pub fn get<V: 'static>(&self, key: &ResourceKey<V>) -> Option<&V> {
         let value = match key {
-            ResourceKey::Runtime(key) => self.runtime.get(key),
-            ResourceKey::Persist(key) => self.persist.get(key),
+            ResourceKey::Runtime(key, _) => self.runtime.get(key),
+            ResourceKey::Persist(key, _) => self.persist.get(key),
         };
 
         match value {
-            Some(value) => Some(value.as_ref()),
-            None => None,
-        }
-    }
-
-    /// Gets a resource by a specified [`ResourceKey`] and downcast it.
-    pub fn get_downcast_ref<T: 'static>(&self, key: &ResourceKey) -> Option<&T> {
-        let value = match key {
-            ResourceKey::Runtime(key) => self.runtime.get(key),
-            ResourceKey::Persist(key) => self.persist.get(key),
-        };
-
-        match value {
-            Some(value) => value.downcast_ref::<T>(),
+            Some(value) => value.downcast_ref::<V>(),
             None => None,
         }
     }
 
     /// Gets a mutable resource by a specified [`ResourceKey`].
-    pub fn get_mut(&mut self, key: &ResourceKey) -> Option<&mut dyn Any> {
+    pub fn get_mut<V: 'static>(&mut self, key: &ResourceKey<V>) -> Option<&mut V> {
         let value = match key {
-            ResourceKey::Runtime(key) => self.runtime.get_mut(key),
-            ResourceKey::Persist(key) => self.persist.get_mut(key),
+            ResourceKey::Runtime(key, _) => self.runtime.get_mut(key),
+            ResourceKey::Persist(key, _) => self.persist.get_mut(key),
         };
 
         match value {
-            Some(value) => Some(value.as_mut()),
-            None => None,
-        }
-    }
-
-    /// Gets a mutable resource by a specified [`ResourceKey`] and downcast it.
-    pub fn get_downcast_mut<T: 'static>(&mut self, key: &ResourceKey) -> Option<&mut T> {
-        let value = match key {
-            ResourceKey::Runtime(key) => self.runtime.get_mut(key),
-            ResourceKey::Persist(key) => self.persist.get_mut(key),
-        };
-
-        match value {
-            Some(value) => value.downcast_mut::<T>(),
+            Some(value) => value.downcast_mut::<V>(),
             None => None,
         }
     }
 
     /// Inserts a new resource by a [`ResourceKey`].
-    pub fn insert<V: 'static>(&mut self, key: ResourceKey, value: V) -> Option<Box<dyn Any>> {
+    pub fn insert<V: 'static>(&mut self, key: ResourceKey<V>, value: V) {
         match key {
-            ResourceKey::Runtime(key) => self.runtime.insert(key, Box::new(value)),
-            ResourceKey::Persist(key) => self.persist.insert(key, Box::new(value)),
-        }
+            ResourceKey::Runtime(key, _) => self.runtime.insert(key, Box::new(value)),
+            ResourceKey::Persist(key, _) => self.persist.insert(key, Box::new(value)),
+        };
     }
 
     /// Removes a resource by a [`ResourceKey`].
-    pub fn remove(&mut self, key: &ResourceKey) -> Option<Box<dyn Any>> {
+    pub fn remove<V>(&mut self, key: &ResourceKey<V>) -> Option<Box<dyn Any>> {
         match key {
-            ResourceKey::Runtime(key) => self.runtime.remove(key),
-            ResourceKey::Persist(key) => self.persist.remove(key),
+            ResourceKey::Runtime(key, _) => self.runtime.remove(key),
+            ResourceKey::Persist(key, _) => self.persist.remove(key),
         }
     }
 
     /// Returns `true` if the resources contains a value for the specified [`ResourceKey`]
-    pub fn contains_key(&mut self, key: &ResourceKey) -> bool {
+    pub fn contains_key<V>(&mut self, key: &ResourceKey<V>) -> bool {
         match key {
-            ResourceKey::Runtime(key) => self.runtime.contains_key(key),
-            ResourceKey::Persist(key) => self.persist.contains_key(key),
+            ResourceKey::Runtime(key, _) => self.runtime.contains_key(key),
+            ResourceKey::Persist(key, _) => self.persist.contains_key(key),
         }
     }
 

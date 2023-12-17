@@ -26,7 +26,7 @@ use super::{
     Stuff,
 };
 
-pub fn create_standard_pipeline(window_position: ResourceKey) -> Pipeline {
+pub fn create_standard_pipeline(window_position: ResourceKey<(i32, i32)>) -> Pipeline {
     let collector = ItemKey::from_uuid();
     let picking = ItemKey::from_uuid();
     let outlining = ItemKey::from_uuid();
@@ -67,12 +67,12 @@ pub fn create_standard_pipeline(window_position: ResourceKey) -> Pipeline {
 /// # Get Resources & Data Type
 /// - `get_entities`: [`Vec<Strong>`], a list contains entities to draw.
 pub struct StandardDrawer {
-    get_entities: ResourceKey,
+    get_entities: ResourceKey<Vec<Strong>>,
     last_program: Option<ProgramItem>,
 }
 
 impl StandardDrawer {
-    pub fn new(get_entities: ResourceKey) -> Self {
+    pub fn new(get_entities: ResourceKey<Vec<Strong>>) -> Self {
         Self {
             get_entities,
             last_program: None,
@@ -155,7 +155,7 @@ impl Executor for StandardDrawer {
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<(), Error> {
-        let Some(entities) = resources.get_downcast_ref::<Vec<Strong>>(&self.get_entities) else {
+        let Some(entities) = resources.get(&self.get_entities) else {
             return Ok(());
         };
 
@@ -231,14 +231,14 @@ impl Executor for StandardDrawer {
 pub struct StandardEntitiesCollector {
     enable_culling: bool,
     enable_sorting: bool,
-    set_entities: ResourceKey,
+    set_entities: ResourceKey<Vec<Strong>>,
 }
 
 impl StandardEntitiesCollector {
     /// Constructs a new standard entities collector with [`ResourceKey`]
     /// defining where to store the collected entities.
     /// Entity culling and distance sorting by is enabled by default.
-    pub fn new(set_entities: ResourceKey) -> Self {
+    pub fn new(set_entities: ResourceKey<Vec<Strong>>) -> Self {
         Self {
             enable_culling: true,
             enable_sorting: true,

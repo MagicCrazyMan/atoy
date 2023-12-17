@@ -1,5 +1,6 @@
 use std::any::Any;
 
+use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -8,7 +9,7 @@ use web_sys::{
 };
 
 use crate::{
-    entity::{BorrowedMut, Strong},
+    entity::{BorrowedMut, Strong, Weak},
     material::{Material, Transparency},
     render::{
         pp::ItemKey,
@@ -27,9 +28,9 @@ use super::{
 };
 
 pub fn create_picking_pipeline(
-    window_position: ResourceKey,
-    picked_entity: ResourceKey,
-    picked_position: ResourceKey,
+    window_position: ResourceKey<(i32, i32)>,
+    picked_entity: ResourceKey<Weak>,
+    picked_position: ResourceKey<Vec3>,
 ) -> Pipeline {
     let collector = ItemKey::from_uuid();
     let picking = ItemKey::from_uuid();
@@ -67,10 +68,10 @@ pub fn create_picking_pipeline(
 /// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
-    entities: ResourceKey,
-    window_position: ResourceKey,
-    picked_entity: ResourceKey,
-    picked_position: ResourceKey,
+    entities: ResourceKey<Vec<Strong>>,
+    window_position: ResourceKey<(i32, i32)>,
+    picked_entity: ResourceKey<Weak>,
+    picked_position: ResourceKey<Vec3>,
     pixel: Uint32Array,
     framebuffer: Option<WebGlFramebuffer>,
     renderbuffer: Option<(WebGlRenderbuffer, u32, u32)>,
@@ -81,14 +82,14 @@ pub struct Picking {
 
 impl Picking {
     pub fn new(
-        position: ResourceKey,
-        entities: ResourceKey,
-        picked_entity: ResourceKey,
-        picked_position: ResourceKey,
+        window_position: ResourceKey<(i32, i32)>,
+        entities: ResourceKey<Vec<Strong>>,
+        picked_entity: ResourceKey<Weak>,
+        picked_position: ResourceKey<Vec3>,
     ) -> Self {
         Self {
             entities,
-            window_position: position,
+            window_position,
             picked_entity,
             picked_position,
             pixel: Uint32Array::new_with_length(4),
@@ -276,10 +277,10 @@ impl Executor for Picking {
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<(), Error> {
-        let Some((x, y)) = resources.get_downcast_ref::<(i32, i32)>(&self.window_position) else {
+        let Some((x, y)) = resources.get(&self.window_position) else {
             return Ok(());
         };
-        let Some(entities) = resources.get_downcast_ref::<Vec<Strong>>(&self.entities) else {
+        let Some(entities) = resources.get(&self.entities) else {
             return Ok(());
         };
 
@@ -427,7 +428,10 @@ impl Executor for Picking {
             f32::from_ne_bytes(self.pixel.get_index(3).to_ne_bytes()),
         ]; // converts unsigned int back to float
         if position != [0.0, 0.0, 0.0, 0.0] {
-            resources.insert(self.picked_position.clone(), position);
+            resources.insert(
+                self.picked_position.clone(),
+                Vec3::from_values(position[0] as f64, position[1] as f64, position[2] as f64),
+            );
         }
 
         // resets WebGL status

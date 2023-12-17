@@ -281,7 +281,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get entity
         if let Some(entity) = picking_pipeline
             .resources()
-            .get_downcast_ref::<Weak>(&ResourceKey::persist_str("picked_entity"))
+            .get(&ResourceKey::<Weak>::persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -295,12 +295,9 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get position
         if let Some(position) = picking_pipeline
             .resources()
-            .get_downcast_ref::<[f32; 4]>(&ResourceKey::persist_str("picked_position"))
+            .get(&ResourceKey::<Vec3>::persist_str("picked_position"))
         {
-            console_log!(
-                "pick position {}",
-                position.map(|c| c.to_string()).join(", ")
-            );
+            console_log!("pick position {}", position);
         }
     });
     window()
@@ -851,7 +848,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get entity
         if let Some(entity) = picking_pipeline
             .resources_mut()
-            .get_downcast_ref::<Weak>(&ResourceKey::persist_str("picked_entity"))
+            .get(&ResourceKey::<Weak>::persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -867,12 +864,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get position
         if let Some(position) = picking_pipeline
             .resources_mut()
-            .get_downcast_ref::<[f32; 4]>(&ResourceKey::persist_str("picked_position"))
+            .get(&ResourceKey::<Vec3>::persist_str("picked_position"))
         {
-            console_log!(
-                "pick position {}",
-                position.map(|c| c.to_string()).join(", ")
-            );
+            console_log!("pick position {}", position);
         }
     });
     window()

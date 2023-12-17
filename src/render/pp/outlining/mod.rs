@@ -31,7 +31,7 @@ use crate::{
 use super::{Executor, ResourceKey, State, Stuff, Resources};
 
 pub struct Outlining {
-    entity: ResourceKey,
+    entity: ResourceKey<Weak>,
     outline_material: OutliningMaterial,
     outline_blur_geometry: OutliningBlurGeometry,
     outline_blur_material: OutliningBlurMaterial,
@@ -49,7 +49,7 @@ pub struct Outlining {
 }
 
 impl Outlining {
-    pub fn new(entity: ResourceKey) -> Self {
+    pub fn new(entity: ResourceKey<Weak>) -> Self {
         Self {
             entity,
             outline_material: OutliningMaterial {
@@ -370,7 +370,7 @@ impl Executor for Outlining {
         resources: &mut Resources,
     ) -> Result<(), Error> {
 
-        let Some(entity) = resources.get_downcast_ref::<Weak>(&self.entity).and_then(|entity| entity.upgrade()) else {
+        let Some(entity) = resources.get(&self.entity).and_then(|entity| entity.upgrade()) else {
             return Ok(());
         };
 
