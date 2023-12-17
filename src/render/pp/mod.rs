@@ -4,18 +4,20 @@ pub mod outlining;
 pub mod picking;
 pub mod standard;
 
-use std::{any::Any, collections::{HashMap, hash_map::Entry}, marker::PhantomData};
+use std::{
+    any::Any,
+    collections::{hash_map::Entry, HashMap},
+    marker::PhantomData,
+};
 
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::collection::EntityCollection};
 
-use self::graph::DirectedGraph;
+use self::{graph::DirectedGraph, error::Error};
 
-use super::webgl::{
-    buffer::BufferStore, error::Error, program::ProgramStore, texture::TextureStore,
-};
+use super::webgl::{buffer::BufferStore, program::ProgramStore, texture::TextureStore};
 
 /// Pipeline rendering stuff.
 pub trait Stuff {
@@ -417,7 +419,7 @@ impl Resources {
                 } else {
                     None
                 }
-            },
+            }
             Entry::Vacant(_) => None,
         }
     }

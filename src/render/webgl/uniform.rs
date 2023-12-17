@@ -1,6 +1,6 @@
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
+use log::warn;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_test::console_log;
 use web_sys::HtmlCanvasElement;
 
 use crate::{
@@ -17,6 +17,7 @@ use super::{
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
+/// Available uniform values.
 #[derive(Clone)]
 pub enum UniformValue {
     Bool(bool),
@@ -63,6 +64,7 @@ pub enum UniformValue {
     },
 }
 
+/// Available uniform block values.
 #[derive(Clone)]
 pub enum UniformBlockValue {
     BufferBase {
@@ -79,6 +81,7 @@ pub enum UniformBlockValue {
     },
 }
 
+/// Uniform binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
     CanvasSize,
@@ -110,6 +113,7 @@ impl UniformBinding {
     }
 }
 
+/// Uniform block binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBlockBinding {
     FromGeometry(&'static str),
@@ -127,7 +131,7 @@ impl UniformBlockBinding {
     }
 }
 
-/// Binds uniform data of the entity.
+/// Binds uniform data from a entity.
 pub fn bind_uniforms(
     state: &mut State,
     stuff: &dyn Stuff,
@@ -172,7 +176,11 @@ pub fn bind_uniforms(
                 }),
         };
         let Some(value) = value else {
-            // should log warning
+            warn!(
+                target: "BindUniforms",
+                "no value specified for uniform {}",
+                binding.variable_name()
+            );
             continue;
         };
 
@@ -256,8 +264,11 @@ pub fn bind_uniforms(
                 let (target, texture) = match state.texture_store_mut().use_texture(&descriptor) {
                     Ok(texture) => texture,
                     Err(err) => {
-                        // should log warning
-                        console_log!("{}", err);
+                        warn!(
+                            target: "BindUniforms",
+                            "use texture store error: {}",
+                            err
+                        );
                         continue;
                     }
                 };
@@ -298,8 +309,11 @@ pub fn bind_uniforms(
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log error
-                        console_log!("{}", err);
+                        warn!(
+                            target: "BindUniforms",
+                            "use buffer store error: {}",
+                            err
+                        );
                         continue;
                     }
                 };
@@ -323,8 +337,11 @@ pub fn bind_uniforms(
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
-                        // should log error
-                        console_log!("{}", err);
+                        warn!(
+                            target: "BindUniforms",
+                            "use buffer store error: {}",
+                            err
+                        );
                         continue;
                     }
                 };

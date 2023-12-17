@@ -18,7 +18,7 @@ use crate::{
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
                 TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-                TextureWrapMethod,
+                TextureWrapMethod, TextureInternalFormat,
             },
             uniform::{UniformBinding, UniformValue},
         },
@@ -159,8 +159,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_px.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -177,8 +177,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -195,8 +195,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_pz.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -213,8 +213,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_nx.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -231,8 +231,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_ny.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -249,8 +249,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_nz.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -267,8 +267,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
@@ -285,8 +285,8 @@ impl MultipleTexturesInstanced {
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
-                        TextureDataType::UnsignedByte,
-                        TextureFormat::RGB,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::RGB,
                         TextureFormat::RGB,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],

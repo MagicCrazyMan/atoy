@@ -14,7 +14,7 @@ use crate::{
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
                 TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-                TextureWrapMethod,
+                TextureWrapMethod, TextureInternalFormat,
             },
             uniform::{UniformBinding, UniformValue},
         },
@@ -170,8 +170,8 @@ impl Material for TextureMaterial {
             self.onload = Some(Closure::new(move || {
                 let texture = Some(TextureDescriptor::texture_2d_with_html_image_element(
                     image_cloned.clone(),
-                    TextureDataType::UnsignedByte,
-                    TextureFormat::RGB,
+                    TextureDataType::UNSIGNED_BYTE,
+                    TextureInternalFormat::RGB,
                     TextureFormat::RGB,
                     0,
                     vec![TexturePixelStorage::UnpackFlipYWebGL(true)],

@@ -8,14 +8,32 @@ use super::{
     error::Error,
 };
 
+/// Available texture formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureFormat {
+    RED,
+    RED_INTEGER,
+    RG,
+    RG_INTEGER,
+    RGB,
+    RGB_INTEGER,
+    RGBA,
+    RGBA_INTEGER,
+    LUMINANCE,
+    LUMINANCE_ALPHA,
+    ALPHA,
+}
+
+/// Available texture internal formats mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureInternalFormat {
     RGB,
     RGBA,
-    Luminance,
-    LuminanceAlpha,
-    Alpha,
+    LUMINANCE,
+    LUMINANCE_ALPHA,
+    ALPHA,
     SRGB,
     SRGBA8,
     SRGB8_ALPHA8,
@@ -43,8 +61,33 @@ pub enum TextureFormat {
     RGBA16F,
     RGBA32F,
     RGBA8UI,
+    DEPTH_COMPONENT,
+    DEPTH_STENCIL,
 }
 
+/// Available texture data types mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureDataType {
+    FLOAT,
+    HALF_FLOAT,
+    BYTE,
+    SHORT,
+    INT,
+    UNSIGNED_BYTE,
+    UNSIGNED_SHORT,
+    UNSIGNED_INT,
+    UNSIGNED_SHORT_5_6_5,
+    UNSIGNED_SHORT_4_4_4_4,
+    UNSIGNED_SHORT_5_5_5_1,
+    UNSIGNED_INT_2_10_10_10_REV,
+    UNSIGNED_INT_10F_11F_11F_REV,
+    UNSIGNED_INT_5_9_9_9_REV,
+    UNSIGNED_INT_24_8,
+    FLOAT_32_UNSIGNED_INT_24_8_REV,
+}
+
+/// Available texture units mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureUnit {
     TEXTURE0,
@@ -127,27 +170,6 @@ impl TextureUnit {
             .unwrap();
         value.as_f64().unwrap() as GLuint
     }
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureDataType {
-    Float,
-    HalfFloat,
-    Byte,
-    Short,
-    Int,
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
-    UnsignedShort_5_6_5,
-    UnsignedShort_4_4_4_4,
-    UnsignedShort_5_5_5_1,
-    UnsignedInt_2_10_10_10_REV,
-    UnsignedInt_10F_11F_11F_REV,
-    UnsignedInt_5_9_9_9_REV,
-    UnsignedInt_24_8,
-    Float_32_UnsignedInt_24_8_REV,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -291,7 +313,7 @@ impl TextureParameter {
 
 pub enum TextureSource {
     Preallocate {
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         width: GLsizei,
         height: GLsizei,
         format: TextureFormat,
@@ -301,7 +323,7 @@ pub enum TextureSource {
         y_offset: GLint,
     },
     FromBinary {
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         width: GLsizei,
         height: GLsizei,
         data: Box<dyn AsRef<[u8]>>,
@@ -313,7 +335,7 @@ pub enum TextureSource {
         y_offset: GLint,
     },
     FromHtmlCanvasElement {
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
         canvas: Box<dyn AsRef<HtmlCanvasElement>>,
@@ -322,7 +344,7 @@ pub enum TextureSource {
         y_offset: GLint,
     },
     FromHtmlCanvasElementWithSize {
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         width: GLsizei,
         height: GLsizei,
         format: TextureFormat,
@@ -333,7 +355,7 @@ pub enum TextureSource {
         y_offset: GLint,
     },
     FromHtmlImageElement {
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
         image: Box<dyn AsRef<HtmlImageElement>>,
@@ -345,7 +367,7 @@ pub enum TextureSource {
         format: TextureFormat,
         width: GLsizei,
         height: GLsizei,
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         data_type: TextureDataType,
         image: Box<dyn AsRef<HtmlImageElement>>,
         pixel_storages: Vec<TexturePixelStorage>,
@@ -785,7 +807,7 @@ impl TextureDescriptor {
     pub fn texture_2d_with_html_image_element<I: AsRef<HtmlImageElement> + 'static>(
         image: I,
         data_type: TextureDataType,
-        internal_format: TextureFormat,
+        internal_format: TextureInternalFormat,
         format: TextureFormat,
         level: GLint,
         pixel_storages: Vec<TexturePixelStorage>,

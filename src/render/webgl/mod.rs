@@ -14,7 +14,9 @@ pub mod buffer;
 pub mod conversion;
 pub mod draw;
 pub mod error;
+pub mod offscreen;
 pub mod program;
+pub mod renderbuffer;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
@@ -193,7 +195,7 @@ impl WebGL2Render {
                     .ok_or(Error::MountElementNotFound)?;
 
                 // mounts canvas to target
-                if let Err(err) = mount.append_child(&self.canvas) {
+                if let Err(_) = mount.append_child(&self.canvas) {
                     return Err(Error::MountElementFailure);
                 };
                 let width = mount.client_width() as u32;

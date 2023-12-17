@@ -107,7 +107,7 @@ impl Outlining {
     }
 
     fn use_blur_twopass_framebuffer(&mut self, state: &State) -> Result<WebGlFramebuffer, Error> {
-        let framebuffer = &mut self.blur_v_framebuffer;
+        let framebuffer: &mut Option<WebGlFramebuffer> = &mut self.blur_v_framebuffer;
         let framebuffer = match framebuffer {
             Some(framebuffer) => framebuffer.clone(),
             None => {

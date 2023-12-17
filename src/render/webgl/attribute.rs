@@ -8,6 +8,7 @@ use super::{
     program::ProgramItem,
 };
 
+/// Available attribute values.
 #[derive(Clone)]
 pub enum AttributeValue {
     Buffer {
@@ -38,6 +39,7 @@ pub enum AttributeValue {
     Vertex4fv([f32; 4]),
 }
 
+/// Attribute binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AttributeBinding {
     GeometryPosition,
@@ -61,7 +63,7 @@ impl AttributeBinding {
     }
 }
 
-/// Binds attributes for the entity.
+/// Binds attributes for a entity.
 /// Holds returning values until finishing next draw call
 /// to prevent buffer store drops the binding buffer unexpectedly.
 pub fn bind_attributes(
@@ -83,7 +85,7 @@ pub fn bind_attributes(
         };
         let Some(value) = value else {
             warn!(
-                target: "bind_attributes",
+                target: "BindAttributes",
                 "no value specified for attribute {}",
                 binding.variable_name()
             );
@@ -104,7 +106,7 @@ pub fn bind_attributes(
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
-                            target: "bind_attributes",
+                            target: "BindAttributes",
                             "use buffer store error: {}",
                             err
                         );
@@ -143,7 +145,7 @@ pub fn bind_attributes(
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
-                            target: "bind_attributes",
+                            target: "BindAttributes",
                             "use buffer store error: {}",
                             err
                         );

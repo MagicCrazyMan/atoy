@@ -9,6 +9,7 @@ pub(super) struct DirectedGraph<T> {
 }
 
 impl<T> DirectedGraph<T> {
+    /// Constructs a new directed graph.
     pub(super) fn new() -> Self {
         Self {
             vertices: Vec::new(),
@@ -16,15 +17,17 @@ impl<T> DirectedGraph<T> {
         }
     }
 
+    /// Returns the number of vertices in the graph.
     pub(super) fn vertices_len(&self) -> usize {
         self.vertices.len()
     }
 
+    /// Returns the number of arcs in the graph.
     pub(super) fn arcs_len(&self) -> usize {
         self.arcs_len
     }
 
-    /// Validates whether this graph is Activity On Vertex Network or not.
+    /// Validates whether this graph is an Activity On Vertex Network or not.
     pub(super) fn validate(&self) -> bool {
         if self.vertices.len() == 0 {
             return true;
@@ -67,6 +70,8 @@ impl<T> DirectedGraph<T> {
         count == self.vertices.len()
     }
 
+    /// Adds a new vertex to graph by given data.
+    /// Vertex index in directed graph returned.
     pub(super) fn add_vertex(&mut self, data: T) -> usize {
         self.vertices.push(Vertex {
             data,
@@ -78,6 +83,7 @@ impl<T> DirectedGraph<T> {
         self.vertices.len() - 1
     }
 
+    /// Removes a vertex to graph by vertex index.
     pub(super) fn remove_vertex(&mut self, index: usize) {
         // deletes all arcs that associated with removed vertex
         unsafe {
@@ -169,14 +175,22 @@ impl<T> DirectedGraph<T> {
         self.vertices.remove(index);
     }
 
+    /// Gets vertex data from graph by vertex index.
     pub(super) fn vertex(&self, index: usize) -> Option<&T> {
         self.vertices.get(index).map(|vertex| &vertex.data)
     }
 
+    /// Gets mutable vertex data from graph by vertex index.
     pub(super) fn vertex_mut(&mut self, index: usize) -> Option<&mut T> {
         self.vertices.get_mut(index).map(|vertex| &mut vertex.data)
     }
 
+    /// Adds a new arc to graph to connect two vertices by vertex index and to another vertex index.
+    /// 
+    /// # Errors
+    /// 
+    /// - [`Error::SelfReferential`] if `from_index` equals the `to_index`.
+    /// - [`Error::AlreadyConnected`] if arc already existing.
     pub(super) fn add_arc(&mut self, from_index: usize, to_index: usize) -> Result<(), Error> {
         if from_index == to_index {
             return Err(Error::SelfReferential);
@@ -275,6 +289,7 @@ impl<T> DirectedGraph<T> {
         Ok(())
     }
 
+    /// Removes an arc from graph by from vertex index to another vertex index.
     pub(super) fn remove_arc(&mut self, from_index: usize, to_index: usize) {
         unsafe {
             let mut next_ptr = self.vertices[from_index].first_out;

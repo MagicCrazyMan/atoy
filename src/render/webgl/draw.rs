@@ -48,7 +48,8 @@ pub enum DrawMode {
     TriangleFan,
 }
 
-pub(crate) fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material) {
+/// Invokes WebGL draw call by a geometry and material.
+pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material) {
     // draws entity
     if let Some(num_instances) = (*material).instanced() {
         // draw instanced
