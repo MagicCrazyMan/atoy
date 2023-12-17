@@ -6,8 +6,8 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            program::ShaderSource,
-            uniform::{UniformBinding, UniformValue},
+            program::{ProgramSource, ShaderSource},
+            uniform::{UniformBinding, UniformBlockBinding, UniformValue},
         },
     },
 };
@@ -28,13 +28,16 @@ impl IconMaterial {
     }
 }
 
-impl Material for IconMaterial {
+impl ProgramSource for IconMaterial {
     fn name(&self) -> &'static str {
         "IconMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        self.transparency
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(include_str!("./icon.vert")),
+            ShaderSource::Fragment(include_str!("./icon.frag")),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -52,11 +55,14 @@ impl Material for IconMaterial {
         ]
     }
 
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
-        &[
-            ShaderSource::Vertex(include_str!("./icon.vert")),
-            ShaderSource::Fragment(include_str!("./icon.frag")),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for IconMaterial {
+    fn transparency(&self) -> Transparency {
+        self.transparency
     }
 
     fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {

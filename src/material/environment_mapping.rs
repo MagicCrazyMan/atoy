@@ -10,12 +10,13 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            program::ShaderSource,
+            program::{ProgramSource, ShaderSource},
             texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-                TextureMinificationFilter, TextureParameter, TextureSource, TextureUnit, TextureInternalFormat,
+                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+                TextureSource, TextureUnit,
             },
-            uniform::{UniformBinding, UniformValue},
+            uniform::{UniformBinding, UniformBlockBinding, UniformValue},
         },
     },
 };
@@ -85,13 +86,16 @@ impl EnvironmentMaterial {
     }
 }
 
-impl Material for EnvironmentMaterial {
+impl ProgramSource for EnvironmentMaterial {
     fn name(&self) -> &'static str {
         "EnvironmentMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -111,11 +115,14 @@ impl Material for EnvironmentMaterial {
         ]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for EnvironmentMaterial {
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn ready(&self) -> bool {

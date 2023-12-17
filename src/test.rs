@@ -31,14 +31,14 @@ use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
 use crate::material::{self, Transparency};
-use crate::render::pp::picking::create_picking_pipeline;
-use crate::render::pp::standard::create_standard_pipeline;
 use crate::render::pp::ResourceKey;
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::pipeline::create_standard_pipeline;
+use crate::render::webgl::pipeline::picking::create_picking_pipeline;
 use crate::render::webgl::texture::{
     TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
     TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
@@ -145,7 +145,7 @@ fn create_scene(
         60.0f64.to_radians(),
         1.0,
         0.5,
-        Some(200.0),
+        None,
     ));
 
     Scene::with_options(scene_options)
@@ -169,7 +169,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
@@ -482,24 +482,24 @@ pub fn test_instanced_cube(
     width: f64,
     height: f64,
 ) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let mut render = create_render()?;
     let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
 
+    // let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
+    // let pick_position_cloned = Rc::clone(&pick_position);
+    // let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+    //     let x = event.page_x();
+    //     let y = event.page_y();
+    //     *pick_position_cloned.borrow_mut() = Some((x, y));
+    // });
+    // window()
+    //     .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+    //     .unwrap();
+    // click.forget();
+
+
     let entity = Entity::new();
-
-    let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
-    let pick_position_cloned = Rc::clone(&pick_position);
-    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        let x = event.page_x();
-        let y = event.page_y();
-        *pick_position_cloned.borrow_mut() = Some((x, y));
-    });
-    window()
-        .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-        .unwrap();
-    click.forget();
-
     entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
     entity
         .borrow_mut()
@@ -513,12 +513,12 @@ pub fn test_instanced_cube(
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
         let seconds = frame_time / 1000.0;
 
-        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+        // static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+        // let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-        scene
-            .entity_collection_mut()
-            .set_local_matrix(Mat4::from_y_rotation(rotation));
+        // scene
+        //     .entity_collection_mut()
+        //     .set_local_matrix(Mat4::from_y_rotation(rotation));
 
         let start = window().performance().unwrap().now();
         render

@@ -1,3 +1,4 @@
+use log::error;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry, WebGl2RenderingContext,
@@ -15,6 +16,7 @@ pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod offscreen;
+pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
 pub mod stencil;
@@ -220,7 +222,7 @@ impl WebGL2Render {
     /// Renders a frame with stuff and a pipeline.
     pub fn render<S>(
         &mut self,
-        pipeline: &mut Pipeline,
+        pipeline: &mut Pipeline<Error>,
         stuff: &mut S,
         timestamp: f64,
     ) -> Result<(), Error>
@@ -238,7 +240,12 @@ impl WebGL2Render {
         );
         let state = &mut state;
 
-        pipeline.execute(state, stuff)?;
+        if !pipeline.execute(state, stuff)? {
+            error!(
+                target: "WebGL2Drawer",
+                "execution pipeline is not a validated pipeline"
+            );
+        }
 
         Ok(())
     }

@@ -5,7 +5,10 @@
 //! [`ProgramStore`](super::program::ProgramStore), stuffs created from here does not manage automatically,
 //! you should cleanups everything by yourself when finishing drawing.
 
-use web_sys::{WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture};
+use wasm_bindgen::JsValue;
+use web_sys::{
+    js_sys::Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+};
 
 use super::{
     conversion::ToGlEnum,
@@ -79,6 +82,8 @@ pub fn create_texture_2d(
 /// to ensure [`WebGlRenderbuffer`] and [`WebGlTexture`] always fit into a same size.
 /// When width and height in [`WebGl2RenderingContext`] changed,
 /// new [`WebGlRenderbuffer`] and [`WebGlTexture`] are recreated as well.
+///
+/// [`drawBuffers`](https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/drawBuffers)
 pub struct OffscreenFrame {
     width: i32,
     height: i32,
@@ -90,6 +95,7 @@ pub struct OffscreenFrame {
     framebuffers: Option<Vec<(WebGlFramebuffer, OffscreenFramebufferProvider)>>,
     textures: Option<Vec<(WebGlTexture, OffscreenTextureProvider)>>,
     renderbuffers: Option<Vec<(WebGlRenderbuffer, OffscreenRenderbufferProvider)>>,
+    draw_buffers: Array,
 }
 
 impl OffscreenFrame {
@@ -98,29 +104,40 @@ impl OffscreenFrame {
         FI: IntoIterator<Item = OffscreenFramebufferProvider>,
         TI: IntoIterator<Item = OffscreenTextureProvider>,
         RI: IntoIterator<Item = OffscreenRenderbufferProvider>,
+        DI: IntoIterator<Item = FramebufferAttachment>,
     >(
         framebuffer_providers: FI,
         texture_providers: TI,
         renderbuffer_providers: RI,
+        draw_buffers: DI,
     ) -> Self {
+        let draw_buffers_array = Array::new();
+        for draw_buffer in draw_buffers.into_iter() {
+            draw_buffers_array.push(&JsValue::from_f64(draw_buffer.gl_enum() as f64));
+        }
+
         Self {
             width: 0,
             height: 0,
 
-            framebuffers: None,
-            textures: None,
-            renderbuffers: None,
-
             framebuffer_providers: framebuffer_providers.into_iter().collect(),
             texture_providers: texture_providers.into_iter().collect(),
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
+
+            framebuffers: None,
+            textures: None,
+            renderbuffers: None,
+            draw_buffers: Array::new(),
         }
     }
 
     /// Binds offscreen frame to WebGL.
     pub fn bind(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        let drawing_buffer_width = gl.drawing_buffer_width();
+        let drawing_buffer_height = gl.drawing_buffer_height();
+
         // delete previous framebuffers, textures and renderbuffers if size changed
-        if gl.drawing_buffer_width() != self.width || gl.drawing_buffer_height() != self.height {
+        if drawing_buffer_width != self.width || drawing_buffer_height != self.height {
             if let Some(framebuffers) = &mut self.framebuffers {
                 for (framebuffer, _) in framebuffers {
                     gl.delete_framebuffer(Some(&framebuffer));
@@ -142,6 +159,8 @@ impl OffscreenFrame {
             self.framebuffers = None;
             self.textures = None;
             self.renderbuffers = None;
+            self.width = drawing_buffer_width;
+            self.height = drawing_buffer_height;
         }
 
         self.create_framebuffers(gl)?;
@@ -152,29 +171,9 @@ impl OffscreenFrame {
             gl.bind_framebuffer(provider.target.gl_enum(), Some(framebuffer))
         }
 
-        for (texture, provider) in self.textures.as_ref().unwrap() {
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
-            gl.framebuffer_texture_2d(
-                provider.target.gl_enum(),
-                provider.attachment.gl_enum(),
-                WebGl2RenderingContext::TEXTURE_2D,
-                Some(texture),
-                provider.level,
-            )
+        if self.draw_buffers.length() > 0 {
+            gl.draw_buffers(&self.draw_buffers);
         }
-
-        for (renderbuffer, provider) in self.renderbuffers.as_ref().unwrap() {
-            gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
-            gl.framebuffer_renderbuffer(
-                provider.target.gl_enum(),
-                provider.attachment.gl_enum(),
-                WebGl2RenderingContext::RENDERBUFFER,
-                Some(renderbuffer),
-            )
-        }
-
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
 
         Ok(())
     }
@@ -188,8 +187,8 @@ impl OffscreenFrame {
     }
 
     /// Sets read buffer.
-    pub fn set_read_buffer(self, gl: &WebGl2RenderingContext, attachment: FramebufferAttachment) {
-        gl.read_buffer(attachment.gl_enum());
+    pub fn set_read_buffer(self, gl: &WebGl2RenderingContext, source: ReadBufferSource) {
+        gl.read_buffer(source.gl_enum());
     }
 
     fn create_framebuffers(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
@@ -234,6 +233,13 @@ impl OffscreenFrame {
                 None,
             )
             .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+            gl.framebuffer_texture_2d(
+                provider.target.gl_enum(),
+                provider.attachment.gl_enum(),
+                WebGl2RenderingContext::TEXTURE_2D,
+                Some(&texture),
+                provider.level,
+            );
 
             textures.push((texture, *provider));
         }
@@ -245,7 +251,7 @@ impl OffscreenFrame {
     }
 
     fn create_renderbuffers(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-        if self.textures.is_some() {
+        if self.renderbuffers.is_some() {
             return Ok(());
         }
 
@@ -261,6 +267,12 @@ impl OffscreenFrame {
                 self.width,
                 self.height,
             );
+            gl.framebuffer_renderbuffer(
+                provider.target.gl_enum(),
+                provider.attachment.gl_enum(),
+                WebGl2RenderingContext::RENDERBUFFER,
+                Some(&renderbuffer),
+            );
 
             renderbuffers.push((renderbuffer, *provider));
         }
@@ -269,6 +281,26 @@ impl OffscreenFrame {
         self.renderbuffers = Some(renderbuffers);
 
         Ok(())
+    }
+
+    /// Returns list containing [`WebGlFramebuffer`]s,
+    /// following the orders of [`OffscreenFramebufferProvider`]s.
+    pub fn framebuffers(&self) -> Option<&Vec<(WebGlFramebuffer, OffscreenFramebufferProvider)>> {
+        self.framebuffers.as_ref()
+    }
+
+    /// Returns list containing [`WebGlRenderbuffer`]s,
+    /// following the orders of [`OffscreenRenderbufferProvider`]s.
+    pub fn renderbuffers(
+        &self,
+    ) -> Option<&Vec<(WebGlRenderbuffer, OffscreenRenderbufferProvider)>> {
+        self.renderbuffers.as_ref()
+    }
+
+    /// Returns list containing [`WebGlTexture`]s,
+    /// following the orders of [`OffscreenTextureProvider`]s.
+    pub fn textures(&self) -> Option<&Vec<(WebGlTexture, OffscreenTextureProvider)>> {
+        self.textures.as_ref()
     }
 }
 
@@ -280,7 +312,9 @@ pub struct OffscreenFramebufferProvider {
 
 impl OffscreenFramebufferProvider {
     /// Constructs a new offscreen framebuffer provider.
-    pub fn new(target: FramebufferTarget) -> Self { Self { target } }
+    pub fn new(target: FramebufferTarget) -> Self {
+        Self { target }
+    }
 
     /// Constructs a new framebuffer provider for [`FramebufferTarget::FRAMEBUFFER`].
     pub fn framebuffer() -> Self {
@@ -422,6 +456,31 @@ pub enum FramebufferTarget {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FramebufferAttachment {
+    COLOR_ATTACHMENT0,
+    COLOR_ATTACHMENT1,
+    COLOR_ATTACHMENT2,
+    COLOR_ATTACHMENT3,
+    COLOR_ATTACHMENT4,
+    COLOR_ATTACHMENT5,
+    COLOR_ATTACHMENT6,
+    COLOR_ATTACHMENT7,
+    COLOR_ATTACHMENT8,
+    COLOR_ATTACHMENT9,
+    COLOR_ATTACHMENT10,
+    COLOR_ATTACHMENT11,
+    COLOR_ATTACHMENT12,
+    COLOR_ATTACHMENT13,
+    COLOR_ATTACHMENT14,
+    COLOR_ATTACHMENT15,
+    DEPTH_ATTACHMENT,
+    DEPTH_STENCIL_ATTACHMENT,
+    STENCIL_ATTACHMENT,
+}
+
+/// Available read buffer source mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReadBufferSource {
     NONE,
     BACK,
     COLOR_ATTACHMENT0,

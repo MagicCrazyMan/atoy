@@ -5,40 +5,28 @@ use crate::{
     render::{
         pp::State,
         webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            program::ShaderSource,
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
+            attribute::AttributeValue,
+            program::ProgramSource,
+            uniform::{UniformBlockValue, UniformValue},
         },
     },
 };
 
 pub mod environment_mapping;
+pub mod icon;
+pub mod loader;
+pub mod multiple_textures_instanced;
 pub mod solid_color;
 pub mod solid_color_instanced;
 pub mod texture_mapping;
 pub mod texture_mapping_instanced;
-pub mod icon;
-pub mod loader;
-pub mod multiple_textures_instanced;
 
-pub trait Material {
-    fn name(&self) -> &'static str;
-
+pub trait Material: ProgramSource {
     /// Transparency of this material.
-    /// 
+    ///
     /// Unexpected render result may happens if you assign
     /// [`Transparency::Transparent`] or [`Transparency::Translucent`] to an opaque material.
     fn transparency(&self) -> Transparency;
-
-    fn attribute_bindings(&self) -> &[AttributeBinding];
-
-    fn uniform_bindings(&self) -> &[UniformBinding];
-
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
-    }
-
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
 
     fn attribute_value(&self, name: &str, entity: &BorrowedMut) -> Option<AttributeValue>;
 
@@ -90,7 +78,7 @@ pub trait Material {
 pub enum Transparency {
     Opaque,
     Transparent,
-    Translucent(f32)
+    Translucent(f32),
 }
 
 // pub struct MaterialRenderEntity<'a> {

@@ -12,8 +12,8 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
+        program::{ProgramSource, ShaderSource},
+        uniform::{UniformBinding, UniformBlockBinding, UniformValue},
     },
 };
 
@@ -134,13 +134,16 @@ impl SolidColorInstancedMaterial {
     }
 }
 
-impl Material for SolidColorInstancedMaterial {
+impl ProgramSource for SolidColorInstancedMaterial {
     fn name(&self) -> &'static str {
         "SolidColorInstancedMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -155,11 +158,14 @@ impl Material for SolidColorInstancedMaterial {
         &[UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for SolidColorInstancedMaterial {
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn ready(&self) -> bool {
@@ -168,14 +174,6 @@ impl Material for SolidColorInstancedMaterial {
 
     fn instanced(&self) -> Option<i32> {
         Some(self.count as i32)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 
     fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
@@ -204,5 +202,13 @@ impl Material for SolidColorInstancedMaterial {
 
     fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
         None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

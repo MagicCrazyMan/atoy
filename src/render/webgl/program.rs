@@ -7,14 +7,30 @@ use std::{
 use wasm_bindgen_test::console_log;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::material::Material;
-
 use super::{
     attribute::AttributeBinding,
     conversion::GLuint,
     error::Error,
     uniform::{UniformBinding, UniformBlockBinding},
 };
+
+/// Source providing basic data for compiling a WebGL program.
+pub trait ProgramSource {
+    /// Program name.
+    fn name(&self) -> &'static str;
+
+    /// Shader sources, at least one vertex shader and one fragment shader should be specified.
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
+
+    /// Attribute binding variable name.
+    fn attribute_bindings(&self) -> &[AttributeBinding];
+
+    /// Uniform binding variable names.
+    fn uniform_bindings(&self) -> &[UniformBinding];
+
+    /// Uniform block binding variable names.
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
+}
 
 #[derive(Debug, Clone)]
 pub enum ShaderSource<'a> {
@@ -70,46 +86,50 @@ impl ProgramStore {
 
 impl ProgramStore {
     /// Gets program of a specified material from store, if not exists, compiles  and stores it.
-    pub fn use_program(&mut self, material: &dyn Material) -> Result<ProgramItem, Error> {
+    pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
         let store = &mut self.store;
 
-        match store.entry(material.name().to_string()) {
+        match store.entry(source.name().to_string()) {
             Entry::Occupied(occupied) => Ok(occupied.get().clone()),
             Entry::Vacant(vacant) => {
-                let item = vacant.insert(compile_material(&self.gl, material)?);
+                let item = vacant.insert(compile_program(&self.gl, source)?);
                 Ok(item.clone())
             }
         }
     }
 }
 
-fn compile_material(
-    gl: &WebGl2RenderingContext,
-    material: &dyn Material,
-) -> Result<ProgramItem, Error> {
-    let mut shaders = Vec::with_capacity(material.sources().len());
-    material.sources().iter().try_for_each(|source| {
-        shaders.push(compile_shader(gl, source)?);
+/// Compiles a [`WebGlProgram`] from a [`ProgramSource`].
+pub fn compile_program<S>(gl: &WebGl2RenderingContext, source: &S) -> Result<ProgramItem, Error>
+where
+    S: ProgramSource + ?Sized,
+{
+    let mut shaders = Vec::with_capacity(source.sources().len());
+    source.sources().iter().try_for_each(|source| {
+        shaders.push(compile_shaders(gl, source)?);
         Ok(()) as Result<(), Error>
     })?;
 
     let program = create_program(gl, &shaders)?;
     Ok(ProgramItem {
-        name: material.name().to_string(),
+        name: source.name().to_string(),
         attributes: Rc::new(collect_attribute_locations(
             gl,
             &program,
-            material.attribute_bindings(),
+            source.attribute_bindings(),
         )?),
         uniform_locations: Rc::new(collect_uniform_locations(
             gl,
             &program,
-            material.uniform_bindings(),
+            source.uniform_bindings(),
         )?),
         uniform_block_indices: Rc::new(collect_uniform_block_indices(
             gl,
             &program,
-            material.uniform_block_bindings(),
+            source.uniform_block_bindings(),
         )),
         program,
         // shaders,
@@ -127,7 +147,7 @@ fn compile_material(
 //     gl.delete_program(Some(&program));
 // }
 
-fn compile_shader(
+pub fn compile_shaders(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
 ) -> Result<WebGlShader, Error> {
@@ -164,7 +184,7 @@ fn compile_shader(
     }
 }
 
-fn create_program(
+pub fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
 ) -> Result<WebGlProgram, Error> {
@@ -237,7 +257,7 @@ fn collect_uniform_locations(
     Ok(locations)
 }
 
-fn collect_uniform_block_indices(
+pub fn collect_uniform_block_indices(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBlockBinding],

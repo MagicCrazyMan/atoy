@@ -138,9 +138,9 @@ pub fn bind_uniforms(
     entity: &BorrowedMut,
     geometry: &dyn Geometry,
     material: &dyn Material,
-    program: &ProgramItem,
+    program_item: &ProgramItem,
 ) {
-    for (binding, location) in program.uniform_locations() {
+    for (binding, location) in program_item.uniform_locations() {
         let value = match binding {
             UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name, entity),
             UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
@@ -288,7 +288,7 @@ pub fn bind_uniforms(
         };
     }
 
-    for (binding, index) in program.uniform_block_indices() {
+    for (binding, index) in program_item.uniform_block_indices() {
         let value = match binding {
             UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
             UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
@@ -320,7 +320,7 @@ pub fn bind_uniforms(
 
                 state
                     .gl()
-                    .uniform_block_binding(program.gl_program(), *index, binding);
+                    .uniform_block_binding(program_item.gl_program(), *index, binding);
                 state.gl().bind_buffer_base(
                     target.gl_enum(),
                     *index,
@@ -348,7 +348,7 @@ pub fn bind_uniforms(
 
                 state
                     .gl()
-                    .uniform_block_binding(program.gl_program(), *index, binding);
+                    .uniform_block_binding(program_item.gl_program(), *index, binding);
                 state.gl().bind_buffer_range_with_i32_and_i32(
                     target.gl_enum(),
                     *index,

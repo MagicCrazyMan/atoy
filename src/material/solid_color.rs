@@ -6,8 +6,8 @@ use crate::{
     entity::BorrowedMut,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::ShaderSource,
-        uniform::{UniformBinding, UniformValue},
+        program::{ProgramSource, ShaderSource},
+        uniform::{UniformBinding, UniformBlockBinding, UniformValue},
     },
 };
 
@@ -67,19 +67,16 @@ impl SolidColorMaterial {
     }
 }
 
-impl Material for SolidColorMaterial {
+impl ProgramSource for SolidColorMaterial {
     fn name(&self) -> &'static str {
         "SolidColorMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        if self.color.alpha == 0.0 {
-            Transparency::Transparent
-        } else if self.color.alpha == 1.0 {
-            Transparency::Opaque
-        } else {
-            Transparency::Translucent(self.color.alpha)
-        }
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -95,11 +92,20 @@ impl Material for SolidColorMaterial {
         ]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for SolidColorMaterial {
+    fn transparency(&self) -> Transparency {
+        if self.color.alpha == 0.0 {
+            Transparency::Transparent
+        } else if self.color.alpha == 1.0 {
+            Transparency::Opaque
+        } else {
+            Transparency::Translucent(self.color.alpha)
+        }
     }
 
     fn ready(&self) -> bool {

@@ -10,13 +10,13 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            program::ShaderSource,
+            program::{ShaderSource, ProgramSource},
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
                 TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
                 TextureWrapMethod, TextureInternalFormat,
             },
-            uniform::{UniformBinding, UniformValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding},
         },
     },
 };
@@ -84,13 +84,16 @@ impl TextureMaterial {
     }
 }
 
-impl Material for TextureMaterial {
+impl ProgramSource for TextureMaterial {
     fn name(&self) -> &'static str {
         "TextureMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -108,11 +111,14 @@ impl Material for TextureMaterial {
         ]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for TextureMaterial {
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn ready(&self) -> bool {

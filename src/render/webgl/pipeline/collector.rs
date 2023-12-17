@@ -6,7 +6,7 @@ use log::warn;
 use crate::{
     bounding::Culling,
     entity::Strong,
-    render::pp::{error::Error, Executor, ResourceKey, Resources, State, Stuff},
+    render::{pp::{Executor, ResourceKey, Resources, State, Stuff}, webgl::error::Error},
 };
 
 /// Standard entities collector, collects and flatten entities from entities collection of [`Stuff`].
@@ -70,12 +70,14 @@ impl StandardEntitiesCollector {
 }
 
 impl Executor for StandardEntitiesCollector {
+    type Error = Error;
+
     fn execute(
         &mut self,
         state: &mut State,
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Self::Error> {
         struct SortEntity {
             entity: Strong,
             /// Depth distance from sorting entities, from nearest to farthest
@@ -121,12 +123,14 @@ impl Executor for StandardEntitiesCollector {
                         }
                         None => f64::INFINITY, // returns infinity for an entity without bounding
                     }
-                } else {
+                } else if self.enable_sorting {
                     match entity_mut.bounding_volume() {
                         // returns distance between bounding center and camera position if having a bounding volume
                         Some(bounding) => bounding.center().distance(&view_position),
                         None => f64::INFINITY,
                     }
+                } else {
+                    f64::INFINITY
                 };
 
                 entities.push(SortEntity {
@@ -147,9 +151,6 @@ impl Executor for StandardEntitiesCollector {
         if self.enable_sorting {
             entities.sort_by(|a, b| a.distance.total_cmp(&b.distance));
         }
-
-        // console_log!("{}", entities.iter().map(|e| e.distance.to_string()).collect::<Vec<_>>().join(", "));
-        // console_log!("entities count {}", entities.len());
 
         let entities = entities
             .into_iter()

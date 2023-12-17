@@ -1,8 +1,5 @@
 pub mod error;
 pub mod graph;
-pub mod outlining;
-pub mod picking;
-pub mod standard;
 
 use std::{
     any::Any,
@@ -15,7 +12,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{camera::Camera, entity::collection::EntityCollection};
 
-use self::{graph::DirectedGraph, error::Error};
+use self::{error::Error, graph::DirectedGraph};
 
 use super::webgl::{buffer::BufferStore, program::ProgramStore, texture::TextureStore};
 
@@ -195,13 +192,13 @@ impl ItemKey {
 }
 
 /// A graph based pipeline defining the rendering procedure.
-pub struct Pipeline {
-    graph: DirectedGraph<Box<dyn Executor>>,
+pub struct Pipeline<ExecutorError> {
+    graph: DirectedGraph<Box<dyn Executor<Error = ExecutorError>>>,
     executor_keys: HashMap<ItemKey, usize>,
     resources: Resources,
 }
 
-impl Pipeline {
+impl<ExecutorError> Pipeline<ExecutorError> {
     /// Constructs a new pipeline.
     pub fn new() -> Self {
         Self {
@@ -211,8 +208,16 @@ impl Pipeline {
         }
     }
 
-    pub fn execute<S: Stuff>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Error> {
-        for (_, executor) in self.graph.iter_mut()? {
+    pub fn execute(
+        &mut self,
+        state: &mut State,
+        stuff: &mut impl Stuff,
+    ) -> Result<bool, ExecutorError> {
+        let Ok(iter) = self.graph.iter_mut() else {
+            return Ok(false);
+        };
+
+        for (_, executor) in iter {
             if executor.before(state, stuff, &mut self.resources)? {
                 executor.execute(state, stuff, &mut self.resources)?;
                 executor.after(state, stuff, &mut self.resources)?;
@@ -224,10 +229,13 @@ impl Pipeline {
         // clears runtime resources
         self.resources.runtime.clear();
 
-        Ok(())
+        Ok(true)
     }
 
-    pub fn add_executor<E: Executor + 'static>(&mut self, key: ItemKey, executor: E) {
+    pub fn add_executor<E>(&mut self, key: ItemKey, executor: E)
+    where
+        E: Executor<Error = ExecutorError> + 'static,
+    {
         let index = self.graph.add_vertex(Box::new(executor));
         self.executor_keys.insert(key, index);
     }
@@ -246,7 +254,10 @@ impl Pipeline {
         Ok(())
     }
 
-    pub fn executor(&self, key: &ItemKey) -> Result<Option<&dyn Executor>, Error> {
+    pub fn executor(
+        &self,
+        key: &ItemKey,
+    ) -> Result<Option<&dyn Executor<Error = ExecutorError>>, Error> {
         let Some(index) = self.executor_keys.get(key) else {
             return Err(self::error::Error::NoSuchExecutor(key.clone()))?;
         };
@@ -257,7 +268,10 @@ impl Pipeline {
         }
     }
 
-    pub fn executor_mut(&mut self, key: &ItemKey) -> Result<Option<&mut dyn Executor>, Error> {
+    pub fn executor_mut(
+        &mut self,
+        key: &ItemKey,
+    ) -> Result<Option<&mut dyn Executor<Error = ExecutorError>>, Error> {
         let Some(index) = self.executor_keys.get(key) else {
             return Err(self::error::Error::NoSuchExecutor(key.clone()))?;
         };
@@ -425,7 +439,13 @@ impl Resources {
     }
 
     /// Returns `true` if the resources contains a value for the specified [`ResourceKey`]
-    pub fn contains_key<V>(&mut self, key: &ResourceKey<V>) -> bool {
+    /// and successfully downcast to specified type.
+    pub fn contains_key<V: 'static>(&mut self, key: &ResourceKey<V>) -> bool {
+        self.get(key).is_some()
+    }
+
+    /// Returns `true` if the resources contains a value for the specified [`ResourceKey`].
+    pub fn contains_key_unchecked<V>(&mut self, key: &ResourceKey<V>) -> bool {
         match key {
             ResourceKey::Runtime(key, _) => self.runtime.contains_key(key),
             ResourceKey::Persist(key, _) => self.persist.contains_key(key),
@@ -455,6 +475,8 @@ impl Resources {
 
 /// An execution node for [`Pipeline`].
 pub trait Executor {
+    type Error;
+
     /// Actions before execution.
     /// Developer could setup WebGL state here, or return a `false` to skip execution.
     #[allow(unused)]
@@ -463,7 +485,7 @@ pub trait Executor {
         state: &mut State,
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool, Self::Error> {
         Ok(true)
     }
 
@@ -473,7 +495,7 @@ pub trait Executor {
         state: &mut State,
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Self::Error>;
 
     /// Actions after execution.
     /// Developer should reset WebGL state here to prevent unexpected side effect to other executors.
@@ -483,7 +505,7 @@ pub trait Executor {
         state: &mut State,
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 }

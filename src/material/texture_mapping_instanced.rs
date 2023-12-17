@@ -15,13 +15,13 @@ use crate::{
                 BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
                 BufferUsage,
             },
-            program::ShaderSource,
+            program::{ShaderSource, ProgramSource},
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
                 TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
                 TextureWrapMethod, TextureInternalFormat,
             },
-            uniform::{UniformBinding, UniformValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding},
         },
     },
 };
@@ -130,13 +130,16 @@ impl TextureInstancedMaterial {
     }
 }
 
-impl Material for TextureInstancedMaterial {
+impl ProgramSource for TextureInstancedMaterial {
     fn name(&self) -> &'static str {
         "TextureInstancedMaterial"
     }
 
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -155,11 +158,14 @@ impl Material for TextureInstancedMaterial {
         ]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for TextureInstancedMaterial {
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn ready(&self) -> bool {

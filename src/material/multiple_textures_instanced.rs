@@ -14,13 +14,13 @@ use crate::{
                 BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
                 BufferUsage,
             },
-            program::ShaderSource,
+            program::{ProgramSource, ShaderSource},
             texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-                TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-                TextureWrapMethod, TextureInternalFormat,
+                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+                TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding},
         },
     },
 };
@@ -124,7 +124,11 @@ impl MultipleTexturesInstanced {
                     1.0 - row as f32 * height,
                     0.0,
                 ));
-                info!("{index} {} {}", -1.0 + col as f32 * width, 1.0 - row as f32 * height);
+                info!(
+                    "{index} {} {}",
+                    -1.0 + col as f32 * width,
+                    1.0 - row as f32 * height
+                );
                 matrices.set_index((index * 16) as u32 + 0, matrix.raw()[0]);
                 matrices.set_index((index * 16) as u32 + 1, matrix.raw()[1]);
                 matrices.set_index((index * 16) as u32 + 2, matrix.raw()[2]);
@@ -305,13 +309,16 @@ impl MultipleTexturesInstanced {
     }
 }
 
-impl Material for MultipleTexturesInstanced {
+impl ProgramSource for MultipleTexturesInstanced {
     fn name(&self) -> &'static str {
         "TextureInstancedMaterialA"
     }
 
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+    fn sources(&self) -> &[ShaderSource] {
+        &[
+            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
+            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+        ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -338,11 +345,14 @@ impl Material for MultipleTexturesInstanced {
         ]
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+}
+
+impl Material for MultipleTexturesInstanced {
+    fn transparency(&self) -> Transparency {
+        Transparency::Opaque
     }
 
     fn ready(&self) -> bool {
