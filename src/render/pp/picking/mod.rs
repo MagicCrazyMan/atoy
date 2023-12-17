@@ -250,8 +250,8 @@ impl Executor for Picking {
         _: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<bool, Error> {
-        resources.remove(&self.picked_entity);
-        resources.remove(&self.picked_position);
+        resources.remove_unchecked(&self.picked_entity);
+        resources.remove_unchecked(&self.picked_position);
 
         if !resources.contains_key(&self.window_position) {
             return Ok(false);

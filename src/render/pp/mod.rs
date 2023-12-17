@@ -4,7 +4,7 @@ pub mod outlining;
 pub mod picking;
 pub mod standard;
 
-use std::{any::Any, collections::HashMap, marker::PhantomData};
+use std::{any::Any, collections::{HashMap, hash_map::Entry}, marker::PhantomData};
 
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
@@ -394,11 +394,31 @@ impl Resources {
         };
     }
 
-    /// Removes a resource by a [`ResourceKey`].
-    pub fn remove<V>(&mut self, key: &ResourceKey<V>) -> Option<Box<dyn Any>> {
+    /// Removes a resource by a [`ResourceKey`] and unchecks downcast result.
+    pub fn remove_unchecked<V>(&mut self, key: &ResourceKey<V>) -> Option<Box<dyn Any>> {
         match key {
             ResourceKey::Runtime(key, _) => self.runtime.remove(key),
             ResourceKey::Persist(key, _) => self.persist.remove(key),
+        }
+    }
+
+    /// Removes a resource by a [`ResourceKey`], checks downcast result before removing.
+    pub fn remove<V: 'static>(&mut self, key: ResourceKey<V>) -> Option<V> {
+        let entry = match key {
+            ResourceKey::Runtime(key, _) => self.runtime.entry(key),
+            ResourceKey::Persist(key, _) => self.persist.entry(key),
+        };
+
+        match entry {
+            Entry::Occupied(occupied) => {
+                if occupied.get().downcast_ref::<V>().is_some() {
+                    let value = occupied.remove().downcast::<V>().unwrap();
+                    Some(*value)
+                } else {
+                    None
+                }
+            },
+            Entry::Vacant(_) => None,
         }
     }
 
