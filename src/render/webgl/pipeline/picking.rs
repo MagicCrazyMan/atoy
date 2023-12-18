@@ -29,9 +29,9 @@ use crate::{
 use super::collector::StandardEntitiesCollector;
 
 pub fn create_picking_pipeline(
-    window_position: ResourceKey<(i32, i32)>,
-    picked_entity: ResourceKey<Weak>,
-    picked_position: ResourceKey<Vec3>,
+    in_window_position: ResourceKey<(i32, i32)>,
+    out_picked_entity: ResourceKey<Weak>,
+    out_picked_position: ResourceKey<Vec3>,
 ) -> Pipeline<Error> {
     let collector = ItemKey::from_uuid();
     let picking = ItemKey::from_uuid();
@@ -47,10 +47,10 @@ pub fn create_picking_pipeline(
     pipeline.add_executor(
         picking.clone(),
         Picking::new(
-            window_position,
             collected_entities,
-            picked_entity,
-            picked_position,
+            in_window_position,
+            out_picked_entity,
+            out_picked_position,
         ),
     );
 
@@ -69,10 +69,10 @@ pub fn create_picking_pipeline(
 /// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
-    entities: ResourceKey<Vec<Strong>>,
-    window_position: ResourceKey<(i32, i32)>,
-    picked_entity: ResourceKey<Weak>,
-    picked_position: ResourceKey<Vec3>,
+    in_entities: ResourceKey<Vec<Strong>>,
+    in_window_position: ResourceKey<(i32, i32)>,
+    out_picked_entity: ResourceKey<Weak>,
+    out_picked_position: ResourceKey<Vec3>,
     pixel: Uint32Array,
     frame: OffscreenFrame,
     material: PickingMaterial,
@@ -80,16 +80,16 @@ pub struct Picking {
 
 impl Picking {
     pub fn new(
-        window_position: ResourceKey<(i32, i32)>,
-        entities: ResourceKey<Vec<Strong>>,
-        picked_entity: ResourceKey<Weak>,
-        picked_position: ResourceKey<Vec3>,
+        in_entities: ResourceKey<Vec<Strong>>,
+        in_window_position: ResourceKey<(i32, i32)>,
+        out_picked_entity: ResourceKey<Weak>,
+        out_picked_position: ResourceKey<Vec3>,
     ) -> Self {
         Self {
-            entities,
-            window_position,
-            picked_entity,
-            picked_position,
+            in_entities,
+            in_window_position,
+            out_picked_entity,
+            out_picked_position,
             pixel: Uint32Array::new_with_length(4),
             frame: OffscreenFrame::new(
                 [OffscreenFramebufferProvider::new(
@@ -137,13 +137,13 @@ impl Executor for Picking {
         _: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        resources.remove_unchecked(&self.picked_entity);
-        resources.remove_unchecked(&self.picked_position);
+        resources.remove_unchecked(&self.out_picked_entity);
+        resources.remove_unchecked(&self.out_picked_position);
 
-        if !resources.contains_key_unchecked(&self.window_position) {
+        if !resources.contains_key_unchecked(&self.in_window_position) {
             return Ok(false);
         }
-        if !resources.contains_key_unchecked(&self.entities) {
+        if !resources.contains_key_unchecked(&self.in_entities) {
             return Ok(false);
         }
 
@@ -185,10 +185,10 @@ impl Executor for Picking {
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        let Some((x, y)) = resources.get(&self.window_position) else {
+        let Some((x, y)) = resources.get(&self.in_window_position) else {
             return Ok(());
         };
-        let Some(entities) = resources.get(&self.entities) else {
+        let Some(entities) = resources.get(&self.in_entities) else {
             return Ok(());
         };
 
@@ -258,7 +258,7 @@ impl Executor for Picking {
         let index = self.pixel.get_index(0) as usize;
         if index > 0 {
             if let Some(entity) = entities.get(index - 1).map(|entity| entity.downgrade()) {
-                resources.insert(self.picked_entity.clone(), entity.clone());
+                resources.insert(self.out_picked_entity.clone(), entity.clone());
             }
         }
 
@@ -286,25 +286,10 @@ impl Executor for Picking {
         ]; // converts unsigned int back to float
         if position != [0.0, 0.0, 0.0, 0.0] {
             resources.insert(
-                self.picked_position.clone(),
+                self.out_picked_position.clone(),
                 Vec3::from_values(position[0] as f64, position[1] as f64, position[2] as f64),
             );
         }
-
-        // resets WebGL status
-        state
-            .gl()
-            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0);
-        state.gl().enable(WebGl2RenderingContext::BLEND);
-        state
-            .gl()
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        state
-            .gl()
-            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
-        state
-            .gl()
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
 
         Ok(())
     }

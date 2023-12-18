@@ -141,6 +141,7 @@ impl<'a> State<'a> {
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
         }
+        self.gl.read_buffer(WebGl2RenderingContext::NONE);
         self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
         self.gl.bind_vertex_array(None);
         self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);

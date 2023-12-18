@@ -75,10 +75,10 @@ pub fn bind_attributes(
     entity: &BorrowedMut,
     geometry: &dyn Geometry,
     material: &dyn Material,
-    program: &ProgramItem,
+    program_item: &ProgramItem,
 ) -> Vec<(u32, BufferItem)> {
-    let mut buffer_items = Vec::with_capacity(program.attribute_locations().len());
-    for (binding, location) in program.attribute_locations() {
+    let mut buffer_items = Vec::with_capacity(program_item.attribute_locations().len());
+    for (binding, location) in program_item.attribute_locations() {
         let value = match binding {
             AttributeBinding::GeometryPosition => (*geometry).vertices(),
             AttributeBinding::GeometryTextureCoordinate => (*geometry).texture_coordinates(),

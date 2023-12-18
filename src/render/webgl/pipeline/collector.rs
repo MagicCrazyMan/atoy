@@ -24,18 +24,18 @@ use crate::{
 pub struct StandardEntitiesCollector {
     enable_culling: bool,
     enable_sorting: bool,
-    set_entities: ResourceKey<Vec<Strong>>,
+    out_entities: ResourceKey<Vec<Strong>>,
 }
 
 impl StandardEntitiesCollector {
     /// Constructs a new standard entities collector with [`ResourceKey`]
     /// defining where to store the collected entities.
     /// Entity culling and distance sorting by is enabled by default.
-    pub fn new(set_entities: ResourceKey<Vec<Strong>>) -> Self {
+    pub fn new(out_entities: ResourceKey<Vec<Strong>>) -> Self {
         Self {
             enable_culling: true,
             enable_sorting: true,
-            set_entities,
+            out_entities,
         }
     }
 
@@ -163,7 +163,7 @@ impl Executor for StandardEntitiesCollector {
             .map(|entity| entity.entity)
             .collect::<Vec<_>>();
 
-        resources.insert(self.set_entities.clone(), entities);
+        resources.insert(self.out_entities.clone(), entities);
 
         Ok(())
     }

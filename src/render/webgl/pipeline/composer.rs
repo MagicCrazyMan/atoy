@@ -108,6 +108,11 @@ impl Executor for StandardComposer {
             state.canvas().width() as i32,
             state.canvas().height() as i32,
         );
+        state.gl().enable(WebGl2RenderingContext::BLEND);
+        state.gl().blend_func(
+            WebGl2RenderingContext::SRC_ALPHA,
+            WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+        );
 
         state.gl().use_program(Some(program));
 
