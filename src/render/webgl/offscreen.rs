@@ -223,7 +223,7 @@ impl OffscreenFrame {
             gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
                 WebGl2RenderingContext::TEXTURE_2D,
-                0,
+                provider.level,
                 provider.internal_format.gl_enum() as i32,
                 self.width,
                 self.height,
@@ -317,21 +317,21 @@ impl OffscreenFramebufferProvider {
     }
 
     /// Constructs a new framebuffer provider for [`FramebufferTarget::FRAMEBUFFER`].
-    pub fn framebuffer() -> Self {
+    pub fn from_framebuffer() -> Self {
         Self {
             target: FramebufferTarget::FRAMEBUFFER,
         }
     }
 
     /// Constructs a new framebuffer provider for [`FramebufferTarget::READ_FRAMEBUFFER`].
-    pub fn read_framebuffer() -> Self {
+    pub fn from_read_framebuffer() -> Self {
         Self {
             target: FramebufferTarget::READ_FRAMEBUFFER,
         }
     }
 
     /// Constructs a new framebuffer provider for [`FramebufferTarget::DRAW_FRAMEBUFFER`].
-    pub fn draw_framebuffer() -> Self {
+    pub fn from_draw_framebuffer() -> Self {
         Self {
             target: FramebufferTarget::DRAW_FRAMEBUFFER,
         }
@@ -473,8 +473,8 @@ pub enum FramebufferAttachment {
     COLOR_ATTACHMENT14,
     COLOR_ATTACHMENT15,
     DEPTH_ATTACHMENT,
-    DEPTH_STENCIL_ATTACHMENT,
     STENCIL_ATTACHMENT,
+    DEPTH_STENCIL_ATTACHMENT,
 }
 
 /// Available read buffer source mapped from [`WebGl2RenderingContext`].

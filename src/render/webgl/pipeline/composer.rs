@@ -1,6 +1,5 @@
 use web_sys::{
-    WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlShader, WebGlTexture,
-    WebGlUniformLocation,
+    WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlTexture, WebGlUniformLocation,
 };
 
 use crate::render::{
@@ -20,8 +19,6 @@ const BUFFER_DATA: [f32; 16] = [
 ];
 
 struct Compiled {
-    gl: WebGl2RenderingContext,
-    shaders: [WebGlShader; 2],
     program: WebGlProgram,
     position_location: u32,
     texture_location: u32,
@@ -88,8 +85,6 @@ impl Executor for StandardComposer {
             );
 
             self.compiled = Some(Compiled {
-                gl: state.gl().clone(),
-                shaders: [vertex_shader, fragment_shader],
                 program,
                 position_location,
                 texture_location,
@@ -106,6 +101,13 @@ impl Executor for StandardComposer {
             buffer,
             ..
         } = self.compiled.as_ref().unwrap();
+
+        state.gl().viewport(
+            0,
+            0,
+            state.canvas().width() as i32,
+            state.canvas().height() as i32,
+        );
 
         state.gl().use_program(Some(program));
 
@@ -149,12 +151,6 @@ impl Executor for StandardComposer {
             ..
         } = self.compiled.as_ref().unwrap();
 
-        state
-            .gl()
-            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        state
-            .gl()
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
         state.gl().disable_vertex_attrib_array(*position_location);
         state.gl().disable_vertex_attrib_array(*texture_location);
 
@@ -185,6 +181,11 @@ impl Executor for StandardComposer {
                 WebGl2RenderingContext::TEXTURE_MIN_FILTER,
                 WebGl2RenderingContext::NEAREST as i32,
             );
+            state.gl().tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
+                0,
+            );
 
             state
                 .gl()
@@ -192,23 +193,5 @@ impl Executor for StandardComposer {
         }
 
         Ok(())
-    }
-}
-
-impl Drop for StandardComposer {
-    fn drop(&mut self) {
-        if let Some(Compiled {
-            gl,
-            shaders,
-            program,
-            buffer,
-            ..
-        }) = &self.compiled
-        {
-            gl.delete_buffer(Some(buffer));
-            gl.delete_program(Some(program));
-            gl.delete_shader(Some(&shaders[0]));
-            gl.delete_shader(Some(&shaders[1]));
-        }
     }
 }

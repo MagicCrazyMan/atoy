@@ -56,7 +56,7 @@ impl StandardDrawer {
                 [OffscreenRenderbufferProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH24_STENCIL8,
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
                 [],
             ),
@@ -128,9 +128,8 @@ impl Executor for StandardDrawer {
             state.canvas().width() as i32,
             state.canvas().height() as i32,
         );
-        self.frame.bind(&state.gl())?;
+        self.frame.bind(state.gl())?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().enable(WebGl2RenderingContext::BLEND);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear_depth(1.0);
         state.gl().clear(
@@ -146,7 +145,7 @@ impl Executor for StandardDrawer {
         _: &mut dyn Stuff,
         _: &mut Resources,
     ) -> Result<(), Self::Error> {
-        self.frame.unbind(&state.gl());
+        self.frame.unbind(state.gl());
         Ok(())
     }
 
@@ -163,16 +162,15 @@ impl Executor for StandardDrawer {
         // splits opaques and translucents
         let mut opaques = Vec::new();
         let mut translucents = Vec::new();
-        let state_ptr: *const State = state;
         entities.iter().for_each(|entity| unsafe {
             let mut entity = entity.borrow_mut();
 
-            // prepare material and geometry if exists
+            // prepares material and geometry
             if let Some(geometry) = entity.geometry_raw() {
-                (*geometry).prepare(&*state_ptr, &entity);
+                (*geometry).prepare(state, &entity);
             };
             if let Some(material) = entity.material_raw() {
-                (*material).prepare(&*state_ptr, &entity);
+                (*material).prepare(state, &entity);
             };
 
             if let (Some(geometry), Some(material)) = (entity.geometry_raw(), entity.material_raw())
@@ -196,7 +194,6 @@ impl Executor for StandardDrawer {
         });
 
         // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
-        state.gl().disable(WebGl2RenderingContext::BLEND);
         state.gl().depth_mask(true);
         for (entity, geometry, material) in opaques {
             self.draw(state, stuff, entity, geometry, material)?;

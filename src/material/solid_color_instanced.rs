@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use gl_matrix4rust::mat4::Mat4;
-use palette::rgb::Rgb;
+use palette::rgb::{Rgb, Rgba};
 use web_sys::js_sys::Float32Array;
 
 use crate::{
@@ -19,19 +19,16 @@ use crate::{
 
 use super::{Material, Transparency};
 
-const COLOR_ATTRIBUTE: &'static str = "a_Color";
-const INSTANCE_MODEL_MATRIX_ATTRIBUTE: &'static str = "a_InstanceMatrix";
-
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 
 in vec4 a_Position;
-in vec3 a_Color;
+in vec4 a_Color;
 in mat4 a_InstanceMatrix;
 
 uniform mat4 u_ModelMatrix;
 uniform mat4 u_ViewProjMatrix;
 
-out vec3 v_Color;
+out vec4 v_Color;
 
 void main() {
     gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_InstanceMatrix * a_Position;
@@ -46,12 +43,12 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
     precision mediump float;
 #endif
 
-in vec3 v_Color;
+in vec4 v_Color;
 
-out vec4 out_Color;
+out vec4 o_Color;
 
 void main() {
-    out_Color = vec4(v_Color, 1.0);
+    o_Color = v_Color;
 }
 ";
 
@@ -69,7 +66,7 @@ impl SolidColorInstancedMaterial {
         let start_z = height / 2.0 - cell_height / 2.0;
 
         let matrices_length = (16 * count) as u32;
-        let colors_length = (3 * count) as u32;
+        let colors_length = (4 * count) as u32;
         let matrices_data = Float32Array::new_with_length(matrices_length);
         let colors_data = Float32Array::new_with_length(colors_length);
         for index in 0..count {
@@ -96,12 +93,14 @@ impl SolidColorInstancedMaterial {
             matrices_data.set_index((index * 16) as u32 + 14, matrix.raw()[14]);
             matrices_data.set_index((index * 16) as u32 + 15, matrix.raw()[15]);
 
+            let Rgba { color, alpha } = rand::random::<Rgba>();
             let Rgb {
-                blue, green, red, ..
-            } = rand::random::<Rgb>();
-            colors_data.set_index((index * 3) as u32 + 0, red);
-            colors_data.set_index((index * 3) as u32 + 1, green);
-            colors_data.set_index((index * 3) as u32 + 2, blue);
+                red, green, blue, ..
+            } = color;
+            colors_data.set_index((index * 4) as u32 + 0, red);
+            colors_data.set_index((index * 4) as u32 + 1, green);
+            colors_data.set_index((index * 4) as u32 + 2, blue);
+            colors_data.set_index((index * 4) as u32 + 3, alpha);
         }
 
         Self {
@@ -118,19 +117,21 @@ impl SolidColorInstancedMaterial {
     }
 
     pub fn random_colors(&mut self) {
-        let colors_length = (3 * self.count) as u32;
+        let colors_length = (4 * self.count) as u32;
         let colors_data = Float32Array::new_with_length(colors_length);
         for index in 0..self.count {
+            let Rgba { color, alpha } = rand::random::<Rgba>();
             let Rgb {
-                blue, green, red, ..
-            } = rand::random::<Rgb>();
-            colors_data.set_index((index * 3) as u32 + 0, red);
-            colors_data.set_index((index * 3) as u32 + 1, green);
-            colors_data.set_index((index * 3) as u32 + 2, blue);
+                red, green, blue, ..
+            } = color;
+            colors_data.set_index((index * 4) as u32 + 0, red);
+            colors_data.set_index((index * 4) as u32 + 1, green);
+            colors_data.set_index((index * 4) as u32 + 2, blue);
+            colors_data.set_index((index * 4) as u32 + 3, alpha);
         }
 
         self.colors
-            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, 0), 0);
+            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, colors_length), 0);
     }
 }
 
@@ -149,8 +150,8 @@ impl ProgramSource for SolidColorInstancedMaterial {
     fn attribute_bindings(&self) -> &[AttributeBinding] {
         &[
             AttributeBinding::GeometryPosition,
-            AttributeBinding::FromMaterial(COLOR_ATTRIBUTE),
-            AttributeBinding::FromMaterial(INSTANCE_MODEL_MATRIX_ATTRIBUTE),
+            AttributeBinding::FromMaterial("a_Color"),
+            AttributeBinding::FromMaterial("a_InstanceMatrix"),
         ]
     }
 
@@ -178,16 +179,16 @@ impl Material for SolidColorInstancedMaterial {
 
     fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
         match name {
-            COLOR_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
+            "a_Color" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
                 target: BufferTarget::ArrayBuffer,
-                component_size: BufferComponentSize::Three,
+                component_size: BufferComponentSize::Four,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 component_count_per_instance: 1,
                 divisor: 1,
             }),
-            INSTANCE_MODEL_MATRIX_ATTRIBUTE => Some(AttributeValue::InstancedBuffer {
+            "a_InstanceMatrix" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Four,

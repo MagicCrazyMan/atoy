@@ -37,6 +37,10 @@ pub enum AttributeValue {
     Vertex2fv([f32; 2]),
     Vertex3fv([f32; 3]),
     Vertex4fv([f32; 4]),
+    UnsignedInteger4(u32, u32, u32, u32),
+    UnsignedIntegerVector4([u32; 4]),
+    Integer4(i32, i32, i32, i32),
+    IntegerVector4([i32; 4]),
 }
 
 /// Attribute binding sources.
@@ -195,6 +199,18 @@ pub fn bind_attributes(
             AttributeValue::Vertex4fv(v) => {
                 state.gl().vertex_attrib4fv_with_f32_array(*location, &v)
             }
+            AttributeValue::UnsignedInteger4(x, y, z, w) => {
+                state.gl().vertex_attrib_i4ui(*location, x, y, z, w)
+            }
+            AttributeValue::Integer4(x, y, z, w) => {
+                state.gl().vertex_attrib_i4i(*location, x, y, z, w)
+            }
+            AttributeValue::IntegerVector4(mut values) => state
+                .gl()
+                .vertex_attrib_i4iv_with_i32_array(*location, &mut values),
+            AttributeValue::UnsignedIntegerVector4(mut values) => state
+                .gl()
+                .vertex_attrib_i4uiv_with_u32_array(*location, &mut values),
         };
     }
 

@@ -82,7 +82,7 @@ pub fn format_bytes_length(len: u32) -> String {
         format!("{} KiB", len / 1024)
     } else {
         format!("{} MiB", len / 1024 / 1024)
-    } 
+    }
 }
 
 #[cfg(test)]

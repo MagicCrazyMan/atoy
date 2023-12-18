@@ -482,7 +482,7 @@ pub fn test_instanced_cube(
     width: f64,
     height: f64,
 ) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
     let mut render = create_render()?;
     let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
 
@@ -498,7 +498,6 @@ pub fn test_instanced_cube(
     //     .unwrap();
     // click.forget();
 
-
     let entity = Entity::new();
     entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
     entity
@@ -506,6 +505,9 @@ pub fn test_instanced_cube(
         .set_material(Some(SolidColorInstancedMaterial::new(
             count, grid, width, height,
         )));
+    // entity
+    //     .borrow_mut()
+    //     .set_material(Some(SolidColorMaterial::with_color(rand::random())));
     scene.entity_collection_mut().add_entity(entity);
 
     let f = Rc::new(RefCell::new(None));

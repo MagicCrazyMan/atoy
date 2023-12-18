@@ -6,7 +6,10 @@ use log::warn;
 use crate::{
     bounding::Culling,
     entity::Strong,
-    render::{pp::{Executor, ResourceKey, Resources, State, Stuff}, webgl::error::Error},
+    render::{
+        pp::{Executor, ResourceKey, Resources, State, Stuff},
+        webgl::error::Error,
+    },
 };
 
 /// Standard entities collector, collects and flatten entities from entities collection of [`Stuff`].
@@ -111,7 +114,10 @@ impl Executor for StandardEntitiesCollector {
                     continue;
                 }
 
-                let distance = if self.enable_culling {
+                let distance = if entity_mut.material().and_then(|m| m.instanced()).is_some() {
+                    // never apply culling to an instanced material
+                    f64::INFINITY
+                } else if self.enable_culling {
                     match entity_mut.bounding_volume_mut() {
                         Some(bounding) => {
                             match bounding.cull(&view_frustum) {
