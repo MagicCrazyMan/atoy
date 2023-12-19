@@ -307,7 +307,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        log::info!("333");
         standard_pipeline_cloned
             .borrow_mut()
             .resources_mut()

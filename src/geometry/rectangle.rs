@@ -210,9 +210,6 @@ fn create_rectangle(
         0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0
     ];
 
-    log::info!("{:?}", buffer);
-
-
     (
         unsafe {
             std::mem::transmute::<[f32; 28], [u8; 112]>(

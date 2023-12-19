@@ -14,8 +14,8 @@ use crate::{
             draw::draw,
             error::Error,
             offscreen::{
-                FramebufferAttachment, FramebufferTarget, OffscreenFrame,
-                OffscreenFramebufferProvider, OffscreenTextureProvider,
+                FramebufferAttachment, FramebufferTarget, OffscreenFramebuffer,
+                OffscreenTextureProvider,
             },
             program::{ProgramSource, ShaderSource},
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
@@ -29,8 +29,8 @@ pub struct Outlining {
     out_texture: ResourceKey<WebGlTexture>,
     material: OutliningMaterial,
     geometry: Rectangle,
-    onepass_frame: OffscreenFrame,
-    twopass_frame: OffscreenFrame,
+    onepass_frame: OffscreenFramebuffer,
+    twopass_frame: OffscreenFramebuffer,
 }
 
 impl Outlining {
@@ -44,10 +44,8 @@ impl Outlining {
                 outline_width: 5,
             },
             geometry: Rectangle::new(Vec2::from_values(-1.0, 1.0), Placement::TopLeft, 2.0, 2.0),
-            onepass_frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            onepass_frame: OffscreenFramebuffer::new(
+                FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -56,13 +54,10 @@ impl Outlining {
                     TextureDataType::UNSIGNED_BYTE,
                     0,
                 )],
-                [],
                 [],
             ),
-            twopass_frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            twopass_frame: OffscreenFramebuffer::new(
+                FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -71,7 +66,6 @@ impl Outlining {
                     TextureDataType::UNSIGNED_BYTE,
                     0,
                 )],
-                [],
                 [],
             ),
         }

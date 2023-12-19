@@ -11,9 +11,8 @@ use crate::{
             draw::draw,
             error::Error,
             offscreen::{
-                FramebufferAttachment, FramebufferTarget, OffscreenFrame,
-                OffscreenFramebufferProvider, OffscreenRenderbufferProvider,
-                OffscreenTextureProvider,
+                FramebufferAttachment, FramebufferTarget, OffscreenFramebuffer,
+                OffscreenRenderbufferProvider, OffscreenTextureProvider,
             },
             program::ProgramItem,
             renderbuffer::RenderbufferInternalFormat,
@@ -31,7 +30,7 @@ use crate::{
 /// # Provides Resources & Data Type
 /// - `texture`: [`ResourceKey<WebGlTexture>`], a resource key telling where to get the draw texture.
 pub struct StandardDrawer {
-    frame: OffscreenFrame,
+    frame: OffscreenFramebuffer,
     entities: ResourceKey<Vec<Strong>>,
     texture: ResourceKey<WebGlTexture>,
     last_program: Option<ProgramItem>,
@@ -41,10 +40,8 @@ impl StandardDrawer {
     pub fn new(entities: ResourceKey<Vec<Strong>>, texture: ResourceKey<WebGlTexture>) -> Self {
         Self {
             entities,
-            frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            frame: OffscreenFramebuffer::new(
+                FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -58,7 +55,6 @@ impl StandardDrawer {
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
-                [],
             ),
             texture,
             last_program: None,

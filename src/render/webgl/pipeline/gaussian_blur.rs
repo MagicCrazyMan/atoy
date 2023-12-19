@@ -8,7 +8,7 @@ use crate::render::{
     webgl::{
         error::Error,
         offscreen::{
-            FramebufferAttachment, FramebufferTarget, OffscreenFrame, OffscreenFramebufferProvider,
+            FramebufferAttachment, FramebufferTarget, OffscreenFramebuffer,
             OffscreenTextureProvider,
         },
         program::{compile_shaders, create_program, ShaderSource},
@@ -50,8 +50,8 @@ struct Compiled {
 pub struct GaussianBlur {
     epoch: usize,
     compiled: Option<Compiled>,
-    onepass_frame: OffscreenFrame,
-    twopass_frame: OffscreenFrame,
+    onepass_frame: OffscreenFramebuffer,
+    twopass_frame: OffscreenFramebuffer,
     in_texture: ResourceKey<WebGlTexture>,
     out_texture: ResourceKey<WebGlTexture>,
 }
@@ -64,10 +64,8 @@ impl GaussianBlur {
         Self {
             epoch: 2,
             compiled: None,
-            onepass_frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            onepass_frame: OffscreenFramebuffer::new(
+                FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -76,13 +74,10 @@ impl GaussianBlur {
                     TextureDataType::UNSIGNED_BYTE,
                     0,
                 )],
-                [],
                 [],
             ),
-            twopass_frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            twopass_frame: OffscreenFramebuffer::new(
+                FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
                     FramebufferTarget::FRAMEBUFFER,
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -91,7 +86,6 @@ impl GaussianBlur {
                     TextureDataType::UNSIGNED_BYTE,
                     0,
                 )],
-                [],
                 [],
             ),
             in_texture,
@@ -351,55 +345,6 @@ impl Executor for GaussianBlur {
                     .clone(),
             );
         }
-
-        // {
-        //     if self.test {
-        //         return Ok(());
-        //     }
-
-        //     let mut binary = vec![
-        //         0u8;
-        //         4 * 1
-        //             * state.gl().drawing_buffer_width() as usize
-        //             * state.gl().drawing_buffer_height() as usize
-        //     ];
-        //     state
-        //         .gl()
-        //         .read_pixels_with_u8_array_and_dst_offset(
-        //             0,
-        //             0,
-        //             state.gl().drawing_buffer_width(),
-        //             state.gl().drawing_buffer_height(),
-        //             WebGl2RenderingContext::RGBA,
-        //             WebGl2RenderingContext::UNSIGNED_BYTE,
-        //             &mut binary,
-        //             0,
-        //         )
-        //         .unwrap();
-        //     let image = web_sys::ImageData::new_with_u8_clamped_array_and_sh(
-        //         wasm_bindgen::Clamped(&binary),
-        //         state.gl().drawing_buffer_width() as u32,
-        //         state.gl().drawing_buffer_height() as u32,
-        //     )
-        //     .unwrap();
-        //     let canvas = wasm_bindgen::JsCast::dyn_into::<web_sys::HtmlCanvasElement>(
-        //         crate::document().create_element("canvas").unwrap(),
-        //     )
-        //     .unwrap();
-        //     canvas.set_width(state.gl().drawing_buffer_width() as u32);
-        //     canvas.set_height(state.gl().drawing_buffer_height() as u32);
-        //     let ctx = wasm_bindgen::JsCast::dyn_into::<web_sys::CanvasRenderingContext2d>(
-        //         canvas.get_context("2d").unwrap().unwrap(),
-        //     )
-        //     .unwrap();
-        //     ctx.put_image_data(&image, 0.0, 0.0).unwrap();
-        //     crate::document()
-        //         .body()
-        //         .unwrap()
-        //         .append_child(&canvas)
-        //         .unwrap();
-        //     self.test = true;
-        // }
 
         Ok(())
     }

@@ -14,9 +14,10 @@ use super::{
     uniform::{UniformBinding, UniformBlockBinding},
 };
 
-/// Source providing basic data for compiling a WebGL program.
+/// Source providing basic data for compiling a [`WebGlProgram`].
+/// Data provided by program source should never change even in different condition.
 pub trait ProgramSource {
-    /// Program name.
+    /// Program name, should be unique,
     fn name(&self) -> &'static str;
 
     /// Shader sources, at least one vertex shader and one fragment shader should be specified.
@@ -32,12 +33,14 @@ pub trait ProgramSource {
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
 }
 
+/// Shader source codes.
 #[derive(Debug, Clone)]
 pub enum ShaderSource<'a> {
     Vertex(&'a str),
     Fragment(&'a str),
 }
 
+/// Compiled program item.
 #[derive(Clone)]
 pub struct ProgramItem {
     name: String,
@@ -49,43 +52,49 @@ pub struct ProgramItem {
 }
 
 impl ProgramItem {
+    /// Returns program source name.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the native [`WebGlProgram`].
     pub fn gl_program(&self) -> &WebGlProgram {
         &self.program
     }
 
+    /// Returns attribute locations.
     pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
         &self.attributes
     }
 
+    /// Returns uniform locations.
     pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
         &self.uniform_locations
     }
 
+    /// Returns uniform block indices.
     pub fn uniform_block_indices(&self) -> &HashMap<UniformBlockBinding, u32> {
         &self.uniform_block_indices
     }
 }
 
+/// A centralized program store storing and caching compiled program item.
+/// Program store caches a program by an unique name provided by [`ProgramSource::name`].
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
     store: HashMap<String, ProgramItem>,
 }
 
 impl ProgramStore {
+    /// Constructs a new program store.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             gl,
             store: HashMap::new(),
         }
     }
-}
 
-impl ProgramStore {
-    /// Gets program of a specified material from store, if not exists, compiles  and stores it.
+    /// Returns a [`ProgramItem`] by a [`ProgramSource`]. If not exist, compiles and stores it.
     pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
     where
         S: ProgramSource + ?Sized,
@@ -147,6 +156,7 @@ where
 //     gl.delete_program(Some(&program));
 // }
 
+/// Compiles [`WebGlShader`] by [`ShaderSource`].
 pub fn compile_shaders(
     gl: &WebGl2RenderingContext,
     source: &ShaderSource,
@@ -184,6 +194,7 @@ pub fn compile_shaders(
     }
 }
 
+/// Creates a [`WebGlProgram`], and links compiled [`WebGlShader`] to the program.
 pub fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],

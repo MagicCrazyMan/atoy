@@ -14,9 +14,8 @@ use crate::{
             draw::draw,
             error::Error,
             offscreen::{
-                FramebufferAttachment, FramebufferTarget, OffscreenFrame,
-                OffscreenFramebufferProvider, OffscreenRenderbufferProvider,
-                OffscreenTextureProvider,
+                FramebufferAttachment, FramebufferTarget, OffscreenFramebuffer,
+                OffscreenRenderbufferProvider, OffscreenTextureProvider, FramebufferSource,
             },
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
@@ -74,7 +73,7 @@ pub struct Picking {
     out_picked_entity: ResourceKey<Weak>,
     out_picked_position: ResourceKey<Vec3>,
     pixel: Uint32Array,
-    frame: OffscreenFrame,
+    frame: OffscreenFramebuffer,
     material: PickingMaterial,
 }
 
@@ -91,10 +90,8 @@ impl Picking {
             out_picked_entity,
             out_picked_position,
             pixel: Uint32Array::new_with_length(4),
-            frame: OffscreenFrame::new(
-                [OffscreenFramebufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
-                )],
+            frame: OffscreenFramebuffer::with_draw_buffers(
+                FramebufferTarget::FRAMEBUFFER,
                 [
                     OffscreenTextureProvider::new(
                         FramebufferTarget::FRAMEBUFFER,
@@ -119,8 +116,8 @@ impl Picking {
                     RenderbufferInternalFormat::DEPTH_COMPONENT24,
                 )],
                 [
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
-                    FramebufferAttachment::COLOR_ATTACHMENT1,
+                    FramebufferSource::COLOR_ATTACHMENT0,
+                    FramebufferSource::COLOR_ATTACHMENT1,
                 ],
             ),
             material: PickingMaterial { index: 0 },
