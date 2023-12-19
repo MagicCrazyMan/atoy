@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 
 use crate::{
     entity::BorrowedMut,
@@ -40,7 +40,7 @@ pub trait Material: ProgramSource {
 
     /// Ambient light reflection of each components.
     /// Disable receiving ambient light by returning `None`.
-    fn ambient_reflection(&self) -> Option<Vec3> {
+    fn ambient_reflection(&self) -> Option<Vec4> {
         None
     }
 
@@ -95,7 +95,7 @@ pub trait Material: ProgramSource {
 pub enum Transparency {
     Opaque,
     Transparent,
-    Translucent(f32),
+    Translucent(f64),
 }
 
 // pub struct MaterialRenderEntity<'a> {

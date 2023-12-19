@@ -31,15 +31,18 @@ use crate::{
 /// - `texture`: [`ResourceKey<WebGlTexture>`], a resource key telling where to get the draw texture.
 pub struct StandardDrawer {
     frame: OffscreenFramebuffer,
-    entities: ResourceKey<Vec<Strong>>,
-    texture: ResourceKey<WebGlTexture>,
+    in_entities: ResourceKey<Vec<Strong>>,
+    out_texture: ResourceKey<WebGlTexture>,
     last_program: Option<ProgramItem>,
 }
 
 impl StandardDrawer {
-    pub fn new(entities: ResourceKey<Vec<Strong>>, texture: ResourceKey<WebGlTexture>) -> Self {
+    pub fn new(
+        in_entities: ResourceKey<Vec<Strong>>,
+        out_texture: ResourceKey<WebGlTexture>,
+    ) -> Self {
         Self {
-            entities,
+            in_entities,
             frame: OffscreenFramebuffer::new(
                 FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(
@@ -56,7 +59,7 @@ impl StandardDrawer {
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
             ),
-            texture,
+            out_texture,
             last_program: None,
         }
     }
@@ -114,7 +117,7 @@ impl Executor for StandardDrawer {
         _: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        if !resources.contains_key(&self.entities) {
+        if !resources.contains_key(&self.in_entities) {
             return Ok(false);
         }
 
@@ -126,7 +129,6 @@ impl Executor for StandardDrawer {
         );
         self.frame.bind(state.gl())?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear_depth(1.0);
         state.gl().clear(
             WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
@@ -151,7 +153,7 @@ impl Executor for StandardDrawer {
         stuff: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        let Some(entities) = resources.get(&self.entities) else {
+        let Some(entities) = resources.get(&self.in_entities) else {
             return Ok(());
         };
 
@@ -210,7 +212,7 @@ impl Executor for StandardDrawer {
         self.last_program = None;
 
         resources.insert(
-            self.texture.clone(),
+            self.out_texture.clone(),
             self.frame.textures().unwrap().get(0).unwrap().0.clone(),
         );
 

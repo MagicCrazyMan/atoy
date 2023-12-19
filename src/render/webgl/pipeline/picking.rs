@@ -37,7 +37,7 @@ pub fn create_picking_pipeline(
     let collector = ItemKey::from_uuid();
     let picking = ItemKey::from_uuid();
 
-    let collected_entities = ResourceKey::runtime_uuid();
+    let collected_entities = ResourceKey::new_runtime_uuid();
 
     let mut pipeline = Pipeline::new();
 

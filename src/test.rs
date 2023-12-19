@@ -24,6 +24,7 @@ use crate::geometry::multicube::MultiCube;
 use crate::geometry::raw::RawGeometry;
 use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
+use crate::light::ambient::SimpleAmbientLight;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
@@ -52,7 +53,7 @@ use crate::{
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
     render::webgl::{draw::CullFace, WebGL2Render},
-    scene::{Scene, SceneOptions},
+    scene::Scene,
     window,
 };
 
@@ -137,8 +138,9 @@ fn create_scene(
     camera_position: impl AsVec3<f64>,
     camera_center: impl AsVec3<f64>,
     camera_up: impl AsVec3<f64>,
-) -> Result<Scene, Error> {
-    let scene_options = SceneOptions::new().with_camera(UniversalCamera::new(
+) -> Scene {
+    let mut scene = Scene::new();
+    scene.set_active_camera(UniversalCamera::new(
         camera_position,
         camera_center,
         camera_up,
@@ -147,8 +149,8 @@ fn create_scene(
         0.5,
         None,
     ));
-
-    Scene::with_options(scene_options)
+    scene.set_ambient_light(Some(SimpleAmbientLight::new(1.0, 1.0, 1.0)));
+    scene
 }
 
 fn create_render() -> Result<WebGL2Render, Error> {
@@ -169,17 +171,22 @@ fn create_render() -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
     let mut picking_pipeline = create_picking_pipeline(
-        ResourceKey::persist_str("position"),
-        ResourceKey::persist_str("picked_entity"),
-        ResourceKey::persist_str("picked_position"),
+        ResourceKey::new_persist_str("position"),
+        ResourceKey::new_persist_str("picked_entity"),
+        ResourceKey::new_persist_str("picked_position"),
     );
-    let standard_pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
+    let clear_color_key = ResourceKey::new_persist_str("clear_color");
+    let mut standard_pipeline =
+        create_standard_pipeline(ResourceKey::new_persist_str("position"), clear_color_key.clone());
+    standard_pipeline
+        .resources_mut()
+        .insert(clear_color_key, (0.0, 0.0, 0.0, 1.0));
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -198,10 +205,9 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         entity.borrow_mut().set_geometry(Some(Cube::new()));
         // entity.set_geometry(Some(IndexedCube::new()));
-        let color = rand::random::<Rgba>();
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(color)));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -261,7 +267,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // sets pick position
         picking_pipeline
             .resources_mut()
-            .insert(ResourceKey::persist_str("position"), (x, y));
+            .insert(ResourceKey::new_persist_str("position"), (x, y));
 
         // pick
         render_cloned
@@ -281,7 +287,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get entity
         if let Some(entity) = picking_pipeline
             .resources()
-            .get(&ResourceKey::<Weak>::persist_str("picked_entity"))
+            .get(&ResourceKey::<Weak>::new_persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -295,7 +301,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get position
         if let Some(position) = picking_pipeline
             .resources()
-            .get(&ResourceKey::<Vec3>::persist_str("picked_position"))
+            .get(&ResourceKey::<Vec3>::new_persist_str("picked_position"))
         {
             console_log!("pick position {}", position);
         }
@@ -311,7 +317,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .resources_mut()
             .insert(
-                ResourceKey::persist_str("position"),
+                ResourceKey::new_persist_str("position"),
                 (event.page_x(), event.page_y()),
             );
     });
@@ -362,9 +368,12 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
 #[wasm_bindgen]
 pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
+    let mut pipeline = create_standard_pipeline(
+        ResourceKey::new_persist_str("position"),
+        ResourceKey::new_persist_str("clear_color"),
+    );
 
     // reuses cube buffer
     let vertices = AttributeValue::Buffer {
@@ -440,7 +449,7 @@ pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Re
         )));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -482,9 +491,12 @@ pub fn test_instanced_cube(
     width: f64,
     height: f64,
 ) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
+    let mut pipeline = create_standard_pipeline(
+        ResourceKey::new_persist_str("position"),
+        ResourceKey::new_persist_str("clear_color"),
+    );
 
     // let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
     // let pick_position_cloned = Rc::clone(&pick_position);
@@ -783,16 +795,19 @@ pub fn test_instanced_cube(
 
 #[wasm_bindgen]
 pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+    let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
     let mut picking_pipeline = create_picking_pipeline(
-        ResourceKey::persist_str("position"),
-        ResourceKey::persist_str("picked_entity"),
-        ResourceKey::persist_str("picked_position"),
+        ResourceKey::new_persist_str("position"),
+        ResourceKey::new_persist_str("picked_entity"),
+        ResourceKey::new_persist_str("picked_position"),
     );
-    let standard_pipeline = create_standard_pipeline(ResourceKey::persist_str("position"));
+    let standard_pipeline = create_standard_pipeline(
+        ResourceKey::new_persist_str("position"),
+        ResourceKey::new_persist_str("clear_color"),
+    );
     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
@@ -813,7 +828,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgba>())));
+            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -830,7 +845,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // sets pick position
         picking_pipeline
             .resources_mut()
-            .insert(ResourceKey::persist_str("position"), (x, y));
+            .insert(ResourceKey::new_persist_str("position"), (x, y));
 
         // pick
         render_cloned
@@ -850,7 +865,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get entity
         if let Some(entity) = picking_pipeline
             .resources_mut()
-            .get(&ResourceKey::<Weak>::persist_str("picked_entity"))
+            .get(&ResourceKey::<Weak>::new_persist_str("picked_entity"))
             .and_then(|e| e.upgrade())
         {
             console_log!("pick entity {}", entity.borrow().id());
@@ -866,7 +881,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // get position
         if let Some(position) = picking_pipeline
             .resources_mut()
-            .get(&ResourceKey::<Vec3>::persist_str("picked_position"))
+            .get(&ResourceKey::<Vec3>::new_persist_str("picked_position"))
         {
             console_log!("pick position {}", position);
         }
@@ -882,7 +897,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .resources_mut()
             .insert(
-                ResourceKey::persist_str("position"),
+                ResourceKey::new_persist_str("position"),
                 (event.page_x(), event.page_y()),
             );
     });

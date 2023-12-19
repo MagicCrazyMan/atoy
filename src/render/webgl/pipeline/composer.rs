@@ -30,14 +30,19 @@ struct Compiled {
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
     compiled: Option<Compiled>,
-    textures_keys: Vec<ResourceKey<WebGlTexture>>,
+    in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
+    in_textures: Vec<ResourceKey<WebGlTexture>>,
 }
 
 impl StandardComposer {
-    pub fn new(textures_keys: Vec<ResourceKey<WebGlTexture>>) -> Self {
+    pub fn new(
+        in_textures: Vec<ResourceKey<WebGlTexture>>,
+        in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
+    ) -> Self {
         Self {
             compiled: None,
-            textures_keys,
+            in_clear_color,
+            in_textures,
         }
     }
 }
@@ -49,7 +54,7 @@ impl Executor for StandardComposer {
         &mut self,
         state: &mut State,
         _: &mut dyn Stuff,
-        _: &mut Resources,
+        resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
         if self.compiled.is_none() {
             let vertex_shader = compile_shaders(
@@ -108,6 +113,14 @@ impl Executor for StandardComposer {
             state.canvas().width() as i32,
             state.canvas().height() as i32,
         );
+
+        if let Some((r, g, b, a)) = resources.get(&self.in_clear_color) {
+            state.gl().clear_color(*r, *g, *b, *a);
+        } else {
+            state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
+        }
+        state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+
         state.gl().enable(WebGl2RenderingContext::BLEND);
         state.gl().blend_func(
             WebGl2RenderingContext::SRC_ALPHA,
@@ -168,7 +181,7 @@ impl Executor for StandardComposer {
         _: &mut dyn Stuff,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        for texture_key in &self.textures_keys {
+        for texture_key in &self.in_textures {
             let Some(texture) = resources.get(texture_key) else {
                 continue;
             };

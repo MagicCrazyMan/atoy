@@ -10,7 +10,9 @@ use std::{
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, entity::collection::EntityCollection};
+use crate::{
+    camera::Camera, entity::collection::EntityCollection, light::ambient::Ambient,
+};
 
 use self::{error::Error, graph::DirectedGraph};
 
@@ -18,17 +20,20 @@ use super::webgl::{buffer::BufferStore, program::ProgramStore, texture::TextureS
 
 /// Pipeline rendering stuff.
 pub trait Stuff {
-    /// Gets entity collection that should be draw on current frame.
+    /// Returns an entity collection that should be draw on current frame.
     fn entity_collection(&self) -> &EntityCollection;
 
-    /// Gets mutable entity collection that should be draw on current frame.
+    /// Returns an mutable entity collection that should be draw on current frame.
     fn entity_collection_mut(&mut self) -> &mut EntityCollection;
 
-    /// Gets the main camera for current frame.
+    /// Returns the main camera for current frame.
     fn camera(&self) -> &dyn Camera;
 
-    /// Gets the mutable main camera for current frame.
+    /// Returns the mutable main camera for current frame.
     fn camera_mut(&mut self) -> &mut dyn Camera;
+
+    /// Returns the main camera for current frame.
+    fn ambient_light(&self) -> Option<&dyn Ambient>;
 }
 
 /// Pipeline rendering state.
@@ -332,25 +337,26 @@ pub enum ResourceKey<V> {
 
 impl<V> ResourceKey<V> {
     /// Constructs a new string runtime resource key.
-    pub fn runtime_str<S: Into<String>>(key: S) -> Self {
+    pub fn new_runtime_str<S: Into<String>>(key: S) -> Self {
         Self::Runtime(ItemKey::from_string(key), PhantomData::<V>)
     }
 
     /// Constructs a new string persist resource key.
-    pub fn persist_str<S: Into<String>>(key: S) -> Self {
+    pub fn new_persist_str<S: Into<String>>(key: S) -> Self {
         Self::Persist(ItemKey::from_string(key), PhantomData::<V>)
     }
 
     /// Constructs a new runtime resource key with random uuid.
-    pub fn runtime_uuid() -> Self {
+    pub fn new_runtime_uuid() -> Self {
         Self::Runtime(ItemKey::from_uuid(), PhantomData::<V>)
     }
 
     /// Constructs a new persist resource key with random uuid.
-    pub fn persist_uuid() -> Self {
+    pub fn new_persist_uuid() -> Self {
         Self::Persist(ItemKey::from_uuid(), PhantomData::<V>)
     }
 
+    /// Returns a raw [`ItemKey`] associated with this resource key.
     pub fn raw(&self) -> &ItemKey {
         match self {
             ResourceKey::Runtime(key, _) => key,

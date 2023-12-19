@@ -1,3 +1,7 @@
+pub mod ambient;
+pub mod diffuse;
+pub mod pointlight;
+
 use gl_matrix4rust::vec3::Vec3;
 
 pub trait Light {
@@ -16,9 +20,8 @@ pub trait Light {
     /// Specular light exponent.
     fn specular_exponent(&self) -> f64;
 
-    fn attenuation(&self) -> AttenuationPolicy;
+    /// Attenuation.
+    fn attenuation(&self) -> Option<Attenuation>;
 }
 
-pub enum AttenuationPolicy {
-
-}
+pub enum Attenuation {}

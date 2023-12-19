@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use crate::{
     camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
-    error::Error,
+    light::ambient::Ambient,
     render::pp::Stuff,
 };
 
@@ -24,40 +24,10 @@ extern "C" {
     pub type SceneOptionsObject;
 }
 
-/// Scene options
-#[derive(Default)]
-pub struct SceneOptions {
-    /// Default camera
-    camera: Option<Box<dyn Camera>>,
-}
-
-impl SceneOptions {
-    pub fn new() -> Self {
-        Self { camera: None }
-    }
-
-    pub fn with_camera<C: Camera + 'static>(mut self, camera: C) -> Self {
-        self.camera = Some(Box::new(camera));
-        self
-    }
-
-    pub fn without_camera(mut self) -> Self {
-        self.camera = None;
-        self
-    }
-
-    pub fn camera(&self) -> Option<&Box<dyn Camera>> {
-        self.camera.as_ref()
-    }
-
-    fn take_camera(&mut self) -> Option<Box<dyn Camera>> {
-        self.camera.take()
-    }
-}
-
 #[wasm_bindgen]
 pub struct Scene {
     active_camera: Box<dyn Camera>,
+    ambient_light: Option<Box<dyn Ambient>>,
     entity_collection: EntityCollection,
 }
 
@@ -77,28 +47,38 @@ pub struct Scene {
 
 impl Scene {
     /// Constructs a new scene using initialization options.
-    pub fn new() -> Result<Self, Error> {
-        Self::new_inner(None)
-    }
-
-    /// Constructs a new scene using initialization options.
-    pub fn with_options(options: SceneOptions) -> Result<Self, Error> {
-        Self::new_inner(Some(options))
-    }
-
-    fn new_inner(mut options: Option<SceneOptions>) -> Result<Self, Error> {
-        let active_camera = options
-            .as_mut()
-            .and_then(|opts| opts.take_camera())
-            .unwrap_or_else(|| Self::create_camera());
-
-        let scene = Self {
-            active_camera,
+    pub fn new() -> Self {
+        Self {
+            active_camera: Self::create_camera(),
+            ambient_light: None,
             entity_collection: EntityCollection::new(),
-        };
-
-        Ok(scene)
+        }
     }
+
+    // /// Constructs a new scene using initialization options.
+    // pub fn new() -> Result<Self, Error> {
+    //     Self::new_inner(None)
+    // }
+
+    // /// Constructs a new scene using initialization options.
+    // pub fn with_options(options: SceneOptions) -> Result<Self, Error> {
+    //     Self::new_inner(Some(options))
+    // }
+
+    // fn new_inner(mut options: Option<SceneOptions>) -> Result<Self, Error> {
+    //     let active_camera = options
+    //         .as_mut()
+    //         .and_then(|opts| opts.take_camera())
+    //         .unwrap_or_else(|| Self::create_camera());
+
+    //     let scene = Self {
+    //         active_camera,
+    //         ambient_light: None,
+    //         entity_collection: EntityCollection::new(),
+    //     };
+
+    //     Ok(scene)
+    // }
 
     fn create_camera() -> Box<dyn Camera> {
         Box::new(UniversalCamera::new(
@@ -114,24 +94,59 @@ impl Scene {
 }
 
 impl Scene {
-    /// Gets root root entities collection.
+    /// Returns root entities collection.
     pub fn entity_collection(&self) -> &EntityCollection {
         &self.entity_collection
     }
 
-    /// Gets mutable root entities collection.
+    /// Returns mutable root entities collection.
     pub fn entity_collection_mut(&mut self) -> &mut EntityCollection {
         &mut self.entity_collection
     }
 
-    /// Gets current active camera.
+    /// Returns current active camera.
     pub fn active_camera(&self) -> &dyn Camera {
         self.active_camera.as_ref()
     }
 
-    /// Gets current active camera.
+    /// Returns current active camera.
     pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
         self.active_camera.as_mut()
+    }
+
+    /// Sets active camera.
+    pub fn set_active_camera<C>(&mut self, camera: C)
+    where
+        C: Camera + 'static,
+    {
+        self.active_camera = Box::new(camera);
+    }
+
+    /// Returns ambient light.
+    pub fn ambient_light(&self) -> Option<&dyn Ambient> {
+        match self.ambient_light.as_ref() {
+            Some(light) => Some(&**light),
+            None => None,
+        }
+    }
+
+    /// Returns mutable ambient light.
+    pub fn ambient_light_mut(&mut self) -> Option<&mut dyn Ambient> {
+        match self.ambient_light.as_mut() {
+            Some(light) => Some(&mut **light),
+            None => None,
+        }
+    }
+
+    /// Sets ambient light.
+    pub fn set_ambient_light<L>(&mut self, light: Option<L>)
+    where
+        L: Ambient + 'static,
+    {
+        self.ambient_light = match light {
+            Some(light) => Some(Box::new(light)),
+            None => None,
+        };
     }
 }
 
@@ -161,5 +176,9 @@ impl<'a> Stuff for SceneStuff<'a> {
 
     fn entity_collection_mut(&mut self) -> &mut EntityCollection {
         self.scene.entity_collection_mut()
+    }
+
+    fn ambient_light(&self) -> Option<&dyn Ambient> {
+        self.scene.ambient_light()
     }
 }

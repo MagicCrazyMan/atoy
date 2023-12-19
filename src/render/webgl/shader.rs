@@ -36,6 +36,7 @@ pub enum VariableDataType {
     Sampler3D,
     SamplerCube,
     SamplerCubeShadow,
+    Struct(&'static str),
 }
 
 impl VariableDataType {
@@ -67,6 +68,7 @@ impl VariableDataType {
             VariableDataType::Sampler3D => "sampler3D",
             VariableDataType::SamplerCube => "samplerCube",
             VariableDataType::SamplerCubeShadow => "samplerCubeShadow",
+            VariableDataType::Struct(name) => name,
         }
     }
 }
@@ -91,6 +93,11 @@ pub enum Variable {
         name: String,
         data_type: VariableDataType,
         array_len: Option<usize>,
+    },
+    /// Structure definition.
+    Structure {
+        name: String,
+        uniforms: Vec<(String, VariableDataType, Option<usize>)>,
     },
     /// Input uniform block variable.
     UniformBlock {
@@ -223,6 +230,21 @@ impl Variable {
             Variable::UniformBlock { name, uniforms } => {
                 let mut block = String::new();
                 block.push_str(&format!("layout(std) uniform {name} {{"));
+                uniforms
+                    .iter()
+                    .for_each(|(name, data_type, array)| match array {
+                        Some(len) => {
+                            block.push_str(&format!("    {} {}[{}]", data_type.build(), name, len))
+                        }
+                        None => block.push_str(&format!("    {} {}", data_type.build(), name)),
+                    });
+                block.push_str("};");
+
+                block
+            }
+            Variable::Structure { name, uniforms } => {
+                let mut block = String::new();
+                block.push_str(&format!("struct {name} {{"));
                 uniforms
                     .iter()
                     .for_each(|(name, data_type, array)| match array {

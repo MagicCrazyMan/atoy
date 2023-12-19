@@ -1,4 +1,4 @@
-use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
+use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3, vec4::AsVec4};
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlCanvasElement;
@@ -86,12 +86,16 @@ pub enum UniformBlockValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
     CanvasSize,
+    DrawingBufferSize,
     ModelMatrix,
     NormalMatrix,
     ViewMatrix,
     ProjMatrix,
     ViewProjMatrix,
     ActiveCameraPosition,
+    EnableAmbientLight,
+    AmbientLightColor,
+    AmbientReflection,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -102,12 +106,16 @@ impl UniformBinding {
     pub fn variable_name(&self) -> &str {
         match self {
             UniformBinding::CanvasSize => "u_CanvasSize",
+            UniformBinding::DrawingBufferSize => "u_DrawingBufferSize",
             UniformBinding::ModelMatrix => "u_ModelMatrix",
             UniformBinding::NormalMatrix => "u_NormalMatrix",
             UniformBinding::ViewMatrix => "u_ViewMatrix",
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
+            UniformBinding::EnableAmbientLight => "u_EnableAmbientLight",
+            UniformBinding::AmbientLightColor => "u_AmbientLightColor",
+            UniformBinding::AmbientReflection => "u_AmbientReflection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
@@ -118,12 +126,16 @@ impl UniformBinding {
     pub fn data_type(&self) -> Option<VariableDataType> {
         match self {
             UniformBinding::CanvasSize => Some(VariableDataType::FloatVec2),
+            UniformBinding::DrawingBufferSize => Some(VariableDataType::FloatVec2),
             UniformBinding::ModelMatrix => Some(VariableDataType::Mat4),
             UniformBinding::NormalMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ViewMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ActiveCameraPosition => Some(VariableDataType::FloatVec3),
+            UniformBinding::EnableAmbientLight => Some(VariableDataType::Bool),
+            UniformBinding::AmbientLightColor => Some(VariableDataType::FloatVec3),
+            UniformBinding::AmbientReflection => Some(VariableDataType::FloatVec4),
             UniformBinding::FromGeometry(_)
             | UniformBinding::FromMaterial(_)
             | UniformBinding::FromEntity(_) => None,
@@ -185,6 +197,15 @@ pub fn bind_uniforms(
             UniformBinding::ActiveCameraPosition => Some(UniformValue::FloatVector3(
                 stuff.camera().position().to_gl(),
             )),
+            UniformBinding::EnableAmbientLight => {
+                Some(UniformValue::Bool(stuff.ambient_light().is_some()))
+            }
+            UniformBinding::AmbientLightColor => stuff
+                .ambient_light()
+                .map(|light| UniformValue::FloatVector3(light.color().to_gl())),
+            UniformBinding::AmbientReflection => material
+                .ambient_reflection()
+                .map(|c| UniformValue::FloatVector4(c.to_gl())),
             UniformBinding::CanvasSize => state
                 .gl()
                 .canvas()
@@ -192,6 +213,10 @@ pub fn bind_uniforms(
                 .map(|canvas| {
                     UniformValue::UnsignedIntegerVector2([canvas.width(), canvas.height()])
                 }),
+            UniformBinding::DrawingBufferSize => Some(UniformValue::IntegerVector2([
+                state.gl().drawing_buffer_width(),
+                state.gl().drawing_buffer_width(),
+            ])),
         };
         let Some(value) = value else {
             warn!(

@@ -1,6 +1,7 @@
 use std::any::Any;
 
-use palette::rgb::Rgba;
+use gl_matrix4rust::vec4::Vec4;
+use palette::{encoding::Srgb, rgb::Rgba};
 
 use crate::{
     entity::BorrowedMut,
@@ -14,9 +15,11 @@ use crate::{
 
 use super::{Material, Transparency};
 
+/// A Phong Shading based solid color material,
+/// with ambient, diffuse and specular light colors all to be the same one.
 #[derive(Debug, Clone, Copy)]
 pub struct SolidColorMaterial {
-    color: Rgba,
+    color: Rgba<Srgb, f64>,
 }
 
 impl SolidColorMaterial {
@@ -26,15 +29,15 @@ impl SolidColorMaterial {
         }
     }
 
-    pub fn with_color(color: Rgba) -> Self {
+    pub fn with_color(color: Rgba<Srgb, f64>) -> Self {
         Self { color }
     }
 
-    pub fn color(&self) -> Rgba {
+    pub fn color(&self) -> Rgba<Srgb, f64> {
         self.color
     }
 
-    pub fn set_color(&mut self, color: Rgba) {
+    pub fn set_color(&mut self, color: Rgba<Srgb, f64>) {
         self.color = color;
     }
 }
@@ -52,35 +55,50 @@ impl ProgramSource for SolidColorMaterial {
                     Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
                     Variable::from_uniform_binding(UniformBinding::ModelMatrix),
                     Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
+                    Variable::from_uniform_binding(UniformBinding::EnableAmbientLight),
+                    Variable::from_uniform_binding(UniformBinding::AmbientLightColor),
+                    Variable::from_uniform_binding(UniformBinding::AmbientReflection),
+                    Variable::new_out("v_Ambient", VariableDataType::FloatVec4),
                 ],
-                [],
+                [include_str!("../light/shaders/ambient.glsl")],
                 "void main() {
                     gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
+
+                    if (u_EnableAmbientLight) {
+                        vec3 ambient = ambient_light(u_AmbientLightColor, vec3(u_AmbientReflection));
+                        v_Ambient = vec4(ambient, u_AmbientReflection.a);
+                    } else {
+                        v_Ambient = u_AmbientReflection;
+                    }
                 }",
             )),
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Fragment,
                 [
-                    Variable::new_uniform("u_Color", VariableDataType::FloatVec4),
+                    Variable::new_in("v_Ambient", VariableDataType::FloatVec4),
                     Variable::new_out("o_FragColor", VariableDataType::FloatVec4),
                 ],
                 [],
                 "void main() {
-                    o_FragColor = u_Color;
+                    o_FragColor = v_Ambient;
                 }",
             )),
         ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[AttributeBinding::GeometryPosition]
+        &[
+            AttributeBinding::GeometryPosition,
+        ]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
-            UniformBinding::FromMaterial("u_Color"),
+            UniformBinding::EnableAmbientLight,
+            UniformBinding::AmbientLightColor,
+            UniformBinding::AmbientReflection,
         ]
     }
 
@@ -100,6 +118,15 @@ impl Material for SolidColorMaterial {
         }
     }
 
+    fn ambient_reflection(&self) -> Option<Vec4> {
+        Some(Vec4::from_values(
+            self.color.red,
+            self.color.green,
+            self.color.blue,
+            self.color.alpha,
+        ))
+    }
+
     fn ready(&self) -> bool {
         true
     }
@@ -112,16 +139,8 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
-        match name {
-            "u_Color" => Some(UniformValue::Float4(
-                self.color.red,
-                self.color.green,
-                self.color.blue,
-                self.color.alpha,
-            )),
-            _ => None,
-        }
+    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+        None
     }
 
     fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {

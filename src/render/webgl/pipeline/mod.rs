@@ -14,7 +14,10 @@ use self::{
 
 use super::error::Error;
 
-pub fn create_standard_pipeline(in_window_position: ResourceKey<(i32, i32)>) -> Pipeline<Error> {
+pub fn create_standard_pipeline(
+    in_window_position: ResourceKey<(i32, i32)>,
+    in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
+) -> Pipeline<Error> {
     let collector = ItemKey::from_uuid();
     let picking = ItemKey::from_uuid();
     let outlining = ItemKey::from_uuid();
@@ -22,12 +25,12 @@ pub fn create_standard_pipeline(in_window_position: ResourceKey<(i32, i32)>) -> 
     let drawer = ItemKey::from_uuid();
     let composer = ItemKey::from_uuid();
 
-    let collected_entities = ResourceKey::runtime_uuid();
-    let picked_entity = ResourceKey::runtime_uuid();
-    let picked_position = ResourceKey::runtime_uuid();
-    let outline_texture = ResourceKey::runtime_uuid();
-    let standard_draw_texture = ResourceKey::runtime_uuid();
-    let gaussian_blur_texture = ResourceKey::runtime_uuid();
+    let collected_entities = ResourceKey::new_runtime_uuid();
+    let picked_entity = ResourceKey::new_runtime_uuid();
+    let picked_position = ResourceKey::new_runtime_uuid();
+    let outline_texture = ResourceKey::new_runtime_uuid();
+    let standard_draw_texture = ResourceKey::new_runtime_uuid();
+    let gaussian_blur_texture = ResourceKey::new_runtime_uuid();
 
     let mut pipeline = Pipeline::new();
     pipeline.add_executor(
@@ -57,7 +60,10 @@ pub fn create_standard_pipeline(in_window_position: ResourceKey<(i32, i32)>) -> 
     );
     pipeline.add_executor(
         composer.clone(),
-        StandardComposer::new(vec![standard_draw_texture, gaussian_blur_texture]),
+        StandardComposer::new(
+            vec![standard_draw_texture, gaussian_blur_texture],
+            in_clear_color,
+        ),
     );
 
     // safely unwraps
