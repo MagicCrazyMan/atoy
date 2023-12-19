@@ -316,8 +316,8 @@ impl ProgramSource for MultipleTexturesInstanced {
 
     fn sources(&self) -> &[ShaderSource] {
         &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
+            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
         ]
     }
 

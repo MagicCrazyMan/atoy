@@ -106,11 +106,11 @@ impl Executor for GaussianBlur {
         if self.compiled.is_none() {
             let vertex_shader = compile_shaders(
                 state.gl(),
-                &ShaderSource::Vertex(include_str!("./shaders/gaussian_blur.vert")),
+                &ShaderSource::VertexRaw(include_str!("./shaders/gaussian_blur.vert")),
             )?;
             let fragment_shader = compile_shaders(
                 state.gl(),
-                &ShaderSource::Fragment(include_str!("./shaders/gaussian_blur.frag")),
+                &ShaderSource::FragmentRaw(include_str!("./shaders/gaussian_blur.frag")),
             )?;
             let program = create_program(
                 state.gl(),

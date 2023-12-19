@@ -305,8 +305,8 @@ impl ProgramSource for PickingMaterial {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
         &[
-            ShaderSource::Vertex(include_str!("./shaders/picking.vert")),
-            ShaderSource::Fragment(include_str!("./shaders/picking.frag")),
+            ShaderSource::VertexRaw(include_str!("./shaders/picking.vert")),
+            ShaderSource::FragmentRaw(include_str!("./shaders/picking.frag")),
         ]
     }
 

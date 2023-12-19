@@ -91,8 +91,8 @@ impl ProgramSource for TextureMaterial {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
         &[
-            ShaderSource::Vertex(VERTEX_SHADER_SOURCE),
-            ShaderSource::Fragment(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
+            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
         ]
     }
 

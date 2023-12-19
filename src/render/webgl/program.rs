@@ -1,16 +1,17 @@
 use std::{
+    borrow::Cow,
     collections::{hash_map::Entry, HashMap},
-    fmt::Debug,
     rc::Rc,
 };
 
-use wasm_bindgen_test::console_log;
+use log::warn;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use super::{
     attribute::AttributeBinding,
     conversion::GLuint,
     error::Error,
+    shader::{ShaderBuilder, ShaderType},
     uniform::{UniformBinding, UniformBlockBinding},
 };
 
@@ -33,11 +34,16 @@ pub trait ProgramSource {
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
 }
 
-/// Shader source codes.
-#[derive(Debug, Clone)]
+/// Shader source codes. 3 available types:
+///
+/// 1. `Builder`, build shader source code from a [`ShaderBuilder`].
+/// 2. `VertexRaw`, developer provides a complete vertex shader source code.
+/// 3. `FragmentRaw`, developer provides a complete fragment shader source code.
+#[derive(Clone)]
 pub enum ShaderSource<'a> {
-    Vertex(&'a str),
-    Fragment(&'a str),
+    Builder(ShaderBuilder),
+    VertexRaw(&'a str),
+    FragmentRaw(&'a str),
 }
 
 /// Compiled program item.
@@ -45,7 +51,7 @@ pub enum ShaderSource<'a> {
 pub struct ProgramItem {
     name: String,
     program: WebGlProgram,
-    // shaders: Vec<WebGlShader>,
+    shaders: Vec<WebGlShader>,
     attributes: Rc<HashMap<AttributeBinding, GLuint>>,
     uniform_locations: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
     uniform_block_indices: Rc<HashMap<UniformBlockBinding, u32>>,
@@ -109,6 +115,15 @@ impl ProgramStore {
             }
         }
     }
+
+    /// Deletes a [`ProgramItem`].
+    pub fn delete_program(&mut self, name: &str) {
+        let Some(program_item) = self.store.remove(name) else {
+            return;
+        };
+
+        delete_program(&self.gl, &program_item);
+    }
 }
 
 /// Compiles a [`WebGlProgram`] from a [`ProgramSource`].
@@ -141,20 +156,20 @@ where
             source.uniform_block_bindings(),
         )),
         program,
-        // shaders,
+        shaders,
     })
 }
 
-// fn delete_program(gl: &WebGl2RenderingContext, material: &ProgramItem) {
-//     let ProgramItem {
-//         program, shaders, ..
-//     } = material;
-//     gl.use_program(None);
-//     shaders.into_iter().for_each(|shader| {
-//         gl.delete_shader(Some(&shader));
-//     });
-//     gl.delete_program(Some(&program));
-// }
+fn delete_program(gl: &WebGl2RenderingContext, program_item: &ProgramItem) {
+    let ProgramItem {
+        program, shaders, ..
+    } = program_item;
+    gl.use_program(None);
+    shaders.into_iter().for_each(|shader| {
+        gl.delete_shader(Some(&shader));
+    });
+    gl.delete_program(Some(&program));
+}
 
 /// Compiles [`WebGlShader`] by [`ShaderSource`].
 pub fn compile_shaders(
@@ -162,17 +177,29 @@ pub fn compile_shaders(
     source: &ShaderSource,
 ) -> Result<WebGlShader, Error> {
     let (shader, code) = match source {
-        ShaderSource::Vertex(code) => {
+        ShaderSource::Builder(builder) => match builder.shader_type() {
+            ShaderType::Vertex => (
+                gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER)
+                    .ok_or(Error::CreateVertexShaderFailure)?,
+                Cow::Owned(builder.build()),
+            ),
+            ShaderType::Fragment => (
+                gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
+                    .ok_or(Error::CreateVertexShaderFailure)?,
+                Cow::Owned(builder.build()),
+            ),
+        },
+        ShaderSource::VertexRaw(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
                 .ok_or(Error::CreateVertexShaderFailure)?;
-            (shader, code)
+            (shader, Cow::Borrowed(*code))
         }
-        ShaderSource::Fragment(code) => {
+        ShaderSource::FragmentRaw(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
                 .ok_or(Error::CreateFragmentShaderFailure)?;
-            (shader, code)
+            (shader, Cow::Borrowed(*code))
         }
     };
 
@@ -235,7 +262,7 @@ fn collect_attribute_locations(
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
             // should log warning
-            console_log!("failed to get attribute location of {}", variable_name);
+            warn!("failed to get attribute location of {}", variable_name);
         } else {
             locations.insert(binding.clone(), location as GLuint);
         }
@@ -257,7 +284,7 @@ fn collect_uniform_locations(
         match location {
             None => {
                 // should log warning
-                console_log!("failed to get uniform location of {}", variable_name);
+                warn!("failed to get uniform location of {}", variable_name);
             }
             Some(location) => {
                 locations.insert(binding.clone(), location);

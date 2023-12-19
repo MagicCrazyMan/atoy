@@ -228,8 +228,8 @@ impl ProgramSource for OutliningMaterial {
 
     fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
         &[
-            ShaderSource::Vertex(include_str!("./shaders/outlining.vert")),
-            ShaderSource::Fragment(include_str!("./shaders/outlining.frag")),
+            ShaderSource::VertexRaw(include_str!("./shaders/outlining.vert")),
+            ShaderSource::FragmentRaw(include_str!("./shaders/outlining.frag")),
         ]
     }
 

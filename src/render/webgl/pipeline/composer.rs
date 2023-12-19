@@ -54,11 +54,11 @@ impl Executor for StandardComposer {
         if self.compiled.is_none() {
             let vertex_shader = compile_shaders(
                 state.gl(),
-                &ShaderSource::Vertex(include_str!("./shaders/composer.vert")),
+                &ShaderSource::VertexRaw(include_str!("./shaders/composer.vert")),
             )?;
             let fragment_shader = compile_shaders(
                 state.gl(),
-                &ShaderSource::Fragment(include_str!("./shaders/composer.frag")),
+                &ShaderSource::FragmentRaw(include_str!("./shaders/composer.frag")),
             )?;
             let program = create_program(
                 state.gl(),
