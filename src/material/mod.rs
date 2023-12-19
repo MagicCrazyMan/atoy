@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use gl_matrix4rust::vec3::Vec3;
+
 use crate::{
     entity::BorrowedMut,
     render::{
@@ -32,12 +34,27 @@ pub trait Material: ProgramSource {
 
     fn uniform_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformValue>;
 
-    #[allow(unused_variables)]
-    fn uniform_block_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformBlockValue>;
+
+    fn ready(&self) -> bool;
+
+    /// Ambient light reflection of each components.
+    /// Disable receiving ambient light by returning `None`.
+    fn ambient_reflection(&self) -> Option<Vec3> {
         None
     }
 
-    fn ready(&self) -> bool;
+    /// Diffuse light reflection of each components.
+    /// Disable receiving diffuse light by returning `None`.
+    fn diffuse_reflection(&self) -> Option<Vec3> {
+        None
+    }
+
+    /// Specular light reflection of each components.
+    /// Disable receiving specular light by returning `None`.
+    fn specular_reflection(&self) -> Option<Vec3> {
+        None
+    }
 
     fn instanced(&self) -> Option<i32>;
 

@@ -16,7 +16,7 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TextureSource, TextureUnit,
             },
-            uniform::{UniformBinding, UniformBlockBinding, UniformValue},
+            uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
         },
     },
 };
@@ -152,6 +152,10 @@ impl Material for EnvironmentMaterial {
             },
             _ => None,
         }
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {

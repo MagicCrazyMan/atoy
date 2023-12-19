@@ -20,7 +20,7 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
         },
     },
 };
@@ -399,6 +399,10 @@ impl Material for MultipleTexturesInstanced {
             "u_Sampler7" => self.textures[7].texture(),
             _ => None,
         }
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {

@@ -19,6 +19,7 @@ pub mod offscreen;
 pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
+pub mod shader;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;

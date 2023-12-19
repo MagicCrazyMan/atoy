@@ -1,3 +1,4 @@
+/// Available stencil functions mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StencilFunction {
     Never,
@@ -10,6 +11,7 @@ pub enum StencilFunction {
     Always
 }
 
+/// Available stencil operators mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StencilOp {
     Keep,

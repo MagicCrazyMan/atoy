@@ -7,7 +7,7 @@ use crate::{
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
             program::{ProgramSource, ShaderSource},
-            uniform::{UniformBinding, UniformBlockBinding, UniformValue},
+            uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
         },
     },
 };
@@ -74,6 +74,10 @@ impl Material for IconMaterial {
             "u_Sampler" => self.loader.texture(),
             _ => None,
         }
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
     }
 
     fn ready(&self) -> bool {

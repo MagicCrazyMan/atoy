@@ -13,7 +13,7 @@ use crate::{
             BufferUsage,
         },
         program::{ProgramSource, ShaderSource},
-        uniform::{UniformBinding, UniformBlockBinding, UniformValue},
+        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
     },
 };
 
@@ -202,6 +202,10 @@ impl Material for SolidColorInstancedMaterial {
     }
 
     fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+        None
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
         None
     }
 

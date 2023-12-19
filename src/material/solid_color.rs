@@ -7,7 +7,7 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::{ProgramSource, ShaderSource},
-        uniform::{UniformBinding, UniformBlockBinding, UniformValue},
+        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
     },
 };
 
@@ -130,6 +130,10 @@ impl Material for SolidColorMaterial {
             )),
             _ => None,
         }
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {

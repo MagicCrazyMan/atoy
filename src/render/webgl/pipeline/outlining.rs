@@ -19,7 +19,9 @@ use crate::{
             },
             program::{ProgramSource, ShaderSource},
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
-            uniform::{bind_uniforms, UniformBinding, UniformBlockBinding, UniformValue},
+            uniform::{
+                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue,
+            },
         },
     },
 };
@@ -273,6 +275,10 @@ impl Material for OutliningMaterial {
             "u_OutlineSampler" => Some(UniformValue::Integer1(0)),
             _ => None,
         }
+    }
+
+    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+        None
     }
 
     fn ready(&self) -> bool {
