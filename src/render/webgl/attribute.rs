@@ -6,6 +6,7 @@ use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferItem, BufferTarget},
     conversion::{GLboolean, GLint, GLintptr, GLsizei, GLuint, ToGlEnum},
     program::ProgramItem,
+    shader::VariableDataType,
 };
 
 /// Available attribute values.
@@ -55,6 +56,7 @@ pub enum AttributeBinding {
 }
 
 impl AttributeBinding {
+    /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
             AttributeBinding::GeometryPosition => "a_Position",
@@ -63,6 +65,18 @@ impl AttributeBinding {
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
             | AttributeBinding::FromEntity(name) => name,
+        }
+    }
+
+    /// Returns [`VariableDataType`] for non-custom bindings.
+    pub fn data_type(&self) -> Option<VariableDataType> {
+        match self {
+            AttributeBinding::GeometryPosition => Some(VariableDataType::FloatVec4),
+            AttributeBinding::GeometryTextureCoordinate => Some(VariableDataType::FloatVec2),
+            AttributeBinding::GeometryNormal => Some(VariableDataType::FloatVec3),
+            AttributeBinding::FromGeometry(_)
+            | AttributeBinding::FromMaterial(_)
+            | AttributeBinding::FromEntity(_) => None,
         }
     }
 }

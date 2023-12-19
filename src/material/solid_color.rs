@@ -7,40 +7,12 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::{ProgramSource, ShaderSource},
-        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
+        shader::{ShaderBuilder, ShaderType, Variable, VariableDataType},
+        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
 
 use super::{Material, Transparency};
-
-const COLOR_UNIFORM: &'static str = "u_Color";
-
-const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
-in vec4 a_Position;
-
-uniform mat4 u_ModelMatrix;
-uniform mat4 u_ViewMatrix;
-uniform mat4 u_ProjMatrix;
-
-void main() {
-    gl_Position = u_ProjMatrix * u_ViewMatrix * u_ModelMatrix * a_Position;
-}
-";
-const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-    precision highp float;
-#else
-    precision mediump float;
-#endif
-
-uniform vec4 u_Color;
-
-out vec4 out_Color;
-
-void main() {
-    out_Color = u_Color;
-}
-";
 
 #[derive(Debug, Clone, Copy)]
 pub struct SolidColorMaterial {
@@ -72,10 +44,31 @@ impl ProgramSource for SolidColorMaterial {
         "SolidColorMaterial"
     }
 
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
-        &[
-            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
-            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
+            ShaderSource::Builder(ShaderBuilder::new(
+                ShaderType::Vertex,
+                [
+                    Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
+                    Variable::from_uniform_binding(UniformBinding::ModelMatrix),
+                    Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
+                ],
+                [],
+                "void main() {
+                    gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
+                }",
+            )),
+            ShaderSource::Builder(ShaderBuilder::new(
+                ShaderType::Fragment,
+                [
+                    Variable::new_uniform("u_Color", VariableDataType::FloatVec4),
+                    Variable::new_out("o_FragColor", VariableDataType::FloatVec4),
+                ],
+                [],
+                "void main() {
+                    o_FragColor = u_Color;
+                }",
+            )),
         ]
     }
 
@@ -86,9 +79,8 @@ impl ProgramSource for SolidColorMaterial {
     fn uniform_bindings(&self) -> &[UniformBinding] {
         &[
             UniformBinding::ModelMatrix,
-            UniformBinding::ViewMatrix,
-            UniformBinding::ProjMatrix,
-            UniformBinding::FromMaterial(COLOR_UNIFORM),
+            UniformBinding::ViewProjMatrix,
+            UniformBinding::FromMaterial("u_Color"),
         ]
     }
 
@@ -122,7 +114,7 @@ impl Material for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            COLOR_UNIFORM => Some(UniformValue::Float4(
+            "u_Color" => Some(UniformValue::Float4(
                 self.color.red,
                 self.color.green,
                 self.color.blue,

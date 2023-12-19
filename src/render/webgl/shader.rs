@@ -1,3 +1,5 @@
+use super::{attribute::AttributeBinding, uniform::UniformBinding};
+
 /// Available shader types.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShaderType {
@@ -95,6 +97,10 @@ pub enum Variable {
         name: String,
         uniforms: Vec<(String, VariableDataType, Option<usize>)>,
     },
+    /// Constructs from [`AttributeBinding`], always to be `in`.
+    FromAttributeBinding(AttributeBinding),
+    /// Constructs from [`UniformBinding`], always to be `uniform`.
+    FromUniformBinding(UniformBinding),
 }
 
 impl Variable {
@@ -178,6 +184,16 @@ impl Variable {
         }
     }
 
+    /// Constructs a new `in` variable from NON-CUSTOM [`AttributeBinding`].
+    pub fn from_attribute_binding(binding: AttributeBinding) -> Self {
+        Self::FromAttributeBinding(binding)
+    }
+
+    /// Constructs a new `uniform` variable from NON-CUSTOM [`UniformBinding`].
+    pub fn from_uniform_binding(binding: UniformBinding) -> Self {
+        Self::FromUniformBinding(binding)
+    }
+
     fn build(&self) -> String {
         match self {
             Variable::In {
@@ -185,24 +201,24 @@ impl Variable {
                 data_type,
                 array_len: array,
             } => match array {
-                Some(len) => format!("in {} {}[{}]", name, data_type.build(), len),
-                None => format!("in {} {}", name, data_type.build()),
+                Some(len) => format!("in {} {}[{}];", data_type.build(), name, len),
+                None => format!("in {} {};", data_type.build(), name),
             },
             Variable::Out {
                 name,
                 data_type,
                 array_len: array,
             } => match array {
-                Some(len) => format!("out {} {}[{}]", name, data_type.build(), len),
-                None => format!("out {} {}", name, data_type.build()),
+                Some(len) => format!("out {} {}[{}];", data_type.build(), name, len),
+                None => format!("out {} {};", data_type.build(), name),
             },
             Variable::Uniform {
                 name,
                 data_type,
                 array_len: array,
             } => match array {
-                Some(len) => format!("uniform {} {}[{}]", name, data_type.build(), len),
-                None => format!("uniform {} {}", name, data_type.build()),
+                Some(len) => format!("uniform {} {}[{}];", data_type.build(), name, len),
+                None => format!("uniform {} {};", data_type.build(), name),
             },
             Variable::UniformBlock { name, uniforms } => {
                 let mut block = String::new();
@@ -211,14 +227,30 @@ impl Variable {
                     .iter()
                     .for_each(|(name, data_type, array)| match array {
                         Some(len) => {
-                            block.push_str(&format!("    {} {}[{}]", name, data_type.build(), len))
+                            block.push_str(&format!("    {} {}[{}]", data_type.build(), name, len))
                         }
-                        None => block.push_str(&format!("    {} {}", name, data_type.build())),
+                        None => block.push_str(&format!("    {} {}", data_type.build(), name)),
                     });
                 block.push_str("};");
 
                 block
             }
+            Variable::FromAttributeBinding(binding) => format!(
+                "in {} {};",
+                binding
+                    .data_type()
+                    .expect("custom attribute binding is not supported")
+                    .build(),
+                binding.variable_name(),
+            ),
+            Variable::FromUniformBinding(binding) => format!(
+                "uniform {} {};",
+                binding
+                    .data_type()
+                    .expect("custom uniform binding is not supported")
+                    .build(),
+                binding.variable_name(),
+            ),
         }
     }
 }
@@ -282,12 +314,14 @@ impl ShaderBuilder {
         let mut source = String::new();
 
         source.push_str(VERTEX_SHADER_PREPEND);
-        self.prepends
-            .iter()
-            .for_each(|prepend| source.push_str(prepend));
-        self.variables
-            .iter()
-            .for_each(|variable| source.push_str(&variable.build()));
+        self.prepends.iter().for_each(|prepend| {
+            source.push_str(prepend);
+            source.push_str("\n");
+        });
+        self.variables.iter().for_each(|variable| {
+            source.push_str(&variable.build());
+            source.push_str("\n");
+        });
         source.push_str(&self.main_function);
 
         source
@@ -297,12 +331,14 @@ impl ShaderBuilder {
         let mut source = String::new();
 
         source.push_str(FRAGMENT_SHADER_PREPEND);
-        self.prepends
-            .iter()
-            .for_each(|prepend| source.push_str(prepend));
-        self.variables
-            .iter()
-            .for_each(|variable| source.push_str(&variable.build()));
+        self.prepends.iter().for_each(|prepend| {
+            source.push_str(prepend);
+            source.push_str("\n");
+        });
+        self.variables.iter().for_each(|variable| {
+            source.push_str(&variable.build());
+            source.push_str("\n");
+        });
         source.push_str(&self.main_function);
 
         source
@@ -313,12 +349,36 @@ const VERTEX_SHADER_PREPEND: &'static str = "#version 300 es
 ";
 
 const FRAGMENT_SHADER_PREPEND: &'static str = "#version 300 es
-#ifdef #GL_FRAGMENT_PRECISION_HIGH
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 precision highp int;
 #else
 precision mediump float;
 precision mediump int;
 #endif
-
 ";
+
+#[cfg(test)]
+mod tests {
+    use crate::render::webgl::{attribute::AttributeBinding, uniform::UniformBinding};
+
+    use super::{ShaderBuilder, ShaderType, Variable};
+
+    #[test]
+    fn test_vertex_builder() {
+        let builder = ShaderBuilder::new(
+            ShaderType::Vertex,
+            [
+                Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
+                Variable::from_uniform_binding(UniformBinding::ModelMatrix),
+                Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
+            ],
+            [],
+            "void main() {
+                gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
+            }",
+        );
+
+        println!("{}", builder.build());
+    }
+}

@@ -33,8 +33,8 @@ impl ProgramSource for IconMaterial {
         "IconMaterial"
     }
 
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
-        &[
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
             ShaderSource::VertexRaw(include_str!("./icon.vert")),
             ShaderSource::FragmentRaw(include_str!("./icon.frag")),
         ]

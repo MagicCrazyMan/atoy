@@ -314,8 +314,8 @@ impl ProgramSource for MultipleTexturesInstanced {
         "TextureInstancedMaterialA"
     }
 
-    fn sources(&self) -> &[ShaderSource] {
-        &[
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
             ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
             ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
         ]

@@ -140,8 +140,8 @@ impl ProgramSource for SolidColorInstancedMaterial {
         "SolidColorInstancedMaterial"
     }
 
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
-        &[
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
             ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
             ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
         ]

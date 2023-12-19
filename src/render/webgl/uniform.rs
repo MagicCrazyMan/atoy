@@ -14,6 +14,7 @@ use super::{
     buffer::{BufferDescriptor, BufferTarget},
     conversion::{GLintptr, GLsizeiptr, ToGlEnum},
     program::ProgramItem,
+    shader::VariableDataType,
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
@@ -97,6 +98,7 @@ pub enum UniformBinding {
 }
 
 impl UniformBinding {
+    /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
             UniformBinding::CanvasSize => "u_CanvasSize",
@@ -109,6 +111,22 @@ impl UniformBinding {
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
+        }
+    }
+
+    /// Returns [`VariableDataType`] for non-custom bindings.
+    pub fn data_type(&self) -> Option<VariableDataType> {
+        match self {
+            UniformBinding::CanvasSize => Some(VariableDataType::FloatVec2),
+            UniformBinding::ModelMatrix => Some(VariableDataType::Mat4),
+            UniformBinding::NormalMatrix => Some(VariableDataType::Mat4),
+            UniformBinding::ViewMatrix => Some(VariableDataType::Mat4),
+            UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
+            UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
+            UniformBinding::ActiveCameraPosition => Some(VariableDataType::FloatVec3),
+            UniformBinding::FromGeometry(_)
+            | UniformBinding::FromMaterial(_)
+            | UniformBinding::FromEntity(_) => None,
         }
     }
 }

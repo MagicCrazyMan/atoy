@@ -22,7 +22,7 @@ pub trait ProgramSource {
     fn name(&self) -> &'static str;
 
     /// Shader sources, at least one vertex shader and one fragment shader should be specified.
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>];
+    fn sources(&self) -> Vec<ShaderSource>;
 
     /// Attribute binding variable name.
     fn attribute_bindings(&self) -> &[AttributeBinding];
@@ -34,16 +34,18 @@ pub trait ProgramSource {
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
 }
 
+pub enum Shader {}
+
 /// Shader source codes. 3 available types:
 ///
 /// 1. `Builder`, build shader source code from a [`ShaderBuilder`].
 /// 2. `VertexRaw`, developer provides a complete vertex shader source code.
 /// 3. `FragmentRaw`, developer provides a complete fragment shader source code.
 #[derive(Clone)]
-pub enum ShaderSource<'a> {
+pub enum ShaderSource {
     Builder(ShaderBuilder),
-    VertexRaw(&'a str),
-    FragmentRaw(&'a str),
+    VertexRaw(&'static str),
+    FragmentRaw(&'static str),
 }
 
 /// Compiled program item.

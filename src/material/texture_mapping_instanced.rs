@@ -15,13 +15,13 @@ use crate::{
                 BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
                 BufferUsage,
             },
-            program::{ShaderSource, ProgramSource},
+            program::{ProgramSource, ShaderSource},
             texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-                TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-                TextureWrapMethod, TextureInternalFormat,
+                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+                TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
+            uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
         },
     },
 };
@@ -135,8 +135,8 @@ impl ProgramSource for TextureInstancedMaterial {
         "TextureInstancedMaterial"
     }
 
-    fn sources<'a>(&'a self) -> &[ShaderSource<'a>] {
-        &[
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
             ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
             ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
         ]
