@@ -154,6 +154,7 @@ fn create_scene(
     scene.add_diffuse_light(SimpleDiffuseLight::new(
         Vec3::from_values(0.0, 6.0, 0.0),
         Vec3::from_values(1.0, 1.0, 1.0),
+        Vec3::from_values(1.0, 0.05, 0.0),
     ));
     scene
 }

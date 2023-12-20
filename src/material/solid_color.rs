@@ -142,11 +142,11 @@ impl ProgramSource for SolidColorMaterial {
 impl Material for SolidColorMaterial {
     fn transparency(&self) -> Transparency {
         if self.color.alpha == 0.0 {
-            Transparency::Transparent
+            Transparency::Opaque
         } else if self.color.alpha == 1.0 {
             Transparency::Opaque
         } else {
-            Transparency::Translucent(self.color.alpha)
+            Transparency::Opaque
         }
     }
 
@@ -155,7 +155,7 @@ impl Material for SolidColorMaterial {
             self.color.red,
             self.color.green,
             self.color.blue,
-            self.color.alpha,
+            1.0,
         ))
     }
 
@@ -164,7 +164,7 @@ impl Material for SolidColorMaterial {
             self.color.red,
             self.color.green,
             self.color.blue,
-            self.color.alpha,
+            1.0,
         ))
     }
 

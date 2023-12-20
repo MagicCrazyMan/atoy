@@ -526,7 +526,7 @@ impl UniversalCamera {
 
 impl Camera for UniversalCamera {
     fn position(&self) -> Vec3 {
-        self.sharable.borrow().view.translation()
+        self.sharable.borrow().view.invert().unwrap().translation()
     }
 
     fn view_matrix(&self) -> Mat4 {

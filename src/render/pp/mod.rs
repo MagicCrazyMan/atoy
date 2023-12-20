@@ -16,7 +16,7 @@ use crate::{
     entity::collection::EntityCollection,
     light::{
         ambient::Ambient,
-        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS},
+        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS, DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT},
     },
 };
 
@@ -54,7 +54,7 @@ pub trait Stuff {
     fn diffuse_lights_descriptor(&self) -> BufferDescriptor {
         let lights = self.diffuse_lights();
         let lights = &lights[..MAX_DIFFUSE_LIGHTS.min(lights.len())];
-        let bytes_per_light = 16 + 16 + 16;
+        let bytes_per_light = DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT as u32;
         let buffer = Uint8Array::new_with_length(16 + bytes_per_light * MAX_DIFFUSE_LIGHTS as u32);
         // count
         let count = (lights.len() as u32).to_ne_bytes();
@@ -93,6 +93,20 @@ pub trait Stuff {
             buffer.set_index(16 + index as u32 * bytes_per_light + 41, position[9]);
             buffer.set_index(16 + index as u32 * bytes_per_light + 42, position[10]);
             buffer.set_index(16 + index as u32 * bytes_per_light + 43, position[11]);
+            // attenuations
+            let attenuations = light.attenuations().to_gl_binary();
+            buffer.set_index(16 + index as u32 * bytes_per_light + 48, attenuations[0]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 49, attenuations[1]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 50, attenuations[2]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 51, attenuations[3]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 52, attenuations[4]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 53, attenuations[5]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 54, attenuations[6]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 55, attenuations[7]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 56, attenuations[8]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 57, attenuations[9]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 58, attenuations[10]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 59, attenuations[11]);
         }
         let descriptor = BufferDescriptor::with_memory_policy(
             BufferSource::from_uint8_array(buffer, 0, 0),
