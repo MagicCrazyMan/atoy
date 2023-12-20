@@ -25,6 +25,7 @@ use crate::geometry::raw::RawGeometry;
 use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::light::ambient::SimpleAmbientLight;
+use crate::light::diffuse::SimpleDiffuseLight;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
@@ -149,7 +150,11 @@ fn create_scene(
         0.5,
         None,
     ));
-    scene.set_ambient_light(Some(SimpleAmbientLight::new(1.0, 1.0, 1.0)));
+    scene.set_ambient_light(Some(SimpleAmbientLight::new(0.2, 0.2, 0.2)));
+    scene.add_diffuse_light(SimpleDiffuseLight::new(
+        Vec3::from_values(0.0, 6.0, 0.0),
+        Vec3::from_values(1.0, 1.0, 1.0),
+    ));
     scene
 }
 
@@ -182,8 +187,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         ResourceKey::new_persist_str("picked_position"),
     );
     let clear_color_key = ResourceKey::new_persist_str("clear_color");
-    let mut standard_pipeline =
-        create_standard_pipeline(ResourceKey::new_persist_str("position"), clear_color_key.clone());
+    let mut standard_pipeline = create_standard_pipeline(
+        ResourceKey::new_persist_str("position"),
+        clear_color_key.clone(),
+    );
     standard_pipeline
         .resources_mut()
         .insert(clear_color_key, (0.0, 0.0, 0.0, 1.0));

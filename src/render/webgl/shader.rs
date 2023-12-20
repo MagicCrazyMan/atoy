@@ -1,4 +1,4 @@
-use super::{attribute::AttributeBinding, uniform::{UniformBinding, UniformStructuralBinding}};
+use super::{attribute::AttributeBinding, uniform::{UniformBinding, UniformStructuralBinding, UniformBlockBinding}};
 
 /// Available shader types.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -108,6 +108,8 @@ pub enum Variable {
     FromAttributeBinding(AttributeBinding),
     /// Constructs from [`UniformBinding`], always to be `uniform`.
     FromUniformBinding(UniformBinding),
+    /// Constructs from [`UniformBlockBinding`], always to be `uniform`.
+    FromUniformBlockBinding(UniformBlockBinding),
     /// Constructs from [`UniformStructuralBinding`], always to be `uniform`.
     FromUniformStructuralBinding(UniformStructuralBinding),
 }
@@ -203,6 +205,11 @@ impl Variable {
         Self::FromUniformBinding(binding)
     }
 
+    /// Constructs a new `uniform` variable from NON-CUSTOM [`UniformBlockBinding`].
+    pub fn from_uniform_block_binding(binding: UniformBlockBinding) -> Self {
+        Self::FromUniformBlockBinding(binding)
+    }
+
     /// Constructs a new `uniform` variable from NON-CUSTOM [`UniformStructuralBinding`].
     pub fn from_uniform_structural_binding(binding: UniformStructuralBinding) -> Self {
         Self::FromUniformStructuralBinding(binding)
@@ -280,6 +287,7 @@ impl Variable {
                     .build(),
                 binding.variable_name(),
             ),
+            Variable::FromUniformBlockBinding(_) => String::new(), // uniform block binding does nothing
             Variable::FromUniformStructuralBinding(binding) => format!(
                 "uniform {} {};",
                 binding

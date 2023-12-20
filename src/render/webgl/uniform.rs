@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    buffer::{BufferDescriptor, BufferTarget},
+    buffer::{BufferDescriptor, BufferItem, BufferTarget},
     conversion::{GLintptr, GLsizeiptr, ToGlEnum},
     program::ProgramItem,
     shader::VariableDataType,
@@ -71,14 +71,14 @@ pub enum UniformBlockValue {
     BufferBase {
         descriptor: BufferDescriptor,
         target: BufferTarget,
-        binding: u32,
+        uniform_block_binding: u32,
     },
     BufferRange {
         descriptor: BufferDescriptor,
         target: BufferTarget,
         offset: GLintptr,
         size: GLsizeiptr,
-        binding: u32,
+        uniform_block_binding: u32,
     },
 }
 
@@ -93,9 +93,9 @@ pub enum UniformBinding {
     ProjMatrix,
     ViewProjMatrix,
     ActiveCameraPosition,
-    AmbientLightEnabled,
-    AmbientLightColor,
+    EnableLighting,
     AmbientReflection,
+    DiffuseReflection,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -113,9 +113,9 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
-            UniformBinding::AmbientLightEnabled => "u_AmbientLight.enabled",
-            UniformBinding::AmbientLightColor => "u_AmbientLight.color",
+            UniformBinding::EnableLighting => "u_EnableLighting",
             UniformBinding::AmbientReflection => "u_AmbientReflection",
+            UniformBinding::DiffuseReflection => "u_DiffuseReflection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
@@ -133,9 +133,9 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ActiveCameraPosition => Some(VariableDataType::FloatVec3),
-            UniformBinding::AmbientLightEnabled => Some(VariableDataType::Bool),
-            UniformBinding::AmbientLightColor => Some(VariableDataType::FloatVec3),
+            UniformBinding::EnableLighting => Some(VariableDataType::Bool),
             UniformBinding::AmbientReflection => Some(VariableDataType::FloatVec4),
+            UniformBinding::DiffuseReflection => Some(VariableDataType::FloatVec4),
             UniformBinding::FromGeometry(_)
             | UniformBinding::FromMaterial(_)
             | UniformBinding::FromEntity(_) => None,
@@ -146,6 +146,7 @@ impl UniformBinding {
 /// Uniform block binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBlockBinding {
+    DiffuseLights,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -155,6 +156,7 @@ impl UniformBlockBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
+            UniformBlockBinding::DiffuseLights => "DiffuseLights",
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
             | UniformBlockBinding::FromEntity(name) => name,
@@ -234,7 +236,7 @@ pub fn bind_uniforms(
     geometry: &dyn Geometry,
     material: &dyn Material,
     program_item: &ProgramItem,
-) {
+) -> Vec<BufferItem> {
     // binds simple uniforms
     for (binding, location) in program_item.uniform_locations() {
         let value = match binding {
@@ -263,14 +265,12 @@ pub fn bind_uniforms(
             UniformBinding::ActiveCameraPosition => Some(UniformValue::FloatVector3(
                 stuff.camera().position().to_gl(),
             )),
-            UniformBinding::AmbientLightEnabled => {
-                Some(UniformValue::Bool(stuff.ambient_light().is_some()))
-            }
-            UniformBinding::AmbientLightColor => stuff
-                .ambient_light()
-                .map(|light| UniformValue::FloatVector3(light.color().to_gl())),
+            UniformBinding::EnableLighting => Some(UniformValue::Bool(stuff.enable_lighting())),
             UniformBinding::AmbientReflection => material
-                .ambient_reflection()
+                .ambient()
+                .map(|c| UniformValue::FloatVector4(c.to_gl())),
+            UniformBinding::DiffuseReflection => material
+                .diffuse()
                 .map(|c| UniformValue::FloatVector4(c.to_gl())),
             UniformBinding::CanvasSize => state
                 .gl()
@@ -351,8 +351,14 @@ pub fn bind_uniforms(
     }
 
     // binds uniform blocks
-    for (binding, index) in program_item.uniform_block_indices() {
+    let mut buffer_items = Vec::with_capacity(program_item.uniform_block_indices().len());
+    for (binding, uniform_block_index) in program_item.uniform_block_indices() {
         let value = match binding {
+            UniformBlockBinding::DiffuseLights => Some(UniformBlockValue::BufferBase {
+                descriptor: stuff.diffuse_lights_descriptor(),
+                target: BufferTarget::UniformBuffer,
+                uniform_block_binding: 1,
+            }),
             UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
             UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
             UniformBlockBinding::FromEntity(name) => {
@@ -367,7 +373,7 @@ pub fn bind_uniforms(
             UniformBlockValue::BufferBase {
                 descriptor,
                 target,
-                binding,
+                uniform_block_binding,
             } => {
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
@@ -383,19 +389,29 @@ pub fn bind_uniforms(
 
                 state
                     .gl()
-                    .uniform_block_binding(program_item.gl_program(), *index, binding);
+                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
+
+                state.gl().uniform_block_binding(
+                    program_item.gl_program(),
+                    *uniform_block_index,
+                    uniform_block_binding,
+                );
                 state.gl().bind_buffer_base(
                     target.gl_enum(),
-                    *index,
+                    uniform_block_binding,
                     Some(&buffer_item.gl_buffer()),
                 );
+
+                state.gl().bind_buffer(target.gl_enum(), None);
+
+                buffer_items.push(buffer_item);
             }
             UniformBlockValue::BufferRange {
                 descriptor,
                 target,
                 offset,
                 size,
-                binding,
+                uniform_block_binding,
             } => {
                 let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
                     Ok(buffer) => buffer,
@@ -411,17 +427,29 @@ pub fn bind_uniforms(
 
                 state
                     .gl()
-                    .uniform_block_binding(program_item.gl_program(), *index, binding);
+                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
+
+                state.gl().uniform_block_binding(
+                    program_item.gl_program(),
+                    *uniform_block_index,
+                    uniform_block_binding,
+                );
                 state.gl().bind_buffer_range_with_i32_and_i32(
                     target.gl_enum(),
-                    *index,
+                    *uniform_block_index,
                     Some(&buffer_item.gl_buffer()),
                     offset,
                     size,
                 );
+
+                state.gl().bind_buffer(target.gl_enum(), None);
+
+                buffer_items.push(buffer_item);
             }
         }
     }
+
+    buffer_items
 }
 
 /// Binds a [`UniformValue`] to a [`WebGlUniformLocation`]

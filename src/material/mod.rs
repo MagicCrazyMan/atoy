@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
+use gl_matrix4rust::vec4::Vec4;
 
 use crate::{
     entity::BorrowedMut,
@@ -40,19 +40,19 @@ pub trait Material: ProgramSource {
 
     /// Ambient light reflection of each components.
     /// Disable receiving ambient light by returning `None`.
-    fn ambient_reflection(&self) -> Option<Vec4> {
+    fn ambient(&self) -> Option<Vec4> {
         None
     }
 
     /// Diffuse light reflection of each components.
     /// Disable receiving diffuse light by returning `None`.
-    fn diffuse_reflection(&self) -> Option<Vec3> {
+    fn diffuse(&self) -> Option<Vec4> {
         None
     }
 
     /// Specular light reflection of each components.
     /// Disable receiving specular light by returning `None`.
-    fn specular_reflection(&self) -> Option<Vec3> {
+    fn specular(&self) -> Option<Vec4> {
         None
     }
 

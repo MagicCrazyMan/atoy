@@ -85,12 +85,12 @@ impl StandardDrawer {
                 self.last_program = Some(program_item.clone());
             }
 
-            let program = self.last_program.as_ref().unwrap();
+            let program_item = self.last_program.as_ref().unwrap();
 
             // binds attributes
-            let items = bind_attributes(state, &entity, &*geometry, &*material, program);
+            let attribute_buffer_items = bind_attributes(state, &entity, &*geometry, &*material, program_item);
             // binds uniforms
-            bind_uniforms(state, stuff, &entity, &*geometry, &*material, program);
+            let _uniform_buffer_items = bind_uniforms(state, stuff, &entity, &*geometry, &*material, program_item);
 
             // before draw of material and geometry
             (&mut *material).before_draw(state, &entity);
@@ -101,7 +101,7 @@ impl StandardDrawer {
             (&mut *material).after_draw(state, &entity);
             (&mut *geometry).after_draw(state, &entity);
 
-            unbind_attributes(state, items);
+            unbind_attributes(state, attribute_buffer_items);
         }
 
         Ok(())

@@ -72,8 +72,8 @@ impl AttributeBinding {
     pub fn data_type(&self) -> Option<VariableDataType> {
         match self {
             AttributeBinding::GeometryPosition => Some(VariableDataType::FloatVec4),
+            AttributeBinding::GeometryNormal => Some(VariableDataType::FloatVec4),
             AttributeBinding::GeometryTextureCoordinate => Some(VariableDataType::FloatVec2),
-            AttributeBinding::GeometryNormal => Some(VariableDataType::FloatVec3),
             AttributeBinding::FromGeometry(_)
             | AttributeBinding::FromMaterial(_)
             | AttributeBinding::FromEntity(_) => None,

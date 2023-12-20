@@ -7,16 +7,26 @@ use std::{
     marker::PhantomData,
 };
 
+use gl_matrix4rust::vec3::AsVec3;
 use uuid::Uuid;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
+use web_sys::{js_sys::Uint8Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
-    camera::Camera, entity::collection::EntityCollection, light::ambient::Ambient,
+    camera::Camera,
+    entity::collection::EntityCollection,
+    light::{
+        ambient::Ambient,
+        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS},
+    },
 };
 
 use self::{error::Error, graph::DirectedGraph};
 
-use super::webgl::{buffer::BufferStore, program::ProgramStore, texture::TextureStore};
+use super::webgl::{
+    buffer::{BufferDescriptor, BufferSource, BufferStore, BufferUsage, MemoryPolicy},
+    program::ProgramStore,
+    texture::TextureStore,
+};
 
 /// Pipeline rendering stuff.
 pub trait Stuff {
@@ -32,8 +42,66 @@ pub trait Stuff {
     /// Returns the mutable main camera for current frame.
     fn camera_mut(&mut self) -> &mut dyn Camera;
 
-    /// Returns the main camera for current frame.
+    /// Returns `true` is enable lighting.
+    fn enable_lighting(&self) -> bool;
+
+    /// Returns ambient light.
     fn ambient_light(&self) -> Option<&dyn Ambient>;
+
+    /// Returns diffuse light sources.
+    fn diffuse_lights(&self) -> Vec<&dyn Diffuse>;
+
+    fn diffuse_lights_descriptor(&self) -> BufferDescriptor {
+        let lights = self.diffuse_lights();
+        let lights = &lights[..MAX_DIFFUSE_LIGHTS.min(lights.len())];
+        let bytes_per_light = 16 + 16 + 16;
+        let buffer = Uint8Array::new_with_length(16 + bytes_per_light * MAX_DIFFUSE_LIGHTS as u32);
+        // count
+        let count = (lights.len() as u32).to_ne_bytes();
+        buffer.set_index(0, count[0]);
+        buffer.set_index(1, count[1]);
+        buffer.set_index(2, count[2]);
+        buffer.set_index(3, count[3]);
+        for (index, light) in lights.into_iter().enumerate() {
+            // enabled
+            buffer.set_index(16 + index as u32 * bytes_per_light + 0, 1);
+            // color
+            let color = light.color().to_gl_binary();
+            buffer.set_index(16 + index as u32 * bytes_per_light + 16, color[0]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 17, color[1]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 18, color[2]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 19, color[3]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 20, color[4]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 21, color[5]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 22, color[6]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 23, color[7]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 24, color[8]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 25, color[9]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 26, color[10]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 27, color[11]);
+            // position
+            let position = light.position().to_gl_binary();
+            buffer.set_index(16 + index as u32 * bytes_per_light + 32, position[0]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 33, position[1]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 34, position[2]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 35, position[3]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 36, position[4]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 37, position[5]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 38, position[6]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 39, position[7]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 40, position[8]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 41, position[9]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 42, position[10]);
+            buffer.set_index(16 + index as u32 * bytes_per_light + 43, position[11]);
+        }
+        let descriptor = BufferDescriptor::with_memory_policy(
+            BufferSource::from_uint8_array(buffer, 0, 0),
+            BufferUsage::StaticDraw,
+            MemoryPolicy::Unfree,
+        );
+
+        descriptor
+    }
 }
 
 /// Pipeline rendering state.

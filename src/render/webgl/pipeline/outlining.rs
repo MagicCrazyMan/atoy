@@ -121,7 +121,7 @@ impl Executor for Outlining {
         self.onepass_frame.bind(state.gl())?;
         self.material.stage = 0;
         let _ = bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
-        bind_uniforms(
+        let _uniform_buffer_items = bind_uniforms(
             state,
             stuff,
             &in_entity,
@@ -176,7 +176,7 @@ impl Executor for Outlining {
             &self.material,
             &program_item,
         );
-        bind_uniforms(
+        let _uniform_buffer_items = bind_uniforms(
             state,
             stuff,
             &in_entity,
@@ -189,7 +189,7 @@ impl Executor for Outlining {
         // stage two, clear color drawn in stage one
         self.material.stage = 2;
         let _ = bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
-        bind_uniforms(
+        let _uniform_buffer_items = bind_uniforms(
             state,
             stuff,
             &in_entity,

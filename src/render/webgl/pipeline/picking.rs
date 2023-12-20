@@ -225,7 +225,7 @@ impl Executor for Picking {
             self.material.index = (index + 1) as u32;
 
             let items = bind_attributes(state, &entity, geometry, &self.material, &program_item);
-            bind_uniforms(
+            let _uniform_buffer_items = bind_uniforms(
                 state,
                 stuff,
                 &entity,

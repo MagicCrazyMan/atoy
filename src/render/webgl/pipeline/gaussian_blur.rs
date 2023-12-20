@@ -162,6 +162,9 @@ impl Executor for GaussianBlur {
                 &kernel_data,
                 WebGl2RenderingContext::STATIC_DRAW,
             );
+            state
+                .gl()
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
 
             self.compiled = Some(Compiled {
                 program,
@@ -212,13 +215,10 @@ impl Executor for GaussianBlur {
 
         state
             .gl()
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(uniform_buffer));
-        state
-            .gl()
-            .uniform_block_binding(program, *kernel_location, 0);
+            .uniform_block_binding(program, *kernel_location, 12);
         state.gl().bind_buffer_base(
             WebGl2RenderingContext::UNIFORM_BUFFER,
-            *kernel_location,
+            12,
             Some(&uniform_buffer),
         );
 

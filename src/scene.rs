@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use crate::{
     camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
-    light::ambient::Ambient,
+    light::{ambient::Ambient, diffuse::Diffuse},
     render::pp::Stuff,
 };
 
@@ -28,6 +28,7 @@ extern "C" {
 pub struct Scene {
     active_camera: Box<dyn Camera>,
     ambient_light: Option<Box<dyn Ambient>>,
+    diffuse_lights: Vec<Box<dyn Diffuse>>,
     entity_collection: EntityCollection,
 }
 
@@ -51,6 +52,7 @@ impl Scene {
         Self {
             active_camera: Self::create_camera(),
             ambient_light: None,
+            diffuse_lights: Vec::new(),
             entity_collection: EntityCollection::new(),
         }
     }
@@ -148,6 +150,19 @@ impl Scene {
             None => None,
         };
     }
+
+    /// Adds a diffuse light.
+    pub fn add_diffuse_light<L>(&mut self, light: L)
+    where
+        L: Diffuse + 'static,
+    {
+        self.diffuse_lights.push(Box::new(light));
+    }
+
+    /// Removes a diffuse light by index.
+    pub fn remove_diffuse_light(&mut self, index: usize) -> Box<dyn Diffuse> {
+        self.diffuse_lights.remove(index)
+    }
 }
 
 /// A [`Stuff`] source from [`Scene`].
@@ -176,6 +191,18 @@ impl<'a> Stuff for SceneStuff<'a> {
 
     fn entity_collection_mut(&mut self) -> &mut EntityCollection {
         self.scene.entity_collection_mut()
+    }
+
+    fn enable_lighting(&self) -> bool {
+        true
+    }
+
+    fn diffuse_lights(&self) -> Vec<&dyn Diffuse> {
+        self.scene
+            .diffuse_lights
+            .iter()
+            .map(|light| light.as_ref())
+            .collect()
     }
 
     fn ambient_light(&self) -> Option<&dyn Ambient> {
