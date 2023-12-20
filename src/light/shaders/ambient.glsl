@@ -1,6 +1,18 @@
 /**
+ * Ambient light difinition.
+ */
+struct AmbientLight {
+    bool enabled;
+    vec3 color;
+};
+
+/**
  * Calculates ambient light.
  */
-vec3 ambient_light(in vec3 light_color, in vec3 light_reflection) {
-    return light_color * light_reflection;
+vec3 ambient_light(in AmbientLight light, in vec3 reflection) {
+    if (light.enabled) {
+        return light.color * reflection;
+    } else {
+        return reflection;
+    }
 }

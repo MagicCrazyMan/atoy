@@ -20,7 +20,7 @@ use crate::{
             program::{ProgramSource, ShaderSource},
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
-                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue,
+                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue, UniformStructuralBinding,
             },
         },
     },
@@ -250,6 +250,10 @@ impl ProgramSource for OutliningMaterial {
             UniformBinding::FromMaterial("u_OutlineWidth"),
             UniformBinding::FromMaterial("u_OutlineSampler"),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

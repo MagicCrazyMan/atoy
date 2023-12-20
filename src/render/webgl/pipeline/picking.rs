@@ -21,7 +21,7 @@ use crate::{
             renderbuffer::RenderbufferInternalFormat,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
-                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue,
+                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue, UniformStructuralBinding,
             },
         },
     },
@@ -320,6 +320,10 @@ impl ProgramSource for PickingMaterial {
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Index"),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

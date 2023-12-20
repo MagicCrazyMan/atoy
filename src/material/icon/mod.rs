@@ -7,7 +7,7 @@ use crate::{
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
             program::{ProgramSource, ShaderSource},
-            uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
+            uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue, UniformStructuralBinding},
         },
     },
 };
@@ -53,6 +53,10 @@ impl ProgramSource for IconMaterial {
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Sampler"),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

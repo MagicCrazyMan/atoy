@@ -16,7 +16,7 @@ use crate::{
                 TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
                 TextureWrapMethod, TextureInternalFormat,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding},
         },
     },
 };
@@ -109,6 +109,10 @@ impl ProgramSource for TextureMaterial {
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial(SAMPLER_UNIFORM),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

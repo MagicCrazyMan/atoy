@@ -9,7 +9,10 @@ use crate::{
         attribute::{AttributeBinding, AttributeValue},
         program::{ProgramSource, ShaderSource},
         shader::{ShaderBuilder, ShaderType, Variable, VariableDataType},
-        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
+        },
     },
 };
 
@@ -55,51 +58,43 @@ impl ProgramSource for SolidColorMaterial {
                     Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
                     Variable::from_uniform_binding(UniformBinding::ModelMatrix),
                     Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
-                    Variable::from_uniform_binding(UniformBinding::EnableAmbientLight),
-                    Variable::from_uniform_binding(UniformBinding::AmbientLightColor),
-                    Variable::from_uniform_binding(UniformBinding::AmbientReflection),
-                    Variable::new_out("v_Ambient", VariableDataType::FloatVec4),
                 ],
-                [include_str!("../light/shaders/ambient.glsl")],
+                [],
                 "void main() {
                     gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
-
-                    if (u_EnableAmbientLight) {
-                        vec3 ambient = ambient_light(u_AmbientLightColor, vec3(u_AmbientReflection));
-                        v_Ambient = vec4(ambient, u_AmbientReflection.a);
-                    } else {
-                        v_Ambient = u_AmbientReflection;
-                    }
                 }",
             )),
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Fragment,
                 [
-                    Variable::new_in("v_Ambient", VariableDataType::FloatVec4),
+                    Variable::from_uniform_structural_binding(UniformStructuralBinding::AmbientLight),
+                    Variable::from_uniform_binding(UniformBinding::AmbientReflection),
                     Variable::new_out("o_FragColor", VariableDataType::FloatVec4),
                 ],
-                [],
+                [include_str!("../light/shaders/ambient.glsl")],
                 "void main() {
-                    o_FragColor = v_Ambient;
+                    vec4 ambient = vec4(ambient_light(u_AmbientLight, vec3(u_AmbientReflection)), u_AmbientReflection.a);
+
+                    o_FragColor = ambient;
                 }",
             )),
         ]
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
-            AttributeBinding::GeometryPosition,
-        ]
+        &[AttributeBinding::GeometryPosition]
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
-            UniformBinding::EnableAmbientLight,
-            UniformBinding::AmbientLightColor,
             UniformBinding::AmbientReflection,
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[UniformStructuralBinding::AmbientLight]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

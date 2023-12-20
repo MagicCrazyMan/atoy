@@ -1,7 +1,7 @@
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3, vec4::AsVec4};
 use log::warn;
 use wasm_bindgen::JsCast;
-use web_sys::HtmlCanvasElement;
+use web_sys::{HtmlCanvasElement, WebGlUniformLocation};
 
 use crate::{
     entity::BorrowedMut,
@@ -93,7 +93,7 @@ pub enum UniformBinding {
     ProjMatrix,
     ViewProjMatrix,
     ActiveCameraPosition,
-    EnableAmbientLight,
+    AmbientLightEnabled,
     AmbientLightColor,
     AmbientReflection,
     FromGeometry(&'static str),
@@ -113,8 +113,8 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
-            UniformBinding::EnableAmbientLight => "u_EnableAmbientLight",
-            UniformBinding::AmbientLightColor => "u_AmbientLightColor",
+            UniformBinding::AmbientLightEnabled => "u_AmbientLight.enabled",
+            UniformBinding::AmbientLightColor => "u_AmbientLight.color",
             UniformBinding::AmbientReflection => "u_AmbientReflection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
@@ -133,7 +133,7 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ActiveCameraPosition => Some(VariableDataType::FloatVec3),
-            UniformBinding::EnableAmbientLight => Some(VariableDataType::Bool),
+            UniformBinding::AmbientLightEnabled => Some(VariableDataType::Bool),
             UniformBinding::AmbientLightColor => Some(VariableDataType::FloatVec3),
             UniformBinding::AmbientReflection => Some(VariableDataType::FloatVec4),
             UniformBinding::FromGeometry(_)
@@ -152,11 +152,76 @@ pub enum UniformBlockBinding {
 }
 
 impl UniformBlockBinding {
+    /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
             | UniformBlockBinding::FromEntity(name) => name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum UniformStructuralBinding {
+    AmbientLight,
+    FromGeometry {
+        variable_name: &'static str,
+        fields: Vec<&'static str>,
+        array_len: Option<usize>,
+    },
+    FromMaterial {
+        variable_name: &'static str,
+        fields: Vec<&'static str>,
+        array_len: Option<usize>,
+    },
+    FromEntity {
+        variable_name: &'static str,
+        fields: Vec<&'static str>,
+        array_len: Option<usize>,
+    },
+}
+
+impl UniformStructuralBinding {
+    /// Returns variable name.
+    pub fn variable_name(&self) -> &str {
+        match self {
+            UniformStructuralBinding::AmbientLight => "u_AmbientLight",
+            UniformStructuralBinding::FromGeometry { variable_name, .. }
+            | UniformStructuralBinding::FromMaterial { variable_name, .. }
+            | UniformStructuralBinding::FromEntity { variable_name, .. } => variable_name,
+        }
+    }
+
+    /// Returns fields.
+    pub fn fields(&self) -> &[&str] {
+        match self {
+            UniformStructuralBinding::AmbientLight => &["enabled", "color"],
+            UniformStructuralBinding::FromGeometry { fields, .. }
+            | UniformStructuralBinding::FromMaterial { fields, .. }
+            | UniformStructuralBinding::FromEntity { fields, .. } => &fields,
+        }
+    }
+
+    /// Returns array len. Returns `None` if not a array.
+    pub fn array_len(&self) -> Option<usize> {
+        match self {
+            UniformStructuralBinding::AmbientLight => None,
+            UniformStructuralBinding::FromGeometry { array_len, .. }
+            | UniformStructuralBinding::FromMaterial { array_len, .. }
+            | UniformStructuralBinding::FromEntity { array_len, .. } => array_len.clone(),
+        }
+    }
+
+    /// Returns [`VariableDataType`] for non-custom bindings.
+    pub fn data_type(&self) -> Option<VariableDataType> {
+        match self {
+            UniformStructuralBinding::AmbientLight => {
+                Some(VariableDataType::Struct("AmbientLight"))
+            }
+            UniformStructuralBinding::FromGeometry { .. }
+            | UniformStructuralBinding::FromMaterial { .. }
+            | UniformStructuralBinding::FromEntity { .. } => None,
         }
     }
 }
@@ -170,6 +235,7 @@ pub fn bind_uniforms(
     material: &dyn Material,
     program_item: &ProgramItem,
 ) {
+    // binds simple uniforms
     for (binding, location) in program_item.uniform_locations() {
         let value = match binding {
             UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name, entity),
@@ -197,7 +263,7 @@ pub fn bind_uniforms(
             UniformBinding::ActiveCameraPosition => Some(UniformValue::FloatVector3(
                 stuff.camera().position().to_gl(),
             )),
-            UniformBinding::EnableAmbientLight => {
+            UniformBinding::AmbientLightEnabled => {
                 Some(UniformValue::Bool(stuff.ambient_light().is_some()))
             }
             UniformBinding::AmbientLightColor => stuff
@@ -227,110 +293,64 @@ pub fn bind_uniforms(
             continue;
         };
 
-        match value {
-            UniformValue::Bool(v) => {
-                if v {
-                    state.gl().uniform1i(Some(location), 1)
-                } else {
-                    state.gl().uniform1i(Some(location), 0)
-                }
-            }
-            UniformValue::UnsignedInteger1(x) => state.gl().uniform1ui(Some(location), x),
-            UniformValue::UnsignedInteger2(x, y) => state.gl().uniform2ui(Some(location), x, y),
-            UniformValue::UnsignedInteger3(x, y, z) => {
-                state.gl().uniform3ui(Some(location), x, y, z)
-            }
-            UniformValue::UnsignedInteger4(x, y, z, w) => {
-                state.gl().uniform4ui(Some(location), x, y, z, w)
-            }
-            UniformValue::Float1(x) => state.gl().uniform1f(Some(location), x),
-            UniformValue::Float2(x, y) => state.gl().uniform2f(Some(location), x, y),
-            UniformValue::Float3(x, y, z) => state.gl().uniform3f(Some(location), x, y, z),
-            UniformValue::Float4(x, y, z, w) => state.gl().uniform4f(Some(location), x, y, z, w),
-            UniformValue::Integer1(x) => state.gl().uniform1i(Some(location), x),
-            UniformValue::Integer2(x, y) => state.gl().uniform2i(Some(location), x, y),
-            UniformValue::Integer3(x, y, z) => state.gl().uniform3i(Some(location), x, y, z),
-            UniformValue::Integer4(x, y, z, w) => state.gl().uniform4i(Some(location), x, y, z, w),
-            UniformValue::FloatVector1(data) => {
-                state.gl().uniform1fv_with_f32_array(Some(location), &data)
-            }
-            UniformValue::FloatVector2(data) => {
-                state.gl().uniform2fv_with_f32_array(Some(location), &data)
-            }
-            UniformValue::FloatVector3(data) => {
-                state.gl().uniform3fv_with_f32_array(Some(location), &data)
-            }
-            UniformValue::FloatVector4(data) => {
-                state.gl().uniform4fv_with_f32_array(Some(location), &data)
-            }
-            UniformValue::IntegerVector1(data) => {
-                state.gl().uniform1iv_with_i32_array(Some(location), &data)
-            }
-            UniformValue::IntegerVector2(data) => {
-                state.gl().uniform2iv_with_i32_array(Some(location), &data)
-            }
-            UniformValue::IntegerVector3(data) => {
-                state.gl().uniform3iv_with_i32_array(Some(location), &data)
-            }
-            UniformValue::IntegerVector4(data) => {
-                state.gl().uniform4iv_with_i32_array(Some(location), &data)
-            }
-            UniformValue::UnsignedIntegerVector1(data) => {
-                state.gl().uniform1uiv_with_u32_array(Some(location), &data)
-            }
-            UniformValue::UnsignedIntegerVector2(data) => {
-                state.gl().uniform2uiv_with_u32_array(Some(location), &data)
-            }
-            UniformValue::UnsignedIntegerVector3(data) => {
-                state.gl().uniform3uiv_with_u32_array(Some(location), &data)
-            }
-            UniformValue::UnsignedIntegerVector4(data) => {
-                state.gl().uniform4uiv_with_u32_array(Some(location), &data)
-            }
-            UniformValue::Matrix2 { data, transpose } => state
-                .gl()
-                .uniform_matrix2fv_with_f32_array(Some(location), transpose, &data),
-            UniformValue::Matrix3 { data, transpose } => state
-                .gl()
-                .uniform_matrix3fv_with_f32_array(Some(location), transpose, &data),
-            UniformValue::Matrix4 { data, transpose } => state
-                .gl()
-                .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data),
-            UniformValue::Texture {
-                descriptor,
-                params,
-                texture_unit,
-            } => {
-                // active texture
-                state.gl().active_texture(texture_unit.gl_enum());
-
-                let (target, texture) = match state.texture_store_mut().use_texture(&descriptor) {
-                    Ok(texture) => texture,
-                    Err(err) => {
-                        warn!(
-                            target: "BindUniforms",
-                            "use texture store error: {}",
-                            err
-                        );
-                        continue;
-                    }
-                };
-                let texture = texture.clone();
-
-                // binds texture
-                state.gl().bind_texture(target, Some(&texture));
-                // setups sampler parameters
-                params
-                    .iter()
-                    .for_each(|param| param.tex_parameteri(state.gl(), target));
-                // binds to shader
-                state
-                    .gl()
-                    .uniform1i(Some(location), texture_unit.unit_index());
-            }
-        };
+        bind_uniform_value(state, location, value);
     }
 
+    // binds structural uniform, converts it to simple uniform bindings
+    for (binding, fields) in program_item.uniform_structural_locations() {
+        let mut values = Vec::with_capacity(fields.len());
+        match binding {
+            UniformStructuralBinding::AmbientLight => {
+                for (field, location) in fields {
+                    match field.as_str() {
+                        "u_AmbientLight.enabled" => values.push((
+                            location,
+                            UniformValue::Bool(stuff.ambient_light().is_some()),
+                        )),
+                        "u_AmbientLight.color" => {
+                            if let Some(light) = stuff.ambient_light() {
+                                values.push((
+                                    location,
+                                    UniformValue::FloatVector3(light.color().to_gl()),
+                                ))
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            UniformStructuralBinding::FromGeometry { .. } => {
+                for (field, location) in fields {
+                    let value = geometry.uniform_value(field, entity);
+                    if let Some(value) = value {
+                        values.push((location, value));
+                    }
+                }
+            }
+            UniformStructuralBinding::FromMaterial { .. } => {
+                for (field, location) in fields {
+                    let value = material.uniform_value(field, entity);
+                    if let Some(value) = value {
+                        values.push((location, value));
+                    }
+                }
+            }
+            UniformStructuralBinding::FromEntity { .. } => {
+                for (field, location) in fields {
+                    let value = entity.uniform_values().get(field).cloned();
+                    if let Some(value) = value {
+                        values.push((location, value));
+                    }
+                }
+            }
+        };
+
+        for (location, value) in values {
+            bind_uniform_value(state, location, value);
+        }
+    }
+
+    // binds uniform blocks
     for (binding, index) in program_item.uniform_block_indices() {
         let value = match binding {
             UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
@@ -402,4 +422,114 @@ pub fn bind_uniforms(
             }
         }
     }
+}
+
+/// Binds a [`UniformValue`] to a [`WebGlUniformLocation`]
+pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, value: UniformValue) {
+    match value {
+        UniformValue::Bool(v) => {
+            if v {
+                state.gl().uniform1i(Some(location), 1)
+            } else {
+                state.gl().uniform1i(Some(location), 0)
+            }
+        }
+        UniformValue::UnsignedInteger1(x) => state.gl().uniform1ui(Some(location), x),
+        UniformValue::UnsignedInteger2(x, y) => state.gl().uniform2ui(Some(location), x, y),
+        UniformValue::UnsignedInteger3(x, y, z) => state.gl().uniform3ui(Some(location), x, y, z),
+        UniformValue::UnsignedInteger4(x, y, z, w) => {
+            state.gl().uniform4ui(Some(location), x, y, z, w)
+        }
+        UniformValue::Float1(x) => state.gl().uniform1f(Some(location), x),
+        UniformValue::Float2(x, y) => state.gl().uniform2f(Some(location), x, y),
+        UniformValue::Float3(x, y, z) => state.gl().uniform3f(Some(location), x, y, z),
+        UniformValue::Float4(x, y, z, w) => state.gl().uniform4f(Some(location), x, y, z, w),
+        UniformValue::Integer1(x) => state.gl().uniform1i(Some(location), x),
+        UniformValue::Integer2(x, y) => state.gl().uniform2i(Some(location), x, y),
+        UniformValue::Integer3(x, y, z) => state.gl().uniform3i(Some(location), x, y, z),
+        UniformValue::Integer4(x, y, z, w) => state.gl().uniform4i(Some(location), x, y, z, w),
+        UniformValue::FloatVector1(data) => {
+            state.gl().uniform1fv_with_f32_array(Some(location), &data)
+        }
+        UniformValue::FloatVector2(data) => {
+            state.gl().uniform2fv_with_f32_array(Some(location), &data)
+        }
+        UniformValue::FloatVector3(data) => {
+            state.gl().uniform3fv_with_f32_array(Some(location), &data)
+        }
+        UniformValue::FloatVector4(data) => {
+            state.gl().uniform4fv_with_f32_array(Some(location), &data)
+        }
+        UniformValue::IntegerVector1(data) => {
+            state.gl().uniform1iv_with_i32_array(Some(location), &data)
+        }
+        UniformValue::IntegerVector2(data) => {
+            state.gl().uniform2iv_with_i32_array(Some(location), &data)
+        }
+        UniformValue::IntegerVector3(data) => {
+            state.gl().uniform3iv_with_i32_array(Some(location), &data)
+        }
+        UniformValue::IntegerVector4(data) => {
+            state.gl().uniform4iv_with_i32_array(Some(location), &data)
+        }
+        UniformValue::UnsignedIntegerVector1(data) => {
+            state.gl().uniform1uiv_with_u32_array(Some(location), &data)
+        }
+        UniformValue::UnsignedIntegerVector2(data) => {
+            state.gl().uniform2uiv_with_u32_array(Some(location), &data)
+        }
+        UniformValue::UnsignedIntegerVector3(data) => {
+            state.gl().uniform3uiv_with_u32_array(Some(location), &data)
+        }
+        UniformValue::UnsignedIntegerVector4(data) => {
+            state.gl().uniform4uiv_with_u32_array(Some(location), &data)
+        }
+        UniformValue::Matrix2 { data, transpose } => {
+            state
+                .gl()
+                .uniform_matrix2fv_with_f32_array(Some(location), transpose, &data)
+        }
+        UniformValue::Matrix3 { data, transpose } => {
+            state
+                .gl()
+                .uniform_matrix3fv_with_f32_array(Some(location), transpose, &data)
+        }
+        UniformValue::Matrix4 { data, transpose } => {
+            state
+                .gl()
+                .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
+        }
+        UniformValue::Texture {
+            descriptor,
+            params,
+            texture_unit,
+        } => {
+            // active texture
+            state.gl().active_texture(texture_unit.gl_enum());
+
+            let (target, texture) = match state.texture_store_mut().use_texture(&descriptor) {
+                Ok(texture) => texture,
+                Err(err) => {
+                    warn!(
+                        target: "BindUniforms",
+                        "use texture store error: {}",
+                        err
+                    );
+                    return;
+                }
+            };
+            let texture = texture.clone();
+
+            // binds texture
+            state.gl().bind_texture(target, Some(&texture));
+            // setups sampler parameters
+            params
+                .iter()
+                .for_each(|param| param.tex_parameteri(state.gl(), target));
+            // binds to shader
+            state
+                .gl()
+                .uniform1i(Some(location), texture_unit.unit_index());
+        }
+    };
 }

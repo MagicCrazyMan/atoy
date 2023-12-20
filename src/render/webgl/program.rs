@@ -12,7 +12,7 @@ use super::{
     conversion::GLuint,
     error::Error,
     shader::{ShaderBuilder, ShaderType},
-    uniform::{UniformBinding, UniformBlockBinding},
+    uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
 };
 
 /// Source providing basic data for compiling a [`WebGlProgram`].
@@ -27,10 +27,13 @@ pub trait ProgramSource {
     /// Attribute binding variable name.
     fn attribute_bindings(&self) -> &[AttributeBinding];
 
-    /// Uniform binding variable names.
+    /// Uniform variable bindings.
     fn uniform_bindings(&self) -> &[UniformBinding];
 
-    /// Uniform block binding variable names.
+    /// Uniform structural variable bindings.
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding];
+
+    /// Uniform block variable bindings.
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
 }
 
@@ -56,6 +59,8 @@ pub struct ProgramItem {
     shaders: Vec<WebGlShader>,
     attributes: Rc<HashMap<AttributeBinding, GLuint>>,
     uniform_locations: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
+    uniform_structural_locations:
+        Rc<HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>>>,
     uniform_block_indices: Rc<HashMap<UniformBlockBinding, u32>>,
 }
 
@@ -78,6 +83,13 @@ impl ProgramItem {
     /// Returns uniform locations.
     pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
         &self.uniform_locations
+    }
+
+    /// Returns uniform struct field locations.
+    pub fn uniform_structural_locations(
+        &self,
+    ) -> &HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>> {
+        &self.uniform_structural_locations
     }
 
     /// Returns uniform block indices.
@@ -146,16 +158,21 @@ where
             gl,
             &program,
             source.attribute_bindings(),
-        )?),
+        )),
         uniform_locations: Rc::new(collect_uniform_locations(
             gl,
             &program,
             source.uniform_bindings(),
-        )?),
+        )),
         uniform_block_indices: Rc::new(collect_uniform_block_indices(
             gl,
             &program,
             source.uniform_block_bindings(),
+        )),
+        uniform_structural_locations: Rc::new(collect_uniform_structural_locations(
+            gl,
+            &program,
+            source.uniform_structural_bindings(),
         )),
         program,
         shaders,
@@ -256,7 +273,7 @@ fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
-) -> Result<HashMap<AttributeBinding, GLuint>, Error> {
+) -> HashMap<AttributeBinding, GLuint> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
@@ -264,20 +281,23 @@ fn collect_attribute_locations(
         let location = gl.get_attrib_location(program, variable_name);
         if location == -1 {
             // should log warning
-            warn!("failed to get attribute location of {}", variable_name);
+            warn!(
+                target: "CompileProgram",
+                "failed to get attribute location of {}", variable_name
+            );
         } else {
             locations.insert(binding.clone(), location as GLuint);
         }
     });
 
-    Ok(locations)
+    locations
 }
 
 fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],
-) -> Result<HashMap<UniformBinding, WebGlUniformLocation>, Error> {
+) -> HashMap<UniformBinding, WebGlUniformLocation> {
     let mut locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
@@ -285,8 +305,10 @@ fn collect_uniform_locations(
         let location = gl.get_uniform_location(program, variable_name);
         match location {
             None => {
-                // should log warning
-                warn!("failed to get uniform location of {}", variable_name);
+                warn!(
+                    target: "CompileProgram",
+                    "failed to get uniform location of {}", variable_name
+                );
             }
             Some(location) => {
                 locations.insert(binding.clone(), location);
@@ -294,7 +316,61 @@ fn collect_uniform_locations(
         }
     });
 
-    Ok(locations)
+    locations
+}
+
+fn collect_uniform_structural_locations(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+    bindings: &[UniformStructuralBinding],
+) -> HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>> {
+    let mut locations = HashMap::with_capacity(bindings.len());
+
+    bindings.into_iter().for_each(|binding| {
+        let variable_name = binding.variable_name();
+        let array_len = binding.array_len();
+        let fields = binding.fields();
+        let mut field_locations = HashMap::with_capacity(fields.len());
+        fields.iter().for_each(|field| {
+            match array_len {
+                Some(len) => {
+                    for index in 0..len {
+                        let complete_field_name = format!("{}[{}].{}", variable_name, index, field);
+                        let location = gl.get_uniform_location(program, &complete_field_name);
+                        match location {
+                            None => {
+                                warn!(
+                                    target: "CompileProgram",
+                                    "failed to get uniform location of {}", complete_field_name
+                                );
+                            }
+                            Some(location) => {
+                                field_locations.insert(complete_field_name, location);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    let complete_field_name = format!("{}.{}", variable_name, field);
+                    let location = gl.get_uniform_location(program, &complete_field_name);
+                    match location {
+                        None => {
+                            warn!(
+                                target: "CompileProgram",
+                                "failed to get uniform location of {}", complete_field_name
+                            );
+                        }
+                        Some(location) => {
+                            field_locations.insert(complete_field_name, location);
+                        }
+                    }
+                }
+            };
+        });
+        locations.insert(binding.clone(), field_locations);
+    });
+
+    locations
 }
 
 pub fn collect_uniform_block_indices(

@@ -20,7 +20,7 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue},
+            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding},
         },
     },
 };
@@ -343,6 +343,10 @@ impl ProgramSource for MultipleTexturesInstanced {
             UniformBinding::FromMaterial("u_Sampler6"),
             UniformBinding::FromMaterial("u_Sampler7"),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

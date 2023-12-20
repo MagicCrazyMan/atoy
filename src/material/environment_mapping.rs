@@ -16,7 +16,10 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TextureSource, TextureUnit,
             },
-            uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
 };
@@ -113,6 +116,10 @@ impl ProgramSource for EnvironmentMaterial {
             UniformBinding::ActiveCameraPosition,
             UniformBinding::FromMaterial(SAMPLER_UNIFORM),
         ]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {

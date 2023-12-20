@@ -1,4 +1,4 @@
-use super::{attribute::AttributeBinding, uniform::UniformBinding};
+use super::{attribute::AttributeBinding, uniform::{UniformBinding, UniformStructuralBinding}};
 
 /// Available shader types.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -108,6 +108,8 @@ pub enum Variable {
     FromAttributeBinding(AttributeBinding),
     /// Constructs from [`UniformBinding`], always to be `uniform`.
     FromUniformBinding(UniformBinding),
+    /// Constructs from [`UniformStructuralBinding`], always to be `uniform`.
+    FromUniformStructuralBinding(UniformStructuralBinding),
 }
 
 impl Variable {
@@ -201,6 +203,11 @@ impl Variable {
         Self::FromUniformBinding(binding)
     }
 
+    /// Constructs a new `uniform` variable from NON-CUSTOM [`UniformStructuralBinding`].
+    pub fn from_uniform_structural_binding(binding: UniformStructuralBinding) -> Self {
+        Self::FromUniformStructuralBinding(binding)
+    }
+
     fn build(&self) -> String {
         match self {
             Variable::In {
@@ -273,6 +280,14 @@ impl Variable {
                     .build(),
                 binding.variable_name(),
             ),
+            Variable::FromUniformStructuralBinding(binding) => format!(
+                "uniform {} {};",
+                binding
+                    .data_type()
+                    .expect("custom uniform binding is not supported")
+                    .build(),
+                binding.variable_name(),
+            )
         }
     }
 }

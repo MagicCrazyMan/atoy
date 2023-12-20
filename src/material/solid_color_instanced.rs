@@ -13,7 +13,7 @@ use crate::{
             BufferUsage,
         },
         program::{ProgramSource, ShaderSource},
-        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue},
+        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue, UniformStructuralBinding},
     },
 };
 
@@ -157,6 +157,10 @@ impl ProgramSource for SolidColorInstancedMaterial {
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
         &[UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix]
+    }
+
+    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
+        &[]
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
