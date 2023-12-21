@@ -81,8 +81,10 @@ impl ProgramSource for SolidColorMaterial {
                         UniformStructuralBinding::AmbientLight,
                     ),
                     Variable::from_uniform_block_binding(UniformBlockBinding::DiffuseLights),
+                    Variable::from_uniform_block_binding(UniformBlockBinding::SpecularLights),
                     Variable::from_uniform_binding(UniformBinding::AmbientReflection),
                     Variable::from_uniform_binding(UniformBinding::DiffuseReflection),
+                    Variable::from_uniform_binding(UniformBinding::SpecularReflection),
                     Variable::new_in("v_Normal", VariableDataType::FloatVec3),
                     Variable::new_in("v_Position", VariableDataType::FloatVec3),
                     Variable::new_out("o_FragColor", VariableDataType::FloatVec4),
@@ -91,18 +93,21 @@ impl ProgramSource for SolidColorMaterial {
                     include_str!("../light/shaders/attenuation.glsl"),
                     include_str!("../light/shaders/ambient.glsl"),
                     include_str!("../light/shaders/diffuse.glsl"),
+                    include_str!("../light/shaders/specular.glsl"),
                 ],
                 "void main() {
                     if (u_EnableLighting) {
                         vec3 ambient_reflection = vec3(u_AmbientReflection);
                         vec3 diffuse_reflection = vec3(u_DiffuseReflection);
+                        vec3 specular_reflection = vec3(u_SpecularReflection);
                         vec3 surface_normal = normalize(v_Normal);
                         vec3 surface_position = v_Position;
                         vec3 receiver_position = u_ActiveCameraPosition;
                         
                         vec3 ambient = ambient_light(u_AmbientLight, ambient_reflection);
                         vec3 diffuse = diffuse_lights(diffuse_reflection, surface_normal, surface_position, receiver_position);
-                        o_FragColor = vec4(ambient + diffuse, u_AmbientReflection.a);
+                        vec3 specular = specular_lights(specular_reflection, surface_normal, surface_position, receiver_position);
+                        o_FragColor = vec4(ambient + diffuse + specular, u_AmbientReflection.a);
                     } else {
                         o_FragColor = u_AmbientReflection;
                     }
@@ -127,6 +132,7 @@ impl ProgramSource for SolidColorMaterial {
             UniformBinding::EnableLighting,
             UniformBinding::AmbientReflection,
             UniformBinding::DiffuseReflection,
+            UniformBinding::SpecularReflection,
         ]
     }
 
@@ -135,14 +141,17 @@ impl ProgramSource for SolidColorMaterial {
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[UniformBlockBinding::DiffuseLights]
+        &[
+            UniformBlockBinding::DiffuseLights,
+            UniformBlockBinding::SpecularLights,
+        ]
     }
 }
 
 impl Material for SolidColorMaterial {
     fn transparency(&self) -> Transparency {
         if self.color.alpha == 0.0 {
-            Transparency::Opaque
+            Transparency::Transparent
         } else if self.color.alpha == 1.0 {
             Transparency::Opaque
         } else {
@@ -160,6 +169,15 @@ impl Material for SolidColorMaterial {
     }
 
     fn diffuse(&self) -> Option<Vec4> {
+        Some(Vec4::from_values(
+            self.color.red,
+            self.color.green,
+            self.color.blue,
+            1.0,
+        ))
+    }
+
+    fn specular(&self) -> Option<Vec4> {
         Some(Vec4::from_values(
             self.color.red,
             self.color.green,

@@ -26,6 +26,7 @@ use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::light::ambient::SimpleAmbientLight;
 use crate::light::diffuse::SimpleDiffuseLight;
+use crate::light::specular::SimpleSpecularLight;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
@@ -148,12 +149,24 @@ fn create_scene(
         60.0f64.to_radians(),
         1.0,
         0.5,
-        None,
+        Some(50.0),
     ));
     scene.set_ambient_light(Some(SimpleAmbientLight::new(0.2, 0.2, 0.2)));
     scene.add_diffuse_light(SimpleDiffuseLight::new(
         Vec3::from_values(0.0, 6.0, 0.0),
         Vec3::from_values(1.0, 1.0, 1.0),
+        Vec3::from_values(1.0, 0.05, 0.0),
+    ));
+    scene.add_specular_light(SimpleSpecularLight::new(
+        Vec3::from_values(0.0, 12.0, 0.0),
+        Vec3::from_values(1.0, 1.0, 1.0),
+        128.0,
+        Vec3::from_values(1.0, 0.05, 0.0),
+    ));
+    scene.add_specular_light(SimpleSpecularLight::new(
+        Vec3::from_values(6.0, 12.0, 0.0),
+        Vec3::from_values(1.0, 1.0, 1.0),
+        128.0,
         Vec3::from_values(1.0, 0.05, 0.0),
     ));
     scene

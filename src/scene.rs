@@ -1,17 +1,15 @@
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use log::warn;
 use wasm_bindgen::prelude::wasm_bindgen;
-use web_sys::js_sys::Uint8Array;
+use web_sys::js_sys::Float32Array;
 
 use crate::{
     camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
     light::{
         ambient::Ambient,
-        diffuse::{
-            Diffuse, DIFFUSE_LIGHTS_UNIFORM_BLOCK_BYTES_SIZE,
-            DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT, MAX_DIFFUSE_LIGHTS,
-        },
+        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS},
+        specular::{Specular, MAX_SPECULAR_LIGHTS},
     },
     render::{
         pp::Stuff,
@@ -41,6 +39,8 @@ pub struct Scene {
     ambient_light: Option<Box<dyn Ambient>>,
     diffuse_lights: Vec<Box<dyn Diffuse>>,
     diffuse_lights_descriptor: BufferDescriptor,
+    specular_lights: Vec<Box<dyn Specular>>,
+    specular_lights_descriptor: BufferDescriptor,
     entity_collection: EntityCollection,
 }
 
@@ -62,7 +62,12 @@ impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Self {
         let diffuse_lights_descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::preallocate(DIFFUSE_LIGHTS_UNIFORM_BLOCK_BYTES_SIZE as i32),
+            BufferSource::preallocate(64 * MAX_DIFFUSE_LIGHTS as i32),
+            BufferUsage::DynamicDraw,
+            MemoryPolicy::Unfree,
+        );
+        let specular_lights_descriptor = BufferDescriptor::with_memory_policy(
+            BufferSource::preallocate(64 * MAX_SPECULAR_LIGHTS as i32),
             BufferUsage::DynamicDraw,
             MemoryPolicy::Unfree,
         );
@@ -72,6 +77,8 @@ impl Scene {
             ambient_light: None,
             diffuse_lights: Vec::new(),
             diffuse_lights_descriptor,
+            specular_lights: Vec::new(),
+            specular_lights_descriptor,
             entity_collection: EntityCollection::new(),
         }
     }
@@ -176,70 +183,35 @@ impl Scene {
         L: Diffuse + 'static,
     {
         if self.diffuse_lights.len() == MAX_DIFFUSE_LIGHTS {
-            warn!("only {} diffuse lights accepts", MAX_DIFFUSE_LIGHTS);
+            warn!("only {} diffuse lights available", MAX_DIFFUSE_LIGHTS);
             return;
         }
 
-        let bytes_per_light = DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT as u32;
-        let count_buffer = Uint8Array::new_with_length(16);
-        let light_buffer = Uint8Array::new_with_length(bytes_per_light);
-        let index = self.diffuse_lights.len() as u32;
-        let count = (index + 1).to_ne_bytes();
-        count_buffer.set_index(0, count[0]);
-        count_buffer.set_index(1, count[1]);
-        count_buffer.set_index(2, count[2]);
-        count_buffer.set_index(3, count[3]);
-
-        // enabled
-        light_buffer.set_index(0, 1);
+        let buffer = Float32Array::new_with_length(12);
+        let index = self.specular_lights.len() as u32;
         // color
-        let color = light.color().to_gl_binary();
-        light_buffer.set_index(16, color[0]);
-        light_buffer.set_index(17, color[1]);
-        light_buffer.set_index(18, color[2]);
-        light_buffer.set_index(19, color[3]);
-        light_buffer.set_index(20, color[4]);
-        light_buffer.set_index(21, color[5]);
-        light_buffer.set_index(22, color[6]);
-        light_buffer.set_index(23, color[7]);
-        light_buffer.set_index(24, color[8]);
-        light_buffer.set_index(25, color[9]);
-        light_buffer.set_index(26, color[10]);
-        light_buffer.set_index(27, color[11]);
+        let color = light.color().to_gl();
+        buffer.set_index(0, color[0]);
+        buffer.set_index(1, color[1]);
+        buffer.set_index(2, color[2]);
+        buffer.set_index(3, 0.0);
         // position
-        let position = light.position().to_gl_binary();
-        light_buffer.set_index(32, position[0]);
-        light_buffer.set_index(33, position[1]);
-        light_buffer.set_index(34, position[2]);
-        light_buffer.set_index(35, position[3]);
-        light_buffer.set_index(36, position[4]);
-        light_buffer.set_index(37, position[5]);
-        light_buffer.set_index(38, position[6]);
-        light_buffer.set_index(39, position[7]);
-        light_buffer.set_index(40, position[8]);
-        light_buffer.set_index(41, position[9]);
-        light_buffer.set_index(42, position[10]);
-        light_buffer.set_index(43, position[11]);
+        let position = light.position().to_gl();
+        buffer.set_index(4, position[0]);
+        buffer.set_index(5, position[1]);
+        buffer.set_index(6, position[2]);
+        buffer.set_index(7, 0.0);
         // attenuations
-        let attenuations = light.attenuations().to_gl_binary();
-        light_buffer.set_index(48, attenuations[0]);
-        light_buffer.set_index(49, attenuations[1]);
-        light_buffer.set_index(50, attenuations[2]);
-        light_buffer.set_index(51, attenuations[3]);
-        light_buffer.set_index(52, attenuations[4]);
-        light_buffer.set_index(53, attenuations[5]);
-        light_buffer.set_index(54, attenuations[6]);
-        light_buffer.set_index(55, attenuations[7]);
-        light_buffer.set_index(56, attenuations[8]);
-        light_buffer.set_index(57, attenuations[9]);
-        light_buffer.set_index(58, attenuations[10]);
-        light_buffer.set_index(59, attenuations[11]);
+        let attenuations = light.attenuations().to_gl();
+        buffer.set_index(8, attenuations[0]);
+        buffer.set_index(9, attenuations[1]);
+        buffer.set_index(10, attenuations[2]);
+        // enabled
+        buffer.set_index(11, 1.0);
 
-        self.diffuse_lights_descriptor
-            .buffer_sub_data(BufferSource::from_uint8_array(count_buffer, 0, 16), 0);
         self.diffuse_lights_descriptor.buffer_sub_data(
-            BufferSource::from_uint8_array(light_buffer, 0, bytes_per_light),
-            (16 + index * bytes_per_light) as i32,
+            BufferSource::from_float32_array(buffer, 0, 12),
+            (index * 48) as i32,
         );
 
         self.diffuse_lights.push(Box::new(light));
@@ -248,6 +220,49 @@ impl Scene {
     /// Removes a diffuse light by index.
     pub fn remove_diffuse_light(&mut self, index: usize) -> Box<dyn Diffuse> {
         self.diffuse_lights.remove(index)
+    }
+
+    /// Adds a specular light.
+    pub fn add_specular_light<L>(&mut self, light: L)
+    where
+        L: Specular + 'static,
+    {
+        if self.specular_lights.len() == MAX_SPECULAR_LIGHTS {
+            warn!("only {} specular lights available", MAX_SPECULAR_LIGHTS);
+            return;
+        }
+
+        let buffer = Float32Array::new_with_length(16);
+        let index = self.specular_lights.len() as u32;
+        // color
+        let color = light.color().to_gl();
+        buffer.set_index(0, color[0]);
+        buffer.set_index(1, color[1]);
+        buffer.set_index(2, color[2]);
+        buffer.set_index(3, 0.0);
+        // position
+        let position = light.position().to_gl();
+        buffer.set_index(4, position[0]);
+        buffer.set_index(5, position[1]);
+        buffer.set_index(6, position[2]);
+        buffer.set_index(7, 0.0);
+        // attenuations
+        let attenuations = light.attenuations().to_gl();
+        buffer.set_index(8, attenuations[0]);
+        buffer.set_index(9, attenuations[1]);
+        buffer.set_index(10, attenuations[2]);
+        // shininess
+        let shininess = light.shininess();
+        buffer.set_index(11, shininess);
+        // enabled
+        buffer.set_index(12, 1.0);
+
+        self.specular_lights_descriptor.buffer_sub_data(
+            BufferSource::from_float32_array(buffer, 0, 16),
+            (index * 64) as i32,
+        );
+
+        self.specular_lights.push(Box::new(light));
     }
 }
 
@@ -284,7 +299,6 @@ impl<'a> Stuff for SceneStuff<'a> {
     }
 
     fn diffuse_lights(&self) -> Vec<&dyn Diffuse> {
-        log::info!("3333");
         self.scene
             .diffuse_lights
             .iter()
@@ -298,5 +312,17 @@ impl<'a> Stuff for SceneStuff<'a> {
 
     fn diffuse_lights_descriptor(&self) -> BufferDescriptor {
         self.scene.diffuse_lights_descriptor.clone()
+    }
+
+    fn specular_lights(&self) -> Vec<&dyn Specular> {
+        self.scene
+            .specular_lights
+            .iter()
+            .map(|light| light.as_ref())
+            .collect()
+    }
+
+    fn specular_lights_descriptor(&self) -> BufferDescriptor {
+        self.scene.specular_lights_descriptor.clone()
     }
 }

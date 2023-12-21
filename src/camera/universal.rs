@@ -341,7 +341,7 @@ impl UniversalCamera {
         let proj = Mat4::from_perspective(fovy, aspect, near, far);
         let frustum = frustum(&view, fovy, aspect, near, far);
 
-        let default_movement = 10.0;
+        let default_movement = 1.0;
         let default_rotation = PI / 360.0;
 
         let sharable = Shareable {

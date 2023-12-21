@@ -9,14 +9,15 @@ use std::{
 
 use gl_matrix4rust::vec3::AsVec3;
 use uuid::Uuid;
-use web_sys::{js_sys::Uint8Array, HtmlCanvasElement, WebGl2RenderingContext};
+use web_sys::{js_sys::Float32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     camera::Camera,
     entity::collection::EntityCollection,
     light::{
         ambient::Ambient,
-        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS, DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT},
+        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS},
+        specular::{Specular, MAX_SPECULAR_LIGHTS},
     },
 };
 
@@ -54,64 +55,77 @@ pub trait Stuff {
     fn diffuse_lights_descriptor(&self) -> BufferDescriptor {
         let lights = self.diffuse_lights();
         let lights = &lights[..MAX_DIFFUSE_LIGHTS.min(lights.len())];
-        let bytes_per_light = DIFFUSE_LIGHTS_UNIFORM_BLOCK_STRUCT_BYTES_SIZE_PER_LIGHT as u32;
-        let buffer = Uint8Array::new_with_length(16 + bytes_per_light * MAX_DIFFUSE_LIGHTS as u32);
-        // count
-        let count = (lights.len() as u32).to_ne_bytes();
-        buffer.set_index(0, count[0]);
-        buffer.set_index(1, count[1]);
-        buffer.set_index(2, count[2]);
-        buffer.set_index(3, count[3]);
+        let size = 12;
+        let buffer = Float32Array::new_with_length(size * MAX_DIFFUSE_LIGHTS as u32);
         for (index, light) in lights.into_iter().enumerate() {
-            // enabled
-            buffer.set_index(16 + index as u32 * bytes_per_light + 0, 1);
+            let index = index as u32;
             // color
-            let color = light.color().to_gl_binary();
-            buffer.set_index(16 + index as u32 * bytes_per_light + 16, color[0]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 17, color[1]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 18, color[2]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 19, color[3]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 20, color[4]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 21, color[5]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 22, color[6]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 23, color[7]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 24, color[8]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 25, color[9]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 26, color[10]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 27, color[11]);
+            let color = light.color().to_gl();
+            buffer.set_index(index * size + 0, color[0]);
+            buffer.set_index(index * size + 1, color[1]);
+            buffer.set_index(index * size + 2, color[2]);
+            buffer.set_index(index * size + 3, 0.0);
             // position
-            let position = light.position().to_gl_binary();
-            buffer.set_index(16 + index as u32 * bytes_per_light + 32, position[0]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 33, position[1]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 34, position[2]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 35, position[3]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 36, position[4]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 37, position[5]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 38, position[6]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 39, position[7]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 40, position[8]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 41, position[9]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 42, position[10]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 43, position[11]);
+            let position = light.position().to_gl();
+            buffer.set_index(index * size + 4, position[0]);
+            buffer.set_index(index * size + 5, position[1]);
+            buffer.set_index(index * size + 6, position[2]);
+            buffer.set_index(index * size + 7, 0.0);
             // attenuations
-            let attenuations = light.attenuations().to_gl_binary();
-            buffer.set_index(16 + index as u32 * bytes_per_light + 48, attenuations[0]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 49, attenuations[1]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 50, attenuations[2]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 51, attenuations[3]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 52, attenuations[4]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 53, attenuations[5]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 54, attenuations[6]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 55, attenuations[7]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 56, attenuations[8]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 57, attenuations[9]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 58, attenuations[10]);
-            buffer.set_index(16 + index as u32 * bytes_per_light + 59, attenuations[11]);
+            let attenuations = light.attenuations().to_gl();
+            buffer.set_index(index * size + 8, attenuations[0]);
+            buffer.set_index(index * size + 9, attenuations[1]);
+            buffer.set_index(index * size + 10, attenuations[2]);
+            // enabled
+            buffer.set_index(index * size + 11, 1.0);
         }
         let descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::from_uint8_array(buffer, 0, 0),
+            BufferSource::from_float32_array(buffer, 0, size * MAX_DIFFUSE_LIGHTS as u32),
             BufferUsage::StaticDraw,
-            MemoryPolicy::Unfree,
+            MemoryPolicy::Default,
+        );
+
+        descriptor
+    }
+
+    /// Returns specular light sources.
+    fn specular_lights(&self) -> Vec<&dyn Specular>;
+
+    fn specular_lights_descriptor(&self) -> BufferDescriptor {
+        let lights = self.specular_lights();
+        let lights = &lights[..MAX_SPECULAR_LIGHTS.min(lights.len())];
+
+        let size = 16;
+        let buffer = Float32Array::new_with_length(size * MAX_SPECULAR_LIGHTS as u32);
+        for (index, light) in lights.into_iter().enumerate() {
+            let index = index as u32;
+            // color
+            let color = light.color().to_gl();
+            buffer.set_index(index * size + 0, color[0]);
+            buffer.set_index(index * size + 1, color[1]);
+            buffer.set_index(index * size + 2, color[2]);
+            buffer.set_index(index * size + 3, 0.0);
+            // position
+            let position = light.position().to_gl();
+            buffer.set_index(index * size + 4, position[0]);
+            buffer.set_index(index * size + 5, position[1]);
+            buffer.set_index(index * size + 6, position[2]);
+            buffer.set_index(index * size + 7, 0.0);
+            // attenuations
+            let attenuations = light.attenuations().to_gl();
+            buffer.set_index(index * size + 8, attenuations[0]);
+            buffer.set_index(index * size + 9, attenuations[1]);
+            buffer.set_index(index * size + 10, attenuations[2]);
+            // shininess
+            let shininess = light.shininess();
+            buffer.set_index(index * size + 11, shininess);
+            // enabled
+            buffer.set_index(index * size + 12, 1.0);
+        }
+        let descriptor = BufferDescriptor::with_memory_policy(
+            BufferSource::from_float32_array(buffer, 0, size * MAX_DIFFUSE_LIGHTS as u32),
+            BufferUsage::StaticDraw,
+            MemoryPolicy::Default,
         );
 
         descriptor

@@ -1,6 +1,7 @@
 pub mod ambient;
 pub mod diffuse;
 pub mod pointlight;
+pub mod specular;
 
 use gl_matrix4rust::vec3::Vec3;
 

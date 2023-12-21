@@ -96,6 +96,7 @@ pub enum UniformBinding {
     EnableLighting,
     AmbientReflection,
     DiffuseReflection,
+    SpecularReflection,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -116,6 +117,7 @@ impl UniformBinding {
             UniformBinding::EnableLighting => "u_EnableLighting",
             UniformBinding::AmbientReflection => "u_AmbientReflection",
             UniformBinding::DiffuseReflection => "u_DiffuseReflection",
+            UniformBinding::SpecularReflection => "u_SpecularReflection",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
@@ -136,6 +138,7 @@ impl UniformBinding {
             UniformBinding::EnableLighting => Some(VariableDataType::Bool),
             UniformBinding::AmbientReflection => Some(VariableDataType::FloatVec4),
             UniformBinding::DiffuseReflection => Some(VariableDataType::FloatVec4),
+            UniformBinding::SpecularReflection => Some(VariableDataType::FloatVec4),
             UniformBinding::FromGeometry(_)
             | UniformBinding::FromMaterial(_)
             | UniformBinding::FromEntity(_) => None,
@@ -147,6 +150,7 @@ impl UniformBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBlockBinding {
     DiffuseLights,
+    SpecularLights,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -157,6 +161,7 @@ impl UniformBlockBinding {
     pub fn variable_name(&self) -> &str {
         match self {
             UniformBlockBinding::DiffuseLights => "DiffuseLights",
+            UniformBlockBinding::SpecularLights => "SpecularLights",
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
             | UniformBlockBinding::FromEntity(name) => name,
@@ -272,6 +277,9 @@ pub fn bind_uniforms(
             UniformBinding::DiffuseReflection => material
                 .diffuse()
                 .map(|c| UniformValue::FloatVector4(c.to_gl())),
+            UniformBinding::SpecularReflection => material
+                .specular()
+                .map(|c| UniformValue::FloatVector4(c.to_gl())),
             UniformBinding::CanvasSize => state
                 .gl()
                 .canvas()
@@ -358,6 +366,11 @@ pub fn bind_uniforms(
                 descriptor: stuff.diffuse_lights_descriptor(),
                 target: BufferTarget::UniformBuffer,
                 uniform_block_binding: 1,
+            }),
+            UniformBlockBinding::SpecularLights => Some(UniformBlockValue::BufferBase {
+                descriptor: stuff.specular_lights_descriptor(),
+                target: BufferTarget::UniformBuffer,
+                uniform_block_binding: 2,
             }),
             UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
             UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
