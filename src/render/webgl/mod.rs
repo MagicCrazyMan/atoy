@@ -116,10 +116,10 @@ impl WebGL2Render {
             .create_element("canvas")
             .ok()
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(Error::CreateCanvasFailure)?;
+            .ok_or(Error::CreateCanvasFailed)?;
         canvas
             .set_attribute("tabindex", "0")
-            .map_err(|_| Error::CreateCanvasFailure)?;
+            .map_err(|_| Error::CreateCanvasFailed)?;
         canvas
             .style()
             .set_css_text("width: 100%; height: 100%; outline: none;");
@@ -199,7 +199,7 @@ impl WebGL2Render {
 
                 // mounts canvas to target
                 if let Err(_) = mount.append_child(&self.canvas) {
-                    return Err(Error::MountElementFailure);
+                    return Err(Error::MountElementFailed);
                 };
                 let width = mount.client_width() as u32;
                 let height = mount.client_height() as u32;

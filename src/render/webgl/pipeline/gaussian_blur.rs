@@ -128,7 +128,7 @@ impl Executor for GaussianBlur {
             let attributes_buffer = state
                 .gl()
                 .create_buffer()
-                .ok_or(Error::CreateBufferFailure)?;
+                .ok_or(Error::CreateBufferFailed)?;
             state.gl().bind_buffer(
                 WebGl2RenderingContext::ARRAY_BUFFER,
                 Some(&attributes_buffer),
@@ -142,7 +142,7 @@ impl Executor for GaussianBlur {
             let uniform_buffer = state
                 .gl()
                 .create_buffer()
-                .ok_or(Error::CreateBufferFailure)?;
+                .ok_or(Error::CreateBufferFailed)?;
             // creates padded uniform buffer data for kernel
             let kernel_data = {
                 let kernel_data = Float32Array::new_with_length(81 * 4);

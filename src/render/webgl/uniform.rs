@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    buffer::{BufferDescriptor, BufferItem, BufferTarget},
+    buffer::{BufferDescriptor, BufferTarget},
     conversion::{GLintptr, GLsizeiptr, ToGlEnum},
     program::ProgramItem,
     shader::VariableDataType,
@@ -233,6 +233,10 @@ impl UniformStructuralBinding {
     }
 }
 
+pub struct BoundUniform {
+    descriptor: BufferDescriptor,
+}
+
 /// Binds uniform data from a entity.
 pub fn bind_uniforms(
     state: &mut State,
@@ -241,7 +245,7 @@ pub fn bind_uniforms(
     geometry: &dyn Geometry,
     material: &dyn Material,
     program_item: &ProgramItem,
-) -> Vec<BufferItem> {
+) -> Vec<BoundUniform> {
     // binds simple uniforms
     for (binding, location) in program_item.uniform_locations() {
         let value = match binding {
@@ -359,7 +363,7 @@ pub fn bind_uniforms(
     }
 
     // binds uniform blocks
-    let mut buffer_items = Vec::with_capacity(program_item.uniform_block_indices().len());
+    let mut bounds = Vec::with_capacity(program_item.uniform_block_indices().len());
     for (binding, uniform_block_index) in program_item.uniform_block_indices() {
         let value = match binding {
             UniformBlockBinding::DiffuseLights => Some(UniformBlockValue::BufferBase {
@@ -388,7 +392,7 @@ pub fn bind_uniforms(
                 target,
                 uniform_block_binding,
             } => {
-                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
@@ -400,24 +404,18 @@ pub fn bind_uniforms(
                     }
                 };
 
-                state
-                    .gl()
-                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
-
+                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
                 state.gl().uniform_block_binding(
                     program_item.gl_program(),
                     *uniform_block_index,
                     uniform_block_binding,
                 );
-                state.gl().bind_buffer_base(
-                    target.gl_enum(),
-                    uniform_block_binding,
-                    Some(&buffer_item.gl_buffer()),
-                );
-
+                state
+                    .gl()
+                    .bind_buffer_base(target.gl_enum(), uniform_block_binding, Some(&buffer));
                 state.gl().bind_buffer(target.gl_enum(), None);
 
-                buffer_items.push(buffer_item);
+                bounds.push(BoundUniform { descriptor });
             }
             UniformBlockValue::BufferRange {
                 descriptor,
@@ -426,7 +424,7 @@ pub fn bind_uniforms(
                 size,
                 uniform_block_binding,
             } => {
-                let buffer_item = match state.buffer_store_mut().use_buffer(descriptor, target) {
+                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
                     Ok(buffer) => buffer,
                     Err(err) => {
                         warn!(
@@ -438,10 +436,7 @@ pub fn bind_uniforms(
                     }
                 };
 
-                state
-                    .gl()
-                    .bind_buffer(target.gl_enum(), Some(&buffer_item.gl_buffer()));
-
+                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
                 state.gl().uniform_block_binding(
                     program_item.gl_program(),
                     *uniform_block_index,
@@ -450,19 +445,18 @@ pub fn bind_uniforms(
                 state.gl().bind_buffer_range_with_i32_and_i32(
                     target.gl_enum(),
                     *uniform_block_index,
-                    Some(&buffer_item.gl_buffer()),
+                    Some(&buffer),
                     offset,
                     size,
                 );
-
                 state.gl().bind_buffer(target.gl_enum(), None);
 
-                buffer_items.push(buffer_item);
+                bounds.push(BoundUniform { descriptor });
             }
         }
     }
 
-    buffer_items
+    bounds
 }
 
 /// Binds a [`UniformValue`] to a [`WebGlUniformLocation`]
@@ -573,4 +567,14 @@ pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, va
                 .uniform1i(Some(location), texture_unit.unit_index());
         }
     };
+}
+
+/// Unbinds all uniforms after draw calls.
+///
+/// If you bind buffer attributes ever,
+/// remember to unbind them by yourself or use this function.
+pub fn unbind_attributes(state: &mut State, bounds: Vec<BoundUniform>) {
+    for BoundUniform { descriptor } in bounds {
+        state.buffer_store_mut().unuse_buffer(&descriptor);
+    }
 }

@@ -66,9 +66,9 @@ pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material)
                 offset,
                 indices,
             } => {
-                let buffer_item = match state
+                let buffer = match state
                     .buffer_store_mut()
-                    .use_buffer(indices, BufferTarget::ElementArrayBuffer)
+                    .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
                 {
                     Ok(buffer) => buffer,
                     Err(err) => {
@@ -81,10 +81,9 @@ pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material)
                     }
                 };
 
-                state.gl().bind_buffer(
-                    BufferTarget::ElementArrayBuffer.gl_enum(),
-                    Some(&buffer_item.gl_buffer()),
-                );
+                state
+                    .gl()
+                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
                 state.gl().draw_elements_instanced_with_i32(
                     mode.gl_enum(),
                     count,
@@ -92,6 +91,10 @@ pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material)
                     offset,
                     num_instances,
                 );
+                state
+                    .gl()
+                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
+                state.buffer_store_mut().unuse_buffer(&indices);
             }
         }
     } else {
@@ -107,9 +110,9 @@ pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material)
                 offset,
                 indices,
             } => {
-                let buffer_item = match state
+                let buffer = match state
                     .buffer_store_mut()
-                    .use_buffer(indices, BufferTarget::ElementArrayBuffer)
+                    .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
                 {
                     Ok(buffer) => buffer,
                     Err(err) => {
@@ -122,16 +125,19 @@ pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material)
                     }
                 };
 
-                state.gl().bind_buffer(
-                    BufferTarget::ElementArrayBuffer.gl_enum(),
-                    Some(&buffer_item.gl_buffer()),
-                );
+                state
+                    .gl()
+                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
                 state.gl().draw_elements_with_i32(
                     mode.gl_enum(),
                     count,
                     element_type.gl_enum(),
                     offset,
                 );
+                state
+                    .gl()
+                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
+                state.buffer_store_mut().unuse_buffer(&indices);
             }
         }
     }

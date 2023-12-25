@@ -199,25 +199,25 @@ pub fn compile_shaders(
         ShaderSource::Builder(builder) => match builder.shader_type() {
             ShaderType::Vertex => (
                 gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                    .ok_or(Error::CreateVertexShaderFailure)?,
+                    .ok_or(Error::CreateVertexShaderFailed)?,
                 Cow::Owned(builder.build()),
             ),
             ShaderType::Fragment => (
                 gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                    .ok_or(Error::CreateVertexShaderFailure)?,
+                    .ok_or(Error::CreateVertexShaderFailed)?,
                 Cow::Owned(builder.build()),
             ),
         },
         ShaderSource::VertexRaw(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                .ok_or(Error::CreateVertexShaderFailure)?;
+                .ok_or(Error::CreateVertexShaderFailed)?;
             (shader, Cow::Borrowed(*code))
         }
         ShaderSource::FragmentRaw(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                .ok_or(Error::CreateFragmentShaderFailure)?;
+                .ok_or(Error::CreateFragmentShaderFailed)?;
             (shader, Cow::Borrowed(*code))
         }
     };
@@ -245,7 +245,7 @@ pub fn create_program(
     gl: &WebGl2RenderingContext,
     shaders: &[WebGlShader],
 ) -> Result<WebGlProgram, Error> {
-    let program = gl.create_program().ok_or(Error::CreateProgramFailure)?;
+    let program = gl.create_program().ok_or(Error::CreateProgramFailed)?;
 
     // attaches shader to program
     for shader in shaders {

@@ -79,7 +79,7 @@ impl Executor for StandardComposer {
             let buffer = state
                 .gl()
                 .create_buffer()
-                .ok_or(Error::CreateBufferFailure)?;
+                .ok_or(Error::CreateBufferFailed)?;
             state
                 .gl()
                 .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));

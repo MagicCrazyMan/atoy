@@ -20,7 +20,7 @@ use super::{
 /// Creates a [`WebGlFramebuffer`].
 pub fn create_framebuffer(gl: &WebGl2RenderingContext) -> Result<WebGlFramebuffer, Error> {
     gl.create_framebuffer()
-        .ok_or(Error::CreateFramebufferFailure)
+        .ok_or(Error::CreateFramebufferFailed)
 }
 
 /// Creates a [`WebGlFramebuffer`] with [`RenderbufferInternalFormat`], width and height.
@@ -32,7 +32,7 @@ pub fn create_renderbuffer(
 ) -> Result<WebGlRenderbuffer, Error> {
     let renderbuffer = gl
         .create_renderbuffer()
-        .ok_or(Error::CreateRenderbufferFailure)?;
+        .ok_or(Error::CreateRenderbufferFailed)?;
 
     gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
     gl.renderbuffer_storage(
@@ -55,7 +55,7 @@ pub fn create_texture_2d(
     width: i32,
     height: i32,
 ) -> Result<WebGlTexture, Error> {
-    let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
+    let texture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
 
     gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
@@ -208,7 +208,7 @@ impl OffscreenFramebuffer {
 
         let framebuffer = gl
             .create_framebuffer()
-            .ok_or(Error::CreateFramebufferFailure)?;
+            .ok_or(Error::CreateFramebufferFailed)?;
         self.framebuffer = Some(framebuffer);
 
         Ok(())
@@ -223,7 +223,7 @@ impl OffscreenFramebuffer {
 
         let mut textures = Vec::with_capacity(self.texture_providers.len());
         for provider in &self.texture_providers {
-            let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
+            let texture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
             gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
             gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -263,7 +263,7 @@ impl OffscreenFramebuffer {
         for provider in &self.renderbuffer_providers {
             let renderbuffer = gl
                 .create_renderbuffer()
-                .ok_or(Error::CreateRenderbufferFailure)?;
+                .ok_or(Error::CreateRenderbufferFailed)?;
             gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
             gl.renderbuffer_storage(
                 WebGl2RenderingContext::RENDERBUFFER,

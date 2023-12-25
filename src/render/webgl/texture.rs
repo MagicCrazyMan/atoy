@@ -914,7 +914,7 @@ impl TextureStore {
                 let texture_target = data.texture_target();
                 // create texture
                 let Some(texture) = self.gl.create_texture() else {
-                    return Err(Error::CreateTextureFailure);
+                    return Err(Error::CreateTextureFailed);
                 };
 
                 // binds texture

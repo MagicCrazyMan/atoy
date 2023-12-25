@@ -13,7 +13,10 @@ use crate::{
     },
     render::{
         pp::Stuff,
-        webgl::buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
+        webgl::{
+            buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
+            conversion::{GLsizeiptr, GLuint},
+        },
     },
 };
 
@@ -62,12 +65,12 @@ impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Self {
         let diffuse_lights_descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::preallocate(64 * MAX_DIFFUSE_LIGHTS as i32),
+            BufferSource::preallocate(64 * MAX_DIFFUSE_LIGHTS as GLsizeiptr),
             BufferUsage::DynamicDraw,
             MemoryPolicy::Unfree,
         );
         let specular_lights_descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::preallocate(64 * MAX_SPECULAR_LIGHTS as i32),
+            BufferSource::preallocate(64 * MAX_SPECULAR_LIGHTS as GLsizeiptr),
             BufferUsage::DynamicDraw,
             MemoryPolicy::Unfree,
         );
@@ -211,7 +214,7 @@ impl Scene {
 
         self.diffuse_lights_descriptor.buffer_sub_data(
             BufferSource::from_float32_array(buffer, 0, 12),
-            (index * 48) as i32,
+            (index * 48) as GLsizeiptr,
         );
 
         self.diffuse_lights.push(Box::new(light));
@@ -259,7 +262,7 @@ impl Scene {
 
         self.specular_lights_descriptor.buffer_sub_data(
             BufferSource::from_float32_array(buffer, 0, 16),
-            (index * 64) as i32,
+            (index * 64) as GLsizeiptr,
         );
 
         self.specular_lights.push(Box::new(light));
