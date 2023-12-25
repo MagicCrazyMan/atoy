@@ -696,7 +696,6 @@ impl MemoryPolicy {
 /// Inner item of a [`BufferStore`].
 struct StorageItem {
     using: bool,
-    target: BufferTarget,
     bytes_length: i32,
     buffer: WebGlBuffer,
     lru_node: *mut LruNode<Uuid>,
@@ -760,11 +759,15 @@ impl BufferStoreInner {
                     MemoryPolicy::Default => {
                         // default, gets buffer data back from WebGlBuffer
                         let data = Uint8Array::new_with_length(item.bytes_length as u32);
-                        let target = item.target.gl_enum();
-                        self.gl.bind_buffer(target, Some(&item.buffer));
                         self.gl
-                            .get_buffer_sub_data_with_i32_and_array_buffer_view(target, 0, &data);
-                        self.gl.bind_buffer(target, None);
+                            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&item.buffer));
+                        self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                            WebGl2RenderingContext::ARRAY_BUFFER,
+                            0,
+                            &data,
+                        );
+                        self.gl
+                            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
                         self.gl.delete_buffer(Some(&item.buffer));
 
                         descriptor.consumed_bytes_length = item.bytes_length;
@@ -844,11 +847,15 @@ impl Drop for BufferStoreInner {
             // recovers data back to descriptor
             if self.recover_descriptor_when_drop {
                 let data = Uint8Array::new_with_length(item.bytes_length as u32);
-                let target = item.target.gl_enum();
-                self.gl.bind_buffer(target, Some(&item.buffer));
                 self.gl
-                    .get_buffer_sub_data_with_i32_and_array_buffer_view(target, 0, &data);
-                self.gl.bind_buffer(target, None);
+                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&item.buffer));
+                self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+                    WebGl2RenderingContext::ARRAY_BUFFER,
+                    0,
+                    &data,
+                );
+                self.gl
+                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
                 self.gl.delete_buffer(Some(&item.buffer));
 
                 descriptor.borrow_mut().consumed_bytes_length = item.bytes_length;
@@ -942,7 +949,6 @@ impl BufferStore {
             Entry::Vacant(vacant) => {
                 let item = StorageItem {
                     using: false,
-                    target,
                     bytes_length: 0,
                     buffer: store_inner
                         .gl
