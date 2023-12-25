@@ -1,9 +1,11 @@
 use uuid::Uuid;
 
+use super::conversion::GLuint;
+
 #[derive(Debug, Clone)]
 pub enum Error {
     MatrixError(gl_matrix4rust::error::Error),
-    WenGL2Unsupported,
+    WebGL2Unsupported,
     CanvasNotFound,
     MountElementNotFound,
     MountElementFailed,
@@ -16,11 +18,10 @@ pub enum Error {
     CreateTextureFailed,
     CreateVertexShaderFailed,
     CreateFragmentShaderFailed,
-    CompileShaderFailure(Option<String>),
-    CompileProgramFailure(Option<String>),
-    PickFailure(Option<String>),
-    BufferStorageNotFound(Uuid),
-    BufferUnexpectedDropped,
+    CompileShaderFailed(Option<String>),
+    CompileProgramFailed(Option<String>),
+    PickFailed(Option<String>),
+    UniformBufferObjectAlreadyBound(GLuint),
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
     CommonWebGLError(Option<String>),

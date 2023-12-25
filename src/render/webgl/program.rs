@@ -234,7 +234,7 @@ pub fn compile_shaders(
     if !success {
         let err = gl.get_shader_info_log(&shader).map(|err| err);
         gl.delete_shader(Some(&shader));
-        Err(Error::CompileShaderFailure(err))
+        Err(Error::CompileShaderFailed(err))
     } else {
         Ok(shader)
     }
@@ -263,7 +263,7 @@ pub fn create_program(
     if !success {
         let err = gl.get_program_info_log(&program).map(|err| err);
         gl.delete_program(Some(&program));
-        Err(Error::CompileProgramFailure(err))
+        Err(Error::CompileProgramFailed(err))
     } else {
         Ok(program)
     }

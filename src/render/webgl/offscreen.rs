@@ -5,6 +5,9 @@
 //! [`ProgramStore`](super::program::ProgramStore), stuffs created from here does not manage automatically,
 //! you should cleanups everything by yourself when finishing drawing.
 
+use std::borrow::Cow;
+
+use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
     js_sys::Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
@@ -16,6 +19,64 @@ use super::{
     renderbuffer::RenderbufferInternalFormat,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
+
+/// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FramebufferTarget {
+    FRAMEBUFFER,
+    READ_FRAMEBUFFER,
+    DRAW_FRAMEBUFFER,
+}
+
+/// Available framebuffer attachments mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FramebufferAttachment {
+    COLOR_ATTACHMENT0,
+    COLOR_ATTACHMENT1,
+    COLOR_ATTACHMENT2,
+    COLOR_ATTACHMENT3,
+    COLOR_ATTACHMENT4,
+    COLOR_ATTACHMENT5,
+    COLOR_ATTACHMENT6,
+    COLOR_ATTACHMENT7,
+    COLOR_ATTACHMENT8,
+    COLOR_ATTACHMENT9,
+    COLOR_ATTACHMENT10,
+    COLOR_ATTACHMENT11,
+    COLOR_ATTACHMENT12,
+    COLOR_ATTACHMENT13,
+    COLOR_ATTACHMENT14,
+    COLOR_ATTACHMENT15,
+    DEPTH_ATTACHMENT,
+    STENCIL_ATTACHMENT,
+    DEPTH_STENCIL_ATTACHMENT,
+}
+
+/// Available read buffer source mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FramebufferSource {
+    NONE,
+    BACK,
+    COLOR_ATTACHMENT0,
+    COLOR_ATTACHMENT1,
+    COLOR_ATTACHMENT2,
+    COLOR_ATTACHMENT3,
+    COLOR_ATTACHMENT4,
+    COLOR_ATTACHMENT5,
+    COLOR_ATTACHMENT6,
+    COLOR_ATTACHMENT7,
+    COLOR_ATTACHMENT8,
+    COLOR_ATTACHMENT9,
+    COLOR_ATTACHMENT10,
+    COLOR_ATTACHMENT11,
+    COLOR_ATTACHMENT12,
+    COLOR_ATTACHMENT13,
+    COLOR_ATTACHMENT14,
+    COLOR_ATTACHMENT15,
+}
 
 /// Creates a [`WebGlFramebuffer`].
 pub fn create_framebuffer(gl: &WebGl2RenderingContext) -> Result<WebGlFramebuffer, Error> {
@@ -88,6 +149,8 @@ pub struct OffscreenFramebuffer {
     width: i32,
     height: i32,
 
+    gl: Option<WebGl2RenderingContext>,
+
     target: FramebufferTarget,
     texture_providers: Vec<OffscreenTextureProvider>,
     renderbuffer_providers: Vec<OffscreenRenderbufferProvider>,
@@ -95,7 +158,41 @@ pub struct OffscreenFramebuffer {
     framebuffer: Option<WebGlFramebuffer>,
     textures: Option<Vec<(WebGlTexture, OffscreenTextureProvider)>>,
     renderbuffers: Option<Vec<(WebGlRenderbuffer, OffscreenRenderbufferProvider)>>,
+    attachments: Array,
+
     draw_buffers: Array,
+}
+
+impl Drop for OffscreenFramebuffer {
+    fn drop(&mut self) {
+        let (Some(gl), Some(framebuffer), Some(textures), Some(renderbuffers)) = (
+            self.gl.as_ref(),
+            self.framebuffer.as_ref(),
+            self.textures.as_ref(),
+            self.renderbuffers.as_ref(),
+        ) else {
+            return;
+        };
+
+        gl.bind_framebuffer(self.target.gl_enum(), Some(framebuffer));
+        if let Err(err) = gl.invalidate_framebuffer(self.target.gl_enum(), &self.attachments) {
+            warn!(
+                "failed to invalidate framebuffer: {}",
+                err.as_string()
+                    .map(|err| Cow::Owned(err))
+                    .unwrap_or(Cow::Borrowed("unknown error"))
+            );
+        }
+        gl.bind_framebuffer(self.target.gl_enum(), None);
+
+        gl.delete_framebuffer(Some(framebuffer));
+        textures
+            .iter()
+            .for_each(|(texture, _)| gl.delete_texture(Some(texture)));
+        renderbuffers
+            .iter()
+            .for_each(|(renderbuffer, _)| gl.delete_renderbuffer(Some(renderbuffer)));
+    }
 }
 
 impl OffscreenFramebuffer {
@@ -131,6 +228,8 @@ impl OffscreenFramebuffer {
             width: 0,
             height: 0,
 
+            gl: None,
+
             target,
             texture_providers: texture_providers.into_iter().collect(),
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
@@ -138,12 +237,20 @@ impl OffscreenFramebuffer {
             framebuffer: None,
             textures: None,
             renderbuffers: None,
+            attachments: Array::new(),
+
             draw_buffers: Array::new(),
         }
     }
 
     /// Binds offscreen frame to WebGL.
     pub fn bind(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        if let Some(sgl) = self.gl.as_ref() {
+            if sgl != gl {
+                panic!("share framebuffer between different contexts is not allowed");
+            }
+        }
+
         let drawing_buffer_width = gl.drawing_buffer_width();
         let drawing_buffer_height = gl.drawing_buffer_height();
 
@@ -168,6 +275,8 @@ impl OffscreenFramebuffer {
             self.framebuffer = None;
             self.textures = None;
             self.renderbuffers = None;
+            self.attachments.set_length(0);
+
             self.width = drawing_buffer_width;
             self.height = drawing_buffer_height;
         }
@@ -185,11 +294,19 @@ impl OffscreenFramebuffer {
             gl.draw_buffers(&self.draw_buffers);
         }
 
+        self.gl = Some(gl.clone());
+
         Ok(())
     }
 
     /// Unbinds offscreen frame from WebGL.
     pub fn unbind(&self, gl: &WebGl2RenderingContext) {
+        if let Some(sgl) = self.gl.as_ref() {
+            if sgl != gl {
+                panic!("share framebuffer between different contexts is not allowed");
+            }
+        }
+
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
@@ -246,6 +363,8 @@ impl OffscreenFramebuffer {
             );
 
             textures.push((texture, *provider));
+            self.attachments
+                .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
         }
 
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
@@ -279,6 +398,8 @@ impl OffscreenFramebuffer {
             );
 
             renderbuffers.push((renderbuffer, *provider));
+            self.attachments
+                .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
         }
 
         gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
@@ -426,62 +547,4 @@ impl OffscreenRenderbufferProvider {
     pub fn internal_format(&self) -> RenderbufferInternalFormat {
         self.internal_format
     }
-}
-
-/// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FramebufferTarget {
-    FRAMEBUFFER,
-    READ_FRAMEBUFFER,
-    DRAW_FRAMEBUFFER,
-}
-
-/// Available framebuffer attachments mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FramebufferAttachment {
-    COLOR_ATTACHMENT0,
-    COLOR_ATTACHMENT1,
-    COLOR_ATTACHMENT2,
-    COLOR_ATTACHMENT3,
-    COLOR_ATTACHMENT4,
-    COLOR_ATTACHMENT5,
-    COLOR_ATTACHMENT6,
-    COLOR_ATTACHMENT7,
-    COLOR_ATTACHMENT8,
-    COLOR_ATTACHMENT9,
-    COLOR_ATTACHMENT10,
-    COLOR_ATTACHMENT11,
-    COLOR_ATTACHMENT12,
-    COLOR_ATTACHMENT13,
-    COLOR_ATTACHMENT14,
-    COLOR_ATTACHMENT15,
-    DEPTH_ATTACHMENT,
-    STENCIL_ATTACHMENT,
-    DEPTH_STENCIL_ATTACHMENT,
-}
-
-/// Available read buffer source mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FramebufferSource {
-    NONE,
-    BACK,
-    COLOR_ATTACHMENT0,
-    COLOR_ATTACHMENT1,
-    COLOR_ATTACHMENT2,
-    COLOR_ATTACHMENT3,
-    COLOR_ATTACHMENT4,
-    COLOR_ATTACHMENT5,
-    COLOR_ATTACHMENT6,
-    COLOR_ATTACHMENT7,
-    COLOR_ATTACHMENT8,
-    COLOR_ATTACHMENT9,
-    COLOR_ATTACHMENT10,
-    COLOR_ATTACHMENT11,
-    COLOR_ATTACHMENT12,
-    COLOR_ATTACHMENT13,
-    COLOR_ATTACHMENT14,
-    COLOR_ATTACHMENT15,
 }

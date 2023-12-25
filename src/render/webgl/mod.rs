@@ -135,7 +135,7 @@ impl WebGL2Render {
             .ok()
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
-            .ok_or(Error::WenGL2Unsupported)?;
+            .ok_or(Error::WebGL2Unsupported)?;
 
         let mut render = Self {
             mount: None,
