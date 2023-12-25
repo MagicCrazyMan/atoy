@@ -209,6 +209,12 @@ impl<'a> State<'a> {
 
     /// Resets WebGl state
     fn reset_gl(&self) {
+        self.gl.viewport(
+            0,
+            0,
+            self.canvas.width() as i32,
+            self.canvas.height() as i32,
+        );
         self.gl.use_program(None);
         self.gl
             .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
@@ -320,12 +326,12 @@ impl<ExecutorError> Pipeline<ExecutorError> {
         };
 
         for (_, executor) in iter {
+            state.reset_gl();
+
             if executor.before(state, stuff, &mut self.resources)? {
                 executor.execute(state, stuff, &mut self.resources)?;
                 executor.after(state, stuff, &mut self.resources)?;
             }
-
-            state.reset_gl();
         }
 
         // clears runtime resources

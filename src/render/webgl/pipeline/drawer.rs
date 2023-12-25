@@ -124,12 +124,6 @@ impl Executor for StandardDrawer {
             return Ok(false);
         }
 
-        state.gl().viewport(
-            0,
-            0,
-            state.canvas().width() as i32,
-            state.canvas().height() as i32,
-        );
         self.frame.bind(state.gl())?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_depth(1.0);

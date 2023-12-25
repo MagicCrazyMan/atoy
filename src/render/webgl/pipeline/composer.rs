@@ -107,13 +107,6 @@ impl Executor for StandardComposer {
             ..
         } = self.compiled.as_ref().unwrap();
 
-        state.gl().viewport(
-            0,
-            0,
-            state.canvas().width() as i32,
-            state.canvas().height() as i32,
-        );
-
         if let Some((r, g, b, a)) = resources.get(&self.in_clear_color) {
             state.gl().clear_color(*r, *g, *b, *a);
         } else {
