@@ -185,12 +185,12 @@ impl Executor for StandardComposer {
             state.gl().tex_parameteri(
                 WebGl2RenderingContext::TEXTURE_2D,
                 WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
+                WebGl2RenderingContext::LINEAR as i32,
             );
             state.gl().tex_parameteri(
                 WebGl2RenderingContext::TEXTURE_2D,
                 WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
+                WebGl2RenderingContext::LINEAR as i32,
             );
             state.gl().tex_parameteri(
                 WebGl2RenderingContext::TEXTURE_2D,
