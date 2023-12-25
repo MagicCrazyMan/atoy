@@ -563,9 +563,9 @@ impl BufferDescriptor {
         self.0.borrow().usage
     }
 
-    /// Returns the [`MemoryPolicy`].
-    pub fn memory_policy(&self) -> MemoryPolicy {
-        self.0.borrow().memory_policy.clone()
+    /// Returns [`MemoryPolicyKind`].
+    pub fn memory_policy(&self) -> MemoryPolicyKind {
+        self.0.borrow().memory_policy.kind()
     }
 
     /// Sets the [`MemoryPolicy`] of this buffer descriptor.
@@ -601,11 +601,17 @@ impl BufferDescriptor {
 }
 
 /// Memory freeing policies.
-/// Checks [`BufferStore`] for more details.
-#[derive(Clone)]
 pub enum MemoryPolicy {
     Default,
-    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
+    Restorable(Box<dyn Fn() -> BufferSource>),
+    Unfree,
+}
+
+/// Memory freeing policy kinds.
+/// Checks [`MemoryPolicy`] for more details.
+pub enum MemoryPolicyKind {
+    Default,
+    Restorable,
     Unfree,
 }
 
@@ -622,7 +628,16 @@ impl MemoryPolicy {
 
     /// Constructs a restorable memory policy.
     pub fn new_restorable<F: Fn() -> BufferSource + 'static>(f: F) -> Self {
-        Self::Restorable(Rc::new(RefCell::new(f)))
+        Self::Restorable(Box::new(f))
+    }
+
+    /// Returns [`MemoryPolicyKind`] associated with this policy.
+    pub fn kind(&self) -> MemoryPolicyKind {
+        match self {
+            MemoryPolicy::Default => MemoryPolicyKind::Default,
+            MemoryPolicy::Restorable(_) => MemoryPolicyKind::Restorable,
+            MemoryPolicy::Unfree => MemoryPolicyKind::Unfree,
+        }
     }
 }
 
@@ -707,7 +722,7 @@ impl BufferStoreInner {
                     MemoryPolicy::Restorable(restore) => {
                         self.gl.delete_buffer(Some(&item.buffer));
 
-                        let data = restore.borrow_mut()();
+                        let data = restore();
                         descriptor.borrow_mut().consumed_bytes_size = data.bytes_size() as i32;
                         descriptor.borrow_mut().queue.push((data, 0));
                     }
