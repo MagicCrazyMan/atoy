@@ -17,7 +17,7 @@ use crate::{
             program::ProgramItem,
             renderbuffer::RenderbufferInternalFormat,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
-            uniform::bind_uniforms,
+            uniform::{bind_uniforms, unbind_uniforms},
         },
     },
 };
@@ -88,9 +88,11 @@ impl StandardDrawer {
             let program_item = self.last_program.as_ref().unwrap();
 
             // binds attributes
-            let attribute_buffer_items = bind_attributes(state, &entity, &*geometry, &*material, program_item);
+            let bound_attributes =
+                bind_attributes(state, &entity, &*geometry, &*material, program_item);
             // binds uniforms
-            let _uniform_buffer_items = bind_uniforms(state, stuff, &entity, &*geometry, &*material, program_item);
+            let bound_uniforms =
+                bind_uniforms(state, stuff, &entity, &*geometry, &*material, program_item);
 
             // before draw of material and geometry
             (&mut *material).before_draw(state, &entity);
@@ -101,7 +103,8 @@ impl StandardDrawer {
             (&mut *material).after_draw(state, &entity);
             (&mut *geometry).after_draw(state, &entity);
 
-            unbind_attributes(state, attribute_buffer_items);
+            unbind_attributes(state, bound_attributes);
+            unbind_uniforms(state, bound_uniforms);
         }
 
         Ok(())

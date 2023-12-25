@@ -38,7 +38,7 @@ pub enum BufferTarget {
     PixelUnpackBuffer,
 }
 
-/// Available size of a value get from buffer.
+/// Available component size of a value get from buffer.
 /// According to WebGL definition, it should only be `1`, `2`, `3` or `4`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
@@ -106,7 +106,13 @@ pub enum BufferUsage {
 /// It is always a good idea to avoid creating native buffer, use `TypedArrayBuffer` from JavaScript instead.
 pub enum BufferSource {
     Preallocate {
-        size: GLsizeiptr,
+        bytes_length: GLsizeiptr,
+    },
+    Function {
+        callback: Box<dyn Fn() -> BufferSource>,
+        data_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
     },
     Binary {
         data: Box<dyn AsRef<[u8]>>,
@@ -173,7 +179,9 @@ pub enum BufferSource {
 impl BufferSource {
     fn collect_typed_array_buffer(&self) -> (&Object, GLuint, GLuint) {
         match self {
-            BufferSource::Preallocate { .. } | BufferSource::Binary { .. } => {
+            BufferSource::Preallocate { .. }
+            | BufferSource::Function { .. }
+            | BufferSource::Binary { .. } => {
                 unreachable!()
             }
             BufferSource::Int8Array {
@@ -236,27 +244,36 @@ impl BufferSource {
 
     /// Buffers data to WebGL runtime.
     fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
-        let target = target.gl_enum();
-        let usage = usage.gl_enum();
         match self {
-            BufferSource::Preallocate { size } => {
-                gl.buffer_data_with_i32(target, *size as i32, usage)
+            BufferSource::Preallocate { bytes_length } => {
+                gl.buffer_data_with_i32(target.gl_enum(), *bytes_length as i32, usage.gl_enum())
+            }
+            BufferSource::Function { callback: data, .. } => {
+                let source = data();
+                if let BufferSource::Function { .. } = source {
+                    panic!("recursively BufferSource::Function is not allowed");
+                }
+                source.buffer_data(gl, target, usage);
             }
             BufferSource::Binary {
                 data,
                 src_offset,
                 src_length,
             } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
-                target,
+                target.gl_enum(),
                 data.as_ref().as_ref(),
-                usage,
+                usage.gl_enum(),
                 *src_offset,
                 *src_length,
             ),
             _ => {
                 let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
-                    target, data, usage, src_offset, src_length,
+                    target.gl_enum(),
+                    data,
+                    usage.gl_enum(),
+                    src_offset,
+                    src_length,
                 );
             }
         }
@@ -269,24 +286,30 @@ impl BufferSource {
         target: BufferTarget,
         dst_byte_offset: i32,
     ) {
-        let target = target.gl_enum();
         match self {
-            BufferSource::Preallocate { size } => {
-                let src_data = Uint8Array::new_with_length(*size as u32);
+            BufferSource::Preallocate { bytes_length } => {
+                let src_data = Uint8Array::new_with_length(*bytes_length as u32);
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target,
+                    target.gl_enum(),
                     dst_byte_offset,
                     &src_data,
                     0,
-                    *size as u32,
+                    *bytes_length as u32,
                 )
+            }
+            BufferSource::Function { callback: data, .. } => {
+                let source = data();
+                if let BufferSource::Function { .. } = source {
+                    panic!("recursively BufferSource::Function is not allowed");
+                }
+                source.buffer_sub_data(gl, target, dst_byte_offset);
             }
             BufferSource::Binary {
                 data,
                 src_offset,
                 src_length,
             } => gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
-                target,
+                target.gl_enum(),
                 dst_byte_offset,
                 data.as_ref().as_ref(),
                 *src_offset,
@@ -295,7 +318,7 @@ impl BufferSource {
             _ => {
                 let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target,
+                    target.gl_enum(),
                     dst_byte_offset,
                     data,
                     src_offset,
@@ -305,9 +328,16 @@ impl BufferSource {
         }
     }
 
-    fn bytes_size(&self) -> u32 {
+    /// Returns consumed bytes length.
+    pub fn bytes_length(&self) -> u32 {
         let (raw_length, src_offset, src_length) = match self {
-            BufferSource::Preallocate { size } => (*size as u32, 0, 0),
+            BufferSource::Preallocate { bytes_length } => (*bytes_length as u32, 0, 0),
+            BufferSource::Function {
+                data_length,
+                src_offset,
+                src_length,
+                ..
+            } => (*data_length, *src_offset, *src_length),
             BufferSource::Binary {
                 data,
                 src_offset,
@@ -440,8 +470,27 @@ impl BufferSource {
 
 impl BufferSource {
     /// Constructs a new preallocation only buffer source.
-    pub fn preallocate(size: GLsizeiptr) -> Self {
-        Self::Preallocate { size }
+    pub fn preallocate(bytes_length: GLsizeiptr) -> Self {
+        Self::Preallocate { bytes_length }
+    }
+
+    /// Constructs a new buffer source from a callback function.
+    /// Preflies information is required and it should be same as the callback value.
+    pub fn from_function<F>(
+        callback: F,
+        data_length: GLuint,
+        src_offset: GLuint,
+        src_length: GLuint,
+    ) -> Self
+    where
+        F: Fn() -> BufferSource + 'static,
+    {
+        Self::Function {
+            callback: Box::new(callback),
+            data_length,
+            src_offset,
+            src_length,
+        }
     }
 
     /// Constructs a new buffer source from WASM native buffer.
@@ -499,8 +548,8 @@ struct BufferDescriptorInner {
     id: Uuid,
     usage: BufferUsage,
     memory_policy: MemoryPolicy,
-    /// Maximum consumed bytes size of the buffer sources in queue.
-    consumed_bytes_size: i32,
+    /// Maximum consumed bytes length of the buffer sources in queue.
+    consumed_bytes_length: i32,
     queue: Vec<(BufferSource, i32)>,
     store: Option<Weak<RefCell<BufferStoreInner>>>,
 }
@@ -517,7 +566,7 @@ impl Drop for BufferDescriptorInner {
         };
 
         store.gl.delete_buffer(Some(&item.buffer));
-        store.used_memory -= item.size;
+        store.used_memory -= item.bytes_length;
         unsafe {
             store.lru.remove(item.lru_node);
         }
@@ -547,7 +596,7 @@ impl BufferDescriptor {
             id: Uuid::new_v4(),
             usage,
             memory_policy,
-            consumed_bytes_size: source.bytes_size() as i32,
+            consumed_bytes_length: source.bytes_length() as i32,
             queue: Vec::from([(source, 0)]),
             store: None,
         })))
@@ -577,7 +626,7 @@ impl BufferDescriptor {
     /// This operation overrides existing data.
     pub fn buffer_data(&mut self, source: BufferSource) {
         let mut inner = self.0.borrow_mut();
-        inner.consumed_bytes_size = source.bytes_size() as i32;
+        inner.consumed_bytes_length = source.bytes_length() as i32;
         inner.queue.clear();
         inner.queue.push((source, 0));
     }
@@ -586,15 +635,15 @@ impl BufferDescriptor {
     pub fn buffer_sub_data(&mut self, source: BufferSource, dst_byte_offset: i32) {
         let mut inner = self.0.borrow_mut();
 
-        let consumed_bytes_size = dst_byte_offset + source.bytes_size() as i32;
-        if dst_byte_offset == 0 && consumed_bytes_size >= inner.consumed_bytes_size {
+        let consumed_bytes_length = dst_byte_offset + source.bytes_length() as i32;
+        if dst_byte_offset == 0 && consumed_bytes_length >= inner.consumed_bytes_length {
             // overrides sources in queue if new source covers all
-            inner.consumed_bytes_size = consumed_bytes_size;
+            inner.consumed_bytes_length = consumed_bytes_length;
             inner.queue.clear();
             inner.queue.push((source, 0));
             return;
         } else {
-            inner.consumed_bytes_size = inner.consumed_bytes_size.max(consumed_bytes_size);
+            inner.consumed_bytes_length = inner.consumed_bytes_length.max(consumed_bytes_length);
             inner.queue.push((source, dst_byte_offset));
         }
     }
@@ -603,7 +652,7 @@ impl BufferDescriptor {
 /// Memory freeing policies.
 pub enum MemoryPolicy {
     Default,
-    Restorable(Box<dyn Fn() -> BufferSource>),
+    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
     Unfree,
 }
 
@@ -627,8 +676,11 @@ impl MemoryPolicy {
     }
 
     /// Constructs a restorable memory policy.
-    pub fn new_restorable<F: Fn() -> BufferSource + 'static>(f: F) -> Self {
-        Self::Restorable(Box::new(f))
+    pub fn new_restorable<F>(f: F) -> Self
+    where
+        F: Fn() -> BufferSource + 'static,
+    {
+        Self::Restorable(Rc::new(RefCell::new(f)))
     }
 
     /// Returns [`MemoryPolicyKind`] associated with this policy.
@@ -644,7 +696,8 @@ impl MemoryPolicy {
 /// Inner item of a [`BufferStore`].
 struct StorageItem {
     using: bool,
-    size: i32,
+    target: BufferTarget,
+    bytes_length: i32,
     buffer: WebGlBuffer,
     lru_node: *mut LruNode<Uuid>,
     descriptor: Weak<RefCell<BufferDescriptorInner>>,
@@ -695,55 +748,62 @@ impl BufferStoreInner {
                     continue;
                 }
 
-                let memory_policy = &descriptor.borrow().memory_policy;
+                let mut descriptor = descriptor.borrow_mut();
+
                 // skips if unfreeable
-                let MemoryPolicy::Unfree = memory_policy else {
+                if let MemoryPolicy::Unfree = &descriptor.memory_policy {
                     next_node = (*current_node).more_recently();
                     continue;
                 };
 
-                match memory_policy {
+                match &descriptor.memory_policy {
                     MemoryPolicy::Default => {
                         // default, gets buffer data back from WebGlBuffer
-                        let data = Uint8Array::new_with_length(item.size as u32);
-                        let target = descriptor.borrow().usage.gl_enum();
+                        let data = Uint8Array::new_with_length(item.bytes_length as u32);
+                        let target = item.target.gl_enum();
                         self.gl.bind_buffer(target, Some(&item.buffer));
                         self.gl
                             .get_buffer_sub_data_with_i32_and_array_buffer_view(target, 0, &data);
                         self.gl.bind_buffer(target, None);
                         self.gl.delete_buffer(Some(&item.buffer));
 
-                        descriptor.borrow_mut().consumed_bytes_size = item.size;
-                        descriptor
-                            .borrow_mut()
-                            .queue
-                            .push((BufferSource::from_uint8_array(data, 0, item.size as u32), 0));
+                        descriptor.consumed_bytes_length = item.bytes_length;
+                        descriptor.queue.push((
+                            BufferSource::from_uint8_array(data, 0, item.bytes_length as u32),
+                            0,
+                        ));
                     }
                     MemoryPolicy::Restorable(restore) => {
                         self.gl.delete_buffer(Some(&item.buffer));
 
-                        let data = restore();
-                        descriptor.borrow_mut().consumed_bytes_size = data.bytes_size() as i32;
-                        descriptor.borrow_mut().queue.push((data, 0));
+                        let restore = Rc::clone(&restore);
+                        let source = BufferSource::Function {
+                            callback: Box::new(move || restore.borrow_mut()()),
+                            data_length: item.bytes_length as u32,
+                            src_offset: 0,
+                            src_length: item.bytes_length as u32,
+                        };
+                        descriptor.consumed_bytes_length = item.bytes_length;
+                        descriptor.queue.push((source, 0));
                     }
                     MemoryPolicy::Unfree => unreachable!(),
                 }
 
                 // reduces memory
-                self.used_memory -= item.size;
+                self.used_memory -= item.bytes_length;
 
                 // removes LRU
                 next_node = (*item.lru_node).more_recently();
                 self.lru.remove(item.lru_node);
 
                 // logs
-                match memory_policy {
+                match &descriptor.memory_policy {
                     MemoryPolicy::Default => {
                         debug!(
                             target: "BufferStore",
                             "free buffer (default) {}. freed memory {}, used {}",
                             id,
-                            format_bytes_length(item.size as u32),
+                            format_bytes_length(item.bytes_length as u32),
                             format_bytes_length(self.used_memory as u32)
                         );
                     }
@@ -752,7 +812,7 @@ impl BufferStoreInner {
                             target: "BufferStore",
                             "free buffer (restorable) {}. freed memory {}, used {}",
                             id,
-                            format_bytes_length(item.size as u32),
+                            format_bytes_length(item.bytes_length as u32),
                             format_bytes_length(self.used_memory as u32)
                         );
                     }
@@ -783,19 +843,19 @@ impl Drop for BufferStoreInner {
 
             // recovers data back to descriptor
             if self.recover_descriptor_when_drop {
-                let data = Uint8Array::new_with_length(item.size as u32);
-                let target = descriptor.borrow().usage.gl_enum();
+                let data = Uint8Array::new_with_length(item.bytes_length as u32);
+                let target = item.target.gl_enum();
                 self.gl.bind_buffer(target, Some(&item.buffer));
                 self.gl
                     .get_buffer_sub_data_with_i32_and_array_buffer_view(target, 0, &data);
                 self.gl.bind_buffer(target, None);
                 self.gl.delete_buffer(Some(&item.buffer));
 
-                descriptor.borrow_mut().consumed_bytes_size = item.size;
-                descriptor
-                    .borrow_mut()
-                    .queue
-                    .push((BufferSource::from_uint8_array(data, 0, item.size as u32), 0));
+                descriptor.borrow_mut().consumed_bytes_length = item.bytes_length;
+                descriptor.borrow_mut().queue.push((
+                    BufferSource::from_uint8_array(data, 0, item.bytes_length as u32),
+                    0,
+                ));
             }
 
             gl.delete_buffer(Some(&buffer));
@@ -825,13 +885,13 @@ impl BufferStore {
         })))
     }
 
-    /// Returns the maximum available memory in bytes size.
+    /// Returns the maximum available memory in bytes.
     /// Returns `i32::MAX` if not specified.
     pub fn max_memory(&self) -> i32 {
         self.0.borrow().max_memory
     }
 
-    /// Returns current used memory in bytes size.
+    /// Returns current used memory in bytes.
     pub fn used_memory(&self) -> i32 {
         self.0.borrow().used_memory
     }
@@ -859,7 +919,7 @@ impl BufferStore {
             id,
             usage,
             queue,
-            consumed_bytes_size,
+            consumed_bytes_length,
             store,
             ..
         } = &mut *descriptor.0.borrow_mut();
@@ -882,7 +942,8 @@ impl BufferStore {
             Entry::Vacant(vacant) => {
                 let item = StorageItem {
                     using: false,
-                    size: 0,
+                    target,
+                    bytes_length: 0,
                     buffer: store_inner
                         .gl
                         .create_buffer()
@@ -909,23 +970,23 @@ impl BufferStore {
             return Ok(buffer);
         }
 
-        let new_size = *consumed_bytes_size;
-        let old_size = item.size;
+        let new_bytes_length = *consumed_bytes_length;
+        let old_bytes_length = item.bytes_length;
 
         store_inner.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-        if new_size > old_size {
+        if new_bytes_length > old_bytes_length {
             // completely buffer new if overflow
             if queue.len() == 1 {
                 let (source, _) = queue.remove(0);
                 source.buffer_data(&store_inner.gl, target, *usage);
             } else {
-                if new_size == queue[0].0.bytes_size() as i32 {
+                if new_bytes_length == queue[0].0.bytes_length() as i32 {
                     let (source, _) = queue.remove(0);
                     source.buffer_data(&store_inner.gl, target, *usage);
                 } else {
                     store_inner.gl.buffer_data_with_i32(
                         target.gl_enum(),
-                        new_size as i32,
+                        new_bytes_length as i32,
                         usage.gl_enum(),
                     );
                 }
@@ -942,8 +1003,8 @@ impl BufferStore {
         }
         store_inner.gl.bind_buffer(target.gl_enum(), None);
 
-        item.size = new_size;
-        store_inner.used_memory += new_size - old_size;
+        item.bytes_length = new_bytes_length;
+        store_inner.used_memory += new_bytes_length - old_bytes_length;
 
         store_inner.free();
 

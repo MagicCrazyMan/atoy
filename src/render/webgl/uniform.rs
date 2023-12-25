@@ -573,7 +573,7 @@ pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, va
 ///
 /// If you bind buffer attributes ever,
 /// remember to unbind them by yourself or use this function.
-pub fn unbind_attributes(state: &mut State, bounds: Vec<BoundUniform>) {
+pub fn unbind_uniforms(state: &mut State, bounds: Vec<BoundUniform>) {
     for BoundUniform { descriptor } in bounds {
         state.buffer_store_mut().unuse_buffer(&descriptor);
     }

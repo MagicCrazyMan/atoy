@@ -10,7 +10,7 @@ use crate::{
     render::{
         pp::{Executor, ResourceKey, Resources, State, Stuff},
         webgl::{
-            attribute::{bind_attributes, AttributeBinding, AttributeValue},
+            attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
             draw::draw,
             error::Error,
             offscreen::{
@@ -20,7 +20,8 @@ use crate::{
             program::{ProgramSource, ShaderSource},
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
-                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue, UniformStructuralBinding,
+                bind_uniforms, unbind_uniforms, UniformBinding, UniformBlockBinding,
+                UniformBlockValue, UniformStructuralBinding, UniformValue,
             },
         },
     },
@@ -120,8 +121,9 @@ impl Executor for Outlining {
         // stage zero, draws entity with outline color to frame
         self.onepass_frame.bind(state.gl())?;
         self.material.stage = 0;
-        let _ = bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
-        let _uniform_buffer_items = bind_uniforms(
+        let bound_attributes =
+            bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
+        let bound_uniforms = bind_uniforms(
             state,
             stuff,
             &in_entity,
@@ -131,6 +133,8 @@ impl Executor for Outlining {
         );
         draw(state, geometry, &self.material);
         self.onepass_frame.unbind(state.gl());
+        unbind_attributes(state, bound_attributes);
+        unbind_uniforms(state, bound_uniforms);
 
         // stage one, applies convolution kernel to texture to draw outline
         self.twopass_frame.bind(state.gl())?;
@@ -169,14 +173,14 @@ impl Executor for Outlining {
             WebGl2RenderingContext::TEXTURE_WRAP_T,
             WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
         );
-        let _ = bind_attributes(
+        let bound_attributes = bind_attributes(
             state,
             &in_entity,
             &self.geometry,
             &self.material,
             &program_item,
         );
-        let _uniform_buffer_items = bind_uniforms(
+        let bound_uniforms = bind_uniforms(
             state,
             stuff,
             &in_entity,
@@ -185,11 +189,14 @@ impl Executor for Outlining {
             &program_item,
         );
         draw(state, &self.geometry, &self.material);
+        unbind_attributes(state, bound_attributes);
+        unbind_uniforms(state, bound_uniforms);
 
         // stage two, clear color drawn in stage one
         self.material.stage = 2;
-        let _ = bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
-        let _uniform_buffer_items = bind_uniforms(
+        let bound_attributes =
+            bind_attributes(state, &in_entity, geometry, &self.material, &program_item);
+        let bound_uniforms = bind_uniforms(
             state,
             stuff,
             &in_entity,
@@ -198,6 +205,8 @@ impl Executor for Outlining {
             &program_item,
         );
         draw(state, geometry, &self.material);
+        unbind_attributes(state, bound_attributes);
+        unbind_uniforms(state, bound_uniforms);
 
         resources.insert(
             self.out_texture.clone(),

@@ -37,6 +37,7 @@ pub trait ToGlEnum {
 }
 
 impl ToGlEnum for BufferTarget {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             BufferTarget::ArrayBuffer => WebGl2RenderingContext::ARRAY_BUFFER,
@@ -54,6 +55,7 @@ impl ToGlEnum for BufferTarget {
 }
 
 impl ToGlEnum for BufferDataType {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             BufferDataType::Float => WebGl2RenderingContext::FLOAT,
@@ -73,6 +75,7 @@ impl ToGlEnum for BufferDataType {
 }
 
 impl ToGlEnum for BufferUsage {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             BufferUsage::StaticDraw => WebGl2RenderingContext::STATIC_DRAW,
@@ -89,6 +92,7 @@ impl ToGlEnum for BufferUsage {
 }
 
 impl ToGlEnum for DrawElementType {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             DrawElementType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
@@ -99,6 +103,7 @@ impl ToGlEnum for DrawElementType {
 }
 
 impl ToGlEnum for DrawMode {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             DrawMode::Points => WebGl2RenderingContext::POINTS,
@@ -113,6 +118,7 @@ impl ToGlEnum for DrawMode {
 }
 
 impl ToGlEnum for CullFace {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             CullFace::Front => WebGl2RenderingContext::FRONT,
@@ -123,6 +129,7 @@ impl ToGlEnum for CullFace {
 }
 
 impl ToGlEnum for TextureInternalFormat {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureInternalFormat::RGB => WebGl2RenderingContext::RGB,
@@ -184,6 +191,7 @@ impl ToGlEnum for TextureInternalFormat {
 }
 
 impl ToGlEnum for TextureFormat {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureFormat::RED => WebGl2RenderingContext::RED,
@@ -202,6 +210,7 @@ impl ToGlEnum for TextureFormat {
 }
 
 impl ToGlEnum for TextureDataType {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureDataType::FLOAT => WebGl2RenderingContext::FLOAT,
@@ -237,6 +246,7 @@ impl ToGlEnum for TextureDataType {
 }
 
 impl ToGlEnum for TextureUnit {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureUnit::TEXTURE0 => WebGl2RenderingContext::TEXTURE0,
@@ -277,6 +287,7 @@ impl ToGlEnum for TextureUnit {
 }
 
 impl ToGlEnum for TextureUnpackColorSpaceConversion {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureUnpackColorSpaceConversion::None => WebGl2RenderingContext::NONE,
@@ -288,6 +299,7 @@ impl ToGlEnum for TextureUnpackColorSpaceConversion {
 }
 
 impl ToGlEnum for TexturePixelStorage {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TexturePixelStorage::PackAlignment(_) => WebGl2RenderingContext::PACK_ALIGNMENT,
@@ -314,6 +326,7 @@ impl ToGlEnum for TexturePixelStorage {
 }
 
 impl ToGlEnum for TextureMagnificationFilter {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureMagnificationFilter::Linear => WebGl2RenderingContext::LINEAR,
@@ -323,6 +336,7 @@ impl ToGlEnum for TextureMagnificationFilter {
 }
 
 impl ToGlEnum for TextureMinificationFilter {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureMinificationFilter::Linear => WebGl2RenderingContext::LINEAR,
@@ -344,6 +358,7 @@ impl ToGlEnum for TextureMinificationFilter {
 }
 
 impl ToGlEnum for TextureWrapMethod {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureWrapMethod::Repeat => WebGl2RenderingContext::REPEAT,
@@ -354,6 +369,7 @@ impl ToGlEnum for TextureWrapMethod {
 }
 
 impl ToGlEnum for TextureCompareFunction {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureCompareFunction::LessEqual => WebGl2RenderingContext::LEQUAL,
@@ -369,6 +385,7 @@ impl ToGlEnum for TextureCompareFunction {
 }
 
 impl ToGlEnum for TextureCompareMode {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureCompareMode::None => WebGl2RenderingContext::NONE,
@@ -380,6 +397,7 @@ impl ToGlEnum for TextureCompareMode {
 }
 
 impl ToGlEnum for TextureParameter {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             TextureParameter::MagFilter(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
@@ -398,6 +416,7 @@ impl ToGlEnum for TextureParameter {
 }
 
 impl ToGlEnum for StencilFunction {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             StencilFunction::Never => WebGl2RenderingContext::NEVER,
@@ -413,6 +432,7 @@ impl ToGlEnum for StencilFunction {
 }
 
 impl ToGlEnum for StencilOp {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             StencilOp::Keep => WebGl2RenderingContext::KEEP,
@@ -428,6 +448,7 @@ impl ToGlEnum for StencilOp {
 }
 
 impl ToGlEnum for RenderbufferInternalFormat {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             RenderbufferInternalFormat::R8 => WebGl2RenderingContext::R8,
@@ -489,6 +510,7 @@ impl ToGlEnum for RenderbufferInternalFormat {
 }
 
 impl ToGlEnum for FramebufferTarget {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             FramebufferTarget::FRAMEBUFFER => WebGl2RenderingContext::FRAMEBUFFER,
@@ -499,6 +521,7 @@ impl ToGlEnum for FramebufferTarget {
 }
 
 impl ToGlEnum for FramebufferAttachment {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             FramebufferAttachment::COLOR_ATTACHMENT0 => WebGl2RenderingContext::COLOR_ATTACHMENT0,
@@ -527,6 +550,7 @@ impl ToGlEnum for FramebufferAttachment {
 }
 
 impl ToGlEnum for FramebufferSource {
+    #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
             FramebufferSource::NONE => WebGl2RenderingContext::NONE,

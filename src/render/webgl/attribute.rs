@@ -138,7 +138,6 @@ pub fn bind_attributes(
                 };
 
                 state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
-
                 state.gl().vertex_attrib_pointer_with_i32(
                     *location,
                     component_size as GLint,
@@ -148,7 +147,6 @@ pub fn bind_attributes(
                     bytes_offset,
                 );
                 state.gl().enable_vertex_attrib_array(*location);
-
                 state.gl().bind_buffer(target.gl_enum(), None);
 
                 bounds.push(BoundAttribute {
@@ -193,14 +191,14 @@ pub fn bind_attributes(
                     );
                     state.gl().enable_vertex_attrib_array(offset_location);
                     state.gl().vertex_attrib_divisor(offset_location, divisor);
+
+                    bounds.push(BoundAttribute {
+                        location: offset_location,
+                        descriptor: descriptor.clone(),
+                    });
                 }
 
                 state.gl().bind_buffer(target.gl_enum(), None);
-
-                bounds.push(BoundAttribute {
-                    location: *location,
-                    descriptor,
-                });
             }
             AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),
             AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(*location, x, y),

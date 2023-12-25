@@ -21,7 +21,8 @@ use crate::{
             renderbuffer::RenderbufferInternalFormat,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
-                bind_uniforms, UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue, UniformStructuralBinding,
+                bind_uniforms, unbind_uniforms, UniformBinding, UniformBlockBinding,
+                UniformBlockValue, UniformStructuralBinding, UniformValue,
             },
         },
     },
@@ -224,8 +225,9 @@ impl Executor for Picking {
             // sets index and window position for current draw
             self.material.index = (index + 1) as u32;
 
-            let items = bind_attributes(state, &entity, geometry, &self.material, &program_item);
-            let _uniform_buffer_items = bind_uniforms(
+            let bound_attributes =
+                bind_attributes(state, &entity, geometry, &self.material, &program_item);
+            let bound_uniforms = bind_uniforms(
                 state,
                 stuff,
                 &entity,
@@ -234,7 +236,8 @@ impl Executor for Picking {
                 &program_item,
             );
             draw(state, geometry, &self.material);
-            unbind_attributes(state, items);
+            unbind_attributes(state, bound_attributes);
+            unbind_uniforms(state, bound_uniforms);
         }
 
         // gets picking entity
