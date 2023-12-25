@@ -328,7 +328,7 @@ impl BufferSource {
         }
     }
 
-    /// Returns consumed bytes length.
+    /// Returns the length of data in bytes.
     pub fn bytes_length(&self) -> u32 {
         let (raw_length, src_offset, src_length) = match self {
             BufferSource::Preallocate { bytes_length } => (*bytes_length as u32, 0, 0),
