@@ -1,6 +1,4 @@
-use web_sys::{
-    WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlTexture, WebGlUniformLocation,
-};
+use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlTexture, WebGlUniformLocation};
 
 use crate::render::{
     pp::{Executor, ResourceKey, Resources, State, Stuff},
@@ -10,20 +8,9 @@ use crate::render::{
     },
 };
 
-#[rustfmt::skip]
-const BUFFER_DATA: [f32; 16] = [
-    // vertices
-    1.0,-1.0,  1.0,1.0, -1.0,1.0, -1.0,-1.0,
-    // textures coordinates
-    1.0, 0.0,  1.0,1.0,  0.0,1.0,  0.0, 0.0
-];
-
 struct Compiled {
     program: WebGlProgram,
-    position_location: u32,
-    texture_location: u32,
     sampler_location: WebGlUniformLocation,
-    buffer: WebGlBuffer,
 }
 
 /// Standard texture composer.
@@ -69,41 +56,20 @@ impl Executor for StandardComposer {
                 state.gl(),
                 &[vertex_shader.clone(), fragment_shader.clone()],
             )?;
-            let position_location = state.gl().get_attrib_location(&program, "a_Position") as u32;
-            let texture_location = state.gl().get_attrib_location(&program, "a_TexCoord") as u32;
             let sampler_location = state
                 .gl()
                 .get_uniform_location(&program, "u_Sampler")
                 .unwrap();
 
-            let buffer = state
-                .gl()
-                .create_buffer()
-                .ok_or(Error::CreateBufferFailed)?;
-            state
-                .gl()
-                .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
-            state.gl().buffer_data_with_u8_array(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                unsafe { &std::mem::transmute_copy::<[f32; 16], [u8; 64]>(&BUFFER_DATA) },
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-
             self.compiled = Some(Compiled {
                 program,
-                position_location,
-                texture_location,
                 sampler_location,
-                buffer,
             });
         }
 
         let Compiled {
             program,
-            position_location,
-            texture_location,
             sampler_location,
-            buffer,
             ..
         } = self.compiled.as_ref().unwrap();
 
@@ -121,51 +87,10 @@ impl Executor for StandardComposer {
         );
 
         state.gl().use_program(Some(program));
-
-        state
-            .gl()
-            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
-        state.gl().vertex_attrib_pointer_with_i32(
-            *position_location,
-            2,
-            WebGl2RenderingContext::FLOAT,
-            false,
-            0,
-            0,
-        );
-        state.gl().enable_vertex_attrib_array(*position_location);
-        state.gl().vertex_attrib_pointer_with_i32(
-            *texture_location,
-            2,
-            WebGl2RenderingContext::FLOAT,
-            false,
-            0,
-            32,
-        );
-        state.gl().enable_vertex_attrib_array(*texture_location);
         state.gl().uniform1i(Some(sampler_location), 0);
-
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
         Ok(true)
-    }
-
-    fn after(
-        &mut self,
-        state: &mut State,
-        _: &mut dyn Stuff,
-        _: &mut Resources,
-    ) -> Result<(), Self::Error> {
-        let Compiled {
-            position_location,
-            texture_location,
-            ..
-        } = self.compiled.as_ref().unwrap();
-
-        state.gl().disable_vertex_attrib_array(*position_location);
-        state.gl().disable_vertex_attrib_array(*texture_location);
-
-        Ok(())
     }
 
     fn execute(
