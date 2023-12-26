@@ -46,7 +46,14 @@ impl Outlining {
                 outline_color: [1.0, 0.0, 0.0, 1.0],
                 outline_width: 5,
             },
-            geometry: Rectangle::new(Vec2::from_values(-1.0, 1.0), Placement::TopLeft, 2.0, 2.0),
+            geometry: Rectangle::new(
+                Vec2::from_values(-1.0, 1.0),
+                Placement::TopLeft,
+                2.0,
+                2.0,
+                1.0,
+                1.0,
+            ),
             onepass_frame: OffscreenFramebuffer::new(
                 FramebufferTarget::FRAMEBUFFER,
                 [OffscreenTextureProvider::new(

@@ -1,29 +1,25 @@
 use std::any::Any;
 
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
-use web_sys::HtmlImageElement;
-
 use crate::{
-    document,
     entity::BorrowedMut,
     render::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            program::{ShaderSource, ProgramSource},
+            program::{ProgramSource, ShaderSource},
             texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-                TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-                TextureWrapMethod, TextureInternalFormat,
+                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+                TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
 };
 
-use super::{Material, Transparency};
-
-const SAMPLER_UNIFORM: &'static str = "u_Sampler";
+use super::{loader::TextureLoader, Material, Transparency};
 
 const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
 in vec4 a_Position;
@@ -57,29 +53,29 @@ void main() {
 }
 ";
 
-#[wasm_bindgen]
 pub struct TextureMaterial {
-    url: String,
-    texture: Option<TextureDescriptor>,
-    image: Option<HtmlImageElement>,
-    onload: Option<Closure<dyn FnMut()>>,
-}
-
-#[wasm_bindgen]
-impl TextureMaterial {
-    #[wasm_bindgen]
-    pub fn new_constructor(url: String) -> Self {
-        Self::new(url)
-    }
+    texture: TextureLoader,
 }
 
 impl TextureMaterial {
     pub fn new<S: Into<String>>(url: S) -> Self {
         Self {
-            url: url.into(),
-            texture: None,
-            image: None,
-            onload: None,
+            texture: TextureLoader::from_url(url, |image| UniformValue::Texture {
+                descriptor: TextureDescriptor::texture_2d_with_html_image_element(
+                    image,
+                    TextureDataType::UNSIGNED_BYTE,
+                    TextureInternalFormat::RGB,
+                    TextureFormat::RGB,
+                    0,
+                    vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+                    true,
+                ),
+                params: vec![
+                    TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
+                    TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
+                ],
+                texture_unit: TextureUnit::TEXTURE0,
+            }),
         }
     }
 }
@@ -107,7 +103,7 @@ impl ProgramSource for TextureMaterial {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
-            UniformBinding::FromMaterial(SAMPLER_UNIFORM),
+            UniformBinding::FromMaterial("u_Sampler"),
         ]
     }
 
@@ -126,7 +122,7 @@ impl Material for TextureMaterial {
     }
 
     fn ready(&self) -> bool {
-        self.texture.is_some()
+        self.texture.loaded()
     }
 
     fn instanced(&self) -> Option<i32> {
@@ -139,19 +135,7 @@ impl Material for TextureMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            SAMPLER_UNIFORM => match &self.texture {
-                Some(texture) => Some(UniformValue::Texture {
-                    descriptor: texture.clone(),
-                    params: vec![
-                        TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
-                        TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
-                        TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
-                        TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
-                    ],
-                    texture_unit: TextureUnit::TEXTURE0,
-                }),
-                None => None,
-            },
+            "u_Sampler" => self.texture.texture(),
             _ => None,
         }
     }
@@ -169,35 +153,6 @@ impl Material for TextureMaterial {
     }
 
     fn prepare(&mut self, _: &State, _: &BorrowedMut) {
-        if self.image.is_none() {
-            let image = document()
-                .create_element("img")
-                .ok()
-                .unwrap()
-                .dyn_into::<HtmlImageElement>()
-                .unwrap();
-
-            image.set_src(&self.url);
-
-            let texture_cloned: *mut Option<TextureDescriptor> = &mut self.texture;
-            let image_cloned = image.clone();
-            self.onload = Some(Closure::new(move || {
-                let texture = Some(TextureDescriptor::texture_2d_with_html_image_element(
-                    image_cloned.clone(),
-                    TextureDataType::UNSIGNED_BYTE,
-                    TextureInternalFormat::RGB,
-                    TextureFormat::RGB,
-                    0,
-                    vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                    true,
-                ));
-                unsafe {
-                    *texture_cloned = texture;
-                }
-            }));
-            image.set_onload(Some(self.onload.as_ref().unwrap().as_ref().unchecked_ref()));
-
-            self.image = Some(image);
-        }
+        self.texture.load()
     }
 }

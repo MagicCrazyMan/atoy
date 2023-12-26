@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::ops::Mul;
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::quat::Quat;
 use gl_matrix4rust::vec2::{AsVec2, Vec2};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use gl_matrix4rust::vec4::{AsVec4, Vec4};
@@ -31,6 +33,7 @@ use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
 use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
+use crate::material::texture_mapping::TextureMaterial;
 use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
 use crate::material::{self, Transparency};
 use crate::render::pp::ResourceKey;
@@ -268,11 +271,33 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         Placement::TopLeft,
         0.25,
         0.25,
+        1.0,
+        1.0,
     )));
     entity
         .borrow_mut()
         .set_material(Some(MultipleTexturesInstanced::new()));
     scene.entity_collection_mut().add_entity(entity);
+
+    let floor_entity = Entity::new();
+    floor_entity.borrow_mut().set_geometry(Some(Rectangle::new(
+        Vec2::from_values(0.0, 0.0),
+        Placement::Center,
+        10000.0,
+        10000.0,
+        2000.0,
+        2000.0,
+    )));
+    floor_entity
+        .borrow_mut()
+        .set_material(Some(TextureMaterial::new("./wood.png")));
+    floor_entity
+        .borrow_mut()
+        .set_local_matrix(Mat4::from_rotation_translation(
+            &Quat::from_axis_angle(&Vec3::from_values(1.0, 0.0, 0.0), PI / 2.0),
+            &Vec3::from_values(0.0, -0.5, 0.0),
+        ));
+    scene.entity_collection_mut().add_entity(floor_entity);
 
     let scene = Rc::new(RefCell::new(scene));
 

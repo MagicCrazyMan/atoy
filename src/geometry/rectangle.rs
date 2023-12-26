@@ -31,8 +31,22 @@ pub struct Rectangle {
 }
 
 impl Rectangle {
-    pub fn new(anchor: Vec2, placement: Placement, width: f64, height: f64) -> Self {
-        let (compositions, bounding) = create_rectangle(anchor, placement, width, height);
+    pub fn new(
+        anchor: Vec2,
+        placement: Placement,
+        width: f64,
+        height: f64,
+        texture_scale_s: f64,
+        texture_scale_t: f64,
+    ) -> Self {
+        let (compositions, bounding) = create_rectangle(
+            anchor,
+            placement,
+            width,
+            height,
+            texture_scale_s,
+            texture_scale_t,
+        );
         let share_descriptor = BufferDescriptor::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len() as u32),
             BufferUsage::StaticDraw,
@@ -152,6 +166,8 @@ fn create_rectangle(
     placement: Placement,
     width: f64,
     height: f64,
+    texture_scale_s: f64,
+    texture_scale_t: f64,
 ) -> ([u8; 112], BoundingVolumeNative) {
     let x = anchor.0[0];
     let y = anchor.0[1];
@@ -203,19 +219,24 @@ fn create_rectangle(
     #[rustfmt::skip]
     let buffer = [
         // vertices
-        max_x, min_y,  max_x, max_y,  min_x, max_y,  min_x, min_y,
+        max_x, min_y,
+        max_x, max_y,
+        min_x, max_y,
+        min_x, min_y,
         // tex coordinates
-        1.0, 0.0,  1.0, 1.0,  0.0, 1.0,  0.0, 0.0,
+        1.0 * texture_scale_s as f32, 0.0,
+        1.0 * texture_scale_s as f32, 1.0 * texture_scale_t as f32,
+        0.0, 1.0 * texture_scale_t as f32,
+        0.0, 0.0,
         // normal
-        0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0
     ];
 
     (
-        unsafe {
-            std::mem::transmute::<[f32; 28], [u8; 112]>(
-                buffer,
-            )
-        },
+        unsafe { std::mem::transmute::<[f32; 28], [u8; 112]>(buffer) },
         bounding_volume,
     )
 }
