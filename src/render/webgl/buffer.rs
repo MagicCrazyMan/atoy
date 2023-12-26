@@ -9,8 +9,8 @@ use log::debug;
 use uuid::Uuid;
 use web_sys::{
     js_sys::{
-        BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array,
-        Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
+        ArrayBuffer, BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array,
+        Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
     },
     WebGl2RenderingContext, WebGlBuffer,
 };
@@ -119,6 +119,9 @@ pub enum BufferSource {
         src_offset: GLuint,
         src_length: GLuint,
     },
+    ArrayBuffer {
+        data: ArrayBuffer,
+    },
     Int8Array {
         data: Int8Array,
         src_offset: GLuint,
@@ -181,7 +184,8 @@ impl BufferSource {
         match self {
             BufferSource::Preallocate { .. }
             | BufferSource::Function { .. }
-            | BufferSource::Binary { .. } => {
+            | BufferSource::Binary { .. }
+            | BufferSource::ArrayBuffer { .. } => {
                 unreachable!()
             }
             BufferSource::Int8Array {
@@ -266,6 +270,9 @@ impl BufferSource {
                 *src_offset,
                 *src_length,
             ),
+            BufferSource::ArrayBuffer { data } => {
+                gl.buffer_data_with_opt_array_buffer(target.gl_enum(), Some(data), usage.gl_enum())
+            }
             _ => {
                 let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
@@ -315,6 +322,11 @@ impl BufferSource {
                 *src_offset,
                 *src_length,
             ),
+            BufferSource::ArrayBuffer { data } => gl.buffer_sub_data_with_i32_and_array_buffer(
+                target.gl_enum(),
+                dst_byte_offset,
+                data,
+            ),
             _ => {
                 let (data, src_offset, src_length) = self.collect_typed_array_buffer();
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
@@ -348,6 +360,7 @@ impl BufferSource {
                 *src_offset,
                 *src_length,
             ),
+            BufferSource::ArrayBuffer { data } => (data.byte_length(), 0, 0),
             BufferSource::Int8Array {
                 data,
                 src_offset,
@@ -504,6 +517,11 @@ impl BufferSource {
             src_offset,
             src_length,
         }
+    }
+
+    /// Constructs a new buffer source from [`ArrayBuffer`].
+    pub fn from_array_buffer(data: ArrayBuffer) -> Self {
+        Self::ArrayBuffer { data }
     }
 }
 
@@ -1141,6 +1159,8 @@ impl BufferStore {
 
     /// Unbinds a uniform buffer object at mount point.
     pub fn unbind_uniform_buffer_object(&mut self, binding_index: u32) {
-        self.0.borrow_mut().unbind_uniform_buffer_object(binding_index)
+        self.0
+            .borrow_mut()
+            .unbind_uniform_buffer_object(binding_index)
     }
 }

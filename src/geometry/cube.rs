@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use gl_matrix4rust::vec3::Vec3;
+use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
     bounding::BoundingVolumeNative,
@@ -14,17 +15,14 @@ use crate::{
         draw::{Draw, DrawMode},
         uniform::UniformValue,
     },
-    utils::slice_to_float32_array,
 };
 
 use super::Geometry;
 
 pub struct Cube {
     size: f64,
-    vertices: BufferDescriptor,
-    normals: BufferDescriptor,
-    texture_coordinates: BufferDescriptor,
-    // non-clone fields
+    data: BufferDescriptor,
+    bounding_volume: BoundingVolumeNative,
     update_bounding_volume: bool,
 }
 
@@ -36,47 +34,16 @@ impl Cube {
 
     /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
-        let vertices = BufferDescriptor::with_memory_policy(
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
-                0,
-                108,
-            ),
-            BufferUsage::StaticDraw,
-            MemoryPolicy::new_restorable(move || {
-                BufferSource::from_float32_array(
-                    slice_to_float32_array(&calculate_vertices(size)),
-                    0,
-                    108,
-                )
-            }),
-        );
-
         Self {
             size,
-            vertices,
-            normals: BufferDescriptor::with_memory_policy(
-                BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144),
+            data: BufferDescriptor::with_memory_policy(
+                BufferSource::from_array_buffer(build_data(size)),
                 BufferUsage::StaticDraw,
-                MemoryPolicy::new_restorable(|| {
-                    BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 144)
+                MemoryPolicy::new_restorable(move || {
+                    BufferSource::from_array_buffer(build_data(size))
                 }),
             ),
-            texture_coordinates: BufferDescriptor::with_memory_policy(
-                BufferSource::from_float32_array(
-                    slice_to_float32_array(&TEXTURE_COORDINATES),
-                    0,
-                    48,
-                ),
-                BufferUsage::StaticDraw,
-                MemoryPolicy::new_restorable(|| {
-                    BufferSource::from_float32_array(
-                        slice_to_float32_array(&TEXTURE_COORDINATES),
-                        0,
-                        48,
-                    )
-                }),
-            ),
+            bounding_volume: build_bounding_volume(size),
             update_bounding_volume: true,
         }
     }
@@ -89,14 +56,19 @@ impl Cube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices.buffer_sub_data(
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
+        self.data.buffer_sub_data(
+            BufferSource::from_binary(
+                unsafe { std::mem::transmute::<[f32; 108], [u8; 432]>(build_vertices(size)) },
                 0,
-                108,
+                432,
             ),
             0,
         );
+        self.data
+            .set_memory_policy(MemoryPolicy::new_restorable(move || {
+                BufferSource::from_array_buffer(build_data(size))
+            }));
+        self.bounding_volume = build_bounding_volume(size);
         self.update_bounding_volume = true;
     }
 }
@@ -111,24 +83,12 @@ impl Geometry for Cube {
     }
 
     fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
-        let s = self.size / 2.0;
-        Some(BoundingVolumeNative::BoundingSphere {
-            center: Vec3::from_values(0.0, 0.0, 0.0),
-            radius: (s * s + s * s + s * s).sqrt(),
-        })
-        // Some(BoundingVolumeNative::AxisAlignedBoundingBox {
-        //     min_x: -s,
-        //     min_y: -s,
-        //     min_z: -s,
-        //     max_x: s,
-        //     max_y: s,
-        //     max_z: s,
-        // })
+        Some(self.bounding_volume)
     }
 
     fn vertices(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.vertices.clone(),
+            descriptor: self.data.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -140,25 +100,25 @@ impl Geometry for Cube {
 
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.normals.clone(),
+            descriptor: self.data.clone(),
             target: BufferTarget::ArrayBuffer,
-            component_size: BufferComponentSize::Four,
+            component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            bytes_offset: 108 * 4,
         })
     }
 
     fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.texture_coordinates.clone(),
+            descriptor: self.data.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            bytes_offset: 216 * 4,
         })
     }
 
@@ -181,18 +141,31 @@ impl Geometry for Cube {
 
 impl Clone for Cube {
     fn clone(&self) -> Self {
-        Self {
-            size: self.size.clone(),
-            vertices: self.vertices.clone(),
-            normals: self.normals.clone(),
-            texture_coordinates: self.texture_coordinates.clone(),
-            update_bounding_volume: true,
-        }
+        Self::with_size(self.size)
+    }
+}
+
+fn build_data(size: f64) -> ArrayBuffer {
+    let data = ArrayBuffer::new(264 * 4);
+    let v = Float32Array::new_with_byte_offset_and_length(&data, 0, 108);
+    v.copy_from(&build_vertices(size));
+    let n = Float32Array::new_with_byte_offset_and_length(&data, 108 * 4, 108);
+    n.copy_from(&NORMALS);
+    let t = Float32Array::new_with_byte_offset_and_length(&data, 216 * 4, 48);
+    t.copy_from(&TEXTURE_COORDINATES);
+    data
+}
+
+fn build_bounding_volume(size: f64) -> BoundingVolumeNative {
+    let s = size / 2.0;
+    BoundingVolumeNative::BoundingSphere {
+        center: Vec3::from_values(0.0, 0.0, 0.0),
+        radius: (s * s + s * s + s * s).sqrt(),
     }
 }
 
 #[rustfmt::skip]
-pub fn calculate_vertices(size: f64) -> [f32; 108] {
+fn build_vertices(size: f64) -> [f32; 108] {
     let s = (size / 2.0) as f32;
     [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
@@ -205,17 +178,17 @@ pub fn calculate_vertices(size: f64) -> [f32; 108] {
 }
 
 #[rustfmt::skip]
-pub const NORMALS: [f32; 144] = [
-     0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0,  0.0, 0.0, 1.0, 0.0, // front
-     0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0,  0.0, 1.0, 0.0, 0.0, // up
-     0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0,  0.0, 0.0,-1.0, 0.0, // back
-     0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0,  0.0,-1.0, 0.0, 0.0, // bottom
-    -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, // left
-     1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0,  1.0, 0.0, 0.0, 0.0, // right
+const NORMALS: [f32; 108] = [
+     0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0, // front
+     0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0, // up
+     0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0, // back
+     0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0, // bottom
+    -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, // left
+     1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0, // right
 ];
 
 #[rustfmt::skip]
-pub const TEXTURE_COORDINATES: [f32; 48] = [
+const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // front
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // up
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // back

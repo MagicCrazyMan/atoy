@@ -18,7 +18,6 @@ use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
 use crate::entity::{Entity, Weak};
 use crate::error::Error;
-use crate::geometry::cube::{self, calculate_vertices};
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::multicube::MultiCube;
 use crate::geometry::raw::RawGeometry;
@@ -372,124 +371,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 &mut SceneStuff::new(&mut scene.borrow_mut()),
                 frame_time,
             )
-            .unwrap();
-        let end = window().performance().unwrap().now();
-        document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
-
-        request_animation_frame(f.borrow().as_ref().unwrap());
-    }));
-
-    request_animation_frame(g.borrow().as_ref().unwrap());
-
-    Ok(())
-}
-
-#[wasm_bindgen]
-pub fn test_reuse_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut scene = create_scene((0.0, 5.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
-    let mut render = create_render()?;
-    let mut pipeline = create_standard_pipeline(
-        ResourceKey::new_persist_str("position"),
-        ResourceKey::new_persist_str("clear_color"),
-    );
-
-    // reuses cube buffer
-    let vertices = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::new(
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(1.0)),
-                0,
-                108,
-            ),
-            BufferUsage::StaticDraw,
-        ),
-        target: BufferTarget::ArrayBuffer,
-        component_size: BufferComponentSize::Three,
-        data_type: BufferDataType::Float,
-        normalized: false,
-        bytes_stride: 0,
-        bytes_offset: 0,
-    };
-    let normals = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::new(
-            BufferSource::from_float32_array(slice_to_float32_array(&cube::NORMALS), 0, 144),
-            BufferUsage::StaticDraw,
-        ),
-        target: BufferTarget::ArrayBuffer,
-        component_size: BufferComponentSize::Four,
-        data_type: BufferDataType::Float,
-        normalized: false,
-        bytes_stride: 0,
-        bytes_offset: 0,
-    };
-    let tex_coords = AttributeValue::Buffer {
-        descriptor: BufferDescriptor::new(
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&cube::TEXTURE_COORDINATES),
-                0,
-                48,
-            ),
-            BufferUsage::StaticDraw,
-        ),
-        target: BufferTarget::ArrayBuffer,
-        component_size: BufferComponentSize::Four,
-        data_type: BufferDataType::Float,
-        normalized: false,
-        bytes_stride: 0,
-        bytes_offset: 0,
-    };
-
-    let cell_width = width / (grid as f64);
-    let cell_height = height / (grid as f64);
-    let start_x = width / 2.0 - cell_width / 2.0;
-    let start_z = height / 2.0 - cell_height / 2.0;
-    for index in 0..count {
-        let row = index / grid;
-        let col = index % grid;
-
-        let center_x = start_x - col as f64 * cell_width;
-        let center_z = start_z - row as f64 * cell_height;
-        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
-
-        let entity = Entity::new();
-
-        entity.borrow_mut().set_geometry(Some(RawGeometry::new(
-            Draw::Arrays {
-                mode: DrawMode::Triangles,
-                first: 0,
-                count: 36,
-            },
-            Some(vertices.clone()),
-            Some(normals.clone()),
-            Some(tex_coords.clone()),
-            HashMap::new(),
-            HashMap::new(),
-        )));
-        entity
-            .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
-        entity.borrow_mut().set_local_matrix(model_matrix);
-        scene.entity_collection_mut().add_entity(entity);
-    }
-
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-        let seconds = frame_time / 1000.0;
-
-        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
-
-        scene
-            .entity_collection_mut()
-            .set_local_matrix(Mat4::from_y_rotation(rotation));
-
-        let start = window().performance().unwrap().now();
-        render
-            .render(&mut pipeline, &mut SceneStuff::new(&mut scene), frame_time)
             .unwrap();
         let end = window().performance().unwrap().now();
         document()
