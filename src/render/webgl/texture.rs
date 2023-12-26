@@ -34,7 +34,6 @@ pub enum TextureInternalFormat {
     LUMINANCE,
     LUMINANCE_ALPHA,
     ALPHA,
-    SRGB,
     SRGB8,
     SRGBA8,
     SRGB8_ALPHA8,

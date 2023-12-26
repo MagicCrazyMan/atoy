@@ -151,7 +151,7 @@ fn create_scene(
         60.0f64.to_radians(),
         1.0,
         0.5,
-        Some(50.0),
+        Some(200.0),
     ));
     scene.set_ambient_light(Some(SimpleAmbientLight::new(0.2, 0.2, 0.2)));
     scene.add_diffuse_light(SimpleDiffuseLight::new(

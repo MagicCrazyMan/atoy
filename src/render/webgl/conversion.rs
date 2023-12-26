@@ -137,7 +137,6 @@ impl ToGlEnum for TextureInternalFormat {
             TextureInternalFormat::LUMINANCE => WebGl2RenderingContext::LUMINANCE,
             TextureInternalFormat::LUMINANCE_ALPHA => WebGl2RenderingContext::LUMINANCE_ALPHA,
             TextureInternalFormat::ALPHA => WebGl2RenderingContext::ALPHA,
-            TextureInternalFormat::SRGB => WebGl2RenderingContext::SRGB,
             TextureInternalFormat::SRGBA8 => WebGl2RenderingContext::SRGB8,
             TextureInternalFormat::SRGB8_ALPHA8 => WebGl2RenderingContext::SRGB8_ALPHA8,
             TextureInternalFormat::R8 => WebGl2RenderingContext::R8,

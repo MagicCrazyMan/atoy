@@ -9,7 +9,7 @@ use crate::{
             program::{ProgramSource, ShaderSource},
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
-                TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod,
+                TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod, TextureMinificationFilter, TextureMagnificationFilter,
             },
             uniform::{
                 UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
@@ -64,13 +64,15 @@ impl TextureMaterial {
                 descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                     image,
                     TextureDataType::UNSIGNED_BYTE,
-                    TextureInternalFormat::RGB,
+                    TextureInternalFormat::SRGB8,
                     TextureFormat::RGB,
                     0,
                     vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                    true,
+                    false,
                 ),
                 params: vec![
+                    TextureParameter::MinFilter(TextureMinificationFilter::Linear),
+                    TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                     TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
                     TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
                 ],
