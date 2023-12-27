@@ -21,7 +21,10 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue, UniformStructuralBinding},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
 };
@@ -142,28 +145,28 @@ impl ProgramSource for TextureInstancedMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryTextureCoordinate,
             AttributeBinding::FromMaterial(INSTANCE_MODEL_MATRIX_ATTRIBUTE),
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial(SAMPLER_UNIFORM),
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

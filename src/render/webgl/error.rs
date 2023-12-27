@@ -21,7 +21,7 @@ pub enum Error {
     CompileShaderFailed(Option<String>),
     CompileProgramFailed(Option<String>),
     PickFailed(Option<String>),
-    UniformBufferObjectAlreadyBound(GLuint),
+    UniformBufferObjectBindingIndexAlreadyBound(GLuint),
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
     CommonWebGLError(Option<String>),

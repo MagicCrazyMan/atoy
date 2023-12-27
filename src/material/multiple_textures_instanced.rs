@@ -20,7 +20,10 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{UniformBinding, UniformValue, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
 };
@@ -321,8 +324,8 @@ impl ProgramSource for MultipleTexturesInstanced {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryTextureCoordinate,
             AttributeBinding::FromMaterial("a_InstanceMatrix"),
@@ -330,8 +333,8 @@ impl ProgramSource for MultipleTexturesInstanced {
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Sampler0"),
@@ -345,12 +348,12 @@ impl ProgramSource for MultipleTexturesInstanced {
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

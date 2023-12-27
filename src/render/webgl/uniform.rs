@@ -1,4 +1,4 @@
-use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3, vec4::AsVec4};
+use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, WebGlUniformLocation};
@@ -11,12 +11,71 @@ use crate::{
 };
 
 use super::{
-    buffer::{BufferDescriptor, BufferTarget},
+    buffer::BufferDescriptor,
     conversion::{GLintptr, GLsizeiptr, ToGlEnum},
     program::ProgramItem,
     shader::VariableDataType,
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
+
+/// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BINDING: u32 = 0;
+/// Uniform Buffer Object mount point for `atoy_Lights`.
+pub const UBO_LIGHTS_BINDING: u32 = 1;
+/// Uniform Buffer Object mount point for gaussian blur.
+pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
+
+/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
+/// Uniform Buffer Object bytes length for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_EnableLighting`.
+pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+
+/// Uniform Buffer Object bytes offset for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_EnableLighting`.
+pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET: u32 = 4;
+/// Uniform Buffer Object bytes offset for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
+/// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
+
+/// Uniform Buffer Object bytes length for `atoy_Lights`.
+pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16 + 16 + 64 * 12 + 64 * 12 + 80 * 12;
+/// Uniform Buffer Object bytes length for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
+/// Uniform Buffer Object bytes length for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
+
+/// Uniform Buffer Object bytes offset for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
+/// Uniform Buffer Object bytes offset for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
 
 /// Available uniform values.
 #[derive(Clone)]
@@ -70,21 +129,20 @@ pub enum UniformValue {
 pub enum UniformBlockValue {
     BufferBase {
         descriptor: BufferDescriptor,
-        target: BufferTarget,
-        uniform_block_binding: u32,
+        binding: u32,
     },
     BufferRange {
         descriptor: BufferDescriptor,
-        target: BufferTarget,
         offset: GLintptr,
         size: GLsizeiptr,
-        uniform_block_binding: u32,
+        binding: u32,
     },
 }
 
 /// Uniform binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBinding {
+    RenderTime,
     CanvasSize,
     DrawingBufferSize,
     ModelMatrix,
@@ -92,11 +150,8 @@ pub enum UniformBinding {
     ViewMatrix,
     ProjMatrix,
     ViewProjMatrix,
-    ActiveCameraPosition,
-    EnableLighting,
-    AmbientReflection,
-    DiffuseReflection,
-    SpecularReflection,
+    CameraPosition,
+    Transparency,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
@@ -106,6 +161,7 @@ impl UniformBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
+            UniformBinding::RenderTime => "u_RenderTime",
             UniformBinding::CanvasSize => "u_CanvasSize",
             UniformBinding::DrawingBufferSize => "u_DrawingBufferSize",
             UniformBinding::ModelMatrix => "u_ModelMatrix",
@@ -113,11 +169,8 @@ impl UniformBinding {
             UniformBinding::ViewMatrix => "u_ViewMatrix",
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
-            UniformBinding::ActiveCameraPosition => "u_ActiveCameraPosition",
-            UniformBinding::EnableLighting => "u_EnableLighting",
-            UniformBinding::AmbientReflection => "u_AmbientReflection",
-            UniformBinding::DiffuseReflection => "u_DiffuseReflection",
-            UniformBinding::SpecularReflection => "u_SpecularReflection",
+            UniformBinding::CameraPosition => "u_CameraPosition",
+            UniformBinding::Transparency => "u_Transparency",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,
@@ -127,6 +180,7 @@ impl UniformBinding {
     /// Returns [`VariableDataType`] for non-custom bindings.
     pub fn data_type(&self) -> Option<VariableDataType> {
         match self {
+            UniformBinding::RenderTime => Some(VariableDataType::Float),
             UniformBinding::CanvasSize => Some(VariableDataType::FloatVec2),
             UniformBinding::DrawingBufferSize => Some(VariableDataType::FloatVec2),
             UniformBinding::ModelMatrix => Some(VariableDataType::Mat4),
@@ -134,11 +188,8 @@ impl UniformBinding {
             UniformBinding::ViewMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
             UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::ActiveCameraPosition => Some(VariableDataType::FloatVec3),
-            UniformBinding::EnableLighting => Some(VariableDataType::Bool),
-            UniformBinding::AmbientReflection => Some(VariableDataType::FloatVec4),
-            UniformBinding::DiffuseReflection => Some(VariableDataType::FloatVec4),
-            UniformBinding::SpecularReflection => Some(VariableDataType::FloatVec4),
+            UniformBinding::CameraPosition => Some(VariableDataType::FloatVec3),
+            UniformBinding::Transparency => Some(VariableDataType::Float),
             UniformBinding::FromGeometry(_)
             | UniformBinding::FromMaterial(_)
             | UniformBinding::FromEntity(_) => None,
@@ -149,19 +200,19 @@ impl UniformBinding {
 /// Uniform block binding sources.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UniformBlockBinding {
-    DiffuseLights,
-    SpecularLights,
+    StandardUniversalUniforms,
+    StandardLights,
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
 }
 
 impl UniformBlockBinding {
-    /// Returns variable name.
-    pub fn variable_name(&self) -> &str {
+    /// Returns uniform block interface name.
+    pub fn block_name(&self) -> &str {
         match self {
-            UniformBlockBinding::DiffuseLights => "DiffuseLights",
-            UniformBlockBinding::SpecularLights => "SpecularLights",
+            UniformBlockBinding::StandardUniversalUniforms => "atoy_UniversalUniforms",
+            UniformBlockBinding::StandardLights => "atoy_Lights",
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
             | UniformBlockBinding::FromEntity(name) => name,
@@ -169,9 +220,9 @@ impl UniformBlockBinding {
     }
 }
 
+/// Structural uniform binding sources.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniformStructuralBinding {
-    AmbientLight,
     FromGeometry {
         variable_name: &'static str,
         fields: Vec<&'static str>,
@@ -193,7 +244,6 @@ impl UniformStructuralBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
-            UniformStructuralBinding::AmbientLight => "u_AmbientLight",
             UniformStructuralBinding::FromGeometry { variable_name, .. }
             | UniformStructuralBinding::FromMaterial { variable_name, .. }
             | UniformStructuralBinding::FromEntity { variable_name, .. } => variable_name,
@@ -203,7 +253,6 @@ impl UniformStructuralBinding {
     /// Returns fields.
     pub fn fields(&self) -> &[&str] {
         match self {
-            UniformStructuralBinding::AmbientLight => &["enabled", "color"],
             UniformStructuralBinding::FromGeometry { fields, .. }
             | UniformStructuralBinding::FromMaterial { fields, .. }
             | UniformStructuralBinding::FromEntity { fields, .. } => &fields,
@@ -213,7 +262,6 @@ impl UniformStructuralBinding {
     /// Returns array len. Returns `None` if not a array.
     pub fn array_len(&self) -> Option<usize> {
         match self {
-            UniformStructuralBinding::AmbientLight => None,
             UniformStructuralBinding::FromGeometry { array_len, .. }
             | UniformStructuralBinding::FromMaterial { array_len, .. }
             | UniformStructuralBinding::FromEntity { array_len, .. } => array_len.clone(),
@@ -223,9 +271,6 @@ impl UniformStructuralBinding {
     /// Returns [`VariableDataType`] for non-custom bindings.
     pub fn data_type(&self) -> Option<VariableDataType> {
         match self {
-            UniformStructuralBinding::AmbientLight => {
-                Some(VariableDataType::Struct("AmbientLight"))
-            }
             UniformStructuralBinding::FromGeometry { .. }
             | UniformStructuralBinding::FromMaterial { .. }
             | UniformStructuralBinding::FromEntity { .. } => None,
@@ -233,6 +278,7 @@ impl UniformStructuralBinding {
     }
 }
 
+/// Uniforms buffer bound to WebGL runtime.
 pub struct BoundUniform {
     descriptor: BufferDescriptor,
 }
@@ -271,19 +317,13 @@ pub fn bind_uniforms(
                     transpose: false,
                 })
             }
-            UniformBinding::ActiveCameraPosition => Some(UniformValue::FloatVector3(
+            UniformBinding::CameraPosition => Some(UniformValue::FloatVector3(
                 stuff.camera().position().to_gl(),
             )),
-            UniformBinding::EnableLighting => Some(UniformValue::Bool(stuff.enable_lighting())),
-            UniformBinding::AmbientReflection => material
-                .ambient()
-                .map(|c| UniformValue::FloatVector4(c.to_gl())),
-            UniformBinding::DiffuseReflection => material
-                .diffuse()
-                .map(|c| UniformValue::FloatVector4(c.to_gl())),
-            UniformBinding::SpecularReflection => material
-                .specular()
-                .map(|c| UniformValue::FloatVector4(c.to_gl())),
+            UniformBinding::RenderTime => Some(UniformValue::Float1(state.timestamp() as f32)),
+            UniformBinding::Transparency => {
+                Some(UniformValue::Float1(material.transparency().alpha()))
+            }
             UniformBinding::CanvasSize => state
                 .gl()
                 .canvas()
@@ -312,25 +352,6 @@ pub fn bind_uniforms(
     for (binding, fields) in program_item.uniform_structural_locations() {
         let mut values = Vec::with_capacity(fields.len());
         match binding {
-            UniformStructuralBinding::AmbientLight => {
-                for (field, location) in fields {
-                    match field.as_str() {
-                        "u_AmbientLight.enabled" => values.push((
-                            location,
-                            UniformValue::Bool(stuff.ambient_light().is_some()),
-                        )),
-                        "u_AmbientLight.color" => {
-                            if let Some(light) = stuff.ambient_light() {
-                                values.push((
-                                    location,
-                                    UniformValue::FloatVector3(light.color().to_gl()),
-                                ))
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
             UniformStructuralBinding::FromGeometry { .. } => {
                 for (field, location) in fields {
                     let value = geometry.uniform_value(field, entity);
@@ -366,15 +387,13 @@ pub fn bind_uniforms(
     let mut bounds = Vec::with_capacity(program_item.uniform_block_indices().len());
     for (binding, uniform_block_index) in program_item.uniform_block_indices() {
         let value = match binding {
-            UniformBlockBinding::DiffuseLights => Some(UniformBlockValue::BufferBase {
-                descriptor: stuff.diffuse_lights_descriptor(),
-                target: BufferTarget::UniformBuffer,
-                uniform_block_binding: 1,
+            UniformBlockBinding::StandardUniversalUniforms => Some(UniformBlockValue::BufferBase {
+                descriptor: state.universal_ubo(),
+                binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
             }),
-            UniformBlockBinding::SpecularLights => Some(UniformBlockValue::BufferBase {
-                descriptor: stuff.specular_lights_descriptor(),
-                target: BufferTarget::UniformBuffer,
-                uniform_block_binding: 2,
+            UniformBlockBinding::StandardLights => Some(UniformBlockValue::BufferBase {
+                descriptor: state.lights_ubo(),
+                binding: UBO_LIGHTS_BINDING,
             }),
             UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
             UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
@@ -389,67 +408,53 @@ pub fn bind_uniforms(
         match value {
             UniformBlockValue::BufferBase {
                 descriptor,
-                target,
-                uniform_block_binding,
+                binding,
             } => {
-                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "BindUniforms",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        continue;
-                    }
+                if let Err(err) = state
+                    .buffer_store_mut()
+                    .bind_uniform_buffer_object(&descriptor, binding)
+                {
+                    warn!(
+                        target: "BindUniforms",
+                        "bind uniform buffer object failed: {}",
+                        err
+                    );
+                    continue;
                 };
 
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
                 state.gl().uniform_block_binding(
                     program_item.gl_program(),
                     *uniform_block_index,
-                    uniform_block_binding,
+                    binding,
                 );
-                state
-                    .gl()
-                    .bind_buffer_base(target.gl_enum(), uniform_block_binding, Some(&buffer));
-                state.gl().bind_buffer(target.gl_enum(), None);
 
                 bounds.push(BoundUniform { descriptor });
             }
             UniformBlockValue::BufferRange {
                 descriptor,
-                target,
                 offset,
                 size,
-                uniform_block_binding,
+                binding,
             } => {
-                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "BindUniforms",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        continue;
-                    }
+                if let Err(err) = state.buffer_store_mut().bind_uniform_buffer_object_range(
+                    &descriptor,
+                    offset,
+                    size,
+                    binding,
+                ) {
+                    warn!(
+                        target: "BindUniforms",
+                        "bind uniform buffer object failed: {}",
+                        err
+                    );
+                    continue;
                 };
 
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
                 state.gl().uniform_block_binding(
                     program_item.gl_program(),
                     *uniform_block_index,
-                    uniform_block_binding,
+                    binding,
                 );
-                state.gl().bind_buffer_range_with_i32_and_i32(
-                    target.gl_enum(),
-                    *uniform_block_index,
-                    Some(&buffer),
-                    offset,
-                    size,
-                );
-                state.gl().bind_buffer(target.gl_enum(), None);
 
                 bounds.push(BoundUniform { descriptor });
             }

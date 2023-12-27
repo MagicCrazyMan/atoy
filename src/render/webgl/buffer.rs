@@ -589,6 +589,15 @@ impl Drop for BufferDescriptorInner {
             store.lru.remove(item.lru_node);
         }
 
+        if let Some(key) = store
+            .ubo_bindings
+            .iter()
+            .find(|(_, v)| **v == self.id)
+            .map(|(v, _)| *v)
+        {
+            store.ubo_bindings.remove(&key);
+        }
+
         debug!("buffer descriptor {} dropped", &self.id);
     }
 }
@@ -659,7 +668,6 @@ impl BufferDescriptor {
             inner.consumed_bytes_length = consumed_bytes_length;
             inner.queue.clear();
             inner.queue.push((source, 0));
-            return;
         } else {
             inner.consumed_bytes_length = inner.consumed_bytes_length.max(consumed_bytes_length);
             inner.queue.push((source, dst_byte_offset));
@@ -684,17 +692,17 @@ pub enum MemoryPolicyKind {
 
 impl MemoryPolicy {
     /// Constructs a default memory policy.
-    pub fn new_default() -> Self {
+    pub fn default() -> Self {
         Self::Default
     }
 
     /// Constructs a unfreeable memory policy.
-    pub fn new_unfree() -> Self {
+    pub fn unfree() -> Self {
         Self::Unfree
     }
 
     /// Constructs a restorable memory policy.
-    pub fn new_restorable<F>(f: F) -> Self
+    pub fn restorable<F>(f: F) -> Self
     where
         F: Fn() -> BufferSource + 'static,
     {
@@ -727,7 +735,7 @@ struct BufferStoreInner {
     used_memory: i32,
     lru: Lru<Uuid>,
     store: HashMap<Uuid, StorageItem>,
-    uniform_mounts: HashMap<GLuint, Uuid>,
+    ubo_bindings: HashMap<GLuint, Uuid>,
 }
 
 impl BufferStoreInner {
@@ -802,11 +810,21 @@ impl BufferStoreInner {
                     source.buffer_sub_data(&self.gl, target, dst_byte_offset as i32);
                 }
             }
+
+            debug!(
+                target: "BufferStore",
+                "buffer new data for {}, old length {}, new length {}", id, old_bytes_length, new_bytes_length
+            );
         } else {
             // buffers sub data otherwise
             for (source, dst_byte_offset) in queue.drain(..) {
                 source.buffer_sub_data(&self.gl, target, dst_byte_offset as i32);
             }
+
+            debug!(
+                target: "BufferStore",
+                "buffer sub data for {}", id
+            );
         }
         self.gl.bind_buffer(target.gl_enum(), None);
 
@@ -827,24 +845,31 @@ impl BufferStoreInner {
     fn bind_uniform_buffer_object(
         &mut self,
         descriptor: &BufferDescriptor,
-        binding_index: u32,
+        binding: u32,
     ) -> Result<(), Error> {
-        if self.uniform_mounts.contains_key(&binding_index) {
-            return Err(Error::UniformBufferObjectAlreadyBound(binding_index));
+        let new_binding = if let Some(id) = self.ubo_bindings.get(&binding) {
+            if *id != descriptor.id() {
+                return Err(Error::UniformBufferObjectBindingIndexAlreadyBound(binding));
+            }
+            false
+        } else {
+            true
         };
 
         let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
 
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-        self.gl.bind_buffer_base(
-            WebGl2RenderingContext::UNIFORM_BUFFER,
-            binding_index,
-            Some(&buffer),
-        );
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-        self.uniform_mounts.insert(binding_index, descriptor.id());
+        if new_binding {
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
+            self.gl.bind_buffer_base(
+                WebGl2RenderingContext::UNIFORM_BUFFER,
+                binding,
+                Some(&buffer),
+            );
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
+            self.ubo_bindings.insert(binding, descriptor.id());
+        }
 
         Ok(())
     }
@@ -854,32 +879,39 @@ impl BufferStoreInner {
         descriptor: &BufferDescriptor,
         offset: i32,
         size: i32,
-        binding_index: u32,
+        binding: u32,
     ) -> Result<(), Error> {
-        if self.uniform_mounts.contains_key(&binding_index) {
-            return Err(Error::UniformBufferObjectAlreadyBound(binding_index));
+        let new_binding = if let Some(id) = self.ubo_bindings.get(&binding) {
+            if *id != descriptor.id() {
+                return Err(Error::UniformBufferObjectBindingIndexAlreadyBound(binding));
+            }
+            false
+        } else {
+            true
         };
 
         let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
 
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-        self.gl.bind_buffer_range_with_i32_and_i32(
-            WebGl2RenderingContext::UNIFORM_BUFFER,
-            binding_index,
-            Some(&buffer),
-            offset,
-            size,
-        );
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-        self.uniform_mounts.insert(binding_index, descriptor.id());
+        if new_binding {
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
+            self.gl.bind_buffer_range_with_i32_and_i32(
+                WebGl2RenderingContext::UNIFORM_BUFFER,
+                binding,
+                Some(&buffer),
+                offset,
+                size,
+            );
+            self.gl
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
+            self.ubo_bindings.insert(binding, descriptor.id());
+        }
 
         Ok(())
     }
 
-    fn unbind_uniform_buffer_object(&mut self, binding_index: u32) {
-        let Some(id) = self.uniform_mounts.remove(&binding_index) else {
+    fn unbind_uniform_buffer_object(&mut self, binding: u32) {
+        let Some(id) = self.ubo_bindings.remove(&binding) else {
             return;
         };
         let Some(item) = self.store.get_mut(&id) else {
@@ -889,7 +921,7 @@ impl BufferStoreInner {
         self.gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&item.buffer));
         self.gl
-            .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding_index, None);
+            .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
         self.gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
 
@@ -1073,7 +1105,7 @@ impl BufferStore {
             used_memory: 0,
             lru: Lru::new(),
             store: HashMap::new(),
-            uniform_mounts: HashMap::new(),
+            ubo_bindings: HashMap::new(),
         })))
     }
 
@@ -1134,11 +1166,11 @@ impl BufferStore {
     pub fn bind_uniform_buffer_object(
         &mut self,
         descriptor: &BufferDescriptor,
-        binding_index: u32,
+        binding: u32,
     ) -> Result<(), Error> {
         self.0
             .borrow_mut()
-            .bind_uniform_buffer_object(descriptor, binding_index)
+            .bind_uniform_buffer_object(descriptor, binding)
     }
 
     /// Binds a [`WebGlBuffer`] in range by a [`BufferDescriptor`] to a uniform buffer object mount point.
@@ -1147,20 +1179,15 @@ impl BufferStore {
         descriptor: &BufferDescriptor,
         offset: i32,
         size: i32,
-        binding_index: u32,
+        binding: u32,
     ) -> Result<(), Error> {
-        self.0.borrow_mut().bind_uniform_buffer_object_range(
-            descriptor,
-            offset,
-            size,
-            binding_index,
-        )
+        self.0
+            .borrow_mut()
+            .bind_uniform_buffer_object_range(descriptor, offset, size, binding)
     }
 
     /// Unbinds a uniform buffer object at mount point.
-    pub fn unbind_uniform_buffer_object(&mut self, binding_index: u32) {
-        self.0
-            .borrow_mut()
-            .unbind_uniform_buffer_object(binding_index)
+    pub fn unbind_uniform_buffer_object(&mut self, binding: u32) {
+        self.0.borrow_mut().unbind_uniform_buffer_object(binding)
     }
 }

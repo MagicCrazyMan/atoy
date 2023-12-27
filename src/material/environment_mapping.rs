@@ -52,7 +52,7 @@ const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
     precision mediump float;
 #endif
 
-uniform vec3 u_ActiveCameraPosition;
+uniform vec3 u_CameraPosition;
 uniform samplerCube u_Sampler;
 
 in vec3 v_Position;
@@ -62,7 +62,7 @@ out vec4 out_Color;
 
 void main() {
     vec3 normal = normalize(v_Normal);
-    vec3 incident = normalize(v_Position - u_ActiveCameraPosition);
+    vec3 incident = normalize(v_Position - u_CameraPosition);
     vec3 reflection = reflect(incident, normal);
 
     out_Color = texture(u_Sampler, reflection);
@@ -101,29 +101,29 @@ impl ProgramSource for EnvironmentMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryNormal,
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::NormalMatrix,
             UniformBinding::ViewProjMatrix,
-            UniformBinding::ActiveCameraPosition,
+            UniformBinding::CameraPosition,
             UniformBinding::FromMaterial(SAMPLER_UNIFORM),
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

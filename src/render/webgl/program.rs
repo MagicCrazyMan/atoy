@@ -25,16 +25,16 @@ pub trait ProgramSource {
     fn sources(&self) -> Vec<ShaderSource>;
 
     /// Attribute binding variable name.
-    fn attribute_bindings(&self) -> &[AttributeBinding];
+    fn attribute_bindings(&self) -> Vec<AttributeBinding>;
 
     /// Uniform variable bindings.
-    fn uniform_bindings(&self) -> &[UniformBinding];
+    fn uniform_bindings(&self) -> Vec<UniformBinding>;
 
     /// Uniform structural variable bindings.
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding];
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding>;
 
     /// Uniform block variable bindings.
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding>;
 }
 
 pub enum Shader {}
@@ -157,22 +157,22 @@ where
         attributes: Rc::new(collect_attribute_locations(
             gl,
             &program,
-            source.attribute_bindings(),
+            source.attribute_bindings().as_slice(),
         )),
         uniform_locations: Rc::new(collect_uniform_locations(
             gl,
             &program,
-            source.uniform_bindings(),
+            source.uniform_bindings().as_slice(),
         )),
         uniform_block_indices: Rc::new(collect_uniform_block_indices(
             gl,
             &program,
-            source.uniform_block_bindings(),
+            source.uniform_block_bindings().as_slice(),
         )),
         uniform_structural_locations: Rc::new(collect_uniform_structural_locations(
             gl,
             &program,
-            source.uniform_structural_bindings(),
+            source.uniform_structural_bindings().as_slice(),
         )),
         program,
         shaders,
@@ -283,7 +283,7 @@ fn collect_attribute_locations(
             // should log warning
             warn!(
                 target: "CompileProgram",
-                "failed to get attribute location of {}", variable_name
+                "failed to get attribute location {}", variable_name
             );
         } else {
             locations.insert(binding.clone(), location as GLuint);
@@ -307,7 +307,7 @@ fn collect_uniform_locations(
             None => {
                 warn!(
                     target: "CompileProgram",
-                    "failed to get uniform location of {}", variable_name
+                    "failed to get uniform location {}", variable_name
                 );
             }
             Some(location) => {
@@ -341,7 +341,7 @@ fn collect_uniform_structural_locations(
                             None => {
                                 warn!(
                                     target: "CompileProgram",
-                                    "failed to get uniform location of {}", complete_field_name
+                                    "failed to get uniform location {}", complete_field_name
                                 );
                             }
                             Some(location) => {
@@ -357,7 +357,7 @@ fn collect_uniform_structural_locations(
                         None => {
                             warn!(
                                 target: "CompileProgram",
-                                "failed to get uniform location of {}", complete_field_name
+                                "failed to get uniform location {}", complete_field_name
                             );
                         }
                         Some(location) => {
@@ -381,7 +381,7 @@ pub fn collect_uniform_block_indices(
     let mut indices = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
-        let variable_name = binding.variable_name();
+        let variable_name = binding.block_name();
         let index = gl.get_uniform_block_index(program, variable_name);
         indices.insert(*binding, index);
     });

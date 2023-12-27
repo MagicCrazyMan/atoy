@@ -1,14 +1,12 @@
 use std::any::Any;
 
-use gl_matrix4rust::vec4::Vec4;
-use palette::{encoding::Srgb, rgb::Rgba};
+use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 use crate::{
     entity::BorrowedMut,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::{ProgramSource, ShaderSource},
-        shader::{ShaderBuilder, ShaderType, Variable, VariableDataType},
+        shader::Variable,
         uniform::{
             UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
             UniformValue,
@@ -16,174 +14,90 @@ use crate::{
     },
 };
 
-use super::{Material, Transparency};
+use super::{Material, StandardMaterialSource, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct SolidColorMaterial {
-    color: Rgba<Srgb, f64>,
+    color: Vec3,
+    transparency: Transparency,
 }
 
 impl SolidColorMaterial {
+    /// Constructs a solid color material with `(1.0, 0.0, 0.0, 1.0)``.
     pub fn new() -> Self {
         Self {
-            color: Rgba::default(),
+            color: Vec3::from_values(1.0, 0.0, 0.0),
+            transparency: Transparency::Opaque,
         }
     }
 
-    pub fn with_color(color: Rgba<Srgb, f64>) -> Self {
-        Self { color }
+    /// Constructs a solid color material with specified color and transparency.
+    pub fn with_color(color: Vec3, transparency: Transparency) -> Self {
+        Self {
+            color,
+            transparency,
+        }
     }
 
-    pub fn color(&self) -> Rgba<Srgb, f64> {
+    /// Returns color.
+    pub fn color(&self) -> Vec3 {
         self.color
     }
 
-    pub fn set_color(&mut self, color: Rgba<Srgb, f64>) {
+    /// Sets color,
+    pub fn set_color(&mut self, color: Vec3, transparency: Transparency) {
         self.color = color;
+        self.transparency = transparency;
     }
 }
 
-impl ProgramSource for SolidColorMaterial {
+impl StandardMaterialSource for SolidColorMaterial {
     fn name(&self) -> &'static str {
         "SolidColorMaterial"
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::Builder(ShaderBuilder::new(
-                ShaderType::Vertex,
-                [
-                    Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
-                    Variable::from_attribute_binding(AttributeBinding::GeometryNormal),
-                    Variable::from_uniform_binding(UniformBinding::ModelMatrix),
-                    Variable::from_uniform_binding(UniformBinding::NormalMatrix),
-                    Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
-                    Variable::new_out("v_Normal", VariableDataType::FloatVec3),
-                    Variable::new_out("v_Position", VariableDataType::FloatVec3),
-                ],
-                [],
-                "void main() {
-                    v_Normal = vec3(u_NormalMatrix * a_Normal);
-
-                    vec4 position = u_ModelMatrix * a_Position;
-                    v_Position = vec3(position);
-                    gl_Position = u_ViewProjMatrix * position;
-                }",
-            )),
-            ShaderSource::Builder(ShaderBuilder::new(
-                ShaderType::Fragment,
-                [
-                    Variable::from_uniform_binding(UniformBinding::ActiveCameraPosition),
-                    Variable::from_uniform_binding(UniformBinding::EnableLighting),
-                    Variable::from_uniform_structural_binding(
-                        UniformStructuralBinding::AmbientLight,
-                    ),
-                    Variable::from_uniform_block_binding(UniformBlockBinding::DiffuseLights),
-                    Variable::from_uniform_block_binding(UniformBlockBinding::SpecularLights),
-                    Variable::from_uniform_binding(UniformBinding::AmbientReflection),
-                    Variable::from_uniform_binding(UniformBinding::DiffuseReflection),
-                    Variable::from_uniform_binding(UniformBinding::SpecularReflection),
-                    Variable::new_in("v_Normal", VariableDataType::FloatVec3),
-                    Variable::new_in("v_Position", VariableDataType::FloatVec3),
-                    Variable::new_out("o_FragColor", VariableDataType::FloatVec4),
-                ],
-                [
-                    include_str!("../light/shaders/attenuation.glsl"),
-                    include_str!("../light/shaders/ambient.glsl"),
-                    include_str!("../light/shaders/diffuse.glsl"),
-                    include_str!("../light/shaders/specular.glsl"),
-                ],
-                "void main() {
-                    if (u_EnableLighting) {
-                        vec3 ambient_reflection = vec3(u_AmbientReflection);
-                        vec3 diffuse_reflection = vec3(u_DiffuseReflection);
-                        vec3 specular_reflection = vec3(u_SpecularReflection);
-                        vec3 surface_normal = normalize(v_Normal);
-                        vec3 surface_position = v_Position;
-                        vec3 receiver_position = u_ActiveCameraPosition;
-                        
-                        vec3 ambient = ambient_light(u_AmbientLight, ambient_reflection);
-                        vec3 diffuse = diffuse_lights(diffuse_reflection, surface_normal, surface_position, receiver_position);
-                        vec3 specular = specular_lights(specular_reflection, surface_normal, surface_position, receiver_position);
-                        o_FragColor = vec4(ambient + diffuse + specular, u_AmbientReflection.a);
-                    } else {
-                        o_FragColor = u_AmbientReflection;
-                    }
-                }",
-            )),
-        ]
+    fn vertex_variables(&self) -> Vec<Variable> {
+        vec![]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn fragment_variables(&self) -> Vec<Variable> {
+        vec![]
+    }
+
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryNormal,
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::NormalMatrix,
-            UniformBinding::ViewProjMatrix,
-            UniformBinding::ActiveCameraPosition,
-            UniformBinding::EnableLighting,
-            UniformBinding::AmbientReflection,
-            UniformBinding::DiffuseReflection,
-            UniformBinding::SpecularReflection,
+            UniformBinding::Transparency,
+            UniformBinding::FromMaterial("u_Color"),
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[UniformStructuralBinding::AmbientLight]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[
-            UniformBlockBinding::DiffuseLights,
-            UniformBlockBinding::SpecularLights,
-        ]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
+    }
+
+    fn fragment_process(&self) -> &'static str {
+        include_str!("./standard/solid_color_process_frag.glsl")
     }
 }
 
 impl Material for SolidColorMaterial {
     fn transparency(&self) -> Transparency {
-        if self.color.alpha == 0.0 {
-            Transparency::Transparent
-        } else if self.color.alpha == 1.0 {
-            Transparency::Opaque
-        } else {
-            Transparency::Opaque
-        }
-    }
-
-    fn ambient(&self) -> Option<Vec4> {
-        Some(Vec4::from_values(
-            self.color.red,
-            self.color.green,
-            self.color.blue,
-            1.0,
-        ))
-    }
-
-    fn diffuse(&self) -> Option<Vec4> {
-        Some(Vec4::from_values(
-            self.color.red,
-            self.color.green,
-            self.color.blue,
-            1.0,
-        ))
-    }
-
-    fn specular(&self) -> Option<Vec4> {
-        Some(Vec4::from_values(
-            self.color.red,
-            self.color.green,
-            self.color.blue,
-            1.0,
-        ))
+        self.transparency
     }
 
     fn ready(&self) -> bool {
@@ -198,8 +112,11 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
-        None
+    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+        match name {
+            "u_Color" => Some(UniformValue::FloatVector3(self.color.to_gl())),
+            _ => None,
+        }
     }
 
     fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {

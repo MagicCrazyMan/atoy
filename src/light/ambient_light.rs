@@ -1,0 +1,53 @@
+use gl_matrix4rust::vec3::Vec3;
+
+/// Ambient light.
+#[derive(Clone, Copy)]
+pub struct AmbientLight {
+    enabled: bool,
+    color: Vec3,
+}
+
+impl AmbientLight {
+    /// Constructs a new ambient light.
+    pub fn new(color: Vec3) -> Self {
+        Self {
+            enabled: true,
+            color,
+        }
+    }
+
+    /// Returns ambient light color.
+    pub fn color(&self) -> Vec3 {
+        self.color
+    }
+
+    /// Returns `true` if this point light is enabled.
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// Enables point light.
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    /// Disables point light.
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    /// Sets point light color.
+    pub fn set_color(&mut self, color: Vec3) {
+        self.color = color;
+    }
+
+    /// Returns data in uniform buffer object alignment.
+    pub fn gl_ubo(&self) -> [f32; 4] {
+        [
+            self.color.0[0] as f32,
+            self.color.0[1] as f32,
+            self.color.0[2] as f32,
+            if self.enabled { 1.0 } else { 0.0 },
+        ]
+    }
+}

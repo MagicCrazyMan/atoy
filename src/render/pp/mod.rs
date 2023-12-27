@@ -7,24 +7,22 @@ use std::{
     marker::PhantomData,
 };
 
-use gl_matrix4rust::vec3::AsVec3;
+use gl_matrix4rust::vec3::Vec3;
 use uuid::Uuid;
-use web_sys::{js_sys::Float32Array, HtmlCanvasElement, WebGl2RenderingContext};
+use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     camera::Camera,
     entity::collection::EntityCollection,
     light::{
-        ambient::Ambient,
-        diffuse::{Diffuse, MAX_DIFFUSE_LIGHTS},
-        specular::{Specular, MAX_SPECULAR_LIGHTS},
+        ambient_light::AmbientLight, directional_light::DirectionalLight, point_light::PointLight,
     },
 };
 
 use self::{error::Error, graph::DirectedGraph};
 
 use super::webgl::{
-    buffer::{BufferDescriptor, BufferSource, BufferStore, BufferUsage, MemoryPolicy},
+    buffer::{BufferDescriptor, BufferStore},
     program::ProgramStore,
     texture::TextureStore,
 };
@@ -43,111 +41,42 @@ pub trait Stuff {
     /// Returns the mutable main camera for current frame.
     fn camera_mut(&mut self) -> &mut dyn Camera;
 
-    /// Returns `true` is enable lighting.
-    fn enable_lighting(&self) -> bool;
+    /// Returns `true` if enable lighting.
+    fn lighting_enabled(&self) -> bool;
+
+    /// Returns light attenuations.
+    fn light_attenuations(&self) -> Option<Vec3>;
 
     /// Returns ambient light.
-    fn ambient_light(&self) -> Option<&dyn Ambient>;
+    fn ambient_light(&self) -> Option<&AmbientLight>;
 
-    /// Returns diffuse light sources.
-    fn diffuse_lights(&self) -> Vec<&dyn Diffuse>;
+    /// Returns point lights.
+    fn point_lights(&self) -> &[PointLight];
 
-    fn diffuse_lights_descriptor(&self) -> BufferDescriptor {
-        let lights = self.diffuse_lights();
-        let lights = &lights[..MAX_DIFFUSE_LIGHTS.min(lights.len())];
-        let size = 12;
-        let buffer = Float32Array::new_with_length(size * MAX_DIFFUSE_LIGHTS as u32);
-        for (index, light) in lights.into_iter().enumerate() {
-            let index = index as u32;
-            // color
-            let color = light.color().to_gl();
-            buffer.set_index(index * size + 0, color[0]);
-            buffer.set_index(index * size + 1, color[1]);
-            buffer.set_index(index * size + 2, color[2]);
-            buffer.set_index(index * size + 3, 0.0);
-            // position
-            let position = light.position().to_gl();
-            buffer.set_index(index * size + 4, position[0]);
-            buffer.set_index(index * size + 5, position[1]);
-            buffer.set_index(index * size + 6, position[2]);
-            buffer.set_index(index * size + 7, 0.0);
-            // attenuations
-            let attenuations = light.attenuations().to_gl();
-            buffer.set_index(index * size + 8, attenuations[0]);
-            buffer.set_index(index * size + 9, attenuations[1]);
-            buffer.set_index(index * size + 10, attenuations[2]);
-            // enabled
-            buffer.set_index(index * size + 11, 1.0);
-        }
-        let descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::from_float32_array(buffer, 0, size * MAX_DIFFUSE_LIGHTS as u32),
-            BufferUsage::StaticDraw,
-            MemoryPolicy::Default,
-        );
-
-        descriptor
-    }
-
-    /// Returns specular light sources.
-    fn specular_lights(&self) -> Vec<&dyn Specular>;
-
-    fn specular_lights_descriptor(&self) -> BufferDescriptor {
-        let lights = self.specular_lights();
-        let lights = &lights[..MAX_SPECULAR_LIGHTS.min(lights.len())];
-
-        let size = 16;
-        let buffer = Float32Array::new_with_length(size * MAX_SPECULAR_LIGHTS as u32);
-        for (index, light) in lights.into_iter().enumerate() {
-            let index = index as u32;
-            // color
-            let color = light.color().to_gl();
-            buffer.set_index(index * size + 0, color[0]);
-            buffer.set_index(index * size + 1, color[1]);
-            buffer.set_index(index * size + 2, color[2]);
-            buffer.set_index(index * size + 3, 0.0);
-            // position
-            let position = light.position().to_gl();
-            buffer.set_index(index * size + 4, position[0]);
-            buffer.set_index(index * size + 5, position[1]);
-            buffer.set_index(index * size + 6, position[2]);
-            buffer.set_index(index * size + 7, 0.0);
-            // attenuations
-            let attenuations = light.attenuations().to_gl();
-            buffer.set_index(index * size + 8, attenuations[0]);
-            buffer.set_index(index * size + 9, attenuations[1]);
-            buffer.set_index(index * size + 10, attenuations[2]);
-            // shininess
-            let shininess = light.shininess();
-            buffer.set_index(index * size + 11, shininess);
-            // enabled
-            buffer.set_index(index * size + 12, 1.0);
-        }
-        let descriptor = BufferDescriptor::with_memory_policy(
-            BufferSource::from_float32_array(buffer, 0, size * MAX_DIFFUSE_LIGHTS as u32),
-            BufferUsage::StaticDraw,
-            MemoryPolicy::Default,
-        );
-
-        descriptor
-    }
+    /// Returns directional lights.
+    fn directional_lights(&self) -> &[DirectionalLight];
 }
 
 /// Pipeline rendering state.
 pub struct State<'a> {
+    timestamp: f64,
+    canvas: &'a HtmlCanvasElement,
+    gl: &'a WebGl2RenderingContext,
+    universal_ubo: &'a BufferDescriptor,
+    lights_ubo: &'a BufferDescriptor,
     program_store: &'a mut ProgramStore,
     buffer_store: &'a mut BufferStore,
     texture_store: &'a mut TextureStore,
-    gl: WebGl2RenderingContext,
-    canvas: HtmlCanvasElement,
-    timestamp: f64,
 }
 
 impl<'a> State<'a> {
     /// Constructs a new rendering state.
     pub(crate) fn new(
-        gl: WebGl2RenderingContext,
-        canvas: HtmlCanvasElement,
         timestamp: f64,
+        gl: &'a WebGl2RenderingContext,
+        canvas: &'a HtmlCanvasElement,
+        universal_ubo: &'a BufferDescriptor,
+        lights_ubo: &'a BufferDescriptor,
         program_store: &'a mut ProgramStore,
         buffer_store: &'a mut BufferStore,
         texture_store: &'a mut TextureStore,
@@ -156,55 +85,67 @@ impl<'a> State<'a> {
             gl,
             canvas,
             timestamp,
+            universal_ubo,
+            lights_ubo,
             program_store,
             buffer_store,
             texture_store,
         }
     }
 
-    /// Gets the [`WebGl2RenderingContext`] associated with the canvas.
+    /// Returns the [`WebGl2RenderingContext`] associated with the canvas.
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
     }
 
-    /// Gets the [`HtmlCanvasElement`] to be drawn to.
+    /// Returns the [`HtmlCanvasElement`] to be drawn to.
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
     }
 
-    /// Gets the `requestAnimationFrame` timestamp.
+    /// Returns the `requestAnimationFrame` timestamp.
     pub fn timestamp(&self) -> f64 {
         self.timestamp
     }
 
-    /// Gets the [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn program_store(&self) -> &ProgramStore {
         &self.program_store
     }
 
-    /// Gets the mutable [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the mutable [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn program_store_mut(&mut self) -> &mut ProgramStore {
         &mut self.program_store
     }
 
-    /// Gets the [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn buffer_store(&self) -> &BufferStore {
         &self.buffer_store
     }
 
-    /// Gets the mutable [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the mutable [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
         &mut self.buffer_store
     }
 
-    /// Gets the [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn texture_store(&self) -> &TextureStore {
         &self.texture_store
     }
 
-    /// Gets the mutable [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the mutable [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
         &mut self.texture_store
+    }
+
+    /// Returns uniform buffer object for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+    pub fn universal_ubo(&self) -> BufferDescriptor {
+        self.universal_ubo.clone()
+    }
+
+    /// Returns uniform buffer object for `atoy_Lights`.
+    pub fn lights_ubo(&self) -> BufferDescriptor {
+        self.lights_ubo.clone()
     }
 
     /// Resets WebGl state
@@ -273,29 +214,6 @@ impl<'a> State<'a> {
             WebGl2RenderingContext::KEEP,
             WebGl2RenderingContext::KEEP,
         );
-    }
-}
-
-/// [`String`] or [`Uuid`] based key for storing items in pipeline.
-/// 2 available types:
-///
-/// 1. String key for common purpose.
-/// 2. Random generated uuid for hard coding purpose.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ItemKey {
-    String(String),
-    Uuid(Uuid),
-}
-
-impl ItemKey {
-    /// Constructs a new item key by [`Uuid`].
-    pub fn from_uuid() -> Self {
-        Self::Uuid(Uuid::new_v4())
-    }
-
-    /// Constructs a new item key by [`String`].
-    pub fn from_string(name: impl Into<String>) -> Self {
-        Self::String(name.into())
     }
 }
 
@@ -429,6 +347,32 @@ impl<ExecutorError> Pipeline<ExecutorError> {
     }
 }
 
+/// [`String`] or [`Uuid`] based key for storing items in pipeline.
+/// 2 available types:
+///
+/// 1. String key for common purpose.
+/// 2. Random generated uuid for hard coding purpose.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ItemKey {
+    String(String),
+    Uuid(Uuid),
+}
+
+impl ItemKey {
+    /// Constructs a new item key by [`Uuid`].
+    pub fn from_uuid() -> Self {
+        Self::Uuid(Uuid::new_v4())
+    }
+
+    /// Constructs a new item key by [`String`].
+    pub fn from_string<S>(name: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self::String(name.into())
+    }
+}
+
 /// Resource key based on [`ItemKey`].
 /// Distinguish between runtime resource and persist resource.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -439,12 +383,18 @@ pub enum ResourceKey<V> {
 
 impl<V> ResourceKey<V> {
     /// Constructs a new string runtime resource key.
-    pub fn new_runtime_str<S: Into<String>>(key: S) -> Self {
+    pub fn new_runtime_str<S>(key: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Runtime(ItemKey::from_string(key), PhantomData::<V>)
     }
 
     /// Constructs a new string persist resource key.
-    pub fn new_persist_str<S: Into<String>>(key: S) -> Self {
+    pub fn new_persist_str<S>(key: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Persist(ItemKey::from_string(key), PhantomData::<V>)
     }
 

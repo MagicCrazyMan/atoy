@@ -249,15 +249,15 @@ impl ProgramSource for OutliningMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryTextureCoordinate,
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_StageVertex"),
@@ -268,12 +268,12 @@ impl ProgramSource for OutliningMaterial {
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

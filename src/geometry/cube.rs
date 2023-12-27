@@ -39,7 +39,7 @@ impl Cube {
             data: BufferDescriptor::with_memory_policy(
                 BufferSource::from_array_buffer(build_data(size)),
                 BufferUsage::StaticDraw,
-                MemoryPolicy::new_restorable(move || {
+                MemoryPolicy::restorable(move || {
                     BufferSource::from_array_buffer(build_data(size))
                 }),
             ),
@@ -65,7 +65,7 @@ impl Cube {
             0,
         );
         self.data
-            .set_memory_policy(MemoryPolicy::new_restorable(move || {
+            .set_memory_policy(MemoryPolicy::restorable(move || {
                 BufferSource::from_array_buffer(build_data(size))
             }));
         self.bounding_volume = build_bounding_volume(size);

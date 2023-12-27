@@ -8,6 +8,7 @@ use gl_matrix4rust::quat::Quat;
 use gl_matrix4rust::vec2::{AsVec2, Vec2};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use gl_matrix4rust::vec4::{AsVec4, Vec4};
+use palette::angle::FromAngle;
 use palette::rgb::{Rgb, Rgba};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -25,9 +26,9 @@ use crate::geometry::multicube::MultiCube;
 use crate::geometry::raw::RawGeometry;
 use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
-use crate::light::ambient::SimpleAmbientLight;
-use crate::light::diffuse::SimpleDiffuseLight;
-use crate::light::specular::SimpleSpecularLight;
+use crate::light::ambient_light::AmbientLight;
+use crate::light::directional_light::DirectionalLight;
+use crate::light::point_light::PointLight;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
@@ -153,24 +154,28 @@ fn create_scene(
         0.5,
         Some(200.0),
     ));
-    scene.set_ambient_light(Some(SimpleAmbientLight::new(0.2, 0.2, 0.2)));
-    scene.add_diffuse_light(SimpleDiffuseLight::new(
-        Vec3::from_values(0.0, 6.0, 0.0),
-        Vec3::from_values(1.0, 1.0, 1.0),
-        Vec3::from_values(1.0, 0.05, 0.0),
-    ));
-    scene.add_specular_light(SimpleSpecularLight::new(
-        Vec3::from_values(0.0, 12.0, 0.0),
-        Vec3::from_values(1.0, 1.0, 1.0),
+    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
+    scene.add_directional_light(DirectionalLight::new(
+        Vec3::from_values(-1.0, 0.0, 0.0).normalize(),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.8, 0.8, 0.8),
+        Vec3::from_values(0.19, 0.19, 0.19),
         128.0,
-        Vec3::from_values(1.0, 0.05, 0.0),
     ));
-    scene.add_specular_light(SimpleSpecularLight::new(
-        Vec3::from_values(6.0, 12.0, 0.0),
-        Vec3::from_values(1.0, 1.0, 1.0),
-        128.0,
-        Vec3::from_values(1.0, 0.05, 0.0),
-    ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::from_values(0.0, 1.5, 0.0),
+    //     Vec3::from_values(0.05, 0.05, 0.05),
+    //     Vec3::from_values(0.35, 0.35, 0.35),
+    //     Vec3::from_values(0.6, 0.6, 0.6),
+    //     128.0,
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::from_values(8.0, 0.5, 0.0),
+    //     Vec3::from_values(0.05, 0.05, 0.05),
+    //     Vec3::from_values(0.65, 0.65, 0.65),
+    //     Vec3::from_values(0.3, 0.3, 0.3),
+    //     64.0,
+    // ));
     scene
 }
 
@@ -230,7 +235,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
+            .set_material(Some(SolidColorMaterial::with_color(
+                Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                Transparency::Opaque,
+            )));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -268,7 +276,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let entity = Entity::new();
     entity.borrow_mut().set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
-        Placement::TopLeft,
+        Placement::Center,
         0.25,
         0.25,
         1.0,
@@ -288,14 +296,20 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         2000.0,
         2000.0,
     )));
+    // floor_entity
+    //     .borrow_mut()
+    //     .set_material(Some(TextureMaterial::new("./wood.png")));
     floor_entity
         .borrow_mut()
-        .set_material(Some(TextureMaterial::new("./wood.png")));
+        .set_material(Some(SolidColorMaterial::with_color(
+            Vec3::from_values(1.0, 1.0, 0.0),
+            Transparency::Opaque,
+        )));
     floor_entity
         .borrow_mut()
         .set_local_matrix(Mat4::from_rotation_translation(
-            &Quat::from_axis_angle(&Vec3::from_values(1.0, 0.0, 0.0), PI / 2.0),
-            &Vec3::from_values(0.0, -0.5, 0.0),
+            &Quat::from_axis_angle(&Vec3::from_values(1.0, 0.0, 0.0), -PI / 2.0),
+            &Vec3::from_values(0.0, -0.6, 0.0),
         ));
     scene.entity_collection_mut().add_entity(floor_entity);
 
@@ -315,11 +329,12 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .insert(ResourceKey::new_persist_str("position"), (x, y));
 
         // pick
+        let mut scene = scene_cloned.borrow_mut();
         render_cloned
             .borrow_mut()
             .render(
                 &mut picking_pipeline,
-                &mut SceneStuff::new(&mut scene_cloned.borrow_mut()),
+                &mut scene.stuff(),
                 *last_frame_time_cloned.borrow(),
             )
             .unwrap();
@@ -341,7 +356,12 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 .borrow_mut()
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-                .map(|material| material.set_color(rand::random()));
+                .map(|material| {
+                    material.set_color(
+                        Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                        rand::random(),
+                    )
+                });
         }
         // get position
         if let Some(position) = picking_pipeline
@@ -373,6 +393,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
+    let scene_cloned = Rc::clone(&scene);
     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
         let seconds = frame_time / 1000.0;
 
@@ -389,11 +410,12 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
 
         let start = window().performance().unwrap().now();
+        let mut scene = scene_cloned.borrow_mut();
         render
             .borrow_mut()
             .render(
                 &mut standard_pipeline.borrow_mut(),
-                &mut SceneStuff::new(&mut scene.borrow_mut()),
+                &mut scene.stuff(),
                 frame_time,
             )
             .unwrap();
@@ -402,6 +424,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .get_element_by_id("total")
             .unwrap()
             .set_inner_html(&format!("{:.2}", end - start));
+
+        drop(scene);
 
         request_animation_frame(f.borrow().as_ref().unwrap());
     }));
@@ -444,9 +468,6 @@ pub fn test_instanced_cube(
         .set_material(Some(SolidColorInstancedMaterial::new(
             count, grid, width, height,
         )));
-    // entity
-    //     .borrow_mut()
-    //     .set_material(Some(SolidColorMaterial::with_color(rand::random())));
     scene.entity_collection_mut().add_entity(entity);
 
     let f = Rc::new(RefCell::new(None));
@@ -463,7 +484,7 @@ pub fn test_instanced_cube(
 
         let start = window().performance().unwrap().now();
         render
-            .render(&mut pipeline, &mut SceneStuff::new(&mut scene), frame_time)
+            .render(&mut pipeline, &mut scene.stuff(), frame_time)
             .unwrap();
         let end = window().performance().unwrap().now();
         document()
@@ -755,7 +776,10 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         // entity.set_geometry(Some(IndexedCube::new()));
         entity
             .borrow_mut()
-            .set_material(Some(SolidColorMaterial::with_color(rand::random())));
+            .set_material(Some(SolidColorMaterial::with_color(
+                Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                rand::random(),
+            )));
         entity.borrow_mut().set_local_matrix(model_matrix);
         scene.entity_collection_mut().add_entity(entity);
     }
@@ -779,7 +803,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .render(
                 &mut picking_pipeline,
-                &mut SceneStuff::new(&mut scene_cloned.borrow_mut()),
+                &mut scene_cloned.borrow_mut().stuff(),
                 *last_frame_time_cloned.borrow(),
             )
             .unwrap();
@@ -803,7 +827,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 .as_any_mut()
                 .downcast_mut::<SolidColorMaterial>()
                 .unwrap()
-                .set_color(rand::random());
+                .set_color(rand::random(), rand::random());
         }
         // get position
         if let Some(position) = picking_pipeline
@@ -853,7 +877,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .borrow_mut()
             .render(
                 standard_pipeline,
-                &mut SceneStuff::new(&mut scene.borrow_mut()),
+                &mut scene.borrow_mut().stuff(),
                 frame_time,
             )
             .unwrap();

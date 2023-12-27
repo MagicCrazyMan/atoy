@@ -3,7 +3,7 @@ use web_sys::WebGl2RenderingContext;
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     draw::{CullFace, DrawElementType, DrawMode},
-    offscreen::{FramebufferAttachment, FramebufferTarget, FramebufferSource},
+    offscreen::{FramebufferAttachment, FramebufferTarget, FramebufferDrawBuffer},
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{
@@ -548,28 +548,28 @@ impl ToGlEnum for FramebufferAttachment {
     }
 }
 
-impl ToGlEnum for FramebufferSource {
+impl ToGlEnum for FramebufferDrawBuffer {
     #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
-            FramebufferSource::NONE => WebGl2RenderingContext::NONE,
-            FramebufferSource::BACK => WebGl2RenderingContext::BACK,
-            FramebufferSource::COLOR_ATTACHMENT0 => WebGl2RenderingContext::COLOR_ATTACHMENT0,
-            FramebufferSource::COLOR_ATTACHMENT1 => WebGl2RenderingContext::COLOR_ATTACHMENT1,
-            FramebufferSource::COLOR_ATTACHMENT2 => WebGl2RenderingContext::COLOR_ATTACHMENT2,
-            FramebufferSource::COLOR_ATTACHMENT3 => WebGl2RenderingContext::COLOR_ATTACHMENT3,
-            FramebufferSource::COLOR_ATTACHMENT4 => WebGl2RenderingContext::COLOR_ATTACHMENT4,
-            FramebufferSource::COLOR_ATTACHMENT5 => WebGl2RenderingContext::COLOR_ATTACHMENT5,
-            FramebufferSource::COLOR_ATTACHMENT6 => WebGl2RenderingContext::COLOR_ATTACHMENT6,
-            FramebufferSource::COLOR_ATTACHMENT7 => WebGl2RenderingContext::COLOR_ATTACHMENT7,
-            FramebufferSource::COLOR_ATTACHMENT8 => WebGl2RenderingContext::COLOR_ATTACHMENT8,
-            FramebufferSource::COLOR_ATTACHMENT9 => WebGl2RenderingContext::COLOR_ATTACHMENT9,
-            FramebufferSource::COLOR_ATTACHMENT10 => WebGl2RenderingContext::COLOR_ATTACHMENT10,
-            FramebufferSource::COLOR_ATTACHMENT11 => WebGl2RenderingContext::COLOR_ATTACHMENT11,
-            FramebufferSource::COLOR_ATTACHMENT12 => WebGl2RenderingContext::COLOR_ATTACHMENT12,
-            FramebufferSource::COLOR_ATTACHMENT13 => WebGl2RenderingContext::COLOR_ATTACHMENT13,
-            FramebufferSource::COLOR_ATTACHMENT14 => WebGl2RenderingContext::COLOR_ATTACHMENT14,
-            FramebufferSource::COLOR_ATTACHMENT15 => WebGl2RenderingContext::COLOR_ATTACHMENT15,
+            FramebufferDrawBuffer::NONE => WebGl2RenderingContext::NONE,
+            FramebufferDrawBuffer::BACK => WebGl2RenderingContext::BACK,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT0 => WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT1 => WebGl2RenderingContext::COLOR_ATTACHMENT1,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT2 => WebGl2RenderingContext::COLOR_ATTACHMENT2,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT3 => WebGl2RenderingContext::COLOR_ATTACHMENT3,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT4 => WebGl2RenderingContext::COLOR_ATTACHMENT4,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT5 => WebGl2RenderingContext::COLOR_ATTACHMENT5,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT6 => WebGl2RenderingContext::COLOR_ATTACHMENT6,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT7 => WebGl2RenderingContext::COLOR_ATTACHMENT7,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT8 => WebGl2RenderingContext::COLOR_ATTACHMENT8,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT9 => WebGl2RenderingContext::COLOR_ATTACHMENT9,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT10 => WebGl2RenderingContext::COLOR_ATTACHMENT10,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT11 => WebGl2RenderingContext::COLOR_ATTACHMENT11,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT12 => WebGl2RenderingContext::COLOR_ATTACHMENT12,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT13 => WebGl2RenderingContext::COLOR_ATTACHMENT13,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT14 => WebGl2RenderingContext::COLOR_ATTACHMENT14,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT15 => WebGl2RenderingContext::COLOR_ATTACHMENT15,
         }
     }
 }

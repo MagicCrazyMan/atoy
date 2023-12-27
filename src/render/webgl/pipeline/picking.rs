@@ -14,7 +14,7 @@ use crate::{
             draw::draw,
             error::Error,
             offscreen::{
-                FramebufferAttachment, FramebufferSource, FramebufferTarget, OffscreenFramebuffer,
+                FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget, OffscreenFramebuffer,
                 OffscreenRenderbufferProvider, OffscreenTextureProvider,
             },
             program::{ProgramSource, ShaderSource},
@@ -119,8 +119,8 @@ impl Picking {
                     RenderbufferInternalFormat::DEPTH_COMPONENT24,
                 )],
                 [
-                    FramebufferSource::COLOR_ATTACHMENT0,
-                    FramebufferSource::COLOR_ATTACHMENT1,
+                    FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+                    FramebufferDrawBuffer::COLOR_ATTACHMENT1,
                 ],
             ),
             material: PickingMaterial { index: 0 },
@@ -235,9 +235,7 @@ impl Executor for Picking {
         }
 
         // gets picking entity
-        state
-            .gl()
-            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0);
+        self.frame.set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT0);
         state
             .gl()
             .read_pixels_with_opt_array_buffer_view(
@@ -259,9 +257,7 @@ impl Executor for Picking {
         }
 
         // gets picking position
-        state
-            .gl()
-            .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT1);
+        self.frame.set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT1);
         state
             .gl()
             .read_pixels_with_opt_array_buffer_view(
@@ -307,24 +303,24 @@ impl ProgramSource for PickingMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[AttributeBinding::GeometryPosition]
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![AttributeBinding::GeometryPosition]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Index"),
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

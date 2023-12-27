@@ -12,7 +12,7 @@ use crate::render::{
             OffscreenTextureProvider,
         },
         program::{compile_shaders, create_program, ShaderSource},
-        texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+        texture::{TextureDataType, TextureFormat, TextureInternalFormat}, uniform::UBO_GAUSSIAN_BLUR_BINDING,
     },
 };
 
@@ -215,10 +215,10 @@ impl Executor for GaussianBlur {
 
         state
             .gl()
-            .uniform_block_binding(program, *kernel_location, 12);
+            .uniform_block_binding(program, *kernel_location, UBO_GAUSSIAN_BLUR_BINDING);
         state.gl().bind_buffer_base(
             WebGl2RenderingContext::UNIFORM_BUFFER,
-            12,
+            UBO_GAUSSIAN_BLUR_BINDING,
             Some(&uniform_buffer),
         );
 

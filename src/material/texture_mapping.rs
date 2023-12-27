@@ -9,7 +9,8 @@ use crate::{
             program::{ProgramSource, ShaderSource},
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
-                TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod, TextureMinificationFilter, TextureMagnificationFilter,
+                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+                TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
             uniform::{
                 UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
@@ -94,27 +95,27 @@ impl ProgramSource for TextureMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::GeometryTextureCoordinate,
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
             UniformBinding::FromMaterial("u_Sampler"),
         ]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

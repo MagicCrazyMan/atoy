@@ -47,10 +47,20 @@ impl Rectangle {
             texture_scale_s,
             texture_scale_t,
         );
-        let share_descriptor = BufferDescriptor::with_memory_policy(
+        let data = BufferDescriptor::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len() as u32),
             BufferUsage::StaticDraw,
-            MemoryPolicy::Default,
+            MemoryPolicy::restorable(move || {
+                let (compositions, _) = create_rectangle(
+                    anchor,
+                    placement,
+                    width,
+                    height,
+                    texture_scale_s,
+                    texture_scale_t,
+                );
+                BufferSource::from_binary(compositions, 0, compositions.len() as u32)
+            }),
         );
 
         Self {
@@ -60,7 +70,7 @@ impl Rectangle {
             height,
             bounding,
             vertices: AttributeValue::Buffer {
-                descriptor: share_descriptor.clone(),
+                descriptor: data.clone(),
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::Float,
@@ -69,22 +79,22 @@ impl Rectangle {
                 bytes_offset: 0,
             },
             texture_coordinates: AttributeValue::Buffer {
-                descriptor: share_descriptor.clone(),
+                descriptor: data.clone(),
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 bytes_stride: 0,
-                bytes_offset: (4 * 2) * 4,
+                bytes_offset: 32,
             },
             normal: AttributeValue::Buffer {
-                descriptor: share_descriptor.clone(),
+                descriptor: data,
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::Float,
                 normalized: false,
                 bytes_stride: 0,
-                bytes_offset: (4 * 2 + 4 * 2) * 4,
+                bytes_offset: 64,
             },
         }
     }

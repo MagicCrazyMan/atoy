@@ -1,4 +1,7 @@
-use super::{attribute::AttributeBinding, uniform::{UniformBinding, UniformStructuralBinding, UniformBlockBinding}};
+use super::{
+    attribute::AttributeBinding,
+    uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
+};
 
 /// Available shader types.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -116,7 +119,10 @@ pub enum Variable {
 
 impl Variable {
     /// Constructs a new input variable.
-    pub fn new_in<S: Into<String>>(name: S, data_type: VariableDataType) -> Self {
+    pub fn new_in<S>(name: S, data_type: VariableDataType) -> Self
+    where
+        S: Into<String>,
+    {
         Self::In {
             name: name.into(),
             data_type,
@@ -125,11 +131,10 @@ impl Variable {
     }
 
     /// Constructs a new array input variable.
-    pub fn new_in_array<S: Into<String>>(
-        name: S,
-        data_type: VariableDataType,
-        array_len: usize,
-    ) -> Self {
+    pub fn new_in_array<S>(name: S, data_type: VariableDataType, array_len: usize) -> Self
+    where
+        S: Into<String>,
+    {
         Self::In {
             name: name.into(),
             data_type,
@@ -138,7 +143,10 @@ impl Variable {
     }
 
     /// Constructs a new output variable.
-    pub fn new_out<S: Into<String>>(name: S, data_type: VariableDataType) -> Self {
+    pub fn new_out<S>(name: S, data_type: VariableDataType) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Out {
             name: name.into(),
             data_type,
@@ -147,11 +155,10 @@ impl Variable {
     }
 
     /// Constructs a new array output variable.
-    pub fn new_out_array<S: Into<String>>(
-        name: S,
-        data_type: VariableDataType,
-        array_len: usize,
-    ) -> Self {
+    pub fn new_out_array<S>(name: S, data_type: VariableDataType, array_len: usize) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Out {
             name: name.into(),
             data_type,
@@ -160,7 +167,10 @@ impl Variable {
     }
 
     /// Constructs a new uniform variable.
-    pub fn new_uniform<S: Into<String>>(name: S, data_type: VariableDataType) -> Self {
+    pub fn new_uniform<S>(name: S, data_type: VariableDataType) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Uniform {
             name: name.into(),
             data_type,
@@ -169,11 +179,10 @@ impl Variable {
     }
 
     /// Constructs a new array uniform variable.
-    pub fn new_uniform_array<S: Into<String>>(
-        name: S,
-        data_type: VariableDataType,
-        array_len: usize,
-    ) -> Self {
+    pub fn new_uniform_array<S>(name: S, data_type: VariableDataType, array_len: usize) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Uniform {
             name: name.into(),
             data_type,
@@ -295,7 +304,7 @@ impl Variable {
                     .expect("custom uniform binding is not supported")
                     .build(),
                 binding.variable_name(),
-            )
+            ),
         }
     }
 }
@@ -306,24 +315,32 @@ impl Variable {
 #[derive(Clone)]
 pub struct ShaderBuilder {
     shader_type: ShaderType,
+    include_header: bool,
     variables: Vec<Variable>,
     prepends: Vec<&'static str>,
-    main_function: &'static str,
+    appends: Vec<&'static str>,
 }
 
 impl ShaderBuilder {
     /// Constructs a new shader builder.
-    pub fn new<I: IntoIterator<Item = Variable>, P: IntoIterator<Item = &'static str>>(
+    pub fn new<P, I, A>(
         shader_type: ShaderType,
-        variables: I,
+        include_header: bool,
         prepends: P,
-        main_function: &'static str,
-    ) -> Self {
+        variables: I,
+        appends: A,
+    ) -> Self
+    where
+        P: IntoIterator<Item = &'static str>,
+        I: IntoIterator<Item = Variable>,
+        A: IntoIterator<Item = &'static str>,
+    {
         Self {
             shader_type,
+            include_header,
             prepends: prepends.into_iter().collect(),
             variables: variables.into_iter().collect(),
-            main_function,
+            appends: appends.into_iter().collect(),
         }
     }
 
@@ -345,9 +362,9 @@ impl ShaderBuilder {
         &self.prepends
     }
 
-    /// Returns main function source code.
-    pub fn main_function(&self) -> &'static str {
-        &self.main_function
+    /// Returns appends source code.
+    pub fn appends(&self) -> &[&'static str] {
+        &self.appends
     }
 
     /// Returns variables.
@@ -358,7 +375,9 @@ impl ShaderBuilder {
     fn build_vertex_shader(&self) -> String {
         let mut source = String::new();
 
-        source.push_str(VERTEX_SHADER_PREPEND);
+        if self.include_header {
+            source.push_str(VERTEX_SHADER_PREPEND);
+        }
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);
             source.push_str("\n");
@@ -367,7 +386,10 @@ impl ShaderBuilder {
             source.push_str(&variable.build());
             source.push_str("\n");
         });
-        source.push_str(&self.main_function);
+        self.appends.iter().for_each(|append| {
+            source.push_str(append);
+            source.push_str("\n");
+        });
 
         source
     }
@@ -375,7 +397,9 @@ impl ShaderBuilder {
     fn build_fragment_shader(&self) -> String {
         let mut source = String::new();
 
-        source.push_str(FRAGMENT_SHADER_PREPEND);
+        if self.include_header {
+            source.push_str(FRAGMENT_SHADER_PREPEND);
+        }
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);
             source.push_str("\n");
@@ -384,7 +408,10 @@ impl ShaderBuilder {
             source.push_str(&variable.build());
             source.push_str("\n");
         });
-        source.push_str(&self.main_function);
+        self.appends.iter().for_each(|append| {
+            source.push_str(append);
+            source.push_str("\n");
+        });
 
         source
     }
@@ -413,15 +440,16 @@ mod tests {
     fn test_vertex_builder() {
         let builder = ShaderBuilder::new(
             ShaderType::Vertex,
+            true,
+            [],
             [
                 Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
                 Variable::from_uniform_binding(UniformBinding::ModelMatrix),
                 Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
             ],
-            [],
-            "void main() {
+            ["void main() {
                 gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
-            }",
+            }"],
         );
 
         println!("{}", builder.build());

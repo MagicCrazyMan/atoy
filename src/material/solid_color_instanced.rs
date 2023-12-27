@@ -13,7 +13,10 @@ use crate::{
             BufferUsage,
         },
         program::{ProgramSource, ShaderSource},
-        uniform::{UniformBinding, UniformBlockBinding, UniformValue, UniformBlockValue, UniformStructuralBinding},
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
+        },
     },
 };
 
@@ -130,8 +133,10 @@ impl SolidColorInstancedMaterial {
             colors_data.set_index((index * 4) as u32 + 3, alpha);
         }
 
-        self.colors
-            .buffer_sub_data(BufferSource::from_float32_array(colors_data, 0, colors_length), 0);
+        self.colors.buffer_sub_data(
+            BufferSource::from_float32_array(colors_data, 0, colors_length),
+            0,
+        );
     }
 }
 
@@ -147,24 +152,24 @@ impl ProgramSource for SolidColorInstancedMaterial {
         ]
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
             AttributeBinding::GeometryPosition,
             AttributeBinding::FromMaterial("a_Color"),
             AttributeBinding::FromMaterial("a_InstanceMatrix"),
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix]
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![UniformBinding::ModelMatrix, UniformBinding::ViewProjMatrix]
     }
 
-    fn uniform_structural_bindings(&self) -> &[UniformStructuralBinding] {
-        &[]
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }
 

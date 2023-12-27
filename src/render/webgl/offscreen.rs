@@ -54,10 +54,10 @@ pub enum FramebufferAttachment {
     DEPTH_STENCIL_ATTACHMENT,
 }
 
-/// Available read buffer source mapped from [`WebGl2RenderingContext`].
+/// Available draw buffer source mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FramebufferSource {
+pub enum FramebufferDrawBuffer {
     NONE,
     BACK,
     COLOR_ATTACHMENT0,
@@ -212,7 +212,7 @@ impl OffscreenFramebuffer {
     pub fn with_draw_buffers<
         TI: IntoIterator<Item = OffscreenTextureProvider>,
         RI: IntoIterator<Item = OffscreenRenderbufferProvider>,
-        DI: IntoIterator<Item = FramebufferSource>,
+        DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
         target: FramebufferTarget,
         texture_providers: TI,
@@ -239,7 +239,7 @@ impl OffscreenFramebuffer {
             renderbuffers: None,
             attachments: Array::new(),
 
-            draw_buffers: Array::new(),
+            draw_buffers: draw_buffers_array,
         }
     }
 
@@ -314,7 +314,7 @@ impl OffscreenFramebuffer {
     }
 
     /// Sets read buffer.
-    pub fn set_read_buffer(self, gl: &WebGl2RenderingContext, source: FramebufferSource) {
+    pub fn set_read_buffer(&self, gl: &WebGl2RenderingContext, source: FramebufferDrawBuffer) {
         gl.read_buffer(source.gl_enum());
     }
 
