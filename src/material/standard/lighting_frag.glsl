@@ -143,9 +143,9 @@ struct atoy_DirectionalLight {
 /**
  * Spot light definition.
  * 
- * - `position`: Light position.
- * - `enabled`: Is light enabled.
  * - `direction`: Light direction.
+ * - `enabled`: Is light enabled.
+ * - `position`: Light position.
  * - `ambient`: Light ambient color.
  * - `inner_cutoff`: Inner cutoff for smooth lighting.
  * - `diffuse`: Light diffuse color.
@@ -155,8 +155,8 @@ struct atoy_DirectionalLight {
  */
 struct atoy_SpotLight {
     vec3 direction;
-    vec3 position;
     bool enabled;
+    vec3 position;
     vec3 ambient;
     float inner_cutoff;
     vec3 diffuse;
@@ -225,7 +225,37 @@ vec3 atoy_lighting(atoy_InputFrag frag, atoy_OutputMaterial material) {
     }
 
     // spot loghts 
-    // todo!
+    for(int i = 0; i < 12; i++) {
+        atoy_SpotLight light = u_SpotLights[i];
+        if(light.enabled) {
+            vec3 to_light = light.position - frag.position_ws;
+            float to_light_distance = length(to_light);
+            to_light = normalize(to_light);
+
+            // skips out of outer cutoff
+            float theta = dot(-to_light, light.direction);
+            if(theta < light.outer_cutoff) {
+                continue;
+            }
+            
+            vec3 color = vec3(0.0);
+            color += atoy_ambient(light.ambient, material.ambient);
+            color += atoy_diffuse(light.diffuse, material.diffuse, frag.normal_ws, to_camera);
+            color += atoy_specular_phong(light.specular, light.specular_shininess, material.specular, frag.normal_ws, to_light, to_camera);
+
+            float attenuation = atoy_attenuation_power(u_Attenuations.x, u_Attenuations.y, u_Attenuations.z, to_light_distance);
+            color *= attenuation;
+
+            // applies smooth lighting by clamping inner and outer cutoff
+            if(theta < light.inner_cutoff) {
+                float intensity = clamp((light.outer_cutoff - theta) / (light.outer_cutoff - light.inner_cutoff), 0.0, 1.0);
+                color *= intensity;
+            }
+
+
+            lighting += color;
+        }
+    }
 
     return lighting;
 }

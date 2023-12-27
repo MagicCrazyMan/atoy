@@ -7,7 +7,9 @@ use crate::{
     entity::collection::EntityCollection,
     light::{
         ambient_light::AmbientLight,
-        point_light::{PointLight, MAX_POINT_LIGHTS}, directional_light::{DirectionalLight, MAX_DIRECTIONAL_LIGHTS},
+        directional_light::{DirectionalLight, MAX_DIRECTIONAL_LIGHTS},
+        point_light::{PointLight, MAX_POINT_LIGHTS},
+        spot_light::{SpotLight, MAX_SPOT_LIGHTS},
     },
     render::pp::Stuff,
 };
@@ -22,6 +24,7 @@ pub struct Scene {
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
     directional_lights: Vec<DirectionalLight>,
+    spot_lights: Vec<SpotLight>,
 }
 
 impl Scene {
@@ -36,6 +39,7 @@ impl Scene {
             ambient_light: None,
             point_lights: Vec::new(),
             directional_lights: Vec::new(),
+            spot_lights: Vec::new(),
         }
     }
 
@@ -149,7 +153,7 @@ impl Scene {
         if self.directional_lights.len() == MAX_DIRECTIONAL_LIGHTS {
             warn!(
                 "only {} directional lights are available, ignored",
-                MAX_POINT_LIGHTS
+                MAX_DIRECTIONAL_LIGHTS
             );
             return;
         }
@@ -174,6 +178,38 @@ impl Scene {
     /// Returns a mutable directional light by index.
     pub fn directional_light_mut(&mut self, index: usize) -> Option<&mut DirectionalLight> {
         self.directional_lights.get_mut(index)
+    }
+
+    /// Adds a spot light.
+    pub fn add_spot_light(&mut self, light: SpotLight) {
+        if self.spot_lights.len() == MAX_SPOT_LIGHTS {
+            warn!(
+                "only {} spot lights are available, ignored",
+                MAX_SPOT_LIGHTS
+            );
+            return;
+        }
+
+        self.spot_lights.push(light);
+    }
+
+    /// Removes a spot light by index.
+    pub fn remove_spot_light(&mut self, index: usize) -> Option<SpotLight> {
+        if index < self.spot_lights.len() {
+            return None;
+        }
+
+        Some(self.spot_lights.remove(index))
+    }
+
+    /// Returns a spot light by index.
+    pub fn spot_light(&self, index: usize) -> Option<&SpotLight> {
+        self.spot_lights.get(index)
+    }
+
+    /// Returns a mutable spot light by index.
+    pub fn spot_light_mut(&mut self, index: usize) -> Option<&mut SpotLight> {
+        self.spot_lights.get_mut(index)
     }
 
     /// Returns a [`Stuff`] from scene.
@@ -222,5 +258,9 @@ impl<'a> Stuff for SceneStuff<'a> {
 
     fn directional_lights(&self) -> &[DirectionalLight] {
         &self.scene.directional_lights
+    }
+
+    fn spot_lights(&self) -> &[SpotLight] {
+        &self.scene.spot_lights
     }
 }

@@ -29,6 +29,7 @@ use crate::geometry::sphere::Sphere;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
+use crate::light::spot_light::SpotLight;
 use crate::material::environment_mapping::EnvironmentMaterial;
 use crate::material::icon::IconMaterial;
 use crate::material::loader::TextureLoader;
@@ -155,27 +156,37 @@ fn create_scene(
         Some(200.0),
     ));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
-    scene.add_directional_light(DirectionalLight::new(
-        Vec3::from_values(-1.0, 0.0, 0.0).normalize(),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.8, 0.8, 0.8),
-        Vec3::from_values(0.19, 0.19, 0.19),
-        128.0,
-    ));
-    // scene.add_point_light(PointLight::new(
-    //     Vec3::from_values(0.0, 1.5, 0.0),
-    //     Vec3::from_values(0.05, 0.05, 0.05),
-    //     Vec3::from_values(0.35, 0.35, 0.35),
-    //     Vec3::from_values(0.6, 0.6, 0.6),
+    // scene.add_directional_light(DirectionalLight::new(
+    //     Vec3::from_values(-1.0, 0.0, 0.0).normalize(),
+    //     Vec3::from_values(0.01, 0.01, 0.01),
+    //     Vec3::from_values(0.8, 0.8, 0.8),
+    //     Vec3::from_values(0.19, 0.19, 0.19),
     //     128.0,
     // ));
-    // scene.add_point_light(PointLight::new(
-    //     Vec3::from_values(8.0, 0.5, 0.0),
-    //     Vec3::from_values(0.05, 0.05, 0.05),
-    //     Vec3::from_values(0.65, 0.65, 0.65),
-    //     Vec3::from_values(0.3, 0.3, 0.3),
-    //     64.0,
-    // ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::from_values(0.0, 1.0, 0.0),
+        Vec3::from_values(1.0, -1.0, -1.0).normalize(),
+        Vec3::from_values(0.1, 0.1, 0.1),
+        Vec3::from_values(0.3, 0.3, 0.3),
+        Vec3::from_values(0.6, 0.6, 0.6),
+        128.0,
+        30f64.to_radians(),
+        40f64.to_radians(),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::from_values(0.0, 1.5, 0.0),
+        Vec3::from_values(0.05, 0.05, 0.05),
+        Vec3::from_values(0.35, 0.35, 0.35),
+        Vec3::from_values(0.6, 0.6, 0.6),
+        128.0,
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::from_values(8.0, 0.5, 0.0),
+        Vec3::from_values(0.05, 0.05, 0.05),
+        Vec3::from_values(0.65, 0.65, 0.65),
+        Vec3::from_values(0.3, 0.3, 0.3),
+        64.0,
+    ));
     scene
 }
 

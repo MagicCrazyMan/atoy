@@ -5,7 +5,7 @@ pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;
 
 /// Directional light.
 /// Direction of a directional light should points from light to outside
-/// and it should be normalized.
+/// and should be normalized.
 pub struct DirectionalLight {
     enabled: bool,
     direction: Vec3,
