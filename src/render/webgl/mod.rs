@@ -28,6 +28,10 @@ use self::{
         UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
+        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH,
+        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET,
+        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH,
+        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH,
@@ -113,6 +117,7 @@ pub struct WebGL2Render {
     resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     gl: WebGl2RenderingContext,
     canvas: HtmlCanvasElement,
+    gamma: f64,
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
     program_store: ProgramStore,
@@ -172,6 +177,7 @@ impl WebGL2Render {
                 BufferUsage::DynamicDraw,
                 MemoryPolicy::Unfree,
             ),
+            gamma: 2.2,
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
             // buffer_store: BufferStore::with_max_memory(gl.clone(), 1000),
@@ -311,6 +317,22 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH / 4,
         )
         .set_index(0, if stuff.lighting_enabled() { 1.0 } else { 0.0 });
+
+        // u_GammaCorrection
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH / 4,
+        )
+        .set_index(0, (1.0 / self.gamma) as f32);
+
+        // u_GammaCorrectionInverse
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH / 4,
+        )
+        .set_index(0, self.gamma as f32);
 
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(

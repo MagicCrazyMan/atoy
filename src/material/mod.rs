@@ -25,7 +25,6 @@ pub mod multiple_textures_instanced;
 pub mod solid_color;
 pub mod solid_color_instanced;
 pub mod texture_mapping;
-pub mod texture_mapping_instanced;
 
 /// Material transparency.
 #[derive(Clone, Copy, PartialEq)]
@@ -111,6 +110,10 @@ pub trait Material: ProgramSource {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+/// A standard material source for building up a standard material.
+/// Standard material source implements [`ProgramSource`] in default,
+/// material implemented under this trait gains the abilities of 
+/// drawing basic effects, such as lighting, gamma correction and etc.
 pub trait StandardMaterialSource {
     /// Returns a material name.
     fn name(&self) -> &'static str;
@@ -156,7 +159,10 @@ where
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Vertex,
                 true,
-                [include_str!("./standard/constants_vert.glsl")],
+                [
+                    include_str!("./standard/constants.glsl"),
+                    include_str!("./standard/constants_vert.glsl"),
+                ],
                 self.vertex_variables(),
                 [
                     self.vertex_process()
@@ -167,10 +173,13 @@ where
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Fragment,
                 true,
-                [include_str!("./standard/constants_frag.glsl")],
+                [
+                    include_str!("./standard/constants.glsl"),
+                    include_str!("./standard/constants_frag.glsl"),
+                ],
                 self.fragment_variables(),
                 [
-                    include_str!("./standard/gamma_correction.glsl"),
+                    include_str!("./standard/gamma.glsl"),
                     include_str!("./standard/lighting.glsl"),
                     self.fragment_process(),
                     include_str!("./standard/entry_frag.glsl"),

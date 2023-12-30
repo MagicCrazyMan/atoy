@@ -36,7 +36,6 @@ use crate::material::loader::TextureLoader;
 use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
 use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
 use crate::material::texture_mapping::TextureMaterial;
-use crate::material::texture_mapping_instanced::TextureInstancedMaterial;
 use crate::material::{self, Transparency};
 use crate::render::pp::ResourceKey;
 use crate::render::webgl::attribute::AttributeValue;

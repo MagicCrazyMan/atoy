@@ -21,6 +21,6 @@ void main() {
         color = material.diffuse;
     }
 
-    color = atoy_gamma_correction(color);
+    color = atoy_gamma_correction(color, u_GammaCorrection);
     o_Color = vec4(color, material.transparency);
 }

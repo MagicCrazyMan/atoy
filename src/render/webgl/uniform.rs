@@ -31,6 +31,10 @@ pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
 /// Uniform Buffer Object bytes length for `u_EnableLighting`.
 pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_GammaCorrection`.
+pub const UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_GammaCorrectionInverse`.
+pub const UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH: u32 = 4;
 /// Uniform Buffer Object bytes length for `u_CameraPosition`.
 pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
 /// Uniform Buffer Object bytes length for `u_ViewMatrix`.
@@ -44,6 +48,10 @@ pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
 /// Uniform Buffer Object bytes offset for `u_EnableLighting`.
 pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET: u32 = 4;
+/// Uniform Buffer Object bytes offset for `u_GammaCorrection`.
+pub const UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET: u32 = 8;
+/// Uniform Buffer Object bytes offset for `u_GammaCorrectionInverse`.
+pub const UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET: u32 = 12;
 /// Uniform Buffer Object bytes offset for `u_CameraPosition`.
 pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
 /// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
