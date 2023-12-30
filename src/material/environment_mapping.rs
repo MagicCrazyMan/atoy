@@ -153,7 +153,7 @@ impl Material for EnvironmentMaterial {
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
                     ],
-                    texture_unit: TextureUnit::TEXTURE0,
+                    unit: TextureUnit::TEXTURE0,
                 }),
                 None => None,
             },

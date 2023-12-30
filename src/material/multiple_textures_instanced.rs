@@ -179,7 +179,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE0,
+                    unit: TextureUnit::TEXTURE0,
                 }),
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -197,7 +197,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE1,
+                    unit: TextureUnit::TEXTURE1,
                 }),
                 TextureLoader::from_url("./skybox/skybox_pz.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -215,7 +215,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE2,
+                    unit: TextureUnit::TEXTURE2,
                 }),
                 TextureLoader::from_url("./skybox/skybox_nx.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -233,7 +233,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE3,
+                    unit: TextureUnit::TEXTURE3,
                 }),
                 TextureLoader::from_url("./skybox/skybox_ny.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -251,7 +251,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE4,
+                    unit: TextureUnit::TEXTURE4,
                 }),
                 TextureLoader::from_url("./skybox/skybox_nz.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -269,7 +269,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE5,
+                    unit: TextureUnit::TEXTURE5,
                 }),
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -287,7 +287,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE6,
+                    unit: TextureUnit::TEXTURE6,
                 }),
                 TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
@@ -305,7 +305,7 @@ impl MultipleTexturesInstanced {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE7,
+                    unit: TextureUnit::TEXTURE7,
                 }),
             ],
         }

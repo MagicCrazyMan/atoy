@@ -1,20 +1,26 @@
 /**
  * Standard Fragment Shader Entry Source Code.
  *
- * Fucntion `atoy_OutputMaterial atoy_process_frag(atoy_InputFrag)` MUST be filled.
+ * Fucntion `atoy_Material atoy_process_frag(atoy_Frag)` MUST be filled.
  */
 
 void main() {
-    atoy_InputFrag input_frag = atoy_InputFrag(u_Transparency, v_PositionWS, v_PositionES, v_PositionCS, normalize(v_NormalWS), v_TexCoord);
-    atoy_OutputMaterial output_material = atoy_process_frag(input_frag);
+    vec3 normal_ws;
+    if(gl_FrontFacing) {
+        normal_ws = normalize(v_NormalWS);
+    } else {
+        normal_ws = normalize(-v_NormalWS);
+    }
+    atoy_Frag frag = atoy_Frag(u_Transparency, v_PositionWS, v_PositionES, v_PositionCS, normal_ws, v_TexCoord);
+    atoy_Material material = atoy_process_frag(frag);
 
     vec3 color;
     if(u_EnableLighting) {
-        color = atoy_lighting(input_frag, output_material);
+        color = atoy_lighting(frag, material);
     } else {
-        color = output_material.diffuse;
+        color = material.diffuse;
     }
 
     color = atoy_gamma_correction(color);
-    o_Color = vec4(color, output_material.transparency);
+    o_Color = vec4(color, material.transparency);
 }

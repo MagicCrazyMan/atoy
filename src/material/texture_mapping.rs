@@ -6,7 +6,7 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            program::{ProgramSource, ShaderSource},
+            shader::Variable,
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
@@ -20,48 +20,18 @@ use crate::{
     },
 };
 
-use super::{loader::TextureLoader, Material, Transparency};
-
-const VERTEX_SHADER_SOURCE: &'static str = "#version 300 es
-in vec4 a_Position;
-in vec2 a_TexCoord;
-
-uniform mat4 u_ModelMatrix;
-uniform mat4 u_ViewProjMatrix;
-
-out vec2 v_TexCoord;
-
-void main() {
-    gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
-    v_TexCoord = a_TexCoord;
-}
-";
-const FRAGMENT_SHADER_SOURCE: &'static str = "#version 300 es
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-    precision highp float;
-#else
-    precision mediump float;
-#endif
-
-uniform sampler2D u_Sampler;
-
-in vec2 v_TexCoord;
-
-out vec4 out_Color;
-
-void main() {
-    out_Color = texture(u_Sampler, v_TexCoord);
-}
-";
+use super::{loader::TextureLoader, Material, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
-    texture: TextureLoader,
+    transparency: Transparency,
+    diffuse_texture: TextureLoader,
 }
 
 impl TextureMaterial {
-    pub fn new<S: Into<String>>(url: S) -> Self {
+    pub fn new<S: Into<String>>(url: S, transparency: Transparency) -> Self {
         Self {
-            texture: TextureLoader::from_url(url, |image| UniformValue::Texture {
+            transparency,
+            diffuse_texture: TextureLoader::from_url(url, |image| UniformValue::Texture {
                 descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                     image,
                     TextureDataType::UNSIGNED_BYTE,
@@ -77,27 +47,29 @@ impl TextureMaterial {
                     TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
                     TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
                 ],
-                texture_unit: TextureUnit::TEXTURE0,
+                unit: TextureUnit::TEXTURE0,
             }),
         }
     }
 }
 
-impl ProgramSource for TextureMaterial {
+impl StandardMaterialSource for TextureMaterial {
     fn name(&self) -> &'static str {
         "TextureMaterial"
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
-            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
-        ]
+    fn vertex_variables(&self) -> Vec<Variable> {
+        vec![]
+    }
+
+    fn fragment_variables(&self) -> Vec<Variable> {
+        vec![]
     }
 
     fn attribute_bindings(&self) -> Vec<AttributeBinding> {
         vec![
             AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
             AttributeBinding::GeometryTextureCoordinate,
         ]
     }
@@ -105,8 +77,9 @@ impl ProgramSource for TextureMaterial {
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
         vec![
             UniformBinding::ModelMatrix,
-            UniformBinding::ViewProjMatrix,
-            UniformBinding::FromMaterial("u_Sampler"),
+            UniformBinding::NormalMatrix,
+            UniformBinding::Transparency,
+            UniformBinding::FromMaterial("u_DiffuseSampler"),
         ]
     }
 
@@ -117,15 +90,19 @@ impl ProgramSource for TextureMaterial {
     fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
         vec![]
     }
+
+    fn fragment_process(&self) -> &'static str {
+        include_str!("./standard/texture_process_frag.glsl")
+    }
 }
 
 impl Material for TextureMaterial {
     fn transparency(&self) -> Transparency {
-        Transparency::Opaque
+        self.transparency
     }
 
     fn ready(&self) -> bool {
-        self.texture.loaded()
+        self.diffuse_texture.loaded()
     }
 
     fn instanced(&self) -> Option<i32> {
@@ -138,7 +115,7 @@ impl Material for TextureMaterial {
 
     fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
         match name {
-            "u_Sampler" => self.texture.texture(),
+            "u_DiffuseSampler" => self.diffuse_texture.texture(),
             _ => None,
         }
     }
@@ -156,6 +133,6 @@ impl Material for TextureMaterial {
     }
 
     fn prepare(&mut self, _: &State, _: &BorrowedMut) {
-        self.texture.load()
+        self.diffuse_texture.load();
     }
 }

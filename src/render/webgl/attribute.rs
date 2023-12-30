@@ -176,7 +176,6 @@ pub fn bind_attributes(
                 };
 
                 state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
-
                 let component_size = component_size as GLint;
                 // binds each instance
                 for i in 0..components_length_per_instance {
@@ -197,7 +196,6 @@ pub fn bind_attributes(
                         descriptor: descriptor.clone(),
                     });
                 }
-
                 state.gl().bind_buffer(target.gl_enum(), None);
             }
             AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),

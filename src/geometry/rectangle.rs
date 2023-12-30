@@ -26,7 +26,7 @@ pub struct Rectangle {
     height: f64,
     vertices: AttributeValue,
     texture_coordinates: AttributeValue,
-    normal: AttributeValue,
+    normals: AttributeValue,
     bounding: BoundingVolumeNative,
 }
 
@@ -87,7 +87,7 @@ impl Rectangle {
                 bytes_stride: 0,
                 bytes_offset: 32,
             },
-            normal: AttributeValue::Buffer {
+            normals: AttributeValue::Buffer {
                 descriptor: data,
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Three,
@@ -134,7 +134,7 @@ impl Geometry for Rectangle {
     }
 
     fn normals(&self) -> Option<AttributeValue> {
-        Some(self.normal.clone())
+        Some(self.normals.clone())
     }
 
     fn texture_coordinates(&self) -> Option<AttributeValue> {

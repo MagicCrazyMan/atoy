@@ -25,7 +25,7 @@ out vec4 o_Color;
  * - `normal_ws`: Normal vector in WORLD space.
  * - `tex_coord`: Texture coordinate associated with.
  */
-struct atoy_InputFrag {
+struct atoy_Frag {
     float transparency;
     vec3 position_ws;
     vec3 position_es;
@@ -42,7 +42,7 @@ struct atoy_InputFrag {
  * - `diffuse`: Diffuse color of the material.
  * - `specular`: Specular color of the material.
  */
-struct atoy_OutputMaterial {
+struct atoy_Material {
     float transparency;
     vec3 ambient;
     vec3 diffuse;

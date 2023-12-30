@@ -209,7 +209,7 @@ impl Material for TextureInstancedMaterial {
                         TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
                         TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
                     ],
-                    texture_unit: TextureUnit::TEXTURE0,
+                    unit: TextureUnit::TEXTURE0,
                 }),
                 None => None,
             },

@@ -156,7 +156,7 @@ where
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Vertex,
                 true,
-                [include_str!("./standard/prelude_vert.glsl")],
+                [include_str!("./standard/constants_vert.glsl")],
                 self.vertex_variables(),
                 [
                     self.vertex_process()
@@ -167,11 +167,11 @@ where
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Fragment,
                 true,
-                [include_str!("./standard/prelude_frag.glsl")],
+                [include_str!("./standard/constants_frag.glsl")],
                 self.fragment_variables(),
                 [
                     include_str!("./standard/gamma_correction.glsl"),
-                    include_str!("./standard/lighting_frag.glsl"),
+                    include_str!("./standard/lighting.glsl"),
                     self.fragment_process(),
                     include_str!("./standard/entry_frag.glsl"),
                 ],

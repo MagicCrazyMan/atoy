@@ -120,7 +120,7 @@ pub enum UniformValue {
     Texture {
         descriptor: TextureDescriptor,
         params: Vec<TextureParameter>,
-        texture_unit: TextureUnit,
+        unit: TextureUnit,
     },
 }
 
@@ -542,10 +542,10 @@ pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, va
         UniformValue::Texture {
             descriptor,
             params,
-            texture_unit,
+            unit,
         } => {
             // active texture
-            state.gl().active_texture(texture_unit.gl_enum());
+            state.gl().active_texture(unit.gl_enum());
 
             let (target, texture) = match state.texture_store_mut().use_texture(&descriptor) {
                 Ok(texture) => texture,
@@ -569,7 +569,7 @@ pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, va
             // binds to shader
             state
                 .gl()
-                .uniform1i(Some(location), texture_unit.unit_index());
+                .uniform1i(Some(location), unit.unit_index());
         }
     };
 }

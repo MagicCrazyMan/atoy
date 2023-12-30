@@ -153,7 +153,7 @@ fn create_scene(
         60.0f64.to_radians(),
         1.0,
         0.5,
-        Some(200.0),
+        Some(400.0),
     ));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
     // scene.add_directional_light(DirectionalLight::new(
@@ -163,27 +163,38 @@ fn create_scene(
     //     Vec3::from_values(0.19, 0.19, 0.19),
     //     128.0,
     // ));
+    scene.set_light_attenuation(Vec3::from_values(1.0, 1.0, 1.0));
     scene.add_spot_light(SpotLight::new(
         Vec3::from_values(0.0, 1.0, 0.0),
         Vec3::from_values(1.0, -1.0, -1.0).normalize(),
-        Vec3::from_values(0.1, 0.1, 0.1),
-        Vec3::from_values(0.3, 0.3, 0.3),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
         Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         40f64.to_radians(),
     ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::from_values(0.0, 1.0, 0.0),
+        Vec3::from_values(0.0, -1.0, 0.0).normalize(),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(1.39, 1.39, 1.39),
+        Vec3::from_values(0.6, 0.6, 0.6),
+        128.0,
+        30f64.to_radians(),
+        60f64.to_radians(),
+    ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(0.0, 1.5, 0.0),
-        Vec3::from_values(0.05, 0.05, 0.05),
-        Vec3::from_values(0.35, 0.35, 0.35),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
         Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(8.0, 0.5, 0.0),
-        Vec3::from_values(0.05, 0.05, 0.05),
-        Vec3::from_values(0.65, 0.65, 0.65),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.69, 0.69, 0.69),
         Vec3::from_values(0.3, 0.3, 0.3),
         64.0,
     ));
@@ -295,7 +306,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     )));
     entity
         .borrow_mut()
-        .set_material(Some(MultipleTexturesInstanced::new()));
+        .set_material(Some(TextureMaterial::new("./skybox/skybox_py.jpg", Transparency::Opaque)));
     scene.entity_collection_mut().add_entity(entity);
 
     let floor_entity = Entity::new();
@@ -307,19 +318,13 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         2000.0,
         2000.0,
     )));
-    // floor_entity
-    //     .borrow_mut()
-    //     .set_material(Some(TextureMaterial::new("./wood.png")));
     floor_entity
         .borrow_mut()
-        .set_material(Some(SolidColorMaterial::with_color(
-            Vec3::from_values(1.0, 1.0, 0.0),
-            Transparency::Opaque,
-        )));
+        .set_material(Some(TextureMaterial::new("./wood.png", Transparency::Opaque)));
     floor_entity
         .borrow_mut()
         .set_local_matrix(Mat4::from_rotation_translation(
-            &Quat::from_axis_angle(&Vec3::from_values(1.0, 0.0, 0.0), -PI / 2.0),
+            &Quat::from_axis_angle(&Vec3::from_values(-1.0, 0.0, 0.0), PI / 2.0),
             &Vec3::from_values(0.0, -0.6, 0.0),
         ));
     scene.entity_collection_mut().add_entity(floor_entity);

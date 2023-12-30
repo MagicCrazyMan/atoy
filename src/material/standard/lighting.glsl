@@ -179,7 +179,7 @@ layout(std140) uniform atoy_Lights {
 /**
  * Calculates scene mixed lighting.
  */
-vec3 atoy_lighting(atoy_InputFrag frag, atoy_OutputMaterial material) {
+vec3 atoy_lighting(atoy_Frag frag, atoy_Material material) {
     vec3 to_camera = normalize(u_CameraPosition - frag.position_ws);
 
     vec3 lighting = vec3(0.0);

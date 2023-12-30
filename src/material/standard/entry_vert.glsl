@@ -2,7 +2,6 @@
  * Standard Vertex Shader Entry Source Code.
  */
 
- uniform mat4 u_Test;
 
 void main() {
     atoy_InputVertex input_vertex = atoy_InputVertex(a_Position, a_Normal, a_TexCoord);
@@ -17,6 +16,5 @@ void main() {
     v_PositionCS = vec3(position_cs / position_cs.w);
     v_NormalWS = output_vertex.normal;
     v_TexCoord = output_vertex.tex_coord;
-
     gl_Position = position_cs;
 }

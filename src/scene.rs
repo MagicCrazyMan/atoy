@@ -116,6 +116,16 @@ impl Scene {
         self.lighting_enabled = false;
     }
 
+    /// Returns lighting attenuation.
+    pub fn light_attenuation(&mut self) -> Vec3 {
+        self.light_attenuations
+    }
+
+    /// Sets lighting attenuation.
+    pub fn set_light_attenuation(&mut self, attenuations: Vec3) {
+        self.light_attenuations = attenuations;
+    }
+
     /// Adds a point light.
     pub fn add_point_light(&mut self, light: PointLight) {
         if self.point_lights.len() == MAX_POINT_LIGHTS {

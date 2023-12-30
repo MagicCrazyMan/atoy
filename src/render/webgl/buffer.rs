@@ -255,7 +255,7 @@ impl BufferSource {
             BufferSource::Function { callback: data, .. } => {
                 let source = data();
                 if let BufferSource::Function { .. } = source {
-                    panic!("recursively BufferSource::Function is not allowed");
+                    panic!("recursive BufferSource::Function is not allowed");
                 }
                 source.buffer_data(gl, target, usage);
             }
@@ -811,6 +811,9 @@ impl BufferStoreInner {
                 }
             }
 
+            item.bytes_length = new_bytes_length;
+            self.used_memory += new_bytes_length - old_bytes_length;
+
             debug!(
                 target: "BufferStore",
                 "buffer new data for {}, old length {}, new length {}", id, old_bytes_length, new_bytes_length
@@ -827,9 +830,6 @@ impl BufferStoreInner {
             );
         }
         self.gl.bind_buffer(target.gl_enum(), None);
-
-        item.bytes_length = new_bytes_length;
-        self.used_memory += new_bytes_length - old_bytes_length;
 
         self.free();
 
