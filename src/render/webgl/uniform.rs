@@ -62,7 +62,7 @@ pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
 
 /// Uniform Buffer Object bytes length for `atoy_Lights`.
-pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16 + 16 + 64 * 12 + 64 * 12 + 80 * 12;
+pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16 + 16 + 64 * 12 + 64 * 12 + 80 * 12 + 112 * 12;
 /// Uniform Buffer Object bytes length for `u_Attenuations`.
 pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
 /// Uniform Buffer Object bytes length for `u_AmbientLight`.
@@ -73,6 +73,8 @@ pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
 pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
 /// Uniform Buffer Object bytes length for `u_SpotLights`.
 pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
+/// Uniform Buffer Object bytes length for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH: u32 = 112;
 
 /// Uniform Buffer Object bytes offset for `u_Attenuations`.
 pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
@@ -84,6 +86,8 @@ pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
 pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
 /// Uniform Buffer Object bytes offset for `u_SpotLights`.
 pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
+/// Uniform Buffer Object bytes offset for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = 2528;
 
 /// Available uniform values.
 #[derive(Clone)]

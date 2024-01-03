@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 /// Maximum directional lights.
 pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;
@@ -16,11 +16,11 @@ pub struct DirectionalLight {
 }
 impl DirectionalLight {
     /// Constructs a new directional light.
-    /// Direction vector should be normalized.
+    /// Position and direction of a directional light should be in world space.
     pub fn new(direction: Vec3, ambient: Vec3, diffuse: Vec3, specular: Vec3, specular_shininess: f64) -> Self {
         Self {
             enabled: true,
-            direction,
+            direction: direction.normalize(),
             ambient,
             diffuse,
             specular,
@@ -34,22 +34,21 @@ impl DirectionalLight {
     }
 
     /// Returns directional light direction.
-    /// Direction vector should be normalized.
     pub fn direction(&self) -> Vec3 {
         self.direction
     }
 
-    /// Returns point light ambient color.
+    /// Returns directional light ambient color.
     pub fn ambient(&self) -> Vec3 {
         self.ambient
     }
 
-    /// Returns point light diffuse color.
+    /// Returns directional light diffuse color.
     pub fn diffuse(&self) -> Vec3 {
         self.diffuse
     }
 
-    /// Returns point light specular color.
+    /// Returns directional light specular color.
     pub fn specular(&self) -> Vec3 {
         self.specular
     }
@@ -71,20 +70,20 @@ impl DirectionalLight {
 
     /// Sets directional light direction.
     pub fn set_direction(&mut self, direction: Vec3) {
-        self.direction = direction;
+        self.direction = direction.normalize();
     }
 
-    /// Sets point light ambient color.
+    /// Sets directional light ambient color.
     pub fn set_ambient(&mut self, ambient: Vec3) {
         self.ambient = ambient;
     }
 
-    /// Sets point light diffuse color.
+    /// Sets directional light diffuse color.
     pub fn set_diffuse(&mut self, diffuse: Vec3) {
         self.diffuse = diffuse;
     }
 
-    /// Sets point light specular color.
+    /// Sets directional light specular color.
     pub fn set_specular(&mut self, specular: Vec3) {
         self.specular = specular;
     }

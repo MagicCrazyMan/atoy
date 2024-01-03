@@ -27,6 +27,7 @@ use crate::geometry::raw::RawGeometry;
 use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::light::ambient_light::AmbientLight;
+use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
@@ -151,21 +152,21 @@ fn create_scene(
         camera_up,
         60.0f64.to_radians(),
         1.0,
-        0.5,
+        0.01,
         Some(400.0),
     ));
-    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
-    // scene.add_directional_light(DirectionalLight::new(
-    //     Vec3::from_values(-1.0, 0.0, 0.0).normalize(),
-    //     Vec3::from_values(0.01, 0.01, 0.01),
-    //     Vec3::from_values(0.8, 0.8, 0.8),
-    //     Vec3::from_values(0.19, 0.19, 0.19),
-    //     128.0,
-    // ));
     scene.set_light_attenuation(Vec3::from_values(1.0, 1.0, 1.0));
+    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
+    scene.add_directional_light(DirectionalLight::new(
+        Vec3::from_values(0.0, -1.0, -1.0),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.19, 0.19, 0.19),
+        Vec3::from_values(0.8, 0.8, 0.8),
+        128.0,
+    ));
     scene.add_spot_light(SpotLight::new(
         Vec3::from_values(0.0, 1.0, 0.0),
-        Vec3::from_values(1.0, -1.0, -1.0).normalize(),
+        Vec3::from_values(1.0, -1.0, -1.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
         Vec3::from_values(0.6, 0.6, 0.6),
@@ -175,13 +176,27 @@ fn create_scene(
     ));
     scene.add_spot_light(SpotLight::new(
         Vec3::from_values(0.0, 1.0, 0.0),
-        Vec3::from_values(0.0, -1.0, 0.0).normalize(),
+        Vec3::from_values(0.0, -1.0, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(1.39, 1.39, 1.39),
+        Vec3::from_values(0.39, 0.39, 0.39),
         Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         60f64.to_radians(),
+    ));
+    scene.add_area_light(AreaLight::new(
+        Vec3::from_values(-3.0, 2.0, 0.0),
+        Vec3::from_values(-1.0, -1.0, 1.0),
+        Vec3::from_values(1.0, 0.0, -1.0),
+        0.5,
+        4.0,
+        1.5,
+        4.5,
+        2.0,
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
+        Vec3::from_values(0.6, 0.6, 0.6),
+        128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(0.0, 1.5, 0.0),
@@ -219,7 +234,7 @@ fn create_render() -> Result<WebGL2Render, Error> {
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
     let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
-    // let mut scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+    // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
@@ -303,9 +318,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         1.0,
         1.0,
     )));
-    entity
-        .borrow_mut()
-        .set_material(Some(TextureMaterial::new("./skybox/skybox_py.jpg", Transparency::Opaque)));
+    entity.borrow_mut().set_material(Some(TextureMaterial::new(
+        "./skybox/skybox_py.jpg",
+        Transparency::Opaque,
+    )));
     scene.entity_collection_mut().add_entity(entity);
 
     let floor_entity = Entity::new();
@@ -319,7 +335,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     )));
     floor_entity
         .borrow_mut()
-        .set_material(Some(TextureMaterial::new("./wood.png", Transparency::Opaque)));
+        .set_material(Some(TextureMaterial::new(
+            "./wood.png",
+            Transparency::Opaque,
+        )));
     floor_entity
         .borrow_mut()
         .set_local_matrix(Mat4::from_rotation_translation(

@@ -16,7 +16,7 @@ use crate::{
     entity::collection::EntityCollection,
     light::{
         ambient_light::AmbientLight, directional_light::DirectionalLight, point_light::PointLight,
-        spot_light::SpotLight,
+        spot_light::SpotLight, area_light::AreaLight,
     },
 };
 
@@ -59,6 +59,9 @@ pub trait Stuff {
 
     /// Returns spot lights.
     fn spot_lights(&self) -> &[SpotLight];
+
+    /// Returns area lights.
+    fn area_lights(&self) -> &[AreaLight];
 }
 
 /// Pipeline rendering state.

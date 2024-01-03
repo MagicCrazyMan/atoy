@@ -39,7 +39,7 @@ use self::{
         UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH,
-        UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
+        UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH,
     },
 };
 
@@ -429,6 +429,17 @@ impl WebGL2Render {
                 &data,
                 UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET + index * UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH,
                 UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        // u_AreaLights
+        for (index, light) in stuff.area_lights().into_iter().enumerate() {
+            let index = index as u32;
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET + index * UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH / 4,
             )
             .copy_from(&light.gl_ubo());
         }

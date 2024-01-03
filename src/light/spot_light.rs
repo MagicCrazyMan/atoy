@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 /// Maximum spot lights.
 pub const MAX_SPOT_LIGHTS: usize = 12;
@@ -18,7 +18,7 @@ pub struct SpotLight {
 
 impl SpotLight {
     /// Constructs a new spot light.
-    /// Spot light. Position and direction of a spot light should be in world space.
+    /// Position and direction of a spot light should be in world space.
     /// `inner_cutoff` and `outer_cutoff` are in radians,
     /// and `outer_cutoff` should be larger than `inner_cutoff`.
     pub fn new(
@@ -34,7 +34,7 @@ impl SpotLight {
         Self {
             enabled: true,
             position,
-            direction,
+            direction: direction.normalize(),
             ambient,
             diffuse,
             specular,
@@ -54,8 +54,7 @@ impl SpotLight {
         self.position
     }
 
-    /// Returns directional light direction.
-    /// Direction vector should be normalized.
+    /// Returns spot light direction.
     pub fn direction(&self) -> Vec3 {
         self.direction
     }
@@ -95,9 +94,9 @@ impl SpotLight {
         self.position = position;
     }
 
-    /// Sets directional light direction.
+    /// Sets spot light direction.
     pub fn set_direction(&mut self, direction: Vec3) {
-        self.direction = direction;
+        self.direction = direction.normalize();
     }
 
     /// Sets spot light ambient color.
@@ -141,6 +140,8 @@ impl SpotLight {
     }
 
     /// Returns data in uniform buffer object alignment.
+    /// 
+    /// `inner_cutoff` and `outer_cutoff` are transformed from radians to cosine values.
     pub fn gl_ubo(&self) -> [f32; 20] {
         [
             self.direction.0[0] as f32,

@@ -21,22 +21,22 @@ impl AmbientLight {
         self.color
     }
 
-    /// Returns `true` if this point light is enabled.
+    /// Returns `true` if this ambient light is enabled.
     pub fn enabled(&self) -> bool {
         self.enabled
     }
 
-    /// Enables point light.
+    /// Enables ambient light.
     pub fn enable(&mut self) {
         self.enabled = true;
     }
 
-    /// Disables point light.
+    /// Disables ambient light.
     pub fn disable(&mut self) {
         self.enabled = false;
     }
 
-    /// Sets point light color.
+    /// Sets ambient light color.
     pub fn set_color(&mut self, color: Vec3) {
         self.color = color;
     }

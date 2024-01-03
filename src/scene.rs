@@ -7,6 +7,7 @@ use crate::{
     entity::collection::EntityCollection,
     light::{
         ambient_light::AmbientLight,
+        area_light::{AreaLight, MAX_AREA_LIGHTS},
         directional_light::{DirectionalLight, MAX_DIRECTIONAL_LIGHTS},
         point_light::{PointLight, MAX_POINT_LIGHTS},
         spot_light::{SpotLight, MAX_SPOT_LIGHTS},
@@ -25,6 +26,7 @@ pub struct Scene {
     point_lights: Vec<PointLight>,
     directional_lights: Vec<DirectionalLight>,
     spot_lights: Vec<SpotLight>,
+    area_lights: Vec<AreaLight>,
 }
 
 impl Scene {
@@ -40,6 +42,7 @@ impl Scene {
             point_lights: Vec::new(),
             directional_lights: Vec::new(),
             spot_lights: Vec::new(),
+            area_lights: Vec::new(),
         }
     }
 
@@ -222,6 +225,38 @@ impl Scene {
         self.spot_lights.get_mut(index)
     }
 
+    /// Adds a area light.
+    pub fn add_area_light(&mut self, light: AreaLight) {
+        if self.spot_lights.len() == MAX_AREA_LIGHTS {
+            warn!(
+                "only {} area lights are available, ignored",
+                MAX_AREA_LIGHTS
+            );
+            return;
+        }
+
+        self.area_lights.push(light);
+    }
+
+    /// Removes a area light by index.
+    pub fn remove_area_light(&mut self, index: usize) -> Option<AreaLight> {
+        if index < self.area_lights.len() {
+            return None;
+        }
+
+        Some(self.area_lights.remove(index))
+    }
+
+    /// Returns a area light by index.
+    pub fn area_light(&self, index: usize) -> Option<&AreaLight> {
+        self.area_lights.get(index)
+    }
+
+    /// Returns a mutable area light by index.
+    pub fn area_light_mut(&mut self, index: usize) -> Option<&mut AreaLight> {
+        self.area_lights.get_mut(index)
+    }
+
     /// Returns a [`Stuff`] from scene.
     pub fn stuff(&mut self) -> SceneStuff {
         SceneStuff { scene: self }
@@ -272,5 +307,9 @@ impl<'a> Stuff for SceneStuff<'a> {
 
     fn spot_lights(&self) -> &[SpotLight] {
         &self.scene.spot_lights
+    }
+
+    fn area_lights(&self) -> &[AreaLight] {
+        &self.scene.area_lights
     }
 }
