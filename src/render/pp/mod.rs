@@ -15,12 +15,12 @@ use crate::{
     camera::Camera,
     entity::collection::EntityCollection,
     light::{
-        ambient_light::AmbientLight, directional_light::DirectionalLight, point_light::PointLight,
-        spot_light::SpotLight, area_light::AreaLight,
+        ambient_light::AmbientLight, area_light::AreaLight, directional_light::DirectionalLight,
+        point_light::PointLight, spot_light::SpotLight,
     },
 };
 
-use self::{error::Error, graph::DirectedGraph};
+use self::{graph::DirectedGraph, error::Error};
 
 use super::webgl::{
     buffer::{BufferDescriptor, BufferStore},
@@ -224,15 +224,64 @@ impl<'a> State<'a> {
     }
 }
 
-/// A graph based pipeline defining the rendering procedure.
-pub struct Pipeline<ExecutorError> {
-    graph: DirectedGraph<Box<dyn Executor<Error = ExecutorError>>>,
+/// A rendering pipeline.
+pub trait Pipeline {
+    /// Error that could be thrown during execution.
+    type Error;
+
+    /// Executes this rendering pipeline with specified [`State`] and rendering [`Stuff`].
+    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
+    where
+        S: Stuff;
+}
+
+/// An execution node for [`Pipeline`].
+pub trait Executor {
+    /// Error that could be thrown during execution.
+    type Error;
+
+    /// Actions before execution.
+    /// Developer could setup WebGL state here, or return a `false` to skip execution.
+    #[allow(unused)]
+    fn before(
+        &mut self,
+        state: &mut State,
+        stuff: &mut dyn Stuff,
+        resources: &mut Resources,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+
+    /// Main execution procedure.
+    fn execute(
+        &mut self,
+        state: &mut State,
+        stuff: &mut dyn Stuff,
+        resources: &mut Resources,
+    ) -> Result<(), Self::Error>;
+
+    /// Actions after execution.
+    /// Developer should reset WebGL state here to prevent unexpected side effect to other executors.
+    #[allow(unused)]
+    fn after(
+        &mut self,
+        state: &mut State,
+        stuff: &mut dyn Stuff,
+        resources: &mut Resources,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+/// A standard rendering pipeline container based on [`DirectedGraph`].
+pub struct GraphPipeline<E> {
+    graph: DirectedGraph<Box<dyn Executor<Error = E>>>,
     executor_keys: HashMap<ItemKey, usize>,
     resources: Resources,
 }
 
-impl<ExecutorError> Pipeline<ExecutorError> {
-    /// Constructs a new pipeline.
+impl<E> GraphPipeline<E> {
+    /// Constructs a new standard pipeline.
     pub fn new() -> Self {
         Self {
             graph: DirectedGraph::new(),
@@ -241,80 +290,51 @@ impl<ExecutorError> Pipeline<ExecutorError> {
         }
     }
 
-    pub fn execute(
-        &mut self,
-        state: &mut State,
-        stuff: &mut impl Stuff,
-    ) -> Result<bool, ExecutorError> {
-        let Ok(iter) = self.graph.iter_mut() else {
-            return Ok(false);
-        };
-
-        for (_, executor) in iter {
-            state.reset_gl();
-
-            if executor.before(state, stuff, &mut self.resources)? {
-                executor.execute(state, stuff, &mut self.resources)?;
-                executor.after(state, stuff, &mut self.resources)?;
-            }
-        }
-
-        // clears runtime resources
-        self.resources.runtime.clear();
-
-        Ok(true)
-    }
-
-    pub fn add_executor<E>(&mut self, key: ItemKey, executor: E)
+    /// Adds a new executor with a [`ItemKey`].
+    pub fn add_executor<T>(&mut self, key: ItemKey, executor: T)
     where
-        E: Executor<Error = ExecutorError> + 'static,
+        T: Executor<Error = E> + 'static,
     {
         let index = self.graph.add_vertex(Box::new(executor));
         self.executor_keys.insert(key, index);
     }
 
-    pub fn remove_executor(&mut self, key: &ItemKey) -> Result<(), Error> {
-        let Some(index) = self.executor_keys.remove(key) else {
-            return Err(self::error::Error::NoSuchExecutor(key.clone()))?;
+    /// Removes an executor by a [`ItemKey`].
+    pub fn remove_executor(&mut self, key: &ItemKey) {
+        if let Some(index) = self.executor_keys.remove(key) {
+            self.graph.remove_vertex(index);
+            self.executor_keys.iter_mut().for_each(|(_, v)| {
+                if *v > index {
+                    *v -= 1
+                }
+            });
         };
-        self.graph.remove_vertex(index);
-        self.executor_keys.iter_mut().for_each(|(_, v)| {
-            if *v > index {
-                *v -= 1
-            }
-        });
-
-        Ok(())
     }
 
-    pub fn executor(
-        &self,
-        key: &ItemKey,
-    ) -> Result<Option<&dyn Executor<Error = ExecutorError>>, Error> {
-        let Some(index) = self.executor_keys.get(key) else {
-            return Err(self::error::Error::NoSuchExecutor(key.clone()))?;
-        };
-
-        match self.graph.vertex(*index) {
-            Some(executor) => Ok(Some(executor.as_ref())),
-            None => Ok(None),
-        }
+    /// Returns an executor by a [`ItemKey`].
+    pub fn executor(&self, key: &ItemKey) -> Option<&dyn Executor<Error = E>> {
+        self.executor_keys
+            .get(key)
+            .and_then(|index| self.graph.vertex(*index))
+            .map(|vertex| vertex.as_ref())
     }
 
-    pub fn executor_mut(
-        &mut self,
-        key: &ItemKey,
-    ) -> Result<Option<&mut dyn Executor<Error = ExecutorError>>, Error> {
+    pub fn executor_mut(&mut self, key: &ItemKey) -> Option<&mut dyn Executor<Error = E>> {
         let Some(index) = self.executor_keys.get(key) else {
-            return Err(self::error::Error::NoSuchExecutor(key.clone()))?;
+            return None;
         };
 
         match self.graph.vertex_mut(*index) {
-            Some(executor) => Ok(Some(executor.as_mut())),
-            None => Ok(None),
+            Some(executor) => Some(executor.as_mut()),
+            None => None,
         }
     }
 
+    /// Connects two executors by [`ItemKey`].
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NoSuchExecutor`] thrown if `from` or `to` index does not exist.
     pub fn connect(&mut self, from: &ItemKey, to: &ItemKey) -> Result<(), Error> {
         let from_index = self
             .executor_keys
@@ -330,6 +350,11 @@ impl<ExecutorError> Pipeline<ExecutorError> {
         Ok(())
     }
 
+    /// Disconnects two executors by [`ItemKey`].
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NoSuchExecutor`] thrown if `from` or `to` index does not exist.
     pub fn disconnect(&mut self, from: &ItemKey, to: &ItemKey) -> Result<(), Error> {
         let from_index = self
             .executor_keys
@@ -345,12 +370,36 @@ impl<ExecutorError> Pipeline<ExecutorError> {
         Ok(())
     }
 
+    /// Returns [`Resources`] associated with this pipeline.
     pub fn resources(&self) -> &Resources {
         &self.resources
     }
 
+    /// Returns mutable [`Resources`] associated with this pipeline.
     pub fn resources_mut(&mut self) -> &mut Resources {
         &mut self.resources
+    }
+}
+
+impl<E> Pipeline for GraphPipeline<E> {
+    type Error = E;
+
+    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
+    where
+        S: Stuff,
+    {
+        for (_, executor) in self.graph.iter_mut().unwrap() {
+            state.reset_gl();
+
+            if executor.before(state, stuff, &mut self.resources)? {
+                executor.execute(state, stuff, &mut self.resources)?;
+                executor.after(state, stuff, &mut self.resources)?;
+            }
+        }
+
+        // clears runtime resources
+        self.resources.runtime.clear();
+        Ok(())
     }
 }
 
@@ -367,12 +416,12 @@ pub enum ItemKey {
 
 impl ItemKey {
     /// Constructs a new item key by [`Uuid`].
-    pub fn from_uuid() -> Self {
+    pub fn new_uuid() -> Self {
         Self::Uuid(Uuid::new_v4())
     }
 
     /// Constructs a new item key by [`String`].
-    pub fn from_string<S>(name: S) -> Self
+    pub fn new_str<S>(name: S) -> Self
     where
         S: Into<String>,
     {
@@ -394,7 +443,7 @@ impl<V> ResourceKey<V> {
     where
         S: Into<String>,
     {
-        Self::Runtime(ItemKey::from_string(key), PhantomData::<V>)
+        Self::Runtime(ItemKey::new_str(key), PhantomData::<V>)
     }
 
     /// Constructs a new string persist resource key.
@@ -402,17 +451,17 @@ impl<V> ResourceKey<V> {
     where
         S: Into<String>,
     {
-        Self::Persist(ItemKey::from_string(key), PhantomData::<V>)
+        Self::Persist(ItemKey::new_str(key), PhantomData::<V>)
     }
 
     /// Constructs a new runtime resource key with random uuid.
     pub fn new_runtime_uuid() -> Self {
-        Self::Runtime(ItemKey::from_uuid(), PhantomData::<V>)
+        Self::Runtime(ItemKey::new_uuid(), PhantomData::<V>)
     }
 
     /// Constructs a new persist resource key with random uuid.
     pub fn new_persist_uuid() -> Self {
-        Self::Persist(ItemKey::from_uuid(), PhantomData::<V>)
+        Self::Persist(ItemKey::new_uuid(), PhantomData::<V>)
     }
 
     /// Returns a raw [`ItemKey`] associated with this resource key.
@@ -536,42 +585,5 @@ impl Resources {
     /// Gets the mutable native persist resources.
     pub fn persist_mut(&mut self) -> &mut HashMap<ItemKey, Box<dyn Any>> {
         &mut self.persist
-    }
-}
-
-/// An execution node for [`Pipeline`].
-pub trait Executor {
-    type Error;
-
-    /// Actions before execution.
-    /// Developer could setup WebGL state here, or return a `false` to skip execution.
-    #[allow(unused)]
-    fn before(
-        &mut self,
-        state: &mut State,
-        stuff: &mut dyn Stuff,
-        resources: &mut Resources,
-    ) -> Result<bool, Self::Error> {
-        Ok(true)
-    }
-
-    /// Main execution procedure.
-    fn execute(
-        &mut self,
-        state: &mut State,
-        stuff: &mut dyn Stuff,
-        resources: &mut Resources,
-    ) -> Result<(), Self::Error>;
-
-    /// Actions after execution.
-    /// Developer should reset WebGL state here to prevent unexpected side effect to other executors.
-    #[allow(unused)]
-    fn after(
-        &mut self,
-        state: &mut State,
-        stuff: &mut dyn Stuff,
-        resources: &mut Resources,
-    ) -> Result<(), Self::Error> {
-        Ok(())
     }
 }

@@ -8,14 +8,14 @@ use crate::{
     entity::{BorrowedMut, Strong, Weak},
     material::{Material, Transparency},
     render::{
-        pp::{Executor, ItemKey, Pipeline, ResourceKey, Resources, State, Stuff},
+        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State, Stuff},
         webgl::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
             draw::draw,
             error::Error,
             offscreen::{
-                FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget, OffscreenFramebuffer,
-                OffscreenRenderbufferProvider, OffscreenTextureProvider,
+                FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
+                OffscreenFramebuffer, OffscreenRenderbufferProvider, OffscreenTextureProvider,
             },
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
@@ -30,35 +30,100 @@ use crate::{
 
 use super::collector::StandardEntitiesCollector;
 
-pub fn create_picking_pipeline(
-    in_window_position: ResourceKey<(i32, i32)>,
-    out_picked_entity: ResourceKey<Weak>,
-    out_picked_position: ResourceKey<Vec3>,
-) -> Pipeline<Error> {
-    let collector = ItemKey::from_uuid();
-    let picking = ItemKey::from_uuid();
+/// A [`Pipeline`] for picking purpose.
+pub struct PickingPipeline {
+    pipeline: GraphPipeline<Error>,
+    window_position_key: ResourceKey<(i32, i32)>,
+    picked_entity_key: ResourceKey<Weak>,
+    picked_position_key: ResourceKey<Vec3>,
+}
 
-    let collected_entities = ResourceKey::new_runtime_uuid();
+impl PickingPipeline {
+    /// Constructs a new picking pipeline.
+    pub fn new() -> Self {
+        let mut pipeline = GraphPipeline::new();
 
-    let mut pipeline = Pipeline::new();
+        let collector = ItemKey::new_uuid();
+        let picking = ItemKey::new_uuid();
 
-    pipeline.add_executor(
-        collector.clone(),
-        StandardEntitiesCollector::new(collected_entities.clone()),
-    );
-    pipeline.add_executor(
-        picking.clone(),
-        Picking::new(
-            collected_entities,
-            in_window_position,
-            out_picked_entity,
-            out_picked_position,
-        ),
-    );
+        let entities_key = ResourceKey::new_runtime_uuid();
+        let window_position_key = ResourceKey::new_runtime_uuid();
+        let picked_entity_key = ResourceKey::new_persist_uuid();
+        let picked_position_key = ResourceKey::new_persist_uuid();
 
-    pipeline.connect(&collector, &picking).unwrap();
+        pipeline.add_executor(
+            collector.clone(),
+            StandardEntitiesCollector::new(entities_key.clone()),
+        );
+        pipeline.add_executor(
+            picking.clone(),
+            Picking::new(
+                entities_key.clone(),
+                window_position_key.clone(),
+                picked_entity_key.clone(),
+                picked_position_key.clone(),
+            ),
+        );
+        pipeline.connect(&collector, &picking).unwrap();
 
-    pipeline
+        Self {
+            pipeline,
+            window_position_key,
+            picked_entity_key,
+            picked_position_key,
+        }
+    }
+
+    /// Sets picking window position.
+    pub fn set_window_position(&mut self, window_position: (i32, i32)) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.window_position_key.clone(), window_position);
+    }
+
+    /// Returns picked entity.
+    pub fn picked_entity(&mut self) -> Option<Strong> {
+        self.pipeline
+            .resources_mut()
+            .get(&self.picked_entity_key)
+            .and_then(|entity| entity.upgrade())
+    }
+
+    /// Returns and takes out picked entity.
+    pub fn take_picked_entity(&mut self) -> Option<Strong> {
+        self.pipeline
+            .resources_mut()
+            .remove_unchecked(&self.picked_entity_key)
+            .map(|entity| *entity.downcast::<Weak>().unwrap())
+            .and_then(|entity| entity.upgrade())
+    }
+
+    /// Returns picked position.
+    pub fn picked_position(&mut self) -> Option<&Vec3> {
+        self.pipeline
+            .resources_mut()
+            .get(&self.picked_position_key)
+            .map(|position| position)
+    }
+
+    /// Returns and takes out picked position.
+    pub fn take_picked_position(&mut self) -> Option<Vec3> {
+        self.pipeline
+            .resources_mut()
+            .remove_unchecked(&self.picked_position_key)
+            .map(|position| *position.downcast::<Vec3>().unwrap())
+    }
+}
+
+impl Pipeline for PickingPipeline {
+    type Error = Error;
+
+    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
+    where
+        S: Stuff,
+    {
+        self.pipeline.execute(state, stuff)
+    }
 }
 
 /// Picking detection.
@@ -235,7 +300,8 @@ impl Executor for Picking {
         }
 
         // gets picking entity
-        self.frame.set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT0);
+        self.frame
+            .set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT0);
         state
             .gl()
             .read_pixels_with_opt_array_buffer_view(
@@ -257,7 +323,8 @@ impl Executor for Picking {
         }
 
         // gets picking position
-        self.frame.set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT1);
+        self.frame
+            .set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT1);
         state
             .gl()
             .read_pixels_with_opt_array_buffer_view(

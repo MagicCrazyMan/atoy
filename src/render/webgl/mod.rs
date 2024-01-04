@@ -2,7 +2,6 @@ use gl_matrix4rust::{
     mat4::AsMat4,
     vec3::{AsVec3, Vec3},
 };
-use log::error;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     js_sys::{ArrayBuffer, Float32Array},
@@ -20,6 +19,7 @@ use self::{
     texture::TextureStore,
     uniform::{
         UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+        UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET,
         UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH, UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
         UBO_LIGHTS_BYTES_LENGTH, UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH,
         UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH,
@@ -39,7 +39,7 @@ use self::{
         UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH,
-        UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH,
+        UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
     },
 };
 
@@ -259,13 +259,14 @@ impl WebGL2Render {
 
 impl WebGL2Render {
     /// Renders a frame with stuff and a pipeline.
-    pub fn render<S>(
+    pub fn render<P, S, E>(
         &mut self,
-        pipeline: &mut Pipeline<Error>,
+        pipeline: &mut P,
         stuff: &mut S,
         timestamp: f64,
-    ) -> Result<(), Error>
+    ) -> Result<(), E>
     where
+        P: Pipeline<Error = E>,
         S: Stuff,
     {
         // updates data to universal ubo
@@ -286,12 +287,7 @@ impl WebGL2Render {
         );
         let state = &mut state;
 
-        if !pipeline.execute(state, stuff)? {
-            error!(
-                target: "WebGL2Drawer",
-                "execution pipeline is not a validated pipeline"
-            );
-        }
+        pipeline.execute(state, stuff)?;
 
         Ok(())
     }

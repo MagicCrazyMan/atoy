@@ -45,7 +45,7 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::pipeline::create_standard_pipeline;
-use crate::render::webgl::pipeline::picking::create_picking_pipeline;
+use crate::render::webgl::pipeline::picking::PickingPipeline;
 use crate::render::webgl::texture::{
     TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
     TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
@@ -238,11 +238,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline = create_picking_pipeline(
-        ResourceKey::new_persist_str("position"),
-        ResourceKey::new_persist_str("picked_entity"),
-        ResourceKey::new_persist_str("picked_position"),
-    );
+    let mut picking_pipeline = PickingPipeline::new();
     let clear_color_key = ResourceKey::new_persist_str("clear_color");
     let mut standard_pipeline = create_standard_pipeline(
         ResourceKey::new_persist_str("position"),
@@ -357,12 +353,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let y = event.page_y();
 
         let start = window().performance().unwrap().now();
-        // sets pick position
-        picking_pipeline
-            .resources_mut()
-            .insert(ResourceKey::new_persist_str("position"), (x, y));
+        picking_pipeline.set_window_position((x, y));
 
-        // pick
         let mut scene = scene_cloned.borrow_mut();
         render_cloned
             .borrow_mut()
@@ -379,11 +371,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .set_inner_html(&format!("{:.2}", end - start));
 
         // get entity
-        if let Some(entity) = picking_pipeline
-            .resources()
-            .get(&ResourceKey::<Weak>::new_persist_str("picked_entity"))
-            .and_then(|e| e.upgrade())
-        {
+        if let Some(entity) = picking_pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
             entity
@@ -398,10 +386,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 });
         }
         // get position
-        if let Some(position) = picking_pipeline
-            .resources()
-            .get(&ResourceKey::<Vec3>::new_persist_str("picked_position"))
-        {
+        if let Some(position) = picking_pipeline.take_picked_position() {
             console_log!("pick position {}", position);
         }
     });
@@ -448,7 +433,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         render
             .borrow_mut()
             .render(
-                &mut standard_pipeline.borrow_mut(),
+                &mut *standard_pipeline.borrow_mut(),
                 &mut scene.stuff(),
                 frame_time,
             )
@@ -781,11 +766,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let render = create_render()?;
     let render = Rc::new(RefCell::new(render));
     let last_frame_time = Rc::new(RefCell::new(0.0));
-    let mut picking_pipeline = create_picking_pipeline(
-        ResourceKey::new_persist_str("position"),
-        ResourceKey::new_persist_str("picked_entity"),
-        ResourceKey::new_persist_str("picked_position"),
-    );
+    let mut picking_pipeline = PickingPipeline::new();
     let standard_pipeline = create_standard_pipeline(
         ResourceKey::new_persist_str("position"),
         ResourceKey::new_persist_str("clear_color"),
@@ -828,9 +809,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 
         let start = window().performance().unwrap().now();
         // sets pick position
-        picking_pipeline
-            .resources_mut()
-            .insert(ResourceKey::new_persist_str("position"), (x, y));
+        picking_pipeline.set_window_position((x, y));
 
         // pick
         render_cloned
@@ -848,11 +827,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .set_inner_html(&format!("{:.2}", end - start));
 
         // get entity
-        if let Some(entity) = picking_pipeline
-            .resources_mut()
-            .get(&ResourceKey::<Weak>::new_persist_str("picked_entity"))
-            .and_then(|e| e.upgrade())
-        {
+        if let Some(entity) = picking_pipeline.take_picked_entity() {
             console_log!("pick entity {}", entity.borrow().id());
 
             let mut material = entity.borrow_mut();
@@ -864,10 +839,7 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
                 .set_color(rand::random(), rand::random());
         }
         // get position
-        if let Some(position) = picking_pipeline
-            .resources_mut()
-            .get(&ResourceKey::<Vec3>::new_persist_str("picked_position"))
-        {
+        if let Some(position) = picking_pipeline.take_picked_position() {
             console_log!("pick position {}", position);
         }
     });
