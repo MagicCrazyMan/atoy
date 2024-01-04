@@ -150,26 +150,26 @@ fn create_scene(
         camera_position,
         camera_center,
         camera_up,
-        60.0f64.to_radians(),
+        75.0f64.to_radians(),
         1.0,
-        0.01,
-        Some(400.0),
+        0.1,
+        Some(1000.0),
     ));
     scene.set_light_attenuation(Vec3::from_values(1.0, 1.0, 1.0));
-    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.1, 0.1, 0.1))));
-    scene.add_directional_light(DirectionalLight::new(
-        Vec3::from_values(0.0, -1.0, -1.0),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.19, 0.19, 0.19),
-        Vec3::from_values(0.8, 0.8, 0.8),
-        128.0,
-    ));
+    scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
+    // scene.add_directional_light(DirectionalLight::new(
+    //     Vec3::from_values(0.0, -1.0, -1.0),
+    //     Vec3::from_values(0.01, 0.01, 0.01),
+    //     Vec3::from_values(0.19, 0.19, 0.19),
+    //     Vec3::from_values(0.8, 0.8, 0.8),
+    //     128.0,
+    // ));
     scene.add_spot_light(SpotLight::new(
         Vec3::from_values(0.0, 1.0, 0.0),
         Vec3::from_values(1.0, -1.0, -1.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::from_values(1.6, 1.6, 1.6),
         128.0,
         30f64.to_radians(),
         40f64.to_radians(),
@@ -179,7 +179,7 @@ fn create_scene(
         Vec3::from_values(0.0, -1.0, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::from_values(1.6, 1.6, 1.6),
         128.0,
         30f64.to_radians(),
         60f64.to_radians(),
@@ -194,22 +194,22 @@ fn create_scene(
         4.5,
         2.0,
         Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::from_values(1.39, 1.39, 1.39),
+        Vec3::from_values(1.6, 1.6, 1.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(0.0, 1.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::from_values(1.6, 1.6, 1.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(8.0, 0.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.69, 0.69, 0.69),
-        Vec3::from_values(0.3, 0.3, 0.3),
+        Vec3::from_values(1.3, 1.3, 1.3),
         64.0,
     ));
     scene
@@ -324,10 +324,10 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     floor_entity.borrow_mut().set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
         Placement::Center,
-        10000.0,
-        10000.0,
-        2000.0,
-        2000.0,
+        1000.0,
+        1000.0,
+        200.0,
+        200.0,
     )));
     floor_entity
         .borrow_mut()
