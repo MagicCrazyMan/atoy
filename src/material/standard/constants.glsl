@@ -14,7 +14,7 @@
  */
 layout(std140) uniform atoy_UniversalUniforms {
                                     // base alignment (bytes) // offset alignment (bytes)
-    bool u_RenderTime;              // (merged)               // 0
+    float u_RenderTime;             // (merged)               // 0
     bool u_EnableLighting;          // (merged)               // 4
     float u_GammaCorrection;        // (merged)               // 8
     float u_GammaCOrrectionInverse; // 16                     // 12

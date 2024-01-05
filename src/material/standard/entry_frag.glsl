@@ -22,5 +22,16 @@ void main() {
     }
 
     color = atoy_gamma_correction(color, u_GammaCorrection);
+    
+    // vec3 a = vec3(0.0);
+    // float period = 2000.0;
+    // float radius = 10.0 * (mod(u_RenderTime, period) / period);
+    // float width = 2.0;
+    // float dist = length(frag.position_ws);
+    // if(dist < radius) {
+    //     a.x = smoothstep(1.0, 0.0, (radius - dist) / width);
+    // }
+
     o_Color = vec4(color, material.transparency);
+
 }
