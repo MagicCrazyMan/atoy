@@ -1,11 +1,10 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
     bounding::BoundingVolume,
-    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -128,7 +127,7 @@ impl Geometry for Cube {
         None
     }
 
-    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
         None
     }
 

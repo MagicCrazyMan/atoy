@@ -17,6 +17,7 @@ use web_sys::MouseEvent;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
+use crate::entity::collection::EntityCollection;
 use crate::entity::{Entity, EntityRaw};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
@@ -269,6 +270,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
+    let mut cube_collection = EntityCollection::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -286,8 +288,9 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             Transparency::Opaque,
         )));
         entity.set_model_matrix(model_matrix);
-        scene.entity_collection_mut().add_entity(entity);
+        cube_collection.add_entity(entity);
     }
+    scene.entity_collection_mut().add_collection(cube_collection);
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(

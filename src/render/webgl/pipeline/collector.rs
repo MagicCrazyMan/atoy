@@ -4,7 +4,7 @@ use gl_matrix4rust::vec3::AsVec3;
 
 use crate::{
     bounding::Culling,
-    entity::Entity,
+    entity::{collection::EntityCollection, Entity},
     render::{
         pp::{Executor, ResourceKey, Resources, State},
         webgl::error::Error,
@@ -92,61 +92,65 @@ impl Executor for StandardEntitiesCollector {
         let mut entities = Vec::new();
 
         // entities collections waits for collecting. If parent model does not changed, set matrix to None.
-        let mut collections = VecDeque::from([scene.entity_collection_mut()]);
-        while let Some(collection) = collections.pop_front() {
-            collection.update();
+        unsafe {
+            let mut collections =
+                VecDeque::from([scene.entity_collection_mut() as *mut EntityCollection]);
+            while let Some(collection) = collections.pop_front() {
+                let collection = &mut *collection;
+                collection.update();
 
-            // culls collection bounding
-            if self.enable_culling {
-                if let Some(collection_bounding) = collection.bounding() {
-                    if let Culling::Outside(_) = collection_bounding.cull(&view_frustum) {
-                        continue;
+                // culls collection bounding
+                if self.enable_culling {
+                    if let Some(collection_bounding) = collection.bounding() {
+                        if let Culling::Outside(_) = collection_bounding.cull(&view_frustum) {
+                            continue;
+                        }
                     }
                 }
-            }
 
-            // travels each entity
-            for entity in collection.entities_mut() {
-                entity.update();
+                // travels each entity
+                for entity in collection.entities_mut() {
+                    let entity = &mut **entity;
+                    entity.update();
 
-                let distance = if entity.material().and_then(|m| m.instanced()).is_some() {
-                    // never apply culling to an instanced material
-                    f64::INFINITY
-                } else if self.enable_culling {
-                    match entity.bounding() {
-                        Some(bounding) => {
-                            match bounding.cull(&view_frustum) {
-                                Culling::Inside { near, .. } | Culling::Intersect { near, .. } => {
-                                    near
+                    let distance = if entity.material().and_then(|m| m.instanced()).is_some() {
+                        // never apply culling to an instanced material
+                        f64::INFINITY
+                    } else if self.enable_culling {
+                        match entity.bounding() {
+                            Some(bounding) => {
+                                match bounding.cull(&view_frustum) {
+                                    Culling::Inside { near, .. }
+                                    | Culling::Intersect { near, .. } => near,
+                                    Culling::Outside(_) => continue, // filters entity outside frustum
                                 }
-                                Culling::Outside(_) => continue, // filters entity outside frustum
                             }
+                            None => f64::INFINITY, // returns infinity for an entity without bounding
                         }
-                        None => f64::INFINITY, // returns infinity for an entity without bounding
-                    }
-                } else if self.enable_sorting {
-                    match entity.bounding() {
-                        // returns distance between bounding center and camera position if having a bounding volume
-                        Some(bounding) => bounding.center().distance(&view_position),
-                        None => f64::INFINITY,
-                    }
-                } else {
-                    f64::INFINITY
-                };
+                    } else if self.enable_sorting {
+                        match entity.bounding() {
+                            // returns distance between bounding center and camera position if having a bounding volume
+                            Some(bounding) => bounding.center().distance(&view_position),
+                            None => f64::INFINITY,
+                        }
+                    } else {
+                        f64::INFINITY
+                    };
 
-                entities.push(SortEntity {
-                    entity: unsafe { NonNull::new_unchecked(entity) },
-                    distance,
-                })
+                    entities.push(SortEntity {
+                        entity: NonNull::new_unchecked(entity),
+                        distance,
+                    })
+                }
+
+                // adds child collections to list
+                collections.extend(
+                    collection
+                        .collections_mut()
+                        .iter_mut()
+                        .map(|collection| *collection),
+                );
             }
-
-            // adds child collections to list
-            collections.extend(
-                collection
-                    .collections_mut()
-                    .iter_mut()
-                    .map(|collection| collection),
-            );
         }
 
         if self.enable_sorting {

@@ -1,8 +1,7 @@
-use std::{any::Any, collections::HashMap, ptr::NonNull};
+use std::{any::Any, collections::HashMap};
 
 use crate::{
     bounding::BoundingVolume,
-    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         draw::Draw,

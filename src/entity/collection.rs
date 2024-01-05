@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{ptr::NonNull, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
@@ -11,15 +11,15 @@ use crate::{
 use super::{Entity, EntityRaw};
 
 /// An [`Entity`] and `EntityCollection` container.
-/// Model matrix of an  `EntityCollection` effects all entities and sub-collections.
+/// Model matrix of an `EntityCollection` effects all entities and sub-collections.
 pub struct EntityCollection {
     id: Uuid,
+    parent: *const EntityCollection,
     entities: Vec<Entity>,
     collections: Vec<EntityCollection>,
     model_matrix: Mat4,
     event: EventAgency<Event>,
     dirty: bool,
-    collection: *const EntityCollection,
     bounding: Option<CullingBoundingVolume>,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
@@ -31,13 +31,13 @@ impl EntityCollection {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
+            parent: std::ptr::null(),
             entities: Vec::new(),
             collections: Vec::new(),
             model_matrix: Mat4::new_identity(),
             event: EventAgency::new(),
             dirty: true,
             bounding: None,
-            collection: std::ptr::null(),
             compose_model_matrix: Mat4::new_identity(),
             compose_normal_matrix: Mat4::new_identity(),
             enable_bounding: true,
@@ -142,7 +142,7 @@ impl EntityCollection {
 
     /// Adds a new sub-collection to this collection.
     pub fn add_collection(&mut self, mut collection: Self) {
-        collection.collection = self;
+        collection.parent = self;
         collection.dirty = true;
         self.collections.push(collection);
 
@@ -169,7 +169,7 @@ impl EntityCollection {
         }
 
         let mut collection = self.collections.remove(index);
-        collection.collection = std::ptr::null();
+        collection.parent = std::ptr::null();
         collection.dirty = true;
         self.event.raise(Event::RemoveCollection(unsafe {
             NonNull::new_unchecked(&mut collection)
@@ -221,12 +221,12 @@ impl EntityCollection {
     }
 
     fn update_matrix(&mut self) {
-        if self.collection.is_null() {
+        if self.parent.is_null() {
             self.compose_model_matrix = self.model_matrix;
         } else {
             unsafe {
                 self.compose_model_matrix =
-                    *(*self.collection).compose_model_matrix() * self.model_matrix;
+                    *(*self.parent).compose_model_matrix() * self.model_matrix;
             }
         }
         self.compose_normal_matrix = self
@@ -257,6 +257,8 @@ impl EntityCollection {
             merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
     }
 }
+
+pub struct A(Rc<RefCell<EntityCollection>>);
 
 #[derive(Clone)]
 pub enum Event {

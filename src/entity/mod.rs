@@ -27,7 +27,6 @@ pub struct EntityRaw {
     properties: HashMap<String, Box<dyn Any>>,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn Material>>,
-    bounding: Option<CullingBoundingVolume>,
 }
 
 impl EntityRaw {
@@ -41,16 +40,11 @@ impl EntityRaw {
             properties: HashMap::new(),
             geometry: None,
             material: None,
-            bounding: None,
         }
     }
 
     pub fn id(&self) -> &Uuid {
         &self.id
-    }
-
-    pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding.as_ref()
     }
 
     pub fn model_matrix(&self) -> &Mat4 {
@@ -97,28 +91,15 @@ impl EntityRaw {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.bounding = self
-            .geometry
-            .as_ref()
-            .and_then(|geom| geom.bounding_volume())
-            .map(|bounding| bounding.transform(&self.model_matrix))
-            .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         match geometry {
             Some(geometry) => {
                 self.geometry = Some(Box::new(geometry));
-                self.bounding = self
-                    .geometry
-                    .as_ref()
-                    .and_then(|geom| geom.bounding_volume())
-                    .map(|bounding| bounding.transform(&self.model_matrix))
-                    .map(|bounding| CullingBoundingVolume::new(bounding));
             }
             None => {
                 self.geometry = None;
-                self.bounding = None;
             }
         };
     }
@@ -197,6 +178,7 @@ pub struct Entity {
     collection: *const EntityCollection,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
+    bounding: Option<CullingBoundingVolume>,
 }
 
 impl Entity {
@@ -208,6 +190,7 @@ impl Entity {
             collection,
             compose_model_matrix: Mat4::new_identity(),
             compose_normal_matrix: Mat4::new_identity(),
+            bounding: None,
         }
     }
 
@@ -224,7 +207,7 @@ impl Entity {
     }
 
     pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
-        self.raw.bounding()
+        self.bounding.as_ref()
     }
 
     pub fn model_matrix(&self) -> &Mat4 {
@@ -260,6 +243,7 @@ impl Entity {
     }
 
     pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        self.dirty = true;
         self.raw.geometry_mut()
     }
 
@@ -379,6 +363,7 @@ impl Entity {
         }
 
         self.update_matrix();
+        self.update_bounding();
         self.dirty = false;
     }
 
@@ -396,6 +381,16 @@ impl Entity {
             .invert()
             .expect("matrix with zero determinant is not allowed")
             .transpose();
+    }
+
+    fn update_bounding(&mut self) {
+        self.bounding = self
+            .raw
+            .geometry
+            .as_ref()
+            .and_then(|geom| geom.bounding_volume())
+            .map(|bounding| bounding.transform(&self.compose_model_matrix))
+            .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 }
 
