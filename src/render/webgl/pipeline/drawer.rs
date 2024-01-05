@@ -1,11 +1,10 @@
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
-    entity::{BorrowedMut, Strong},
     geometry::Geometry,
     material::{Material, Transparency},
     render::{
-        pp::{Executor, ResourceKey, Resources, State, Stuff},
+        pp::{Executor, ResourceKey, Resources, State},
         webgl::{
             attribute::{bind_attributes, unbind_attributes},
             draw::draw,

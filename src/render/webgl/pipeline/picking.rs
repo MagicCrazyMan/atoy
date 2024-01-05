@@ -5,10 +5,9 @@ use log::warn;
 use web_sys::{js_sys::Uint32Array, WebGl2RenderingContext};
 
 use crate::{
-    entity::{BorrowedMut, Strong, Weak},
     material::{Material, Transparency},
     render::{
-        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State, Stuff},
+        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
         webgl::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
             draw::draw,
@@ -396,18 +395,18 @@ impl Material for PickingMaterial {
         Transparency::Opaque
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             "u_Index" => Some(UniformValue::UnsignedInteger1(self.index)),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
 

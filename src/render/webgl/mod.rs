@@ -5,11 +5,12 @@ use gl_matrix4rust::{
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     js_sys::{ArrayBuffer, Float32Array},
-    HtmlCanvasElement, HtmlElement, ResizeObserver, ResizeObserverEntry, WebGl2RenderingContext,
+    HtmlCanvasElement, ResizeObserver, ResizeObserverEntry, WebGl2RenderingContext,
 };
 
 use crate::{
-    document, render::webgl::uniform::UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH,
+    camera::Camera, document,
+    render::webgl::uniform::UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH, scene::Scene,
 };
 
 use self::{
@@ -43,7 +44,7 @@ use self::{
     },
 };
 
-use super::pp::{Pipeline, State, Stuff};
+use super::pp::{Pipeline, State};
 
 pub mod attribute;
 pub mod buffer;
@@ -51,7 +52,7 @@ pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod offscreen;
-pub mod pipeline;
+// pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
 pub mod shader;
@@ -112,8 +113,7 @@ pub enum WebGL2ContextPowerPerformance {
 }
 
 pub struct WebGL2Render {
-    mount: Option<HtmlElement>,
-    // require for storing callback closure function
+    // required for storing callback closure function
     resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
     gl: WebGl2RenderingContext,
     canvas: HtmlCanvasElement,
@@ -126,19 +126,8 @@ pub struct WebGL2Render {
 }
 
 impl WebGL2Render {
-    pub fn new() -> Result<Self, Error> {
-        Self::new_inner(None, None)
-    }
-
-    pub fn with_mount(mount: &str) -> Result<Self, Error> {
-        Self::new_inner(Some(mount), None)
-    }
-
     /// Constructs a new WebGL2 render.
-    fn new_inner(
-        mount: Option<&str>,
-        options: Option<WebGL2ContextOptions>,
-    ) -> Result<Self, Error> {
+    pub fn new(options: Option<WebGL2ContextOptions>) -> Result<Self, Error> {
         let canvas = document()
             .create_element("canvas")
             .ok()
@@ -165,7 +154,6 @@ impl WebGL2Render {
             .ok_or(Error::WebGL2Unsupported)?;
 
         let mut render = Self {
-            mount: None,
             resize_observer,
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
@@ -185,8 +173,6 @@ impl WebGL2Render {
             gl,
             canvas,
         };
-
-        render.set_mount(mount)?;
 
         Ok(render)
     }
@@ -217,66 +203,23 @@ impl WebGL2Render {
 }
 
 impl WebGL2Render {
-    /// Gets mounted target element.
-    pub fn mount(&self) -> Option<&HtmlElement> {
-        match &self.mount {
-            Some(mount) => Some(mount),
-            None => None,
-        }
-    }
-
-    /// Mounts WebGl canvas to an element.
-    pub fn set_mount(&mut self, mount: Option<&str>) -> Result<(), Error> {
-        if let Some(mount) = mount {
-            if !mount.is_empty() {
-                // gets and sets mount target using `document.getElementById`
-                let mount = document()
-                    .get_element_by_id(&mount)
-                    .and_then(|ele| ele.dyn_into::<HtmlElement>().ok())
-                    .ok_or(Error::MountElementNotFound)?;
-
-                // mounts canvas to target
-                if let Err(_) = mount.append_child(&self.canvas) {
-                    return Err(Error::MountElementFailed);
-                };
-                let width = mount.client_width() as u32;
-                let height = mount.client_height() as u32;
-                self.canvas.set_width(width);
-                self.canvas.set_height(height);
-
-                self.mount = Some(mount);
-
-                return Ok(());
-            }
-        }
-
-        // for all other situations, removes canvas from mount target
-        self.canvas.remove();
-        self.mount = None;
-        Ok(())
-    }
-}
-
-impl WebGL2Render {
     /// Renders a frame with stuff and a pipeline.
-    pub fn render<P, S, E>(
+    pub fn render<P, E>(
         &mut self,
         pipeline: &mut P,
-        stuff: &mut S,
+        camera: &dyn Camera,
+        scene: &Scene,
         timestamp: f64,
     ) -> Result<(), E>
     where
         P: Pipeline<Error = E>,
-        S: Stuff,
     {
-        // updates data to universal ubo
-        self.update_universal_ubo(stuff, timestamp);
-        // updates data to universal ubo
-        self.update_lights_ubo(stuff);
+        self.update_universal_ubo(scene, timestamp);
+        self.update_lights_ubo(scene);
 
-        // constructs render state
         let mut state = State::new(
             timestamp,
+            camera,
             &self.gl,
             &self.canvas,
             &self.universal_ubo,
@@ -287,15 +230,12 @@ impl WebGL2Render {
         );
         let state = &mut state;
 
-        pipeline.execute(state, stuff)?;
+        pipeline.execute(state, scene)?;
 
         Ok(())
     }
 
-    fn update_universal_ubo<S>(&mut self, stuff: &S, timestamp: f64)
-    where
-        S: Stuff,
-    {
+    fn update_universal_ubo(&mut self, scene: &Scene, timestamp: f64) {
         let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
 
         // u_RenderTime
@@ -312,7 +252,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH / 4,
         )
-        .set_index(0, if stuff.lighting_enabled() { 1.0 } else { 0.0 });
+        .set_index(0, if scene.lighting_enabled() { 1.0 } else { 0.0 });
 
         // u_GammaCorrection
         Float32Array::new_with_byte_offset_and_length(
@@ -336,7 +276,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
         )
-        .copy_from(&stuff.camera().position().to_gl());
+        .copy_from(&scene.camera().position().to_gl());
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -344,7 +284,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&stuff.camera().view_matrix().to_gl());
+        .copy_from(&scene.camera().view_matrix().to_gl());
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -352,7 +292,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&stuff.camera().proj_matrix().to_gl());
+        .copy_from(&scene.camera().proj_matrix().to_gl());
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -360,16 +300,13 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&stuff.camera().view_proj_matrix().to_gl());
+        .copy_from(&scene.camera().view_proj_matrix().to_gl());
 
         self.universal_ubo
             .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
     }
 
-    fn update_lights_ubo<S>(&mut self, stuff: &S)
-    where
-        S: Stuff,
-    {
+    fn update_lights_ubo<S>(&mut self, scene: &Scene) {
         let data = ArrayBuffer::new(UBO_LIGHTS_BYTES_LENGTH);
 
         // u_Attenuations
@@ -379,14 +316,14 @@ impl WebGL2Render {
             UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH / 4,
         )
         .copy_from(
-            &stuff
+            scene
                 .light_attenuations()
                 .unwrap_or(Vec3::from_values(0.0, 0.0, 0.0))
                 .to_gl(),
         );
 
         // u_AmbientLight
-        if let Some(light) = stuff.ambient_light() {
+        if let Some(light) = scene.ambient_light() {
             Float32Array::new_with_byte_offset_and_length(
                 &data,
                 UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
@@ -396,7 +333,7 @@ impl WebGL2Render {
         }
 
         // u_DirectionalLights
-        for (index, light) in stuff.directional_lights().into_iter().enumerate() {
+        for (index, light) in scene.directional_lights().into_iter().enumerate() {
             let index = index as u32;
             Float32Array::new_with_byte_offset_and_length(
                 &data,
@@ -408,7 +345,7 @@ impl WebGL2Render {
         }
 
         // u_PointLights
-        for (index, light) in stuff.point_lights().into_iter().enumerate() {
+        for (index, light) in scene.point_lights().into_iter().enumerate() {
             let index = index as u32;
             Float32Array::new_with_byte_offset_and_length(
                 &data,
@@ -419,7 +356,7 @@ impl WebGL2Render {
         }
 
         // u_SpotLights
-        for (index, light) in stuff.spot_lights().into_iter().enumerate() {
+        for (index, light) in scene.spot_lights().into_iter().enumerate() {
             let index = index as u32;
             Float32Array::new_with_byte_offset_and_length(
                 &data,
@@ -430,7 +367,7 @@ impl WebGL2Render {
         }
 
         // u_AreaLights
-        for (index, light) in stuff.area_lights().into_iter().enumerate() {
+        for (index, light) in scene.area_lights().into_iter().enumerate() {
             let index = index as u32;
             Float32Array::new_with_byte_offset_and_length(
                 &data,

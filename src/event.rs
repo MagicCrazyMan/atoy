@@ -17,15 +17,14 @@ struct Listener<E> {
     func: Box<dyn FnMut(&E)>,
 }
 
-/// `EventTarget` is a common event listener registration and dispatch agency.
+/// A common event listener registration and dispatch agency.
 ///
-/// Developer could register a listener to `EventTarget` using [`EventTarget::on()`],
-/// [`EventTarget::once()`] or [`EventTarget::on_until()`] methods and remove a listener using [`EventTarget::off()`].
-/// As for raising an event, invoking the [`EventTarget::raise()`] method simply get the job done.
-/// Checks the methods documentation for more details.
-pub struct EventTarget<E>(Vec<Listener<E>>);
+/// Registers a listener to `EventTarget` using [`EventTarget::on()`],
+/// [`EventTarget::once()`] or [`EventTarget::on_count()`] methods and removes a listener using [`EventTarget::off()`].
+/// Invokes [`EventTarget::raise()`] for raising an event.
+pub struct EventAgency<E>(Vec<Listener<E>>);
 
-impl<E> EventTarget<E> {
+impl<E> EventAgency<E> {
     /// Constructs a new event target agency.
     pub fn new() -> Self {
         Self(Vec::new())
@@ -43,6 +42,18 @@ impl<E> EventTarget<E> {
         id
     }
 
+    /// Adds a listener to event target and execute it until it reaches the specified execution count.
+    pub fn on_count<F: FnMut(&E) + 'static>(&mut self, f: F, count: usize) -> ListenerIdentifier {
+        let id = ListenerIdentifier::new();
+        self.0.push(Listener {
+            id,
+            execution_count: 0,
+            max_execution_count: Some(count),
+            func: Box::new(f),
+        });
+        id
+    }
+
     /// Adds a listener to event target and execute it only once.
     pub fn once<F: FnMut(&E) + 'static>(&mut self, f: F) -> ListenerIdentifier {
         let id = ListenerIdentifier::new();
@@ -50,18 +61,6 @@ impl<E> EventTarget<E> {
             id,
             execution_count: 0,
             max_execution_count: Some(1),
-            func: Box::new(f),
-        });
-        id
-    }
-
-    /// Adds a listener to event target and execute it until it reaches the specified execution count.
-    pub fn on_until<F: FnMut(&E) + 'static>(&mut self, f: F, count: usize) -> ListenerIdentifier {
-        let id = ListenerIdentifier::new();
-        self.0.push(Listener {
-            id,
-            execution_count: 0,
-            max_execution_count: Some(count),
             func: Box::new(f),
         });
         id

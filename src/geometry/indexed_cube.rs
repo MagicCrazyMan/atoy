@@ -1,10 +1,10 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
-    bounding::BoundingVolumeNative,
-    entity::BorrowedMut,
+    bounding::BoundingVolume,
+    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -12,7 +12,7 @@ use crate::{
             BufferUsage,
         },
         draw::{Draw, DrawElementType, DrawMode},
-        uniform::UniformValue,
+        uniform::{UniformValue, UniformBlockValue},
     },
     utils::{slice_to_float32_array, slice_to_uint8_array},
 };
@@ -100,9 +100,9 @@ impl Geometry for IndexedCube {
         }
     }
 
-    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
         let s = self.size / 2.0;
-        Some(BoundingVolumeNative::BoundingSphere {
+        Some(BoundingVolume::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: (s * s + s * s + s * s).sqrt(),
         })
@@ -144,11 +144,19 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+        None
+    }
+
+    fn uniform_block_value(
+        &self,
+        name: &str,
+        entity: NonNull<Entity>,
+    ) -> Option<UniformBlockValue> {
         None
     }
 
@@ -158,14 +166,6 @@ impl Geometry for IndexedCube {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-
-    fn update_bounding_volume(&self) -> bool {
-        self.update_bounding_volume
-    }
-
-    fn set_update_bounding_volume(&mut self, v: bool) {
-        self.update_bounding_volume = v;
     }
 }
 

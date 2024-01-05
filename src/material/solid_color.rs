@@ -1,17 +1,17 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
-use gl_matrix4rust::vec3::{Vec3, AsVec3};
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
-    entity::BorrowedMut,
-    render::webgl::{
+    entity::Entity,
+    render::{webgl::{
         attribute::{AttributeBinding, AttributeValue},
         shader::Variable,
         uniform::{
             UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
             UniformValue,
         },
-    },
+    }, pp::State},
 };
 
 use super::{Material, StandardMaterialSource, Transparency};
@@ -108,20 +108,22 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             "u_Color" => Some(UniformValue::FloatVector3(self.color.to_gl())),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
+
+    fn prepare(&mut self, state: &mut State, entity: NonNull<Entity>) {}
 
     fn as_any(&self) -> &dyn Any {
         self

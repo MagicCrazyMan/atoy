@@ -4,7 +4,7 @@ use web_sys::{
 };
 
 use crate::render::{
-    pp::{Executor, ResourceKey, Resources, State, Stuff},
+    pp::{Executor, ResourceKey, Resources, State},
     webgl::{
         error::Error,
         offscreen::{
@@ -12,7 +12,8 @@ use crate::render::{
             OffscreenTextureProvider,
         },
         program::{compile_shaders, create_program, ShaderSource},
-        texture::{TextureDataType, TextureFormat, TextureInternalFormat}, uniform::UBO_GAUSSIAN_BLUR_BINDING,
+        texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+        uniform::UBO_GAUSSIAN_BLUR_BINDING,
     },
 };
 

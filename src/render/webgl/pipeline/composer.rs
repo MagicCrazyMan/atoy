@@ -1,7 +1,7 @@
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlTexture, WebGlUniformLocation};
 
 use crate::render::{
-    pp::{Executor, ResourceKey, Resources, State, Stuff},
+    pp::{Executor, ResourceKey, Resources, State},
     webgl::{
         error::Error,
         program::{compile_shaders, create_program, ShaderSource},

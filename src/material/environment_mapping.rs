@@ -1,11 +1,10 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;
 
 use crate::{
-    document,
-    entity::BorrowedMut,
+    entity::Entity,
     render::{
         pp::State,
         webgl::{
@@ -140,11 +139,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -161,7 +160,7 @@ impl Material for EnvironmentMaterial {
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
 
@@ -173,7 +172,7 @@ impl Material for EnvironmentMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &State, _: &BorrowedMut) {
+    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;
@@ -250,13 +249,7 @@ impl Material for EnvironmentMaterial {
                 .urls
                 .iter()
                 .map(|url| {
-                    let image = document()
-                        .create_element("img")
-                        .ok()
-                        .unwrap()
-                        .dyn_into::<HtmlImageElement>()
-                        .unwrap();
-
+                    let image = HtmlImageElement::new().unwrap();
                     image.set_src(&url);
                     image.set_onload(Some(self.onload.as_ref().unwrap().as_ref().unchecked_ref()));
 

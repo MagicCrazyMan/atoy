@@ -4,11 +4,10 @@ use gl_matrix4rust::vec2::Vec2;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
-    entity::{BorrowedMut, Weak},
     geometry::rectangle::{Placement, Rectangle},
     material::{Material, Transparency},
     render::{
-        pp::{Executor, ResourceKey, Resources, State, Stuff},
+        pp::{Executor, ResourceKey, Resources, State},
         webgl::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
             draw::draw,
@@ -282,11 +281,11 @@ impl Material for OutliningMaterial {
         Transparency::Opaque
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             "u_StageVertex" => Some(UniformValue::Integer1(self.stage)),
             "u_StageFrag" => Some(UniformValue::Integer1(self.stage)),
@@ -297,7 +296,7 @@ impl Material for OutliningMaterial {
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
 

@@ -1,21 +1,23 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::mat4::Mat4;
-use palette::rgb::{Rgb, Rgba};
 use web_sys::js_sys::Float32Array;
 
 use crate::{
-    entity::BorrowedMut,
-    render::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
-        },
-        program::{ProgramSource, ShaderSource},
-        uniform::{
-            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-            UniformValue,
+    entity::Entity,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            buffer::{
+                BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+                BufferUsage,
+            },
+            program::{ProgramSource, ShaderSource},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
 };
@@ -96,14 +98,10 @@ impl SolidColorInstancedMaterial {
             matrices_data.set_index((index * 16) as u32 + 14, matrix.raw()[14]);
             matrices_data.set_index((index * 16) as u32 + 15, matrix.raw()[15]);
 
-            let Rgba { color, alpha } = rand::random::<Rgba>();
-            let Rgb {
-                red, green, blue, ..
-            } = color;
-            colors_data.set_index((index * 4) as u32 + 0, red);
-            colors_data.set_index((index * 4) as u32 + 1, green);
-            colors_data.set_index((index * 4) as u32 + 2, blue);
-            colors_data.set_index((index * 4) as u32 + 3, alpha);
+            colors_data.set_index((index * 4) as u32 + 0, rand::random());
+            colors_data.set_index((index * 4) as u32 + 1, rand::random());
+            colors_data.set_index((index * 4) as u32 + 2, rand::random());
+            colors_data.set_index((index * 4) as u32 + 3, rand::random());
         }
 
         Self {
@@ -123,14 +121,10 @@ impl SolidColorInstancedMaterial {
         let colors_length = (4 * self.count) as u32;
         let colors_data = Float32Array::new_with_length(colors_length);
         for index in 0..self.count {
-            let Rgba { color, alpha } = rand::random::<Rgba>();
-            let Rgb {
-                red, green, blue, ..
-            } = color;
-            colors_data.set_index((index * 4) as u32 + 0, red);
-            colors_data.set_index((index * 4) as u32 + 1, green);
-            colors_data.set_index((index * 4) as u32 + 2, blue);
-            colors_data.set_index((index * 4) as u32 + 3, alpha);
+            colors_data.set_index((index * 4) as u32 + 0, rand::random());
+            colors_data.set_index((index * 4) as u32 + 1, rand::random());
+            colors_data.set_index((index * 4) as u32 + 2, rand::random());
+            colors_data.set_index((index * 4) as u32 + 3, rand::random());
         }
 
         self.colors.buffer_sub_data(
@@ -186,7 +180,7 @@ impl Material for SolidColorInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         match name {
             "a_Color" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
@@ -210,13 +204,15 @@ impl Material for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         None
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
+
+    fn prepare(&mut self, state: &mut State, entity: NonNull<Entity>) {}
 
     fn as_any(&self) -> &dyn Any {
         self

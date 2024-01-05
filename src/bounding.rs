@@ -5,57 +5,93 @@ use gl_matrix4rust::{
 
 use crate::{
     frustum::{FrustumPlaneIndex, ViewFrustum},
+    plane::Plane,
     utils::{distance_point_and_plane, distance_point_and_plane_abs},
 };
 
 /// An bounding volume for culling detection purpose.
-/// This structure collects more information than [`BoundingVolumeNative`]
+/// This structure collects more information than [`BoundingVolume`]
 /// to speed up the culling detection procedure.
 #[derive(Debug)]
-pub struct BoundingVolume {
+pub struct CullingBoundingVolume {
     previous_outside_plane: Option<FrustumPlaneIndex>,
-    native: BoundingVolumeNative,
+    bounding: BoundingVolume,
 }
 
-impl BoundingVolume {
-    /// Constructs a new bounding volume from a [`BoundingVolumeNative`].
-    pub fn new(native: BoundingVolumeNative) -> Self {
+impl CullingBoundingVolume {
+    /// Constructs a new bounding volume from a [`BoundingVolume`].
+    pub fn new(bounding: BoundingVolume) -> Self {
         Self {
             previous_outside_plane: None,
-            native,
+            bounding,
         }
     }
 
-    /// Gets the [`BoundingVolumeNative`] associated with this bounding volume.
-    pub fn native(&self) -> BoundingVolumeNative {
-        self.native
+    /// Gets the [`BoundingVolume`] associated with this bounding volume.
+    pub fn bounding(&self) -> BoundingVolume {
+        self.bounding
     }
 
     /// Applies culling detection against a frustum.
     pub fn cull(&mut self, frustum: &ViewFrustum) -> Culling {
-        let culling = match &self.native {
-            BoundingVolumeNative::BoundingSphere { center, radius } => {
-                cull_sphere(frustum, self.previous_outside_plane, center, *radius)
+        let mut planes: [(FrustumPlaneIndex, Option<&Plane>); 6] = [
+            (FrustumPlaneIndex::Top, Some(frustum.top())),
+            (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
+            (FrustumPlaneIndex::Left, Some(frustum.left())),
+            (FrustumPlaneIndex::Right, Some(frustum.right())),
+            (FrustumPlaneIndex::Near, Some(frustum.near())),
+            (FrustumPlaneIndex::Far, frustum.far()), // far plane may not exists
+        ];
+        if let Some(p) = self.previous_outside_plane {
+            planes.swap(0, p as usize);
+        }
+
+        let culling = match &self.bounding {
+            BoundingVolume::BoundingSphere { center, radius } => {
+                cull_sphere(planes, center, *radius)
             }
-            BoundingVolumeNative::AxisAlignedBoundingBox {
+            BoundingVolume::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
                 max_y,
                 min_z,
                 max_z,
-            } => cull_aabb(
-                frustum,
-                self.previous_outside_plane,
-                *min_x,
-                *max_x,
-                *min_y,
-                *max_y,
-                *min_z,
-                *max_z,
+            } => cull_bb(
+                planes,
+                &Vec3::from_values(
+                    (min_x + max_x) / 2.0,
+                    (min_y + max_y) / 2.0,
+                    (min_z + max_z) / 2.0,
+                ),
+                |signs| match signs {
+                    0b000 => Vec3::from_values(*max_x, *max_y, *max_z), // 000
+                    0b001 => Vec3::from_values(*min_x, *max_y, *max_z), // 001
+                    0b010 => Vec3::from_values(*max_x, *min_y, *max_z), // 010
+                    0b011 => Vec3::from_values(*min_x, *min_y, *max_z), // 011
+                    0b100 => Vec3::from_values(*max_x, *max_y, *min_z), // 100
+                    0b101 => Vec3::from_values(*min_x, *max_y, *min_z), // 101
+                    0b110 => Vec3::from_values(*max_x, *min_y, *min_z), // 110
+                    0b111 => Vec3::from_values(*min_x, *min_y, *min_z), // 111
+                    _ => unreachable!(),
+                },
             ),
-            BoundingVolumeNative::OrientedBoundingBox(matrix) => {
-                cull_obb(frustum, self.previous_outside_plane, matrix)
+            BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
+                let center = *center;
+                let x = *x;
+                let y = *y;
+                let z = *z;
+                cull_bb(planes, &center, |signs| match signs {
+                    0b000 => center + x + y + z, // 000
+                    0b001 => center + x + y - z, // 001
+                    0b010 => center + x - y + z, // 010
+                    0b011 => center + x - y - z, // 011
+                    0b100 => center - x + y + z, // 100
+                    0b101 => center - x + y - z, // 101
+                    0b110 => center - x - y + z, // 110
+                    0b111 => center - x - y - z, // 111
+                    _ => unreachable!(),
+                })
             }
         };
 
@@ -68,19 +104,19 @@ impl BoundingVolume {
 
     /// Gets center of this bounding volume.
     pub fn center(&self) -> Vec3 {
-        self.native.center()
+        self.bounding.center()
     }
 
     /// Transforms this bounding volume native by a transformation matrix.
     pub fn transform(&mut self, transformation: &Mat4) {
-        self.native = self.native.transform(transformation);
+        self.bounding = self.bounding.transform(transformation);
         self.previous_outside_plane = None;
     }
 }
 
-/// Native bounding volume definition.
+/// Available bounding volumes.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BoundingVolumeNative {
+pub enum BoundingVolume {
     BoundingSphere {
         center: Vec3,
         radius: f64,
@@ -93,22 +129,21 @@ pub enum BoundingVolumeNative {
         min_z: f64,
         max_z: f64,
     },
-    /// An OBB is defined as a model matrix only.
-    /// When we need to restore vertex of the OBB,
-    /// we will apply the model matrix to to standard AABB
-    /// (with vertices `(1, 1, 1)`, `(1, 1, -1)`, `(-1, 1, 1)` and etc.).
-    ///
-    /// But storing a center as Vec3, a rotation and scaling together as Mat3 maybe a better idea.
-    /// Since this saves 4 bytes than Mat4
-    OrientedBoundingBox(Mat4),
+    /// XYZ axes are orthogonal half axes of the oriented bounding box.
+    OrientedBoundingBox {
+        center: Vec3,
+        x: Vec3,
+        y: Vec3,
+        z: Vec3,
+    },
 }
 
-impl BoundingVolumeNative {
+impl BoundingVolume {
     /// Gets center of this bounding volume.
     pub fn center(&self) -> Vec3 {
         match self {
-            BoundingVolumeNative::BoundingSphere { center, .. } => *center,
-            BoundingVolumeNative::AxisAlignedBoundingBox {
+            BoundingVolume::BoundingSphere { center, .. } => *center,
+            BoundingVolume::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
@@ -120,42 +155,83 @@ impl BoundingVolumeNative {
                 (min_y + max_y) / 2.0,
                 (min_z + max_z) / 2.0,
             ),
-            BoundingVolumeNative::OrientedBoundingBox(mat) => mat.translation(),
+            BoundingVolume::OrientedBoundingBox { center, .. } => *center,
         }
     }
 
     /// Applies culling detection against a frustum.
     pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
+        let mut planes: [(FrustumPlaneIndex, Option<&Plane>); 6] = [
+            (FrustumPlaneIndex::Top, Some(frustum.top())),
+            (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
+            (FrustumPlaneIndex::Left, Some(frustum.left())),
+            (FrustumPlaneIndex::Right, Some(frustum.right())),
+            (FrustumPlaneIndex::Near, Some(frustum.near())),
+            (FrustumPlaneIndex::Far, frustum.far()),
+        ];
+
         match self {
-            BoundingVolumeNative::BoundingSphere { center, radius } => {
-                cull_sphere(frustum, None, center, *radius)
+            BoundingVolume::BoundingSphere { center, radius } => {
+                cull_sphere(planes, center, *radius)
             }
-            BoundingVolumeNative::AxisAlignedBoundingBox {
+            BoundingVolume::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
                 max_y,
                 min_z,
                 max_z,
-            } => cull_aabb(
-                frustum, None, *min_x, *max_x, *min_y, *max_y, *min_z, *max_z,
+            } => cull_bb(
+                planes,
+                &Vec3::from_values(
+                    (min_x + max_x) / 2.0,
+                    (min_y + max_y) / 2.0,
+                    (min_z + max_z) / 2.0,
+                ),
+                |signs| match signs {
+                    0b000 => Vec3::from_values(*max_x, *max_y, *max_z),
+                    0b001 => Vec3::from_values(*min_x, *max_y, *max_z),
+                    0b010 => Vec3::from_values(*max_x, *min_y, *max_z),
+                    0b011 => Vec3::from_values(*min_x, *min_y, *max_z),
+                    0b100 => Vec3::from_values(*max_x, *max_y, *min_z),
+                    0b101 => Vec3::from_values(*min_x, *max_y, *min_z),
+                    0b110 => Vec3::from_values(*max_x, *min_y, *min_z),
+                    0b111 => Vec3::from_values(*min_x, *min_y, *min_z),
+                    _ => unreachable!(),
+                },
             ),
-            BoundingVolumeNative::OrientedBoundingBox(mat) => cull_obb(frustum, None, mat),
+            BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
+                let center = *center;
+                let x = *x;
+                let y = *y;
+                let z = *z;
+                cull_bb(planes, &center, |signs| match signs {
+                    0b000 => center + x + y + z, // 000
+                    0b001 => center + x + y - z, // 001
+                    0b010 => center + x - y + z, // 010
+                    0b011 => center + x - y - z, // 011
+                    0b100 => center - x + y + z, // 100
+                    0b101 => center - x + y - z, // 101
+                    0b110 => center - x - y + z, // 110
+                    0b111 => center - x - y - z, // 111
+                    _ => unreachable!(),
+                })
+            }
         }
     }
 
     /// Transforms this bounding volume native by a transformation matrix.
     pub fn transform(&self, transformation: &Mat4) -> Self {
         match self {
-            BoundingVolumeNative::BoundingSphere { center, radius } => {
+            BoundingVolume::BoundingSphere { center, radius } => {
                 let scaling = transformation.scaling();
                 let max = scaling.x().max(scaling.y()).max(scaling.z());
-                BoundingVolumeNative::BoundingSphere {
+                BoundingVolume::BoundingSphere {
                     center: center.transform_mat4(transformation),
                     radius: max * *radius,
                 }
             }
-            BoundingVolumeNative::AxisAlignedBoundingBox {
+            BoundingVolume::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
                 min_y,
@@ -191,7 +267,7 @@ impl BoundingVolumeNative {
                 let min_z = *z.iter().min_by(|a, b| a.total_cmp(&b)).unwrap();
                 let max_z = *z.iter().max_by(|a, b| a.total_cmp(&b)).unwrap();
 
-                BoundingVolumeNative::AxisAlignedBoundingBox {
+                BoundingVolume::AxisAlignedBoundingBox {
                     min_x,
                     max_x,
                     min_y,
@@ -200,8 +276,21 @@ impl BoundingVolumeNative {
                     max_z,
                 }
             }
-            BoundingVolumeNative::OrientedBoundingBox(matrix) => {
-                BoundingVolumeNative::OrientedBoundingBox(*transformation * *matrix)
+            BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
+                #[rustfmt::skip]
+                let before = Mat4::from_values(
+                    x.0[0], y.0[0], z.0[0], center.0[0],
+                    x.0[1], y.0[1], z.0[1], center.0[1],
+                    x.0[2], y.0[2], z.0[2], center.0[2],
+                    0.0, 0.0, 0.0, 1.0,
+                );
+                let after = *transformation * before;
+                let x = Vec3::from_values(after.m00(), after.m10(), after.m20());
+                let y = Vec3::from_values(after.m01(), after.m11(), after.m21());
+                let z = Vec3::from_values(after.m02(), after.m12(), after.m22());
+                let center = Vec3::from_values(after.m03(), after.m13(), after.m23());
+
+                BoundingVolume::OrientedBoundingBox { center, x, y, z }
             }
         }
     }
@@ -210,27 +299,13 @@ impl BoundingVolumeNative {
 /// Applies culling detection to a bounding sphere against a frustum
 /// by calculating distances between sphere center to each plane of frustum.
 fn cull_sphere(
-    frustum: &ViewFrustum,
-    previous_outside_plane: Option<FrustumPlaneIndex>,
+    planes: [(FrustumPlaneIndex, Option<&Plane>); 6],
     center: &Vec3,
     radius: f64,
 ) -> Culling {
     let mut inside_count = 0u8;
     let mut distances = [None, None, None, None, None, None, None];
 
-    let mut planes = [
-        (FrustumPlaneIndex::Top, Some(frustum.top())),
-        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
-        (FrustumPlaneIndex::Left, Some(frustum.left())),
-        (FrustumPlaneIndex::Right, Some(frustum.right())),
-        (FrustumPlaneIndex::Near, Some(frustum.near())),
-        // far plane may not exists
-        (FrustumPlaneIndex::Far, frustum.far()),
-    ];
-    // puts previous outside plane to the top if exists
-    if let Some(previous) = previous_outside_plane {
-        planes.swap(0, previous as usize);
-    }
     for (kind, plane) in planes.iter() {
         match plane {
             Some(plane) => {
@@ -277,45 +352,12 @@ fn cull_sphere(
 }
 
 /// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
-fn cull_aabb(
-    frustum: &ViewFrustum,
-    previous_outside_plane: Option<FrustumPlaneIndex>,
-    min_x: f64,
-    max_x: f64,
-    min_y: f64,
-    max_y: f64,
-    min_z: f64,
-    max_z: f64,
+/// For both AABB and OBB.
+fn cull_bb<F: Fn(u8) -> Vec3>(
+    planes: [(FrustumPlaneIndex, Option<&Plane>); 6],
+    center: &Vec3,
+    pnv_function: F,
 ) -> Culling {
-    let center = Vec3::from_values(
-        (min_x + max_x) / 2.0,
-        (min_y + max_y) / 2.0,
-        (min_z + max_z) / 2.0,
-    );
-    let mut planes = [
-        (FrustumPlaneIndex::Top, Some(frustum.top())),
-        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
-        (FrustumPlaneIndex::Left, Some(frustum.left())),
-        (FrustumPlaneIndex::Right, Some(frustum.right())),
-        (FrustumPlaneIndex::Near, Some(frustum.near())),
-        // far plane may not exists
-        (FrustumPlaneIndex::Far, frustum.far()),
-    ];
-    // puts previous outside plane to the top if exists
-    if let Some(previous) = previous_outside_plane {
-        planes.swap(0, previous as usize);
-    }
-
-    let vertices = [
-        Vec3::from_values(max_x, max_y, max_z), // 000
-        Vec3::from_values(min_x, max_y, max_z), // 001
-        Vec3::from_values(max_x, min_y, max_z), // 010
-        Vec3::from_values(min_x, min_y, max_z), // 011
-        Vec3::from_values(max_x, max_y, min_z), // 100
-        Vec3::from_values(min_x, max_y, min_z), // 101
-        Vec3::from_values(max_x, min_y, min_z), // 110
-        Vec3::from_values(min_x, min_y, min_z), // 111
-    ];
     let mut distances = [None, None, None, None, None, None];
     let mut intersect = false;
     for (kind, plane) in planes.iter() {
@@ -334,114 +376,11 @@ fn cull_aabb(
                 signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
                 let pi = signs;
                 let ni = !signs & 0b00000111;
-                let pv = &vertices[pi as usize];
-                let nv = &vertices[ni as usize];
+                let pv = pnv_function(pi);
+                let nv = pnv_function(ni);
 
-                let d = distance_point_and_plane_abs(nv, &center, n);
-                let a = distance_point_and_plane(nv, &point_on_plane, n) - d;
-                if a > 0.0 {
-                    return Culling::Outside(*kind);
-                }
-                let b = distance_point_and_plane(pv, &point_on_plane, n) + d;
-                if b > 0.0 {
-                    intersect = true;
-                }
-
-                // uses distance between center of bounding volume and plane
-                distances[*kind as usize] =
-                    Some(distance_point_and_plane(&center, &point_on_plane, n));
-            },
-            None => {
-                // only far plane reaches here, regards as inside, do nothing.
-            }
-        }
-    }
-
-    if intersect {
-        Culling::Intersect {
-            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
-            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
-            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
-            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
-            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
-            far: distances[FrustumPlaneIndex::Far as usize],
-        }
-    } else {
-        Culling::Inside {
-            top: distances[FrustumPlaneIndex::Top as usize].unwrap(),
-            bottom: distances[FrustumPlaneIndex::Bottom as usize].unwrap(),
-            left: distances[FrustumPlaneIndex::Left as usize].unwrap(),
-            right: distances[FrustumPlaneIndex::Right as usize].unwrap(),
-            near: distances[FrustumPlaneIndex::Near as usize].unwrap(),
-            far: distances[FrustumPlaneIndex::Far as usize],
-        }
-    }
-}
-
-/// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
-fn cull_obb(
-    frustum: &ViewFrustum,
-    previous_outside_plane: Option<FrustumPlaneIndex>,
-    matrix: &Mat4,
-) -> Culling {
-    let mut planes = [
-        (FrustumPlaneIndex::Top, Some(frustum.top())),
-        (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
-        (FrustumPlaneIndex::Left, Some(frustum.left())),
-        (FrustumPlaneIndex::Right, Some(frustum.right())),
-        (FrustumPlaneIndex::Near, Some(frustum.near())),
-        // far plane may not exists
-        (FrustumPlaneIndex::Far, frustum.far()),
-    ];
-    // puts previous outside plane to the top if exists
-    if let Some(previous) = previous_outside_plane {
-        planes.swap(0, previous as usize);
-    }
-
-    let center = matrix.translation();
-    let mut vertices = [
-        None, // 000
-        None, // 001
-        None, // 010
-        None, // 011
-        None, // 100
-        None, // 101
-        None, // 110
-        None, // 111
-    ]; // lazy evaluation
-    let mut distances = [None, None, None, None, None, None];
-    let mut intersect = false;
-    for (kind, plane) in planes.iter() {
-        match plane {
-            Some(plane) => unsafe {
-                let point_on_plane = plane.point_on_plane();
-                let n = plane.normal();
-                let nx = n.x();
-                let ny = n.y();
-                let nz = n.z();
-
-                // finds n- and p-vertices
-                let mut signs = 0u8;
-                signs |= (std::mem::transmute::<f64, u64>(nx) >> 63) as u8 & 0b00000001;
-                signs |= (std::mem::transmute::<f64, u64>(ny) >> 62) as u8 & 0b00000010;
-                signs |= (std::mem::transmute::<f64, u64>(nz) >> 61) as u8 & 0b00000100;
-                let pi = signs;
-                let ni = !signs & 0b00000111;
-                let pv = *vertices[pi as usize].get_or_insert_with(|| {
-                    let x = if pi & 0b00000001 == 0 { 1.0 } else { -1.0 };
-                    let y = if pi & 0b00000010 == 0 { 1.0 } else { -1.0 };
-                    let z = if pi & 0b00000100 == 0 { 1.0 } else { -1.0 };
-                    Vec3::from_values(x, y, z).transform_mat4(matrix)
-                });
-                let nv = vertices[ni as usize].get_or_insert_with(|| {
-                    let x = if ni & 0b00000001 == 0 { 1.0 } else { -1.0 };
-                    let y = if ni & 0b00000010 == 0 { 1.0 } else { -1.0 };
-                    let z = if ni & 0b00000100 == 0 { 1.0 } else { -1.0 };
-                    Vec3::from_values(x, y, z).transform_mat4(matrix)
-                });
-
-                let d = distance_point_and_plane_abs(nv, &center, n);
-                let a = distance_point_and_plane(nv, &point_on_plane, n) - d;
+                let d = distance_point_and_plane_abs(&nv, &center, n);
+                let a = distance_point_and_plane(&nv, &point_on_plane, n) - d;
                 if a > 0.0 {
                     return Culling::Outside(*kind);
                 }
@@ -481,7 +420,78 @@ fn cull_obb(
     }
 }
 
-/// Culling status of a [`BoundingVolume`]\(or [`BoundingVolumeNative`]\) against a [`ViewFrustum`]
+/// Merges multiples [`BoundingVolumeRaw`]s into one [`BoundingVolumeRaw::BoundingSphere`].
+/// Different situations will be handled differently:
+/// - For a [`BoundingVolumeRaw::BoundingSphere`], merge
+pub fn merge_bounding_volumes<'a, B>(boundings: B) -> Option<BoundingVolume>
+where
+    B: IntoIterator< Item = &'a BoundingVolume>,
+{
+    let boundings = boundings.into_iter();
+
+    let mut output: Option<(Vec3, f64)> = None;
+
+    for bounding in boundings {
+        let (c2, r2) = match bounding {
+            BoundingVolume::BoundingSphere { center, radius } => (*center, *radius),
+            BoundingVolume::AxisAlignedBoundingBox {
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+                min_z,
+                max_z,
+            } => {
+                let center = bounding.center();
+                let dx = (max_x - min_x).powi(2);
+                let dy = (max_y - min_y).powi(2);
+                let dz = (max_z - min_z).powi(2);
+                let radius = (dx + dy + dz).sqrt() / 2.0;
+                (center, radius)
+            }
+            BoundingVolume::OrientedBoundingBox { center, x, y, z } => (
+                *center,
+                (x.squared_length() + y.squared_length() + z.squared_length()).sqrt(),
+            ),
+        };
+
+        match output {
+            Some((c1, r1)) => {
+                if c1 == c2 {
+                    output = Some((c1, r1.max(r2)));
+                } else {
+                    // greater radius to be c1 and r1, the other to be c2 and r2
+                    let (c1, r1, c2, r2) = if r1 > r2 {
+                        (c1, r1, c2, r2)
+                    } else {
+                        (c2, r2, c1, r1)
+                    };
+
+                    let mut d = c2 - c1;
+                    let l = d.length();
+
+                    if r1 - l >= r2 {
+                        // r2 completely inside r1
+                        output = Some((c1, r1));
+                    } else {
+                        d = d.normalize();
+                        let p2 = c1 + d * (l + r2);
+                        let p1 = c2 - d * (l + r1);
+
+                        let c = (p1 + p2) / 2.0;
+                        let r = (l + r1 + r2) / 2.0;
+                        output = Some((c, r));
+                    }
+                }
+            }
+            None => output = Some((c2, r2)),
+        }
+    }
+
+    output.map(|(center, radius)| BoundingVolume::BoundingSphere { center, radius })
+}
+
+/// Culling status of a [`BoundingVolume`]\(or [`BoundingVolumeRaw`]\) against a [`ViewFrustum`]
 /// with the shortest distance to each plane if inside or intersect.
 ///
 /// Since far distance of a camera is optional,

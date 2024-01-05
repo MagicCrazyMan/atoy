@@ -1,32 +1,29 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::mat4::Mat4;
 use log::info;
 use web_sys::js_sys::Float32Array;
 
-use crate::{
-    entity::BorrowedMut,
-    render::{
-        pp::State,
-        webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            buffer::{
-                BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-                BufferUsage,
-            },
-            program::{ProgramSource, ShaderSource},
-            texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
-                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-                TexturePixelStorage, TextureUnit, TextureWrapMethod,
-            },
-            uniform::{
-                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-                UniformValue,
-            },
+use crate::{render::{
+    pp::State,
+    webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        buffer::{
+            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferUsage,
+        },
+        program::{ProgramSource, ShaderSource},
+        texture::{
+            TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+            TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+            TexturePixelStorage, TextureUnit, TextureWrapMethod,
+        },
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
         },
     },
-};
+}, entity::Entity};
 
 use super::{loader::TextureLoader, Material, Transparency};
 
@@ -370,7 +367,7 @@ impl Material for MultipleTexturesInstanced {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         match name {
             "a_InstanceMatrix" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
@@ -394,7 +391,7 @@ impl Material for MultipleTexturesInstanced {
         }
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             "u_Sampler0" => self.textures[0].texture(),
             "u_Sampler1" => self.textures[1].texture(),
@@ -408,7 +405,7 @@ impl Material for MultipleTexturesInstanced {
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
 
@@ -420,7 +417,7 @@ impl Material for MultipleTexturesInstanced {
         self
     }
 
-    fn prepare(&mut self, _: &State, _: &BorrowedMut) {
+    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
         self.textures.iter_mut().for_each(|t| t.load());
     }
 }

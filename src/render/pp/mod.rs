@@ -7,20 +7,12 @@ use std::{
     marker::PhantomData,
 };
 
-use gl_matrix4rust::vec3::Vec3;
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{
-    camera::Camera,
-    entity::collection::EntityCollection,
-    light::{
-        ambient_light::AmbientLight, area_light::AreaLight, directional_light::DirectionalLight,
-        point_light::PointLight, spot_light::SpotLight,
-    },
-};
+use crate::{scene::Scene, camera::Camera};
 
-use self::{graph::DirectedGraph, error::Error};
+use self::{error::Error, graph::DirectedGraph};
 
 use super::webgl::{
     buffer::{BufferDescriptor, BufferStore},
@@ -28,45 +20,10 @@ use super::webgl::{
     texture::TextureStore,
 };
 
-/// Pipeline rendering stuff.
-pub trait Stuff {
-    /// Returns an entity collection that should be draw on current frame.
-    fn entity_collection(&self) -> &EntityCollection;
-
-    /// Returns an mutable entity collection that should be draw on current frame.
-    fn entity_collection_mut(&mut self) -> &mut EntityCollection;
-
-    /// Returns the main camera for current frame.
-    fn camera(&self) -> &dyn Camera;
-
-    /// Returns the mutable main camera for current frame.
-    fn camera_mut(&mut self) -> &mut dyn Camera;
-
-    /// Returns `true` if enable lighting.
-    fn lighting_enabled(&self) -> bool;
-
-    /// Returns light attenuations.
-    fn light_attenuations(&self) -> Option<Vec3>;
-
-    /// Returns ambient light.
-    fn ambient_light(&self) -> Option<&AmbientLight>;
-
-    /// Returns point lights.
-    fn point_lights(&self) -> &[PointLight];
-
-    /// Returns directional lights.
-    fn directional_lights(&self) -> &[DirectionalLight];
-
-    /// Returns spot lights.
-    fn spot_lights(&self) -> &[SpotLight];
-
-    /// Returns area lights.
-    fn area_lights(&self) -> &[AreaLight];
-}
-
 /// Pipeline rendering state.
 pub struct State<'a> {
     timestamp: f64,
+    camera: &'a dyn Camera,
     canvas: &'a HtmlCanvasElement,
     gl: &'a WebGl2RenderingContext,
     universal_ubo: &'a BufferDescriptor,
@@ -80,6 +37,7 @@ impl<'a> State<'a> {
     /// Constructs a new rendering state.
     pub(crate) fn new(
         timestamp: f64,
+        camera: &'a dyn Camera,
         gl: &'a WebGl2RenderingContext,
         canvas: &'a HtmlCanvasElement,
         universal_ubo: &'a BufferDescriptor,
@@ -91,6 +49,7 @@ impl<'a> State<'a> {
         Self {
             gl,
             canvas,
+            camera,
             timestamp,
             universal_ubo,
             lights_ubo,
@@ -108,6 +67,11 @@ impl<'a> State<'a> {
     /// Returns the [`HtmlCanvasElement`] to be drawn to.
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
+    }
+
+    /// Returns the [`Camera`].
+    pub fn camera(&self) -> &dyn Camera {
+        &self.camera
     }
 
     /// Returns the `requestAnimationFrame` timestamp.
@@ -230,9 +194,7 @@ pub trait Pipeline {
     type Error;
 
     /// Executes this rendering pipeline with specified [`State`] and rendering [`Stuff`].
-    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
-    where
-        S: Stuff;
+    fn execute(&mut self, state: &mut State, scene: &Scene) -> Result<(), Self::Error>;
 }
 
 /// An execution node for [`Pipeline`].
@@ -246,7 +208,7 @@ pub trait Executor {
     fn before(
         &mut self,
         state: &mut State,
-        stuff: &mut dyn Stuff,
+        scene: &Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
         Ok(true)
@@ -256,7 +218,7 @@ pub trait Executor {
     fn execute(
         &mut self,
         state: &mut State,
-        stuff: &mut dyn Stuff,
+        scene: &Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error>;
 
@@ -266,7 +228,7 @@ pub trait Executor {
     fn after(
         &mut self,
         state: &mut State,
-        stuff: &mut dyn Stuff,
+        scene: &Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
         Ok(())
@@ -384,16 +346,13 @@ impl<E> GraphPipeline<E> {
 impl<E> Pipeline for GraphPipeline<E> {
     type Error = E;
 
-    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
-    where
-        S: Stuff,
-    {
+    fn execute(&mut self, state: &mut State, scene: &Scene) -> Result<(), Self::Error> {
         for (_, executor) in self.graph.iter_mut().unwrap() {
             state.reset_gl();
 
-            if executor.before(state, stuff, &mut self.resources)? {
-                executor.execute(state, stuff, &mut self.resources)?;
-                executor.after(state, stuff, &mut self.resources)?;
+            if executor.before(state, scene, &mut self.resources)? {
+                executor.execute(state, scene, &mut self.resources)?;
+                executor.after(state, scene, &mut self.resources)?;
             }
         }
 

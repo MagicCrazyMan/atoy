@@ -3,7 +3,6 @@ use log::warn;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
-    camera::{universal::UniversalCamera, Camera},
     entity::collection::EntityCollection,
     light::{
         ambient_light::AmbientLight,
@@ -12,12 +11,10 @@ use crate::{
         point_light::{PointLight, MAX_POINT_LIGHTS},
         spot_light::{SpotLight, MAX_SPOT_LIGHTS},
     },
-    render::pp::Stuff,
 };
 
 #[wasm_bindgen]
 pub struct Scene {
-    active_camera: Box<dyn Camera>,
     entity_collection: EntityCollection,
 
     lighting_enabled: bool,
@@ -33,7 +30,6 @@ impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Self {
         Self {
-            active_camera: Box::new(Self::create_camera()),
             entity_collection: EntityCollection::new(),
 
             lighting_enabled: true,
@@ -44,18 +40,6 @@ impl Scene {
             spot_lights: Vec::new(),
             area_lights: Vec::new(),
         }
-    }
-
-    fn create_camera() -> UniversalCamera {
-        UniversalCamera::new(
-            Vec3::from_values(0.0, 0.0, 2.0),
-            Vec3::new(),
-            Vec3::from_values(0.0, 1.0, 0.0),
-            60.0f64.to_radians(),
-            1.0,
-            0.5,
-            None,
-        )
     }
 }
 
@@ -68,39 +52,6 @@ impl Scene {
     /// Returns mutable root entities collection.
     pub fn entity_collection_mut(&mut self) -> &mut EntityCollection {
         &mut self.entity_collection
-    }
-
-    /// Returns current active camera.
-    pub fn active_camera(&self) -> &dyn Camera {
-        self.active_camera.as_ref()
-    }
-
-    /// Returns current active camera.
-    pub fn active_camera_mut(&mut self) -> &mut dyn Camera {
-        self.active_camera.as_mut()
-    }
-
-    /// Sets active camera.
-    pub fn set_active_camera<C>(&mut self, camera: C)
-    where
-        C: Camera + 'static,
-    {
-        self.active_camera = Box::new(camera);
-    }
-
-    /// Returns ambient light.
-    pub fn ambient_light(&self) -> Option<&AmbientLight> {
-        self.ambient_light.as_ref()
-    }
-
-    /// Returns mutable ambient light.
-    pub fn ambient_light_mut(&mut self) -> Option<&mut AmbientLight> {
-        self.ambient_light.as_mut()
-    }
-
-    /// Sets ambient light.
-    pub fn set_ambient_light(&mut self, light: Option<AmbientLight>) {
-        self.ambient_light = light;
     }
 
     /// Returns `true` if enable lighting.
@@ -117,6 +68,21 @@ impl Scene {
     /// Disables lighting.
     pub fn disable_lighting(&mut self) {
         self.lighting_enabled = false;
+    }
+
+    /// Returns ambient light.
+    pub fn ambient_light(&self) -> Option<&AmbientLight> {
+        self.ambient_light.as_ref()
+    }
+
+    /// Returns mutable ambient light.
+    pub fn ambient_light_mut(&mut self) -> Option<&mut AmbientLight> {
+        self.ambient_light.as_mut()
+    }
+
+    /// Sets ambient light.
+    pub fn set_ambient_light(&mut self, light: Option<AmbientLight>) {
+        self.ambient_light = light;
     }
 
     /// Returns lighting attenuation.
@@ -255,61 +221,5 @@ impl Scene {
     /// Returns a mutable area light by index.
     pub fn area_light_mut(&mut self, index: usize) -> Option<&mut AreaLight> {
         self.area_lights.get_mut(index)
-    }
-
-    /// Returns a [`Stuff`] from scene.
-    pub fn stuff(&mut self) -> SceneStuff {
-        SceneStuff { scene: self }
-    }
-}
-
-/// A [`Stuff`] source from [`Scene`].
-pub struct SceneStuff<'a> {
-    scene: &'a mut Scene,
-}
-
-impl<'a> Stuff for SceneStuff<'a> {
-    fn entity_collection(&self) -> &EntityCollection {
-        self.scene.entity_collection()
-    }
-
-    fn entity_collection_mut(&mut self) -> &mut EntityCollection {
-        self.scene.entity_collection_mut()
-    }
-
-    fn camera(&self) -> &dyn Camera {
-        self.scene.active_camera()
-    }
-
-    fn camera_mut(&mut self) -> &mut dyn Camera {
-        self.scene.active_camera_mut()
-    }
-
-    fn lighting_enabled(&self) -> bool {
-        self.scene.lighting_enabled
-    }
-
-    fn light_attenuations(&self) -> Option<Vec3> {
-        Some(self.scene.light_attenuations)
-    }
-
-    fn ambient_light(&self) -> Option<&AmbientLight> {
-        self.scene.ambient_light.as_ref()
-    }
-
-    fn point_lights(&self) -> &[PointLight] {
-        &self.scene.point_lights
-    }
-
-    fn directional_lights(&self) -> &[DirectionalLight] {
-        &self.scene.directional_lights
-    }
-
-    fn spot_lights(&self) -> &[SpotLight] {
-        &self.scene.spot_lights
-    }
-
-    fn area_lights(&self) -> &[AreaLight] {
-        &self.scene.area_lights
     }
 }

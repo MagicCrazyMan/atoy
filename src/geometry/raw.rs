@@ -1,9 +1,13 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, ptr::NonNull};
 
 use crate::{
-    bounding::BoundingVolumeNative,
-    entity::BorrowedMut,
-    render::webgl::{attribute::AttributeValue, draw::Draw, uniform::UniformValue},
+    bounding::BoundingVolume,
+    entity::Entity,
+    render::webgl::{
+        attribute::AttributeValue,
+        draw::Draw,
+        uniform::{UniformBlockValue, UniformValue},
+    },
 };
 
 use super::Geometry;
@@ -15,6 +19,7 @@ pub struct RawGeometry {
     texture_coordinates: Option<AttributeValue>,
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
+    uniform_blocks: HashMap<String, UniformBlockValue>,
 }
 
 impl RawGeometry {
@@ -25,6 +30,7 @@ impl RawGeometry {
         texture_coordinates: Option<AttributeValue>,
         attributes: HashMap<String, AttributeValue>,
         uniforms: HashMap<String, UniformValue>,
+        uniform_blocks: HashMap<String, UniformBlockValue>,
     ) -> Self {
         Self {
             draw,
@@ -33,6 +39,7 @@ impl RawGeometry {
             texture_coordinates,
             attributes,
             uniforms,
+            uniform_blocks,
         }
     }
 }
@@ -42,7 +49,7 @@ impl Geometry for RawGeometry {
         self.draw.clone()
     }
 
-    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
         None
     }
 
@@ -58,12 +65,20 @@ impl Geometry for RawGeometry {
         self.texture_coordinates.clone()
     }
 
-    fn attribute_value(&self, name: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         self.attributes.get(name).map(|v| v.clone())
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         self.uniforms.get(name).map(|v| v.clone())
+    }
+
+    fn uniform_block_value(
+        &self,
+        name: &str,
+        entity: NonNull<Entity>,
+    ) -> Option<UniformBlockValue> {
+        self.uniform_blocks.get(name).map(|v| v.clone())
     }
 
     fn as_any(&self) -> &dyn Any {

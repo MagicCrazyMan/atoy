@@ -1,9 +1,9 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use rand::distributions::{Distribution, Standard};
 
 use crate::{
-    entity::BorrowedMut,
+    entity::Entity,
     render::{
         pp::State,
         webgl::{
@@ -63,13 +63,14 @@ pub trait Material: ProgramSource {
     fn transparency(&self) -> Transparency;
 
     /// Returns an attribute value by an attribute variable name.
-    fn attribute_value(&self, name: &str, entity: &BorrowedMut) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: NonNull<Entity>) -> Option<AttributeValue>;
 
     /// Returns an uniform value by an uniform variable name.
-    fn uniform_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: NonNull<Entity>) -> Option<UniformValue>;
 
     /// Returns an uniform block buffer binding value by an uniform block interface name.
-    fn uniform_block_value(&self, name: &str, entity: &BorrowedMut) -> Option<UniformBlockValue>;
+    fn uniform_block_value(&self, name: &str, entity: NonNull<Entity>)
+        -> Option<UniformBlockValue>;
 
     /// Returns `true` if material is ready for drawing.
     /// Drawer skips entity drawing if material is not ready.
@@ -77,33 +78,12 @@ pub trait Material: ProgramSource {
 
     fn instanced(&self) -> Option<i32>;
 
-    fn update_bounding_volume(&self) -> bool {
-        false
-    }
-
-    #[allow(unused_variables)]
-    fn set_update_bounding_volume(&self, v: bool) {}
-
-    fn update_matrices(&self) -> bool {
-        false
-    }
-
-    #[allow(unused_variables)]
-    fn set_update_matrices(&self, v: bool) {}
-
     /// Preparation before entering drawing stage.
     ///
     /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
     /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
     /// do not borrow material from entity.
-    #[allow(unused_variables)]
-    fn prepare(&mut self, state: &State, entity: &BorrowedMut) {}
-
-    #[allow(unused_variables)]
-    fn before_draw(&mut self, state: &State, entity: &BorrowedMut) {}
-
-    #[allow(unused_variables)]
-    fn after_draw(&mut self, state: &State, entity: &BorrowedMut) {}
+    fn prepare(&mut self, state: &mut State, entity: NonNull<Entity>);
 
     fn as_any(&self) -> &dyn Any;
 
@@ -112,7 +92,7 @@ pub trait Material: ProgramSource {
 
 /// A standard material source for building up a standard material.
 /// Standard material source implements [`ProgramSource`] in default,
-/// material implemented under this trait gains the abilities of 
+/// material implemented under this trait gains the abilities of
 /// drawing basic effects, such as lighting, gamma correction and etc.
 pub trait StandardMaterialSource {
     /// Returns a material name.

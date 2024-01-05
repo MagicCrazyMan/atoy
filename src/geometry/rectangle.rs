@@ -1,10 +1,9 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::vec2::Vec2;
 
 use crate::{
-    bounding::BoundingVolumeNative,
-    entity::BorrowedMut,
+    bounding::BoundingVolume,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -12,8 +11,8 @@ use crate::{
             BufferUsage, MemoryPolicy,
         },
         draw::{Draw, DrawMode},
-        uniform::UniformValue,
-    },
+        uniform::{UniformValue, UniformBlockValue},
+    }, entity::Entity,
 };
 
 use super::Geometry;
@@ -27,7 +26,7 @@ pub struct Rectangle {
     vertices: AttributeValue,
     texture_coordinates: AttributeValue,
     normals: AttributeValue,
-    bounding: BoundingVolumeNative,
+    bounding: BoundingVolume,
 }
 
 impl Rectangle {
@@ -125,7 +124,7 @@ impl Geometry for Rectangle {
         }
     }
 
-    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
         Some(self.bounding)
     }
 
@@ -141,11 +140,19 @@ impl Geometry for Rectangle {
         Some(self.texture_coordinates.clone())
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+        None
+    }
+
+    fn uniform_block_value(
+        &self,
+        name: &str,
+        entity: NonNull<Entity>,
+    ) -> Option<UniformBlockValue> {
         None
     }
 
@@ -178,7 +185,7 @@ fn create_rectangle(
     height: f64,
     texture_scale_s: f64,
     texture_scale_t: f64,
-) -> ([u8; 112], BoundingVolumeNative) {
+) -> ([u8; 112], BoundingVolume) {
     let x = anchor.0[0];
     let y = anchor.0[1];
 
@@ -216,7 +223,7 @@ fn create_rectangle(
         }
     };
 
-    let bounding_volume = BoundingVolumeNative::AxisAlignedBoundingBox {
+    let bounding_volume = BoundingVolume::AxisAlignedBoundingBox {
         min_x,
         max_x,
         min_y,

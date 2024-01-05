@@ -1,11 +1,11 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::Float32Array;
 
 use crate::{
-    bounding::BoundingVolumeNative,
-    entity::BorrowedMut,
+    bounding::BoundingVolume,
+    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -13,7 +13,7 @@ use crate::{
             BufferUsage,
         },
         draw::{Draw, DrawMode},
-        uniform::UniformValue,
+        uniform::{UniformBlockValue, UniformValue},
     },
 };
 
@@ -90,8 +90,8 @@ impl Geometry for Sphere {
         }
     }
 
-    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
-        Some(BoundingVolumeNative::BoundingSphere {
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
+        Some(BoundingVolume::BoundingSphere {
             center: Vec3::from_values(0.0, 0.0, 0.0),
             radius: self.radius,
         })
@@ -125,11 +125,19 @@ impl Geometry for Sphere {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+        None
+    }
+
+    fn uniform_block_value(
+        &self,
+        name: &str,
+        entity: NonNull<Entity>,
+    ) -> Option<UniformBlockValue> {
         None
     }
 
@@ -139,14 +147,6 @@ impl Geometry for Sphere {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-
-    fn update_bounding_volume(&self) -> bool {
-        self.update_bounding_volume
-    }
-
-    fn set_update_bounding_volume(&mut self, v: bool) {
-        self.update_bounding_volume = v;
     }
 }
 

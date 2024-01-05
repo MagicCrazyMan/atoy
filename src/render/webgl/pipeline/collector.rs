@@ -5,9 +5,8 @@ use log::warn;
 
 use crate::{
     bounding::Culling,
-    entity::Strong,
     render::{
-        pp::{Executor, ResourceKey, Resources, State, Stuff},
+        pp::{Executor, ResourceKey, Resources, State},
         webgl::error::Error,
     },
 };
@@ -87,7 +86,6 @@ impl Executor for StandardEntitiesCollector {
             distance: f64,
         }
 
-        stuff.camera_mut().update_frame(state);
         let view_position = stuff.camera().position();
         let view_frustum = stuff.camera().view_frustum();
         let mut entities = Vec::new();

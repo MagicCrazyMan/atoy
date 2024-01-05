@@ -3,12 +3,7 @@ use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, WebGlUniformLocation};
 
-use crate::{
-    entity::BorrowedMut,
-    geometry::Geometry,
-    material::Material,
-    render::pp::{State, Stuff},
-};
+use crate::{entity::Entity, geometry::Geometry, material::Material, render::pp::State};
 
 use super::{
     buffer::BufferDescriptor,
@@ -298,8 +293,7 @@ pub struct BoundUniform {
 /// Binds uniform data from a entity.
 pub fn bind_uniforms(
     state: &mut State,
-    stuff: &dyn Stuff,
-    entity: &BorrowedMut,
+    entity: &Entity,
     geometry: &dyn Geometry,
     material: &dyn Material,
     program_item: &ProgramItem,
@@ -318,9 +312,9 @@ pub fn bind_uniforms(
                 let mat = match binding {
                     UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
                     UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
-                    UniformBinding::ViewMatrix => stuff.camera().view_matrix().to_gl(),
-                    UniformBinding::ProjMatrix => stuff.camera().proj_matrix().to_gl(),
-                    UniformBinding::ViewProjMatrix => stuff.camera().view_proj_matrix().to_gl(),
+                    UniformBinding::ViewMatrix => state.camera().view_matrix().to_gl(),
+                    UniformBinding::ProjMatrix => state.camera().proj_matrix().to_gl(),
+                    UniformBinding::ViewProjMatrix => state.camera().view_proj_matrix().to_gl(),
                     _ => unreachable!(),
                 };
 
@@ -330,7 +324,7 @@ pub fn bind_uniforms(
                 })
             }
             UniformBinding::CameraPosition => Some(UniformValue::FloatVector3(
-                stuff.camera().position().to_gl(),
+                state.camera().position().to_gl(),
             )),
             UniformBinding::RenderTime => Some(UniformValue::Float1(state.timestamp() as f32)),
             UniformBinding::Transparency => {
@@ -579,9 +573,7 @@ pub fn bind_uniform_value(state: &mut State, location: &WebGlUniformLocation, va
                 .iter()
                 .for_each(|param| param.tex_parameteri(state.gl(), target));
             // binds to shader
-            state
-                .gl()
-                .uniform1i(Some(location), unit.unit_index());
+            state.gl().uniform1i(Some(location), unit.unit_index());
         }
     };
 }

@@ -1,6 +1,6 @@
 use log::warn;
 
-use crate::{entity::BorrowedMut, geometry::Geometry, material::Material, render::pp::State};
+use crate::{geometry::Geometry, material::Material, render::pp::State};
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
@@ -91,7 +91,7 @@ pub struct BoundAttribute {
 /// to prevent buffer store drops the binding buffer unexpectedly.
 pub fn bind_attributes(
     state: &mut State,
-    entity: &BorrowedMut,
+    entity: NonNull<Entity>,
     geometry: &dyn Geometry,
     material: &dyn Material,
     program_item: &ProgramItem,

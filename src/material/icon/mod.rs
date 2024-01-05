@@ -1,19 +1,16 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
-use crate::{
-    entity::BorrowedMut,
-    render::{
-        pp::State,
-        webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            program::{ProgramSource, ShaderSource},
-            uniform::{
-                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-                UniformValue,
-            },
+use crate::{render::{
+    pp::State,
+    webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        program::{ProgramSource, ShaderSource},
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
         },
     },
-};
+}, entity::Entity};
 
 use super::{loader::TextureLoader, Material, Transparency};
 
@@ -72,18 +69,18 @@ impl Material for IconMaterial {
         self.transparency
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
         match name {
             "u_Sampler" => self.loader.texture(),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
         None
     }
 
@@ -95,7 +92,7 @@ impl Material for IconMaterial {
         None
     }
 
-    fn prepare(&mut self, _: &State, _: &BorrowedMut) {
+    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
         self.loader.load();
     }
 

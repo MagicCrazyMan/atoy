@@ -1,11 +1,11 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
-    bounding::BoundingVolumeNative,
-    entity::BorrowedMut,
+    bounding::BoundingVolume,
+    entity::Entity,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -13,7 +13,7 @@ use crate::{
             BufferUsage, MemoryPolicy,
         },
         draw::{Draw, DrawMode},
-        uniform::UniformValue,
+        uniform::{UniformValue, UniformBlockValue},
     },
 };
 
@@ -22,7 +22,7 @@ use super::Geometry;
 pub struct Cube {
     size: f64,
     data: BufferDescriptor,
-    bounding_volume: BoundingVolumeNative,
+    bounding_volume: BoundingVolume,
     update_bounding_volume: bool,
 }
 
@@ -39,9 +39,7 @@ impl Cube {
             data: BufferDescriptor::with_memory_policy(
                 BufferSource::from_array_buffer(build_data(size)),
                 BufferUsage::StaticDraw,
-                MemoryPolicy::restorable(move || {
-                    BufferSource::from_array_buffer(build_data(size))
-                }),
+                MemoryPolicy::restorable(move || BufferSource::from_array_buffer(build_data(size))),
             ),
             bounding_volume: build_bounding_volume(size),
             update_bounding_volume: true,
@@ -82,7 +80,7 @@ impl Geometry for Cube {
         }
     }
 
-    fn bounding_volume_native(&self) -> Option<BoundingVolumeNative> {
+    fn bounding_volume(&self) -> Option<BoundingVolume> {
         Some(self.bounding_volume)
     }
 
@@ -122,11 +120,19 @@ impl Geometry for Cube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: &BorrowedMut) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: &BorrowedMut) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+        None
+    }
+
+    fn uniform_block_value(
+        &self,
+        name: &str,
+        entity: NonNull<Entity>,
+    ) -> Option<UniformBlockValue> {
         None
     }
 
@@ -156,9 +162,9 @@ fn build_data(size: f64) -> ArrayBuffer {
     data
 }
 
-fn build_bounding_volume(size: f64) -> BoundingVolumeNative {
+fn build_bounding_volume(size: f64) -> BoundingVolume {
     let s = size / 2.0;
-    BoundingVolumeNative::BoundingSphere {
+    BoundingVolume::BoundingSphere {
         center: Vec3::from_values(0.0, 0.0, 0.0),
         radius: (s * s + s * s + s * s).sqrt(),
     }
