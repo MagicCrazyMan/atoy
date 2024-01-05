@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, f64::consts::PI, rc::Rc};
 
-use crate::{frustum::ViewFrustum, plane::Plane};
+use crate::{frustum::ViewFrustum, plane::Plane, render::pp::State};
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
@@ -522,6 +522,239 @@ impl UniversalCamera {
             .borrow_mut()
             .set_backward_movement(backward_movement)
     }
+
+    pub fn update_frame(&mut self, state: &State) {
+        let mut shareable = self.sharable.borrow_mut();
+
+        let aspect = state.canvas().width() as f64 / state.canvas().height() as f64;
+        if aspect != shareable.aspect {
+            shareable.set_aspect(aspect);
+        }
+
+        // binds to canvas
+        if shareable
+            .binding_canvas
+            .as_ref()
+            .map(|canvas| canvas != state.canvas())
+            .unwrap_or(true)
+        {
+            let canvas = state.canvas();
+
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            shareable.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+
+                let key = event.key();
+                match key.as_str() {
+                    "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
+                    | "ArrowRight" => {
+                        shareable.keys_pressed.insert(key);
+
+                        event.prevent_default();
+                        event.stop_propagation();
+                    }
+                    _ => return,
+                }
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "keydown",
+                shareable
+                    .keydown_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind keyboard event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            shareable.keyup_callback = Some(Closure::new(move |event: KeyboardEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+
+                let key = event.key();
+                match key.as_str() {
+                    "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
+                    | "ArrowRight" => {
+                        shareable.keys_pressed.remove(&key);
+
+                        event.prevent_default();
+                        event.stop_propagation();
+                    }
+                    _ => return,
+                }
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "keyup",
+                shareable
+                    .keyup_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind keyboard event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            let previous_mouse = Rc::new(RefCell::new(None));
+            shareable.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+
+                let mut previous_event = previous_mouse.borrow_mut();
+
+                if event.buttons() == 4 {
+                    let Some(p) = previous_event.take() else {
+                        *previous_event = Some(event);
+                        return;
+                    };
+
+                    if event.shift_key() {
+                        let px = p.x();
+                        let x = event.x();
+                        let ox = x - px;
+
+                        let oz = ox as f64 * shareable.z_rotation;
+                        shareable.rotate(0.0, 0.0, oz);
+                    } else {
+                        let px = p.x();
+                        let py = p.y();
+                        let x = event.x();
+                        let y = event.y();
+                        let ox = x - px;
+                        let oy = y - py;
+
+                        let rx = oy as f64 * shareable.x_rotation;
+                        let ry = ox as f64 * shareable.y_rotation;
+                        shareable.rotate(rx, ry, 0.0);
+                    }
+
+                    event.prevent_default();
+                    event.stop_propagation();
+
+                    *previous_event = Some(event);
+                } else {
+                    *previous_event = None;
+                }
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "mousemove",
+                shareable
+                    .mousemove_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind mousemove event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
+            let shareable_weak = Rc::downgrade(&self.sharable);
+            shareable.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
+                let Some(shareable) = shareable_weak.upgrade() else {
+                    return;
+                };
+                let mut shareable = shareable.borrow_mut();
+
+                let forward_movement = shareable.forward_movement;
+                let backward_movement = shareable.backward_movement;
+
+                let delta_y = event.delta_y() / 100.0;
+                if delta_y < 0.0 {
+                    shareable.move_directional(BASE_FORWARD, forward_movement / 2.0);
+                } else if delta_y > 0.0 {
+                    shareable.move_directional(BASE_FORWARD, -backward_movement / 2.0);
+                }
+            }));
+            if let Err(err) = canvas.add_event_listener_with_callback(
+                "wheel",
+                shareable
+                    .wheel_callback
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unchecked_ref(),
+            ) {
+                error!(
+                    target: "UniversalCamera",
+                    "failed to bind wheel event: {}",
+                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
+                );
+            }
+
+            shareable.binding_canvas = Some(canvas.clone());
+        }
+
+        // iterate keys pressed
+        if !shareable.keys_pressed.is_empty() {
+            let current = state.timestamp();
+            let Some(previous) = shareable.previous_timestamp else {
+                shareable.previous_timestamp = Some(current);
+                return;
+            };
+
+            let offset = current - previous;
+            if offset > 500.0 {
+                shareable.previous_timestamp = Some(current);
+                return;
+            }
+
+            let keys_pressed: *const HashSet<String> = &shareable.keys_pressed;
+            unsafe {
+                let iter = (*keys_pressed).iter();
+
+                let offset = offset / 1000.0;
+                let forward_movement = shareable.forward_movement;
+                let backward_movement = shareable.backward_movement;
+                let right_movement = shareable.right_movement;
+                let left_movement = shareable.left_movement;
+                let up_movement = shareable.up_movement;
+                let down_movement = shareable.down_movement;
+                let y_rotation = shareable.y_rotation * 120.0;
+
+                for key in iter {
+                    match key.as_str() {
+                        "w" => shareable.move_directional(BASE_FORWARD, offset * forward_movement),
+                        "s" => {
+                            shareable.move_directional(BASE_FORWARD, offset * -backward_movement)
+                        }
+                        "d" => shareable.move_directional(BASE_RIGHTWARD, offset * right_movement),
+                        "a" => shareable.move_directional(BASE_RIGHTWARD, offset * -left_movement),
+                        "ArrowUp" => shareable.move_directional(BASE_UPWARD, offset * up_movement),
+                        "ArrowDown" => {
+                            shareable.move_directional(BASE_UPWARD, offset * -down_movement)
+                        }
+                        "ArrowLeft" => shareable.rotate(0.0, offset * y_rotation, 0.0),
+                        "ArrowRight" => shareable.rotate(0.0, offset * -y_rotation, 0.0),
+                        _ => return,
+                    }
+                }
+            }
+
+            shareable.previous_timestamp = Some(current);
+        }
+    }
 }
 
 impl Camera for UniversalCamera {
@@ -552,239 +785,6 @@ impl Camera for UniversalCamera {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-
-    // fn update_frame(&mut self, state: &mut State) {
-    //     let mut shareable = self.sharable.borrow_mut();
-
-    //     let aspect = state.canvas().width() as f64 / state.canvas().height() as f64;
-    //     if aspect != shareable.aspect {
-    //         shareable.set_aspect(aspect);
-    //     }
-
-    //     // binds to canvas
-    //     if shareable
-    //         .binding_canvas
-    //         .as_ref()
-    //         .map(|canvas| canvas != state.canvas())
-    //         .unwrap_or(true)
-    //     {
-    //         let canvas = state.canvas();
-
-    //         let shareable_weak = Rc::downgrade(&self.sharable);
-    //         shareable.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
-    //             let Some(shareable) = shareable_weak.upgrade() else {
-    //                 return;
-    //             };
-    //             let mut shareable = shareable.borrow_mut();
-
-    //             let key = event.key();
-    //             match key.as_str() {
-    //                 "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
-    //                 | "ArrowRight" => {
-    //                     shareable.keys_pressed.insert(key);
-
-    //                     event.prevent_default();
-    //                     event.stop_propagation();
-    //                 }
-    //                 _ => return,
-    //             }
-    //         }));
-    //         if let Err(err) = canvas.add_event_listener_with_callback(
-    //             "keydown",
-    //             shareable
-    //                 .keydown_callback
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .as_ref()
-    //                 .unchecked_ref(),
-    //         ) {
-    //             error!(
-    //                 target: "UniversalCamera",
-    //                 "failed to bind keyboard event: {}",
-    //                 err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-    //             );
-    //         }
-
-    //         let shareable_weak = Rc::downgrade(&self.sharable);
-    //         shareable.keyup_callback = Some(Closure::new(move |event: KeyboardEvent| {
-    //             let Some(shareable) = shareable_weak.upgrade() else {
-    //                 return;
-    //             };
-    //             let mut shareable = shareable.borrow_mut();
-
-    //             let key = event.key();
-    //             match key.as_str() {
-    //                 "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
-    //                 | "ArrowRight" => {
-    //                     shareable.keys_pressed.remove(&key);
-
-    //                     event.prevent_default();
-    //                     event.stop_propagation();
-    //                 }
-    //                 _ => return,
-    //             }
-    //         }));
-    //         if let Err(err) = canvas.add_event_listener_with_callback(
-    //             "keyup",
-    //             shareable
-    //                 .keyup_callback
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .as_ref()
-    //                 .unchecked_ref(),
-    //         ) {
-    //             error!(
-    //                 target: "UniversalCamera",
-    //                 "failed to bind keyboard event: {}",
-    //                 err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-    //             );
-    //         }
-
-    //         let shareable_weak = Rc::downgrade(&self.sharable);
-    //         let previous_mouse = Rc::new(RefCell::new(None));
-    //         shareable.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
-    //             let Some(shareable) = shareable_weak.upgrade() else {
-    //                 return;
-    //             };
-    //             let mut shareable = shareable.borrow_mut();
-
-    //             let mut previous_event = previous_mouse.borrow_mut();
-
-    //             if event.buttons() == 4 {
-    //                 let Some(p) = previous_event.take() else {
-    //                     *previous_event = Some(event);
-    //                     return;
-    //                 };
-
-    //                 if event.shift_key() {
-    //                     let px = p.x();
-    //                     let x = event.x();
-    //                     let ox = x - px;
-
-    //                     let oz = ox as f64 * shareable.z_rotation;
-    //                     shareable.rotate(0.0, 0.0, oz);
-    //                 } else {
-    //                     let px = p.x();
-    //                     let py = p.y();
-    //                     let x = event.x();
-    //                     let y = event.y();
-    //                     let ox = x - px;
-    //                     let oy = y - py;
-
-    //                     let rx = oy as f64 * shareable.x_rotation;
-    //                     let ry = ox as f64 * shareable.y_rotation;
-    //                     shareable.rotate(rx, ry, 0.0);
-    //                 }
-
-    //                 event.prevent_default();
-    //                 event.stop_propagation();
-
-    //                 *previous_event = Some(event);
-    //             } else {
-    //                 *previous_event = None;
-    //             }
-    //         }));
-    //         if let Err(err) = canvas.add_event_listener_with_callback(
-    //             "mousemove",
-    //             shareable
-    //                 .mousemove_callback
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .as_ref()
-    //                 .unchecked_ref(),
-    //         ) {
-    //             error!(
-    //                 target: "UniversalCamera",
-    //                 "failed to bind mousemove event: {}",
-    //                 err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-    //             );
-    //         }
-
-    //         let shareable_weak = Rc::downgrade(&self.sharable);
-    //         shareable.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
-    //             let Some(shareable) = shareable_weak.upgrade() else {
-    //                 return;
-    //             };
-    //             let mut shareable = shareable.borrow_mut();
-
-    //             let forward_movement = shareable.forward_movement;
-    //             let backward_movement = shareable.backward_movement;
-
-    //             let delta_y = event.delta_y() / 100.0;
-    //             if delta_y < 0.0 {
-    //                 shareable.move_directional(BASE_FORWARD, forward_movement / 2.0);
-    //             } else if delta_y > 0.0 {
-    //                 shareable.move_directional(BASE_FORWARD, -backward_movement / 2.0);
-    //             }
-    //         }));
-    //         if let Err(err) = canvas.add_event_listener_with_callback(
-    //             "wheel",
-    //             shareable
-    //                 .wheel_callback
-    //                 .as_ref()
-    //                 .unwrap()
-    //                 .as_ref()
-    //                 .unchecked_ref(),
-    //         ) {
-    //             error!(
-    //                 target: "UniversalCamera",
-    //                 "failed to bind wheel event: {}",
-    //                 err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-    //             );
-    //         }
-
-    //         shareable.binding_canvas = Some(canvas.clone());
-    //     }
-
-    //     // iterate keys pressed
-    //     if !shareable.keys_pressed.is_empty() {
-    //         let current = state.timestamp();
-    //         let Some(previous) = shareable.previous_timestamp else {
-    //             shareable.previous_timestamp = Some(current);
-    //             return;
-    //         };
-
-    //         let offset = current - previous;
-    //         if offset > 500.0 {
-    //             shareable.previous_timestamp = Some(current);
-    //             return;
-    //         }
-
-    //         let keys_pressed: *const HashSet<String> = &shareable.keys_pressed;
-    //         unsafe {
-    //             let iter = (*keys_pressed).iter();
-
-    //             let offset = offset / 1000.0;
-    //             let forward_movement = shareable.forward_movement;
-    //             let backward_movement = shareable.backward_movement;
-    //             let right_movement = shareable.right_movement;
-    //             let left_movement = shareable.left_movement;
-    //             let up_movement = shareable.up_movement;
-    //             let down_movement = shareable.down_movement;
-    //             let y_rotation = shareable.y_rotation * 120.0;
-
-    //             for key in iter {
-    //                 match key.as_str() {
-    //                     "w" => shareable.move_directional(BASE_FORWARD, offset * forward_movement),
-    //                     "s" => {
-    //                         shareable.move_directional(BASE_FORWARD, offset * -backward_movement)
-    //                     }
-    //                     "d" => shareable.move_directional(BASE_RIGHTWARD, offset * right_movement),
-    //                     "a" => shareable.move_directional(BASE_RIGHTWARD, offset * -left_movement),
-    //                     "ArrowUp" => shareable.move_directional(BASE_UPWARD, offset * up_movement),
-    //                     "ArrowDown" => {
-    //                         shareable.move_directional(BASE_UPWARD, offset * -down_movement)
-    //                     }
-    //                     "ArrowLeft" => shareable.rotate(0.0, offset * y_rotation, 0.0),
-    //                     "ArrowRight" => shareable.rotate(0.0, offset * -y_rotation, 0.0),
-    //                     _ => return,
-    //                 }
-    //             }
-    //         }
-
-    //         shareable.previous_timestamp = Some(current);
-    //     }
-    // }
 }
 
 impl Default for UniversalCamera {

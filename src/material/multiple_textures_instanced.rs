@@ -367,7 +367,7 @@ impl Material for MultipleTexturesInstanced {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &Entity) -> Option<AttributeValue> {
         match name {
             "a_InstanceMatrix" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.instance_matrices.clone(),
@@ -391,7 +391,7 @@ impl Material for MultipleTexturesInstanced {
         }
     }
 
-    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             "u_Sampler0" => self.textures[0].texture(),
             "u_Sampler1" => self.textures[1].texture(),
@@ -405,7 +405,7 @@ impl Material for MultipleTexturesInstanced {
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
     }
 
@@ -417,7 +417,7 @@ impl Material for MultipleTexturesInstanced {
         self
     }
 
-    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
+    fn prepare(&mut self, _: &mut State, _: &Entity) {
         self.textures.iter_mut().for_each(|t| t.load());
     }
 }

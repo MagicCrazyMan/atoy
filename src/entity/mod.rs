@@ -30,24 +30,7 @@ pub struct EntityRaw {
     bounding: Option<CullingBoundingVolume>,
 }
 
-pub struct Entity {
-    id: Uuid,
-    model_matrix: Mat4,
-    attribute_values: HashMap<String, AttributeValue>,
-    uniform_values: HashMap<String, UniformValue>,
-    uniform_blocks_values: HashMap<String, UniformBlockValue>,
-    properties: HashMap<String, Box<dyn Any>>,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn Material>>,
-    bounding: Option<CullingBoundingVolume>,
-    event: EventAgency<Event>,
-    dirty: bool,
-    collection: *const EntityCollection,
-    compose_model_matrix: Mat4,
-    compose_normal_matrix: Mat4,
-}
-
-impl Entity {
+impl EntityRaw {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -59,11 +42,6 @@ impl Entity {
             geometry: None,
             material: None,
             bounding: None,
-            event: EventAgency::new(),
-            dirty: true,
-            collection: std::ptr::null(),
-            compose_model_matrix: Mat4::new_identity(),
-            compose_normal_matrix: Mat4::new_identity(),
         }
     }
 
@@ -77,14 +55,6 @@ impl Entity {
 
     pub fn model_matrix(&self) -> &Mat4 {
         &self.model_matrix
-    }
-
-    pub fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
-    }
-
-    pub fn compose_normal_matrix(&self) -> &Mat4 {
-        &self.compose_normal_matrix
     }
 
     pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
@@ -103,72 +73,63 @@ impl Entity {
         &self.properties
     }
 
-    pub fn collection(&self) -> Option<&EntityCollection> {
-        if self.collection.is_null() {
-            None
-        } else {
-            unsafe {
-                Some(&*self.collection)
-            }
-        }
-    }
-
     pub fn geometry(&self) -> Option<&dyn Geometry> {
         self.geometry.as_ref().map(|geom| geom.as_ref())
+    }
+
+    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        match self.geometry.as_mut() {
+            Some(geom) => Some(geom.as_mut()),
+            None => None,
+        }
     }
 
     pub fn material(&self) -> Option<&dyn Material> {
         self.material.as_ref().map(|geom| geom.as_ref())
     }
 
-    pub fn event(&mut self) -> &mut EventAgency<Event> {
-        &mut self.event
-    }
-
-    pub(crate) fn set_collection(&mut self, collection: *const EntityCollection) {
-        self.collection = collection;
-        self.dirty = true;
+    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
+        match self.material.as_mut() {
+            Some(material) => Some(material.as_mut()),
+            None => None,
+        }
     }
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.dirty = true;
-        self.event.raise(Event::SetModelMatrix(unsafe {
-            NonNull::new_unchecked(&mut self.model_matrix)
-        }));
+        self.bounding = self
+            .geometry
+            .as_ref()
+            .and_then(|geom| geom.bounding_volume())
+            .map(|bounding| bounding.transform(&self.model_matrix))
+            .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
     pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
         match geometry {
             Some(geometry) => {
                 self.geometry = Some(Box::new(geometry));
-                self.event.raise(Event::SetGeometry(unsafe {
-                    Some(NonNull::new_unchecked(
-                        self.geometry.as_deref_mut().unwrap(),
-                    ))
-                }));
+                self.bounding = self
+                    .geometry
+                    .as_ref()
+                    .and_then(|geom| geom.bounding_volume())
+                    .map(|bounding| bounding.transform(&self.model_matrix))
+                    .map(|bounding| CullingBoundingVolume::new(bounding));
             }
             None => {
                 self.geometry = None;
-                self.event.raise(Event::SetGeometry(None));
+                self.bounding = None;
             }
         };
-        self.dirty = true;
     }
 
     pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
         match material {
             Some(material) => {
                 self.material = Some(Box::new(material));
-                self.event.raise(Event::SetMaterial(unsafe {
-                    Some(NonNull::new_unchecked(
-                        self.material.as_deref_mut().unwrap(),
-                    ))
-                }));
             }
             None => {
                 self.material = None;
-                self.event.raise(Event::SetGeometry(None));
             }
         };
     }
@@ -176,68 +137,239 @@ impl Entity {
     pub fn add_attribute_value<S: Into<String>>(&mut self, name: S, value: AttributeValue) {
         let name = name.into();
         self.attribute_values.insert(name.clone(), value);
-        self.event.raise(Event::AddAttributeValue(name));
     }
 
     pub fn add_uniform_value<S: Into<String>>(&mut self, name: S, value: UniformValue) {
         let name = name.into();
         self.uniform_values.insert(name, value);
-        self.event.raise(Event::AddUniformValue(name));
     }
 
     pub fn add_uniform_block_value<S: Into<String>>(&mut self, name: S, value: UniformBlockValue) {
         let name = name.into();
         self.uniform_blocks_values.insert(name, value);
-        self.event.raise(Event::AddUniformBlockValue(name));
     }
 
     pub fn add_property<S: Into<String>, T: 'static>(&mut self, name: S, value: T) {
         let name = name.into();
         self.properties.insert(name, Box::new(value));
-        self.event.raise(Event::AddProperty(name));
     }
 
-    pub fn remove_attribute_value(&mut self, name: &str) {
-        if let Some((name, _)) = self.attribute_values.remove_entry(name) {
-            self.event.raise(Event::RemoveAttributeValue(name));
-        }
+    pub fn remove_attribute_value(&mut self, name: &str) -> Option<(String, AttributeValue)> {
+        self.attribute_values.remove_entry(name)
     }
 
-    pub fn remove_uniform_value(&mut self, name: &str) {
-        if let Some((name, _)) = self.uniform_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformValue(name));
-        }
+    pub fn remove_uniform_value(&mut self, name: &str) -> Option<(String, UniformValue)> {
+        self.uniform_values.remove_entry(name)
     }
 
-    pub fn remove_uniform_block_value(&mut self, name: &str) {
-        if let Some((name, _)) = self.uniform_blocks_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformBlockValue(name));
-        }
+    pub fn remove_uniform_block_value(
+        &mut self,
+        name: &str,
+    ) -> Option<(String, UniformBlockValue)> {
+        self.uniform_blocks_values.remove_entry(name)
     }
 
-    pub fn remove_property(&mut self, name: &str) {
-        if let Some((name, _)) = self.properties.remove_entry(name) {
-            self.event.raise(Event::RemoveProperty(name));
-        }
+    pub fn remove_property(&mut self, name: &str) -> Option<(String, Box<dyn Any>)> {
+        self.properties.remove_entry(name)
     }
 
     pub fn clear_attribute_values(&mut self) {
         self.attribute_values.clear();
-        self.event.raise(Event::ClearAttributeValues);
     }
 
     pub fn clear_uniform_values(&mut self) {
         self.uniform_values.clear();
-        self.event.raise(Event::ClearUniformValues);
     }
 
     pub fn clear_uniform_blocks_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.event.raise(Event::ClearUniformBlockValues);
     }
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
+    }
+}
+
+pub struct Entity {
+    raw: EntityRaw,
+    event: EventAgency<Event>,
+    dirty: bool,
+    collection: *const EntityCollection,
+    compose_model_matrix: Mat4,
+    compose_normal_matrix: Mat4,
+}
+
+impl Entity {
+    pub(self) fn new(raw: EntityRaw, collection: *const EntityCollection) -> Self {
+        Self {
+            raw,
+            event: EventAgency::new(),
+            dirty: true,
+            collection,
+            compose_model_matrix: Mat4::new_identity(),
+            compose_normal_matrix: Mat4::new_identity(),
+        }
+    }
+
+    pub fn id(&self) -> &Uuid {
+        self.raw.id()
+    }
+
+    pub fn collection(&self) -> Option<&EntityCollection> {
+        if self.collection.is_null() {
+            None
+        } else {
+            unsafe { Some(&*self.collection) }
+        }
+    }
+
+    pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
+        self.raw.bounding()
+    }
+
+    pub fn model_matrix(&self) -> &Mat4 {
+        self.raw.model_matrix()
+    }
+
+    pub fn compose_model_matrix(&self) -> &Mat4 {
+        &self.compose_model_matrix
+    }
+
+    pub fn compose_normal_matrix(&self) -> &Mat4 {
+        &self.compose_normal_matrix
+    }
+
+    pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
+        self.raw.attribute_values()
+    }
+
+    pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
+        self.raw.uniform_values()
+    }
+
+    pub fn uniform_blocks_values(&self) -> &HashMap<String, UniformBlockValue> {
+        self.raw.uniform_blocks_values()
+    }
+
+    pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
+        self.raw.properties()
+    }
+
+    pub fn geometry(&self) -> Option<&dyn Geometry> {
+        self.raw.geometry()
+    }
+
+    pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
+        self.raw.geometry_mut()
+    }
+
+    pub fn material(&self) -> Option<&dyn Material> {
+        self.raw.material()
+    }
+
+    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
+        self.raw.material_mut()
+    }
+
+    pub fn event(&mut self) -> &mut EventAgency<Event> {
+        &mut self.event
+    }
+
+    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
+        self.raw.set_model_matrix(model_matrix);
+        self.dirty = true;
+        self.event.raise(Event::SetModelMatrix(unsafe {
+            NonNull::new_unchecked(&mut self.raw.model_matrix)
+        }));
+    }
+
+    pub fn set_geometry<G: Geometry + 'static>(&mut self, geometry: Option<G>) {
+        self.raw.set_geometry(geometry);
+        self.dirty = true;
+        self.event
+            .raise(Event::SetGeometry(match self.raw.geometry.as_deref_mut() {
+                Some(geom) => Some(unsafe { NonNull::new_unchecked(geom) }),
+                None => None,
+            }));
+    }
+
+    pub fn set_material<M: Material + 'static>(&mut self, material: Option<M>) {
+        self.raw.set_material(material);
+        self.dirty = true;
+        self.event
+            .raise(Event::SetMaterial(match self.raw.material.as_deref_mut() {
+                Some(material) => Some(unsafe { NonNull::new_unchecked(material) }),
+                None => None,
+            }));
+    }
+
+    pub fn add_attribute_value<S: Into<String>>(&mut self, name: S, value: AttributeValue) {
+        let name = name.into();
+        self.raw.add_attribute_value(name.clone(), value);
+        self.event.raise(Event::AddAttributeValue(name));
+    }
+
+    pub fn add_uniform_value<S: Into<String>>(&mut self, name: S, value: UniformValue) {
+        let name = name.into();
+        self.raw.add_uniform_value(name.clone(), value);
+        self.event.raise(Event::AddUniformValue(name));
+    }
+
+    pub fn add_uniform_block_value<S: Into<String>>(&mut self, name: S, value: UniformBlockValue) {
+        let name = name.into();
+        self.raw.add_uniform_block_value(name.clone(), value);
+        self.event.raise(Event::AddUniformBlockValue(name));
+    }
+
+    pub fn add_property<S: Into<String>, T: 'static>(&mut self, name: S, value: T) {
+        let name = name.into();
+        self.raw.add_property(name.clone(), value);
+        self.event.raise(Event::AddProperty(name));
+    }
+
+    pub fn remove_attribute_value(&mut self, name: &str) {
+        if let Some(entry) = self.raw.remove_attribute_value(name) {
+            self.event.raise(Event::RemoveAttributeValue(entry));
+        }
+    }
+
+    pub fn remove_uniform_value(&mut self, name: &str) {
+        if let Some(entry) = self.raw.remove_uniform_value(name) {
+            self.event.raise(Event::RemoveUniformValue(entry));
+        }
+    }
+
+    pub fn remove_uniform_block_value(&mut self, name: &str) {
+        if let Some(entry) = self.raw.remove_uniform_block_value(name) {
+            self.event.raise(Event::RemoveUniformBlockValue(entry));
+        }
+    }
+
+    pub fn remove_property(&mut self, name: &str) {
+        if let Some((key, mut value)) = self.raw.remove_property(name) {
+            self.event.raise(Event::RemoveProperty((key, unsafe {
+                NonNull::new_unchecked(value.as_mut())
+            })));
+        }
+    }
+
+    pub fn clear_attribute_values(&mut self) {
+        self.raw.clear_attribute_values();
+        self.event.raise(Event::ClearAttributeValues);
+    }
+
+    pub fn clear_uniform_values(&mut self) {
+        self.raw.clear_uniform_values();
+        self.event.raise(Event::ClearUniformValues);
+    }
+
+    pub fn clear_uniform_blocks_values(&mut self) {
+        self.raw.clear_uniform_blocks_values();
+        self.event.raise(Event::ClearUniformBlockValues);
+    }
+
+    pub fn clear_properties(&mut self) {
+        self.raw.clear_properties();
         self.event.raise(Event::ClearProperties);
     }
 
@@ -247,17 +379,16 @@ impl Entity {
         }
 
         self.update_matrix();
-        self.update_bounding();
         self.dirty = false;
     }
 
     fn update_matrix(&mut self) {
         if self.collection.is_null() {
-            self.compose_model_matrix = self.model_matrix;
+            self.compose_model_matrix = self.raw.model_matrix;
         } else {
             unsafe {
                 self.compose_model_matrix =
-                    *self.collection.as_ref().unwrap().compose_model_matrix() * self.model_matrix;
+                    *(*self.collection).compose_model_matrix() * self.raw.model_matrix;
             }
         }
         self.compose_normal_matrix = self
@@ -266,25 +397,9 @@ impl Entity {
             .expect("matrix with zero determinant is not allowed")
             .transpose();
     }
-
-    fn update_bounding(&mut self) {
-        match (
-            self.bounding,
-            self.geometry.and_then(|g| g.bounding_volume()),
-        ) {
-            (None, None) => {}
-            (Some(_), None) => {
-                self.bounding = None;
-            }
-            (_, Some(raw)) => {
-                let mut bounding = CullingBoundingVolume::new(raw);
-                bounding.transform(&self.compose_model_matrix);
-                self.bounding = Some(bounding);
-            }
-        }
-    }
 }
 
+#[derive(Clone)]
 pub enum Event {
     SetGeometry(Option<NonNull<dyn Geometry>>),
     SetMaterial(Option<NonNull<dyn Material>>),
@@ -293,10 +408,10 @@ pub enum Event {
     AddUniformValue(String),
     AddUniformBlockValue(String),
     AddProperty(String),
-    RemoveAttributeValue(String),
-    RemoveUniformValue(String),
-    RemoveUniformBlockValue(String),
-    RemoveProperty(String),
+    RemoveAttributeValue((String, AttributeValue)),
+    RemoveUniformValue((String, UniformValue)),
+    RemoveUniformBlockValue((String, UniformBlockValue)),
+    RemoveProperty((String, NonNull<dyn Any>)),
     ClearAttributeValues,
     ClearUniformValues,
     ClearUniformBlockValues,

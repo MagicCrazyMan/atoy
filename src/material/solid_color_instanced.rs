@@ -180,7 +180,7 @@ impl Material for SolidColorInstancedMaterial {
         Some(self.count as i32)
     }
 
-    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str, _: &Entity) -> Option<AttributeValue> {
         match name {
             "a_Color" => Some(AttributeValue::InstancedBuffer {
                 descriptor: self.colors.clone(),
@@ -204,15 +204,15 @@ impl Material for SolidColorInstancedMaterial {
         }
     }
 
-    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str, _: &Entity) -> Option<UniformValue> {
         None
     }
 
-    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
     }
 
-    fn prepare(&mut self, state: &mut State, entity: NonNull<Entity>) {}
+    fn prepare(&mut self, state: &mut State, entity: &Entity) {}
 
     fn as_any(&self) -> &dyn Any {
         self

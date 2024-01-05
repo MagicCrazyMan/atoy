@@ -86,12 +86,12 @@ impl Scene {
     }
 
     /// Returns lighting attenuation.
-    pub fn light_attenuation(&mut self) -> Vec3 {
-        self.light_attenuations
+    pub fn light_attenuations(&self) -> &Vec3 {
+        &self.light_attenuations
     }
 
     /// Sets lighting attenuation.
-    pub fn set_light_attenuation(&mut self, attenuations: Vec3) {
+    pub fn set_light_attenuations(&mut self, attenuations: Vec3) {
         self.light_attenuations = attenuations;
     }
 
@@ -115,6 +115,11 @@ impl Scene {
         }
 
         Some(self.point_lights.remove(index))
+    }
+
+    /// Returns point lights.
+    pub fn point_lights(&self) -> &[PointLight] {
+        &self.point_lights
     }
 
     /// Returns a point light by index.
@@ -149,6 +154,11 @@ impl Scene {
         Some(self.directional_lights.remove(index))
     }
 
+    /// Returns directional lights.
+    pub fn directional_lights(&self) -> &[DirectionalLight] {
+        &self.directional_lights
+    }
+
     /// Returns a directional light by index.
     pub fn directional_light(&self, index: usize) -> Option<&DirectionalLight> {
         self.directional_lights.get(index)
@@ -181,6 +191,11 @@ impl Scene {
         Some(self.spot_lights.remove(index))
     }
 
+    /// Returns spot lights.
+    pub fn spot_lights(&self) -> &[SpotLight] {
+        &self.spot_lights
+    }
+
     /// Returns a spot light by index.
     pub fn spot_light(&self, index: usize) -> Option<&SpotLight> {
         self.spot_lights.get(index)
@@ -211,6 +226,11 @@ impl Scene {
         }
 
         Some(self.area_lights.remove(index))
+    }
+
+    /// Returns area lights.
+    pub fn area_lights(&self) -> &[AreaLight] {
+        &self.area_lights
     }
 
     /// Returns a area light by index.

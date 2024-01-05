@@ -65,19 +65,15 @@ impl Geometry for RawGeometry {
         self.texture_coordinates.clone()
     }
 
-    fn attribute_value(&self, name: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
         self.attributes.get(name).map(|v| v.clone())
     }
 
-    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         self.uniforms.get(name).map(|v| v.clone())
     }
 
-    fn uniform_block_value(
-        &self,
-        name: &str,
-        entity: NonNull<Entity>,
-    ) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {
         self.uniform_blocks.get(name).map(|v| v.clone())
     }
 

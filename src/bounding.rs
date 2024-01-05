@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
@@ -14,7 +16,7 @@ use crate::{
 /// to speed up the culling detection procedure.
 #[derive(Debug)]
 pub struct CullingBoundingVolume {
-    previous_outside_plane: Option<FrustumPlaneIndex>,
+    previous_outside_plane: RefCell<Option<FrustumPlaneIndex>>,
     bounding: BoundingVolume,
 }
 
@@ -22,7 +24,7 @@ impl CullingBoundingVolume {
     /// Constructs a new bounding volume from a [`BoundingVolume`].
     pub fn new(bounding: BoundingVolume) -> Self {
         Self {
-            previous_outside_plane: None,
+            previous_outside_plane: RefCell::new(None),
             bounding,
         }
     }
@@ -33,7 +35,7 @@ impl CullingBoundingVolume {
     }
 
     /// Applies culling detection against a frustum.
-    pub fn cull(&mut self, frustum: &ViewFrustum) -> Culling {
+    pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
         let mut planes: [(FrustumPlaneIndex, Option<&Plane>); 6] = [
             (FrustumPlaneIndex::Top, Some(frustum.top())),
             (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
@@ -42,7 +44,7 @@ impl CullingBoundingVolume {
             (FrustumPlaneIndex::Near, Some(frustum.near())),
             (FrustumPlaneIndex::Far, frustum.far()), // far plane may not exists
         ];
-        if let Some(p) = self.previous_outside_plane {
+        if let Some(p) = self.previous_outside_plane.borrow().as_ref().map(|p| *p) {
             planes.swap(0, p as usize);
         }
 
@@ -96,7 +98,7 @@ impl CullingBoundingVolume {
         };
 
         if let Culling::Outside(plane) = &culling {
-            self.previous_outside_plane = Some(*plane);
+            self.previous_outside_plane.borrow_mut().replace(*plane);
         }
 
         culling
@@ -110,7 +112,7 @@ impl CullingBoundingVolume {
     /// Transforms this bounding volume native by a transformation matrix.
     pub fn transform(&mut self, transformation: &Mat4) {
         self.bounding = self.bounding.transform(transformation);
-        self.previous_outside_plane = None;
+        self.previous_outside_plane.borrow_mut().take();
     }
 }
 
@@ -161,7 +163,7 @@ impl BoundingVolume {
 
     /// Applies culling detection against a frustum.
     pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
-        let mut planes: [(FrustumPlaneIndex, Option<&Plane>); 6] = [
+        let planes: [(FrustumPlaneIndex, Option<&Plane>); 6] = [
             (FrustumPlaneIndex::Top, Some(frustum.top())),
             (FrustumPlaneIndex::Bottom, Some(frustum.bottom())),
             (FrustumPlaneIndex::Left, Some(frustum.left())),
@@ -423,9 +425,9 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
 /// Merges multiples [`BoundingVolumeRaw`]s into one [`BoundingVolumeRaw::BoundingSphere`].
 /// Different situations will be handled differently:
 /// - For a [`BoundingVolumeRaw::BoundingSphere`], merge
-pub fn merge_bounding_volumes<'a, B>(boundings: B) -> Option<BoundingVolume>
+pub fn merge_bounding_volumes<B>(boundings: B) -> Option<BoundingVolume>
 where
-    B: IntoIterator< Item = &'a BoundingVolume>,
+    B: IntoIterator<Item = BoundingVolume>,
 {
     let boundings = boundings.into_iter();
 
@@ -433,7 +435,7 @@ where
 
     for bounding in boundings {
         let (c2, r2) = match bounding {
-            BoundingVolume::BoundingSphere { center, radius } => (*center, *radius),
+            BoundingVolume::BoundingSphere { center, radius } => (center, radius),
             BoundingVolume::AxisAlignedBoundingBox {
                 min_x,
                 max_x,
@@ -450,7 +452,7 @@ where
                 (center, radius)
             }
             BoundingVolume::OrientedBoundingBox { center, x, y, z } => (
-                *center,
+                center,
                 (x.squared_length() + y.squared_length() + z.squared_length()).sqrt(),
             ),
         };

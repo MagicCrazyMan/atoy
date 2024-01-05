@@ -301,7 +301,7 @@ pub fn bind_uniforms(
     // binds simple uniforms
     for (binding, location) in program_item.uniform_locations() {
         let value = match binding {
-            UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name, entity),
+            UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name),
             UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
             UniformBinding::FromEntity(name) => entity.uniform_values().get(*name).cloned(),
             UniformBinding::ModelMatrix
@@ -310,8 +310,8 @@ pub fn bind_uniforms(
             | UniformBinding::NormalMatrix
             | UniformBinding::ViewProjMatrix => {
                 let mat = match binding {
-                    UniformBinding::ModelMatrix => entity.model_matrix().to_gl(),
-                    UniformBinding::NormalMatrix => entity.normal_matrix().to_gl(),
+                    UniformBinding::ModelMatrix => entity.compose_model_matrix().to_gl(),
+                    UniformBinding::NormalMatrix => entity.compose_normal_matrix().to_gl(),
                     UniformBinding::ViewMatrix => state.camera().view_matrix().to_gl(),
                     UniformBinding::ProjMatrix => state.camera().proj_matrix().to_gl(),
                     UniformBinding::ViewProjMatrix => state.camera().view_proj_matrix().to_gl(),
@@ -360,7 +360,7 @@ pub fn bind_uniforms(
         match binding {
             UniformStructuralBinding::FromGeometry { .. } => {
                 for (field, location) in fields {
-                    let value = geometry.uniform_value(field, entity);
+                    let value = geometry.uniform_value(field);
                     if let Some(value) = value {
                         values.push((location, value));
                     }
@@ -401,10 +401,10 @@ pub fn bind_uniforms(
                 descriptor: state.lights_ubo(),
                 binding: UBO_LIGHTS_BINDING,
             }),
-            UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name, entity),
+            UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name),
             UniformBlockBinding::FromMaterial(name) => material.uniform_block_value(name, entity),
             UniformBlockBinding::FromEntity(name) => {
-                entity.uniform_block_values().get(*name).cloned()
+                entity.uniform_blocks_values().get(*name).cloned()
             }
         };
         let Some(value) = value else {

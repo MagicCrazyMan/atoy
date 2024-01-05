@@ -1,16 +1,13 @@
 pub mod collector;
-pub mod composer;
+// pub mod composer;
 pub mod drawer;
-pub mod gaussian_blur;
-pub mod outlining;
-pub mod picking;
+// pub mod gaussian_blur;
+// pub mod outlining;
+// pub mod picking;
 
 use crate::render::pp::{GraphPipeline, ItemKey, ResourceKey};
 
-use self::{
-    collector::StandardEntitiesCollector, composer::StandardComposer, drawer::StandardDrawer,
-    gaussian_blur::GaussianBlur, outlining::Outlining, picking::Picking,
-};
+use self::{collector::StandardEntitiesCollector, drawer::StandardDrawer};
 
 use super::error::Error;
 
@@ -23,14 +20,14 @@ pub fn create_standard_pipeline(
     // let outlining = ItemKey::new_uuid();
     // let gaussian_blur = ItemKey::new_uuid();
     let drawer = ItemKey::new_uuid();
-    let composer = ItemKey::new_uuid();
+    // let composer = ItemKey::new_uuid();
 
     let collected_entities = ResourceKey::new_runtime_uuid();
     // let picked_entity = ResourceKey::new_runtime_uuid();
     // let picked_position = ResourceKey::new_runtime_uuid();
     // let outline_texture = ResourceKey::new_runtime_uuid();
     let standard_draw_texture = ResourceKey::new_runtime_uuid();
-    let gaussian_blur_texture = ResourceKey::new_runtime_uuid();
+    // let gaussian_blur_texture = ResourceKey::new_runtime_uuid();
 
     let mut pipeline = GraphPipeline::new();
     pipeline.add_executor(
@@ -58,13 +55,13 @@ pub fn create_standard_pipeline(
         drawer.clone(),
         StandardDrawer::new(collected_entities, standard_draw_texture.clone()),
     );
-    pipeline.add_executor(
-        composer.clone(),
-        StandardComposer::new(
-            vec![standard_draw_texture, gaussian_blur_texture],
-            in_clear_color,
-        ),
-    );
+    // pipeline.add_executor(
+    //     composer.clone(),
+    //     StandardComposer::new(
+    //         vec![standard_draw_texture, gaussian_blur_texture],
+    //         in_clear_color,
+    //     ),
+    // );
 
     // safely unwraps
     // pipeline.connect(&collector, &picking).unwrap();
@@ -72,7 +69,7 @@ pub fn create_standard_pipeline(
     // pipeline.connect(&outlining, &gaussian_blur).unwrap();
     // pipeline.connect(&gaussian_blur, &composer).unwrap();
     pipeline.connect(&collector, &drawer).unwrap();
-    pipeline.connect(&drawer, &composer).unwrap();
+    // pipeline.connect(&drawer, &composer).unwrap();
 
     pipeline
 }

@@ -5,12 +5,13 @@ use std::{
     any::Any,
     collections::{hash_map::Entry, HashMap},
     marker::PhantomData,
+    ptr::NonNull,
 };
 
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{scene::Scene, camera::Camera};
+use crate::{camera::Camera, scene::Scene};
 
 use self::{error::Error, graph::DirectedGraph};
 
@@ -21,57 +22,62 @@ use super::webgl::{
 };
 
 /// Pipeline rendering state.
-pub struct State<'a> {
+pub struct State {
     timestamp: f64,
-    camera: &'a dyn Camera,
-    canvas: &'a HtmlCanvasElement,
-    gl: &'a WebGl2RenderingContext,
-    universal_ubo: &'a BufferDescriptor,
-    lights_ubo: &'a BufferDescriptor,
-    program_store: &'a mut ProgramStore,
-    buffer_store: &'a mut BufferStore,
-    texture_store: &'a mut TextureStore,
+    camera: NonNull<dyn Camera>,
+    canvas: NonNull<HtmlCanvasElement>,
+    gl: NonNull<WebGl2RenderingContext>,
+    universal_ubo: NonNull<BufferDescriptor>,
+    lights_ubo: NonNull<BufferDescriptor>,
+    program_store: NonNull<ProgramStore>,
+    buffer_store: NonNull<BufferStore>,
+    texture_store: NonNull<TextureStore>,
 }
 
-impl<'a> State<'a> {
+impl State {
     /// Constructs a new rendering state.
-    pub(crate) fn new(
+    pub(crate) fn new<C>(
         timestamp: f64,
-        camera: &'a dyn Camera,
-        gl: &'a WebGl2RenderingContext,
-        canvas: &'a HtmlCanvasElement,
-        universal_ubo: &'a BufferDescriptor,
-        lights_ubo: &'a BufferDescriptor,
-        program_store: &'a mut ProgramStore,
-        buffer_store: &'a mut BufferStore,
-        texture_store: &'a mut TextureStore,
-    ) -> Self {
-        Self {
-            gl,
-            canvas,
-            camera,
-            timestamp,
-            universal_ubo,
-            lights_ubo,
-            program_store,
-            buffer_store,
-            texture_store,
+        camera: &mut C,
+        gl: &mut WebGl2RenderingContext,
+        canvas: &mut HtmlCanvasElement,
+        universal_ubo: &mut BufferDescriptor,
+        lights_ubo: &mut BufferDescriptor,
+        program_store: &mut ProgramStore,
+        buffer_store: &mut BufferStore,
+        texture_store: &mut TextureStore,
+    ) -> Self
+    where
+        C: Camera + 'static,
+    {
+        unsafe {
+            Self {
+                timestamp,
+                gl: NonNull::new_unchecked(gl),
+                canvas: NonNull::new_unchecked(canvas),
+                camera: NonNull::new_unchecked(camera),
+                universal_ubo: NonNull::new_unchecked(universal_ubo),
+                lights_ubo: NonNull::new_unchecked(lights_ubo),
+                program_store: NonNull::new_unchecked(program_store),
+                buffer_store: NonNull::new_unchecked(buffer_store),
+                texture_store: NonNull::new_unchecked(texture_store),
+            }
         }
     }
 
     /// Returns the [`WebGl2RenderingContext`] associated with the canvas.
     pub fn gl(&self) -> &WebGl2RenderingContext {
-        &self.gl
+        unsafe { self.gl.as_ref() }
     }
 
     /// Returns the [`HtmlCanvasElement`] to be drawn to.
     pub fn canvas(&self) -> &HtmlCanvasElement {
-        &self.canvas
+        unsafe { self.canvas.as_ref() }
     }
 
     /// Returns the [`Camera`].
     pub fn camera(&self) -> &dyn Camera {
-        &self.camera
+        unsafe { self.camera.as_ref() }
     }
 
     /// Returns the `requestAnimationFrame` timestamp.
@@ -81,106 +87,91 @@ impl<'a> State<'a> {
 
     /// Returns the [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn program_store(&self) -> &ProgramStore {
-        &self.program_store
+        unsafe { self.program_store.as_ref() }
     }
 
     /// Returns the mutable [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn program_store_mut(&mut self) -> &mut ProgramStore {
-        &mut self.program_store
+        unsafe { self.program_store.as_mut() }
     }
 
     /// Returns the [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn buffer_store(&self) -> &BufferStore {
-        &self.buffer_store
+        unsafe { self.buffer_store.as_ref() }
     }
 
     /// Returns the mutable [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
-        &mut self.buffer_store
+        unsafe { self.buffer_store.as_mut() }
     }
 
     /// Returns the [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn texture_store(&self) -> &TextureStore {
-        &self.texture_store
+        unsafe { self.texture_store.as_ref() }
     }
 
     /// Returns the mutable [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
-        &mut self.texture_store
+        unsafe { self.texture_store.as_mut() }
     }
 
     /// Returns uniform buffer object for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
     pub fn universal_ubo(&self) -> BufferDescriptor {
-        self.universal_ubo.clone()
+        unsafe { self.universal_ubo.as_ref().clone() }
     }
 
     /// Returns uniform buffer object for `atoy_Lights`.
     pub fn lights_ubo(&self) -> BufferDescriptor {
-        self.lights_ubo.clone()
+        unsafe { self.lights_ubo.as_ref().clone() }
     }
 
     /// Resets WebGl state
     fn reset_gl(&self) {
-        self.gl.viewport(
+        let gl = self.gl();
+        gl.viewport(
             0,
             0,
-            self.canvas.width() as i32,
-            self.canvas.height() as i32,
+            self.canvas().width() as i32,
+            self.canvas().height() as i32,
         );
-        self.gl.use_program(None);
-        self.gl
-            .bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        self.gl
-            .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
-        self.gl
-            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
-        self.gl
-            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
+        gl.use_program(None);
+        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
+        gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
+        gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
+        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
         for index in 0..32 {
-            self.gl
-                .active_texture(WebGl2RenderingContext::TEXTURE0 + index);
-            self.gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            self.gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
+            gl.active_texture(WebGl2RenderingContext::TEXTURE0 + index);
+            gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            gl.bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
         }
-        self.gl.read_buffer(WebGl2RenderingContext::NONE);
-        self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        self.gl.bind_vertex_array(None);
-        self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-        self.gl.disable(WebGl2RenderingContext::CULL_FACE);
-        self.gl.disable(WebGl2RenderingContext::BLEND);
-        self.gl.disable(WebGl2RenderingContext::DITHER);
-        self.gl.disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
-        self.gl
-            .disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
-        self.gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
-        self.gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
-        self.gl.disable(WebGl2RenderingContext::STENCIL_TEST);
-        self.gl.disable(WebGl2RenderingContext::RASTERIZER_DISCARD);
-        self.gl.clear_color(0.0, 0.0, 0.0, 0.0);
-        self.gl.clear_depth(1.0);
-        self.gl.clear_stencil(0);
-        self.gl.depth_mask(true);
-        self.gl.stencil_func(WebGl2RenderingContext::ALWAYS, 0, 1);
-        self.gl.stencil_mask(1);
-        self.gl.stencil_op(
+        gl.read_buffer(WebGl2RenderingContext::NONE);
+        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        gl.bind_vertex_array(None);
+        gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        gl.disable(WebGl2RenderingContext::CULL_FACE);
+        gl.disable(WebGl2RenderingContext::BLEND);
+        gl.disable(WebGl2RenderingContext::DITHER);
+        gl.disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
+        gl.disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
+        gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
+        gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
+        gl.disable(WebGl2RenderingContext::STENCIL_TEST);
+        gl.disable(WebGl2RenderingContext::RASTERIZER_DISCARD);
+        gl.clear_color(0.0, 0.0, 0.0, 0.0);
+        gl.clear_depth(1.0);
+        gl.clear_stencil(0);
+        gl.depth_mask(true);
+        gl.stencil_func(WebGl2RenderingContext::ALWAYS, 0, 1);
+        gl.stencil_mask(1);
+        gl.stencil_op(
             WebGl2RenderingContext::KEEP,
             WebGl2RenderingContext::KEEP,
             WebGl2RenderingContext::KEEP,
@@ -194,7 +185,7 @@ pub trait Pipeline {
     type Error;
 
     /// Executes this rendering pipeline with specified [`State`] and rendering [`Stuff`].
-    fn execute(&mut self, state: &mut State, scene: &Scene) -> Result<(), Self::Error>;
+    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error>;
 }
 
 /// An execution node for [`Pipeline`].
@@ -208,7 +199,7 @@ pub trait Executor {
     fn before(
         &mut self,
         state: &mut State,
-        scene: &Scene,
+        scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
         Ok(true)
@@ -218,7 +209,7 @@ pub trait Executor {
     fn execute(
         &mut self,
         state: &mut State,
-        scene: &Scene,
+        scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error>;
 
@@ -228,7 +219,7 @@ pub trait Executor {
     fn after(
         &mut self,
         state: &mut State,
-        scene: &Scene,
+        scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
         Ok(())
@@ -346,7 +337,7 @@ impl<E> GraphPipeline<E> {
 impl<E> Pipeline for GraphPipeline<E> {
     type Error = E;
 
-    fn execute(&mut self, state: &mut State, scene: &Scene) -> Result<(), Self::Error> {
+    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
         for (_, executor) in self.graph.iter_mut().unwrap() {
             state.reset_gl();
 

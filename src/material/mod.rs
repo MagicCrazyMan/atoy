@@ -63,13 +63,13 @@ pub trait Material: ProgramSource {
     fn transparency(&self) -> Transparency;
 
     /// Returns an attribute value by an attribute variable name.
-    fn attribute_value(&self, name: &str, entity: NonNull<Entity>) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str, entity: &Entity) -> Option<AttributeValue>;
 
     /// Returns an uniform value by an uniform variable name.
-    fn uniform_value(&self, name: &str, entity: NonNull<Entity>) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
 
     /// Returns an uniform block buffer binding value by an uniform block interface name.
-    fn uniform_block_value(&self, name: &str, entity: NonNull<Entity>)
+    fn uniform_block_value(&self, name: &str, entity: &Entity)
         -> Option<UniformBlockValue>;
 
     /// Returns `true` if material is ready for drawing.
@@ -83,7 +83,7 @@ pub trait Material: ProgramSource {
     /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
     /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
     /// do not borrow material from entity.
-    fn prepare(&mut self, state: &mut State, entity: NonNull<Entity>);
+    fn prepare(&mut self, state: &mut State, entity: &Entity);
 
     fn as_any(&self) -> &dyn Any;
 

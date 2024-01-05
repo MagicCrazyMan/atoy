@@ -1,6 +1,6 @@
 use log::warn;
 
-use crate::{geometry::Geometry, material::Material, render::pp::State};
+use crate::{entity::Entity, geometry::Geometry, material::Material, render::pp::State};
 
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
@@ -91,7 +91,7 @@ pub struct BoundAttribute {
 /// to prevent buffer store drops the binding buffer unexpectedly.
 pub fn bind_attributes(
     state: &mut State,
-    entity: NonNull<Entity>,
+    entity: &Entity,
     geometry: &dyn Geometry,
     material: &dyn Material,
     program_item: &ProgramItem,
@@ -102,7 +102,7 @@ pub fn bind_attributes(
             AttributeBinding::GeometryPosition => (*geometry).vertices(),
             AttributeBinding::GeometryTextureCoordinate => (*geometry).texture_coordinates(),
             AttributeBinding::GeometryNormal => (*geometry).normals(),
-            AttributeBinding::FromGeometry(name) => (*geometry).attribute_value(name, entity),
+            AttributeBinding::FromGeometry(name) => (*geometry).attribute_value(name),
             AttributeBinding::FromMaterial(name) => (*material).attribute_value(name, entity),
             AttributeBinding::FromEntity(name) => entity.attribute_values().get(*name).cloned(),
         };

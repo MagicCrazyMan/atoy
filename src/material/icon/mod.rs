@@ -69,18 +69,18 @@ impl Material for IconMaterial {
         self.transparency
     }
 
-    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             "u_Sampler" => self.loader.texture(),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
     }
 
@@ -92,7 +92,7 @@ impl Material for IconMaterial {
         None
     }
 
-    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
+    fn prepare(&mut self, _: &mut State, _: &Entity) {
         self.loader.load();
     }
 

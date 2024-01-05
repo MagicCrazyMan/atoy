@@ -12,7 +12,7 @@ use crate::{
             BufferUsage,
         },
         draw::{Draw, DrawElementType, DrawMode},
-        uniform::{UniformValue, UniformBlockValue},
+        uniform::{UniformBlockValue, UniformValue},
     },
     utils::{slice_to_float32_array, slice_to_uint8_array},
 };
@@ -144,19 +144,15 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
         None
     }
 
-    fn uniform_block_value(
-        &self,
-        name: &str,
-        entity: NonNull<Entity>,
-    ) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {
         None
     }
 

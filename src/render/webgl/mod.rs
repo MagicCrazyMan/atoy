@@ -1,7 +1,6 @@
-use gl_matrix4rust::{
-    mat4::AsMat4,
-    vec3::{AsVec3, Vec3},
-};
+use std::ptr::NonNull;
+
+use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     js_sys::{ArrayBuffer, Float32Array},
@@ -9,7 +8,7 @@ use web_sys::{
 };
 
 use crate::{
-    camera::Camera, document,
+    camera::Camera, document, event::EventAgency,
     render::webgl::uniform::UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH, scene::Scene,
 };
 
@@ -52,7 +51,7 @@ pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod offscreen;
-// pub mod pipeline;
+pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
 pub mod shader;
@@ -114,7 +113,7 @@ pub enum WebGL2ContextPowerPerformance {
 
 pub struct WebGL2Render {
     // required for storing callback closure function
-    resize_observer: (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>),
+    resize_observer: Option<(ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>)>,
     gl: WebGl2RenderingContext,
     canvas: HtmlCanvasElement,
     gamma: f64,
@@ -123,6 +122,7 @@ pub struct WebGL2Render {
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
+    event: EventAgency<Event>,
 }
 
 impl WebGL2Render {
@@ -140,8 +140,6 @@ impl WebGL2Render {
             .style()
             .set_css_text("width: 100%; height: 100%; outline: none;");
 
-        let resize_observer = Self::observer_canvas_size(&canvas);
-
         let options = options.unwrap_or(WebGL2ContextOptions::default());
         let gl = canvas
             .get_context_with_context_options(
@@ -154,7 +152,7 @@ impl WebGL2Render {
             .ok_or(Error::WebGL2Unsupported)?;
 
         let mut render = Self {
-            resize_observer,
+            resize_observer: None,
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
                 BufferUsage::DynamicDraw,
@@ -172,14 +170,16 @@ impl WebGL2Render {
             texture_store: TextureStore::new(gl.clone()),
             gl,
             canvas,
+            event: EventAgency::new(),
         };
+
+        render.observer_canvas_size();
 
         Ok(render)
     }
 
-    fn observer_canvas_size(
-        canvas: &HtmlCanvasElement,
-    ) -> (ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>) {
+    fn observer_canvas_size(&mut self) {
+        let mut event = self.event.clone();
         // create observer observing size change event of canvas
         let resize_observer_callback = Closure::new(move |entries: Vec<ResizeObserverEntry>| {
             // should have only one entry
@@ -192,50 +192,68 @@ impl WebGL2Render {
 
             canvas.set_width(canvas.client_width() as u32);
             canvas.set_height(canvas.client_height() as u32);
+            event.raise(Event::ChangeCanvasSize(
+                canvas.client_width() as u32,
+                canvas.client_height() as u32,
+            ));
         });
 
         let resize_observer =
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref()).unwrap();
-        resize_observer.observe(canvas);
+        resize_observer.observe(&self.canvas);
 
-        (resize_observer, resize_observer_callback)
+        self.resize_observer = Some((resize_observer, resize_observer_callback))
+    }
+
+    /// Returns [`HtmlCanvasElement`].
+    pub fn canvas(&self) -> &HtmlCanvasElement {
+        &self.canvas
+    }
+
+    /// Returns event agency.
+    pub fn event(&mut self) -> &mut EventAgency<Event> {
+        &mut self.event
     }
 }
 
 impl WebGL2Render {
     /// Renders a frame with stuff and a pipeline.
-    pub fn render<P, E>(
+    pub fn render<C, P, E>(
         &mut self,
         pipeline: &mut P,
-        camera: &dyn Camera,
-        scene: &Scene,
+        camera: &mut C,
+        scene: &mut Scene,
         timestamp: f64,
     ) -> Result<(), E>
     where
+        C: Camera + 'static,
         P: Pipeline<Error = E>,
     {
-        self.update_universal_ubo(scene, timestamp);
+        self.update_universal_ubo(camera, scene, timestamp);
         self.update_lights_ubo(scene);
 
         let mut state = State::new(
             timestamp,
             camera,
-            &self.gl,
-            &self.canvas,
-            &self.universal_ubo,
-            &self.lights_ubo,
+            &mut self.gl,
+            &mut self.canvas,
+            &mut self.universal_ubo,
+            &mut self.lights_ubo,
             &mut self.program_store,
             &mut self.buffer_store,
             &mut self.texture_store,
         );
-        let state = &mut state;
 
-        pipeline.execute(state, scene)?;
+        self.event
+            .raise(unsafe { Event::PreRender(NonNull::new_unchecked(&mut state)) });
+        pipeline.execute(&mut state, scene)?;
+        self.event
+            .raise(unsafe { Event::PostRender(NonNull::new_unchecked(&mut state)) });
 
         Ok(())
     }
 
-    fn update_universal_ubo(&mut self, scene: &Scene, timestamp: f64) {
+    fn update_universal_ubo(&mut self, camera: &dyn Camera, scene: &mut Scene, timestamp: f64) {
         let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
 
         // u_RenderTime
@@ -276,7 +294,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
         )
-        .copy_from(&scene.camera().position().to_gl());
+        .copy_from(&camera.position().to_gl());
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -284,7 +302,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&scene.camera().view_matrix().to_gl());
+        .copy_from(&camera.view_matrix().to_gl());
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -292,7 +310,7 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&scene.camera().proj_matrix().to_gl());
+        .copy_from(&camera.proj_matrix().to_gl());
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -300,13 +318,13 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&scene.camera().view_proj_matrix().to_gl());
+        .copy_from(&camera.view_proj_matrix().to_gl());
 
         self.universal_ubo
             .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
     }
 
-    fn update_lights_ubo<S>(&mut self, scene: &Scene) {
+    fn update_lights_ubo(&mut self, scene: &mut Scene) {
         let data = ArrayBuffer::new(UBO_LIGHTS_BYTES_LENGTH);
 
         // u_Attenuations
@@ -315,12 +333,7 @@ impl WebGL2Render {
             UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
             UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH / 4,
         )
-        .copy_from(
-            scene
-                .light_attenuations()
-                .unwrap_or(Vec3::from_values(0.0, 0.0, 0.0))
-                .to_gl(),
-        );
+        .copy_from(&scene.light_attenuations().to_gl());
 
         // u_AmbientLight
         if let Some(light) = scene.ambient_light() {
@@ -385,6 +398,15 @@ impl WebGL2Render {
 impl Drop for WebGL2Render {
     fn drop(&mut self) {
         // cleanups observers
-        self.resize_observer.0.disconnect();
+        if let Some((observer, _)) = &self.resize_observer {
+            observer.disconnect();
+        }
     }
+}
+
+#[derive(Clone)]
+pub enum Event {
+    ChangeCanvasSize(u32, u32),
+    PreRender(NonNull<State>),
+    PostRender(NonNull<State>),
 }

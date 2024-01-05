@@ -1,458 +1,469 @@
-// use std::collections::HashMap;
-// use std::f64::consts::PI;
-// use std::ops::Mul;
-// use std::{cell::RefCell, rc::Rc};
+use std::collections::HashMap;
+use std::f64::consts::PI;
+use std::ops::Mul;
+use std::{cell::RefCell, rc::Rc};
 
-// use gl_matrix4rust::mat4::{AsMat4, Mat4};
-// use gl_matrix4rust::quat::Quat;
-// use gl_matrix4rust::vec2::{AsVec2, Vec2};
-// use gl_matrix4rust::vec3::{AsVec3, Vec3};
-// use gl_matrix4rust::vec4::{AsVec4, Vec4};
-// use palette::angle::FromAngle;
-// use palette::rgb::{Rgb, Rgba};
-// use wasm_bindgen::prelude::wasm_bindgen;
-// use wasm_bindgen::{closure::Closure, JsCast};
-// use wasm_bindgen_test::console_log;
-// use web_sys::js_sys::{Date, Uint8Array};
-// use web_sys::MouseEvent;
+use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::quat::Quat;
+use gl_matrix4rust::vec2::{AsVec2, Vec2};
+use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec4::{AsVec4, Vec4};
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen_test::console_log;
+use web_sys::js_sys::{Date, Uint8Array};
+use web_sys::MouseEvent;
 
-// use crate::camera::perspective::PerspectiveCamera;
-// use crate::camera::universal::UniversalCamera;
-// use crate::camera::Camera;
-// use crate::entity::{Entity, Weak};
-// use crate::error::Error;
-// use crate::geometry::indexed_cube::IndexedCube;
-// use crate::geometry::multicube::MultiCube;
-// use crate::geometry::raw::RawGeometry;
-// use crate::geometry::rectangle::{Placement, Rectangle};
-// use crate::geometry::sphere::Sphere;
-// use crate::light::ambient_light::AmbientLight;
-// use crate::light::area_light::AreaLight;
-// use crate::light::directional_light::DirectionalLight;
-// use crate::light::point_light::PointLight;
-// use crate::light::spot_light::SpotLight;
-// use crate::material::environment_mapping::EnvironmentMaterial;
-// use crate::material::icon::IconMaterial;
-// use crate::material::loader::TextureLoader;
-// use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
-// use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
-// use crate::material::texture_mapping::TextureMaterial;
-// use crate::material::{self, Transparency};
-// use crate::render::pp::ResourceKey;
-// use crate::render::webgl::attribute::AttributeValue;
-// use crate::render::webgl::buffer::{
-//     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
-// };
-// use crate::render::webgl::draw::{Draw, DrawMode};
-// use crate::render::webgl::pipeline::create_standard_pipeline;
-// use crate::render::webgl::pipeline::picking::PickingPipeline;
-// use crate::render::webgl::texture::{
-//     TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
-//     TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-//     TextureWrapMethod,
-// };
-// use crate::render::webgl::uniform::UniformValue;
-// use crate::scene::SceneStuff;
-// use crate::utils::slice_to_float32_array;
-// use crate::{document, entity};
-// use crate::{
-//     geometry::cube::Cube,
-//     material::solid_color::SolidColorMaterial,
-//     render::webgl::{draw::CullFace, WebGL2Render},
-//     scene::Scene,
-//     window,
-// };
+use crate::camera::perspective::PerspectiveCamera;
+use crate::camera::universal::UniversalCamera;
+use crate::camera::Camera;
+use crate::entity::{Entity, EntityRaw};
+use crate::error::Error;
+use crate::geometry::indexed_cube::IndexedCube;
+use crate::geometry::raw::RawGeometry;
+use crate::geometry::rectangle::{Placement, Rectangle};
+use crate::geometry::sphere::Sphere;
+use crate::light::ambient_light::AmbientLight;
+use crate::light::area_light::AreaLight;
+use crate::light::directional_light::DirectionalLight;
+use crate::light::point_light::PointLight;
+use crate::light::spot_light::SpotLight;
+use crate::material::environment_mapping::EnvironmentMaterial;
+use crate::material::icon::IconMaterial;
+use crate::material::loader::TextureLoader;
+use crate::material::multiple_textures_instanced::MultipleTexturesInstanced;
+use crate::material::solid_color_instanced::SolidColorInstancedMaterial;
+use crate::material::texture_mapping::TextureMaterial;
+use crate::material::{self, Transparency};
+use crate::render::pp::ResourceKey;
+use crate::render::webgl::attribute::AttributeValue;
+use crate::render::webgl::buffer::{
+    BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
+};
+use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::pipeline::create_standard_pipeline;
+use crate::render::webgl::texture::{
+    TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+    TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
+    TextureWrapMethod,
+};
+use crate::render::webgl::uniform::UniformValue;
+use crate::utils::slice_to_float32_array;
+use crate::{document, entity};
+use crate::{
+    geometry::cube::Cube,
+    material::solid_color::SolidColorMaterial,
+    render::webgl::{draw::CullFace, WebGL2Render},
+    scene::Scene,
+    window,
+};
 
-// #[wasm_bindgen]
-// pub fn test_gl_matrix_4_rust() {
-//     struct Random {
-//         seed: f64,
-//     }
+#[wasm_bindgen]
+pub fn test_gl_matrix_4_rust() {
+    struct Random {
+        seed: f64,
+    }
 
-//     impl Random {
-//         fn new(seed: f64) -> Self {
-//             Self { seed }
-//         }
+    impl Random {
+        fn new(seed: f64) -> Self {
+            Self { seed }
+        }
 
-//         fn get(&mut self) -> f64 {
-//             let x = self.seed.sin() * 10000.0;
-//             self.seed += 1.0;
-//             return x - x.floor();
-//         }
-//     }
+        fn get(&mut self) -> f64 {
+            let x = self.seed.sin() * 10000.0;
+            self.seed += 1.0;
+            return x - x.floor();
+        }
+    }
 
-//     let performance = window()
-//         .performance()
-//         .expect("performance should be available");
+    let performance = window()
+        .performance()
+        .expect("performance should be available");
 
-//     console_log!("start benchmark");
+    console_log!("start benchmark");
 
-//     let start = performance.now();
+    let start = performance.now();
 
-//     let iteration = 10000000u32;
-//     let mut random_a = Random::new(1928473.0);
-//     let mut random_b = Random::new(1928473.0);
+    let iteration = 10000000u32;
+    let mut random_a = Random::new(1928473.0);
+    let mut random_b = Random::new(1928473.0);
 
-//     let mut values_a = [0.0; 4 * 4];
-//     let mut values_b = [0.0; 4 * 4];
-//     for i in 0..(4 * 4) {
-//         values_a[i] = random_a.get();
-//         values_b[i] = random_b.get();
-//     }
+    let mut values_a = [0.0; 4 * 4];
+    let mut values_b = [0.0; 4 * 4];
+    for i in 0..(4 * 4) {
+        values_a[i] = random_a.get();
+        values_b[i] = random_b.get();
+    }
 
-//     let mat_a = Mat4::from_slice(values_a);
-//     let mat_b = Mat4::from_slice(values_b);
-//     for _ in 0..iteration {
-//         let _ = mat_a * mat_b;
-//     }
+    let mat_a = Mat4::from_slice(values_a);
+    let mat_b = Mat4::from_slice(values_b);
+    for _ in 0..iteration {
+        let _ = mat_a * mat_b;
+    }
 
-//     let end = performance.now();
-//     console_log!(
-//         "gl-matrix4rust iterate {} times cost {}ms",
-//         iteration,
-//         end - start
-//     );
-// }
+    let end = performance.now();
+    console_log!(
+        "gl-matrix4rust iterate {} times cost {}ms",
+        iteration,
+        end - start
+    );
+}
 
-// // // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
-
-// // // #[wasm_bindgen]
-// // // pub fn test_memory_prepare(length: usize) {
-// // //     PREALLOCATED.set(vec![1; length]).unwrap();
-// // // }
-
-// // // #[wasm_bindgen]
-// // // pub fn test_memory_copy(mut buffer: Box<[u8]>) {
-// // //     buffer
-// // //         .as_mut()
-// // //         .write_all(PREALLOCATED.get().unwrap())
-// // //         .unwrap();
-// // // }
-
-// // // #[wasm_bindgen]
-// // // pub fn test_send_buffer() -> Box<[u8]> {
-// // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
-// // // }
-
-// fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
-//     window()
-//         .request_animation_frame(f.as_ref().unchecked_ref())
-//         .expect("should register `requestAnimationFrame` OK");
-// }
-
-// fn create_scene(
-//     camera_position: impl AsVec3<f64>,
-//     camera_center: impl AsVec3<f64>,
-//     camera_up: impl AsVec3<f64>,
-// ) -> Scene {
-//     let mut scene = Scene::new();
-//     scene.set_active_camera(UniversalCamera::new(
-//         camera_position,
-//         camera_center,
-//         camera_up,
-//         75.0f64.to_radians(),
-//         1.0,
-//         0.1,
-//         Some(1000.0),
-//     ));
-//     scene.set_light_attenuation(Vec3::from_values(1.0, 1.0, 1.0));
-//     scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
-//     // scene.add_directional_light(DirectionalLight::new(
-//     //     Vec3::from_values(0.0, -1.0, -1.0),
-//     //     Vec3::from_values(0.01, 0.01, 0.01),
-//     //     Vec3::from_values(0.19, 0.19, 0.19),
-//     //     Vec3::from_values(0.8, 0.8, 0.8),
-//     //     128.0,
-//     // ));
-//     scene.add_spot_light(SpotLight::new(
-//         Vec3::from_values(0.0, 1.0, 0.0),
-//         Vec3::from_values(1.0, -1.0, -1.0),
-//         Vec3::from_values(0.01, 0.01, 0.01),
-//         Vec3::from_values(0.39, 0.39, 0.39),
-//         Vec3::from_values(1.6, 1.6, 1.6),
-//         128.0,
-//         30f64.to_radians(),
-//         40f64.to_radians(),
-//     ));
-//     scene.add_spot_light(SpotLight::new(
-//         Vec3::from_values(0.0, 1.0, 0.0),
-//         Vec3::from_values(0.0, -1.0, 0.0),
-//         Vec3::from_values(0.01, 0.01, 0.01),
-//         Vec3::from_values(0.39, 0.39, 0.39),
-//         Vec3::from_values(1.6, 1.6, 1.6),
-//         128.0,
-//         30f64.to_radians(),
-//         60f64.to_radians(),
-//     ));
-//     scene.add_area_light(AreaLight::new(
-//         Vec3::from_values(-3.0, 2.0, 0.0),
-//         Vec3::from_values(-1.0, -1.0, 1.0),
-//         Vec3::from_values(1.0, 0.0, -1.0),
-//         0.5,
-//         4.0,
-//         1.5,
-//         4.5,
-//         2.0,
-//         Vec3::from_values(0.01, 0.01, 0.01),
-//         Vec3::from_values(1.39, 1.39, 1.39),
-//         Vec3::from_values(1.6, 1.6, 1.6),
-//         128.0,
-//     ));
-//     scene.add_point_light(PointLight::new(
-//         Vec3::from_values(0.0, 1.5, 0.0),
-//         Vec3::from_values(0.01, 0.01, 0.01),
-//         Vec3::from_values(0.39, 0.39, 0.39),
-//         Vec3::from_values(1.6, 1.6, 1.6),
-//         128.0,
-//     ));
-//     scene.add_point_light(PointLight::new(
-//         Vec3::from_values(8.0, 0.5, 0.0),
-//         Vec3::from_values(0.01, 0.01, 0.01),
-//         Vec3::from_values(0.69, 0.69, 0.69),
-//         Vec3::from_values(1.3, 1.3, 1.3),
-//         64.0,
-//     ));
-//     scene
-// }
-
-// fn create_render() -> Result<WebGL2Render, Error> {
-//     let render = WebGL2Render::with_mount("scene_container")?;
-
-//     Ok(render)
-// }
+// // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
 
 // // #[wasm_bindgen]
-// // pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
-// //     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-// //     let render = create_render(&scene)?;
-// //     let count = TextureUnit::max_combined_texture_image_units(render.gl());
-// //     console_log!("max combined texture image units: {}", count);
-
-// //     Ok(())
+// // pub fn test_memory_prepare(length: usize) {
+// //     PREALLOCATED.set(vec![1; length]).unwrap();
 // // }
 
+// // #[wasm_bindgen]
+// // pub fn test_memory_copy(mut buffer: Box<[u8]>) {
+// //     buffer
+// //         .as_mut()
+// //         .write_all(PREALLOCATED.get().unwrap())
+// //         .unwrap();
+// // }
+
+// // #[wasm_bindgen]
+// // pub fn test_send_buffer() -> Box<[u8]> {
+// //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
+// // }
+
+fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
+    window()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK");
+}
+
+fn create_camera(
+    camera_position: impl AsVec3<f64>,
+    camera_center: impl AsVec3<f64>,
+    camera_up: impl AsVec3<f64>,
+) -> UniversalCamera {
+    UniversalCamera::new(
+        camera_position,
+        camera_center,
+        camera_up,
+        75.0f64.to_radians(),
+        1.0,
+        0.1,
+        Some(1000.0),
+    )
+}
+
+fn create_scene() -> Scene {
+    let mut scene = Scene::new();
+    scene.set_light_attenuations(Vec3::from_values(1.0, 1.0, 1.0));
+    scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
+    // scene.add_directional_light(DirectionalLight::new(
+    //     Vec3::from_values(0.0, -1.0, -1.0),
+    //     Vec3::from_values(0.01, 0.01, 0.01),
+    //     Vec3::from_values(0.19, 0.19, 0.19),
+    //     Vec3::from_values(0.8, 0.8, 0.8),
+    //     128.0,
+    // ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::from_values(0.0, 1.0, 0.0),
+        Vec3::from_values(1.0, -1.0, -1.0),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
+        Vec3::from_values(1.6, 1.6, 1.6),
+        128.0,
+        30f64.to_radians(),
+        40f64.to_radians(),
+    ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::from_values(0.0, 1.0, 0.0),
+        Vec3::from_values(0.0, -1.0, 0.0),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
+        Vec3::from_values(1.6, 1.6, 1.6),
+        128.0,
+        30f64.to_radians(),
+        60f64.to_radians(),
+    ));
+    scene.add_area_light(AreaLight::new(
+        Vec3::from_values(-3.0, 2.0, 0.0),
+        Vec3::from_values(-1.0, -1.0, 1.0),
+        Vec3::from_values(1.0, 0.0, -1.0),
+        0.5,
+        4.0,
+        1.5,
+        4.5,
+        2.0,
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(1.39, 1.39, 1.39),
+        Vec3::from_values(1.6, 1.6, 1.6),
+        128.0,
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::from_values(0.0, 1.5, 0.0),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.39, 0.39, 0.39),
+        Vec3::from_values(1.6, 1.6, 1.6),
+        128.0,
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::from_values(8.0, 0.5, 0.0),
+        Vec3::from_values(0.01, 0.01, 0.01),
+        Vec3::from_values(0.69, 0.69, 0.69),
+        Vec3::from_values(1.3, 1.3, 1.3),
+        64.0,
+    ));
+    scene
+}
+
+fn create_render(camera: &UniversalCamera) -> Result<WebGL2Render, Error> {
+    let mut render = WebGL2Render::new(None)?;
+    document()
+        .get_element_by_id("scene_container")
+        .unwrap()
+        .append_child(render.canvas())
+        .unwrap();
+    let mut camera = camera.clone();
+    render.event().on(move |e| match e {
+        crate::render::webgl::Event::ChangeCanvasSize(width, height) => {
+            let aspect = *width as f64 / *height as f64;
+            if camera.aspect() != aspect {
+                camera.set_aspect(aspect);
+            }
+        }
+        crate::render::webgl::Event::PreRender(state) => {
+            camera.update_frame(unsafe { state.as_ref() })
+        }
+        _ => {}
+    });
+    Ok(render)
+}
+
 // #[wasm_bindgen]
-// pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
-//     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
-//     let render = create_render()?;
-//     let render = Rc::new(RefCell::new(render));
-//     let last_frame_time = Rc::new(RefCell::new(0.0));
-//     let mut picking_pipeline = PickingPipeline::new();
-//     let clear_color_key = ResourceKey::new_persist_str("clear_color");
-//     let mut standard_pipeline = create_standard_pipeline(
-//         ResourceKey::new_persist_str("position"),
-//         clear_color_key.clone(),
-//     );
-//     standard_pipeline
-//         .resources_mut()
-//         .insert(clear_color_key, (0.0, 0.0, 0.0, 1.0));
-//     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
-
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
-
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
-
-//         let entity = Entity::new();
-
-//         entity.borrow_mut().set_geometry(Some(Cube::new()));
-//         // entity.set_geometry(Some(IndexedCube::new()));
-//         entity
-//             .borrow_mut()
-//             .set_material(Some(SolidColorMaterial::with_color(
-//                 Vec3::from_values(rand::random(), rand::random(), rand::random()),
-//                 Transparency::Opaque,
-//             )));
-//         entity.borrow_mut().set_local_matrix(model_matrix);
-//         scene.entity_collection_mut().add_entity(entity);
-//     }
-
-//     // let entity = Entity::new();
-//     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
-//     //     Vec2::from_values(0.0, 0.0),
-//     //     Placement::Center,
-//     //     4.0,
-//     //     4.0,
-//     // )));
-//     // entity.borrow_mut().set_material(Some(IconMaterial::new(
-//     //     TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
-//     //         descriptor: TextureDescriptor::texture_2d_with_html_image_element(
-//     //             image,
-//     //             TextureDataType::UnsignedByte,
-//     //             TextureFormat::RGB,
-//     //             TextureFormat::RGB,
-//     //             0,
-//     //             vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-//     //             true,
-//     //         ),
-//     //         params: vec![
-//     //             TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
-//     //             TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
-//     //             TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
-//     //             TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
-//     //         ],
-//     //         texture_unit: TextureUnit::TEXTURE0,
-//     //     }),
-//     //     Transparency::Opaque,
-//     // )));
-//     // scene.entity_collection_mut().add_entity(entity);
-
-//     let entity = Entity::new();
-//     entity.borrow_mut().set_geometry(Some(Rectangle::new(
-//         Vec2::from_values(0.0, 0.0),
-//         Placement::Center,
-//         0.25,
-//         0.25,
-//         1.0,
-//         1.0,
-//     )));
-//     entity.borrow_mut().set_material(Some(TextureMaterial::new(
-//         "./skybox/skybox_py.jpg",
-//         Transparency::Opaque,
-//     )));
-//     scene.entity_collection_mut().add_entity(entity);
-
-//     let floor_entity = Entity::new();
-//     floor_entity.borrow_mut().set_geometry(Some(Rectangle::new(
-//         Vec2::from_values(0.0, 0.0),
-//         Placement::Center,
-//         1000.0,
-//         1000.0,
-//         200.0,
-//         200.0,
-//     )));
-//     floor_entity
-//         .borrow_mut()
-//         .set_material(Some(TextureMaterial::new(
-//             "./wood.png",
-//             Transparency::Opaque,
-//         )));
-//     floor_entity
-//         .borrow_mut()
-//         .set_local_matrix(Mat4::from_rotation_translation(
-//             &Quat::from_axis_angle(&Vec3::from_values(-1.0, 0.0, 0.0), PI / 2.0),
-//             &Vec3::from_values(0.0, -0.6, 0.0),
-//         ));
-//     scene.entity_collection_mut().add_entity(floor_entity);
-
-//     let scene = Rc::new(RefCell::new(scene));
-
-//     let render_cloned = Rc::clone(&render);
-//     let scene_cloned = Rc::clone(&scene);
-//     let last_frame_time_cloned = Rc::clone(&last_frame_time);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         let x = event.page_x();
-//         let y = event.page_y();
-
-//         let start = window().performance().unwrap().now();
-//         picking_pipeline.set_window_position((x, y));
-
-//         let mut scene = scene_cloned.borrow_mut();
-//         render_cloned
-//             .borrow_mut()
-//             .render(
-//                 &mut picking_pipeline,
-//                 &mut scene.stuff(),
-//                 *last_frame_time_cloned.borrow(),
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("pick")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
-
-//         // get entity
-//         if let Some(entity) = picking_pipeline.take_picked_entity() {
-//             console_log!("pick entity {}", entity.borrow().id());
-
-//             entity
-//                 .borrow_mut()
-//                 .material_mut()
-//                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-//                 .map(|material| {
-//                     material.set_color(
-//                         Vec3::from_values(rand::random(), rand::random(), rand::random()),
-//                         rand::random(),
-//                     )
-//                 });
-//         }
-//         // get position
-//         if let Some(position) = picking_pipeline.take_picked_position() {
-//             console_log!("pick position {}", position);
-//         }
-//     });
-//     window()
-//         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
-
-//     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         standard_pipeline_cloned
-//             .borrow_mut()
-//             .resources_mut()
-//             .insert(
-//                 ResourceKey::new_persist_str("position"),
-//                 (event.page_x(), event.page_y()),
-//             );
-//     });
-//     window()
-//         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
-
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     let scene_cloned = Rc::clone(&scene);
-//     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-//         let seconds = frame_time / 1000.0;
-
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
-
-//         // scene
-//         //     .borrow_mut()
-//         //     .active_camera_mut()
-//         //     .as_any_mut()
-//         //     .downcast_mut::<PerspectiveCamera>()
-//         //     .unwrap()
-//         //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
-//         // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
-
-//         let start = window().performance().unwrap().now();
-//         let mut scene = scene_cloned.borrow_mut();
-//         render
-//             .borrow_mut()
-//             .render(
-//                 &mut *standard_pipeline.borrow_mut(),
-//                 &mut scene.stuff(),
-//                 frame_time,
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("total")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
-
-//         drop(scene);
-
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
-
-//     request_animation_frame(g.borrow().as_ref().unwrap());
+// pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
+//     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+//     let render = create_render(&scene)?;
+//     let count = TextureUnit::max_combined_texture_image_units(render.gl());
+//     console_log!("max combined texture image units: {}", count);
 
 //     Ok(())
 // }
+
+#[wasm_bindgen]
+pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+    let mut camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+    let mut scene = create_scene();
+    // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
+    let render = create_render(&camera)?;
+    let render = Rc::new(RefCell::new(render));
+    let last_frame_time = Rc::new(RefCell::new(0.0));
+    // let mut picking_pipeline = PickingPipeline::new();
+    let clear_color_key = ResourceKey::new_persist_str("clear_color");
+    let mut standard_pipeline = create_standard_pipeline(
+        ResourceKey::new_persist_str("position"),
+        clear_color_key.clone(),
+    );
+    standard_pipeline
+        .resources_mut()
+        .insert(clear_color_key, (0.0, 0.0, 0.0, 1.0));
+    let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
+
+    let cell_width = width / (grid as f64);
+    let cell_height = height / (grid as f64);
+    let start_x = width / 2.0 - cell_width / 2.0;
+    let start_z = height / 2.0 - cell_height / 2.0;
+    for index in 0..count {
+        let row = index / grid;
+        let col = index % grid;
+
+        let center_x = start_x - col as f64 * cell_width;
+        let center_z = start_z - row as f64 * cell_height;
+        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+
+        let mut entity = EntityRaw::new();
+
+        entity.set_geometry(Some(Cube::new()));
+        // entity.set_geometry(Some(IndexedCube::new()));
+        entity.set_material(Some(SolidColorMaterial::with_color(
+            Vec3::from_values(rand::random(), rand::random(), rand::random()),
+            Transparency::Opaque,
+        )));
+        entity.set_model_matrix(model_matrix);
+        scene.entity_collection_mut().add_entity(entity);
+    }
+
+    // let entity = Entity::new();
+    // entity.borrow_mut().set_geometry(Some(Rectangle::new(
+    //     Vec2::from_values(0.0, 0.0),
+    //     Placement::Center,
+    //     4.0,
+    //     4.0,
+    // )));
+    // entity.borrow_mut().set_material(Some(IconMaterial::new(
+    //     TextureLoader::from_url("./skybox/skybox_py.jpg", |image| UniformValue::Texture {
+    //         descriptor: TextureDescriptor::texture_2d_with_html_image_element(
+    //             image,
+    //             TextureDataType::UnsignedByte,
+    //             TextureFormat::RGB,
+    //             TextureFormat::RGB,
+    //             0,
+    //             vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+    //             true,
+    //         ),
+    //         params: vec![
+    //             TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
+    //             TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
+    //             TextureParameter::WrapS(TextureWrapMethod::ClampToEdge),
+    //             TextureParameter::WrapT(TextureWrapMethod::ClampToEdge),
+    //         ],
+    //         texture_unit: TextureUnit::TEXTURE0,
+    //     }),
+    //     Transparency::Opaque,
+    // )));
+    // scene.entity_collection_mut().add_entity(entity);
+
+    let mut entity = EntityRaw::new();
+    entity.set_geometry(Some(Rectangle::new(
+        Vec2::from_values(0.0, 0.0),
+        Placement::Center,
+        0.25,
+        0.25,
+        1.0,
+        1.0,
+    )));
+    entity.set_material(Some(TextureMaterial::new(
+        "./skybox/skybox_py.jpg",
+        Transparency::Opaque,
+    )));
+    scene.entity_collection_mut().add_entity(entity);
+
+    let mut floor_entity = EntityRaw::new();
+    floor_entity.set_geometry(Some(Rectangle::new(
+        Vec2::from_values(0.0, 0.0),
+        Placement::Center,
+        1000.0,
+        1000.0,
+        200.0,
+        200.0,
+    )));
+    floor_entity.set_material(Some(TextureMaterial::new(
+        "./wood.png",
+        Transparency::Opaque,
+    )));
+    floor_entity.set_model_matrix(Mat4::from_rotation_translation(
+        &Quat::from_axis_angle(&Vec3::from_values(-1.0, 0.0, 0.0), PI / 2.0),
+        &Vec3::from_values(0.0, -0.6, 0.0),
+    ));
+    scene.entity_collection_mut().add_entity(floor_entity);
+
+    let scene = Rc::new(RefCell::new(scene));
+
+    let render_cloned = Rc::clone(&render);
+    let scene_cloned = Rc::clone(&scene);
+    let last_frame_time_cloned = Rc::clone(&last_frame_time);
+    // let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+    //     let x = event.page_x();
+    //     let y = event.page_y();
+
+    //     let start = window().performance().unwrap().now();
+    //     picking_pipeline.set_window_position((x, y));
+
+    //     let mut scene = scene_cloned.borrow_mut();
+    //     render_cloned
+    //         .borrow_mut()
+    //         .render(
+    //             &mut picking_pipeline,
+    //             &mut scene.stuff(),
+    //             *last_frame_time_cloned.borrow(),
+    //         )
+    //         .unwrap();
+    //     let end = window().performance().unwrap().now();
+    //     document()
+    //         .get_element_by_id("pick")
+    //         .unwrap()
+    //         .set_inner_html(&format!("{:.2}", end - start));
+
+    //     // get entity
+    //     if let Some(entity) = picking_pipeline.take_picked_entity() {
+    //         console_log!("pick entity {}", entity.borrow().id());
+
+    //         entity
+    //             .borrow_mut()
+    //             .material_mut()
+    //             .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+    //             .map(|material| {
+    //                 material.set_color(
+    //                     Vec3::from_values(rand::random(), rand::random(), rand::random()),
+    //                     rand::random(),
+    //                 )
+    //             });
+    //     }
+    //     // get position
+    //     if let Some(position) = picking_pipeline.take_picked_position() {
+    //         console_log!("pick position {}", position);
+    //     }
+    // });
+    // window()
+    //     .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+    //     .unwrap();
+    // click.forget();
+
+    let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+        standard_pipeline_cloned
+            .borrow_mut()
+            .resources_mut()
+            .insert(
+                ResourceKey::new_persist_str("position"),
+                (event.page_x(), event.page_y()),
+            );
+    });
+    window()
+        .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+        .unwrap();
+    click.forget();
+
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    let scene_cloned = Rc::clone(&scene);
+    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+        let seconds = frame_time / 1000.0;
+
+        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
+        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+
+        // scene
+        //     .borrow_mut()
+        //     .active_camera_mut()
+        //     .as_any_mut()
+        //     .downcast_mut::<PerspectiveCamera>()
+        //     .unwrap()
+        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
+        // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
+
+        let start = window().performance().unwrap().now();
+        let mut scene = scene_cloned.borrow_mut();
+        render
+            .borrow_mut()
+            .render(
+                &mut *standard_pipeline.borrow_mut(),
+                &mut camera,
+                &mut scene,
+                frame_time,
+            )
+            .unwrap();
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
+
+        drop(scene);
+
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+
+    Ok(())
+}
 
 // #[wasm_bindgen]
 // pub fn test_instanced_cube(

@@ -139,11 +139,11 @@ impl Material for EnvironmentMaterial {
         None
     }
 
-    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             SAMPLER_UNIFORM => match &self.texture {
                 Some(texture) => Some(UniformValue::Texture {
@@ -160,7 +160,7 @@ impl Material for EnvironmentMaterial {
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
     }
 
@@ -172,7 +172,7 @@ impl Material for EnvironmentMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &mut State, _: NonNull<Entity>) {
+    fn prepare(&mut self, _: &mut State, _: &Entity) {
         if self.images.is_none() {
             let count_ptr: *mut usize = &mut self.count;
             let images_ptr: *const Option<Vec<HtmlImageElement>> = &self.images;
