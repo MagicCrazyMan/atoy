@@ -24,10 +24,9 @@ struct Listener<E> {
 /// Registers a listener to `EventTarget` using [`EventTarget::on()`],
 /// [`EventTarget::once()`] or [`EventTarget::on_count()`] methods and removes a listener using [`EventTarget::off()`].
 /// Invokes [`EventTarget::raise()`] for raising an event.
-#[derive(Clone)]
-pub struct EventAgency<E: Clone>(Rc<RefCell<Vec<Listener<E>>>>);
+pub struct EventAgency<E>(Rc<RefCell<Vec<Listener<E>>>>);
 
-impl<E: Clone> EventAgency<E> {
+impl<E> EventAgency<E> {
     /// Constructs a new event target agency.
     pub fn new() -> Self {
         Self(Rc::new(RefCell::new(Vec::new())))
@@ -106,5 +105,11 @@ impl<E: Clone> EventAgency<E> {
                 i += 1;
             }
         }
+    }
+}
+
+impl<E: Clone> Clone for EventAgency<E> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
