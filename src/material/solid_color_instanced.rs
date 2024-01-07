@@ -1,4 +1,4 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use gl_matrix4rust::mat4::Mat4;
 use web_sys::js_sys::Float32Array;
@@ -212,7 +212,7 @@ impl Material for SolidColorInstancedMaterial {
         None
     }
 
-    fn prepare(&mut self, state: &mut State, entity: &Entity) {}
+    fn prepare(&mut self, _: &mut State, _: &Entity) {}
 
     fn as_any(&self) -> &dyn Any {
         self

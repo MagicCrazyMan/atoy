@@ -1,4 +1,4 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;

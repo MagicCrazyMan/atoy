@@ -18,7 +18,7 @@ use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
 use crate::entity::collection::EntityCollection;
-use crate::entity::{Entity, EntityRaw};
+use crate::entity::Entity;
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -42,7 +42,6 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::pipeline::create_standard_pipeline;
 use crate::render::webgl::texture::{
     TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
     TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
@@ -50,6 +49,7 @@ use crate::render::webgl::texture::{
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::utils::slice_to_float32_array;
+use crate::viewer::Viewer;
 use crate::{document, entity};
 use crate::{
     geometry::cube::Cube,
@@ -130,12 +130,6 @@ pub fn test_gl_matrix_4_rust() {
 // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 // // }
 
-fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
-    window()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
-}
-
 fn create_camera(
     camera_position: impl AsVec3<f64>,
     camera_center: impl AsVec3<f64>,
@@ -214,29 +208,6 @@ fn create_scene() -> Scene {
     scene
 }
 
-fn create_render(camera: &UniversalCamera) -> Result<WebGL2Render, Error> {
-    let mut render = WebGL2Render::new(None)?;
-    document()
-        .get_element_by_id("scene_container")
-        .unwrap()
-        .append_child(render.canvas())
-        .unwrap();
-    let mut camera = camera.clone();
-    render.event().on(move |e| match e {
-        crate::render::webgl::Event::ChangeCanvasSize(width, height) => {
-            let aspect = *width as f64 / *height as f64;
-            if camera.aspect() != aspect {
-                camera.set_aspect(aspect);
-            }
-        }
-        crate::render::webgl::Event::PreRender(state) => {
-            camera.update_frame(unsafe { state.as_ref() })
-        }
-        _ => {}
-    });
-    Ok(render)
-}
-
 // #[wasm_bindgen]
 // pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
 //     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
@@ -249,28 +220,15 @@ fn create_render(camera: &UniversalCamera) -> Result<WebGL2Render, Error> {
 
 #[wasm_bindgen]
 pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-    let mut camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+    let camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let mut scene = create_scene();
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
-    let render = create_render(&camera)?;
-    let render = Rc::new(RefCell::new(render));
-    let last_frame_time = Rc::new(RefCell::new(0.0));
-    // let mut picking_pipeline = PickingPipeline::new();
-    let clear_color_key = ResourceKey::new_persist_str("clear_color");
-    let mut standard_pipeline = create_standard_pipeline(
-        ResourceKey::new_persist_str("position"),
-        clear_color_key.clone(),
-    );
-    standard_pipeline
-        .resources_mut()
-        .insert(clear_color_key, (0.0, 0.0, 0.0, 1.0));
-    let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
-    let mut cube_collection = EntityCollection::new();
+    let mut cubes = EntityCollection::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -279,18 +237,16 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
 
-        let mut entity = EntityRaw::new();
-
-        entity.set_geometry(Some(Cube::new()));
-        // entity.set_geometry(Some(IndexedCube::new()));
-        entity.set_material(Some(SolidColorMaterial::with_color(
+        let mut cube = Entity::new();
+        cube.set_geometry(Some(Cube::new()));
+        cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::from_values(rand::random(), rand::random(), rand::random()),
             Transparency::Opaque,
         )));
-        entity.set_model_matrix(model_matrix);
-        cube_collection.add_entity(entity);
+        cube.set_model_matrix(model_matrix);
+        cubes.add_entity(cube);
     }
-    scene.entity_collection_mut().add_collection(cube_collection);
+    scene.entity_collection_mut().add_collection(cubes);
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -322,8 +278,8 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     // )));
     // scene.entity_collection_mut().add_entity(entity);
 
-    let mut entity = EntityRaw::new();
-    entity.set_geometry(Some(Rectangle::new(
+    let mut image = Entity::new();
+    image.set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
         Placement::Center,
         0.25,
@@ -331,14 +287,14 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         1.0,
         1.0,
     )));
-    entity.set_material(Some(TextureMaterial::new(
+    image.set_material(Some(TextureMaterial::new(
         "./skybox/skybox_py.jpg",
         Transparency::Opaque,
     )));
-    scene.entity_collection_mut().add_entity(entity);
+    scene.entity_collection_mut().add_entity(image);
 
-    let mut floor_entity = EntityRaw::new();
-    floor_entity.set_geometry(Some(Rectangle::new(
+    let mut floor = Entity::new();
+    floor.set_geometry(Some(Rectangle::new(
         Vec2::from_values(0.0, 0.0),
         Placement::Center,
         1000.0,
@@ -346,302 +302,502 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
         200.0,
         200.0,
     )));
-    floor_entity.set_material(Some(TextureMaterial::new(
+    floor.set_material(Some(TextureMaterial::new(
         "./wood.png",
         Transparency::Opaque,
     )));
-    floor_entity.set_model_matrix(Mat4::from_rotation_translation(
+    floor.set_model_matrix(Mat4::from_rotation_translation(
         &Quat::from_axis_angle(&Vec3::from_values(-1.0, 0.0, 0.0), PI / 2.0),
         &Vec3::from_values(0.0, -0.6, 0.0),
     ));
-    scene.entity_collection_mut().add_entity(floor_entity);
+    scene.entity_collection_mut().add_entity(floor);
 
-    let scene = Rc::new(RefCell::new(scene));
+    let mut viewer = Viewer::new(scene, camera.clone())?;
+    viewer.add_controller(camera);
+    viewer.set_mount(document().get_element_by_id("scene_container"))?;
+    viewer.start_render_loop();
 
-    let render_cloned = Rc::clone(&render);
-    let scene_cloned = Rc::clone(&scene);
-    let last_frame_time_cloned = Rc::clone(&last_frame_time);
-    // let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-    //     let x = event.page_x();
-    //     let y = event.page_y();
-
-    //     let start = window().performance().unwrap().now();
-    //     picking_pipeline.set_window_position((x, y));
-
-    //     let mut scene = scene_cloned.borrow_mut();
-    //     render_cloned
-    //         .borrow_mut()
-    //         .render(
-    //             &mut picking_pipeline,
-    //             &mut scene.stuff(),
-    //             *last_frame_time_cloned.borrow(),
-    //         )
-    //         .unwrap();
-    //     let end = window().performance().unwrap().now();
-    //     document()
-    //         .get_element_by_id("pick")
-    //         .unwrap()
-    //         .set_inner_html(&format!("{:.2}", end - start));
-
-    //     // get entity
-    //     if let Some(entity) = picking_pipeline.take_picked_entity() {
-    //         console_log!("pick entity {}", entity.borrow().id());
-
-    //         entity
-    //             .borrow_mut()
-    //             .material_mut()
-    //             .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-    //             .map(|material| {
-    //                 material.set_color(
-    //                     Vec3::from_values(rand::random(), rand::random(), rand::random()),
-    //                     rand::random(),
-    //                 )
-    //             });
-    //     }
-    //     // get position
-    //     if let Some(position) = picking_pipeline.take_picked_position() {
-    //         console_log!("pick position {}", position);
-    //     }
-    // });
-    // window()
-    //     .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-    //     .unwrap();
-    // click.forget();
-
-    let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+    let mut viewer_cloned = viewer.clone();
     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-        standard_pipeline_cloned
-            .borrow_mut()
-            .resources_mut()
-            .insert(
-                ResourceKey::new_persist_str("position"),
-                (event.page_x(), event.page_y()),
-            );
+        let x = event.page_x();
+        let y = event.page_y();
+
+        let start = window().performance().unwrap().now();
+        if let Some(entity) = viewer_cloned.pick_entity(x, y).unwrap() {
+            if let Some(material) = entity
+                .material_mut()
+                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+            {
+                material.set_color(
+                    Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                    rand::random(),
+                )
+            }
+            console_log!("pick entity {}", entity.id());
+        };
+        if let Some(position) = viewer_cloned.pick_position(x, y).unwrap() {
+            console_log!("pick position {}", position);
+        };
+        let end = window().performance().unwrap().now();
+        document()
+            .get_element_by_id("pick")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
     });
     window()
-        .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+        .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
         .unwrap();
     click.forget();
 
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-    let scene_cloned = Rc::clone(&scene);
-    *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-        let seconds = frame_time / 1000.0;
-
-        static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-        let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
-
-        // scene
-        //     .borrow_mut()
-        //     .active_camera_mut()
-        //     .as_any_mut()
-        //     .downcast_mut::<PerspectiveCamera>()
-        //     .unwrap()
-        //     .set_center(&(rotation.cos() * 6.0, 0.0, rotation.sin() * 6.0));
-        // .set_up(&(rotation.cos(), 0.0, rotation.sin()));
-
-        let start = window().performance().unwrap().now();
-        let mut scene = scene_cloned.borrow_mut();
-        render
-            .borrow_mut()
-            .render(
-                &mut *standard_pipeline.borrow_mut(),
-                &mut camera,
-                &mut scene,
-                frame_time,
-            )
-            .unwrap();
-        let end = window().performance().unwrap().now();
-        document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
-
-        drop(scene);
-
-        request_animation_frame(f.borrow().as_ref().unwrap());
-    }));
-
-    request_animation_frame(g.borrow().as_ref().unwrap());
+    // let mousemove = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {});
+    // window()
+    //     .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+    //     .unwrap();
+    // mousemove.forget();
 
     Ok(())
 }
 
-// #[wasm_bindgen]
-// pub fn test_instanced_cube(
-//     count: usize,
-//     grid: usize,
-//     width: f64,
-//     height: f64,
-// ) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
-//     let mut render = create_render()?;
-//     let mut pipeline = create_standard_pipeline(
-//         ResourceKey::new_persist_str("position"),
-//         ResourceKey::new_persist_str("clear_color"),
-//     );
-
-//     // let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
-//     // let pick_position_cloned = Rc::clone(&pick_position);
-//     // let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//     //     let x = event.page_x();
-//     //     let y = event.page_y();
-//     //     *pick_position_cloned.borrow_mut() = Some((x, y));
-//     // });
-//     // window()
-//     //     .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-//     //     .unwrap();
-//     // click.forget();
-
-//     let entity = Entity::new();
-//     entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
-//     entity
-//         .borrow_mut()
-//         .set_material(Some(SolidColorInstancedMaterial::new(
-//             count, grid, width, height,
-//         )));
-//     scene.entity_collection_mut().add_entity(entity);
-
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-//         let seconds = frame_time / 1000.0;
-
-//         // static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
-//         // let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
-
-//         // scene
-//         //     .entity_collection_mut()
-//         //     .set_local_matrix(Mat4::from_y_rotation(rotation));
-
-//         let start = window().performance().unwrap().now();
-//         render
-//             .render(&mut pipeline, &mut scene.stuff(), frame_time)
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("total")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
-
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
-
-//     request_animation_frame(g.borrow().as_ref().unwrap());
-
-//     Ok(())
-// }
-
 // // #[wasm_bindgen]
-// // pub fn test_texture(
-// //     url: String,
+// // pub fn test_instanced_cube(
 // //     count: usize,
 // //     grid: usize,
 // //     width: f64,
 // //     height: f64,
 // // ) -> Result<(), Error> {
-// //     let mut scene = create_scene((0.0, 20.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-// //     let mut render = create_render(&scene)?;
+// //     let mut scene = create_scene((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+// //     let mut render = create_render()?;
+// //     let mut pipeline = create_standard_pipeline(
+// //         ResourceKey::new_persist_str("position"),
+// //         ResourceKey::new_persist_str("clear_color"),
+// //     );
 
-// //     let mut entity = Entity::new();
+// //     // let pick_position = Rc::new(RefCell::new(None as Option<(i32, i32)>));
+// //     // let pick_position_cloned = Rc::clone(&pick_position);
+// //     // let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+// //     //     let x = event.page_x();
+// //     //     let y = event.page_y();
+// //     //     *pick_position_cloned.borrow_mut() = Some((x, y));
+// //     // });
+// //     // window()
+// //     //     .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+// //     //     .unwrap();
+// //     // click.forget();
 
-// //     // entity.set_geometry(Some(Cube::new()));
-// //     entity.set_geometry(Some(IndexedCube::new()));
-// //     entity.set_material(Some(TextureInstancedMaterial::new(
-// //         url, count, grid, width, height,
-// //     )));
-// //     scene.root_entity_mut().add_child(entity);
+// //     let entity = Entity::new();
+// //     entity.borrow_mut().set_geometry(Some(IndexedCube::new()));
+// //     entity
+// //         .borrow_mut()
+// //         .set_material(Some(SolidColorInstancedMaterial::new(
+// //             count, grid, width, height,
+// //         )));
+// //     scene.entity_collection_mut().add_entity(entity);
 
 // //     let f = Rc::new(RefCell::new(None));
 // //     let g = f.clone();
-// //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-// //         let seconds = timestamp / 1000.0;
+// //     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+// //         let seconds = frame_time / 1000.0;
 
-// //         static MAX_SIZE: f64 = 3.0;
-// //         static MIN_SIZE: f64 = 1.0;
-// //         static SIZE_PER_SECOND: f64 = 0.5;
-// //         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-// //         scene
-// //             .root_entity_mut()
-// //             .children_mut()
-// //             .get_mut(0)
-// //             .unwrap()
-// //             .geometry_mut()
-// //             .unwrap()
-// //             .as_any_mut()
-// //             .downcast_mut::<IndexedCube>()
-// //             .unwrap()
-// //             .set_size(size as f64);
+// //         // static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+// //         // let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
-// //         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+// //         // scene
+// //         //     .entity_collection_mut()
+// //         //     .set_local_matrix(Mat4::from_y_rotation(rotation));
+
+// //         let start = window().performance().unwrap().now();
+// //         render
+// //             .render(&mut pipeline, &mut scene.stuff(), frame_time)
+// //             .unwrap();
+// //         let end = window().performance().unwrap().now();
+// //         document()
+// //             .get_element_by_id("total")
+// //             .unwrap()
+// //             .set_inner_html(&format!("{:.2}", end - start));
+
+// //         request_animation_frame(f.borrow().as_ref().unwrap());
+// //     }));
+
+// //     request_animation_frame(g.borrow().as_ref().unwrap());
+
+// //     Ok(())
+// // }
+
+// // // #[wasm_bindgen]
+// // // pub fn test_texture(
+// // //     url: String,
+// // //     count: usize,
+// // //     grid: usize,
+// // //     width: f64,
+// // //     height: f64,
+// // // ) -> Result<(), Error> {
+// // //     let mut scene = create_scene((0.0, 20.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
+// // //     let mut render = create_render(&scene)?;
+
+// // //     let mut entity = Entity::new();
+
+// // //     // entity.set_geometry(Some(Cube::new()));
+// // //     entity.set_geometry(Some(IndexedCube::new()));
+// // //     entity.set_material(Some(TextureInstancedMaterial::new(
+// // //         url, count, grid, width, height,
+// // //     )));
+// // //     scene.root_entity_mut().add_child(entity);
+
+// // //     let f = Rc::new(RefCell::new(None));
+// // //     let g = f.clone();
+// // //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+// // //         let seconds = timestamp / 1000.0;
+
+// // //         static MAX_SIZE: f64 = 3.0;
+// // //         static MIN_SIZE: f64 = 1.0;
+// // //         static SIZE_PER_SECOND: f64 = 0.5;
+// // //         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+// // //         scene
+// // //             .root_entity_mut()
+// // //             .children_mut()
+// // //             .get_mut(0)
+// // //             .unwrap()
+// // //             .geometry_mut()
+// // //             .unwrap()
+// // //             .as_any_mut()
+// // //             .downcast_mut::<IndexedCube>()
+// // //             .unwrap()
+// // //             .set_size(size as f64);
+
+// // //         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 2.0;
+// // //         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
+
+// // //         scene
+// // //             .root_entity_mut()
+// // //             .set_local_matrix(Mat4::from_y_rotation(rotation));
+// // //         render.render(&mut scene, timestamp).unwrap();
+
+// // //         request_animation_frame(f.borrow().as_ref().unwrap());
+// // //     }));
+
+// // //     request_animation_frame(g.borrow().as_ref().unwrap());
+
+// // //     Ok(())
+// // // }
+
+// // // #[wasm_bindgen]
+// // // pub fn test_environment(
+// // //     px: String,
+// // //     nx: String,
+// // //     py: String,
+// // //     ny: String,
+// // //     pz: String,
+// // //     nz: String,
+// // // ) -> Result<(), Error> {
+// // //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+// // //     let mut render = create_render(&scene)?;
+
+// // //     let mut entity = Entity::new();
+
+// // //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+// // //     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
+// // //     scene.root_entity_mut().add_child(entity);
+
+// // //     let f = Rc::new(RefCell::new(None));
+// // //     let g = f.clone();
+// // //     let mut scaling = Vec3::from_values(1.0, 1.0, 1.0);
+// // //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+// // //         let seconds = timestamp / 1000.0;
+
+// // //         static MAX_SIZE: f64 = 1.0;
+// // //         static MIN_SIZE: f64 = 0.2;
+// // //         static SIZE_PER_SECOND: f64 = 0.5;
+// // //         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
+// // //         scaling.0[0] = size;
+// // //         scaling.0[1] = size;
+// // //         scaling.0[2] = size;
+// // //         scene
+// // //             .root_entity_mut()
+// // //             .children_mut()
+// // //             .get_mut(0)
+// // //             .unwrap()
+// // //             .set_local_matrix(Mat4::from_scaling(&scaling));
+// // //         // bad performance below
+// // //         // scene
+// // //         //     .root_entity_mut()
+// // //         //     .children_mut()
+// // //         //     .get(0)
+// // //         //     .unwrap()
+// // //         //     .geometry()
+// // //         //     .unwrap()
+// // //         //     .borrow_mut()
+// // //         //     .as_any_mut()
+// // //         //     .downcast_mut::<Sphere>()
+// // //         //     .unwrap()
+// // //         //     .set_radius(size as f32);
+
+// // //         render.render(&mut scene, timestamp).unwrap();
+
+// // //         request_animation_frame(f.borrow().as_ref().unwrap());
+// // //     }));
+
+// // //     request_animation_frame(g.borrow().as_ref().unwrap());
+
+// // //     Ok(())
+// // // }
+
+// // // #[wasm_bindgen]
+// // // pub fn test_drop_buffer_descriptor() -> Result<(), Error> {
+// // //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+// // //     let mut render = create_render(&scene)?;
+
+// // //     let mut entity = Entity::new();
+// // //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+// // //     entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+// // //     scene.root_entity_mut().add_child(entity);
+
+// // //     let f = Rc::new(RefCell::new(None));
+// // //     let g = f.clone();
+// // //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+// // //         if timestamp > 5.0 * 1000.0 {
+// // //             let _ = scene.root_entity_mut().remove_child_by_index(0);
+// // //             render.render(&mut scene, timestamp).unwrap();
+// // //         } else {
+// // //             render.render(&mut scene, timestamp).unwrap();
+// // //             request_animation_frame(f.borrow().as_ref().unwrap());
+// // //         }
+// // //     }));
+
+// // //     request_animation_frame(g.borrow().as_ref().unwrap());
+
+// // //     Ok(())
+// // // }
+
+// // // #[wasm_bindgen]
+// // // pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
+// // //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
+// // //     let mut render = create_render(&scene)?;
+
+// // //     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+// // //     buffer.fill(1, 0, buffer.byte_length());
+// // //     let large_buffer = BufferDescriptor::new(
+// // //         BufferSource::from_uint8_array(buffer, 0, 0),
+// // //         BufferUsage::StaticDraw,
+// // //     );
+// // //     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+// // //     buffer.fill(1, 0, buffer.byte_length());
+// // //     let large_buffer_1 = BufferDescriptor::new(
+// // //         BufferSource::from_uint8_array(buffer, 0, 0),
+// // //         BufferUsage::StaticDraw,
+// // //     );
+// // //     render
+// // //         .buffer_store_mut()
+// // //         .use_buffer(large_buffer.clone(), BufferTarget::ArrayBuffer)?;
+// // //     render
+// // //         .buffer_store_mut()
+// // //         .use_buffer(large_buffer_1.clone(), BufferTarget::ArrayBuffer)?;
+
+// // //     let mut entity = Entity::new();
+// // //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
+// // //     entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
+// // //     scene.root_entity_mut().add_child(entity);
+
+// // //     let f = Rc::new(RefCell::new(None));
+// // //     let g = f.clone();
+// // //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
+// // //         if timestamp <= 30.0 * 1000.0 {
+// // //             render.render(&mut scene, timestamp).unwrap();
+// // //             request_animation_frame(f.borrow().as_ref().unwrap());
+// // //         } else {
+// // //             scene.set_mount(None).unwrap();
+// // //             console_log!("stop rendering");
+// // //         }
+// // //     }));
+
+// // //     request_animation_frame(g.borrow().as_ref().unwrap());
+
+// // //     let callback = Closure::once(move || {
+// // //         drop(large_buffer);
+// // //         drop(large_buffer_1);
+// // //     });
+
+// // //     window()
+// // //         .set_timeout_with_callback_and_timeout_and_arguments_0(
+// // //             callback.into_js_value().unchecked_ref(),
+// // //             10 * 1000,
+// // //         )
+// // //         .unwrap();
+
+// // //     Ok(())
+// // // }
+
+// // // #[wasm_bindgen]
+// // // pub fn test_binary() {
+// // //     let b0 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+// // //     b0.fill(1, 0, 1 * 1024 * 1024 * 1024);
+// // //     let b1 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+// // //     b1.fill(1, 0, 1 * 1024 * 1024 * 1024);
+// // //     let b2 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
+// // //     b2.fill(1, 0, 1 * 1024 * 1024 * 1024);
+// // //     let b3 = b0.clone();
+// // //     let b4 = b0.clone();
+// // //     let b5 = b0.clone();
+// // //     let b6 = b0.clone();
+// // //     let b7 = b0.clone();
+// // //     let b8 = b0.clone();
+// // //     let b9 = b0.clone();
+
+// // //     let callback = Closure::once(|| {
+// // //         drop(b0);
+// // //         drop(b1);
+// // //         drop(b2);
+// // //         drop(b3);
+// // //         drop(b4);
+// // //         drop(b5);
+// // //         drop(b6);
+// // //         drop(b7);
+// // //         drop(b8);
+// // //         drop(b9);
+// // //         console_log!("dropped")
+// // //     });
+
+// // //     window()
+// // //         .set_timeout_with_callback_and_timeout_and_arguments_0(
+// // //             callback.into_js_value().unchecked_ref(),
+// // //             10 * 1000,
+// // //         )
+// // //         .unwrap();
+// // // }
+
+// // #[wasm_bindgen]
+// // pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+// //     let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+// //     let render = create_render()?;
+// //     let render = Rc::new(RefCell::new(render));
+// //     let last_frame_time = Rc::new(RefCell::new(0.0));
+// //     let mut picking_pipeline = PickingPipeline::new();
+// //     let standard_pipeline = create_standard_pipeline(
+// //         ResourceKey::new_persist_str("position"),
+// //         ResourceKey::new_persist_str("clear_color"),
+// //     );
+// //     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
+
+// //     let cell_width = width / (grid as f64);
+// //     let cell_height = height / (grid as f64);
+// //     let start_x = width / 2.0 - cell_width / 2.0;
+// //     let start_z = height / 2.0 - cell_height / 2.0;
+// //     for index in 0..count {
+// //         let row = index / grid;
+// //         let col = index % grid;
+
+// //         let center_x = start_x - col as f64 * cell_width;
+// //         let center_z = start_z - row as f64 * cell_height;
+// //         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+
+// //         let entity = Entity::new();
+
+// //         entity.borrow_mut().set_geometry(Some(Cube::new()));
+// //         // entity.set_geometry(Some(IndexedCube::new()));
+// //         entity
+// //             .borrow_mut()
+// //             .set_material(Some(SolidColorMaterial::with_color(
+// //                 Vec3::from_values(rand::random(), rand::random(), rand::random()),
+// //                 rand::random(),
+// //             )));
+// //         entity.borrow_mut().set_local_matrix(model_matrix);
+// //         scene.entity_collection_mut().add_entity(entity);
+// //     }
+// //     let scene = Rc::new(RefCell::new(scene));
+
+// //     let render_cloned = Rc::clone(&render);
+// //     let scene_cloned = Rc::clone(&scene);
+// //     let last_frame_time_cloned = Rc::clone(&last_frame_time);
+// //     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+// //         let x = event.page_x();
+// //         let y = event.page_y();
+
+// //         let start = window().performance().unwrap().now();
+// //         // sets pick position
+// //         picking_pipeline.set_window_position((x, y));
+
+// //         // pick
+// //         render_cloned
+// //             .borrow_mut()
+// //             .render(
+// //                 &mut picking_pipeline,
+// //                 &mut scene_cloned.borrow_mut().stuff(),
+// //                 *last_frame_time_cloned.borrow(),
+// //             )
+// //             .unwrap();
+// //         let end = window().performance().unwrap().now();
+// //         document()
+// //             .get_element_by_id("pick")
+// //             .unwrap()
+// //             .set_inner_html(&format!("{:.2}", end - start));
+
+// //         // get entity
+// //         if let Some(entity) = picking_pipeline.take_picked_entity() {
+// //             console_log!("pick entity {}", entity.borrow().id());
+
+// //             let mut material = entity.borrow_mut();
+// //             let material = material.material_mut().unwrap();
+// //             material
+// //                 .as_any_mut()
+// //                 .downcast_mut::<SolidColorMaterial>()
+// //                 .unwrap()
+// //                 .set_color(rand::random(), rand::random());
+// //         }
+// //         // get position
+// //         if let Some(position) = picking_pipeline.take_picked_position() {
+// //             console_log!("pick position {}", position);
+// //         }
+// //     });
+// //     window()
+// //         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
+// //         .unwrap();
+// //     click.forget();
+
+// //     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
+// //     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+// //         standard_pipeline_cloned
+// //             .borrow_mut()
+// //             .resources_mut()
+// //             .insert(
+// //                 ResourceKey::new_persist_str("position"),
+// //                 (event.page_x(), event.page_y()),
+// //             );
+// //     });
+// //     window()
+// //         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
+// //         .unwrap();
+// //     click.forget();
+
+// //     let f = Rc::new(RefCell::new(None));
+// //     let g = f.clone();
+// //     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
+// //         let seconds = frame_time / 1000.0;
+
+// //         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
 // //         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
 
 // //         scene
-// //             .root_entity_mut()
+// //             .borrow_mut()
+// //             .entity_collection_mut()
 // //             .set_local_matrix(Mat4::from_y_rotation(rotation));
-// //         render.render(&mut scene, timestamp).unwrap();
 
-// //         request_animation_frame(f.borrow().as_ref().unwrap());
-// //     }));
-
-// //     request_animation_frame(g.borrow().as_ref().unwrap());
-
-// //     Ok(())
-// // }
-
-// // #[wasm_bindgen]
-// // pub fn test_environment(
-// //     px: String,
-// //     nx: String,
-// //     py: String,
-// //     ny: String,
-// //     pz: String,
-// //     nz: String,
-// // ) -> Result<(), Error> {
-// //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
-// //     let mut render = create_render(&scene)?;
-
-// //     let mut entity = Entity::new();
-
-// //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
-// //     entity.set_material(Some(EnvironmentMaterial::new(px, nx, py, ny, pz, nz)));
-// //     scene.root_entity_mut().add_child(entity);
-
-// //     let f = Rc::new(RefCell::new(None));
-// //     let g = f.clone();
-// //     let mut scaling = Vec3::from_values(1.0, 1.0, 1.0);
-// //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-// //         let seconds = timestamp / 1000.0;
-
-// //         static MAX_SIZE: f64 = 1.0;
-// //         static MIN_SIZE: f64 = 0.2;
-// //         static SIZE_PER_SECOND: f64 = 0.5;
-// //         let size = (seconds * SIZE_PER_SECOND % (MAX_SIZE - MIN_SIZE)) + MIN_SIZE;
-// //         scaling.0[0] = size;
-// //         scaling.0[1] = size;
-// //         scaling.0[2] = size;
-// //         scene
-// //             .root_entity_mut()
-// //             .children_mut()
-// //             .get_mut(0)
+// //         let start = window().performance().unwrap().now();
+// //         let mut standard_pipeline = standard_pipeline.borrow_mut();
+// //         let standard_pipeline = &mut *standard_pipeline;
+// //         render
+// //             .borrow_mut()
+// //             .render(
+// //                 standard_pipeline,
+// //                 &mut scene.borrow_mut().stuff(),
+// //                 frame_time,
+// //             )
+// //             .unwrap();
+// //         let end = window().performance().unwrap().now();
+// //         document()
+// //             .get_element_by_id("total")
 // //             .unwrap()
-// //             .set_local_matrix(Mat4::from_scaling(&scaling));
-// //         // bad performance below
-// //         // scene
-// //         //     .root_entity_mut()
-// //         //     .children_mut()
-// //         //     .get(0)
-// //         //     .unwrap()
-// //         //     .geometry()
-// //         //     .unwrap()
-// //         //     .borrow_mut()
-// //         //     .as_any_mut()
-// //         //     .downcast_mut::<Sphere>()
-// //         //     .unwrap()
-// //         //     .set_radius(size as f32);
+// //             .set_inner_html(&format!("{:.2}", end - start));
 
-// //         render.render(&mut scene, timestamp).unwrap();
+// //         *last_frame_time.borrow_mut() = frame_time;
 
 // //         request_animation_frame(f.borrow().as_ref().unwrap());
 // //     }));
@@ -652,389 +808,123 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 // // }
 
 // // #[wasm_bindgen]
-// // pub fn test_drop_buffer_descriptor() -> Result<(), Error> {
-// //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
-// //     let mut render = create_render(&scene)?;
-
-// //     let mut entity = Entity::new();
-// //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
-// //     entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-// //     scene.root_entity_mut().add_child(entity);
-
-// //     let f = Rc::new(RefCell::new(None));
-// //     let g = f.clone();
-// //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-// //         if timestamp > 5.0 * 1000.0 {
-// //             let _ = scene.root_entity_mut().remove_child_by_index(0);
-// //             render.render(&mut scene, timestamp).unwrap();
-// //         } else {
-// //             render.render(&mut scene, timestamp).unwrap();
-// //             request_animation_frame(f.borrow().as_ref().unwrap());
-// //         }
-// //     }));
-
-// //     request_animation_frame(g.borrow().as_ref().unwrap());
-
-// //     Ok(())
-// // }
-
-// // #[wasm_bindgen]
-// // pub fn test_drop_buffer_descriptor2() -> Result<(), Error> {
-// //     let mut scene = create_scene((2.0, 2.0, 2.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))?;
-// //     let mut render = create_render(&scene)?;
-
-// //     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
-// //     buffer.fill(1, 0, buffer.byte_length());
-// //     let large_buffer = BufferDescriptor::new(
-// //         BufferSource::from_uint8_array(buffer, 0, 0),
-// //         BufferUsage::StaticDraw,
+// // pub fn test_camera() {
+// //     let camera = PerspectiveCamera::new(
+// //         (0.0, 0.0, 1.0),
+// //         (0.0, 0.0, 0.0),
+// //         (0.0, 1.0, 0.0),
+// //         60.0f64.to_radians(),
+// //         1080.0 / 1920.0,
+// //         1.0,
+// //         Some(2.0),
 // //     );
-// //     let buffer = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
-// //     buffer.fill(1, 0, buffer.byte_length());
-// //     let large_buffer_1 = BufferDescriptor::new(
-// //         BufferSource::from_uint8_array(buffer, 0, 0),
-// //         BufferUsage::StaticDraw,
+
+// //     // let camera = PerspectiveCamera::new(
+// //     //     (0.0, 1.0, 0.0),
+// //     //     (0.0, 0.0, 0.0),
+// //     //     (0.0, 0.0, -1.0),
+// //     //     60.0f64.to_radians(),
+// //     //     1080.0 / 1920.0,
+// //     //     0.1,
+// //     //     Some(2.0),
+// //     // );
+// //     let frustum = camera.view_frustum();
+// //     console_log!(
+// //         "near ({}), ({})",
+// //         frustum.near().normal(),
+// //         frustum.near().point_on_plane()
 // //     );
-// //     render
-// //         .buffer_store_mut()
-// //         .use_buffer(large_buffer.clone(), BufferTarget::ArrayBuffer)?;
-// //     render
-// //         .buffer_store_mut()
-// //         .use_buffer(large_buffer_1.clone(), BufferTarget::ArrayBuffer)?;
+// //     console_log!(
+// //         "far ({:?}), ({:?})",
+// //         frustum.far().map(|p| p.normal()),
+// //         frustum.far().map(|p| p.point_on_plane())
+// //     );
+// //     console_log!(
+// //         "top ({}), ({})",
+// //         frustum.top().normal(),
+// //         frustum.top().point_on_plane()
+// //     );
+// //     console_log!(
+// //         "bottom ({}), ({})",
+// //         frustum.bottom().normal(),
+// //         frustum.bottom().point_on_plane()
+// //     );
+// //     console_log!(
+// //         "left ({}), ({})",
+// //         frustum.left().normal(),
+// //         frustum.left().point_on_plane()
+// //     );
+// //     console_log!(
+// //         "right ({}), ({})",
+// //         frustum.right().normal(),
+// //         frustum.right().point_on_plane()
+// //     );
 
-// //     let mut entity = Entity::new();
-// //     entity.set_geometry(Some(Sphere::with_opts(1.0, 48, 96)));
-// //     entity.set_material(Some(SolidColorMaterial::with_color(rand::random::<Rgb>())));
-// //     scene.root_entity_mut().add_child(entity);
+// //     let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
 
-// //     let f = Rc::new(RefCell::new(None));
-// //     let g = f.clone();
-// //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
-// //         if timestamp <= 30.0 * 1000.0 {
-// //             render.render(&mut scene, timestamp).unwrap();
-// //             request_animation_frame(f.borrow().as_ref().unwrap());
-// //         } else {
-// //             scene.set_mount(None).unwrap();
-// //             console_log!("stop rendering");
-// //         }
-// //     }));
+// //     let view_matrix = camera.view_matrix();
+// //     let view_translated_matrix = view_matrix.translate(&(0.0, 0.0, 2.0));
+// //     let view_inv_matrix = view_matrix.invert().unwrap();
+// //     let proj_matrix = camera.proj_matrix();
+// //     let view_proj_matrix = camera.view_proj_matrix();
 
-// //     request_animation_frame(g.borrow().as_ref().unwrap());
-
-// //     let callback = Closure::once(move || {
-// //         drop(large_buffer);
-// //         drop(large_buffer_1);
-// //     });
-
-// //     window()
-// //         .set_timeout_with_callback_and_timeout_and_arguments_0(
-// //             callback.into_js_value().unchecked_ref(),
-// //             10 * 1000,
-// //         )
-// //         .unwrap();
-
-// //     Ok(())
+// //     console_log!("{}", position.transform_mat4(&view_matrix));
+// //     console_log!("{}", position.transform_mat4(&view_translated_matrix));
+// //     console_log!(
+// //         "{}",
+// //         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix)
+// //     );
+// //     console_log!(
+// //         "{}",
+// //         Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix)
+// //     );
+// //     console_log!(
+// //         "{}",
+// //         Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix)
+// //     );
+// //     console_log!(
+// //         "{}",
+// //         Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix)
+// //     );
+// //     console_log!(
+// //         "{}",
+// //         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix)
+// //     );
+// //     console_log!("{}", Vec3::new().transform_mat4(&view_matrix));
+// //     console_log!("{}", Vec3::new().transform_mat4(&view_inv_matrix));
+// //     console_log!("{}", position.transform_mat4(&view_proj_matrix));
+// //     console_log!(
+// //         "{}",
+// //         position.transform_mat4(&view_proj_matrix) / position.transform_mat4(&view_proj_matrix).w()
+// //     );
 // // }
 
-// // #[wasm_bindgen]
-// // pub fn test_binary() {
-// //     let b0 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
-// //     b0.fill(1, 0, 1 * 1024 * 1024 * 1024);
-// //     let b1 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
-// //     b1.fill(1, 0, 1 * 1024 * 1024 * 1024);
-// //     let b2 = Uint8Array::new_with_length(1 * 1024 * 1024 * 1024);
-// //     b2.fill(1, 0, 1 * 1024 * 1024 * 1024);
-// //     let b3 = b0.clone();
-// //     let b4 = b0.clone();
-// //     let b5 = b0.clone();
-// //     let b6 = b0.clone();
-// //     let b7 = b0.clone();
-// //     let b8 = b0.clone();
-// //     let b9 = b0.clone();
+// // // #[wasm_bindgen]
+// // // pub fn test_simd() {
+// // //         let vec1 = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
 
-// //     let callback = Closure::once(|| {
-// //         drop(b0);
-// //         drop(b1);
-// //         drop(b2);
-// //         drop(b3);
-// //         drop(b4);
-// //         drop(b5);
-// //         drop(b6);
-// //         drop(b7);
-// //         drop(b8);
-// //         drop(b9);
-// //         console_log!("dropped")
-// //     });
+// // //     let count = 1500000000usize;
+// // //     let start = window().performance().unwrap().now();
+// // //     let mut result = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
+// // //     for _ in 0..count {
+// // //         result = result * vec1;
+// // //     }
+// // //     let end = window().performance().unwrap().now();
 
-// //     window()
-// //         .set_timeout_with_callback_and_timeout_and_arguments_0(
-// //             callback.into_js_value().unchecked_ref(),
-// //             10 * 1000,
-// //         )
-// //         .unwrap();
-// // }
+// // //     console_log!("simd costs {}ms", end - start);
+// // // }
 
-// #[wasm_bindgen]
-// pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
-//     let mut scene = create_scene((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
-//     let render = create_render()?;
-//     let render = Rc::new(RefCell::new(render));
-//     let last_frame_time = Rc::new(RefCell::new(0.0));
-//     let mut picking_pipeline = PickingPipeline::new();
-//     let standard_pipeline = create_standard_pipeline(
-//         ResourceKey::new_persist_str("position"),
-//         ResourceKey::new_persist_str("clear_color"),
-//     );
-//     let standard_pipeline = Rc::new(RefCell::new(standard_pipeline));
+// // // #[wasm_bindgen]
+// // // pub fn test_non_simd() {
+// // //         let vec1 = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
 
-//     let cell_width = width / (grid as f64);
-//     let cell_height = height / (grid as f64);
-//     let start_x = width / 2.0 - cell_width / 2.0;
-//     let start_z = height / 2.0 - cell_height / 2.0;
-//     for index in 0..count {
-//         let row = index / grid;
-//         let col = index % grid;
+// // //     let count = 1500000000usize;
+// // //     let start = window().performance().unwrap().now();
+// // //     let mut result = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
+// // //     for _ in 0..count {
+// // //         result = result * vec1;
+// // //     }
+// // //     let end = window().performance().unwrap().now();
 
-//         let center_x = start_x - col as f64 * cell_width;
-//         let center_z = start_z - row as f64 * cell_height;
-//         let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
-
-//         let entity = Entity::new();
-
-//         entity.borrow_mut().set_geometry(Some(Cube::new()));
-//         // entity.set_geometry(Some(IndexedCube::new()));
-//         entity
-//             .borrow_mut()
-//             .set_material(Some(SolidColorMaterial::with_color(
-//                 Vec3::from_values(rand::random(), rand::random(), rand::random()),
-//                 rand::random(),
-//             )));
-//         entity.borrow_mut().set_local_matrix(model_matrix);
-//         scene.entity_collection_mut().add_entity(entity);
-//     }
-//     let scene = Rc::new(RefCell::new(scene));
-
-//     let render_cloned = Rc::clone(&render);
-//     let scene_cloned = Rc::clone(&scene);
-//     let last_frame_time_cloned = Rc::clone(&last_frame_time);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         let x = event.page_x();
-//         let y = event.page_y();
-
-//         let start = window().performance().unwrap().now();
-//         // sets pick position
-//         picking_pipeline.set_window_position((x, y));
-
-//         // pick
-//         render_cloned
-//             .borrow_mut()
-//             .render(
-//                 &mut picking_pipeline,
-//                 &mut scene_cloned.borrow_mut().stuff(),
-//                 *last_frame_time_cloned.borrow(),
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("pick")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
-
-//         // get entity
-//         if let Some(entity) = picking_pipeline.take_picked_entity() {
-//             console_log!("pick entity {}", entity.borrow().id());
-
-//             let mut material = entity.borrow_mut();
-//             let material = material.material_mut().unwrap();
-//             material
-//                 .as_any_mut()
-//                 .downcast_mut::<SolidColorMaterial>()
-//                 .unwrap()
-//                 .set_color(rand::random(), rand::random());
-//         }
-//         // get position
-//         if let Some(position) = picking_pipeline.take_picked_position() {
-//             console_log!("pick position {}", position);
-//         }
-//     });
-//     window()
-//         .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
-
-//     let standard_pipeline_cloned = Rc::clone(&standard_pipeline);
-//     let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
-//         standard_pipeline_cloned
-//             .borrow_mut()
-//             .resources_mut()
-//             .insert(
-//                 ResourceKey::new_persist_str("position"),
-//                 (event.page_x(), event.page_y()),
-//             );
-//     });
-//     window()
-//         .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
-//         .unwrap();
-//     click.forget();
-
-//     let f = Rc::new(RefCell::new(None));
-//     let g = f.clone();
-//     *(*g).borrow_mut() = Some(Closure::new(move |frame_time: f64| {
-//         let seconds = frame_time / 1000.0;
-
-//         static RADIANS_PER_SECOND: f64 = std::f64::consts::PI / 4.0;
-//         let rotation = (seconds * RADIANS_PER_SECOND) % (2.0 * std::f64::consts::PI);
-
-//         scene
-//             .borrow_mut()
-//             .entity_collection_mut()
-//             .set_local_matrix(Mat4::from_y_rotation(rotation));
-
-//         let start = window().performance().unwrap().now();
-//         let mut standard_pipeline = standard_pipeline.borrow_mut();
-//         let standard_pipeline = &mut *standard_pipeline;
-//         render
-//             .borrow_mut()
-//             .render(
-//                 standard_pipeline,
-//                 &mut scene.borrow_mut().stuff(),
-//                 frame_time,
-//             )
-//             .unwrap();
-//         let end = window().performance().unwrap().now();
-//         document()
-//             .get_element_by_id("total")
-//             .unwrap()
-//             .set_inner_html(&format!("{:.2}", end - start));
-
-//         *last_frame_time.borrow_mut() = frame_time;
-
-//         request_animation_frame(f.borrow().as_ref().unwrap());
-//     }));
-
-//     request_animation_frame(g.borrow().as_ref().unwrap());
-
-//     Ok(())
-// }
-
-// #[wasm_bindgen]
-// pub fn test_camera() {
-//     let camera = PerspectiveCamera::new(
-//         (0.0, 0.0, 1.0),
-//         (0.0, 0.0, 0.0),
-//         (0.0, 1.0, 0.0),
-//         60.0f64.to_radians(),
-//         1080.0 / 1920.0,
-//         1.0,
-//         Some(2.0),
-//     );
-
-//     // let camera = PerspectiveCamera::new(
-//     //     (0.0, 1.0, 0.0),
-//     //     (0.0, 0.0, 0.0),
-//     //     (0.0, 0.0, -1.0),
-//     //     60.0f64.to_radians(),
-//     //     1080.0 / 1920.0,
-//     //     0.1,
-//     //     Some(2.0),
-//     // );
-//     let frustum = camera.view_frustum();
-//     console_log!(
-//         "near ({}), ({})",
-//         frustum.near().normal(),
-//         frustum.near().point_on_plane()
-//     );
-//     console_log!(
-//         "far ({:?}), ({:?})",
-//         frustum.far().map(|p| p.normal()),
-//         frustum.far().map(|p| p.point_on_plane())
-//     );
-//     console_log!(
-//         "top ({}), ({})",
-//         frustum.top().normal(),
-//         frustum.top().point_on_plane()
-//     );
-//     console_log!(
-//         "bottom ({}), ({})",
-//         frustum.bottom().normal(),
-//         frustum.bottom().point_on_plane()
-//     );
-//     console_log!(
-//         "left ({}), ({})",
-//         frustum.left().normal(),
-//         frustum.left().point_on_plane()
-//     );
-//     console_log!(
-//         "right ({}), ({})",
-//         frustum.right().normal(),
-//         frustum.right().point_on_plane()
-//     );
-
-//     let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
-
-//     let view_matrix = camera.view_matrix();
-//     let view_translated_matrix = view_matrix.translate(&(0.0, 0.0, 2.0));
-//     let view_inv_matrix = view_matrix.invert().unwrap();
-//     let proj_matrix = camera.proj_matrix();
-//     let view_proj_matrix = camera.view_proj_matrix();
-
-//     console_log!("{}", position.transform_mat4(&view_matrix));
-//     console_log!("{}", position.transform_mat4(&view_translated_matrix));
-//     console_log!(
-//         "{}",
-//         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix)
-//     );
-//     console_log!(
-//         "{}",
-//         Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix)
-//     );
-//     console_log!(
-//         "{}",
-//         Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix)
-//     );
-//     console_log!(
-//         "{}",
-//         Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix)
-//     );
-//     console_log!(
-//         "{}",
-//         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix)
-//     );
-//     console_log!("{}", Vec3::new().transform_mat4(&view_matrix));
-//     console_log!("{}", Vec3::new().transform_mat4(&view_inv_matrix));
-//     console_log!("{}", position.transform_mat4(&view_proj_matrix));
-//     console_log!(
-//         "{}",
-//         position.transform_mat4(&view_proj_matrix) / position.transform_mat4(&view_proj_matrix).w()
-//     );
-// }
-
-// // #[wasm_bindgen]
-// // pub fn test_simd() {
-// //         let vec1 = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
-
-// //     let count = 1500000000usize;
-// //     let start = window().performance().unwrap().now();
-// //     let mut result = gl_matrix4rust::wasm32::simd128::f32::vec4::Vec4::new(1.0, 1.0, 1.0, 1.0);
-// //     for _ in 0..count {
-// //         result = result * vec1;
-// //     }
-// //     let end = window().performance().unwrap().now();
-
-// //     console_log!("simd costs {}ms", end - start);
-// // }
-
-// // #[wasm_bindgen]
-// // pub fn test_non_simd() {
-// //         let vec1 = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
-
-// //     let count = 1500000000usize;
-// //     let start = window().performance().unwrap().now();
-// //     let mut result = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
-// //     for _ in 0..count {
-// //         result = result * vec1;
-// //     }
-// //     let end = window().performance().unwrap().now();
-
-// //     console_log!("non simd costs {}ms", end - start);
-// // }
+// // //     console_log!("non simd costs {}ms", end - start);
+// // // }

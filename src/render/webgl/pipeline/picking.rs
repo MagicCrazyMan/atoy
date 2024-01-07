@@ -1,10 +1,12 @@
-use std::any::Any;
+use std::{any::Any, ptr::NonNull};
 
 use gl_matrix4rust::vec3::Vec3;
 use log::warn;
-use web_sys::{js_sys::Uint32Array, WebGl2RenderingContext};
+use wasm_bindgen::JsCast;
+use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
+    entity::Entity,
     material::{Material, Transparency},
     render::{
         pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
@@ -25,6 +27,7 @@ use crate::{
             },
         },
     },
+    scene::Scene,
 };
 
 use super::collector::StandardEntitiesCollector;
@@ -32,9 +35,10 @@ use super::collector::StandardEntitiesCollector;
 /// A [`Pipeline`] for picking purpose.
 pub struct PickingPipeline {
     pipeline: GraphPipeline<Error>,
-    window_position_key: ResourceKey<(i32, i32)>,
-    picked_entity_key: ResourceKey<Weak>,
-    picked_position_key: ResourceKey<Vec3>,
+    picking: ItemKey,
+    entities: ResourceKey<Vec<NonNull<Entity>>>,
+    dirty: bool,
+    gl: Option<WebGl2RenderingContext>,
 }
 
 impl PickingPipeline {
@@ -45,118 +49,184 @@ impl PickingPipeline {
         let collector = ItemKey::new_uuid();
         let picking = ItemKey::new_uuid();
 
-        let entities_key = ResourceKey::new_runtime_uuid();
-        let window_position_key = ResourceKey::new_runtime_uuid();
-        let picked_entity_key = ResourceKey::new_persist_uuid();
-        let picked_position_key = ResourceKey::new_persist_uuid();
+        let entities = ResourceKey::new_persist_uuid();
 
         pipeline.add_executor(
             collector.clone(),
-            StandardEntitiesCollector::new(entities_key.clone()),
+            StandardEntitiesCollector::new(entities.clone()),
         );
-        pipeline.add_executor(
-            picking.clone(),
-            Picking::new(
-                entities_key.clone(),
-                window_position_key.clone(),
-                picked_entity_key.clone(),
-                picked_position_key.clone(),
-            ),
-        );
+        pipeline.add_executor(picking.clone(), Picking::new(entities.clone()));
         pipeline.connect(&collector, &picking).unwrap();
 
         Self {
             pipeline,
-            window_position_key,
-            picked_entity_key,
-            picked_position_key,
+            picking,
+            entities,
+            dirty: true,
+            gl: None,
         }
     }
 
-    /// Sets picking window position.
-    pub fn set_window_position(&mut self, window_position: (i32, i32)) {
+    fn picking_executor(&mut self) -> &mut Picking {
+        self.pipeline
+            .executor_mut(&self.picking)
+            .unwrap()
+            .as_any_mut()
+            .downcast_mut::<Picking>()
+            .unwrap()
+    }
+
+    fn entities(&mut self) -> &mut Vec<NonNull<Entity>> {
         self.pipeline
             .resources_mut()
-            .insert(self.window_position_key.clone(), window_position);
+            .get_mut(&self.entities)
+            .unwrap()
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn set_dirty(&mut self) {
+        self.dirty = true;
     }
 
     /// Returns picked entity.
-    pub fn picked_entity(&mut self) -> Option<Strong> {
-        self.pipeline
-            .resources_mut()
-            .get(&self.picked_entity_key)
-            .and_then(|entity| entity.upgrade())
-    }
+    pub fn pick_entity<'a, 'b>(
+        &'a mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<&'b mut Entity>, Error> {
+        if self.dirty {
+            return Ok(None);
+        }
+        let Some(gl) = self.gl.clone() else {
+            return Ok(None);
+        };
 
-    /// Returns and takes out picked entity.
-    pub fn take_picked_entity(&mut self) -> Option<Strong> {
-        self.pipeline
-            .resources_mut()
-            .remove_unchecked(&self.picked_entity_key)
-            .map(|entity| *entity.downcast::<Weak>().unwrap())
-            .and_then(|entity| entity.upgrade())
+        let picking = self.picking_executor();
+        picking.frame.bind(&gl)?;
+        picking
+            .frame
+            .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT0);
+
+        let canvas = gl
+            .canvas()
+            .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
+            .ok_or(Error::CanvasNotFound)?;
+        let pixel = Uint32Array::new_with_length(1);
+        gl.read_pixels_with_opt_array_buffer_view(
+            window_position_x,
+            canvas.height() as i32 - window_position_y,
+            1,
+            1,
+            WebGl2RenderingContext::RED_INTEGER,
+            WebGl2RenderingContext::UNSIGNED_INT,
+            Some(&pixel),
+        )
+        .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
+
+        picking.frame.unbind(&gl);
+
+        let index = pixel.get_index(0) as usize;
+        if index > 0 {
+            let entity = self
+                .entities()
+                .get_mut(index - 1)
+                .map(|entity| unsafe { entity.as_mut() });
+            if let Some(entity) = entity {
+                return Ok(Some(entity));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Returns picked position.
-    pub fn picked_position(&mut self) -> Option<&Vec3> {
-        self.pipeline
-            .resources_mut()
-            .get(&self.picked_position_key)
-            .map(|position| position)
-    }
+    pub fn pick_position(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<Vec3>, Error> {
+        if self.dirty {
+            return Ok(None);
+        }
+        let Some(gl) = self.gl.clone() else {
+            return Ok(None);
+        };
 
-    /// Returns and takes out picked position.
-    pub fn take_picked_position(&mut self) -> Option<Vec3> {
-        self.pipeline
-            .resources_mut()
-            .remove_unchecked(&self.picked_position_key)
-            .map(|position| *position.downcast::<Vec3>().unwrap())
+        let picking = self.picking_executor();
+        picking.frame.bind(&gl)?;
+        picking
+            .frame
+            .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT1);
+
+        let canvas = gl
+            .canvas()
+            .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
+            .ok_or(Error::CanvasNotFound)?;
+        let pixel = Uint32Array::new_with_length(4);
+        gl.read_pixels_with_opt_array_buffer_view(
+            window_position_x,
+            canvas.height() as i32 - window_position_y,
+            1,
+            1,
+            WebGl2RenderingContext::RGBA_INTEGER,
+            WebGl2RenderingContext::UNSIGNED_INT,
+            Some(&pixel),
+        )
+        .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
+
+        picking.frame.unbind(&gl);
+
+        let position = [
+            f32::from_ne_bytes(pixel.get_index(0).to_ne_bytes()),
+            f32::from_ne_bytes(pixel.get_index(1).to_ne_bytes()),
+            f32::from_ne_bytes(pixel.get_index(2).to_ne_bytes()),
+            f32::from_ne_bytes(pixel.get_index(3).to_ne_bytes()),
+        ]; // converts unsigned int back to float
+        if position != [0.0, 0.0, 0.0, 0.0] {
+            Ok(Some(Vec3::from_values(
+                position[0] as f64,
+                position[1] as f64,
+                position[2] as f64,
+            )))
+        } else {
+            Ok(None)
+        }
     }
 }
 
 impl Pipeline for PickingPipeline {
     type Error = Error;
 
-    fn execute<S>(&mut self, state: &mut State, stuff: &mut S) -> Result<(), Self::Error>
-    where
-        S: Stuff,
-    {
-        self.pipeline.execute(state, stuff)
+    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
+        self.pipeline.execute(state, scene)?;
+        self.dirty = false;
+        self.gl = Some(state.gl().clone());
+        Ok(())
     }
 }
 
 /// Picking detection.
 ///
 /// # Get Resources & Data Type
-/// - `entities`: [`Vec<Strong>`], a list contains entities to pick.
+/// - `entities`: [`Vec<NonNull<Entity>>`], a list contains entities to pick.
 /// - `position`: `(i32, i32)`, a window coordinate position, skip picking if none.
 ///
 /// # Provide Resources & Data Type
 /// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
-    in_entities: ResourceKey<Vec<Strong>>,
-    in_window_position: ResourceKey<(i32, i32)>,
-    out_picked_entity: ResourceKey<Weak>,
-    out_picked_position: ResourceKey<Vec3>,
-    pixel: Uint32Array,
+    in_entities: ResourceKey<Vec<NonNull<Entity>>>,
     frame: OffscreenFramebuffer,
     material: PickingMaterial,
 }
 
 impl Picking {
-    pub fn new(
-        in_entities: ResourceKey<Vec<Strong>>,
-        in_window_position: ResourceKey<(i32, i32)>,
-        out_picked_entity: ResourceKey<Weak>,
-        out_picked_position: ResourceKey<Vec3>,
-    ) -> Self {
+    pub fn new(in_entities: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
         Self {
             in_entities,
-            in_window_position,
-            out_picked_entity,
-            out_picked_position,
-            pixel: Uint32Array::new_with_length(4),
             frame: OffscreenFramebuffer::with_draw_buffers(
                 FramebufferTarget::FRAMEBUFFER,
                 [
@@ -198,15 +268,9 @@ impl Executor for Picking {
     fn before(
         &mut self,
         state: &mut State,
-        _: &mut dyn Stuff,
+        _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        resources.remove_unchecked(&self.out_picked_entity);
-        resources.remove_unchecked(&self.out_picked_position);
-
-        if !resources.contains_key_unchecked(&self.in_window_position) {
-            return Ok(false);
-        }
         if !resources.contains_key_unchecked(&self.in_entities) {
             return Ok(false);
         }
@@ -230,7 +294,7 @@ impl Executor for Picking {
     fn after(
         &mut self,
         state: &mut State,
-        _: &mut dyn Stuff,
+        _: &mut Scene,
         _: &mut Resources,
     ) -> Result<(), Self::Error> {
         self.frame.unbind(state.gl());
@@ -240,12 +304,9 @@ impl Executor for Picking {
     fn execute(
         &mut self,
         state: &mut State,
-        stuff: &mut dyn Stuff,
+        _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        let Some((x, y)) = resources.get(&self.in_window_position) else {
-            return Ok(());
-        };
         let Some(entities) = resources.get(&self.in_entities) else {
             return Ok(());
         };
@@ -258,15 +319,13 @@ impl Executor for Picking {
             return Ok(());
         }
 
-        let (x, y) = (*x, *y);
-
         // prepare material
         let program_item = state.program_store_mut().use_program(&self.material)?;
         state.gl().use_program(Some(program_item.gl_program()));
 
         // render each entity by material
         for (index, entity) in entities.iter().enumerate() {
-            let entity = entity.borrow_mut();
+            let entity = unsafe { entity.as_ref() };
             let Some(geometry) = entity.geometry() else {
                 continue;
             };
@@ -285,71 +344,22 @@ impl Executor for Picking {
 
             let bound_attributes =
                 bind_attributes(state, &entity, geometry, &self.material, &program_item);
-            let bound_uniforms = bind_uniforms(
-                state,
-                stuff,
-                &entity,
-                geometry,
-                &self.material,
-                &program_item,
-            );
+            let bound_uniforms =
+                bind_uniforms(state, &entity, geometry, &self.material, &program_item);
             draw(state, geometry, &self.material);
             unbind_attributes(state, bound_attributes);
             unbind_uniforms(state, bound_uniforms);
         }
 
-        // gets picking entity
-        self.frame
-            .set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT0);
-        state
-            .gl()
-            .read_pixels_with_opt_array_buffer_view(
-                x,
-                state.canvas().height() as i32 - y,
-                1,
-                1,
-                WebGl2RenderingContext::RED_INTEGER,
-                WebGl2RenderingContext::UNSIGNED_INT,
-                Some(&self.pixel),
-            )
-            .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
-
-        let index = self.pixel.get_index(0) as usize;
-        if index > 0 {
-            if let Some(entity) = entities.get(index - 1).map(|entity| entity.downgrade()) {
-                resources.insert(self.out_picked_entity.clone(), entity.clone());
-            }
-        }
-
-        // gets picking position
-        self.frame
-            .set_read_buffer(state.gl(), FramebufferDrawBuffer::COLOR_ATTACHMENT1);
-        state
-            .gl()
-            .read_pixels_with_opt_array_buffer_view(
-                x,
-                state.canvas().height() as i32 - y,
-                1,
-                1,
-                WebGl2RenderingContext::RGBA_INTEGER,
-                WebGl2RenderingContext::UNSIGNED_INT,
-                Some(&self.pixel),
-            )
-            .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
-        let position = [
-            f32::from_ne_bytes(self.pixel.get_index(0).to_ne_bytes()),
-            f32::from_ne_bytes(self.pixel.get_index(1).to_ne_bytes()),
-            f32::from_ne_bytes(self.pixel.get_index(2).to_ne_bytes()),
-            f32::from_ne_bytes(self.pixel.get_index(3).to_ne_bytes()),
-        ]; // converts unsigned int back to float
-        if position != [0.0, 0.0, 0.0, 0.0] {
-            resources.insert(
-                self.out_picked_position.clone(),
-                Vec3::from_values(position[0] as f64, position[1] as f64, position[2] as f64),
-            );
-        }
-
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -395,18 +405,18 @@ impl Material for PickingMaterial {
         Transparency::Opaque
     }
 
-    fn attribute_value(&self, _: &str, _: NonNull<Entity>) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: NonNull<Entity>) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
         match name {
             "u_Index" => Some(UniformValue::UnsignedInteger1(self.index)),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: NonNull<Entity>) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
     }
 
@@ -425,4 +435,6 @@ impl Material for PickingMaterial {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn prepare(&mut self, _: &mut State, _: &Entity) {}
 }

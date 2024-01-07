@@ -43,7 +43,10 @@ use self::{
     },
 };
 
-use super::pp::{Pipeline, State};
+use super::{
+    pp::{Pipeline, State},
+    Render,
+};
 
 pub mod attribute;
 pub mod buffer;
@@ -214,44 +217,6 @@ impl WebGL2Render {
     pub fn event(&mut self) -> &mut EventAgency<Event> {
         &mut self.event
     }
-}
-
-impl WebGL2Render {
-    /// Renders a frame with stuff and a pipeline.
-    pub fn render<C, P, E>(
-        &mut self,
-        pipeline: &mut P,
-        camera: &mut C,
-        scene: &mut Scene,
-        timestamp: f64,
-    ) -> Result<(), E>
-    where
-        C: Camera + 'static,
-        P: Pipeline<Error = E>,
-    {
-        self.update_universal_ubo(camera, scene, timestamp);
-        self.update_lights_ubo(scene);
-
-        let mut state = State::new(
-            timestamp,
-            camera,
-            &mut self.gl,
-            &mut self.canvas,
-            &mut self.universal_ubo,
-            &mut self.lights_ubo,
-            &mut self.program_store,
-            &mut self.buffer_store,
-            &mut self.texture_store,
-        );
-
-        self.event
-            .raise(unsafe { Event::PreRender(NonNull::new_unchecked(&mut state)) });
-        pipeline.execute(&mut state, scene)?;
-        self.event
-            .raise(unsafe { Event::PostRender(NonNull::new_unchecked(&mut state)) });
-
-        Ok(())
-    }
 
     fn update_universal_ubo(&mut self, camera: &dyn Camera, scene: &mut Scene, timestamp: f64) {
         let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
@@ -392,6 +357,41 @@ impl WebGL2Render {
 
         self.lights_ubo
             .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
+    }
+}
+
+impl Render for WebGL2Render {
+    type Error = Error;
+
+    fn render(
+        &mut self,
+        pipeline: &mut (dyn Pipeline<Error = Self::Error> + 'static),
+        camera: &mut (dyn Camera + 'static),
+        scene: &mut Scene,
+        timestamp: f64,
+    ) -> Result<(), Self::Error> {
+        self.update_universal_ubo(camera, scene, timestamp);
+        self.update_lights_ubo(scene);
+
+        let mut state = State::new(
+            timestamp,
+            camera,
+            &mut self.gl,
+            &mut self.canvas,
+            &mut self.universal_ubo,
+            &mut self.lights_ubo,
+            &mut self.program_store,
+            &mut self.buffer_store,
+            &mut self.texture_store,
+        );
+
+        self.event
+            .raise(unsafe { Event::PreRender(NonNull::new_unchecked(&mut state)) });
+        pipeline.execute(&mut state, scene)?;
+        self.event
+            .raise(unsafe { Event::PostRender(NonNull::new_unchecked(&mut state)) });
+
+        Ok(())
     }
 }
 

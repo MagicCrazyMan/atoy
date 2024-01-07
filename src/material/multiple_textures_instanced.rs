@@ -1,29 +1,32 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use gl_matrix4rust::mat4::Mat4;
 use log::info;
 use web_sys::js_sys::Float32Array;
 
-use crate::{render::{
-    pp::State,
-    webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage,
-        },
-        program::{ProgramSource, ShaderSource},
-        texture::{
-            TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
-            TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-            TexturePixelStorage, TextureUnit, TextureWrapMethod,
-        },
-        uniform::{
-            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-            UniformValue,
+use crate::{
+    entity::Entity,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            buffer::{
+                BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+                BufferUsage,
+            },
+            program::{ProgramSource, ShaderSource},
+            texture::{
+                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+                TexturePixelStorage, TextureUnit, TextureWrapMethod,
+            },
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
-}, entity::Entity};
+};
 
 use super::{loader::TextureLoader, Material, Transparency};
 

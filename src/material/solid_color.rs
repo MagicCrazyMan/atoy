@@ -1,17 +1,20 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
     entity::Entity,
-    render::{webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        shader::Variable,
-        uniform::{
-            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-            UniformValue,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            shader::Variable,
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
-    }, pp::State},
+    },
 };
 
 use super::{Material, StandardMaterialSource, Transparency};
@@ -123,7 +126,7 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn prepare(&mut self, state: &mut State, entity: &Entity) {}
+    fn prepare(&mut self, _: &mut State, _: &Entity) {}
 
     fn as_any(&self) -> &dyn Any {
         self

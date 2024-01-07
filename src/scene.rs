@@ -1,6 +1,5 @@
 use gl_matrix4rust::vec3::Vec3;
 use log::warn;
-use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     entity::collection::EntityCollection,
@@ -13,7 +12,6 @@ use crate::{
     },
 };
 
-#[wasm_bindgen]
 pub struct Scene {
     entity_collection: EntityCollection,
 
@@ -41,9 +39,7 @@ impl Scene {
             area_lights: Vec::new(),
         }
     }
-}
 
-impl Scene {
     /// Returns root entities collection.
     pub fn entity_collection(&self) -> &EntityCollection {
         &self.entity_collection

@@ -24,7 +24,7 @@ use super::webgl::{
 /// Pipeline rendering state.
 pub struct State {
     timestamp: f64,
-    camera: NonNull<dyn Camera>,
+    camera: NonNull<(dyn Camera + 'static)>,
     canvas: NonNull<HtmlCanvasElement>,
     gl: NonNull<WebGl2RenderingContext>,
     universal_ubo: NonNull<BufferDescriptor>,
@@ -36,9 +36,9 @@ pub struct State {
 
 impl State {
     /// Constructs a new rendering state.
-    pub(crate) fn new<C>(
+    pub(crate) fn new(
         timestamp: f64,
-        camera: &mut C,
+        camera: &mut (dyn Camera + 'static),
         gl: &mut WebGl2RenderingContext,
         canvas: &mut HtmlCanvasElement,
         universal_ubo: &mut BufferDescriptor,
@@ -46,10 +46,7 @@ impl State {
         program_store: &mut ProgramStore,
         buffer_store: &mut BufferStore,
         texture_store: &mut TextureStore,
-    ) -> Self
-    where
-        C: Camera + 'static,
-    {
+    ) -> Self {
         unsafe {
             Self {
                 timestamp,
@@ -224,6 +221,10 @@ pub trait Executor {
     ) -> Result<(), Self::Error> {
         Ok(())
     }
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 /// A standard rendering pipeline container based on [`DirectedGraph`].

@@ -2,21 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use uuid::Uuid;
 
-/// Listener identifier, for removing listener from [`EventTarget`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ListenerIdentifier(Uuid);
-
-impl ListenerIdentifier {
-    fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-}
-
-struct Listener<E> {
-    id: ListenerIdentifier,
+struct Listener<T> {
+    id: Uuid,
     execution_count: usize,
     max_execution_count: Option<usize>,
-    func: Box<dyn FnMut(&E)>,
+    func: Box<dyn FnMut(&mut T)>,
 }
 
 /// A common event listener registration and dispatch agency.
@@ -24,17 +14,20 @@ struct Listener<E> {
 /// Registers a listener to `EventTarget` using [`EventTarget::on()`],
 /// [`EventTarget::once()`] or [`EventTarget::on_count()`] methods and removes a listener using [`EventTarget::off()`].
 /// Invokes [`EventTarget::raise()`] for raising an event.
-pub struct EventAgency<E>(Rc<RefCell<Vec<Listener<E>>>>);
+pub struct EventAgency<T>(Rc<RefCell<Vec<Listener<T>>>>);
 
-impl<E> EventAgency<E> {
+impl<T> EventAgency<T> {
     /// Constructs a new event target agency.
     pub fn new() -> Self {
         Self(Rc::new(RefCell::new(Vec::new())))
     }
 
     /// Adds a listener to event target.
-    pub fn on<F: FnMut(&E) + 'static>(&mut self, f: F) -> ListenerIdentifier {
-        let id = ListenerIdentifier::new();
+    pub fn on<F>(&mut self, f: F) -> Uuid
+    where
+        F: FnMut(&mut T) + 'static,
+    {
+        let id = Uuid::new_v4();
         self.0.borrow_mut().push(Listener {
             id,
             execution_count: 0,
@@ -45,8 +38,11 @@ impl<E> EventAgency<E> {
     }
 
     /// Adds a listener to event target and execute it until it reaches the specified execution count.
-    pub fn on_count<F: FnMut(&E) + 'static>(&mut self, f: F, count: usize) -> ListenerIdentifier {
-        let id = ListenerIdentifier::new();
+    pub fn on_count<F>(&mut self, f: F, count: usize) -> Uuid
+    where
+        F: FnMut(&mut T) + 'static,
+    {
+        let id = Uuid::new_v4();
         self.0.borrow_mut().push(Listener {
             id,
             execution_count: 0,
@@ -57,8 +53,11 @@ impl<E> EventAgency<E> {
     }
 
     /// Adds a listener to event target and execute it only once.
-    pub fn once<F: FnMut(&E) + 'static>(&mut self, f: F) -> ListenerIdentifier {
-        let id = ListenerIdentifier::new();
+    pub fn once<F>(&mut self, f: F) -> Uuid
+    where
+        F: FnMut(&mut T) + 'static,
+    {
+        let id = Uuid::new_v4();
         self.0.borrow_mut().push(Listener {
             id,
             execution_count: 0,
@@ -68,8 +67,8 @@ impl<E> EventAgency<E> {
         id
     }
 
-    /// Removes a listener with a specified [`ListenerIdentifier`] from event target.
-    pub fn off(&mut self, id: &ListenerIdentifier) {
+    /// Removes a listener with a specified [`Uuid`] from event target.
+    pub fn off(&mut self, id: &Uuid) {
         let Some(index) = self
             .0
             .borrow_mut()
@@ -82,14 +81,14 @@ impl<E> EventAgency<E> {
     }
 
     /// Raises an event, notifies and invokes all registered listeners.
-    pub fn raise(&mut self, event: E) {
+    pub fn raise(&mut self, mut data: T) {
         let mut listeners = self.0.borrow_mut();
         let mut len = listeners.len();
         let mut i = 0;
         while i < len {
             let listener = listeners.get_mut(i).unwrap();
             let func = listener.func.as_mut();
-            func(&event);
+            func(&mut data);
 
             listener.execution_count += 1;
 
@@ -108,8 +107,8 @@ impl<E> EventAgency<E> {
     }
 }
 
-impl<E: Clone> Clone for EventAgency<E> {
+impl<T> Clone for EventAgency<T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self(Rc::clone(&self.0))
     }
 }

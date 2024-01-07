@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{any::Any, ptr::NonNull};
 
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
@@ -139,10 +139,9 @@ impl Executor for StandardDrawer {
     fn execute(
         &mut self,
         state: &mut State,
-        scene: &mut Scene,
+        _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        let _ = scene;
         let Some(entities) = resources.get_mut(&self.in_entities) else {
             return Ok(());
         };
@@ -202,5 +201,13 @@ impl Executor for StandardDrawer {
         // );
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

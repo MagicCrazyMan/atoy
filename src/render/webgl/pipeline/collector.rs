@@ -1,10 +1,10 @@
-use std::{collections::VecDeque, ptr::NonNull};
+use std::{collections::VecDeque, ptr::NonNull, any::Any};
 
 use gl_matrix4rust::vec3::AsVec3;
 
 use crate::{
     bounding::Culling,
-    entity::{collection::EntityCollection, Entity},
+    entity::Entity,
     render::{
         pp::{Executor, ResourceKey, Resources, State},
         webgl::error::Error,
@@ -93,8 +93,7 @@ impl Executor for StandardEntitiesCollector {
 
         // entities collections waits for collecting. If parent model does not changed, set matrix to None.
         unsafe {
-            let mut collections =
-                VecDeque::from([scene.entity_collection_mut() as *mut EntityCollection]);
+            let mut collections = VecDeque::from([scene.entity_collection_mut()]);
             while let Some(collection) = collections.pop_front() {
                 let collection = &mut *collection;
                 collection.update();
@@ -110,7 +109,6 @@ impl Executor for StandardEntitiesCollector {
 
                 // travels each entity
                 for entity in collection.entities_mut() {
-                    let entity = &mut **entity;
                     entity.update();
 
                     let distance = if entity.material().and_then(|m| m.instanced()).is_some() {
@@ -144,12 +142,7 @@ impl Executor for StandardEntitiesCollector {
                 }
 
                 // adds child collections to list
-                collections.extend(
-                    collection
-                        .collections_mut()
-                        .iter_mut()
-                        .map(|collection| *collection),
-                );
+                collections.extend(collection.collections_mut().iter_mut());
             }
         }
 
@@ -165,5 +158,13 @@ impl Executor for StandardEntitiesCollector {
         resources.insert(self.out_entities.clone(), entities);
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }

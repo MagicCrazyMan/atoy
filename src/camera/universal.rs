@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, f64::consts::PI, rc::Rc};
 
-use crate::{frustum::ViewFrustum, plane::Plane, render::pp::State};
+use crate::{controller::Controller, frustum::ViewFrustum, plane::Plane, viewer::Viewer};
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
@@ -522,11 +522,58 @@ impl UniversalCamera {
             .borrow_mut()
             .set_backward_movement(backward_movement)
     }
+}
 
-    pub fn update_frame(&mut self, state: &State) {
+impl Camera for UniversalCamera {
+    fn position(&self) -> Vec3 {
+        self.sharable.borrow().view.invert().unwrap().translation()
+    }
+
+    fn view_matrix(&self) -> Mat4 {
+        self.sharable.borrow().view
+    }
+
+    fn proj_matrix(&self) -> Mat4 {
+        self.sharable.borrow().proj
+    }
+
+    fn view_proj_matrix(&self) -> Mat4 {
+        self.sharable.borrow().view_proj
+    }
+
+    fn view_frustum(&self) -> ViewFrustum {
+        self.sharable.borrow().frustum
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+impl Controller for UniversalCamera {
+    fn on_add(&mut self, viewer: &mut Viewer) {}
+
+    fn on_remove(&mut self, viewer: &mut Viewer) {}
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn control(&mut self, viewer: &Viewer) {
+        let timestamp = viewer.timestamp();
+        let render = viewer.render().borrow();
+        let canvas = render.canvas();
         let mut shareable = self.sharable.borrow_mut();
 
-        let aspect = state.canvas().width() as f64 / state.canvas().height() as f64;
+        let aspect = canvas.width() as f64 / canvas.height() as f64;
         if aspect != shareable.aspect {
             shareable.set_aspect(aspect);
         }
@@ -535,11 +582,9 @@ impl UniversalCamera {
         if shareable
             .binding_canvas
             .as_ref()
-            .map(|canvas| canvas != state.canvas())
+            .map(|c| c != canvas)
             .unwrap_or(true)
         {
-            let canvas = state.canvas();
-
             let shareable_weak = Rc::downgrade(&self.sharable);
             shareable.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
                 let Some(shareable) = shareable_weak.upgrade() else {
@@ -708,15 +753,14 @@ impl UniversalCamera {
 
         // iterate keys pressed
         if !shareable.keys_pressed.is_empty() {
-            let current = state.timestamp();
             let Some(previous) = shareable.previous_timestamp else {
-                shareable.previous_timestamp = Some(current);
+                shareable.previous_timestamp = Some(timestamp);
                 return;
             };
 
-            let offset = current - previous;
+            let offset = timestamp - previous;
             if offset > 500.0 {
-                shareable.previous_timestamp = Some(current);
+                shareable.previous_timestamp = Some(timestamp);
                 return;
             }
 
@@ -752,38 +796,8 @@ impl UniversalCamera {
                 }
             }
 
-            shareable.previous_timestamp = Some(current);
+            shareable.previous_timestamp = Some(timestamp);
         }
-    }
-}
-
-impl Camera for UniversalCamera {
-    fn position(&self) -> Vec3 {
-        self.sharable.borrow().view.invert().unwrap().translation()
-    }
-
-    fn view_matrix(&self) -> Mat4 {
-        self.sharable.borrow().view
-    }
-
-    fn proj_matrix(&self) -> Mat4 {
-        self.sharable.borrow().proj
-    }
-
-    fn view_proj_matrix(&self) -> Mat4 {
-        self.sharable.borrow().view_proj
-    }
-
-    fn view_frustum(&self) -> ViewFrustum {
-        self.sharable.borrow().frustum
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }
 

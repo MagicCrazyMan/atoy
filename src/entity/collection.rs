@@ -1,4 +1,4 @@
-use std::{ptr::NonNull, cell::RefCell, rc::Rc};
+use std::{collections::HashMap, ptr::NonNull};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
@@ -8,17 +8,18 @@ use crate::{
     event::EventAgency,
 };
 
-use super::{Entity, EntityRaw};
+use super::Entity;
 
 /// An [`Entity`] and `EntityCollection` container.
 /// Model matrix of an `EntityCollection` effects all entities and sub-collections.
 pub struct EntityCollection {
     id: Uuid,
-    parent: *const EntityCollection,
     entities: Vec<Entity>,
     collections: Vec<EntityCollection>,
     model_matrix: Mat4,
+    parent_model_matrix: Option<Mat4>,
     event: EventAgency<Event>,
+    delegated_events: HashMap<Uuid, Uuid>,
     dirty: bool,
     bounding: Option<CullingBoundingVolume>,
     compose_model_matrix: Mat4,
@@ -31,11 +32,12 @@ impl EntityCollection {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            parent: std::ptr::null(),
             entities: Vec::new(),
             collections: Vec::new(),
             model_matrix: Mat4::new_identity(),
+            parent_model_matrix: None,
             event: EventAgency::new(),
+            delegated_events: HashMap::new(),
             dirty: true,
             bounding: None,
             compose_model_matrix: Mat4::new_identity(),
@@ -72,8 +74,8 @@ impl EntityCollection {
     }
 
     /// Returns event agency of this collection.
-    pub fn event(&self) -> &EventAgency<Event> {
-        &self.event
+    pub fn event(&mut self) -> &mut EventAgency<Event> {
+        &mut self.event
     }
 
     /// Returns entities in this collection.
@@ -87,12 +89,21 @@ impl EntityCollection {
     }
 
     /// Adds a new entity to this collection.
-    pub fn add_entity(&mut self, entity_raw: EntityRaw) {
-        self.entities.push(Entity::new(entity_raw, self));
+    pub fn add_entity(&mut self, mut entity: Entity) {
+        entity.dirty = true;
+        entity.parent_model_matrix = Some(self.compose_model_matrix);
+        let mut agency = self.event.clone();
+        self.delegated_events.insert(
+            entity.id,
+            entity.event.on(move |event| {
+                agency.raise(Event::Entity(unsafe { NonNull::new_unchecked(event) }))
+            }),
+        );
+        self.entities.push(entity);
 
         let index = self.entities.len() - 1;
         self.event.raise(Event::AddEntity(unsafe {
-            NonNull::new_unchecked(self.entities.get_mut(index).unwrap())
+            NonNull::new_unchecked(&mut self.entities[index])
         }));
     }
 
@@ -107,17 +118,21 @@ impl EntityCollection {
     }
 
     /// Removes an entity from this collection by index.
-    pub fn remove_entity_by_index(&mut self, index: usize) -> Option<EntityRaw> {
+    pub fn remove_entity_by_index(&mut self, index: usize) -> Option<Entity> {
         if index > self.entities.len() - 1 {
             return None;
         }
 
-        let mut entity_raw = self.entities.remove(index).raw;
+        let mut entity = self.entities.remove(index);
+        entity.dirty = true;
+        entity.parent_model_matrix = None;
+        self.event
+            .off(&self.delegated_events.remove(&entity.id).unwrap());
         self.event.raise(Event::RemoveEntity(unsafe {
-            NonNull::new_unchecked(&mut entity_raw)
+            NonNull::new_unchecked(&mut entity)
         }));
         // self.entities_hash.remove(&entity.id);
-        Some(entity_raw)
+        Some(entity)
     }
 
     // pub fn remove_entity_by_id(&mut self, id: &Uuid) -> Option<Rc<RefCell<Entity>>> {
@@ -142,23 +157,30 @@ impl EntityCollection {
 
     /// Adds a new sub-collection to this collection.
     pub fn add_collection(&mut self, mut collection: Self) {
-        collection.parent = self;
         collection.dirty = true;
+        collection.parent_model_matrix = Some(self.compose_model_matrix);
+        // let mut agency = self.event.clone();
+        // self.delegated_events.insert(
+        //     collection.id,
+        //     collection
+        //         .event
+        //         .on(move |event| agency.raise(event.clone())),
+        // );
         self.collections.push(collection);
 
         let index = self.collections.len() - 1;
         self.event.raise(Event::AddCollection(unsafe {
-            NonNull::new_unchecked(self.collections.get_mut(index).unwrap())
+            NonNull::new_unchecked(&mut self.collections[index])
         }));
     }
 
     /// Returns a sub-collection from this collection by index.
-    pub fn get_collection_by_index(&mut self, index: usize) -> Option<&EntityCollection> {
+    pub fn get_collection_by_index(&mut self, index: usize) -> Option<&Self> {
         self.collections.get(index)
     }
 
     /// Returns a mutable sub-collection from this collection by index.
-    pub fn get_mut_collection_by_index(&mut self, index: usize) -> Option<&mut EntityCollection> {
+    pub fn get_mut_collection_by_index(&mut self, index: usize) -> Option<&mut Self> {
         self.collections.get_mut(index)
     }
 
@@ -169,8 +191,10 @@ impl EntityCollection {
         }
 
         let mut collection = self.collections.remove(index);
-        collection.parent = std::ptr::null();
         collection.dirty = true;
+        collection.parent_model_matrix = None;
+        self.event
+            .off(&self.delegated_events.remove(&collection.id).unwrap());
         self.event.raise(Event::RemoveCollection(unsafe {
             NonNull::new_unchecked(&mut collection)
         }));
@@ -221,19 +245,26 @@ impl EntityCollection {
     }
 
     fn update_matrix(&mut self) {
-        if self.parent.is_null() {
-            self.compose_model_matrix = self.model_matrix;
-        } else {
-            unsafe {
-                self.compose_model_matrix =
-                    *(*self.parent).compose_model_matrix() * self.model_matrix;
-            }
-        }
+        let compose_model_matrix = match self.parent_model_matrix {
+            Some(parent_model_matrix) => parent_model_matrix * self.model_matrix,
+            None => self.model_matrix,
+        };
+        self.compose_model_matrix = compose_model_matrix;
         self.compose_normal_matrix = self
             .compose_model_matrix
             .invert()
             .expect("matrix with zero determinant is not allowed")
             .transpose();
+        self.entities.iter_mut().for_each(|entity| {
+            entity.parent_model_matrix = Some(compose_model_matrix);
+            entity.dirty = true;
+            entity.update();
+        });
+        self.collections.iter_mut().for_each(|collection| {
+            collection.parent_model_matrix = Some(compose_model_matrix);
+            collection.dirty = true;
+            collection.update();
+        });
     }
 
     /// Creates a large bounding volume that contains all entities in this collection.
@@ -251,20 +282,20 @@ impl EntityCollection {
         let entity_boundings = self
             .entities
             .iter()
-            .filter_map(|entity| entity.bounding().map(|bounding| bounding.bounding()));
+            .filter_map(|entity| entity.bounding.as_ref().map(|bounding| bounding.bounding()));
         let boundings = collection_boundings.chain(entity_boundings);
         self.bounding =
             merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
     }
 }
 
-pub struct A(Rc<RefCell<EntityCollection>>);
-
-#[derive(Clone)]
 pub enum Event {
     SetModelMatrix(NonNull<Mat4>),
     AddEntity(NonNull<Entity>),
     AddCollection(NonNull<EntityCollection>),
-    RemoveEntity(NonNull<EntityRaw>),
+    RemoveEntity(NonNull<Entity>),
     RemoveCollection(NonNull<EntityCollection>),
+    Entity(NonNull<super::Event>),
 }
+
+pub struct EntityEventData(NonNull<Entity>);

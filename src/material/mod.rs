@@ -1,4 +1,4 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
 use rand::distributions::{Distribution, Standard};
 
@@ -69,8 +69,7 @@ pub trait Material: ProgramSource {
     fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
 
     /// Returns an uniform block buffer binding value by an uniform block interface name.
-    fn uniform_block_value(&self, name: &str, entity: &Entity)
-        -> Option<UniformBlockValue>;
+    fn uniform_block_value(&self, name: &str, entity: &Entity) -> Option<UniformBlockValue>;
 
     /// Returns `true` if material is ready for drawing.
     /// Drawer skips entity drawing if material is not ready.
