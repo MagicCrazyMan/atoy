@@ -1,9 +1,8 @@
 pub mod collection;
 
-use std::{any::Any, collections::HashMap, ptr::NonNull};
+use std::{any::Any, collections::HashMap};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
-use wasm_bindgen::prelude::wasm_bindgen;
 use uuid::Uuid;
 
 use crate::{
@@ -17,7 +16,6 @@ use crate::{
     },
 };
 
-#[wasm_bindgen]
 pub struct Entity {
     id: Uuid,
     model_matrix: Mat4,
@@ -32,8 +30,23 @@ pub struct Entity {
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
     bounding: Option<CullingBoundingVolume>,
-    
-    event: EventAgency<Event>,
+
+    entity_changed_event: EventAgency<EntityChangedEvent>,
+    geometry_event: EventAgency<EntityChangedEvent>,
+    material_event: EventAgency<EntityChangedEvent>,
+    model_matrix_event: EventAgency<EntityChangedEvent>,
+    add_attribute_value_event: EventAgency<EntityChangedEvent>,
+    add_uniform_value_event: EventAgency<EntityChangedEvent>,
+    add_uniform_block_value_event: EventAgency<EntityChangedEvent>,
+    add_property_event: EventAgency<EntityChangedEvent>,
+    remove_attribute_value_event: EventAgency<EntityChangedEvent>,
+    remove_uniform_value_event: EventAgency<EntityChangedEvent>,
+    remove_uniform_block_value_event: EventAgency<EntityChangedEvent>,
+    remove_property_event: EventAgency<EntityChangedEvent>,
+    clear_attributes_value_event: EventAgency<EntityChangedEvent>,
+    clear_uniform_values_event: EventAgency<EntityChangedEvent>,
+    clear_uniform_block_values_event: EventAgency<EntityChangedEvent>,
+    clear_properties_event: EventAgency<EntityChangedEvent>,
 }
 
 impl Entity {
@@ -48,11 +61,27 @@ impl Entity {
             properties: HashMap::new(),
             geometry: None,
             material: None,
-            event: EventAgency::new(),
             dirty: true,
             compose_model_matrix: Mat4::new_identity(),
             compose_normal_matrix: Mat4::new_identity(),
             bounding: None,
+
+            entity_changed_event: EventAgency::new(),
+            geometry_event: EventAgency::new(),
+            material_event: EventAgency::new(),
+            model_matrix_event: EventAgency::new(),
+            add_attribute_value_event: EventAgency::new(),
+            add_uniform_value_event: EventAgency::new(),
+            add_uniform_block_value_event: EventAgency::new(),
+            add_property_event: EventAgency::new(),
+            remove_attribute_value_event: EventAgency::new(),
+            remove_uniform_value_event: EventAgency::new(),
+            remove_uniform_block_value_event: EventAgency::new(),
+            remove_property_event: EventAgency::new(),
+            clear_attributes_value_event: EventAgency::new(),
+            clear_uniform_values_event: EventAgency::new(),
+            clear_uniform_block_values_event: EventAgency::new(),
+            clear_properties_event: EventAgency::new(),
         }
     }
 
@@ -120,16 +149,12 @@ impl Entity {
         }
     }
 
-    pub fn event(&mut self) -> &mut EventAgency<Event> {
-        &mut self.event
-    }
-
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
         self.dirty = true;
-        self.event.raise(Event::SetModelMatrix(unsafe {
-            NonNull::new_unchecked(&mut self.model_matrix)
-        }));
+        self.model_matrix_event.raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn set_geometry<G>(&mut self, geometry: Option<G>)
@@ -138,12 +163,9 @@ impl Entity {
     {
         self.geometry = geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>);
         self.dirty = true;
-        self.event.raise(Event::SetGeometry(
-            match self.geometry.as_deref_mut() {
-                Some(geom) => Some(unsafe { NonNull::new_unchecked(geom) }),
-                None => None,
-            },
-        ));
+        self.geometry_event.raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn set_material<M>(&mut self, material: Option<M>)
@@ -152,12 +174,9 @@ impl Entity {
     {
         self.material = material.map(|material| Box::new(material) as Box<dyn Material>);
         self.dirty = true;
-        self.event.raise(Event::SetMaterial(
-            match self.material.as_deref_mut() {
-                Some(material) => Some(unsafe { NonNull::new_unchecked(material) }),
-                None => None,
-            },
-        ));
+        self.material_event.raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn add_attribute_value<S>(&mut self, name: S, value: AttributeValue)
@@ -166,7 +185,10 @@ impl Entity {
     {
         let name = name.into();
         self.attribute_values.insert(name.clone(), value);
-        self.event.raise(Event::AddAttributeValue(name));
+        self.add_attribute_value_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn add_uniform_value<S>(&mut self, name: S, value: UniformValue)
@@ -175,7 +197,10 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_values.insert(name.clone(), value);
-        self.event.raise(Event::AddUniformValue(name));
+        self.add_uniform_block_value_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn add_uniform_block_value<S>(&mut self, name: S, value: UniformBlockValue)
@@ -184,7 +209,10 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_blocks_values.insert(name.clone(), value);
-        self.event.raise(Event::AddUniformBlockValue(name));
+        self.add_uniform_block_value_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn add_property<S, T>(&mut self, name: S, value: T)
@@ -194,53 +222,92 @@ impl Entity {
     {
         let name = name.into();
         self.properties.insert(name.clone(), Box::new(value));
-        self.event.raise(Event::AddProperty(name));
+        self.add_property_event.raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
-    pub fn remove_attribute_value(&mut self, name: &str) {
+    pub fn remove_attribute_value(&mut self, name: &str) -> Option<(String, AttributeValue)> {
         if let Some(entry) = self.attribute_values.remove_entry(name) {
-            self.event.raise(Event::RemoveAttributeValue(entry));
+            self.remove_attribute_value_event
+                .raise(EntityChangedEvent::new(self));
+            self.entity_changed_event
+                .raise(EntityChangedEvent::new(self));
+            Some(entry)
+        } else {
+            None
         }
     }
 
-    pub fn remove_uniform_value(&mut self, name: &str) {
+    pub fn remove_uniform_value(&mut self, name: &str) -> Option<(String, UniformValue)> {
         if let Some(entry) = self.uniform_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformValue(entry));
+            self.remove_uniform_value_event
+                .raise(EntityChangedEvent::new(self));
+            self.entity_changed_event
+                .raise(EntityChangedEvent::new(self));
+            Some(entry)
+        } else {
+            None
         }
     }
 
-    pub fn remove_uniform_block_value(&mut self, name: &str) {
+    pub fn remove_uniform_block_value(
+        &mut self,
+        name: &str,
+    ) -> Option<(String, UniformBlockValue)> {
         if let Some(entry) = self.uniform_blocks_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformBlockValue(entry));
+            self.remove_uniform_block_value_event
+                .raise(EntityChangedEvent::new(self));
+            self.entity_changed_event
+                .raise(EntityChangedEvent::new(self));
+            Some(entry)
+        } else {
+            None
         }
     }
 
-    pub fn remove_property(&mut self, name: &str) {
-        if let Some((key, mut value)) = self.properties.remove_entry(name) {
-            self.event.raise(Event::RemoveProperty((key, unsafe {
-                NonNull::new_unchecked(value.as_mut())
-            })));
+    pub fn remove_property(&mut self, name: &str) -> Option<(String, Box<dyn Any>)> {
+        if let Some(entry) = self.properties.remove_entry(name) {
+            self.remove_property_event
+                .raise(EntityChangedEvent::new(self));
+            self.entity_changed_event
+                .raise(EntityChangedEvent::new(self));
+            Some(entry)
+        } else {
+            None
         }
     }
 
     pub fn clear_attribute_values(&mut self) {
         self.attribute_values.clear();
-        self.event.raise(Event::ClearAttributeValues);
+        self.clear_attributes_value_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn clear_uniform_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.event.raise(Event::ClearUniformValues);
+        self.clear_uniform_values_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn clear_uniform_blocks_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.event.raise(Event::ClearUniformBlockValues);
+        self.clear_uniform_block_values_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
-        self.event.raise(Event::ClearProperties);
+        self.clear_properties_event
+            .raise(EntityChangedEvent::new(self));
+        self.entity_changed_event
+            .raise(EntityChangedEvent::new(self));
     }
 
     pub fn update(&mut self) {
@@ -273,22 +340,80 @@ impl Entity {
             .map(|bounding| bounding.transform(&self.compose_model_matrix))
             .map(|bounding| CullingBoundingVolume::new(bounding));
     }
+
+    pub fn entity_changed_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.entity_changed_event
+    }
+
+    pub fn geometry_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.geometry_event
+    }
+
+    pub fn material_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.material_event
+    }
+
+    pub fn model_matrix_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.model_matrix_event
+    }
+
+    pub fn add_attribute_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.add_attribute_value_event
+    }
+
+    pub fn add_uniform_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.add_uniform_value_event
+    }
+
+    pub fn add_uniform_block_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.add_uniform_block_value_event
+    }
+
+    pub fn add_property_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.add_property_event
+    }
+
+    pub fn remove_attribute_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.remove_attribute_value_event
+    }
+
+    pub fn remove_uniform_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.remove_uniform_value_event
+    }
+
+    pub fn remove_uniform_block_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.remove_uniform_block_value_event
+    }
+
+    pub fn remove_property_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.remove_property_event
+    }
+
+    pub fn clear_attributes_value_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.clear_attributes_value_event
+    }
+
+    pub fn clear_uniform_values_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.clear_uniform_values_event
+    }
+
+    pub fn clear_uniform_block_values_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.clear_uniform_block_values_event
+    }
+
+    pub fn clear_properties_event(&mut self) -> &mut EventAgency<EntityChangedEvent> {
+        &mut self.clear_properties_event
+    }
 }
 
-pub enum Event {
-    SetGeometry(Option<NonNull<dyn Geometry>>),
-    SetMaterial(Option<NonNull<dyn Material>>),
-    SetModelMatrix(NonNull<Mat4>),
-    AddAttributeValue(String),
-    AddUniformValue(String),
-    AddUniformBlockValue(String),
-    AddProperty(String),
-    RemoveAttributeValue((String, AttributeValue)),
-    RemoveUniformValue((String, UniformValue)),
-    RemoveUniformBlockValue((String, UniformBlockValue)),
-    RemoveProperty((String, NonNull<dyn Any>)),
-    ClearAttributeValues,
-    ClearUniformValues,
-    ClearUniformBlockValues,
-    ClearProperties,
+pub struct EntityChangedEvent(*const Entity);
+
+impl EntityChangedEvent {
+    fn new(entity: &Entity) -> Self {
+        Self(entity)
+    }
+
+    pub fn entity(&self) -> &Entity {
+        unsafe { &*self.0 }
+    }
 }

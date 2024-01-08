@@ -503,6 +503,7 @@ impl Controller for UniversalCamera {
         let mut render = viewer.render().borrow_mut();
 
         let key_down_listener = {
+            let mut viewer = viewer.clone();
             let control = Rc::clone(&self.control);
             render.key_down_event().on(move |event| {
                 let key = event.key();
@@ -517,6 +518,7 @@ impl Controller for UniversalCamera {
                             .insert(key);
                         event.prevent_default();
                         event.stop_propagation();
+                        viewer.should_render_next();
                     }
                     _ => return,
                 }
@@ -524,18 +526,20 @@ impl Controller for UniversalCamera {
         };
 
         let key_up_listener = {
+            let mut viewer = viewer.clone();
             let control = Rc::clone(&self.control);
             render.key_up_event().on(move |event| {
+                let mut control = control.borrow_mut();
+                let control = control.as_mut().unwrap();
                 let key = event.key();
                 match key.as_str() {
                     "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
                     | "ArrowLeft" | "ArrowRight" => {
-                        control
-                            .borrow_mut()
-                            .as_mut()
-                            .unwrap()
-                            .pressed_keys
-                            .remove(&key);
+                        control.pressed_keys.remove(&key);
+                        if control.pressed_keys.len() > 0 {
+                            viewer.should_render_next();
+                        }
+
                         event.prevent_default();
                         event.stop_propagation();
                     }
@@ -545,6 +549,7 @@ impl Controller for UniversalCamera {
         };
 
         let mouse_move_listener = {
+            let mut viewer = viewer.clone();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             render.mouse_move_event().on(move |event| {
@@ -583,6 +588,7 @@ impl Controller for UniversalCamera {
                     event.stop_propagation();
 
                     *previous_mouse_event = Some(event.clone());
+                    viewer.should_render_next();
                 } else {
                     *previous_mouse_event = None;
                 }
@@ -590,6 +596,7 @@ impl Controller for UniversalCamera {
         };
 
         let wheel_listener = {
+            let mut viewer = viewer.clone();
             let inner = Rc::clone(&self.inner);
             render.wheel_event().on(move |event| {
                 let mut inner = inner.borrow_mut();
@@ -600,13 +607,16 @@ impl Controller for UniversalCamera {
                 let delta_y = event.delta_y() / 100.0;
                 if delta_y < 0.0 {
                     inner.move_directional(BASE_FORWARD, forward_movement / 2.0);
+                    viewer.should_render_next();
                 } else if delta_y > 0.0 {
                     inner.move_directional(BASE_FORWARD, -backward_movement / 2.0);
+                    viewer.should_render_next();
                 }
             })
         };
 
         let pre_render_listener = {
+            let mut viewer = viewer.clone();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             render.pre_render_event().on(move |event| {
@@ -617,6 +627,7 @@ impl Controller for UniversalCamera {
                     return;
                 }
 
+                viewer.should_render_next();
                 let timestamp = event.state().timestamp();
 
                 let Some(previous) = control.previous_timestamp else {
@@ -665,6 +676,7 @@ impl Controller for UniversalCamera {
         };
 
         let canvas_changed_listener = {
+            let mut viewer = viewer.clone();
             let inner = Rc::clone(&self.inner);
             render.canvas_changed_event().on(move |event| {
                 let mut inner = inner.borrow_mut();
@@ -673,6 +685,7 @@ impl Controller for UniversalCamera {
                 let aspect = canvas.width() as f64 / canvas.height() as f64;
                 if aspect != inner.aspect {
                     inner.set_aspect(aspect);
+                    viewer.should_render_next();
                 }
             })
         };

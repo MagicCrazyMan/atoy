@@ -3,7 +3,6 @@ use std::{cell::RefCell, rc::Rc};
 use gl_matrix4rust::vec3::Vec3;
 use log::error;
 use wasm_bindgen::closure::Closure;
-use wasm_bindgen::prelude::wasm_bindgen;
 use web_sys::Element;
 
 use crate::{
@@ -22,7 +21,6 @@ use crate::{
     scene::Scene,
 };
 
-#[wasm_bindgen]
 pub struct Viewer {
     mount: Rc<RefCell<Option<Element>>>,
     timestamp: Rc<RefCell<f64>>,
@@ -33,6 +31,7 @@ pub struct Viewer {
     standard_pipeline: Rc<RefCell<StandardPipeline>>,
     picking_pipeline: Rc<RefCell<PickingPipeline>>,
     render_loop: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>>,
+    render_next: Rc<RefCell<bool>>,
     stop_render_loop_when_error: Rc<RefCell<bool>>,
 }
 
@@ -41,7 +40,7 @@ impl Viewer {
     where
         C: Camera + 'static,
     {
-        Ok(Self {
+        let instance = Self {
             mount: Rc::new(RefCell::new(None)),
             timestamp: Rc::new(RefCell::new(0.0)),
             controllers: Rc::new(RefCell::new(Vec::new())),
@@ -51,8 +50,15 @@ impl Viewer {
             standard_pipeline: Rc::new(RefCell::new(StandardPipeline::new())),
             picking_pipeline: Rc::new(RefCell::new(PickingPipeline::new())),
             render_loop: Rc::new(RefCell::new(None)),
+            render_next: Rc::new(RefCell::new(true)),
             stop_render_loop_when_error: Rc::new(RefCell::new(true)),
-        })
+        };
+
+        Ok(instance)
+    }
+
+    pub fn mount(&self) -> Option<Element> {
+        self.mount.borrow().clone()
     }
 
     pub fn set_mount(&mut self, mount: Option<Element>) -> Result<(), Error> {
@@ -77,6 +83,10 @@ impl Viewer {
         *self.timestamp.borrow()
     }
 
+    pub fn camera(&self) -> &Rc<RefCell<dyn Camera>> {
+        &self.camera
+    }
+
     pub fn scene(&self) -> &Rc<RefCell<Scene>> {
         &self.scene
     }
@@ -85,12 +95,13 @@ impl Viewer {
         &self.render
     }
 
-    pub fn add_controller<C>(&mut self, mut controller: C)
+    pub fn add_controller<C>(&mut self, mut controller: C) -> usize
     where
         C: Controller + 'static,
     {
         controller.on_add(self);
         self.controllers.borrow_mut().push(Box::new(controller));
+        self.controllers.borrow().len() - 1
     }
 
     pub fn remove_controller(&mut self, index: usize) -> Option<Box<dyn Controller>> {
@@ -113,12 +124,13 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
         let mut picking_pipeline = self.picking_pipeline.borrow_mut();
-        let timestamp = *self.timestamp.borrow_mut();
-        let mut scene = self.scene.borrow_mut();
-        let mut render = self.render.borrow_mut();
-        let mut camera = self.camera.borrow_mut();
-
-        render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
+        if picking_pipeline.is_dirty() {
+            let timestamp = *self.timestamp.borrow_mut();
+            let mut scene = self.scene.borrow_mut();
+            let mut render = self.render.borrow_mut();
+            let mut camera = self.camera.borrow_mut();
+            render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
+        }
 
         picking_pipeline.pick_entity(window_position_x, window_position_y)
     }
@@ -129,36 +141,32 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
         let mut picking_pipeline = self.picking_pipeline.borrow_mut();
-        let timestamp = *self.timestamp.borrow_mut();
-        let mut scene = self.scene.borrow_mut();
-        let mut render = self.render.borrow_mut();
-        let mut camera = self.camera.borrow_mut();
-
-        render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
+        if picking_pipeline.is_dirty() {
+            let timestamp = *self.timestamp.borrow_mut();
+            let mut scene = self.scene.borrow_mut();
+            let mut render = self.render.borrow_mut();
+            let mut camera = self.camera.borrow_mut();
+            render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
+        }
 
         picking_pipeline.pick_position(window_position_x, window_position_y)
     }
 
     pub fn render_frame(&mut self) -> Result<(), Error> {
-        let timestamp = *self.timestamp.borrow_mut();
-        let mut scene = self.scene.borrow_mut();
-        let mut render = self.render.borrow_mut();
-        let mut camera = self.camera.borrow_mut();
-        let mut standard_pipeline = self.standard_pipeline.borrow_mut();
-
-        let start = crate::window().performance().unwrap().now();
-        let result = render.render(
-            &mut *standard_pipeline,
-            &mut *camera,
-            &mut *scene,
-            timestamp,
+        *self.render_next.borrow_mut() = false;
+        let result = self.render.borrow_mut().render(
+            &mut *self.standard_pipeline.borrow_mut(),
+            &mut *self.camera.borrow_mut(),
+            &mut *self.scene.borrow_mut(),
+            *self.timestamp.borrow_mut(),
         );
-        let end = crate::window().performance().unwrap().now();
-        crate::document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
+        self.picking_pipeline.borrow_mut().set_dirty();
+
         result
+    }
+
+    pub fn should_render_next(&mut self) {
+        *self.render_next.borrow_mut() = true;
     }
 
     pub fn start_render_loop(&mut self) {
@@ -166,29 +174,25 @@ impl Viewer {
             return;
         }
 
-        let me = self.clone();
-
-        let render_loop: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
-        let render_loop_cloned = Rc::clone(&render_loop);
-        *(*render_loop_cloned).borrow_mut() = Some(Closure::new(move |timestamp| {
-            let mut me = me.clone();
+        let mut me = self.clone();
+        *self.render_loop.borrow_mut() = Some(Closure::new(move |timestamp| {
             *me.timestamp.borrow_mut() = timestamp;
 
-            if let Err(err) = me.render_frame() {
-                error!("error occurred during rendering {err}");
-                if *me.stop_render_loop_when_error.borrow() {
-                    return;
+            if *me.render_next.borrow() {
+                if let Err(err) = me.render_frame() {
+                    error!("error occurred during rendering {err}");
+                    if *me.stop_render_loop_when_error.borrow() {
+                        return;
+                    }
                 }
             }
 
-            let render_loop = render_loop.borrow();
+            let render_loop = me.render_loop.borrow();
             if let Some(render_loop) = render_loop.as_ref() {
                 request_animation_frame(render_loop);
             }
         }));
-        request_animation_frame(render_loop_cloned.borrow().as_ref().unwrap());
-
-        self.render_loop = render_loop_cloned;
+        request_animation_frame(self.render_loop.borrow().as_ref().unwrap());
     }
 
     pub fn stop_render_loop(&mut self) {
@@ -208,6 +212,7 @@ impl Clone for Viewer {
             standard_pipeline: self.standard_pipeline.clone(),
             picking_pipeline: self.picking_pipeline.clone(),
             render_loop: self.render_loop.clone(),
+            render_next: self.render_next.clone(),
             stop_render_loop_when_error: self.stop_render_loop_when_error.clone(),
         }
     }

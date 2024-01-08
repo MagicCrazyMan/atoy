@@ -48,6 +48,7 @@ use crate::render::webgl::texture::{
     TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
+use crate::render::Render;
 use crate::utils::slice_to_float32_array;
 use crate::viewer::Viewer;
 use crate::{document, entity};
@@ -208,6 +209,38 @@ fn create_scene() -> Scene {
     scene
 }
 
+fn create_viewer(scene: Scene, camera: UniversalCamera) -> Viewer {
+    let mut viewer = Viewer::new(scene, camera.clone()).unwrap();
+    viewer.add_controller(camera);
+    viewer
+        .set_mount(document().get_element_by_id("scene_container"))
+        .unwrap();
+
+    let start_timestamp = Rc::new(RefCell::new(0.0));
+    let start_timestamp_cloned = Rc::clone(&start_timestamp);
+    viewer
+        .render()
+        .borrow_mut()
+        .pre_render_event()
+        .on(move |_| {
+            *start_timestamp_cloned.borrow_mut() = crate::window().performance().unwrap().now();
+        });
+    viewer
+        .render()
+        .borrow_mut()
+        .post_render_event()
+        .on(move |_| {
+            let start = *start_timestamp.borrow();
+            let end = crate::window().performance().unwrap().now();
+            crate::document()
+                .get_element_by_id("total")
+                .unwrap()
+                .set_inner_html(&format!("{:.2}", end - start));
+        });
+
+    viewer
+}
+
 // #[wasm_bindgen]
 // pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
 //     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
@@ -312,9 +345,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     ));
     scene.entity_collection_mut().add_entity(floor);
 
-    let mut viewer = Viewer::new(scene, camera.clone())?;
-    viewer.add_controller(camera);
-    viewer.set_mount(document().get_element_by_id("scene_container"))?;
+    let mut viewer = create_viewer(scene, camera);
     viewer.start_render_loop();
 
     let mut viewer_cloned = viewer.clone();

@@ -1,5 +1,3 @@
-use std::{collections::HashMap, ptr::NonNull};
-
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
 use uuid::Uuid;
 
@@ -18,13 +16,18 @@ pub struct EntityCollection {
     collections: Vec<EntityCollection>,
     model_matrix: Mat4,
     parent_model_matrix: Option<Mat4>,
-    event: EventAgency<Event>,
-    delegated_events: HashMap<Uuid, Uuid>,
     dirty: bool,
     bounding: Option<CullingBoundingVolume>,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
     enable_bounding: bool,
+
+    entity_collection_changed_event: EventAgency<EntityCollectionChangedEvent>,
+    model_matrix_event: EventAgency<EntityCollectionChangedEvent>,
+    add_entity_event: EventAgency<EntityCollectionChangedEvent>,
+    add_entity_collection_event: EventAgency<EntityCollectionChangedEvent>,
+    remove_entity_event: EventAgency<EntityCollectionChangedEvent>,
+    remove_entity_collection_event: EventAgency<EntityCollectionChangedEvent>,
 }
 
 impl EntityCollection {
@@ -36,13 +39,18 @@ impl EntityCollection {
             collections: Vec::new(),
             model_matrix: Mat4::new_identity(),
             parent_model_matrix: None,
-            event: EventAgency::new(),
-            delegated_events: HashMap::new(),
             dirty: true,
             bounding: None,
             compose_model_matrix: Mat4::new_identity(),
             compose_normal_matrix: Mat4::new_identity(),
             enable_bounding: true,
+
+            entity_collection_changed_event: EventAgency::new(),
+            model_matrix_event: EventAgency::new(),
+            add_entity_event: EventAgency::new(),
+            add_entity_collection_event: EventAgency::new(),
+            remove_entity_event: EventAgency::new(),
+            remove_entity_collection_event: EventAgency::new(),
         }
     }
 
@@ -73,11 +81,6 @@ impl EntityCollection {
         self.bounding.as_mut()
     }
 
-    /// Returns event agency of this collection.
-    pub fn event(&mut self) -> &mut EventAgency<Event> {
-        &mut self.event
-    }
-
     /// Returns entities in this collection.
     pub fn entities(&self) -> &[Entity] {
         &self.entities
@@ -92,19 +95,12 @@ impl EntityCollection {
     pub fn add_entity(&mut self, mut entity: Entity) {
         entity.dirty = true;
         entity.parent_model_matrix = Some(self.compose_model_matrix);
-        // let mut agency = self.event.clone();
-        // self.delegated_events.insert(
-        //     entity.id,
-        //     entity.event.on(move |event| {
-        //         agency.raise(Event::Entity(unsafe { NonNull::new_unchecked(event) }))
-        //     }),
-        // );
         self.entities.push(entity);
 
-        let index = self.entities.len() - 1;
-        self.event.raise(Event::AddEntity(unsafe {
-            NonNull::new_unchecked(&mut self.entities[index])
-        }));
+        self.add_entity_collection_event
+            .raise(EntityCollectionChangedEvent::new(self));
+        self.entity_collection_changed_event
+            .raise(EntityCollectionChangedEvent::new(self));
     }
 
     /// Returns an entity from this collection by index.
@@ -126,11 +122,10 @@ impl EntityCollection {
         let mut entity = self.entities.remove(index);
         entity.dirty = true;
         entity.parent_model_matrix = None;
-        self.event
-            .off(&self.delegated_events.remove(&entity.id).unwrap());
-        self.event.raise(Event::RemoveEntity(unsafe {
-            NonNull::new_unchecked(&mut entity)
-        }));
+        self.remove_entity_collection_event
+            .raise(EntityCollectionChangedEvent::new(self));
+        self.entity_collection_changed_event
+            .raise(EntityCollectionChangedEvent::new(self));
         // self.entities_hash.remove(&entity.id);
         Some(entity)
     }
@@ -159,19 +154,11 @@ impl EntityCollection {
     pub fn add_collection(&mut self, mut collection: Self) {
         collection.dirty = true;
         collection.parent_model_matrix = Some(self.compose_model_matrix);
-        // let mut agency = self.event.clone();
-        // self.delegated_events.insert(
-        //     collection.id,
-        //     collection
-        //         .event
-        //         .on(move |event| agency.raise(event.clone())),
-        // );
         self.collections.push(collection);
-
-        let index = self.collections.len() - 1;
-        self.event.raise(Event::AddCollection(unsafe {
-            NonNull::new_unchecked(&mut self.collections[index])
-        }));
+        self.add_entity_collection_event
+            .raise(EntityCollectionChangedEvent::new(self));
+        self.entity_collection_changed_event
+            .raise(EntityCollectionChangedEvent::new(self));
     }
 
     /// Returns a sub-collection from this collection by index.
@@ -193,11 +180,10 @@ impl EntityCollection {
         let mut collection = self.collections.remove(index);
         collection.dirty = true;
         collection.parent_model_matrix = None;
-        self.event
-            .off(&self.delegated_events.remove(&collection.id).unwrap());
-        self.event.raise(Event::RemoveCollection(unsafe {
-            NonNull::new_unchecked(&mut collection)
-        }));
+        self.remove_entity_collection_event
+            .raise(EntityCollectionChangedEvent::new(self));
+        self.entity_collection_changed_event
+            .raise(EntityCollectionChangedEvent::new(self));
         // self.entities_hash.remove(&entity.id);
         Some(collection)
     }
@@ -229,9 +215,10 @@ impl EntityCollection {
     pub fn set_model_matrix(&mut self, mat: Mat4) {
         self.model_matrix = mat;
         self.dirty = true;
-        self.event.raise(Event::SetModelMatrix(unsafe {
-            NonNull::new_unchecked(&mut self.model_matrix)
-        }))
+        self.model_matrix_event
+            .raise(EntityCollectionChangedEvent::new(self));
+        self.entity_collection_changed_event
+            .raise(EntityCollectionChangedEvent::new(self));
     }
 
     pub fn update(&mut self) {
@@ -287,15 +274,46 @@ impl EntityCollection {
         self.bounding =
             merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
     }
+
+    pub fn entity_collection_changed_event(
+        &mut self,
+    ) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.entity_collection_changed_event
+    }
+
+    pub fn model_matrix_event(&mut self) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.model_matrix_event
+    }
+
+    pub fn add_entity_event(&mut self) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.add_entity_event
+    }
+
+    pub fn add_entity_collection_event(
+        &mut self,
+    ) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.add_entity_collection_event
+    }
+
+    pub fn remove_entity_event(&mut self) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.remove_entity_event
+    }
+
+    pub fn remove_entity_collection_event(
+        &mut self,
+    ) -> &mut EventAgency<EntityCollectionChangedEvent> {
+        &mut self.remove_entity_collection_event
+    }
 }
 
-pub enum Event {
-    SetModelMatrix(NonNull<Mat4>),
-    AddEntity(NonNull<Entity>),
-    AddCollection(NonNull<EntityCollection>),
-    RemoveEntity(NonNull<Entity>),
-    RemoveCollection(NonNull<EntityCollection>),
-    Entity(NonNull<super::Event>),
-}
+pub struct EntityCollectionChangedEvent(*const EntityCollection);
 
-pub struct EntityEventData(NonNull<Entity>);
+impl EntityCollectionChangedEvent {
+    fn new(collection: &EntityCollection) -> Self {
+        Self(collection)
+    }
+
+    pub fn entity_collection(&self) -> &EntityCollection {
+        unsafe { &*self.0 }
+    }
+}
