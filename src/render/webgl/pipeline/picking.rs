@@ -14,7 +14,7 @@ use crate::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
             draw::draw,
             error::Error,
-            offscreen::{
+            framebuffer::{
                 FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
                 OffscreenFramebuffer, OffscreenRenderbufferProvider, OffscreenTextureProvider,
             },

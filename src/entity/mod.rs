@@ -3,6 +3,7 @@ pub mod collection;
 use std::{any::Any, collections::HashMap, ptr::NonNull};
 
 use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use wasm_bindgen::prelude::wasm_bindgen;
 use uuid::Uuid;
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
     },
 };
 
+#[wasm_bindgen]
 pub struct Entity {
     id: Uuid,
     model_matrix: Mat4,

@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use gl_matrix4rust::vec3::Vec3;
 use log::error;
 use wasm_bindgen::closure::Closure;
+use wasm_bindgen::prelude::wasm_bindgen;
 use web_sys::Element;
 
 use crate::{
@@ -21,6 +22,7 @@ use crate::{
     scene::Scene,
 };
 
+#[wasm_bindgen]
 pub struct Viewer {
     mount: Rc<RefCell<Option<Element>>>,
     timestamp: Rc<RefCell<f64>>,
@@ -137,7 +139,7 @@ impl Viewer {
         picking_pipeline.pick_position(window_position_x, window_position_y)
     }
 
-    pub fn render_sync(&mut self) -> Result<(), Error> {
+    pub fn render_frame(&mut self) -> Result<(), Error> {
         let timestamp = *self.timestamp.borrow_mut();
         let mut scene = self.scene.borrow_mut();
         let mut render = self.render.borrow_mut();
@@ -172,7 +174,7 @@ impl Viewer {
             let mut me = me.clone();
             *me.timestamp.borrow_mut() = timestamp;
 
-            if let Err(err) = me.render_sync() {
+            if let Err(err) = me.render_frame() {
                 error!("error occurred during rendering {err}");
                 if *me.stop_render_loop_when_error.borrow() {
                     return;

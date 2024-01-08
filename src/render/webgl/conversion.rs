@@ -3,7 +3,7 @@ use web_sys::WebGl2RenderingContext;
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     draw::{CullFace, DrawElementType, DrawMode},
-    offscreen::{FramebufferAttachment, FramebufferTarget, FramebufferDrawBuffer},
+    framebuffer::{FramebufferAttachment, FramebufferTarget, FramebufferDrawBuffer},
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{

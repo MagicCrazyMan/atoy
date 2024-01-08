@@ -51,10 +51,11 @@ use super::{
 
 pub mod attribute;
 pub mod buffer;
+pub mod client_wait;
 pub mod conversion;
 pub mod draw;
 pub mod error;
-pub mod offscreen;
+pub mod framebuffer;
 pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
