@@ -195,7 +195,7 @@ impl WebGL2Render {
 
             canvas.set_width(canvas.client_width() as u32);
             canvas.set_height(canvas.client_height() as u32);
-            event.raise(Event::ChangeCanvasSize(
+            event.raise(&mut Event::ChangeCanvasSize(
                 canvas.client_width() as u32,
                 canvas.client_height() as u32,
             ));
@@ -386,10 +386,10 @@ impl Render for WebGL2Render {
         );
 
         self.event
-            .raise(unsafe { Event::PreRender(NonNull::new_unchecked(&mut state)) });
+            .raise(unsafe { &mut Event::PreRender(NonNull::new_unchecked(&mut state)) });
         pipeline.execute(&mut state, scene)?;
         self.event
-            .raise(unsafe { Event::PostRender(NonNull::new_unchecked(&mut state)) });
+            .raise(unsafe { &mut Event::PostRender(NonNull::new_unchecked(&mut state)) });
 
         Ok(())
     }

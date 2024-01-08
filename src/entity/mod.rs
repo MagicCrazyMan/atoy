@@ -124,7 +124,7 @@ impl Entity {
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
         self.dirty = true;
-        self.event.raise(Event::SetModelMatrix(unsafe {
+        self.event.raise(&mut Event::SetModelMatrix(unsafe {
             NonNull::new_unchecked(&mut self.model_matrix)
         }));
     }
@@ -135,11 +135,12 @@ impl Entity {
     {
         self.geometry = geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>);
         self.dirty = true;
-        self.event
-            .raise(Event::SetGeometry(match self.geometry.as_deref_mut() {
+        self.event.raise(&mut Event::SetGeometry(
+            match self.geometry.as_deref_mut() {
                 Some(geom) => Some(unsafe { NonNull::new_unchecked(geom) }),
                 None => None,
-            }));
+            },
+        ));
     }
 
     pub fn set_material<M>(&mut self, material: Option<M>)
@@ -148,11 +149,12 @@ impl Entity {
     {
         self.material = material.map(|material| Box::new(material) as Box<dyn Material>);
         self.dirty = true;
-        self.event
-            .raise(Event::SetMaterial(match self.material.as_deref_mut() {
+        self.event.raise(&mut Event::SetMaterial(
+            match self.material.as_deref_mut() {
                 Some(material) => Some(unsafe { NonNull::new_unchecked(material) }),
                 None => None,
-            }));
+            },
+        ));
     }
 
     pub fn add_attribute_value<S>(&mut self, name: S, value: AttributeValue)
@@ -161,7 +163,7 @@ impl Entity {
     {
         let name = name.into();
         self.attribute_values.insert(name.clone(), value);
-        self.event.raise(Event::AddAttributeValue(name));
+        self.event.raise(&mut Event::AddAttributeValue(name));
     }
 
     pub fn add_uniform_value<S>(&mut self, name: S, value: UniformValue)
@@ -170,7 +172,7 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_values.insert(name.clone(), value);
-        self.event.raise(Event::AddUniformValue(name));
+        self.event.raise(&mut Event::AddUniformValue(name));
     }
 
     pub fn add_uniform_block_value<S>(&mut self, name: S, value: UniformBlockValue)
@@ -179,7 +181,7 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_blocks_values.insert(name.clone(), value);
-        self.event.raise(Event::AddUniformBlockValue(name));
+        self.event.raise(&mut Event::AddUniformBlockValue(name));
     }
 
     pub fn add_property<S, T>(&mut self, name: S, value: T)
@@ -189,30 +191,30 @@ impl Entity {
     {
         let name = name.into();
         self.properties.insert(name.clone(), Box::new(value));
-        self.event.raise(Event::AddProperty(name));
+        self.event.raise(&mut Event::AddProperty(name));
     }
 
     pub fn remove_attribute_value(&mut self, name: &str) {
         if let Some(entry) = self.attribute_values.remove_entry(name) {
-            self.event.raise(Event::RemoveAttributeValue(entry));
+            self.event.raise(&mut Event::RemoveAttributeValue(entry));
         }
     }
 
     pub fn remove_uniform_value(&mut self, name: &str) {
         if let Some(entry) = self.uniform_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformValue(entry));
+            self.event.raise(&mut Event::RemoveUniformValue(entry));
         }
     }
 
     pub fn remove_uniform_block_value(&mut self, name: &str) {
         if let Some(entry) = self.uniform_blocks_values.remove_entry(name) {
-            self.event.raise(Event::RemoveUniformBlockValue(entry));
+            self.event.raise(&mut Event::RemoveUniformBlockValue(entry));
         }
     }
 
     pub fn remove_property(&mut self, name: &str) {
         if let Some((key, mut value)) = self.properties.remove_entry(name) {
-            self.event.raise(Event::RemoveProperty((key, unsafe {
+            self.event.raise(&mut Event::RemoveProperty((key, unsafe {
                 NonNull::new_unchecked(value.as_mut())
             })));
         }
@@ -220,22 +222,22 @@ impl Entity {
 
     pub fn clear_attribute_values(&mut self) {
         self.attribute_values.clear();
-        self.event.raise(Event::ClearAttributeValues);
+        self.event.raise(&mut Event::ClearAttributeValues);
     }
 
     pub fn clear_uniform_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.event.raise(Event::ClearUniformValues);
+        self.event.raise(&mut Event::ClearUniformValues);
     }
 
     pub fn clear_uniform_blocks_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.event.raise(Event::ClearUniformBlockValues);
+        self.event.raise(&mut Event::ClearUniformBlockValues);
     }
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
-        self.event.raise(Event::ClearProperties);
+        self.event.raise(&mut Event::ClearProperties);
     }
 
     pub fn update(&mut self) {

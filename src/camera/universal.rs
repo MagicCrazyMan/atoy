@@ -17,7 +17,7 @@ const BASE_UPWARD: Vec3 = Vec3::from_values(0.0, 1.0, 0.0);
 // flip z axis to convert it to left hand side
 const BASE_FORWARD: Vec3 = Vec3::from_values(0.0, 0.0, -1.0);
 
-struct Shareable {
+struct Inner {
     fovy: f64,
     aspect: f64,
     near: f64,
@@ -47,7 +47,7 @@ struct Shareable {
     wheel_callback: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
-impl Shareable {
+impl Inner {
     #[inline]
     fn move_right(&mut self) {
         self.move_directional(BASE_RIGHTWARD, self.right_movement)
@@ -254,7 +254,7 @@ impl Shareable {
     }
 }
 
-impl Drop for Shareable {
+impl Drop for Inner {
     fn drop(&mut self) {
         let Some(canvas) = self.binding_canvas.take() else {
             return;
@@ -312,10 +312,10 @@ impl Drop for Shareable {
 
 /// An first personal based, controllable perspective camera with mouse, keyboard or screen touching.
 ///
-/// UniversalCamera is shareable by cloning, making it convenient to control outside [`Scene`].
+/// UniversalCamera is inner by cloning, making it convenient to control outside [`Scene`].
 #[derive(Clone)]
 pub struct UniversalCamera {
-    sharable: Rc<RefCell<Shareable>>,
+    sharable: Rc<RefCell<Inner>>,
 }
 
 impl UniversalCamera {
@@ -344,7 +344,7 @@ impl UniversalCamera {
         let default_movement = 1.0;
         let default_rotation = PI / 360.0;
 
-        let sharable = Shareable {
+        let sharable = Inner {
             fovy,
             aspect,
             near,
@@ -555,7 +555,14 @@ impl Camera for UniversalCamera {
 }
 
 impl Controller for UniversalCamera {
-    fn on_add(&mut self, viewer: &mut Viewer) {}
+    fn on_add(&mut self, viewer: &mut Viewer) {
+        let mut inner = self.sharable.borrow_mut();
+        if inner.binding_canvas.is_some() {
+            panic!("share UniversalCamera between different viewer is not allowed");
+        }
+
+        
+    }
 
     fn on_remove(&mut self, viewer: &mut Viewer) {}
 
@@ -571,32 +578,32 @@ impl Controller for UniversalCamera {
         let timestamp = viewer.timestamp();
         let render = viewer.render().borrow();
         let canvas = render.canvas();
-        let mut shareable = self.sharable.borrow_mut();
+        let mut inner = self.sharable.borrow_mut();
 
         let aspect = canvas.width() as f64 / canvas.height() as f64;
-        if aspect != shareable.aspect {
-            shareable.set_aspect(aspect);
+        if aspect != inner.aspect {
+            inner.set_aspect(aspect);
         }
 
         // binds to canvas
-        if shareable
+        if inner
             .binding_canvas
             .as_ref()
             .map(|c| c != canvas)
             .unwrap_or(true)
         {
-            let shareable_weak = Rc::downgrade(&self.sharable);
-            shareable.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
-                let Some(shareable) = shareable_weak.upgrade() else {
+            let inner_weak = Rc::downgrade(&self.sharable);
+            inner.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
+                let Some(inner) = inner_weak.upgrade() else {
                     return;
                 };
-                let mut shareable = shareable.borrow_mut();
+                let mut inner = inner.borrow_mut();
 
                 let key = event.key();
                 match key.as_str() {
                     "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
                     | "ArrowRight" => {
-                        shareable.keys_pressed.insert(key);
+                        inner.keys_pressed.insert(key);
 
                         event.prevent_default();
                         event.stop_propagation();
@@ -606,7 +613,7 @@ impl Controller for UniversalCamera {
             }));
             if let Err(err) = canvas.add_event_listener_with_callback(
                 "keydown",
-                shareable
+                inner
                     .keydown_callback
                     .as_ref()
                     .unwrap()
@@ -620,18 +627,18 @@ impl Controller for UniversalCamera {
                 );
             }
 
-            let shareable_weak = Rc::downgrade(&self.sharable);
-            shareable.keyup_callback = Some(Closure::new(move |event: KeyboardEvent| {
-                let Some(shareable) = shareable_weak.upgrade() else {
+            let inner_weak = Rc::downgrade(&self.sharable);
+            inner.keyup_callback = Some(Closure::new(move |event: KeyboardEvent| {
+                let Some(inner) = inner_weak.upgrade() else {
                     return;
                 };
-                let mut shareable = shareable.borrow_mut();
+                let mut inner = inner.borrow_mut();
 
                 let key = event.key();
                 match key.as_str() {
                     "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
                     | "ArrowRight" => {
-                        shareable.keys_pressed.remove(&key);
+                        inner.keys_pressed.remove(&key);
 
                         event.prevent_default();
                         event.stop_propagation();
@@ -641,7 +648,7 @@ impl Controller for UniversalCamera {
             }));
             if let Err(err) = canvas.add_event_listener_with_callback(
                 "keyup",
-                shareable
+                inner
                     .keyup_callback
                     .as_ref()
                     .unwrap()
@@ -655,13 +662,13 @@ impl Controller for UniversalCamera {
                 );
             }
 
-            let shareable_weak = Rc::downgrade(&self.sharable);
+            let inner_weak = Rc::downgrade(&self.sharable);
             let previous_mouse = Rc::new(RefCell::new(None));
-            shareable.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
-                let Some(shareable) = shareable_weak.upgrade() else {
+            inner.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
+                let Some(inner) = inner_weak.upgrade() else {
                     return;
                 };
-                let mut shareable = shareable.borrow_mut();
+                let mut inner = inner.borrow_mut();
 
                 let mut previous_event = previous_mouse.borrow_mut();
 
@@ -676,8 +683,8 @@ impl Controller for UniversalCamera {
                         let x = event.x();
                         let ox = x - px;
 
-                        let oz = ox as f64 * shareable.z_rotation;
-                        shareable.rotate(0.0, 0.0, oz);
+                        let oz = ox as f64 * inner.z_rotation;
+                        inner.rotate(0.0, 0.0, oz);
                     } else {
                         let px = p.x();
                         let py = p.y();
@@ -686,9 +693,9 @@ impl Controller for UniversalCamera {
                         let ox = x - px;
                         let oy = y - py;
 
-                        let rx = oy as f64 * shareable.x_rotation;
-                        let ry = ox as f64 * shareable.y_rotation;
-                        shareable.rotate(rx, ry, 0.0);
+                        let rx = oy as f64 * inner.x_rotation;
+                        let ry = ox as f64 * inner.y_rotation;
+                        inner.rotate(rx, ry, 0.0);
                     }
 
                     event.prevent_default();
@@ -701,7 +708,7 @@ impl Controller for UniversalCamera {
             }));
             if let Err(err) = canvas.add_event_listener_with_callback(
                 "mousemove",
-                shareable
+                inner
                     .mousemove_callback
                     .as_ref()
                     .unwrap()
@@ -715,26 +722,26 @@ impl Controller for UniversalCamera {
                 );
             }
 
-            let shareable_weak = Rc::downgrade(&self.sharable);
-            shareable.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
-                let Some(shareable) = shareable_weak.upgrade() else {
+            let inner_weak = Rc::downgrade(&self.sharable);
+            inner.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
+                let Some(inner) = inner_weak.upgrade() else {
                     return;
                 };
-                let mut shareable = shareable.borrow_mut();
+                let mut inner = inner.borrow_mut();
 
-                let forward_movement = shareable.forward_movement;
-                let backward_movement = shareable.backward_movement;
+                let forward_movement = inner.forward_movement;
+                let backward_movement = inner.backward_movement;
 
                 let delta_y = event.delta_y() / 100.0;
                 if delta_y < 0.0 {
-                    shareable.move_directional(BASE_FORWARD, forward_movement / 2.0);
+                    inner.move_directional(BASE_FORWARD, forward_movement / 2.0);
                 } else if delta_y > 0.0 {
-                    shareable.move_directional(BASE_FORWARD, -backward_movement / 2.0);
+                    inner.move_directional(BASE_FORWARD, -backward_movement / 2.0);
                 }
             }));
             if let Err(err) = canvas.add_event_listener_with_callback(
                 "wheel",
-                shareable
+                inner
                     .wheel_callback
                     .as_ref()
                     .unwrap()
@@ -748,55 +755,51 @@ impl Controller for UniversalCamera {
                 );
             }
 
-            shareable.binding_canvas = Some(canvas.clone());
+            inner.binding_canvas = Some(canvas.clone());
         }
 
         // iterate keys pressed
-        if !shareable.keys_pressed.is_empty() {
-            let Some(previous) = shareable.previous_timestamp else {
-                shareable.previous_timestamp = Some(timestamp);
+        if !inner.keys_pressed.is_empty() {
+            let Some(previous) = inner.previous_timestamp else {
+                inner.previous_timestamp = Some(timestamp);
                 return;
             };
 
             let offset = timestamp - previous;
             if offset > 500.0 {
-                shareable.previous_timestamp = Some(timestamp);
+                inner.previous_timestamp = Some(timestamp);
                 return;
             }
 
-            let keys_pressed: *const HashSet<String> = &shareable.keys_pressed;
+            let keys_pressed: *const HashSet<String> = &inner.keys_pressed;
             unsafe {
                 let iter = (*keys_pressed).iter();
 
                 let offset = offset / 1000.0;
-                let forward_movement = shareable.forward_movement;
-                let backward_movement = shareable.backward_movement;
-                let right_movement = shareable.right_movement;
-                let left_movement = shareable.left_movement;
-                let up_movement = shareable.up_movement;
-                let down_movement = shareable.down_movement;
-                let y_rotation = shareable.y_rotation * 120.0;
+                let forward_movement = inner.forward_movement;
+                let backward_movement = inner.backward_movement;
+                let right_movement = inner.right_movement;
+                let left_movement = inner.left_movement;
+                let up_movement = inner.up_movement;
+                let down_movement = inner.down_movement;
+                let y_rotation = inner.y_rotation * 120.0;
 
                 for key in iter {
                     match key.as_str() {
-                        "w" => shareable.move_directional(BASE_FORWARD, offset * forward_movement),
-                        "s" => {
-                            shareable.move_directional(BASE_FORWARD, offset * -backward_movement)
-                        }
-                        "d" => shareable.move_directional(BASE_RIGHTWARD, offset * right_movement),
-                        "a" => shareable.move_directional(BASE_RIGHTWARD, offset * -left_movement),
-                        "ArrowUp" => shareable.move_directional(BASE_UPWARD, offset * up_movement),
-                        "ArrowDown" => {
-                            shareable.move_directional(BASE_UPWARD, offset * -down_movement)
-                        }
-                        "ArrowLeft" => shareable.rotate(0.0, offset * y_rotation, 0.0),
-                        "ArrowRight" => shareable.rotate(0.0, offset * -y_rotation, 0.0),
+                        "w" => inner.move_directional(BASE_FORWARD, offset * forward_movement),
+                        "s" => inner.move_directional(BASE_FORWARD, offset * -backward_movement),
+                        "d" => inner.move_directional(BASE_RIGHTWARD, offset * right_movement),
+                        "a" => inner.move_directional(BASE_RIGHTWARD, offset * -left_movement),
+                        "ArrowUp" => inner.move_directional(BASE_UPWARD, offset * up_movement),
+                        "ArrowDown" => inner.move_directional(BASE_UPWARD, offset * -down_movement),
+                        "ArrowLeft" => inner.rotate(0.0, offset * y_rotation, 0.0),
+                        "ArrowRight" => inner.rotate(0.0, offset * -y_rotation, 0.0),
                         _ => return,
                     }
                 }
             }
 
-            shareable.previous_timestamp = Some(timestamp);
+            inner.previous_timestamp = Some(timestamp);
         }
     }
 }

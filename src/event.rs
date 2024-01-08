@@ -81,14 +81,14 @@ impl<T> EventAgency<T> {
     }
 
     /// Raises an event, notifies and invokes all registered listeners.
-    pub fn raise(&mut self, mut data: T) {
+    pub fn raise(&mut self, data: &mut T) {
         let mut listeners = self.0.borrow_mut();
         let mut len = listeners.len();
         let mut i = 0;
         while i < len {
             let listener = listeners.get_mut(i).unwrap();
             let func = listener.func.as_mut();
-            func(&mut data);
+            func(data);
 
             listener.execution_count += 1;
 
