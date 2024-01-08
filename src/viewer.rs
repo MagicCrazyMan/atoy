@@ -111,14 +111,12 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
         let mut picking_pipeline = self.picking_pipeline.borrow_mut();
-        if picking_pipeline.is_dirty() {
-            let timestamp = *self.timestamp.borrow_mut();
-            let mut scene = self.scene.borrow_mut();
-            let mut render = self.render.borrow_mut();
-            let mut camera = self.camera.borrow_mut();
+        let timestamp = *self.timestamp.borrow_mut();
+        let mut scene = self.scene.borrow_mut();
+        let mut render = self.render.borrow_mut();
+        let mut camera = self.camera.borrow_mut();
 
-            render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
-        }
+        render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
 
         picking_pipeline.pick_entity(window_position_x, window_position_y)
     }
@@ -129,14 +127,12 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
         let mut picking_pipeline = self.picking_pipeline.borrow_mut();
-        if picking_pipeline.is_dirty() {
-            let timestamp = *self.timestamp.borrow_mut();
-            let mut scene = self.scene.borrow_mut();
-            let mut render = self.render.borrow_mut();
-            let mut camera = self.camera.borrow_mut();
+        let timestamp = *self.timestamp.borrow_mut();
+        let mut scene = self.scene.borrow_mut();
+        let mut render = self.render.borrow_mut();
+        let mut camera = self.camera.borrow_mut();
 
-            render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
-        }
+        render.render(&mut *picking_pipeline, &mut *camera, &mut *scene, timestamp)?;
 
         picking_pipeline.pick_position(window_position_x, window_position_y)
     }
@@ -148,12 +144,19 @@ impl Viewer {
         let mut camera = self.camera.borrow_mut();
         let mut standard_pipeline = self.standard_pipeline.borrow_mut();
 
-        render.render(
+        let start = crate::window().performance().unwrap().now();
+        let result = render.render(
             &mut *standard_pipeline,
             &mut *camera,
             &mut *scene,
             timestamp,
-        )
+        );
+        let end = crate::window().performance().unwrap().now();
+        crate::document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
+        result
     }
 
     pub fn start_render_loop(&mut self) {
@@ -166,38 +169,15 @@ impl Viewer {
         let render_loop: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
         let render_loop_cloned = Rc::clone(&render_loop);
         *(*render_loop_cloned).borrow_mut() = Some(Closure::new(move |timestamp| {
-            let me = me.clone();
-
+            let mut me = me.clone();
             *me.timestamp.borrow_mut() = timestamp;
 
-            me.controllers
-                .borrow_mut()
-                .iter_mut()
-                .for_each(|controller| controller.control(&me));
-
-            let mut scene = me.scene.borrow_mut();
-            let mut render = me.render.borrow_mut();
-            let mut camera = me.camera.borrow_mut();
-            let mut standard_pipeline = me.standard_pipeline.borrow_mut();
-            let stop_render_loop_when_error = me.stop_render_loop_when_error.borrow();
-
-            let start = crate::window().performance().unwrap().now();
-            if let Err(err) = render.render(
-                &mut *standard_pipeline,
-                &mut *camera,
-                &mut *scene,
-                timestamp,
-            ) {
+            if let Err(err) = me.render_sync() {
                 error!("error occurred during rendering {err}");
-                if *stop_render_loop_when_error {
+                if *me.stop_render_loop_when_error.borrow() {
                     return;
                 }
             }
-            let end = crate::window().performance().unwrap().now();
-            crate::document()
-                .get_element_by_id("total")
-                .unwrap()
-                .set_inner_html(&format!("{:.2}", end - start));
 
             let render_loop = render_loop.borrow();
             if let Some(render_loop) = render_loop.as_ref() {

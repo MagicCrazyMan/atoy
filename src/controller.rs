@@ -7,8 +7,6 @@ pub trait Controller {
 
     fn on_remove(&mut self, viewer: &mut Viewer);
 
-    fn control(&mut self, viewer: &Viewer);
-
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;

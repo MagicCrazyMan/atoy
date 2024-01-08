@@ -1,13 +1,13 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, f64::consts::PI, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashSet, f64::consts::PI, rc::Rc};
 
 use crate::{controller::Controller, frustum::ViewFrustum, plane::Plane, viewer::Viewer};
 use gl_matrix4rust::{
     mat4::{AsMat4, Mat4},
     vec3::{AsVec3, Vec3},
 };
-use log::{error, warn};
-use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
+use log::warn;
+use uuid::Uuid;
+use web_sys::MouseEvent;
 
 use super::Camera;
 
@@ -16,6 +16,18 @@ const BASE_UPWARD: Vec3 = Vec3::from_values(0.0, 1.0, 0.0);
 // camera coordinate system is a right hand side coordinate system
 // flip z axis to convert it to left hand side
 const BASE_FORWARD: Vec3 = Vec3::from_values(0.0, 0.0, -1.0);
+
+struct Control {
+    pressed_keys: HashSet<String>,
+    previous_timestamp: Option<f64>,
+    previous_mouse_event: Option<MouseEvent>,
+    key_down_listener: Uuid,
+    key_up_listener: Uuid,
+    mouse_move_listener: Uuid,
+    wheel_listener: Uuid,
+    canvas_changed_listener: Uuid,
+    pre_render_listener: Uuid,
+}
 
 struct Inner {
     fovy: f64,
@@ -37,14 +49,6 @@ struct Inner {
     y_rotation: f64,
     x_rotation: f64,
     z_rotation: f64,
-
-    binding_canvas: Option<HtmlCanvasElement>,
-    keys_pressed: HashSet<String>,
-    previous_timestamp: Option<f64>,
-    keydown_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    keyup_callback: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    mousemove_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
-    wheel_callback: Option<Closure<dyn FnMut(WheelEvent)>>,
 }
 
 impl Inner {
@@ -254,68 +258,13 @@ impl Inner {
     }
 }
 
-impl Drop for Inner {
-    fn drop(&mut self) {
-        let Some(canvas) = self.binding_canvas.take() else {
-            return;
-        };
-
-        if let Some(callback) = self.keydown_callback.take() {
-            if let Err(err) = canvas
-                .remove_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref())
-            {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to unbind keydown event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
-        }
-
-        if let Some(callback) = self.keyup_callback.take() {
-            if let Err(err) = canvas
-                .remove_event_listener_with_callback("keyup", callback.as_ref().unchecked_ref())
-            {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to unbind keyup event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
-        }
-
-        if let Some(callback) = self.mousemove_callback.take() {
-            if let Err(err) = canvas
-                .remove_event_listener_with_callback("mousemove", callback.as_ref().unchecked_ref())
-            {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to unbind mousemove event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
-        }
-
-        if let Some(callback) = self.wheel_callback.take() {
-            if let Err(err) = canvas
-                .remove_event_listener_with_callback("wheel", callback.as_ref().unchecked_ref())
-            {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to unbind wheel event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
-        }
-    }
-}
-
 /// An first personal based, controllable perspective camera with mouse, keyboard or screen touching.
 ///
 /// UniversalCamera is inner by cloning, making it convenient to control outside [`Scene`].
 #[derive(Clone)]
 pub struct UniversalCamera {
-    sharable: Rc<RefCell<Inner>>,
+    inner: Rc<RefCell<Inner>>,
+    control: Rc<RefCell<Option<Control>>>,
 }
 
 impl UniversalCamera {
@@ -344,7 +293,7 @@ impl UniversalCamera {
         let default_movement = 1.0;
         let default_rotation = PI / 360.0;
 
-        let sharable = Inner {
+        let inner = Inner {
             fovy,
             aspect,
             near,
@@ -364,161 +313,152 @@ impl UniversalCamera {
             y_rotation: default_rotation,
             x_rotation: default_rotation,
             z_rotation: default_rotation,
-
-            binding_canvas: None,
-            keys_pressed: HashSet::new(),
-            previous_timestamp: None,
-            keydown_callback: None,
-            keyup_callback: None,
-            mousemove_callback: None,
-            wheel_callback: None,
         };
 
         Self {
-            sharable: Rc::new(RefCell::new(sharable)),
+            inner: Rc::new(RefCell::new(inner)),
+            control: Rc::new(RefCell::new(None)),
         }
     }
 }
 
 impl UniversalCamera {
     pub fn move_right(&mut self) {
-        self.sharable.borrow_mut().move_right()
+        self.inner.borrow_mut().move_right()
     }
 
     pub fn move_left(&mut self) {
-        self.sharable.borrow_mut().move_left()
+        self.inner.borrow_mut().move_left()
     }
 
     pub fn move_up(&mut self) {
-        self.sharable.borrow_mut().move_up()
+        self.inner.borrow_mut().move_up()
     }
 
     pub fn move_down(&mut self) {
-        self.sharable.borrow_mut().move_down()
+        self.inner.borrow_mut().move_down()
     }
 
     pub fn move_forward(&mut self) {
-        self.sharable.borrow_mut().move_forward()
+        self.inner.borrow_mut().move_forward()
     }
 
     pub fn move_backward(&mut self) {
-        self.sharable.borrow_mut().move_backward()
+        self.inner.borrow_mut().move_backward()
     }
 
     pub fn rotate(&mut self, rx: f64, ry: f64, rz: f64) {
-        self.sharable.borrow_mut().rotate(rx, ry, rz)
+        self.inner.borrow_mut().rotate(rx, ry, rz)
     }
 
     pub fn rotate_y(&mut self) {
-        self.sharable.borrow_mut().rotate_y()
+        self.inner.borrow_mut().rotate_y()
     }
 
     pub fn rotate_ny(&mut self) {
-        self.sharable.borrow_mut().rotate_ny()
+        self.inner.borrow_mut().rotate_ny()
     }
 
     pub fn rotate_x(&mut self) {
-        self.sharable.borrow_mut().rotate_x()
+        self.inner.borrow_mut().rotate_x()
     }
 
     pub fn rotate_nx(&mut self) {
-        self.sharable.borrow_mut().rotate_nx()
+        self.inner.borrow_mut().rotate_nx()
     }
 
     pub fn rotate_z(&mut self) {
-        self.sharable.borrow_mut().rotate_z()
+        self.inner.borrow_mut().rotate_z()
     }
 
     pub fn rotate_nz(&mut self) {
-        self.sharable.borrow_mut().rotate_nz()
+        self.inner.borrow_mut().rotate_nz()
     }
 
     pub fn fovy(&self) -> f64 {
-        self.sharable.borrow().fovy()
+        self.inner.borrow().fovy()
     }
 
     pub fn aspect(&self) -> f64 {
-        self.sharable.borrow().aspect()
+        self.inner.borrow().aspect()
     }
 
     pub fn near(&self) -> f64 {
-        self.sharable.borrow().near()
+        self.inner.borrow().near()
     }
 
     pub fn far(&self) -> Option<f64> {
-        self.sharable.borrow().far()
+        self.inner.borrow().far()
     }
 
     pub fn set_fovy(&mut self, fovy: f64) {
-        self.sharable.borrow_mut().set_fovy(fovy)
+        self.inner.borrow_mut().set_fovy(fovy)
     }
 
     pub fn set_aspect(&mut self, aspect: f64) {
-        self.sharable.borrow_mut().set_aspect(aspect)
+        self.inner.borrow_mut().set_aspect(aspect)
     }
 
     pub fn set_near(&mut self, near: f64) {
-        self.sharable.borrow_mut().set_near(near)
+        self.inner.borrow_mut().set_near(near)
     }
 
     pub fn set_far(&mut self, far: Option<f64>) {
-        self.sharable.borrow_mut().set_far(far)
+        self.inner.borrow_mut().set_far(far)
     }
 
     pub fn set_position(&mut self, position: Vec3) {
-        self.sharable.borrow_mut().set_position(position)
+        self.inner.borrow_mut().set_position(position)
     }
 
     pub fn left_movement(&self) -> f64 {
-        self.sharable.borrow().left_movement()
+        self.inner.borrow().left_movement()
     }
 
     pub fn right_movement(&self) -> f64 {
-        self.sharable.borrow().right_movement()
+        self.inner.borrow().right_movement()
     }
 
     pub fn up_movement(&self) -> f64 {
-        self.sharable.borrow().up_movement()
+        self.inner.borrow().up_movement()
     }
 
     pub fn down_movement(&self) -> f64 {
-        self.sharable.borrow().down_movement()
+        self.inner.borrow().down_movement()
     }
 
     pub fn forward_movement(&self) -> f64 {
-        self.sharable.borrow().forward_movement()
+        self.inner.borrow().forward_movement()
     }
 
     pub fn backward_movement(&self) -> f64 {
-        self.sharable.borrow().backward_movement()
+        self.inner.borrow().backward_movement()
     }
 
     pub fn set_left_movement(&mut self, left_movement: f64) {
-        self.sharable.borrow_mut().set_left_movement(left_movement)
+        self.inner.borrow_mut().set_left_movement(left_movement)
     }
 
     pub fn set_right_movement(&mut self, right_movement: f64) {
-        self.sharable
-            .borrow_mut()
-            .set_right_movement(right_movement)
+        self.inner.borrow_mut().set_right_movement(right_movement)
     }
 
     pub fn set_up_movement(&mut self, up_movement: f64) {
-        self.sharable.borrow_mut().set_up_movement(up_movement)
+        self.inner.borrow_mut().set_up_movement(up_movement)
     }
 
     pub fn set_down_movement(&mut self, down_movement: f64) {
-        self.sharable.borrow_mut().set_down_movement(down_movement)
+        self.inner.borrow_mut().set_down_movement(down_movement)
     }
 
     pub fn set_forward_movement(&mut self, forward_movement: f64) {
-        self.sharable
+        self.inner
             .borrow_mut()
             .set_forward_movement(forward_movement)
     }
 
     pub fn set_backward_movement(&mut self, backward_movement: f64) {
-        self.sharable
+        self.inner
             .borrow_mut()
             .set_backward_movement(backward_movement)
     }
@@ -526,23 +466,23 @@ impl UniversalCamera {
 
 impl Camera for UniversalCamera {
     fn position(&self) -> Vec3 {
-        self.sharable.borrow().view.invert().unwrap().translation()
+        self.inner.borrow().view.invert().unwrap().translation()
     }
 
     fn view_matrix(&self) -> Mat4 {
-        self.sharable.borrow().view
+        self.inner.borrow().view
     }
 
     fn proj_matrix(&self) -> Mat4 {
-        self.sharable.borrow().proj
+        self.inner.borrow().proj
     }
 
     fn view_proj_matrix(&self) -> Mat4 {
-        self.sharable.borrow().view_proj
+        self.inner.borrow().view_proj
     }
 
     fn view_frustum(&self) -> ViewFrustum {
-        self.sharable.borrow().frustum
+        self.inner.borrow().frustum
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -556,128 +496,69 @@ impl Camera for UniversalCamera {
 
 impl Controller for UniversalCamera {
     fn on_add(&mut self, viewer: &mut Viewer) {
-        let mut inner = self.sharable.borrow_mut();
-        if inner.binding_canvas.is_some() {
+        if self.control.borrow_mut().is_some() {
             panic!("share UniversalCamera between different viewer is not allowed");
         }
 
-        
-    }
+        let mut render = viewer.render().borrow_mut();
 
-    fn on_remove(&mut self, viewer: &mut Viewer) {}
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn control(&mut self, viewer: &Viewer) {
-        let timestamp = viewer.timestamp();
-        let render = viewer.render().borrow();
-        let canvas = render.canvas();
-        let mut inner = self.sharable.borrow_mut();
-
-        let aspect = canvas.width() as f64 / canvas.height() as f64;
-        if aspect != inner.aspect {
-            inner.set_aspect(aspect);
-        }
-
-        // binds to canvas
-        if inner
-            .binding_canvas
-            .as_ref()
-            .map(|c| c != canvas)
-            .unwrap_or(true)
-        {
-            let inner_weak = Rc::downgrade(&self.sharable);
-            inner.keydown_callback = Some(Closure::new(move |event: KeyboardEvent| {
-                let Some(inner) = inner_weak.upgrade() else {
-                    return;
-                };
-                let mut inner = inner.borrow_mut();
-
+        let key_down_listener = {
+            let control = Rc::clone(&self.control);
+            render.key_down_event().on(move |event| {
                 let key = event.key();
                 match key.as_str() {
-                    "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
-                    | "ArrowRight" => {
-                        inner.keys_pressed.insert(key);
-
+                    "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
+                    | "ArrowLeft" | "ArrowRight" => {
+                        control
+                            .borrow_mut()
+                            .as_mut()
+                            .unwrap()
+                            .pressed_keys
+                            .insert(key);
                         event.prevent_default();
                         event.stop_propagation();
                     }
                     _ => return,
                 }
-            }));
-            if let Err(err) = canvas.add_event_listener_with_callback(
-                "keydown",
-                inner
-                    .keydown_callback
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unchecked_ref(),
-            ) {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to bind keyboard event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
+            })
+        };
 
-            let inner_weak = Rc::downgrade(&self.sharable);
-            inner.keyup_callback = Some(Closure::new(move |event: KeyboardEvent| {
-                let Some(inner) = inner_weak.upgrade() else {
-                    return;
-                };
-                let mut inner = inner.borrow_mut();
-
+        let key_up_listener = {
+            let control = Rc::clone(&self.control);
+            render.key_up_event().on(move |event| {
                 let key = event.key();
                 match key.as_str() {
-                    "w" | "a" | "s" | "d" | "ArrowUp" | "ArrowDown" | "ArrowLeft"
-                    | "ArrowRight" => {
-                        inner.keys_pressed.remove(&key);
-
+                    "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
+                    | "ArrowLeft" | "ArrowRight" => {
+                        control
+                            .borrow_mut()
+                            .as_mut()
+                            .unwrap()
+                            .pressed_keys
+                            .remove(&key);
                         event.prevent_default();
                         event.stop_propagation();
                     }
                     _ => return,
                 }
-            }));
-            if let Err(err) = canvas.add_event_listener_with_callback(
-                "keyup",
-                inner
-                    .keyup_callback
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unchecked_ref(),
-            ) {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to bind keyboard event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
+            })
+        };
 
-            let inner_weak = Rc::downgrade(&self.sharable);
-            let previous_mouse = Rc::new(RefCell::new(None));
-            inner.mousemove_callback = Some(Closure::new(move |event: MouseEvent| {
-                let Some(inner) = inner_weak.upgrade() else {
-                    return;
-                };
-                let mut inner = inner.borrow_mut();
+        let mouse_move_listener = {
+            let inner = Rc::clone(&self.inner);
+            let control = Rc::clone(&self.control);
+            render.mouse_move_event().on(move |event| {
+                let mut control = control.borrow_mut();
+                let previous_mouse_event = &mut control.as_mut().unwrap().previous_mouse_event;
 
-                let mut previous_event = previous_mouse.borrow_mut();
-
+                // 4 refers to middle button
                 if event.buttons() == 4 {
-                    let Some(p) = previous_event.take() else {
-                        *previous_event = Some(event);
+                    let Some(p) = previous_mouse_event.take() else {
+                        *previous_mouse_event = Some(event.clone());
                         return;
                     };
 
+                    let mut inner = inner.borrow_mut();
                     if event.shift_key() {
                         let px = p.x();
                         let x = event.x();
@@ -701,32 +582,16 @@ impl Controller for UniversalCamera {
                     event.prevent_default();
                     event.stop_propagation();
 
-                    *previous_event = Some(event);
+                    *previous_mouse_event = Some(event.clone());
                 } else {
-                    *previous_event = None;
+                    *previous_mouse_event = None;
                 }
-            }));
-            if let Err(err) = canvas.add_event_listener_with_callback(
-                "mousemove",
-                inner
-                    .mousemove_callback
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unchecked_ref(),
-            ) {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to bind mousemove event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
+            })
+        };
 
-            let inner_weak = Rc::downgrade(&self.sharable);
-            inner.wheel_callback = Some(Closure::new(move |event: WheelEvent| {
-                let Some(inner) = inner_weak.upgrade() else {
-                    return;
-                };
+        let wheel_listener = {
+            let inner = Rc::clone(&self.inner);
+            render.wheel_event().on(move |event| {
                 let mut inner = inner.borrow_mut();
 
                 let forward_movement = inner.forward_movement;
@@ -738,43 +603,35 @@ impl Controller for UniversalCamera {
                 } else if delta_y > 0.0 {
                     inner.move_directional(BASE_FORWARD, -backward_movement / 2.0);
                 }
-            }));
-            if let Err(err) = canvas.add_event_listener_with_callback(
-                "wheel",
-                inner
-                    .wheel_callback
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unchecked_ref(),
-            ) {
-                error!(
-                    target: "UniversalCamera",
-                    "failed to bind wheel event: {}",
-                    err.as_string().map(|err| Cow::Owned(err)).unwrap_or(Cow::Borrowed("unknown reason")),
-                );
-            }
+            })
+        };
 
-            inner.binding_canvas = Some(canvas.clone());
-        }
+        let pre_render_listener = {
+            let inner = Rc::clone(&self.inner);
+            let control = Rc::clone(&self.control);
+            render.pre_render_event().on(move |event| {
+                let mut control = control.borrow_mut();
+                let control = control.as_mut().unwrap();
 
-        // iterate keys pressed
-        if !inner.keys_pressed.is_empty() {
-            let Some(previous) = inner.previous_timestamp else {
-                inner.previous_timestamp = Some(timestamp);
-                return;
-            };
+                if control.pressed_keys.is_empty() {
+                    return;
+                }
 
-            let offset = timestamp - previous;
-            if offset > 500.0 {
-                inner.previous_timestamp = Some(timestamp);
-                return;
-            }
+                let timestamp = event.state().timestamp();
 
-            let keys_pressed: *const HashSet<String> = &inner.keys_pressed;
-            unsafe {
-                let iter = (*keys_pressed).iter();
+                let Some(previous) = control.previous_timestamp else {
+                    control.previous_timestamp = Some(timestamp);
+                    return;
+                };
 
+                let offset = timestamp - previous;
+                control.previous_timestamp = Some(timestamp);
+
+                if offset > 500.0 {
+                    return;
+                }
+
+                let mut inner = inner.borrow_mut();
                 let offset = offset / 1000.0;
                 let forward_movement = inner.forward_movement;
                 let backward_movement = inner.backward_movement;
@@ -783,13 +640,20 @@ impl Controller for UniversalCamera {
                 let up_movement = inner.up_movement;
                 let down_movement = inner.down_movement;
                 let y_rotation = inner.y_rotation * 120.0;
-
-                for key in iter {
+                for key in control.pressed_keys.iter() {
                     match key.as_str() {
-                        "w" => inner.move_directional(BASE_FORWARD, offset * forward_movement),
-                        "s" => inner.move_directional(BASE_FORWARD, offset * -backward_movement),
-                        "d" => inner.move_directional(BASE_RIGHTWARD, offset * right_movement),
-                        "a" => inner.move_directional(BASE_RIGHTWARD, offset * -left_movement),
+                        "w" | "W" => {
+                            inner.move_directional(BASE_FORWARD, offset * forward_movement)
+                        }
+                        "s" | "S" => {
+                            inner.move_directional(BASE_FORWARD, offset * -backward_movement)
+                        }
+                        "d" | "D" => {
+                            inner.move_directional(BASE_RIGHTWARD, offset * right_movement)
+                        }
+                        "a" | "A" => {
+                            inner.move_directional(BASE_RIGHTWARD, offset * -left_movement)
+                        }
                         "ArrowUp" => inner.move_directional(BASE_UPWARD, offset * up_movement),
                         "ArrowDown" => inner.move_directional(BASE_UPWARD, offset * -down_movement),
                         "ArrowLeft" => inner.rotate(0.0, offset * y_rotation, 0.0),
@@ -797,10 +661,58 @@ impl Controller for UniversalCamera {
                         _ => return,
                     }
                 }
-            }
+            })
+        };
 
-            inner.previous_timestamp = Some(timestamp);
-        }
+        let canvas_changed_listener = {
+            let inner = Rc::clone(&self.inner);
+            render.canvas_changed_event().on(move |event| {
+                let mut inner = inner.borrow_mut();
+                let canvas = event.canvas();
+
+                let aspect = canvas.width() as f64 / canvas.height() as f64;
+                if aspect != inner.aspect {
+                    inner.set_aspect(aspect);
+                }
+            })
+        };
+
+        *self.control.borrow_mut() = Some(Control {
+            pressed_keys: HashSet::new(),
+            previous_timestamp: None,
+            previous_mouse_event: None,
+            key_down_listener,
+            key_up_listener,
+            mouse_move_listener,
+            wheel_listener,
+            canvas_changed_listener,
+            pre_render_listener,
+        });
+    }
+
+    fn on_remove(&mut self, viewer: &mut Viewer) {
+        let mut control = self.control.borrow_mut();
+        let Some(control) = control.take() else {
+            return;
+        };
+
+        let mut render = viewer.render().borrow_mut();
+        render.key_down_event().off(&control.key_down_listener);
+        render.key_up_event().off(&control.key_up_listener);
+        render.mouse_move_event().off(&control.mouse_move_listener);
+        render.wheel_event().off(&control.wheel_listener);
+        render
+            .canvas_changed_event()
+            .off(&control.canvas_changed_listener);
+        render.pre_render_event().off(&control.pre_render_listener);
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

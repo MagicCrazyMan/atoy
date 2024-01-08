@@ -7,6 +7,8 @@ pub enum Error {
     MatrixError(gl_matrix4rust::error::Error),
     WebGL2Unsupported,
     CanvasNotFound,
+    CanvasResizeObserverFailed(Option<String>),
+    AddEventCallbackFailed(&'static str, Option<String>),
     MountElementNotFound,
     MountElementFailed,
     CreateCanvasFailed,

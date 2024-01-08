@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use uuid::Uuid;
 
-struct Listener<T> {
+struct Listener<T: ?Sized> {
     id: Uuid,
     execution_count: usize,
     max_execution_count: Option<usize>,
@@ -14,7 +14,7 @@ struct Listener<T> {
 /// Registers a listener to `EventTarget` using [`EventTarget::on()`],
 /// [`EventTarget::once()`] or [`EventTarget::on_count()`] methods and removes a listener using [`EventTarget::off()`].
 /// Invokes [`EventTarget::raise()`] for raising an event.
-pub struct EventAgency<T>(Rc<RefCell<Vec<Listener<T>>>>);
+pub struct EventAgency<T: ?Sized>(Rc<RefCell<Vec<Listener<T>>>>);
 
 impl<T> EventAgency<T> {
     /// Constructs a new event target agency.
@@ -81,14 +81,14 @@ impl<T> EventAgency<T> {
     }
 
     /// Raises an event, notifies and invokes all registered listeners.
-    pub fn raise(&mut self, data: &mut T) {
+    pub fn raise(&mut self, mut event: T) {
         let mut listeners = self.0.borrow_mut();
         let mut len = listeners.len();
         let mut i = 0;
         while i < len {
             let listener = listeners.get_mut(i).unwrap();
             let func = listener.func.as_mut();
-            func(data);
+            func(&mut event);
 
             listener.execution_count += 1;
 

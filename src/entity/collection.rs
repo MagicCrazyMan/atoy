@@ -92,17 +92,17 @@ impl EntityCollection {
     pub fn add_entity(&mut self, mut entity: Entity) {
         entity.dirty = true;
         entity.parent_model_matrix = Some(self.compose_model_matrix);
-        let mut agency = self.event.clone();
-        self.delegated_events.insert(
-            entity.id,
-            entity.event.on(move |event| {
-                agency.raise(&mut Event::Entity(unsafe { NonNull::new_unchecked(event) }))
-            }),
-        );
+        // let mut agency = self.event.clone();
+        // self.delegated_events.insert(
+        //     entity.id,
+        //     entity.event.on(move |event| {
+        //         agency.raise(Event::Entity(unsafe { NonNull::new_unchecked(event) }))
+        //     }),
+        // );
         self.entities.push(entity);
 
         let index = self.entities.len() - 1;
-        self.event.raise(&mut Event::AddEntity(unsafe {
+        self.event.raise(Event::AddEntity(unsafe {
             NonNull::new_unchecked(&mut self.entities[index])
         }));
     }
@@ -128,7 +128,7 @@ impl EntityCollection {
         entity.parent_model_matrix = None;
         self.event
             .off(&self.delegated_events.remove(&entity.id).unwrap());
-        self.event.raise(&mut Event::RemoveEntity(unsafe {
+        self.event.raise(Event::RemoveEntity(unsafe {
             NonNull::new_unchecked(&mut entity)
         }));
         // self.entities_hash.remove(&entity.id);
@@ -169,7 +169,7 @@ impl EntityCollection {
         self.collections.push(collection);
 
         let index = self.collections.len() - 1;
-        self.event.raise(&mut Event::AddCollection(unsafe {
+        self.event.raise(Event::AddCollection(unsafe {
             NonNull::new_unchecked(&mut self.collections[index])
         }));
     }
@@ -195,7 +195,7 @@ impl EntityCollection {
         collection.parent_model_matrix = None;
         self.event
             .off(&self.delegated_events.remove(&collection.id).unwrap());
-        self.event.raise(&mut Event::RemoveCollection(unsafe {
+        self.event.raise(Event::RemoveCollection(unsafe {
             NonNull::new_unchecked(&mut collection)
         }));
         // self.entities_hash.remove(&entity.id);
@@ -229,7 +229,7 @@ impl EntityCollection {
     pub fn set_model_matrix(&mut self, mat: Mat4) {
         self.model_matrix = mat;
         self.dirty = true;
-        self.event.raise(&mut Event::SetModelMatrix(unsafe {
+        self.event.raise(Event::SetModelMatrix(unsafe {
             NonNull::new_unchecked(&mut self.model_matrix)
         }))
     }
