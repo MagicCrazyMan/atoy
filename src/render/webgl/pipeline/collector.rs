@@ -39,35 +39,35 @@ impl StandardEntitiesCollector {
         }
     }
 
-    /// Disable entity culling.
+    /// Disables entity culling.
     pub fn disable_culling(&mut self) {
         self.enable_culling = false;
     }
 
-    /// Enable entity culling.
+    /// Enables entity culling.
     pub fn enable_culling(&mut self) {
         self.enable_culling = true;
     }
 
-    /// Is entity culling enabled.
-    pub fn is_culling_enabled(&mut self) -> bool {
+    /// Returns `true` if entity culling enabled.
+    pub fn culling_enabled(&mut self) -> bool {
         self.enable_culling
     }
 
-    /// Disable distance sorting.
+    /// Disables distance sorting.
     /// If disabled, the orderings of the entities are not guaranteed.
     pub fn disable_distance_sorting(&mut self) {
         self.enable_sorting = false;
     }
 
-    /// Enable distance sorting.
+    /// Enables distance sorting.
     /// If enabled, entities are sorted from the nearest to the farthest.
     pub fn enable_distance_sorting(&mut self) {
         self.enable_sorting = true;
     }
 
-    /// Is entity distance sorting enabled.
-    pub fn is_distance_sorting_enabled(&mut self) -> bool {
+    /// Returns `true` if entity distance sorting enabled.
+    pub fn distance_sorting_enabled(&mut self) -> bool {
         self.enable_sorting
     }
 }

@@ -14,6 +14,7 @@ use wasm_bindgen_test::console_log;
 use web_sys::js_sys::{Date, Function, Uint8Array};
 use web_sys::MouseEvent;
 
+use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;

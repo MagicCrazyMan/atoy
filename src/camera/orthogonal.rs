@@ -9,29 +9,33 @@ use crate::{frustum::ViewFrustum, plane::Plane};
 
 use super::Camera;
 
-pub struct PerspectiveCamera {
+pub struct OrthogonalCamera {
     position: Vec3,
     center: Vec3,
     up: Vec3,
-    fovy: f64,
-    aspect: f64,
+    left: f64,
+    right: f64,
+    bottom: f64,
+    top: f64,
     near: f64,
-    far: Option<f64>,
+    far: f64,
     view: Mat4,
     proj: Mat4,
     view_proj: Mat4,
     frustum: ViewFrustum,
 }
 
-impl PerspectiveCamera {
+impl OrthogonalCamera {
     pub fn new<V1, V2, V3>(
         position: V1,
         center: V2,
         up: V3,
-        fovy: f64,
-        aspect: f64,
+        left: f64,
+        right: f64,
+        bottom: f64,
+        top: f64,
         near: f64,
-        far: Option<f64>,
+        far: f64,
     ) -> Self
     where
         V1: AsVec3<f64>,
@@ -39,17 +43,19 @@ impl PerspectiveCamera {
         V3: AsVec3<f64>,
     {
         let view = Mat4::from_look_at(&position, &center, &up);
-        let proj = Mat4::from_perspective(fovy, aspect, near, far);
+        let proj = Mat4::from_ortho(left, right, bottom, top, near, far);
         let position = Vec3::from_as_vec3(position);
         let center = Vec3::from_as_vec3(center);
         let up = Vec3::from_as_vec3(up).normalize();
-        let frustum = frustum(position, center, up, fovy, aspect, near, far);
+        let frustum = frustum(position, center, up, left, right, bottom, top, near, far);
         Self {
             position,
             center,
             up,
-            fovy,
-            aspect,
+            left,
+            right,
+            bottom,
+            top,
             near,
             far,
             view,
@@ -66,7 +72,14 @@ impl PerspectiveCamera {
     }
 
     fn update_proj(&mut self) {
-        self.proj = Mat4::from_perspective(self.fovy, self.aspect, self.near, self.far);
+        self.proj = Mat4::from_ortho(
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
+        );
         self.view_proj = self.proj * self.view;
         self.update_frustum();
     }
@@ -76,8 +89,10 @@ impl PerspectiveCamera {
             self.position,
             self.center,
             self.up,
-            self.fovy,
-            self.aspect,
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
             self.near,
             self.far,
         );
@@ -91,29 +106,47 @@ impl PerspectiveCamera {
         self.up
     }
 
-    pub fn aspect(&self) -> f64 {
-        self.aspect
+    pub fn left(&self) -> f64 {
+        self.left
+    }
+
+    pub fn right(&self) -> f64 {
+        self.right
+    }
+
+    pub fn bottom(&self) -> f64 {
+        self.bottom
+    }
+
+    pub fn top(&self) -> f64 {
+        self.top
     }
 
     pub fn near(&self) -> f64 {
         self.near
     }
 
-    pub fn far(&self) -> Option<f64> {
+    pub fn far(&self) -> f64 {
         self.far
     }
 
-    pub fn fovy(&self) -> f64 {
-        self.fovy
-    }
-
-    pub fn set_fovy(&mut self, fovy: f64) {
-        self.fovy = fovy;
+    pub fn set_left(&mut self, left: f64) {
+        self.left = left;
         self.update_proj();
     }
 
-    pub fn set_aspect(&mut self, aspect: f64) {
-        self.aspect = aspect;
+    pub fn set_right(&mut self, right: f64) {
+        self.right = right;
+        self.update_proj();
+    }
+
+    pub fn set_bottom(&mut self, bottom: f64) {
+        self.bottom = bottom;
+        self.update_proj();
+    }
+
+    pub fn set_top(&mut self, top: f64) {
+        self.top = top;
         self.update_proj();
     }
 
@@ -122,7 +155,7 @@ impl PerspectiveCamera {
         self.update_proj();
     }
 
-    pub fn set_far(&mut self, far: Option<f64>) {
+    pub fn set_far(&mut self, far: f64) {
         self.far = far;
         self.update_proj();
     }
@@ -152,7 +185,23 @@ impl PerspectiveCamera {
     }
 }
 
-impl Camera for PerspectiveCamera {
+impl Default for OrthogonalCamera {
+    fn default() -> Self {
+        Self::new(
+            Vec3::from_values(0.0, 0.0, 2.0),
+            Vec3::new(),
+            Vec3::from_values(0.0, 1.0, 0.0),
+            -1.0,
+            1.0,
+            -1.0,
+            1.0,
+            0.5,
+            1.5,
+        )
+    }
+}
+
+impl Camera for OrthogonalCamera {
     fn position(&self) -> Vec3 {
         self.position
     }
@@ -182,28 +231,16 @@ impl Camera for PerspectiveCamera {
     }
 }
 
-impl Default for PerspectiveCamera {
-    fn default() -> Self {
-        Self::new(
-            Vec3::from_values(0.0, 0.0, 2.0),
-            Vec3::new(),
-            Vec3::from_values(0.0, 1.0, 0.0),
-            60.0f64.to_radians(),
-            1.0,
-            0.5,
-            None,
-        )
-    }
-}
-
 pub(super) fn frustum(
     position: Vec3,
     center: Vec3,
     up: Vec3,
-    fovy: f64,
-    aspect: f64,
+    left: f64,
+    right: f64,
+    bottom: f64,
+    top: f64,
     near: f64,
-    far: Option<f64>,
+    far: f64,
 ) -> ViewFrustum {
     let nz = (position - center).normalize();
     let x = up.cross(&nz).normalize();
@@ -211,34 +248,37 @@ pub(super) fn frustum(
     let z = nz.negate();
 
     let p = position + z * near;
-    let hh = (fovy / 2.0).tan() * near;
-    let hw = aspect * hh;
+    let hh = (right - left).abs() / 2.0;
+    let hw = (top - bottom).abs() / 2.0;
 
     let top = {
         let pop = p + y * hh;
-        let d = (pop - position).normalize();
-        Plane::new(pop, x.cross(&d).normalize())
+        Plane::new(pop, y)
     };
     let bottom = {
         let pop = p + y * -hh;
-        let d = (pop - position).normalize();
-        Plane::new(pop, d.cross(&x).normalize())
+        Plane::new(pop, y.negate())
     };
     let left = {
         let pop = p + x * -hw;
-        let d = (pop - position).normalize();
-        Plane::new(pop, y.cross(&d).normalize())
+        Plane::new(pop, x.negate())
     };
     let right = {
         let pop = p + x * hw;
-        let d = (pop - position).normalize();
-        Plane::new(pop, d.cross(&y).normalize())
+        Plane::new(pop, x)
     };
     let near = { Plane::new(p, nz) };
-    let far = match far {
-        Some(far) => Some(Plane::new(position + z * far, z)),
-        None => None,
+    let far = {
+        let pop = position + z * far;
+        Plane::new(pop, z)
     };
 
-    ViewFrustum::new(left, right, top, bottom, near, far)
+    log::info!("{} {}", top.point_on_plane(), top.normal());
+    log::info!("{} {}", bottom.point_on_plane(), bottom.normal());
+    log::info!("{} {}", left.point_on_plane(), left.normal());
+    log::info!("{} {}", right.point_on_plane(), right.normal());
+    log::info!("{} {}", near.point_on_plane(), near.normal());
+    log::info!("{} {}", far.point_on_plane(), far.normal());
+
+    ViewFrustum::new(left, right, top, bottom, near, Some(far))
 }
