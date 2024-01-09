@@ -4,6 +4,7 @@ use rand::distributions::{Distribution, Standard};
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -83,6 +84,8 @@ pub trait Material: ProgramSource {
     /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
     /// do not borrow material from entity.
     fn prepare(&mut self, state: &mut State, entity: &Entity);
+
+    fn changed_event(&self) -> &EventAgency<()>;
 
     fn as_any(&self) -> &dyn Any;
 

@@ -23,7 +23,7 @@ impl<T> EventAgency<T> {
     }
 
     /// Adds a listener to event target.
-    pub fn on<F>(&mut self, f: F) -> Uuid
+    pub fn on<F>(&self, f: F) -> Uuid
     where
         F: FnMut(&mut T) + 'static,
     {
@@ -38,7 +38,7 @@ impl<T> EventAgency<T> {
     }
 
     /// Adds a listener to event target and execute it until it reaches the specified execution count.
-    pub fn on_count<F>(&mut self, f: F, count: usize) -> Uuid
+    pub fn on_count<F>(&self, f: F, count: usize) -> Uuid
     where
         F: FnMut(&mut T) + 'static,
     {
@@ -53,7 +53,7 @@ impl<T> EventAgency<T> {
     }
 
     /// Adds a listener to event target and execute it only once.
-    pub fn once<F>(&mut self, f: F) -> Uuid
+    pub fn once<F>(&self, f: F) -> Uuid
     where
         F: FnMut(&mut T) + 'static,
     {
@@ -68,7 +68,7 @@ impl<T> EventAgency<T> {
     }
 
     /// Removes a listener with a specified [`Uuid`] from event target.
-    pub fn off(&mut self, id: &Uuid) {
+    pub fn off(&self, id: &Uuid) {
         let Some(index) = self
             .0
             .borrow_mut()
@@ -81,7 +81,7 @@ impl<T> EventAgency<T> {
     }
 
     /// Raises an event, notifies and invokes all registered listeners.
-    pub fn raise(&mut self, mut event: T) {
+    pub fn raise(&self, mut event: T) {
         let mut listeners = self.0.borrow_mut();
         let mut len = listeners.len();
         let mut i = 0;

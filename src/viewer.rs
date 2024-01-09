@@ -2,6 +2,7 @@ use std::rc::{Rc, Weak};
 
 use gl_matrix4rust::vec3::Vec3;
 use log::error;
+use uuid::Uuid;
 use wasm_bindgen::closure::Closure;
 use web_sys::Element;
 
@@ -30,10 +31,13 @@ struct Inner {
     render: WebGL2Render,
     standard_pipeline: StandardPipeline,
     picking_pipeline: PickingPipeline,
+
     render_loop: Option<Closure<dyn FnMut(f64)>>,
     render_next: bool,
-    stop_render_loop: bool,
+    stopping_render_loop: bool,
     stop_render_loop_when_error: bool,
+
+    entities_changed_listener: Option<Uuid>,
 }
 
 #[derive(Clone)]
@@ -58,14 +62,18 @@ impl Viewer {
             picking_pipeline: PickingPipeline::new(),
             render_loop: None,
             render_next: true,
-            stop_render_loop: false,
+            stopping_render_loop: false,
             stop_render_loop_when_error: true,
+            entities_changed_listener: None,
         };
-
-        Ok(Self {
+        let mut instance = Self {
             marker: Rc::new(()),
             inner: Box::leak(Box::new(inner)),
-        })
+        };
+
+        instance.register_event();
+
+        Ok(instance)
     }
 
     #[inline]
@@ -76,6 +84,28 @@ impl Viewer {
     #[inline]
     fn inner_mut(&mut self) -> &mut Inner {
         unsafe { &mut *self.inner }
+    }
+
+    fn register_event(&mut self) {
+        let me = self.weak();
+        let listener = self
+            .scene_mut()
+            .entity_collection_mut()
+            .changed_event()
+            .on(move |_| {
+                let Some(mut viewer) = me.upgrade() else {
+                    return;
+                };
+
+                if viewer.inner().render_loop.is_some() {
+                    viewer.should_render_next();
+                } else {
+                    if let Err(err) = viewer.render_frame() {
+                        error!("error occurred during rendering {err}");
+                    }
+                }
+            });
+        self.inner_mut().entities_changed_listener = Some(listener);
     }
 
     pub fn mount(&self) -> Option<&Element> {
@@ -219,24 +249,24 @@ impl Viewer {
 
         let mut me = self.clone();
 
-        self.inner_mut().stop_render_loop = false;
+        self.inner_mut().stopping_render_loop = false;
         self.inner_mut().render_loop = Some(Closure::new(move |timestamp| {
             me.inner_mut().timestamp = timestamp;
 
-            if me.inner().stop_render_loop {
+            if me.inner().stopping_render_loop {
                 me.inner_mut().render_loop = None;
-                me.inner_mut().stop_render_loop = false;
+                me.inner_mut().stopping_render_loop = false;
                 return;
             }
 
-            // if me.inner().render_next {
+            if me.inner().render_next {
                 if let Err(err) = me.render_frame() {
                     error!("error occurred during rendering {err}");
                     if me.inner().stop_render_loop_when_error {
                         return;
                     }
                 }
-            // }
+            }
 
             if let Some(render_loop) = me.inner().render_loop.as_ref() {
                 request_animation_frame(render_loop);
@@ -246,7 +276,29 @@ impl Viewer {
     }
 
     pub fn stop_render_loop(&mut self) {
-        self.inner_mut().stop_render_loop = true;
+        self.inner_mut().stopping_render_loop = true;
+    }
+}
+
+impl Drop for Viewer {
+    fn drop(&mut self) {
+        if Rc::strong_count(&self.marker) == 1 {
+            // removes controllers
+            (0..self.controllers().len()).for_each(|_| {
+                self.remove_controller(0);
+            });
+            // removes entities changed listener
+            if let Some(listener) = self.inner_mut().entities_changed_listener.take() {
+                self.scene_mut()
+                    .entity_collection_mut()
+                    .changed_event()
+                    .off(&listener);
+            }
+            // unmount
+            let _ = self.set_mount(None);
+
+            unsafe { drop(Box::from_raw(self.inner)) }
+        }
     }
 }
 
@@ -262,18 +314,5 @@ impl ViewerWeak {
             marker,
             inner: self.inner,
         })
-    }
-}
-
-impl Drop for Viewer {
-    fn drop(&mut self) {
-        if Rc::strong_count(&self.marker) == 1 {
-            (0..self.controllers().len()).for_each(|_| {
-                self.remove_controller(0);
-            });
-            let _ = self.set_mount(None);
-
-            unsafe { drop(Box::from_raw(self.inner)) }
-        }
     }
 }

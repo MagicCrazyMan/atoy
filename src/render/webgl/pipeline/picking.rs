@@ -7,6 +7,7 @@ use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     material::{Material, Transparency},
     render::{
         pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
@@ -426,6 +427,10 @@ impl Material for PickingMaterial {
 
     fn instanced(&self) -> Option<i32> {
         None
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        unreachable!()
     }
 
     fn as_any(&self) -> &dyn Any {

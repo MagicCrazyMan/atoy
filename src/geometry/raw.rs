@@ -2,6 +2,7 @@ use std::{any::Any, collections::HashMap};
 
 use crate::{
     bounding::BoundingVolume,
+    event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
         draw::Draw,
@@ -19,6 +20,7 @@ pub struct RawGeometry {
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     uniform_blocks: HashMap<String, UniformBlockValue>,
+    changed_event: EventAgency<()>,
 }
 
 impl RawGeometry {
@@ -39,6 +41,7 @@ impl RawGeometry {
             attributes,
             uniforms,
             uniform_blocks,
+            changed_event: EventAgency::new(),
         }
     }
 }
@@ -74,6 +77,10 @@ impl Geometry for RawGeometry {
 
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {
         self.uniform_blocks.get(name).map(|v| v.clone())
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
     }
 
     fn as_any(&self) -> &dyn Any {

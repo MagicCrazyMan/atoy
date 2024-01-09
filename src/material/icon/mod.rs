@@ -2,6 +2,7 @@ use std::any::Any;
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -20,6 +21,7 @@ use super::{loader::TextureLoader, Material, Transparency};
 pub struct IconMaterial {
     transparency: Transparency,
     loader: TextureLoader,
+    changed_event: EventAgency<()>,
 }
 
 impl IconMaterial {
@@ -27,6 +29,7 @@ impl IconMaterial {
         Self {
             transparency,
             loader,
+            changed_event: EventAgency::new(),
         }
     }
 }
@@ -97,6 +100,10 @@ impl Material for IconMaterial {
 
     fn prepare(&mut self, _: &mut State, _: &Entity) {
         self.loader.load();
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
     }
 
     fn as_any(&self) -> &dyn Any {

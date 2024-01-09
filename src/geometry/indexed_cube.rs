@@ -4,6 +4,7 @@ use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
     bounding::BoundingVolume,
+    event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -24,8 +25,7 @@ pub struct IndexedCube {
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
     texture_coordinates: BufferDescriptor,
-    // non-clone fields
-    update_bounding_volume: bool,
+    changed_event: EventAgency<()>,
 }
 
 impl IndexedCube {
@@ -62,7 +62,7 @@ impl IndexedCube {
                 ),
                 BufferUsage::StaticDraw,
             ),
-            update_bounding_volume: true,
+            changed_event: EventAgency::new(),
         }
     }
 }
@@ -84,7 +84,7 @@ impl IndexedCube {
             ),
             0,
         );
-        self.update_bounding_volume = true;
+        self.changed_event.raise(());
     }
 }
 
@@ -155,25 +155,16 @@ impl Geometry for IndexedCube {
         None
     }
 
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-}
-
-impl Clone for IndexedCube {
-    fn clone(&self) -> Self {
-        Self {
-            size: self.size.clone(),
-            indices: self.indices.clone(),
-            vertices: self.vertices.clone(),
-            normals: self.normals.clone(),
-            texture_coordinates: self.texture_coordinates.clone(),
-            update_bounding_volume: true,
-        }
     }
 }
 

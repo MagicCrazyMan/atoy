@@ -6,6 +6,7 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -108,6 +109,7 @@ pub struct MultipleTexturesInstanced {
     instance_matrices: BufferDescriptor,
     instance_indices: BufferDescriptor,
     textures: [TextureLoader; 8],
+    changed_event: EventAgency<()>,
 }
 
 impl MultipleTexturesInstanced {
@@ -308,6 +310,7 @@ impl MultipleTexturesInstanced {
                     unit: TextureUnit::TEXTURE7,
                 }),
             ],
+            changed_event: EventAgency::new(),
         }
     }
 }
@@ -410,6 +413,10 @@ impl Material for MultipleTexturesInstanced {
 
     fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
     }
 
     fn as_any(&self) -> &dyn Any {

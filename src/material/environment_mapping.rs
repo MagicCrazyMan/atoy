@@ -20,7 +20,7 @@ use crate::{
                 UniformValue,
             },
         },
-    },
+    }, event::EventAgency,
 };
 
 use super::{Material, Transparency};
@@ -74,6 +74,7 @@ pub struct EnvironmentMaterial {
     images: Option<Vec<HtmlImageElement>>,
     onload: Option<Closure<dyn FnMut()>>,
     texture: Option<TextureDescriptor>,
+    changed_event: EventAgency<()>,
 }
 
 impl EnvironmentMaterial {
@@ -84,6 +85,7 @@ impl EnvironmentMaterial {
             onload: None,
             images: None,
             texture: None,
+            changed_event: EventAgency::new()
         }
     }
 }
@@ -162,6 +164,10 @@ impl Material for EnvironmentMaterial {
 
     fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
     }
 
     fn as_any(&self) -> &dyn Any {

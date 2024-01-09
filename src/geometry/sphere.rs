@@ -5,6 +5,7 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     bounding::BoundingVolume,
+    event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -25,8 +26,7 @@ pub struct Sphere {
     num_vertices: usize,
     vertices: BufferDescriptor,
     normals: BufferDescriptor,
-    // non-clone fields
-    update_bounding_volume: bool,
+    changed_event: EventAgency<()>,
 }
 
 impl Sphere {
@@ -52,7 +52,7 @@ impl Sphere {
                 BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::StaticDraw,
             ),
-            update_bounding_volume: true,
+            changed_event: EventAgency::new(),
         }
     }
 }
@@ -76,7 +76,7 @@ impl Sphere {
         );
         self.normals
             .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
-        self.update_bounding_volume = true;
+        self.changed_event.raise(());
     }
 }
 
@@ -136,26 +136,16 @@ impl Geometry for Sphere {
         None
     }
 
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-}
-
-impl Clone for Sphere {
-    fn clone(&self) -> Self {
-        Self {
-            radius: self.radius.clone(),
-            vertical_segments: self.vertical_segments.clone(),
-            horizontal_segments: self.horizontal_segments.clone(),
-            num_vertices: self.num_vertices.clone(),
-            vertices: self.vertices.clone(),
-            normals: self.normals.clone(),
-            update_bounding_volume: true,
-        }
     }
 }
 

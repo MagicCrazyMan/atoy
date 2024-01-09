@@ -5,6 +5,7 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -61,6 +62,7 @@ pub struct SolidColorInstancedMaterial {
     count: usize,
     colors: BufferDescriptor,
     instance_matrices: BufferDescriptor,
+    changed_event: EventAgency<()>,
 }
 
 impl SolidColorInstancedMaterial {
@@ -114,6 +116,7 @@ impl SolidColorInstancedMaterial {
                 BufferSource::from_float32_array(matrices_data, 0, matrices_length),
                 BufferUsage::StaticDraw,
             ),
+            changed_event: EventAgency::new()
         }
     }
 
@@ -213,6 +216,10 @@ impl Material for SolidColorInstancedMaterial {
     }
 
     fn prepare(&mut self, _: &mut State, _: &Entity) {}
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
+    }
 
     fn as_any(&self) -> &dyn Any {
         self

@@ -2,6 +2,7 @@ use std::any::Any;
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -25,30 +26,37 @@ use super::{loader::TextureLoader, Material, StandardMaterialSource, Transparenc
 pub struct TextureMaterial {
     transparency: Transparency,
     diffuse_texture: TextureLoader,
+    changed_event: EventAgency<()>,
 }
 
 impl TextureMaterial {
     pub fn new<S: Into<String>>(url: S, transparency: Transparency) -> Self {
+        let changed_event = EventAgency::new();
+        let changed_event_cloned = changed_event.clone();
         Self {
             transparency,
-            diffuse_texture: TextureLoader::from_url(url, |image| UniformValue::Texture {
-                descriptor: TextureDescriptor::texture_2d_with_html_image_element(
-                    image,
-                    TextureDataType::UNSIGNED_BYTE,
-                    TextureInternalFormat::SRGB8,
-                    TextureFormat::RGB,
-                    0,
-                    vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                    false,
-                ),
-                params: vec![
-                    TextureParameter::MinFilter(TextureMinificationFilter::Linear),
-                    TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
-                    TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
-                    TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
-                ],
-                unit: TextureUnit::TEXTURE0,
+            diffuse_texture: TextureLoader::from_url(url, move |image| {
+                changed_event_cloned.raise(());
+                UniformValue::Texture {
+                    descriptor: TextureDescriptor::texture_2d_with_html_image_element(
+                        image,
+                        TextureDataType::UNSIGNED_BYTE,
+                        TextureInternalFormat::SRGB8,
+                        TextureFormat::RGB,
+                        0,
+                        vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+                        false,
+                    ),
+                    params: vec![
+                        TextureParameter::MinFilter(TextureMinificationFilter::Linear),
+                        TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
+                        TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
+                        TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
+                    ],
+                    unit: TextureUnit::TEXTURE0,
+                }
             }),
+            changed_event,
         }
     }
 }
@@ -122,6 +130,10 @@ impl Material for TextureMaterial {
 
     fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
         None
+    }
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
     }
 
     fn as_any(&self) -> &dyn Any {

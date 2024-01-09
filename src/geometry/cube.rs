@@ -5,6 +5,7 @@ use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
     bounding::BoundingVolume,
+    event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -22,7 +23,7 @@ pub struct Cube {
     size: f64,
     data: BufferDescriptor,
     bounding_volume: BoundingVolume,
-    update_bounding_volume: bool,
+    changed_event: EventAgency<()>,
 }
 
 impl Cube {
@@ -41,7 +42,7 @@ impl Cube {
                 MemoryPolicy::restorable(move || BufferSource::from_array_buffer(build_data(size))),
             ),
             bounding_volume: build_bounding_volume(size),
-            update_bounding_volume: true,
+            changed_event: EventAgency::new(),
         }
     }
 
@@ -66,7 +67,7 @@ impl Cube {
                 BufferSource::from_array_buffer(build_data(size))
             }));
         self.bounding_volume = build_bounding_volume(size);
-        self.update_bounding_volume = true;
+        self.changed_event.raise(());
     }
 }
 
@@ -131,18 +132,16 @@ impl Geometry for Cube {
         None
     }
 
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-}
-
-impl Clone for Cube {
-    fn clone(&self) -> Self {
-        Self::with_size(self.size)
     }
 }
 

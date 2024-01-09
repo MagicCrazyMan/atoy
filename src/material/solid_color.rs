@@ -4,6 +4,7 @@ use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
 use crate::{
     entity::Entity,
+    event::EventAgency,
     render::{
         pp::State,
         webgl::{
@@ -21,19 +22,17 @@ use super::{Material, StandardMaterialSource, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct SolidColorMaterial {
     color: Vec3,
     transparency: Transparency,
+    changed_event: EventAgency<()>,
 }
 
 impl SolidColorMaterial {
     /// Constructs a solid color material with `(1.0, 0.0, 0.0, 1.0)``.
     pub fn new() -> Self {
-        Self {
-            color: Vec3::from_values(1.0, 0.0, 0.0),
-            transparency: Transparency::Opaque,
-        }
+        Self::with_color(Vec3::from_values(1.0, 0.0, 0.0), Transparency::Opaque)
     }
 
     /// Constructs a solid color material with specified color and transparency.
@@ -41,6 +40,7 @@ impl SolidColorMaterial {
         Self {
             color,
             transparency,
+            changed_event: EventAgency::new(),
         }
     }
 
@@ -53,6 +53,7 @@ impl SolidColorMaterial {
     pub fn set_color(&mut self, color: Vec3, transparency: Transparency) {
         self.color = color;
         self.transparency = transparency;
+        self.changed_event.raise(());
     }
 }
 
@@ -127,6 +128,10 @@ impl Material for SolidColorMaterial {
     }
 
     fn prepare(&mut self, _: &mut State, _: &Entity) {}
+
+    fn changed_event(&self) -> &EventAgency<()> {
+        &self.changed_event
+    }
 
     fn as_any(&self) -> &dyn Any {
         self
