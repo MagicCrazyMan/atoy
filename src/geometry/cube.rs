@@ -37,7 +37,12 @@ impl Cube {
         Self {
             size,
             data: BufferDescriptor::with_memory_policy(
-                BufferSource::from_array_buffer(build_data(size)),
+                BufferSource::from_function(
+                    move || BufferSource::from_array_buffer(build_data(size)),
+                    264 * 4,
+                    0,
+                    264 * 4,
+                ),
                 BufferUsage::StaticDraw,
                 MemoryPolicy::restorable(move || BufferSource::from_array_buffer(build_data(size))),
             ),

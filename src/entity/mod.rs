@@ -444,8 +444,8 @@ impl Entity {
             .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
-    pub fn changed_event(&mut self) -> &mut EventAgency<Event> {
-        &mut self.runtime_mut().changed_event
+    pub fn changed_event(&self) -> &EventAgency<Event> {
+        &self.runtime().changed_event
     }
 }
 

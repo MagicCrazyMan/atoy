@@ -21,7 +21,7 @@ struct Inner {
 }
 
 pub(super) struct Runtime {
-    dirty: bool,
+    pub(super) dirty: bool,
     parent: Option<EntityCollectionWeak>,
     bounding: Option<CullingBoundingVolume>,
     pub(super) compose_model_matrix: Mat4,
@@ -180,7 +180,7 @@ impl EntityCollection {
     /// Adds a new entity to this collection.
     pub fn add_entity(&mut self, mut entity: Entity) {
         if entity.runtime().collection.is_some() {
-            panic!("share entity between different entity collection is not allowed");
+            panic!("share entity between multiple entity collection is not allowed");
         }
 
         entity.runtime_mut().dirty = true;
@@ -242,6 +242,10 @@ impl EntityCollection {
 
     /// Adds a new sub-collection to this collection.
     pub fn add_collection(&mut self, mut collection: Self) {
+        if collection.runtime().parent.is_some() {
+            panic!("share entity collection between multiple entity collection is not allowed");
+        }
+
         collection.runtime_mut().dirty = true;
         collection.runtime_mut().parent = Some(self.weak());
         self.delegate_collection_event(&collection);
@@ -380,8 +384,8 @@ impl EntityCollection {
             merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
-    pub fn changed_event(&mut self) -> &mut EventAgency<Event> {
-        &mut self.runtime_mut().changed_event
+    pub fn changed_event(&self) -> &EventAgency<Event> {
+        &self.runtime().changed_event
     }
 }
 
