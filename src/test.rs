@@ -11,7 +11,7 @@ use gl_matrix4rust::vec4::{AsVec4, Vec4};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
-use web_sys::js_sys::{Date, Uint8Array};
+use web_sys::js_sys::{Date, Function, Uint8Array};
 use web_sys::MouseEvent;
 
 use crate::camera::perspective::PerspectiveCamera;
@@ -218,25 +218,17 @@ fn create_viewer(scene: Scene, camera: UniversalCamera) -> Viewer {
 
     let start_timestamp = Rc::new(RefCell::new(0.0));
     let start_timestamp_cloned = Rc::clone(&start_timestamp);
-    viewer
-        .render()
-        .borrow_mut()
-        .pre_render_event()
-        .on(move |_| {
-            *start_timestamp_cloned.borrow_mut() = crate::window().performance().unwrap().now();
-        });
-    viewer
-        .render()
-        .borrow_mut()
-        .post_render_event()
-        .on(move |_| {
-            let start = *start_timestamp.borrow();
-            let end = crate::window().performance().unwrap().now();
-            crate::document()
-                .get_element_by_id("total")
-                .unwrap()
-                .set_inner_html(&format!("{:.2}", end - start));
-        });
+    viewer.render_mut().pre_render_event().on(move |_| {
+        *start_timestamp_cloned.borrow_mut() = crate::window().performance().unwrap().now();
+    });
+    viewer.render_mut().post_render_event().on(move |_| {
+        let start = *start_timestamp.borrow();
+        let end = crate::window().performance().unwrap().now();
+        crate::document()
+            .get_element_by_id("total")
+            .unwrap()
+            .set_inner_html(&format!("{:.2}", end - start));
+    });
 
     viewer
 }
@@ -348,13 +340,16 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     let mut viewer = create_viewer(scene, camera);
     viewer.start_render_loop();
 
-    let mut viewer_cloned = viewer.clone();
-    let click = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {
+    let viewer_weak = viewer.weak();
+    viewer.render_mut().click_event().on(move |event| {
+        let Some(mut viewer) = viewer_weak.upgrade() else {
+            return;
+        };
         let x = event.page_x();
         let y = event.page_y();
 
         let start = window().performance().unwrap().now();
-        if let Some(entity) = viewer_cloned.pick_entity(x, y).unwrap() {
+        if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
             if let Some(material) = entity
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
@@ -366,7 +361,7 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             }
             console_log!("pick entity {}", entity.id());
         };
-        if let Some(position) = viewer_cloned.pick_position(x, y).unwrap() {
+        if let Some(position) = viewer.pick_position(x, y).unwrap() {
             console_log!("pick position {}", position);
         };
         let end = window().performance().unwrap().now();
@@ -375,16 +370,6 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             .unwrap()
             .set_inner_html(&format!("{:.2}", end - start));
     });
-    window()
-        .add_event_listener_with_callback("click", click.as_ref().unchecked_ref())
-        .unwrap();
-    click.forget();
-
-    // let mousemove = Closure::<dyn FnMut(MouseEvent)>::new(move |event: MouseEvent| {});
-    // window()
-    //     .add_event_listener_with_callback("mousemove", click.as_ref().unchecked_ref())
-    //     .unwrap();
-    // mousemove.forget();
 
     Ok(())
 }

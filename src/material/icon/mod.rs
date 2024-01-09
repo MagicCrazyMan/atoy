@@ -1,16 +1,19 @@
-use std::{any::Any, ptr::NonNull};
+use std::any::Any;
 
-use crate::{render::{
-    pp::State,
-    webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::{ProgramSource, ShaderSource},
-        uniform::{
-            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-            UniformValue,
+use crate::{
+    entity::Entity,
+    render::{
+        pp::State,
+        webgl::{
+            attribute::{AttributeBinding, AttributeValue},
+            program::{ProgramSource, ShaderSource},
+            uniform::{
+                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+                UniformValue,
+            },
         },
     },
-}, entity::Entity};
+};
 
 use super::{loader::TextureLoader, Material, Transparency};
 
