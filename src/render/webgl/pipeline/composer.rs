@@ -124,7 +124,7 @@ impl ProgramSource for ComposerMaterial {
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/coverage.vert"))),
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/composer.frag"))),
         ]
     }

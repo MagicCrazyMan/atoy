@@ -32,7 +32,7 @@ const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler"
 const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Exposure");
 
 #[derive(Clone, Copy, PartialEq)]
-pub enum HdrToneMapping {
+pub enum HdrToneMappingType {
     Reinhard,
     Exposure(f32),
 }
@@ -47,10 +47,13 @@ pub enum HdrToneMapping {
 pub struct StandardDrawer {
     normal_framebuffer: Framebuffer,
     hdr_framebuffer: Framebuffer,
+    normal_multisample_framebuffer: Option<Framebuffer>,
+    hdr_multisample_framebuffer: Option<Framebuffer>,
     in_entities: ResourceKey<Vec<NonNull<Entity>>>,
     out_texture: ResourceKey<WebGlTexture>,
+    multisample: Option<i32>,
     hdr: bool,
-    hdr_tone_mapping: HdrToneMapping,
+    hdr_tone_mapping_type: HdrToneMappingType,
 }
 
 impl StandardDrawer {
@@ -58,7 +61,7 @@ impl StandardDrawer {
         in_entities: ResourceKey<Vec<NonNull<Entity>>>,
         out_texture: ResourceKey<WebGlTexture>,
     ) -> Self {
-        Self {
+        let mut instance = Self {
             in_entities,
             normal_framebuffer: Framebuffer::new(
                 [TextureProvider::new(
@@ -86,9 +89,67 @@ impl StandardDrawer {
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
             ),
+            normal_multisample_framebuffer: None,
+            hdr_multisample_framebuffer: None,
             out_texture,
+            multisample: None,
             hdr: true,
-            hdr_tone_mapping: HdrToneMapping::Reinhard,
+            hdr_tone_mapping_type: HdrToneMappingType::Reinhard,
+        };
+        instance.set_multisample(Some(4));
+        instance
+    }
+
+    pub fn multisample(&self) -> Option<i32> {
+        self.multisample
+    }
+
+    pub fn set_multisample(&mut self, multisample: Option<i32>) {
+        match multisample {
+            Some(multisample) => {
+                if multisample <= 0 {
+                    self.normal_multisample_framebuffer = None;
+                    self.hdr_multisample_framebuffer = None;
+                    self.multisample = None;
+                } else {
+                    self.normal_multisample_framebuffer = Some(Framebuffer::new(
+                        [],
+                        [
+                            RenderbufferProvider::new_multisample(
+                                FramebufferAttachment::COLOR_ATTACHMENT0,
+                                RenderbufferInternalFormat::RGBA8,
+                                multisample,
+                            ),
+                            RenderbufferProvider::new_multisample(
+                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                                multisample,
+                            ),
+                        ],
+                    ));
+                    self.hdr_multisample_framebuffer = Some(Framebuffer::new(
+                        [],
+                        [
+                            RenderbufferProvider::new_multisample(
+                                FramebufferAttachment::COLOR_ATTACHMENT0,
+                                RenderbufferInternalFormat::RGBA32F,
+                                multisample,
+                            ),
+                            RenderbufferProvider::new_multisample(
+                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                                multisample,
+                            ),
+                        ],
+                    ));
+                    self.multisample = Some(multisample);
+                }
+            }
+            None => {
+                self.normal_multisample_framebuffer = None;
+                self.hdr_multisample_framebuffer = None;
+                self.multisample = None;
+            }
         }
     }
 
@@ -104,12 +165,12 @@ impl StandardDrawer {
         self.hdr = false;
     }
 
-    pub fn hdr_tone_mapping(&self) -> HdrToneMapping {
-        self.hdr_tone_mapping
+    pub fn hdr_tone_mapping_type(&self) -> HdrToneMappingType {
+        self.hdr_tone_mapping_type
     }
 
-    pub fn set_hdr_tone_mapping(&mut self, tone_mapping: HdrToneMapping) {
-        self.hdr_tone_mapping = tone_mapping;
+    pub fn set_hdr_tone_mapping_type(&mut self, hdr_tone_mapping_type: HdrToneMappingType) {
+        self.hdr_tone_mapping_type = hdr_tone_mapping_type;
     }
 
     fn prepare_entities<'a, 'b>(
@@ -223,6 +284,55 @@ impl StandardDrawer {
         Ok(())
     }
 
+    fn draw_normal_multisample(
+        &mut self,
+        state: &mut State,
+        opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
+        translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
+    ) -> Result<(), Error> {
+        self.normal_multisample_framebuffer
+            .as_mut()
+            .unwrap()
+            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
+        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
+        state.gl().clear_depth(1.0);
+        state.gl().clear(
+            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
+        );
+        self.draw_entities(state, opaques, translucents)?;
+        self.normal_multisample_framebuffer
+            .as_mut()
+            .unwrap()
+            .unbind(state.gl());
+
+        Ok(())
+    }
+
+    fn blit_normal_multisample(&mut self, state: &mut State) -> Result<(), Error> {
+        let normal_framebuffer = &mut self.normal_framebuffer;
+        let normal_multisample_framebuffer = self.normal_multisample_framebuffer.as_mut().unwrap();
+
+        normal_framebuffer.bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        normal_multisample_framebuffer.bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
+        state.gl().blit_framebuffer(
+            0,
+            0,
+            normal_multisample_framebuffer.width(),
+            normal_multisample_framebuffer.height(),
+            0,
+            0,
+            normal_framebuffer.width(),
+            normal_framebuffer.height(),
+            WebGl2RenderingContext::COLOR_BUFFER_BIT,
+            WebGl2RenderingContext::LINEAR,
+        );
+        normal_framebuffer.unbind(state.gl());
+        normal_multisample_framebuffer.unbind(state.gl());
+
+        Ok(())
+    }
+
     fn draw_hdr(
         &mut self,
         state: &mut State,
@@ -239,6 +349,55 @@ impl StandardDrawer {
         );
         self.draw_entities(state, opaques, translucents)?;
         self.hdr_framebuffer.unbind(state.gl());
+
+        Ok(())
+    }
+
+    fn draw_hdr_multisample(
+        &mut self,
+        state: &mut State,
+        opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
+        translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
+    ) -> Result<(), Error> {
+        self.hdr_multisample_framebuffer
+            .as_mut()
+            .unwrap()
+            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
+        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
+        state.gl().clear_depth(1.0);
+        state.gl().clear(
+            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
+        );
+        self.draw_entities(state, opaques, translucents)?;
+        self.hdr_multisample_framebuffer
+            .as_mut()
+            .unwrap()
+            .unbind(state.gl());
+
+        Ok(())
+    }
+
+    fn blit_hdr_multisample(&mut self, state: &mut State) -> Result<(), Error> {
+        let hdr_framebuffer = &mut self.hdr_framebuffer;
+        let hdr_multisample_framebuffer = self.hdr_multisample_framebuffer.as_mut().unwrap();
+
+        hdr_framebuffer.bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        hdr_multisample_framebuffer.bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
+        state.gl().blit_framebuffer(
+            0,
+            0,
+            hdr_multisample_framebuffer.width(),
+            hdr_multisample_framebuffer.height(),
+            0,
+            0,
+            hdr_framebuffer.width(),
+            hdr_framebuffer.height(),
+            WebGl2RenderingContext::COLOR_BUFFER_BIT,
+            WebGl2RenderingContext::LINEAR,
+        );
+        hdr_framebuffer.unbind(state.gl());
+        hdr_multisample_framebuffer.unbind(state.gl());
 
         Ok(())
     }
@@ -348,6 +507,29 @@ impl StandardDrawer {
 
         Ok(())
     }
+
+    fn hdr_tone_mapping(&mut self, state: &mut State) -> Result<(), Error> {
+        match self.hdr_tone_mapping_type {
+            HdrToneMappingType::Reinhard => self.hdr_reinhard_tone_mapping(state)?,
+            HdrToneMappingType::Exposure(exposure) => {
+                self.hdr_exposure_tone_mapping(state, exposure)?
+            }
+        };
+        Ok(())
+    }
+
+    fn enable_extension(&self, state: &mut State) -> Result<(), Error> {
+        let supported = state
+            .gl()
+            .get_extension("EXT_color_buffer_float")
+            .map(|extension| extension.is_some())
+            .unwrap_or(false);
+        if !supported {
+            Err(Error::ExtensionUnsupported("EXT_color_buffer_float".to_string()))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl Executor for StandardDrawer {
@@ -389,25 +571,25 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
-        if self.hdr {
-            let supported = state
-                .gl()
-                .get_extension("EXT_color_buffer_float")
-                .map(|extension| extension.is_some())
-                .unwrap_or(false);
-            if !supported {
-                return Err(Error::ExtensionColorBufferFloatUnsupported);
+        match (self.multisample.is_some(), self.hdr) {
+            (false, true) => {
+                self.enable_extension(state)?;
+                self.draw_hdr(state, opaques, translucents)?;
+                self.hdr_tone_mapping(state)?;
             }
-
-            self.draw_hdr(state, opaques, translucents)?;
-            match self.hdr_tone_mapping {
-                HdrToneMapping::Reinhard => self.hdr_reinhard_tone_mapping(state)?,
-                HdrToneMapping::Exposure(exposure) => {
-                    self.hdr_exposure_tone_mapping(state, exposure)?
-                }
-            };
-        } else {
-            self.draw_normal(state, opaques, translucents)?;
+            (false, false) => {
+                self.draw_normal(state, opaques, translucents)?;
+            }
+            (true, true) => {
+                self.enable_extension(state)?;
+                self.draw_hdr_multisample(state, opaques, translucents)?;
+                self.blit_hdr_multisample(state)?;
+                self.hdr_tone_mapping(state)?;
+            },
+            (true, false) => {
+                self.draw_normal_multisample(state, opaques, translucents)?;
+                self.blit_normal_multisample(state)?;
+            }
         }
 
         Ok(())
@@ -431,7 +613,7 @@ impl ProgramSource for HdrReinhardToneMapping {
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/coverage.vert"))),
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!(
                 "./shaders/hdr_reinhard_tone_mapping.frag"
             ))),
@@ -464,7 +646,7 @@ impl ProgramSource for HdrExposureToneMapping {
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/coverage.vert"))),
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!(
                 "./shaders/hdr_exposure_tone_mapping.frag"
             ))),

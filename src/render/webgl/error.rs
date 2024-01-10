@@ -21,7 +21,7 @@ pub enum Error {
     CreateVertexShaderFailed,
     CreateFragmentShaderFailed,
     CreateFenceSyncFailed,
-    ExtensionColorBufferFloatUnsupported,
+    ExtensionUnsupported(String),
     ReadPixelsFailed(Option<String>),
     ClientWaitFailed(Option<String>),
     CompileShaderFailed(Option<String>),

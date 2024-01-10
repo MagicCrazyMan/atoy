@@ -85,6 +85,7 @@ pub fn create_framebuffer(gl: &WebGl2RenderingContext) -> Result<WebGlFramebuffe
 pub fn create_renderbuffer(
     gl: &WebGl2RenderingContext,
     internal_format: RenderbufferInternalFormat,
+    samples: Option<i32>,
     width: i32,
     height: i32,
 ) -> Result<WebGlRenderbuffer, Error> {
@@ -93,12 +94,21 @@ pub fn create_renderbuffer(
         .ok_or(Error::CreateRenderbufferFailed)?;
 
     gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-    gl.renderbuffer_storage(
-        WebGl2RenderingContext::RENDERBUFFER,
-        internal_format.gl_enum(),
-        width,
-        height,
-    );
+    match samples {
+        Some(samples) => gl.renderbuffer_storage_multisample(
+            WebGl2RenderingContext::RENDERBUFFER,
+            samples,
+            internal_format.gl_enum(),
+            width,
+            height,
+        ),
+        None => gl.renderbuffer_storage(
+            WebGl2RenderingContext::RENDERBUFFER,
+            internal_format.gl_enum(),
+            width,
+            height,
+        ),
+    }
     gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
 
     Ok(renderbuffer)
@@ -382,12 +392,21 @@ impl Framebuffer {
                 .create_renderbuffer()
                 .ok_or(Error::CreateRenderbufferFailed)?;
             gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-            gl.renderbuffer_storage(
-                WebGl2RenderingContext::RENDERBUFFER,
-                provider.internal_format.gl_enum(),
-                self.width,
-                self.height,
-            );
+            match provider.samples {
+                Some(samples) => gl.renderbuffer_storage_multisample(
+                    WebGl2RenderingContext::RENDERBUFFER,
+                    samples,
+                    provider.internal_format.gl_enum(),
+                    self.width,
+                    self.height,
+                ),
+                None => gl.renderbuffer_storage(
+                    WebGl2RenderingContext::RENDERBUFFER,
+                    provider.internal_format.gl_enum(),
+                    self.width,
+                    self.height,
+                ),
+            }
             gl.framebuffer_renderbuffer(
                 target.gl_enum(),
                 provider.attachment.gl_enum(),
@@ -431,7 +450,7 @@ impl Framebuffer {
         self.framebuffer.as_ref()
     }
 
-    /// Gets a [`WebGlTexture`] by index.
+    /// Returns a [`WebGlTexture`] by index.
     pub fn texture(&self, index: usize) -> Option<&WebGlTexture> {
         self.textures
             .as_ref()
@@ -439,7 +458,7 @@ impl Framebuffer {
             .map(|(texture, _)| texture)
     }
 
-    /// Gets a [`WebGlRenderbuffer`] by index.
+    /// Returns a [`WebGlRenderbuffer`] by index.
     pub fn renderbuffer(&self, index: usize) -> Option<&WebGlRenderbuffer> {
         self.renderbuffers
             .as_ref()
@@ -488,27 +507,27 @@ impl TextureProvider {
         }
     }
 
-    /// Gets [`FramebufferAttachment`].
+    /// Returns [`FramebufferAttachment`].
     pub fn attachment(&self) -> FramebufferAttachment {
         self.attachment
     }
 
-    /// Gets [`TextureInternalFormat`].
+    /// Returns [`TextureInternalFormat`].
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
     }
 
-    /// Gets [`TextureFormat`].
+    /// Returns [`TextureFormat`].
     pub fn format(&self) -> TextureFormat {
         self.format
     }
 
-    /// Gets [`TextureDataType`].
+    /// Returns [`TextureDataType`].
     pub fn data_type(&self) -> TextureDataType {
         self.data_type
     }
 
-    /// Gets framebuffer texture binding level.
+    /// Returns framebuffer texture binding level.
     pub fn level(&self) -> i32 {
         self.level
     }
@@ -519,6 +538,7 @@ impl TextureProvider {
 pub struct RenderbufferProvider {
     attachment: FramebufferAttachment,
     internal_format: RenderbufferInternalFormat,
+    samples: Option<i32>,
 }
 
 impl RenderbufferProvider {
@@ -530,16 +550,35 @@ impl RenderbufferProvider {
         Self {
             internal_format,
             attachment,
+            samples: None,
         }
     }
 
-    /// Gets [`FramebufferAttachment`].
+    /// Constructs a new renderbuffer provider with multisample.
+    pub fn new_multisample(
+        attachment: FramebufferAttachment,
+        internal_format: RenderbufferInternalFormat,
+        samples: i32,
+    ) -> Self {
+        Self {
+            internal_format,
+            attachment,
+            samples: Some(samples),
+        }
+    }
+
+    /// Returns [`FramebufferAttachment`].
     pub fn attachment(&self) -> FramebufferAttachment {
         self.attachment
     }
 
-    /// Gets [`RenderbufferInternalFormat`].
+    /// Returns [`RenderbufferInternalFormat`].
     pub fn internal_format(&self) -> RenderbufferInternalFormat {
         self.internal_format
+    }
+
+    /// Returns number of samples if it is specified as multisample.
+    pub fn samples(&self) -> Option<i32> {
+        self.samples
     }
 }
