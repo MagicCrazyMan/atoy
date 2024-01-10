@@ -128,6 +128,7 @@ pub struct WebGL2Render {
 
     // required for storing callback closure function
     resize_observer: Option<(ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>)>,
+    select_start_callback: Option<Closure<dyn Fn() -> bool>>,
     click_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
     double_click_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
     mouse_down_callback: Option<Closure<dyn FnMut(MouseEvent)>>,
@@ -204,6 +205,7 @@ impl WebGL2Render {
             canvas,
 
             resize_observer: None,
+            select_start_callback: None,
             click_callback: None,
             double_click_callback: None,
             mouse_down_callback: None,
@@ -268,6 +270,10 @@ impl WebGL2Render {
     }
 
     fn register_callbacks(&mut self) -> Result<(), Error> {
+        let select_start_callback = Closure::new(|| false);
+        self.canvas
+            .set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
+
         let click_event = self.click_event.clone();
         let click_callback = Closure::new(move |e| click_event.raise(e));
         self.canvas
@@ -361,6 +367,7 @@ impl WebGL2Render {
             .add_event_listener_with_callback("keyup", key_up_callback.as_ref().unchecked_ref())
             .or_else(|err| Err(Error::AddEventCallbackFailed("keyup", err.as_string())))?;
 
+        self.select_start_callback = Some(select_start_callback);
         self.click_callback = Some(click_callback);
         self.double_click_callback = Some(double_click_callback);
         self.mouse_down_callback = Some(mouse_down_callback);

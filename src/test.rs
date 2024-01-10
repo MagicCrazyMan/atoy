@@ -9,6 +9,7 @@ use gl_matrix4rust::vec2::{AsVec2, Vec2};
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use gl_matrix4rust::vec4::{AsVec4, Vec4};
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::js_sys::{Date, Function, Uint8Array};
@@ -210,11 +211,11 @@ fn create_scene() -> Scene {
     scene
 }
 
-fn create_viewer(scene: Scene, camera: UniversalCamera) -> Viewer {
+fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Function) -> Viewer {
     let mut viewer = Viewer::new(scene, camera.clone()).unwrap();
     viewer.add_controller(camera);
     viewer
-        .set_mount(document().get_element_by_id("scene_container"))
+        .set_mount(document().get_element_by_id("scene"))
         .unwrap();
 
     let start_timestamp = Rc::new(RefCell::new(0.0));
@@ -222,13 +223,13 @@ fn create_viewer(scene: Scene, camera: UniversalCamera) -> Viewer {
     viewer.render_mut().pre_render_event().on(move |_| {
         *start_timestamp_cloned.borrow_mut() = crate::window().performance().unwrap().now();
     });
+    let render_callback = render_callback.clone();
     viewer.render_mut().post_render_event().on(move |_| {
         let start = *start_timestamp.borrow();
         let end = crate::window().performance().unwrap().now();
-        crate::document()
-            .get_element_by_id("total")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
+        render_callback
+            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
+            .unwrap();
     });
 
     viewer
@@ -245,7 +246,14 @@ fn create_viewer(scene: Scene, camera: UniversalCamera) -> Viewer {
 // }
 
 #[wasm_bindgen]
-pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+pub fn test_cube(
+    count: usize,
+    grid: usize,
+    width: f64,
+    height: f64,
+    render_callback: &Function,
+    pick_callback: &Function,
+) -> Result<(), Error> {
     let camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let mut scene = create_scene();
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
@@ -338,10 +346,11 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     ));
     scene.entity_collection_mut().add_entity(floor);
 
-    let mut viewer = create_viewer(scene, camera);
+    let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
 
     let viewer_weak = viewer.weak();
+    let pick_callback = pick_callback.clone();
     viewer.render_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
             return;
@@ -366,10 +375,9 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             console_log!("pick position {}", position);
         };
         let end = window().performance().unwrap().now();
-        document()
-            .get_element_by_id("pick")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
+        pick_callback
+            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
+            .unwrap();
     });
 
     Ok(())
@@ -682,7 +690,14 @@ pub fn test_cube(count: usize, grid: usize, width: f64, height: f64) -> Result<(
 // // // }
 
 #[wasm_bindgen]
-pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(), Error> {
+pub fn test_pick(
+    count: usize,
+    grid: usize,
+    width: f64,
+    height: f64,
+    render_callback: &Function,
+    pick_callback: &Function,
+) -> Result<(), Error> {
     let camera = create_camera((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let mut scene = create_scene();
 
@@ -710,10 +725,11 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
     }
     scene.entity_collection_mut().add_collection(cubes);
 
-    let mut viewer = create_viewer(scene, camera);
+    let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
 
     let viewer_weak = viewer.weak();
+    let pick_callback = pick_callback.clone();
     viewer.render_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
             return;
@@ -738,10 +754,9 @@ pub fn test_pick(count: usize, grid: usize, width: f64, height: f64) -> Result<(
             console_log!("pick position {}", position);
         };
         let end = window().performance().unwrap().now();
-        document()
-            .get_element_by_id("pick")
-            .unwrap()
-            .set_inner_html(&format!("{:.2}", end - start));
+        pick_callback
+            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
+            .unwrap();
     });
 
     Ok(())
