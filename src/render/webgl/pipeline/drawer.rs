@@ -22,7 +22,7 @@ use crate::{
             uniform::{
                 bind_uniforms, unbind_uniforms, UniformBinding, UniformBlockBinding,
                 UniformStructuralBinding,
-            },
+            }, conversion::ToGlEnum,
         },
     },
     scene::Scene,
@@ -228,11 +228,19 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         let program_item = state.program_store_mut().use_program(material)?;
 
+        if let Some(cull_face) = geometry.cull_face() {
+            state.gl().enable(WebGl2RenderingContext::CULL_FACE);
+            state.gl().cull_face(cull_face.gl_enum());
+        }
+
         let bound_attributes = bind_attributes(state, &entity, geometry, material, &program_item);
         let bound_uniforms = bind_uniforms(state, &entity, geometry, material, &program_item);
         draw(state, geometry, material);
         unbind_attributes(state, bound_attributes);
         unbind_uniforms(state, bound_uniforms);
+        
+        state.gl().disable(WebGl2RenderingContext::CULL_FACE);
+        state.gl().cull_face(WebGl2RenderingContext::BACK);
 
         Ok(())
     }

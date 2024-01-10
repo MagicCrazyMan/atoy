@@ -12,7 +12,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage, MemoryPolicy,
         },
-        draw::{Draw, DrawMode},
+        draw::{Draw, DrawMode, CullFace},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -83,6 +83,10 @@ impl Geometry for Cube {
             first: 0,
             count: 36,
         }
+    }
+
+    fn cull_face(&self) -> Option<CullFace> {
+        Some(CullFace::Back)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {

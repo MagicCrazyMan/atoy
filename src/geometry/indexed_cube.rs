@@ -11,7 +11,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        draw::{Draw, DrawElementType, DrawMode},
+        draw::{Draw, DrawElementType, DrawMode, CullFace},
         uniform::{UniformBlockValue, UniformValue},
     },
     utils::{slice_to_float32_array, slice_to_uint8_array},
@@ -97,6 +97,10 @@ impl Geometry for IndexedCube {
             offset: 0,
             indices: self.indices.clone(),
         }
+    }
+
+    fn cull_face(&self) -> Option<CullFace> {
+        Some(CullFace::Back)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {

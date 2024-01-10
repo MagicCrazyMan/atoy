@@ -11,13 +11,15 @@ use crate::{
     event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
-        draw::Draw,
+        draw::{Draw, CullFace},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
 
 pub trait Geometry {
     fn draw(&self) -> Draw;
+
+    fn cull_face(&self) -> Option<CullFace>;
 
     fn bounding_volume(&self) -> Option<BoundingVolume>;
 

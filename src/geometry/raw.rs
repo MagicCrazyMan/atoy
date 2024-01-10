@@ -5,7 +5,7 @@ use crate::{
     event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
-        draw::Draw,
+        draw::{Draw, CullFace},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -14,6 +14,7 @@ use super::Geometry;
 
 pub struct RawGeometry {
     draw: Draw,
+    cull_face: Option<CullFace>,
     vertices: Option<AttributeValue>,
     normals: Option<AttributeValue>,
     texture_coordinates: Option<AttributeValue>,
@@ -26,6 +27,7 @@ pub struct RawGeometry {
 impl RawGeometry {
     pub fn new(
         draw: Draw,
+        cull_face: Option<CullFace>,
         vertices: Option<AttributeValue>,
         normals: Option<AttributeValue>,
         texture_coordinates: Option<AttributeValue>,
@@ -35,6 +37,7 @@ impl RawGeometry {
     ) -> Self {
         Self {
             draw,
+            cull_face,
             vertices,
             normals,
             texture_coordinates,
@@ -49,6 +52,10 @@ impl RawGeometry {
 impl Geometry for RawGeometry {
     fn draw(&self) -> Draw {
         self.draw.clone()
+    }
+
+    fn cull_face(&self) -> Option<CullFace> {
+        self.cull_face
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {

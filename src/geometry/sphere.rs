@@ -12,7 +12,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        draw::{Draw, DrawMode},
+        draw::{Draw, DrawMode, CullFace},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -87,6 +87,10 @@ impl Geometry for Sphere {
             first: 0,
             count: self.num_vertices as i32,
         }
+    }
+
+    fn cull_face(&self) -> Option<CullFace> {
+        Some(CullFace::Back)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
