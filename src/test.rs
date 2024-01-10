@@ -253,7 +253,7 @@ pub fn test_cube(
     height: f64,
     render_callback: &Function,
     pick_callback: &Function,
-) -> Result<(), Error> {
+) -> Result<Viewer, Error> {
     let camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
     let mut scene = create_scene();
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
@@ -380,7 +380,7 @@ pub fn test_cube(
             .unwrap();
     });
 
-    Ok(())
+    Ok(viewer)
 }
 
 // // #[wasm_bindgen]

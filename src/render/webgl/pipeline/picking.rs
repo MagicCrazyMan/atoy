@@ -228,7 +228,7 @@ impl Picking {
     pub fn new(in_entities: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
         Self {
             in_entities,
-            frame: Framebuffer::with_draw_buffers(
+            frame: Framebuffer::new(
                 [
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -253,6 +253,7 @@ impl Picking {
                     FramebufferDrawBuffer::COLOR_ATTACHMENT0,
                     FramebufferDrawBuffer::COLOR_ATTACHMENT1,
                 ],
+                None,
             ),
             material: PickingMaterial { index: 0 },
         }

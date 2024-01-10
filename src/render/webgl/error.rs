@@ -1,10 +1,10 @@
 use uuid::Uuid;
+use wasm_bindgen::JsValue;
 
 use super::conversion::GLuint;
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    MatrixError(gl_matrix4rust::error::Error),
     WebGL2Unsupported,
     CanvasNotFound,
     CanvasResizeObserverFailed(Option<String>),
@@ -44,8 +44,8 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-impl From<gl_matrix4rust::error::Error> for Error {
-    fn from(err: gl_matrix4rust::error::Error) -> Self {
-        Self::MatrixError(err)
+impl Into<JsValue> for Error {
+    fn into(self) -> JsValue {
+        JsValue::from_str(&self.to_string())
     }
 }

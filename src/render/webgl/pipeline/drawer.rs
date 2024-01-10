@@ -1,5 +1,6 @@
 use std::{any::Any, borrow::Cow, ptr::NonNull};
 
+use serde::{Deserialize, Serialize};
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
@@ -10,6 +11,7 @@ use crate::{
         pp::{Executor, ResourceKey, Resources, State},
         webgl::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding},
+            conversion::ToGlEnum,
             draw::draw,
             error::Error,
             framebuffer::{
@@ -22,7 +24,7 @@ use crate::{
             uniform::{
                 bind_uniforms, unbind_uniforms, UniformBinding, UniformBlockBinding,
                 UniformStructuralBinding,
-            }, conversion::ToGlEnum,
+            },
         },
     },
     scene::Scene,
@@ -31,7 +33,12 @@ use crate::{
 const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
 const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Exposure");
 
-#[derive(Clone, Copy, PartialEq)]
+pub const DEFAULT_MULTISAMPLE: i32 = 4;
+pub const DEFAULT_HDR_ENABLED: bool = false;
+pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum HdrToneMappingType {
     Reinhard,
     Exposure(f32),
@@ -49,20 +56,24 @@ pub struct StandardDrawer {
     hdr_framebuffer: Framebuffer,
     normal_multisample_framebuffer: Option<Framebuffer>,
     hdr_multisample_framebuffer: Option<Framebuffer>,
-    in_entities: ResourceKey<Vec<NonNull<Entity>>>,
-    out_texture: ResourceKey<WebGlTexture>,
-    multisample: Option<i32>,
-    hdr: bool,
-    hdr_tone_mapping_type: HdrToneMappingType,
+
+    entities_key: ResourceKey<Vec<NonNull<Entity>>>,
+    texture_key: ResourceKey<WebGlTexture>,
+    multisample_key: Option<ResourceKey<i32>>,
+    hdr_key: Option<ResourceKey<bool>>,
+    hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
 }
 
 impl StandardDrawer {
     pub fn new(
-        in_entities: ResourceKey<Vec<NonNull<Entity>>>,
-        out_texture: ResourceKey<WebGlTexture>,
+        entities_key: ResourceKey<Vec<NonNull<Entity>>>,
+        texture_key: ResourceKey<WebGlTexture>,
+        multisample_key: Option<ResourceKey<i32>>,
+        hdr_key: Option<ResourceKey<bool>>,
+        hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
     ) -> Self {
-        let mut instance = Self {
-            in_entities,
+        Self {
+            entities_key,
             normal_framebuffer: Framebuffer::new(
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -75,6 +86,8 @@ impl StandardDrawer {
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
+                [],
+                None,
             ),
             hdr_framebuffer: Framebuffer::new(
                 [TextureProvider::new(
@@ -88,89 +101,97 @@ impl StandardDrawer {
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 )],
+                [],
+                None,
             ),
             normal_multisample_framebuffer: None,
             hdr_multisample_framebuffer: None,
-            out_texture,
-            multisample: None,
-            hdr: true,
-            hdr_tone_mapping_type: HdrToneMappingType::Reinhard,
-        };
-        instance.set_multisample(Some(4));
-        instance
-    }
-
-    pub fn multisample(&self) -> Option<i32> {
-        self.multisample
-    }
-
-    pub fn set_multisample(&mut self, multisample: Option<i32>) {
-        match multisample {
-            Some(multisample) => {
-                if multisample <= 0 {
-                    self.normal_multisample_framebuffer = None;
-                    self.hdr_multisample_framebuffer = None;
-                    self.multisample = None;
-                } else {
-                    self.normal_multisample_framebuffer = Some(Framebuffer::new(
-                        [],
-                        [
-                            RenderbufferProvider::new_multisample(
-                                FramebufferAttachment::COLOR_ATTACHMENT0,
-                                RenderbufferInternalFormat::RGBA8,
-                                multisample,
-                            ),
-                            RenderbufferProvider::new_multisample(
-                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                                multisample,
-                            ),
-                        ],
-                    ));
-                    self.hdr_multisample_framebuffer = Some(Framebuffer::new(
-                        [],
-                        [
-                            RenderbufferProvider::new_multisample(
-                                FramebufferAttachment::COLOR_ATTACHMENT0,
-                                RenderbufferInternalFormat::RGBA32F,
-                                multisample,
-                            ),
-                            RenderbufferProvider::new_multisample(
-                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                                multisample,
-                            ),
-                        ],
-                    ));
-                    self.multisample = Some(multisample);
-                }
-            }
-            None => {
-                self.normal_multisample_framebuffer = None;
-                self.hdr_multisample_framebuffer = None;
-                self.multisample = None;
-            }
+            texture_key,
+            multisample_key,
+            hdr_key,
+            hdr_tone_mapping_type_key,
         }
     }
 
-    pub fn hdr_enabled(&self) -> bool {
-        self.hdr
+    fn hdr(&self, resources: &Resources) -> bool {
+        self.hdr_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+            .copied()
+            .unwrap_or(DEFAULT_HDR_ENABLED)
     }
 
-    pub fn enable_hdr(&mut self) {
-        self.hdr = true;
+    fn hdr_tone_mapping_type(&self, resources: &Resources) -> HdrToneMappingType {
+        self.hdr_tone_mapping_type_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+            .copied()
+            .unwrap_or(DEFAULT_HDR_TONE_MAPPING_TYPE)
     }
 
-    pub fn disable_hdr(&mut self) {
-        self.hdr = false;
+    fn multisample(&self, resources: &Resources) -> Option<i32> {
+        self.multisample_key
+            .as_ref()
+            .map(|key| resources.get(key).cloned().unwrap_or(DEFAULT_MULTISAMPLE))
+            .and_then(|samples| if samples == 0 { None } else { Some(samples) })
     }
 
-    pub fn hdr_tone_mapping_type(&self) -> HdrToneMappingType {
-        self.hdr_tone_mapping_type
+    fn normal_multisample_framebuffer(&mut self, samples: i32) -> &mut Framebuffer {
+        if self
+            .normal_multisample_framebuffer
+            .as_ref()
+            .and_then(|framebuffer| framebuffer.renderbuffer_samples())
+            .map(|s| s == samples)
+            .unwrap_or(false)
+        {
+            self.normal_multisample_framebuffer.as_mut().unwrap()
+        } else {
+            self.normal_multisample_framebuffer = Some(Framebuffer::new(
+                [],
+                [
+                    RenderbufferProvider::new(
+                        FramebufferAttachment::COLOR_ATTACHMENT0,
+                        RenderbufferInternalFormat::RGBA8,
+                    ),
+                    RenderbufferProvider::new(
+                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    ),
+                ],
+                [],
+                Some(samples),
+            ));
+            self.normal_multisample_framebuffer.as_mut().unwrap()
+        }
     }
 
-    pub fn set_hdr_tone_mapping_type(&mut self, hdr_tone_mapping_type: HdrToneMappingType) {
-        self.hdr_tone_mapping_type = hdr_tone_mapping_type;
+    fn hdr_multisample_framebuffer(&mut self, samples: i32) -> &mut Framebuffer {
+        if self
+            .hdr_multisample_framebuffer
+            .as_ref()
+            .and_then(|framebuffer| framebuffer.renderbuffer_samples())
+            .map(|s| s == samples)
+            .unwrap_or(false)
+        {
+            self.hdr_multisample_framebuffer.as_mut().unwrap()
+        } else {
+            self.hdr_multisample_framebuffer = Some(Framebuffer::new(
+                [],
+                [
+                    RenderbufferProvider::new(
+                        FramebufferAttachment::COLOR_ATTACHMENT0,
+                        RenderbufferInternalFormat::RGBA32F,
+                    ),
+                    RenderbufferProvider::new(
+                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    ),
+                ],
+                [],
+                Some(samples),
+            ));
+            self.hdr_multisample_framebuffer.as_mut().unwrap()
+        }
     }
 
     fn prepare_entities<'a, 'b>(
@@ -184,7 +205,7 @@ impl StandardDrawer {
         )>,
         Error,
     > {
-        let Some(entities) = resources.get_mut(&self.in_entities) else {
+        let Some(entities) = resources.get_mut(&self.entities_key) else {
             return Ok(None);
         };
 
@@ -238,7 +259,7 @@ impl StandardDrawer {
         draw(state, geometry, material);
         unbind_attributes(state, bound_attributes);
         unbind_uniforms(state, bound_uniforms);
-        
+
         state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         state.gl().cull_face(WebGl2RenderingContext::BACK);
 
@@ -295,13 +316,12 @@ impl StandardDrawer {
     fn draw_normal_multisample(
         &mut self,
         state: &mut State,
+        samples: i32,
         opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
     ) -> Result<(), Error> {
-        self.normal_multisample_framebuffer
-            .as_mut()
-            .unwrap()
-            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
+        let normal_multisample_framebuffer = self.normal_multisample_framebuffer(samples);
+        normal_multisample_framebuffer.bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear_depth(1.0);
@@ -364,13 +384,12 @@ impl StandardDrawer {
     fn draw_hdr_multisample(
         &mut self,
         state: &mut State,
+        samples: i32,
         opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
     ) -> Result<(), Error> {
-        self.hdr_multisample_framebuffer
-            .as_mut()
-            .unwrap()
-            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
+        let hdr_multisample_framebuffer = self.hdr_multisample_framebuffer(samples);
+        hdr_multisample_framebuffer.bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear_depth(1.0);
@@ -516,8 +535,8 @@ impl StandardDrawer {
         Ok(())
     }
 
-    fn hdr_tone_mapping(&mut self, state: &mut State) -> Result<(), Error> {
-        match self.hdr_tone_mapping_type {
+    fn hdr_tone_mapping(&mut self, state: &mut State, resources: &Resources) -> Result<(), Error> {
+        match self.hdr_tone_mapping_type(resources) {
             HdrToneMappingType::Reinhard => self.hdr_reinhard_tone_mapping(state)?,
             HdrToneMappingType::Exposure(exposure) => {
                 self.hdr_exposure_tone_mapping(state, exposure)?
@@ -533,7 +552,9 @@ impl StandardDrawer {
             .map(|extension| extension.is_some())
             .unwrap_or(false);
         if !supported {
-            Err(Error::ExtensionUnsupported("EXT_color_buffer_float".to_string()))
+            Err(Error::ExtensionUnsupported(
+                "EXT_color_buffer_float".to_string(),
+            ))
         } else {
             Ok(())
         }
@@ -549,7 +570,7 @@ impl Executor for StandardDrawer {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        Ok(resources.contains_key(&self.in_entities))
+        Ok(resources.contains_key(&self.entities_key))
     }
 
     fn after(
@@ -564,7 +585,7 @@ impl Executor for StandardDrawer {
             .and_then(|textures| textures.get(0))
             .map(|(texture, _)| texture.clone())
             .unwrap();
-        resources.insert(self.out_texture.clone(), texture);
+        resources.insert(self.texture_key.clone(), texture);
 
         Ok(())
     }
@@ -579,23 +600,23 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
-        match (self.multisample.is_some(), self.hdr) {
-            (false, true) => {
+        match (self.multisample(resources), self.hdr(resources)) {
+            (None, true) => {
                 self.enable_extension(state)?;
                 self.draw_hdr(state, opaques, translucents)?;
-                self.hdr_tone_mapping(state)?;
+                self.hdr_tone_mapping(state, &resources)?;
             }
-            (false, false) => {
+            (None, false) => {
                 self.draw_normal(state, opaques, translucents)?;
             }
-            (true, true) => {
+            (Some(samples), true) => {
                 self.enable_extension(state)?;
-                self.draw_hdr_multisample(state, opaques, translucents)?;
+                self.draw_hdr_multisample(state, samples, opaques, translucents)?;
                 self.blit_hdr_multisample(state)?;
-                self.hdr_tone_mapping(state)?;
-            },
-            (true, false) => {
-                self.draw_normal_multisample(state, opaques, translucents)?;
+                self.hdr_tone_mapping(state, &resources)?;
+            }
+            (Some(samples), false) => {
+                self.draw_normal_multisample(state, samples, opaques, translucents)?;
                 self.blit_normal_multisample(state)?;
             }
         }

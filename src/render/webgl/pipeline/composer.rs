@@ -1,5 +1,6 @@
 use std::{any::Any, borrow::Cow};
 
+use gl_matrix4rust::vec4::{AsVec4, Vec4};
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
@@ -20,18 +21,35 @@ const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler"
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
-    in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
-    in_textures: Vec<ResourceKey<WebGlTexture>>,
+    clear_color_key: Option<ResourceKey<Vec4>>,
+    textures_key: Vec<ResourceKey<WebGlTexture>>,
 }
 
 impl StandardComposer {
     pub fn new(
-        in_textures: Vec<ResourceKey<WebGlTexture>>,
-        in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
+        textures_key: Vec<ResourceKey<WebGlTexture>>,
+        clear_color_key: Option<ResourceKey<Vec4>>,
     ) -> Self {
         Self {
-            in_clear_color,
-            in_textures,
+            clear_color_key,
+            textures_key,
+        }
+    }
+
+    fn clear_color(&self, resources: &Resources) -> (f32, f32, f32, f32) {
+        if let Some(color) = self
+            .clear_color_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+        {
+            (
+                color.x() as f32,
+                color.y() as f32,
+                color.z() as f32,
+                color.w() as f32,
+            )
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
         }
     }
 }
@@ -47,11 +65,8 @@ impl Executor for StandardComposer {
     ) -> Result<bool, Self::Error> {
         let program_item = state.program_store_mut().use_program(&ComposerMaterial)?;
 
-        if let Some((r, g, b, a)) = resources.get(&self.in_clear_color) {
-            state.gl().clear_color(*r, *g, *b, *a);
-        } else {
-            state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-        }
+        let (red, green, blue, alpha) = self.clear_color(resources);
+        state.gl().clear_color(red, green, blue, alpha);
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
         state.gl().enable(WebGl2RenderingContext::BLEND);
@@ -74,7 +89,7 @@ impl Executor for StandardComposer {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        for texture_key in &self.in_textures {
+        for texture_key in &self.textures_key {
             let Some(texture) = resources.get(texture_key) else {
                 continue;
             };

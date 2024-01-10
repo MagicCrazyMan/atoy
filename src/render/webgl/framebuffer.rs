@@ -158,6 +158,7 @@ pub struct Framebuffer {
 
     texture_providers: Vec<TextureProvider>,
     renderbuffer_providers: Vec<RenderbufferProvider>,
+    renderbuffer_samples: Option<i32>,
 
     gl: Option<WebGl2RenderingContext>,
     binding_target: Option<FramebufferTarget>,
@@ -196,22 +197,12 @@ impl Framebuffer {
     pub fn new<
         TI: IntoIterator<Item = TextureProvider>,
         RI: IntoIterator<Item = RenderbufferProvider>,
-    >(
-        texture_providers: TI,
-        renderbuffer_providers: RI,
-    ) -> Self {
-        Self::with_draw_buffers(texture_providers, renderbuffer_providers, [])
-    }
-
-    /// Constructs a new framebuffer object.
-    pub fn with_draw_buffers<
-        TI: IntoIterator<Item = TextureProvider>,
-        RI: IntoIterator<Item = RenderbufferProvider>,
         DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
         texture_providers: TI,
         renderbuffer_providers: RI,
         draw_buffers: DI,
+        renderbuffer_samples: Option<i32>,
     ) -> Self {
         let draw_buffers_array = Array::new();
         for draw_buffer in draw_buffers.into_iter() {
@@ -224,6 +215,7 @@ impl Framebuffer {
 
             texture_providers: texture_providers.into_iter().collect(),
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
+            renderbuffer_samples,
 
             gl: None,
             binding_target: None,
@@ -310,12 +302,20 @@ impl Framebuffer {
         if let Some(_) = self.reading_buffer.take() {
             gl.read_buffer(WebGl2RenderingContext::NONE);
         }
+        if self.draw_buffers.length() != 0 {
+            gl.draw_buffers(&Array::new());
+        }
     }
 
     /// Sets read buffer.
     pub fn set_read_buffer(&mut self, gl: &WebGl2RenderingContext, source: FramebufferDrawBuffer) {
         gl.read_buffer(source.gl_enum());
         self.reading_buffer = Some(source);
+    }
+
+    /// Returns number of sample of the render buffers if multisample is enabled.
+    pub fn renderbuffer_samples(&self) -> Option<i32> {
+        self.renderbuffer_samples.clone()
     }
 
     fn create_framebuffer(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
@@ -392,7 +392,7 @@ impl Framebuffer {
                 .create_renderbuffer()
                 .ok_or(Error::CreateRenderbufferFailed)?;
             gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-            match provider.samples {
+            match self.renderbuffer_samples {
                 Some(samples) => gl.renderbuffer_storage_multisample(
                     WebGl2RenderingContext::RENDERBUFFER,
                     samples,
@@ -538,7 +538,6 @@ impl TextureProvider {
 pub struct RenderbufferProvider {
     attachment: FramebufferAttachment,
     internal_format: RenderbufferInternalFormat,
-    samples: Option<i32>,
 }
 
 impl RenderbufferProvider {
@@ -550,20 +549,6 @@ impl RenderbufferProvider {
         Self {
             internal_format,
             attachment,
-            samples: None,
-        }
-    }
-
-    /// Constructs a new renderbuffer provider with multisample.
-    pub fn new_multisample(
-        attachment: FramebufferAttachment,
-        internal_format: RenderbufferInternalFormat,
-        samples: i32,
-    ) -> Self {
-        Self {
-            internal_format,
-            attachment,
-            samples: Some(samples),
         }
     }
 
@@ -575,10 +560,5 @@ impl RenderbufferProvider {
     /// Returns [`RenderbufferInternalFormat`].
     pub fn internal_format(&self) -> RenderbufferInternalFormat {
         self.internal_format
-    }
-
-    /// Returns number of samples if it is specified as multisample.
-    pub fn samples(&self) -> Option<i32> {
-        self.samples
     }
 }

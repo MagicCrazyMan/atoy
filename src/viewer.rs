@@ -1,9 +1,9 @@
 use std::rc::{Rc, Weak};
 
-use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use log::error;
 use uuid::Uuid;
-use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsValue};
 use web_sys::Element;
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     render::{
         webgl::{
             error::Error,
-            pipeline::{picking::PickingPipeline, StandardPipeline},
+            pipeline::{drawer::HdrToneMappingType, picking::PickingPipeline, StandardPipeline},
             WebGL2Render,
         },
         Render,
@@ -40,10 +40,60 @@ struct Inner {
     entities_changed_listener: Option<Uuid>,
 }
 
+#[wasm_bindgen]
 #[derive(Clone)]
 pub struct Viewer {
     marker: Rc<()>,
     inner: *mut Inner,
+}
+
+#[wasm_bindgen]
+impl Viewer {
+    pub fn mount_wasm(&self) -> Option<Element> {
+        self.mount().cloned()
+    }
+
+    pub fn set_mount_wasm(&mut self, mount: Option<Element>) -> Result<(), Error> {
+        self.set_mount(mount)
+    }
+
+    pub fn clear_color_wasm(&self) -> Box<[f64]> {
+        Box::new(self.clear_color().0)
+    }
+
+    pub fn set_clear_color_wasm(&mut self, r: f64, g: f64, b: f64, a: f64) {
+        self.set_clear_color(Vec4::from_values(r, g, b, a))
+    }
+
+    pub fn multisample_wasm(&self) -> Option<i32> {
+        self.multisample()
+    }
+
+    pub fn set_multisample_wasm(&mut self, samples: Option<i32>) {
+        self.set_multisample(samples)
+    }
+
+    pub fn hdr_enabled_wasm(&self) -> bool {
+        self.hdr_enabled()
+    }
+
+    pub fn enable_hdr_wasm(&mut self) {
+        self.enable_hdr();
+    }
+
+    pub fn disable_hdr_wasm(&mut self) {
+        self.disable_hdr();
+    }
+
+    pub fn hdr_tone_mapping_type_wasm(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.hdr_tone_mapping_type()).unwrap()
+    }
+
+    pub fn set_hdr_tone_mapping_type_wasm(&mut self, hdr_tone_mapping_type: JsValue) {
+        let t =
+            serde_wasm_bindgen::from_value::<HdrToneMappingType>(hdr_tone_mapping_type).unwrap();
+        self.set_hdr_tone_mapping_type(t);
+    }
 }
 
 impl Viewer {
@@ -125,8 +175,54 @@ impl Viewer {
                 .or(Err(Error::MountElementFailed))?;
         }
         inner.mount = mount;
+        inner.render_next = true;
 
         Ok(())
+    }
+
+    pub fn clear_color(&self) -> Vec4 {
+        self.inner().standard_pipeline.clear_color()
+    }
+
+    pub fn set_clear_color(&mut self, clear_color: Vec4) {
+        self.inner_mut()
+            .standard_pipeline
+            .set_clear_color(clear_color);
+        self.inner_mut().render_next = true;
+    }
+
+    pub fn multisample(&self) -> Option<i32> {
+        self.inner().standard_pipeline.multisample()
+    }
+
+    pub fn set_multisample(&mut self, samples: Option<i32>) {
+        self.inner_mut().standard_pipeline.set_multisample(samples);
+        self.inner_mut().render_next = true;
+    }
+
+    pub fn hdr_enabled(&self) -> bool {
+        self.inner().standard_pipeline.hdr_enabled()
+    }
+
+    pub fn enable_hdr(&mut self) {
+        self.inner_mut().standard_pipeline.enable_hdr();
+        self.inner_mut().render_next = true;
+    }
+
+    pub fn disable_hdr(&mut self) {
+        self.inner_mut().standard_pipeline.disable_hdr();
+        self.inner_mut().render_next = true;
+    }
+
+    pub fn hdr_tone_mapping_type(&self) -> HdrToneMappingType {
+        self.inner().standard_pipeline.hdr_tone_mapping_type()
+    }
+
+    pub fn set_hdr_tone_mapping_type(&mut self, hdr_tone_mapping_type: HdrToneMappingType) {
+        self.inner_mut()
+            .standard_pipeline
+            .set_hdr_tone_mapping_type(hdr_tone_mapping_type);
+        self.inner_mut().render_next = true;
     }
 
     pub fn weak(&self) -> ViewerWeak {
@@ -174,6 +270,7 @@ impl Viewer {
     {
         controller.on_add(self);
         self.inner_mut().controllers.push(Box::new(controller));
+        self.inner_mut().render_next = true;
     }
 
     pub fn remove_controller(&mut self, index: usize) -> Option<Box<dyn Controller>> {
@@ -185,6 +282,7 @@ impl Viewer {
 
         let mut controller = controllers.remove(index);
         controller.on_remove(self);
+        self.inner_mut().render_next = true;
         Some(controller)
     }
 
