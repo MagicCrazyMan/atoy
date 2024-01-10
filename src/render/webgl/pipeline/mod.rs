@@ -1,5 +1,5 @@
 pub mod collector;
-// pub mod composer;
+pub mod composer;
 pub mod drawer;
 // pub mod gaussian_blur;
 // pub mod outlining;
@@ -10,12 +10,14 @@ use crate::{
     scene::Scene,
 };
 
-use self::{collector::StandardEntitiesCollector, drawer::StandardDrawer};
+use self::{
+    collector::StandardEntitiesCollector, composer::StandardComposer, drawer::StandardDrawer,
+};
 
 use super::error::Error;
 
 pub struct StandardPipeline {
-    pipeline: GraphPipeline<Error>
+    pipeline: GraphPipeline<Error>,
 }
 
 impl StandardPipeline {
@@ -25,15 +27,16 @@ impl StandardPipeline {
         // let outlining = ItemKey::new_uuid();
         // let gaussian_blur = ItemKey::new_uuid();
         let drawer = ItemKey::new_uuid();
-        // let composer = ItemKey::new_uuid();
-    
+        let composer = ItemKey::new_uuid();
+
+        let clear_color = ResourceKey::new_persist_uuid();
         let collected_entities = ResourceKey::new_runtime_uuid();
         // let picked_entity = ResourceKey::new_runtime_uuid();
         // let picked_position = ResourceKey::new_runtime_uuid();
         // let outline_texture = ResourceKey::new_runtime_uuid();
         let standard_draw_texture = ResourceKey::new_runtime_uuid();
-        // let gaussian_blur_texture = ResourceKey::new_runtime_uuid();
-    
+        let gaussian_blur_texture = ResourceKey::new_runtime_uuid();
+
         let mut pipeline = GraphPipeline::new();
         pipeline.add_executor(
             collector.clone(),
@@ -60,25 +63,23 @@ impl StandardPipeline {
             drawer.clone(),
             StandardDrawer::new(collected_entities, standard_draw_texture.clone()),
         );
-        // pipeline.add_executor(
-        //     composer.clone(),
-        //     StandardComposer::new(
-        //         vec![standard_draw_texture, gaussian_blur_texture],
-        //         in_clear_color,
-        //     ),
-        // );
-    
+        pipeline.add_executor(
+            composer.clone(),
+            StandardComposer::new(
+                vec![standard_draw_texture, gaussian_blur_texture],
+                clear_color,
+            ),
+        );
+
         // safely unwraps
         // pipeline.connect(&collector, &picking).unwrap();
         // pipeline.connect(&picking, &outlining).unwrap();
         // pipeline.connect(&outlining, &gaussian_blur).unwrap();
         // pipeline.connect(&gaussian_blur, &composer).unwrap();
         pipeline.connect(&collector, &drawer).unwrap();
-        // pipeline.connect(&drawer, &composer).unwrap();
-    
-        Self {
-            pipeline
-        }
+        pipeline.connect(&drawer, &composer).unwrap();
+
+        Self { pipeline }
     }
 }
 

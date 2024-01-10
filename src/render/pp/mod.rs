@@ -123,7 +123,8 @@ impl State {
     }
 
     /// Resets WebGl state
-    fn reset_gl(&self) {
+    fn reset_gl(&mut self) {
+        self.program_store_mut().unuse_program();
         let gl = self.gl();
         gl.viewport(
             0,
@@ -131,7 +132,6 @@ impl State {
             self.canvas().width() as i32,
             self.canvas().height() as i32,
         );
-        gl.use_program(None);
         gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
         gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
         gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);

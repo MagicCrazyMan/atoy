@@ -259,14 +259,14 @@ impl Viewer {
                 return;
             }
 
-            if me.inner().render_next {
+            // if me.inner().render_next {
                 if let Err(err) = me.render_frame() {
                     error!("error occurred during rendering {err}");
                     if me.inner().stop_render_loop_when_error {
                         return;
                     }
                 }
-            }
+            // }
 
             if let Some(render_loop) = me.inner().render_loop.as_ref() {
                 request_animation_frame(render_loop);

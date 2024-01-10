@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use gl_matrix4rust::mat4::Mat4;
 use log::info;
@@ -316,14 +316,14 @@ impl MultipleTexturesInstanced {
 }
 
 impl ProgramSource for MultipleTexturesInstanced {
-    fn name(&self) -> &'static str {
-        "TextureInstancedMaterialA"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("TextureInstancedMaterialA")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
-            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::VertexRaw(Cow::Borrowed(VERTEX_SHADER_SOURCE)),
+            ShaderSource::FragmentRaw(Cow::Borrowed(FRAGMENT_SHADER_SOURCE)),
         ]
     }
 

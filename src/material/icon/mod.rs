@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use crate::{
     entity::Entity,
@@ -35,14 +35,14 @@ impl IconMaterial {
 }
 
 impl ProgramSource for IconMaterial {
-    fn name(&self) -> &'static str {
-        "IconMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("IconMaterial")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(include_str!("./icon.vert")),
-            ShaderSource::FragmentRaw(include_str!("./icon.frag")),
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./icon.vert"))),
+            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./icon.frag"))),
         ]
     }
 

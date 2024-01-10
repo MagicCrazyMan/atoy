@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::{
     attribute::AttributeBinding,
     uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
@@ -309,6 +311,9 @@ impl Variable {
     }
 }
 
+/// `#define HDR` GLSL arguments.
+pub const DEFINED_HDR: Cow<'static, str> = Cow::Borrowed("HDR");
+
 /// GLSL shaders builder.
 ///
 /// Only GLSL version 300 es supported.
@@ -316,28 +321,32 @@ impl Variable {
 pub struct ShaderBuilder {
     shader_type: ShaderType,
     include_header: bool,
+    defines: Vec<Cow<'static, str>>,
     variables: Vec<Variable>,
-    prepends: Vec<&'static str>,
-    appends: Vec<&'static str>,
+    prepends: Vec<Cow<'static, str>>,
+    appends: Vec<Cow<'static, str>>,
 }
 
 impl ShaderBuilder {
     /// Constructs a new shader builder.
-    pub fn new<P, I, A>(
+    pub fn new<D, P, I, A>(
         shader_type: ShaderType,
         include_header: bool,
+        defines: D,
         prepends: P,
         variables: I,
         appends: A,
     ) -> Self
     where
-        P: IntoIterator<Item = &'static str>,
+        D: IntoIterator<Item = Cow<'static, str>>,
+        P: IntoIterator<Item = Cow<'static, str>>,
         I: IntoIterator<Item = Variable>,
-        A: IntoIterator<Item = &'static str>,
+        A: IntoIterator<Item = Cow<'static, str>>,
     {
         Self {
             shader_type,
             include_header,
+            defines: defines.into_iter().collect(),
             prepends: prepends.into_iter().collect(),
             variables: variables.into_iter().collect(),
             appends: appends.into_iter().collect(),
@@ -357,13 +366,18 @@ impl ShaderBuilder {
         self.shader_type
     }
 
+    /// Returns defines source code.
+    pub fn defines(&self) -> &[Cow<'static, str>] {
+        &self.defines
+    }
+
     /// Returns prepends source code.
-    pub fn prepends(&self) -> &[&'static str] {
+    pub fn prepends(&self) -> &[Cow<'static, str>] {
         &self.prepends
     }
 
     /// Returns appends source code.
-    pub fn appends(&self) -> &[&'static str] {
+    pub fn appends(&self) -> &[Cow<'static, str>] {
         &self.appends
     }
 
@@ -378,6 +392,11 @@ impl ShaderBuilder {
         if self.include_header {
             source.push_str(VERTEX_SHADER_PREPEND);
         }
+        self.defines.iter().for_each(|define| {
+            source.push_str("#define ");
+            source.push_str(define);
+            source.push_str("\n");
+        });
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);
             source.push_str("\n");
@@ -400,6 +419,11 @@ impl ShaderBuilder {
         if self.include_header {
             source.push_str(FRAGMENT_SHADER_PREPEND);
         }
+        self.defines.iter().for_each(|define| {
+            source.push_str("#define ");
+            source.push_str(define);
+            source.push_str("\n");
+        });
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);
             source.push_str("\n");
@@ -432,6 +456,8 @@ precision mediump int;
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use crate::render::webgl::{attribute::AttributeBinding, uniform::UniformBinding};
 
     use super::{ShaderBuilder, ShaderType, Variable};
@@ -442,14 +468,17 @@ mod tests {
             ShaderType::Vertex,
             true,
             [],
+            [],
             [
                 Variable::from_attribute_binding(AttributeBinding::GeometryPosition),
                 Variable::from_uniform_binding(UniformBinding::ModelMatrix),
                 Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
             ],
-            ["void main() {
+            [Cow::Borrowed(
+            "void main() {
                 gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
-            }"],
+            }",
+            )],
         );
 
         println!("{}", builder.build());

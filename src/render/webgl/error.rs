@@ -21,6 +21,7 @@ pub enum Error {
     CreateVertexShaderFailed,
     CreateFragmentShaderFailed,
     CreateFenceSyncFailed,
+    ExtensionColorBufferFloatUnsupported,
     ReadPixelsFailed(Option<String>),
     ClientWaitFailed(Option<String>),
     CompileShaderFailed(Option<String>),
@@ -36,6 +37,7 @@ impl Error {}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        log::error!("{:?}", self);
         todo!()
     }
 }

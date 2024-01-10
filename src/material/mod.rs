@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use rand::distributions::{Distribution, Standard};
 
@@ -98,16 +98,22 @@ pub trait Material: ProgramSource {
 /// drawing basic effects, such as lighting, gamma correction and etc.
 pub trait StandardMaterialSource {
     /// Returns a material name.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> Cow<'static, str>;
 
     /// Returns a process function for vertex shader.
     /// Uses a default one if none.
-    fn vertex_process(&self) -> Option<&'static str> {
+    fn vertex_process(&self) -> Option<Cow<'static, str>> {
         None
     }
 
     /// Returns a process function for fragment shader.
-    fn fragment_process(&self) -> &'static str;
+    fn fragment_process(&self) -> Cow<'static, str>;
+
+    /// Returns custom vertex shader defines arguments.
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>>;
+
+    /// Returns custom fragment shader defines arguments.
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>>;
 
     /// Returns custom vertex shader variables.
     fn vertex_variables(&self) -> Vec<Variable>;
@@ -132,7 +138,7 @@ impl<T> ProgramSource for T
 where
     T: StandardMaterialSource,
 {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> Cow<'static, str> {
         self.name()
     }
 
@@ -141,30 +147,33 @@ where
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Vertex,
                 true,
+                self.vertex_defines(),
                 [
-                    include_str!("./standard/constants.glsl"),
-                    include_str!("./standard/constants_vert.glsl"),
+                    Cow::Borrowed(include_str!("./standard/constants.glsl")),
+                    Cow::Borrowed(include_str!("./standard/constants_vert.glsl")),
                 ],
                 self.vertex_variables(),
                 [
-                    self.vertex_process()
-                        .unwrap_or(include_str!("./standard/default_process_vert.glsl")),
-                    include_str!("./standard/entry_vert.glsl"),
+                    self.vertex_process().unwrap_or(Cow::Borrowed(include_str!(
+                        "./standard/default_process_vert.glsl"
+                    ))),
+                    Cow::Borrowed(include_str!("./standard/entry_vert.glsl")),
                 ],
             )),
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Fragment,
                 true,
+                self.fragment_defines(),
                 [
-                    include_str!("./standard/constants.glsl"),
-                    include_str!("./standard/constants_frag.glsl"),
+                    Cow::Borrowed(include_str!("./standard/constants.glsl")),
+                    Cow::Borrowed(include_str!("./standard/constants_frag.glsl")),
                 ],
                 self.fragment_variables(),
                 [
-                    include_str!("./standard/gamma.glsl"),
-                    include_str!("./standard/lighting.glsl"),
+                    Cow::Borrowed(include_str!("./standard/gamma.glsl")),
+                    Cow::Borrowed(include_str!("./standard/lighting.glsl")),
                     self.fragment_process(),
-                    include_str!("./standard/entry_frag.glsl"),
+                    Cow::Borrowed(include_str!("./standard/entry_frag.glsl")),
                 ],
             )),
         ]

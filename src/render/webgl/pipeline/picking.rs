@@ -1,4 +1,4 @@
-use std::{any::Any, ptr::NonNull};
+use std::{any::Any, borrow::Cow, ptr::NonNull};
 
 use gl_matrix4rust::vec3::Vec3;
 use log::warn;
@@ -16,8 +16,8 @@ use crate::{
             draw::draw,
             error::Error,
             framebuffer::{
-                FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
-                OffscreenFramebuffer, OffscreenRenderbufferProvider, OffscreenTextureProvider,
+                Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
+                RenderbufferProvider, TextureProvider,
             },
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
@@ -106,7 +106,7 @@ impl PickingPipeline {
         };
 
         let picking = self.picking_executor();
-        picking.frame.bind(&gl)?;
+        picking.frame.bind(&gl, FramebufferTarget::FRAMEBUFFER)?;
         picking
             .frame
             .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT0);
@@ -157,7 +157,7 @@ impl PickingPipeline {
         };
 
         let picking = self.picking_executor();
-        picking.frame.bind(&gl)?;
+        picking.frame.bind(&gl, FramebufferTarget::FRAMEBUFFER)?;
         picking
             .frame
             .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT1);
@@ -220,7 +220,7 @@ impl Pipeline for PickingPipeline {
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
     in_entities: ResourceKey<Vec<NonNull<Entity>>>,
-    frame: OffscreenFramebuffer,
+    frame: Framebuffer,
     material: PickingMaterial,
 }
 
@@ -228,19 +228,16 @@ impl Picking {
     pub fn new(in_entities: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
         Self {
             in_entities,
-            frame: OffscreenFramebuffer::with_draw_buffers(
-                FramebufferTarget::FRAMEBUFFER,
+            frame: Framebuffer::with_draw_buffers(
                 [
-                    OffscreenTextureProvider::new(
-                        FramebufferTarget::FRAMEBUFFER,
+                    TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
                         TextureInternalFormat::R32UI,
                         TextureFormat::RED_INTEGER,
                         TextureDataType::UNSIGNED_INT,
                         0,
                     ),
-                    OffscreenTextureProvider::new(
-                        FramebufferTarget::FRAMEBUFFER,
+                    TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT1,
                         TextureInternalFormat::RGBA32UI,
                         TextureFormat::RGBA_INTEGER,
@@ -248,8 +245,7 @@ impl Picking {
                         0,
                     ),
                 ],
-                [OffscreenRenderbufferProvider::new(
-                    FramebufferTarget::FRAMEBUFFER,
+                [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH_COMPONENT24,
                 )],
@@ -276,7 +272,8 @@ impl Executor for Picking {
             return Ok(false);
         }
 
-        self.frame.bind(&state.gl())?;
+        self.frame
+            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
 
         state
@@ -322,7 +319,6 @@ impl Executor for Picking {
 
         // prepare material
         let program_item = state.program_store_mut().use_program(&self.material)?;
-        state.gl().use_program(Some(program_item.gl_program()));
 
         // render each entity by material
         for (index, entity) in entities.iter().enumerate() {
@@ -369,14 +365,14 @@ struct PickingMaterial {
 }
 
 impl ProgramSource for PickingMaterial {
-    fn name(&self) -> &'static str {
-        "PickingMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("PickingMaterial")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(include_str!("./shaders/picking.vert")),
-            ShaderSource::FragmentRaw(include_str!("./shaders/picking.frag")),
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/picking.vert"))),
+            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/picking.frag"))),
         ]
     }
 

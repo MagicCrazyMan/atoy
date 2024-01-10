@@ -11,9 +11,15 @@ precision mediump sampler2D;
 in vec2 v_TexCoord;
 
 uniform sampler2D u_Sampler;
+uniform float u_Exposure;
 
-out vec4 o_FragColor;
+out vec4 o_Color;
 
 void main() {
-    o_FragColor = texture(u_Sampler, v_TexCoord, 0.0);
+    vec4 sampled = texture(u_Sampler, v_TexCoord);
+    vec3 hdr_color = sampled.rgb;
+
+    vec3 mapped = 1.0 - exp(-hdr_color * u_Exposure);
+    
+    o_Color = vec4(mapped, sampled.a);
 }

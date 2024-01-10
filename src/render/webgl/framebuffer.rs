@@ -1,13 +1,10 @@
 //! This module provides convenient functions to create
-//! [`WebGlFramebuffer`], [`WebGlRenderbuffer`], [`WebGlTexture`] and other stuffs to draw to offscreen.
+//! [`WebGlFramebuffer`], [`WebGlRenderbuffer`], [`WebGlTexture`] and other stuffs to draw.
 //!
 //! Unlike [`BufferStore`](super::buffer::BufferStore), [`TextureStore`](super::texture::TextureStore) and
 //! [`ProgramStore`](super::program::ProgramStore), stuffs created from here does not manage automatically,
 //! you should cleanups everything by yourself when finishing drawing.
 
-use std::borrow::Cow;
-
-use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
     js_sys::Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
@@ -137,7 +134,7 @@ pub fn create_texture_2d(
 }
 
 /// Offscreen frame containing [`WebGlFramebuffer`], [`WebGlRenderbuffer`], [`WebGlTexture`] and other stuffs
-/// to make WebGl draw entities to an offscreen framebuffer.
+/// to make WebGl draw entities to framebuffer.
 ///
 /// Offscreen frame holds a drawing buffer width and drawing buffer height from [`WebGl2RenderingContext`]
 /// to ensure [`WebGlRenderbuffer`] and [`WebGlTexture`] always fit into a same size.
@@ -145,25 +142,25 @@ pub fn create_texture_2d(
 /// new [`WebGlRenderbuffer`] and [`WebGlTexture`] are recreated as well.
 ///
 /// [`drawBuffers`](https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/drawBuffers)
-pub struct OffscreenFramebuffer {
+pub struct Framebuffer {
     width: i32,
     height: i32,
 
+    texture_providers: Vec<TextureProvider>,
+    renderbuffer_providers: Vec<RenderbufferProvider>,
+
     gl: Option<WebGl2RenderingContext>,
-
-    target: FramebufferTarget,
-    texture_providers: Vec<OffscreenTextureProvider>,
-    renderbuffer_providers: Vec<OffscreenRenderbufferProvider>,
-
+    binding_target: Option<FramebufferTarget>,
+    reading_buffer: Option<FramebufferDrawBuffer>,
     framebuffer: Option<WebGlFramebuffer>,
-    textures: Option<Vec<(WebGlTexture, OffscreenTextureProvider)>>,
-    renderbuffers: Option<Vec<(WebGlRenderbuffer, OffscreenRenderbufferProvider)>>,
+    textures: Option<Vec<(WebGlTexture, TextureProvider)>>,
+    renderbuffers: Option<Vec<(WebGlRenderbuffer, RenderbufferProvider)>>,
     attachments: Array,
 
     draw_buffers: Array,
 }
 
-impl Drop for OffscreenFramebuffer {
+impl Drop for Framebuffer {
     fn drop(&mut self) {
         let (Some(gl), Some(framebuffer), Some(textures), Some(renderbuffers)) = (
             self.gl.as_ref(),
@@ -173,17 +170,6 @@ impl Drop for OffscreenFramebuffer {
         ) else {
             return;
         };
-
-        gl.bind_framebuffer(self.target.gl_enum(), Some(framebuffer));
-        if let Err(err) = gl.invalidate_framebuffer(self.target.gl_enum(), &self.attachments) {
-            warn!(
-                "failed to invalidate framebuffer: {}",
-                err.as_string()
-                    .map(|err| Cow::Owned(err))
-                    .unwrap_or(Cow::Borrowed("unknown error"))
-            );
-        }
-        gl.bind_framebuffer(self.target.gl_enum(), None);
 
         gl.delete_framebuffer(Some(framebuffer));
         textures
@@ -195,26 +181,24 @@ impl Drop for OffscreenFramebuffer {
     }
 }
 
-impl OffscreenFramebuffer {
-    /// Constructs a new offscreen frame.
+impl Framebuffer {
+    /// Constructs a new framebuffer object.
     pub fn new<
-        TI: IntoIterator<Item = OffscreenTextureProvider>,
-        RI: IntoIterator<Item = OffscreenRenderbufferProvider>,
+        TI: IntoIterator<Item = TextureProvider>,
+        RI: IntoIterator<Item = RenderbufferProvider>,
     >(
-        target: FramebufferTarget,
         texture_providers: TI,
         renderbuffer_providers: RI,
     ) -> Self {
-        Self::with_draw_buffers(target, texture_providers, renderbuffer_providers, [])
+        Self::with_draw_buffers(texture_providers, renderbuffer_providers, [])
     }
 
-    /// Constructs a new offscreen frame.
+    /// Constructs a new framebuffer object.
     pub fn with_draw_buffers<
-        TI: IntoIterator<Item = OffscreenTextureProvider>,
-        RI: IntoIterator<Item = OffscreenRenderbufferProvider>,
+        TI: IntoIterator<Item = TextureProvider>,
+        RI: IntoIterator<Item = RenderbufferProvider>,
         DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
-        target: FramebufferTarget,
         texture_providers: TI,
         renderbuffer_providers: RI,
         draw_buffers: DI,
@@ -228,12 +212,12 @@ impl OffscreenFramebuffer {
             width: 0,
             height: 0,
 
-            gl: None,
-
-            target,
             texture_providers: texture_providers.into_iter().collect(),
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
 
+            gl: None,
+            binding_target: None,
+            reading_buffer: None,
             framebuffer: None,
             textures: None,
             renderbuffers: None,
@@ -243,11 +227,15 @@ impl OffscreenFramebuffer {
         }
     }
 
-    /// Binds offscreen frame to WebGL.
-    pub fn bind(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    /// Binds framebuffer to WebGL.
+    pub fn bind(
+        &mut self,
+        gl: &WebGl2RenderingContext,
+        target: FramebufferTarget,
+    ) -> Result<(), Error> {
         if let Some(sgl) = self.gl.as_ref() {
             if sgl != gl {
-                panic!("share framebuffer between different contexts is not allowed");
+                panic!("share framebuffer between different WebGL is not allowed");
             }
         }
 
@@ -281,41 +269,43 @@ impl OffscreenFramebuffer {
             self.height = drawing_buffer_height;
         }
 
-        self.create_framebuffer(gl)?;
-        gl.bind_framebuffer(
-            self.target.gl_enum(),
-            Some(self.framebuffer.as_ref().unwrap()),
-        );
+        self.unbind(gl);
 
-        self.create_textures(gl)?;
-        self.create_renderbuffers(gl)?;
+        self.create_framebuffer(gl)?;
+        gl.bind_framebuffer(target.gl_enum(), Some(self.framebuffer.as_ref().unwrap()));
+        self.create_textures(gl, target)?;
+        self.create_renderbuffers(gl, target)?;
 
         if self.draw_buffers.length() > 0 {
             gl.draw_buffers(&self.draw_buffers);
         }
 
         self.gl = Some(gl.clone());
+        self.binding_target = Some(target);
 
         Ok(())
     }
 
-    /// Unbinds offscreen frame from WebGL.
-    pub fn unbind(&self, gl: &WebGl2RenderingContext) {
+    /// Unbinds framebuffer from WebGL.
+    pub fn unbind(&mut self, gl: &WebGl2RenderingContext) {
         if let Some(sgl) = self.gl.as_ref() {
             if sgl != gl {
-                panic!("share framebuffer between different contexts is not allowed");
+                panic!("share framebuffer between different WebGL is not allowed");
             }
         }
 
-        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
-        gl.read_buffer(WebGl2RenderingContext::NONE);
+        if let Some(binding_target) = self.binding_target.take() {
+            gl.bind_framebuffer(binding_target.gl_enum(), None);
+        }
+        if let Some(_) = self.reading_buffer.take() {
+            gl.read_buffer(WebGl2RenderingContext::NONE);
+        }
     }
 
     /// Sets read buffer.
-    pub fn set_read_buffer(&self, gl: &WebGl2RenderingContext, source: FramebufferDrawBuffer) {
+    pub fn set_read_buffer(&mut self, gl: &WebGl2RenderingContext, source: FramebufferDrawBuffer) {
         gl.read_buffer(source.gl_enum());
+        self.reading_buffer = Some(source);
     }
 
     fn create_framebuffer(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
@@ -331,7 +321,11 @@ impl OffscreenFramebuffer {
         Ok(())
     }
 
-    fn create_textures(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn create_textures(
+        &mut self,
+        gl: &WebGl2RenderingContext,
+        target: FramebufferTarget,
+    ) -> Result<(), Error> {
         if self.textures.is_some() {
             return Ok(());
         }
@@ -355,7 +349,7 @@ impl OffscreenFramebuffer {
             )
             .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
             gl.framebuffer_texture_2d(
-                provider.target.gl_enum(),
+                target.gl_enum(),
                 provider.attachment.gl_enum(),
                 WebGl2RenderingContext::TEXTURE_2D,
                 Some(&texture),
@@ -373,7 +367,11 @@ impl OffscreenFramebuffer {
         Ok(())
     }
 
-    fn create_renderbuffers(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn create_renderbuffers(
+        &mut self,
+        gl: &WebGl2RenderingContext,
+        target: FramebufferTarget,
+    ) -> Result<(), Error> {
         if self.renderbuffers.is_some() {
             return Ok(());
         }
@@ -391,7 +389,7 @@ impl OffscreenFramebuffer {
                 self.height,
             );
             gl.framebuffer_renderbuffer(
-                provider.target.gl_enum(),
+                target.gl_enum(),
                 provider.attachment.gl_enum(),
                 WebGl2RenderingContext::RENDERBUFFER,
                 Some(&renderbuffer),
@@ -408,9 +406,24 @@ impl OffscreenFramebuffer {
         Ok(())
     }
 
-    /// Returns [`FramebufferTarget`] binding to this offscreen framebuffer.
-    pub fn target(&self) -> FramebufferTarget {
-        self.target
+    /// Returns framebuffer width.
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    /// Returns framebuffer height.
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
+    /// Returns [`FramebufferTarget`] currently binding to this framebuffer.
+    pub fn binding_target(&self) -> Option<FramebufferTarget> {
+        self.binding_target.clone()
+    }
+
+    /// Returns [`FramebufferDrawBuffer`] currently reading from this framebuffer.
+    pub fn reading_buffer(&self) -> Option<FramebufferDrawBuffer> {
+        self.reading_buffer.clone()
     }
 
     /// Returns [`WebGlFramebuffer`],
@@ -436,23 +449,20 @@ impl OffscreenFramebuffer {
 
     /// Returns list containing [`WebGlRenderbuffer`]s,
     /// following the orders of [`OffscreenRenderbufferProvider`]s.
-    pub fn renderbuffers(
-        &self,
-    ) -> Option<&Vec<(WebGlRenderbuffer, OffscreenRenderbufferProvider)>> {
+    pub fn renderbuffers(&self) -> Option<&Vec<(WebGlRenderbuffer, RenderbufferProvider)>> {
         self.renderbuffers.as_ref()
     }
 
     /// Returns list containing [`WebGlTexture`]s,
     /// following the orders of [`OffscreenTextureProvider`]s.
-    pub fn textures(&self) -> Option<&Vec<(WebGlTexture, OffscreenTextureProvider)>> {
+    pub fn textures(&self) -> Option<&Vec<(WebGlTexture, TextureProvider)>> {
         self.textures.as_ref()
     }
 }
 
 /// Offscreen texture provider specifies texture configurations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OffscreenTextureProvider {
-    target: FramebufferTarget,
+pub struct TextureProvider {
     attachment: FramebufferAttachment,
     internal_format: TextureInternalFormat,
     format: TextureFormat,
@@ -460,10 +470,9 @@ pub struct OffscreenTextureProvider {
     level: i32,
 }
 
-impl OffscreenTextureProvider {
-    /// Constructs a new offscreen texture provider.
+impl TextureProvider {
+    /// Constructs a new texture provider.
     pub fn new(
-        target: FramebufferTarget,
         attachment: FramebufferAttachment,
         internal_format: TextureInternalFormat,
         format: TextureFormat,
@@ -471,18 +480,12 @@ impl OffscreenTextureProvider {
         level: i32,
     ) -> Self {
         Self {
-            target,
             attachment,
             internal_format,
             format,
             data_type,
             level,
         }
-    }
-
-    /// Gets [`FramebufferTarget`].
-    pub fn target(&self) -> FramebufferTarget {
-        self.target
     }
 
     /// Gets [`FramebufferAttachment`].
@@ -513,29 +516,21 @@ impl OffscreenTextureProvider {
 
 /// Offscreen renderbuffer provider specifies renderbuffer configurations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OffscreenRenderbufferProvider {
-    target: FramebufferTarget,
+pub struct RenderbufferProvider {
     attachment: FramebufferAttachment,
     internal_format: RenderbufferInternalFormat,
 }
 
-impl OffscreenRenderbufferProvider {
-    /// Constructs a new offscreen renderbuffer provider.
+impl RenderbufferProvider {
+    /// Constructs a new renderbuffer provider.
     pub fn new(
-        target: FramebufferTarget,
         attachment: FramebufferAttachment,
         internal_format: RenderbufferInternalFormat,
     ) -> Self {
         Self {
-            target,
             internal_format,
             attachment,
         }
-    }
-
-    /// Gets [`FramebufferTarget`].
-    pub fn target(&self) -> FramebufferTarget {
-        self.target
     }
 
     /// Gets [`FramebufferAttachment`].

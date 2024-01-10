@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use gl_matrix4rust::vec3::{AsVec3, Vec3};
 
@@ -58,8 +58,8 @@ impl SolidColorMaterial {
 }
 
 impl StandardMaterialSource for SolidColorMaterial {
-    fn name(&self) -> &'static str {
-        "SolidColorMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("SolidColorMaterial")
     }
 
     fn vertex_variables(&self) -> Vec<Variable> {
@@ -67,6 +67,14 @@ impl StandardMaterialSource for SolidColorMaterial {
     }
 
     fn fragment_variables(&self) -> Vec<Variable> {
+        vec![]
+    }
+
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
         vec![]
     }
 
@@ -94,8 +102,8 @@ impl StandardMaterialSource for SolidColorMaterial {
         vec![]
     }
 
-    fn fragment_process(&self) -> &'static str {
-        include_str!("./standard/solid_color_process_frag.glsl")
+    fn fragment_process(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("./standard/solid_color_process_frag.glsl"))
     }
 }
 

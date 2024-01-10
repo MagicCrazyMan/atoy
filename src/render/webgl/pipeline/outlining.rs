@@ -122,7 +122,6 @@ impl Executor for Outlining {
         };
 
         let program_item = state.program_store_mut().use_program(&self.material)?;
-        state.gl().use_program(Some(program_item.gl_program()));
 
         // stage zero, draws entity with outline color to frame
         self.onepass_frame.bind(state.gl())?;

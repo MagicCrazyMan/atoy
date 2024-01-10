@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use gl_matrix4rust::mat4::Mat4;
 use web_sys::js_sys::Float32Array;
@@ -116,7 +116,7 @@ impl SolidColorInstancedMaterial {
                 BufferSource::from_float32_array(matrices_data, 0, matrices_length),
                 BufferUsage::StaticDraw,
             ),
-            changed_event: EventAgency::new()
+            changed_event: EventAgency::new(),
         }
     }
 
@@ -138,14 +138,14 @@ impl SolidColorInstancedMaterial {
 }
 
 impl ProgramSource for SolidColorInstancedMaterial {
-    fn name(&self) -> &'static str {
-        "SolidColorInstancedMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("SolidColorInstancedMaterial")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
-            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::VertexRaw(Cow::Borrowed(VERTEX_SHADER_SOURCE)),
+            ShaderSource::FragmentRaw(Cow::Borrowed(FRAGMENT_SHADER_SOURCE)),
         ]
     }
 

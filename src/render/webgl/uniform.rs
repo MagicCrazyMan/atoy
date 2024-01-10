@@ -299,8 +299,8 @@ pub fn bind_uniforms(
     program_item: &ProgramItem,
 ) -> Vec<BoundUniform> {
     // binds simple uniforms
-    for (binding, location) in program_item.uniform_locations() {
-        let value = match binding {
+    for (name, location) in program_item.uniform_locations() {
+        let value = match name {
             UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name),
             UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
             UniformBinding::FromEntity(name) => entity.uniform_values().get(*name).cloned(),
@@ -309,7 +309,7 @@ pub fn bind_uniforms(
             | UniformBinding::ProjMatrix
             | UniformBinding::NormalMatrix
             | UniformBinding::ViewProjMatrix => {
-                let mat = match binding {
+                let mat = match name {
                     UniformBinding::ModelMatrix => entity.compose_model_matrix().to_gl(),
                     UniformBinding::NormalMatrix => entity.compose_normal_matrix().to_gl(),
                     UniformBinding::ViewMatrix => state.camera().view_matrix().to_gl(),
@@ -346,7 +346,7 @@ pub fn bind_uniforms(
             warn!(
                 target: "BindUniforms",
                 "no value specified for uniform {}",
-                binding.variable_name()
+                name.variable_name()
             );
             continue;
         };

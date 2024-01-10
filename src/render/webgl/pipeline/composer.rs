@@ -1,22 +1,25 @@
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlTexture, WebGlUniformLocation};
+use std::{any::Any, borrow::Cow};
 
-use crate::render::{
-    pp::{Executor, ResourceKey, Resources, State},
-    webgl::{
-        error::Error,
-        program::{compile_shaders, create_program, ShaderSource},
+use web_sys::{WebGl2RenderingContext, WebGlTexture};
+
+use crate::{
+    render::{
+        pp::{Executor, ResourceKey, Resources, State},
+        webgl::{
+            attribute::AttributeBinding,
+            error::Error,
+            program::{ProgramSource, ShaderSource},
+            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
+        },
     },
+    scene::Scene,
 };
 
-struct Compiled {
-    program: WebGlProgram,
-    sampler_location: WebGlUniformLocation,
-}
+const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
 
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
-    compiled: Option<Compiled>,
     in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
     in_textures: Vec<ResourceKey<WebGlTexture>>,
 }
@@ -27,7 +30,6 @@ impl StandardComposer {
         in_clear_color: ResourceKey<(f32, f32, f32, f32)>,
     ) -> Self {
         Self {
-            compiled: None,
             in_clear_color,
             in_textures,
         }
@@ -40,38 +42,10 @@ impl Executor for StandardComposer {
     fn before(
         &mut self,
         state: &mut State,
-        _: &mut dyn Stuff,
+        _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        if self.compiled.is_none() {
-            let vertex_shader = compile_shaders(
-                state.gl(),
-                &ShaderSource::VertexRaw(include_str!("./shaders/composer.vert")),
-            )?;
-            let fragment_shader = compile_shaders(
-                state.gl(),
-                &ShaderSource::FragmentRaw(include_str!("./shaders/composer.frag")),
-            )?;
-            let program = create_program(
-                state.gl(),
-                &[vertex_shader.clone(), fragment_shader.clone()],
-            )?;
-            let sampler_location = state
-                .gl()
-                .get_uniform_location(&program, "u_Sampler")
-                .unwrap();
-
-            self.compiled = Some(Compiled {
-                program,
-                sampler_location,
-            });
-        }
-
-        let Compiled {
-            program,
-            sampler_location,
-            ..
-        } = self.compiled.as_ref().unwrap();
+        let program_item = state.program_store_mut().use_program(&ComposerMaterial)?;
 
         if let Some((r, g, b, a)) = resources.get(&self.in_clear_color) {
             state.gl().clear_color(*r, *g, *b, *a);
@@ -86,8 +60,9 @@ impl Executor for StandardComposer {
             WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
         );
 
-        state.gl().use_program(Some(program));
-        state.gl().uniform1i(Some(sampler_location), 0);
+        state
+            .gl()
+            .uniform1i(program_item.uniform_locations().get(&SAMPLER_UNIFORM), 0);
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
         Ok(true)
@@ -96,7 +71,7 @@ impl Executor for StandardComposer {
     fn execute(
         &mut self,
         state: &mut State,
-        _: &mut dyn Stuff,
+        _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
         for texture_key in &self.in_textures {
@@ -129,5 +104,44 @@ impl Executor for StandardComposer {
         }
 
         Ok(())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+struct ComposerMaterial;
+
+impl ProgramSource for ComposerMaterial {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("ComposerMaterial")
+    }
+
+    fn sources(&self) -> Vec<ShaderSource> {
+        vec![
+            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/coverage.vert"))),
+            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/composer.frag"))),
+        ]
+    }
+
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![]
+    }
+
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![SAMPLER_UNIFORM]
+    }
+
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
+    }
+
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }

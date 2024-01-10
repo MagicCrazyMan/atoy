@@ -19,7 +19,7 @@ use super::{
 /// Data provided by program source should never change even in different condition.
 pub trait ProgramSource {
     /// Program name, should be unique,
-    fn name(&self) -> &'static str;
+    fn name(&self) -> Cow<'static, str>;
 
     /// Shader sources, at least one vertex shader and one fragment shader should be specified.
     fn sources(&self) -> Vec<ShaderSource>;
@@ -47,8 +47,8 @@ pub enum Shader {}
 #[derive(Clone)]
 pub enum ShaderSource {
     Builder(ShaderBuilder),
-    VertexRaw(&'static str),
-    FragmentRaw(&'static str),
+    VertexRaw(Cow<'static, str>),
+    FragmentRaw(Cow<'static, str>),
 }
 
 /// Compiled program item.
@@ -56,7 +56,7 @@ pub enum ShaderSource {
 pub struct ProgramItem {
     name: String,
     program: WebGlProgram,
-    shaders: Vec<WebGlShader>,
+    shaders: Rc<Vec<WebGlShader>>,
     attributes: Rc<HashMap<AttributeBinding, GLuint>>,
     uniform_locations: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
     uniform_structural_locations:
@@ -103,6 +103,7 @@ impl ProgramItem {
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
     store: HashMap<String, ProgramItem>,
+    using_program: Option<ProgramItem>,
 }
 
 impl ProgramStore {
@@ -111,17 +112,24 @@ impl ProgramStore {
         Self {
             gl,
             store: HashMap::new(),
+            using_program: None,
         }
     }
 
-    /// Returns a [`ProgramItem`] by a [`ProgramSource`]. If not exist, compiles and stores it.
-    pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
+    /// Compiles and returns a program item.
+    /// If program source already compiled, returns cached one.
+    pub fn compile_program<S>(
+        &mut self,
+        source: &S,
+        custom_name: Option<Cow<'static, str>>,
+    ) -> Result<ProgramItem, Error>
     where
         S: ProgramSource + ?Sized,
     {
         let store = &mut self.store;
 
-        match store.entry(source.name().to_string()) {
+        let name = custom_name.unwrap_or(source.name());
+        match store.entry(name.to_string()) {
             Entry::Occupied(occupied) => Ok(occupied.get().clone()),
             Entry::Vacant(vacant) => {
                 let item = vacant.insert(compile_program(&self.gl, source)?);
@@ -130,13 +138,61 @@ impl ProgramStore {
         }
     }
 
+    /// Uses a program from a program source and uses a custom name instead of program source name.
+    /// Compiles program from program source if never uses before.
+    pub fn use_program_with_custom_name<S>(
+        &mut self,
+        source: &S,
+        custom_name: Option<Cow<'static, str>>,
+    ) -> Result<ProgramItem, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
+        let name = source.name();
+        let name = custom_name.as_ref().unwrap_or(&name);
+        if let Some(program_item) = self.using_program.as_ref() {
+            if program_item.name() == name {
+                return Ok(program_item.clone());
+            }
+        }
+
+        let program_item = self.compile_program(source, custom_name)?;
+        self.gl.use_program(Some(&program_item.program));
+        self.using_program = Some(program_item.clone());
+        Ok(program_item)
+    }
+
+    /// Uses a program from a program source.
+    /// Compiles program from program source if never uses before.
+    pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
+        self.use_program_with_custom_name(source, None)
+    }
+
+    /// Unuses a program.
+    pub fn unuse_program(&mut self) {
+        self.gl.use_program(None);
+        self.using_program = None;
+    }
+
     /// Deletes a [`ProgramItem`].
     pub fn delete_program(&mut self, name: &str) {
-        let Some(program_item) = self.store.remove(name) else {
+        let Some(removed) = self.store.remove(name) else {
             return;
         };
 
-        delete_program(&self.gl, &program_item);
+        if self
+            .using_program
+            .as_ref()
+            .map(|using_program| using_program.name() == removed.name())
+            .unwrap_or(false)
+        {
+            self.using_program = None;
+        }
+
+        delete_program(&self.gl, removed);
     }
 }
 
@@ -174,17 +230,17 @@ where
             &program,
             source.uniform_structural_bindings().as_slice(),
         )),
+        shaders: Rc::new(shaders),
         program,
-        shaders,
     })
 }
 
-fn delete_program(gl: &WebGl2RenderingContext, program_item: &ProgramItem) {
+fn delete_program(gl: &WebGl2RenderingContext, program_item: ProgramItem) {
     let ProgramItem {
         program, shaders, ..
     } = program_item;
     gl.use_program(None);
-    shaders.into_iter().for_each(|shader| {
+    shaders.iter().for_each(|shader| {
         gl.delete_shader(Some(&shader));
     });
     gl.delete_program(Some(&program));
@@ -212,13 +268,13 @@ pub fn compile_shaders(
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
                 .ok_or(Error::CreateVertexShaderFailed)?;
-            (shader, Cow::Borrowed(*code))
+            (shader, code.clone())
         }
         ShaderSource::FragmentRaw(code) => {
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
                 .ok_or(Error::CreateFragmentShaderFailed)?;
-            (shader, Cow::Borrowed(*code))
+            (shader, code.clone())
         }
     };
 

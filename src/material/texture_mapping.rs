@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use crate::{
     entity::Entity,
@@ -62,8 +62,8 @@ impl TextureMaterial {
 }
 
 impl StandardMaterialSource for TextureMaterial {
-    fn name(&self) -> &'static str {
-        "TextureMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("TextureMaterial")
     }
 
     fn vertex_variables(&self) -> Vec<Variable> {
@@ -71,6 +71,14 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn fragment_variables(&self) -> Vec<Variable> {
+        vec![]
+    }
+
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
         vec![]
     }
 
@@ -99,8 +107,8 @@ impl StandardMaterialSource for TextureMaterial {
         vec![]
     }
 
-    fn fragment_process(&self) -> &'static str {
-        include_str!("./standard/texture_process_frag.glsl")
+    fn fragment_process(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("./standard/texture_process_frag.glsl"))
     }
 }
 

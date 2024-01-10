@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, borrow::Cow};
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::HtmlImageElement;
@@ -91,14 +91,14 @@ impl EnvironmentMaterial {
 }
 
 impl ProgramSource for EnvironmentMaterial {
-    fn name(&self) -> &'static str {
-        "EnvironmentMaterial"
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("EnvironmentMaterial")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
         vec![
-            ShaderSource::VertexRaw(VERTEX_SHADER_SOURCE),
-            ShaderSource::FragmentRaw(FRAGMENT_SHADER_SOURCE),
+            ShaderSource::VertexRaw(Cow::Borrowed(VERTEX_SHADER_SOURCE)),
+            ShaderSource::FragmentRaw(Cow::Borrowed(FRAGMENT_SHADER_SOURCE)),
         ]
     }
 

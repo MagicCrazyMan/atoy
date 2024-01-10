@@ -392,8 +392,10 @@ impl EntityCollection {
 impl Drop for EntityCollection {
     fn drop(&mut self) {
         if Rc::strong_count(&self.marker) == 1 {
-            unsafe { drop(Box::from_raw(self.inner)) }
-            unsafe { drop(Box::from_raw(self.runtime)) }
+            unsafe {
+                drop(Box::from_raw(self.inner));
+                drop(Box::from_raw(self.runtime));
+            }
         }
     }
 }
