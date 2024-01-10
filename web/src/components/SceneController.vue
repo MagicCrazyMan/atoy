@@ -16,6 +16,28 @@
         </div>
 
         <div class="controller">
+          Enable Bounding Volume Culling
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="culling"
+            @update:model-value="(value) => emit('update:culling', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller">
+          Enable Distance Sorting
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="sorting"
+            @update:model-value="(value) => emit('update:sorting', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller">
           Multisample
           <v-slider
             show-ticks="always"
@@ -134,15 +156,22 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  culling: {
+    type: Boolean,
+    required: true,
+  },
+  sorting: {
+    type: Boolean,
+    required: true,
+  },
 });
-
-console.log(props.hdrToneMapping);
-console.log(props.hdrExposure);
 
 const hdrToneMappings = ["Reinhard", "Exposure"];
 
 const emit = defineEmits<{
   (event: "update:clear-color", value: string): void;
+  (event: "update:culling", value: boolean): void;
+  (event: "update:sorting", value: boolean): void;
   (event: "update:samples", value: number): void;
   (event: "update:hdr", value: boolean): void;
   (event: "update:hdr-tone-mapping", value: HdrToneMappingType): void;

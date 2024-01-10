@@ -13,15 +13,20 @@ use crate::{
 };
 
 use self::{
-    collector::StandardEntitiesCollector,
-    composer::StandardComposer,
-    drawer::{HdrToneMappingType, StandardDrawer, DEFAULT_MULTISAMPLE, DEFAULT_HDR_ENABLED, DEFAULT_HDR_TONE_MAPPING_TYPE},
+    collector::{StandardEntitiesCollector, DEFAULT_CULLING_ENABLED, DEFAULT_SORTING_ENABLED},
+    composer::{StandardComposer, DEFAULT_CLEAR_COLOR},
+    drawer::{
+        HdrToneMappingType, StandardDrawer, DEFAULT_HDR_ENABLED, DEFAULT_HDR_TONE_MAPPING_TYPE,
+        DEFAULT_MULTISAMPLE,
+    },
 };
 
 use super::error::Error;
 
 pub struct StandardPipeline {
     pipeline: GraphPipeline<Error>,
+    enable_culling_key: ResourceKey<bool>,
+    enable_sorting_key: ResourceKey<bool>,
     clear_color_key: ResourceKey<Vec4>,
     multisample_key: ResourceKey<i32>,
     hdr_key: ResourceKey<bool>,
@@ -29,12 +34,54 @@ pub struct StandardPipeline {
 }
 
 impl StandardPipeline {
+    /// Returns `true` if entity culling enabled.
+    pub fn culling_enabled(&self) -> bool {
+        self.pipeline
+            .resources()
+            .get(&self.enable_culling_key)
+            .copied()
+            .unwrap_or(DEFAULT_CULLING_ENABLED)
+    }
+
+    pub fn enable_culling(&mut self) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.enable_culling_key.clone(), true);
+    }
+
+    pub fn disable_culling(&mut self) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.enable_culling_key.clone(), false);
+    }
+
+    /// Returns `true` if entity distance sorting enabled.
+    pub fn distance_sorting_enabled(&self) -> bool {
+        self.pipeline
+            .resources()
+            .get(&self.enable_sorting_key)
+            .copied()
+            .unwrap_or(DEFAULT_SORTING_ENABLED)
+    }
+
+    pub fn enable_distance_sorting(&mut self) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.enable_sorting_key.clone(), true);
+    }
+
+    pub fn disable_distance_sorting(&mut self) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.enable_sorting_key.clone(), false);
+    }
+
     pub fn clear_color(&self) -> Vec4 {
         self.pipeline
             .resources()
             .get(&self.clear_color_key)
             .cloned()
-            .unwrap_or(Vec4::new())
+            .unwrap_or(DEFAULT_CLEAR_COLOR)
     }
 
     pub fn set_clear_color(&mut self, clear_color: Vec4) {
@@ -115,6 +162,8 @@ impl StandardPipeline {
         let drawer_key = ItemKey::new_uuid();
         let composer_key = ItemKey::new_uuid();
 
+        let enable_culling_key = ResourceKey::new_persist_uuid();
+        let enable_sorting_key = ResourceKey::new_persist_uuid();
         let clear_color_key = ResourceKey::new_persist_uuid();
         let multisample_key = ResourceKey::new_persist_uuid();
         let hdr_key = ResourceKey::new_persist_uuid();
@@ -129,7 +178,11 @@ impl StandardPipeline {
         let mut pipeline = GraphPipeline::new();
         pipeline.add_executor(
             collector_key.clone(),
-            StandardEntitiesCollector::new(collected_entities_key.clone()),
+            StandardEntitiesCollector::new(
+                collected_entities_key.clone(),
+                Some(enable_culling_key.clone()),
+                Some(enable_sorting_key.clone()),
+            ),
         );
         // pipeline.add_executor(
         //     picking.clone(),
@@ -176,6 +229,8 @@ impl StandardPipeline {
 
         Self {
             pipeline,
+            enable_culling_key,
+            enable_sorting_key,
             clear_color_key,
             multisample_key,
             hdr_key,

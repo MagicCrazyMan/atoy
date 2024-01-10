@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, ptr::NonNull, any::Any};
+use std::{any::Any, collections::VecDeque, ptr::NonNull};
 
 use gl_matrix4rust::vec3::AsVec3;
 
@@ -12,6 +12,9 @@ use crate::{
     scene::Scene,
 };
 
+pub const DEFAULT_CULLING_ENABLED: bool = true;
+pub const DEFAULT_SORTING_ENABLED: bool = true;
+
 /// Standard entities collector, collects and flatten entities from entities collection of [`Stuff`].
 ///
 /// During collecting procedure, works list below will be done:
@@ -22,53 +25,43 @@ use crate::{
 /// # Provides Resources & Data Type
 /// - `set_entities`: [`Vec<NonNull<Entity>>`], a list contains entities collected by this collector.
 pub struct StandardEntitiesCollector {
-    enable_culling: bool,
-    enable_sorting: bool,
-    out_entities: ResourceKey<Vec<NonNull<Entity>>>,
+    enable_culling_key: Option<ResourceKey<bool>>,
+    enable_sorting_key: Option<ResourceKey<bool>>,
+    entities_key: ResourceKey<Vec<NonNull<Entity>>>,
 }
 
 impl StandardEntitiesCollector {
     /// Constructs a new standard entities collector with [`ResourceKey`]
     /// defining where to store the collected entities.
     /// Entity culling and distance sorting by is enabled by default.
-    pub fn new(out_entities: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
+    pub fn new(
+        entities_key: ResourceKey<Vec<NonNull<Entity>>>,
+        enable_culling_key: Option<ResourceKey<bool>>,
+        enable_sorting_key: Option<ResourceKey<bool>>,
+    ) -> Self {
         Self {
-            enable_culling: true,
-            enable_sorting: true,
-            out_entities,
+            entities_key,
+            enable_culling_key,
+            enable_sorting_key,
         }
     }
 
-    /// Disables entity culling.
-    pub fn disable_culling(&mut self) {
-        self.enable_culling = false;
-    }
-
-    /// Enables entity culling.
-    pub fn enable_culling(&mut self) {
-        self.enable_culling = true;
-    }
-
     /// Returns `true` if entity culling enabled.
-    pub fn culling_enabled(&mut self) -> bool {
-        self.enable_culling
-    }
-
-    /// Disables distance sorting.
-    /// If disabled, the orderings of the entities are not guaranteed.
-    pub fn disable_distance_sorting(&mut self) {
-        self.enable_sorting = false;
-    }
-
-    /// Enables distance sorting.
-    /// If enabled, entities are sorted from the nearest to the farthest.
-    pub fn enable_distance_sorting(&mut self) {
-        self.enable_sorting = true;
+    pub fn culling_enabled(&self, resources: &Resources) -> bool {
+        self.enable_culling_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+            .copied()
+            .unwrap_or(DEFAULT_CULLING_ENABLED)
     }
 
     /// Returns `true` if entity distance sorting enabled.
-    pub fn distance_sorting_enabled(&mut self) -> bool {
-        self.enable_sorting
+    pub fn distance_sorting_enabled(&self, resources: &Resources) -> bool {
+        self.enable_sorting_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+            .copied()
+            .unwrap_or(DEFAULT_SORTING_ENABLED)
     }
 }
 
@@ -87,6 +80,9 @@ impl Executor for StandardEntitiesCollector {
             distance: f64,
         }
 
+        let culling_enabled = self.culling_enabled(resources);
+        let sorting_enabled = self.distance_sorting_enabled(resources);
+
         let view_position = state.camera().position();
         let view_frustum = state.camera().view_frustum();
         let mut entities = Vec::new();
@@ -99,7 +95,7 @@ impl Executor for StandardEntitiesCollector {
                 collection.update();
 
                 // culls collection bounding
-                if self.enable_culling {
+                if culling_enabled {
                     if let Some(collection_bounding) = collection.bounding() {
                         if let Culling::Outside(_) = collection_bounding.cull(&view_frustum) {
                             continue;
@@ -114,7 +110,7 @@ impl Executor for StandardEntitiesCollector {
                     let distance = if entity.material().and_then(|m| m.instanced()).is_some() {
                         // never apply culling to an instanced material
                         f64::INFINITY
-                    } else if self.enable_culling {
+                    } else if culling_enabled {
                         match entity.bounding() {
                             Some(bounding) => {
                                 match bounding.cull(&view_frustum) {
@@ -125,7 +121,7 @@ impl Executor for StandardEntitiesCollector {
                             }
                             None => f64::INFINITY, // returns infinity for an entity without bounding
                         }
-                    } else if self.enable_sorting {
+                    } else if sorting_enabled {
                         match entity.bounding() {
                             // returns distance between bounding center and camera position if having a bounding volume
                             Some(bounding) => bounding.center().distance(&view_position),
@@ -146,7 +142,7 @@ impl Executor for StandardEntitiesCollector {
             }
         }
 
-        if self.enable_sorting {
+        if sorting_enabled {
             entities.sort_by(|a, b| a.distance.total_cmp(&b.distance));
         }
 
@@ -155,7 +151,7 @@ impl Executor for StandardEntitiesCollector {
             .map(|entity| entity.entity)
             .collect::<Vec<_>>();
 
-        resources.insert(self.out_entities.clone(), entities);
+        resources.insert(self.entities_key.clone(), entities);
 
         Ok(())
     }

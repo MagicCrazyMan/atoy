@@ -13,7 +13,7 @@ pub enum ShaderType {
 }
 
 /// Available variable data types in GLSL version 300 es.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum VariableDataType {
     Bool,
     Int,
@@ -41,11 +41,11 @@ pub enum VariableDataType {
     Sampler3D,
     SamplerCube,
     SamplerCubeShadow,
-    Struct(&'static str),
+    Struct(Cow<'static, str>),
 }
 
 impl VariableDataType {
-    fn build(&self) -> &'static str {
+    fn build(&self) -> &str {
         match self {
             VariableDataType::Bool => "bool",
             VariableDataType::Int => "int",
@@ -73,7 +73,7 @@ impl VariableDataType {
             VariableDataType::Sampler3D => "sampler3D",
             VariableDataType::SamplerCube => "samplerCube",
             VariableDataType::SamplerCubeShadow => "samplerCubeShadow",
-            VariableDataType::Struct(name) => name,
+            VariableDataType::Struct(name) => name.as_ref(),
         }
     }
 }
@@ -475,7 +475,7 @@ mod tests {
                 Variable::from_uniform_binding(UniformBinding::ViewProjMatrix),
             ],
             [Cow::Borrowed(
-            "void main() {
+                "void main() {
                 gl_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
             }",
             )],

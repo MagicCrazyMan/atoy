@@ -57,6 +57,32 @@ impl Viewer {
         self.set_mount(mount)
     }
 
+    /// Returns `true` if entity culling enabled.
+    pub fn culling_enabled_wasm(&self) -> bool {
+        self.culling_enabled()
+    }
+
+    pub fn enable_culling_wasm(&mut self) {
+        self.enable_culling()
+    }
+
+    pub fn disable_culling_wasm(&mut self) {
+        self.disable_culling()
+    }
+
+    /// Returns `true` if entity distance sorting enabled.
+    pub fn distance_sorting_enabled_wasm(&self) -> bool {
+        self.distance_sorting_enabled()
+    }
+
+    pub fn enable_distance_sorting_wasm(&mut self) {
+        self.enable_distance_sorting()
+    }
+
+    pub fn disable_distance_sorting_wasm(&mut self) {
+        self.disable_distance_sorting()
+    }
+
     pub fn clear_color_wasm(&self) -> Box<[f64]> {
         Box::new(self.clear_color().0)
     }
@@ -178,6 +204,32 @@ impl Viewer {
         inner.render_next = true;
 
         Ok(())
+    }
+
+    /// Returns `true` if entity culling enabled.
+    pub fn culling_enabled(&self) -> bool {
+        self.inner().standard_pipeline.culling_enabled()
+    }
+
+    pub fn enable_culling(&mut self) {
+        self.inner_mut().standard_pipeline.enable_culling()
+    }
+
+    pub fn disable_culling(&mut self) {
+        self.inner_mut().standard_pipeline.disable_culling()
+    }
+
+    /// Returns `true` if entity distance sorting enabled.
+    pub fn distance_sorting_enabled(&self) -> bool {
+        self.inner().standard_pipeline.distance_sorting_enabled()
+    }
+
+    pub fn enable_distance_sorting(&mut self) {
+        self.inner_mut().standard_pipeline.enable_distance_sorting()
+    }
+
+    pub fn disable_distance_sorting(&mut self) {
+        self.inner_mut().standard_pipeline.disable_distance_sorting()
     }
 
     pub fn clear_color(&self) -> Vec4 {

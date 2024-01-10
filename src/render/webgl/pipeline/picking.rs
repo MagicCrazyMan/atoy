@@ -54,7 +54,7 @@ impl PickingPipeline {
 
         pipeline.add_executor(
             collector.clone(),
-            StandardEntitiesCollector::new(entities.clone()),
+            StandardEntitiesCollector::new(entities.clone(), None, None),
         );
         pipeline.add_executor(picking.clone(), Picking::new(entities.clone()));
         pipeline.connect(&collector, &picking).unwrap();

@@ -4,6 +4,8 @@
     :render-time="renderTime"
     :pick-time="pickTime"
     v-model:clear-color="clearColor"
+    v-model:culling="culling"
+    v-model:sorting="sorting"
     v-model:samples="samples"
     v-model:hdr="hdr"
     v-model:hdr-tone-mapping="hdrToneMapping"
@@ -20,6 +22,8 @@ import { watch } from "vue";
 import { HdrToneMappingType } from "@/types";
 
 const clearColor = ref("#0000");
+const culling = ref(false);
+const sorting = ref(false);
 const renderTime = ref(0);
 const pickTime = ref(0);
 const samples = ref(0);
@@ -62,6 +66,8 @@ onMounted(async () => {
       .padStart(2, "0");
     return `#${r}${g}${b}${a}`;
   })();
+  culling.value = viewer.culling_enabled_wasm();
+  sorting.value = viewer.distance_sorting_enabled_wasm();
   samples.value = viewer.multisample_wasm() ?? 0;
   hdr.value = viewer.hdr_enabled_wasm();
 
@@ -84,6 +90,20 @@ onMounted(async () => {
     const a = as ? parseInt(as, 16) / 255 : 1;
 
     viewer.set_clear_color_wasm(r, g, b, a);
+  });
+  watch(culling, (culling) => {
+    if (culling) {
+      viewer.enable_culling_wasm();
+    } else {
+      viewer.disable_culling_wasm();
+    }
+  });
+  watch(sorting, (sorting) => {
+    if (sorting) {
+      viewer.enable_distance_sorting_wasm();
+    } else {
+      viewer.disable_distance_sorting_wasm();
+    }
   });
   watch(samples, (samples) => {
     viewer.set_multisample_wasm(samples);

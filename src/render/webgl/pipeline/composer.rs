@@ -18,6 +18,8 @@ use crate::{
 
 const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
 
+pub const DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
+
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
@@ -36,20 +38,15 @@ impl StandardComposer {
         }
     }
 
-    fn clear_color(&self, resources: &Resources) -> (f32, f32, f32, f32) {
+    fn clear_color<'a, 'b>(&'a self, resources: &'b Resources) -> &'b Vec4 {
         if let Some(color) = self
             .clear_color_key
             .as_ref()
             .and_then(|key| resources.get(key))
         {
-            (
-                color.x() as f32,
-                color.y() as f32,
-                color.z() as f32,
-                color.w() as f32,
-            )
+            color
         } else {
-            (0.0, 0.0, 0.0, 0.0)
+            &DEFAULT_CLEAR_COLOR
         }
     }
 }
@@ -65,8 +62,13 @@ impl Executor for StandardComposer {
     ) -> Result<bool, Self::Error> {
         let program_item = state.program_store_mut().use_program(&ComposerMaterial)?;
 
-        let (red, green, blue, alpha) = self.clear_color(resources);
-        state.gl().clear_color(red, green, blue, alpha);
+        let clear_color = self.clear_color(resources);
+        state.gl().clear_color(
+            clear_color.x() as f32,
+            clear_color.y() as f32,
+            clear_color.z() as f32,
+            clear_color.w() as f32,
+        );
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
         state.gl().enable(WebGl2RenderingContext::BLEND);
