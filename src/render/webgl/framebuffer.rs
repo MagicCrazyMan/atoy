@@ -302,9 +302,6 @@ impl Framebuffer {
         if let Some(_) = self.reading_buffer.take() {
             gl.read_buffer(WebGl2RenderingContext::NONE);
         }
-        if self.draw_buffers.length() != 0 {
-            gl.draw_buffers(&Array::new());
-        }
     }
 
     /// Sets read buffer.
