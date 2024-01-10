@@ -36,7 +36,7 @@ pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .expect("failed to invoke requestAnimationFrame");
 }
 
-const INITIALIZED: OnceLock<bool> = OnceLock::new();
+static INITIALIZED: OnceLock<bool> = OnceLock::new();
 
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn init() {

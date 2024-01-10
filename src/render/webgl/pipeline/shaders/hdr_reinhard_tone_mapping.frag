@@ -11,7 +11,6 @@ precision mediump sampler2D;
 in vec2 v_TexCoord;
 
 uniform sampler2D u_Sampler;
-uniform float exposure;
 
 out vec4 o_Color;
 
