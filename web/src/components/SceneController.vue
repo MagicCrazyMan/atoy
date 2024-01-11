@@ -16,6 +16,17 @@
         </div>
 
         <div class="controller">
+          Render When Needed
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="renderWhenNeeded"
+            @update:model-value="(value) => emit('update:render-when-needed', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller">
           Enable Bounding Volume Culling
           <v-switch
             hide-details
@@ -127,7 +138,7 @@
 import { HdrToneMappingType } from "@/types";
 import { PropType } from "vue";
 
-const props = defineProps({
+defineProps({
   renderTime: {
     type: Number,
     required: true,
@@ -138,6 +149,10 @@ const props = defineProps({
   },
   clearColor: {
     type: String,
+    required: true,
+  },
+  renderWhenNeeded: {
+    type: Boolean,
     required: true,
   },
   samples: {
@@ -170,6 +185,7 @@ const hdrToneMappings = ["Reinhard", "Exposure"];
 
 const emit = defineEmits<{
   (event: "update:clear-color", value: string): void;
+  (event: "update:render-when-needed", value: boolean): void;
   (event: "update:culling", value: boolean): void;
   (event: "update:sorting", value: boolean): void;
   (event: "update:samples", value: number): void;

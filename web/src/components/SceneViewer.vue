@@ -4,6 +4,7 @@
     :render-time="renderTime"
     :pick-time="pickTime"
     v-model:clear-color="clearColor"
+    v-model:render-when-needed="renderWhenNeeded"
     v-model:culling="culling"
     v-model:sorting="sorting"
     v-model:samples="samples"
@@ -22,6 +23,7 @@ import { watch } from "vue";
 import { HdrToneMappingType } from "@/types";
 
 const clearColor = ref("#0000");
+const renderWhenNeeded = ref(true);
 const culling = ref(false);
 const sorting = ref(false);
 const renderTime = ref(0);
@@ -66,6 +68,7 @@ onMounted(async () => {
       .padStart(2, "0");
     return `#${r}${g}${b}${a}`;
   })();
+  renderWhenNeeded.value = viewer.render_when_needed_wasm();
   culling.value = viewer.culling_enabled_wasm();
   sorting.value = viewer.distance_sorting_enabled_wasm();
   samples.value = viewer.multisample_wasm() ?? 0;
@@ -90,6 +93,13 @@ onMounted(async () => {
     const a = as ? parseInt(as, 16) / 255 : 1;
 
     viewer.set_clear_color_wasm(r, g, b, a);
+  });
+  watch(renderWhenNeeded, (renderWhenNeeded) => {
+    if (renderWhenNeeded) {
+      viewer.enable_render_when_needed_wasm();
+    } else {
+      viewer.disable_render_when_needed_wasm();
+    }
   });
   watch(culling, (culling) => {
     if (culling) {

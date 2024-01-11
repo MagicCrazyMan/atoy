@@ -34,6 +34,7 @@ struct Inner {
 
     render_loop: Option<Closure<dyn FnMut(f64)>>,
     render_next: bool,
+    render_when_needed: bool,
     stopping_render_loop: bool,
     stop_render_loop_when_error: bool,
 
@@ -55,6 +56,20 @@ impl Viewer {
 
     pub fn set_mount_wasm(&mut self, mount: Option<Element>) -> Result<(), Error> {
         self.set_mount(mount)
+    }
+
+    pub fn render_when_needed_wasm(&self) -> bool {
+        self.render_when_needed()
+    }
+
+
+    pub fn enable_render_when_needed_wasm(&mut self) {
+        self.enable_render_when_needed()
+    }
+
+
+    pub fn disable_render_when_needed_wasm(&mut self) {
+        self.disable_render_when_needed()
     }
 
     /// Returns `true` if entity culling enabled.
@@ -136,10 +151,13 @@ impl Viewer {
             render: WebGL2Render::new(None)?,
             standard_pipeline: StandardPipeline::new(),
             picking_pipeline: PickingPipeline::new(),
+
             render_loop: None,
             render_next: true,
+            render_when_needed: true,
             stopping_render_loop: false,
             stop_render_loop_when_error: true,
+
             entities_changed_listener: None,
         };
         let mut instance = Self {
@@ -203,6 +221,22 @@ impl Viewer {
         inner.mount = mount;
         self.should_render_next();
         Ok(())
+    }
+
+    pub fn render_when_needed(&self) -> bool {
+        self.inner().render_when_needed
+    }
+
+
+    pub fn enable_render_when_needed(&mut self) {
+        self.inner_mut().render_when_needed = true;
+        self.should_render_next();
+    }
+
+
+    pub fn disable_render_when_needed(&mut self) {
+        self.inner_mut().render_when_needed = false;
+        self.should_render_next();
     }
 
     /// Returns `true` if entity culling enabled.
@@ -404,6 +438,7 @@ impl Viewer {
         result
     }
 
+    #[inline]
     pub fn should_render_next(&mut self) {
         self.inner_mut().render_next = true;
     }
@@ -425,7 +460,7 @@ impl Viewer {
                 return;
             }
 
-            if me.inner().render_next {
+            if !me.inner().render_when_needed || me.inner().render_next {
                 if let Err(err) = me.render_frame() {
                     error!("error occurred during rendering {err}");
                     if me.inner().stop_render_loop_when_error {
