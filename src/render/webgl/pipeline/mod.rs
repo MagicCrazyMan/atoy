@@ -4,6 +4,7 @@ pub mod drawer;
 // pub mod gaussian_blur;
 // pub mod outlining;
 pub mod picking;
+pub mod preparation;
 
 use gl_matrix4rust::vec4::Vec4;
 
@@ -19,6 +20,7 @@ use self::{
         HdrToneMappingType, StandardDrawer, DEFAULT_HDR_ENABLED, DEFAULT_HDR_TONE_MAPPING_TYPE,
         DEFAULT_MULTISAMPLE,
     },
+    preparation::StandardPreparation,
 };
 
 use super::error::Error;
@@ -155,6 +157,7 @@ impl StandardPipeline {
 
 impl StandardPipeline {
     pub fn new() -> Self {
+        let preparation_key = ItemKey::new_uuid();
         let collector_key = ItemKey::new_uuid();
         // let picking = ItemKey::new_uuid();
         // let outlining = ItemKey::new_uuid();
@@ -176,6 +179,7 @@ impl StandardPipeline {
         let gaussian_blur_texture_key = ResourceKey::new_runtime_uuid();
 
         let mut pipeline = GraphPipeline::new();
+        pipeline.add_executor(preparation_key.clone(), StandardPreparation);
         pipeline.add_executor(
             collector_key.clone(),
             StandardEntitiesCollector::new(
@@ -224,7 +228,8 @@ impl StandardPipeline {
         // pipeline.connect(&picking, &outlining).unwrap();
         // pipeline.connect(&outlining, &gaussian_blur).unwrap();
         // pipeline.connect(&gaussian_blur, &composer).unwrap();
-        pipeline.connect(&collector_key, &drawer_key).unwrap();
+        pipeline.connect(&collector_key, &preparation_key).unwrap();
+        pipeline.connect(&preparation_key, &drawer_key).unwrap();
         pipeline.connect(&drawer_key, &composer_key).unwrap();
 
         Self {

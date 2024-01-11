@@ -384,11 +384,6 @@ impl WebGL2Render {
         Ok(())
     }
 
-    /// Returns [`HtmlCanvasElement`].
-    pub fn canvas(&self) -> &HtmlCanvasElement {
-        &self.canvas
-    }
-
     fn update_universal_ubo(&mut self, camera: &dyn Camera, scene: &mut Scene, timestamp: f64) {
         let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
 
@@ -528,6 +523,16 @@ impl WebGL2Render {
 
         self.lights_ubo
             .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
+    }
+
+    /// Returns [`HtmlCanvasElement`].
+    pub fn canvas(&self) -> &HtmlCanvasElement {
+        &self.canvas
+    }
+
+    /// Returns [`WebGl2RenderingContext`].
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
     }
 
     pub fn click_event(&mut self) -> &mut EventAgency<MouseEvent> {

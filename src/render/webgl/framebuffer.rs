@@ -300,7 +300,7 @@ impl Framebuffer {
             gl.bind_framebuffer(binding_target.gl_enum(), None);
         }
         if let Some(_) = self.reading_buffer.take() {
-            gl.read_buffer(WebGl2RenderingContext::NONE);
+            gl.read_buffer(WebGl2RenderingContext::BACK);
         }
     }
 

@@ -34,7 +34,7 @@ const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler"
 const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Exposure");
 
 pub const DEFAULT_MULTISAMPLE: i32 = 4;
-pub const DEFAULT_HDR_ENABLED: bool = false;
+pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -56,6 +56,8 @@ pub struct StandardDrawer {
     hdr_framebuffer: Framebuffer,
     normal_multisample_framebuffer: Option<Framebuffer>,
     hdr_multisample_framebuffer: Option<Framebuffer>,
+
+    hdr_supported: Option<bool>,
 
     entities_key: ResourceKey<Vec<NonNull<Entity>>>,
     texture_key: ResourceKey<WebGlTexture>,
@@ -104,6 +106,9 @@ impl StandardDrawer {
                 [],
                 None,
             ),
+
+            hdr_supported: None,
+
             normal_multisample_framebuffer: None,
             hdr_multisample_framebuffer: None,
             texture_key,
@@ -113,7 +118,25 @@ impl StandardDrawer {
         }
     }
 
-    fn hdr(&self, resources: &Resources) -> bool {
+    fn hdr_supported(&mut self, state: &State) -> bool {
+        if let Some(hdr_supported) = self.hdr_supported {
+            return hdr_supported;
+        }
+
+        let supported = state
+            .gl()
+            .get_extension("EXT_color_buffer_float")
+            .map(|extension| extension.is_some())
+            .unwrap_or(false);
+        self.hdr_supported = Some(supported);
+        supported
+    }
+
+    fn hdr_enabled(&mut self, state: &State, resources: &Resources) -> bool {
+        if !self.hdr_supported(state) {
+            return false;
+        }
+
         self.hdr_key
             .as_ref()
             .and_then(|key| resources.get(key))
@@ -290,6 +313,9 @@ impl StandardDrawer {
             self.draw_entity(state, entity, geometry, material)?;
         }
 
+        state.gl().depth_mask(true);
+        state.gl().disable(WebGl2RenderingContext::BLEND);
+
         Ok(())
     }
 
@@ -377,6 +403,7 @@ impl StandardDrawer {
         );
         self.draw_entities(state, opaques, translucents)?;
         self.hdr_framebuffer.unbind(state.gl());
+        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         Ok(())
     }
@@ -401,6 +428,7 @@ impl StandardDrawer {
             .as_mut()
             .unwrap()
             .unbind(state.gl());
+        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         Ok(())
     }
@@ -544,21 +572,6 @@ impl StandardDrawer {
         };
         Ok(())
     }
-
-    fn enable_extension(&self, state: &mut State) -> Result<(), Error> {
-        let supported = state
-            .gl()
-            .get_extension("EXT_color_buffer_float")
-            .map(|extension| extension.is_some())
-            .unwrap_or(false);
-        if !supported {
-            Err(Error::ExtensionUnsupported(
-                "EXT_color_buffer_float".to_string(),
-            ))
-        } else {
-            Ok(())
-        }
-    }
 }
 
 impl Executor for StandardDrawer {
@@ -570,12 +583,12 @@ impl Executor for StandardDrawer {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        Ok(resources.contains_key(&self.entities_key))
+        Ok(resources.contains_resource(&self.entities_key))
     }
 
     fn after(
         &mut self,
-        _: &mut State,
+        state: &mut State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
@@ -600,9 +613,11 @@ impl Executor for StandardDrawer {
             return Ok(());
         };
 
-        match (self.multisample(resources), self.hdr(resources)) {
+        match (
+            self.multisample(resources),
+            self.hdr_enabled(&state, resources),
+        ) {
             (None, true) => {
-                self.enable_extension(state)?;
                 self.draw_hdr(state, opaques, translucents)?;
                 self.hdr_tone_mapping(state, &resources)?;
             }
@@ -610,7 +625,6 @@ impl Executor for StandardDrawer {
                 self.draw_normal(state, opaques, translucents)?;
             }
             (Some(samples), true) => {
-                self.enable_extension(state)?;
                 self.draw_hdr_multisample(state, samples, opaques, translucents)?;
                 self.blit_hdr_multisample(state)?;
                 self.hdr_tone_mapping(state, &resources)?;

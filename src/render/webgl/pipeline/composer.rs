@@ -85,6 +85,19 @@ impl Executor for StandardComposer {
         Ok(true)
     }
 
+    fn after(
+        &mut self,
+        state: &mut State,
+        _: &mut Scene,
+        _: &mut Resources,
+    ) -> Result<(), Self::Error> {
+        state
+            .gl()
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        state.gl().disable(WebGl2RenderingContext::BLEND);
+        Ok(())
+    }
+
     fn execute(
         &mut self,
         state: &mut State,

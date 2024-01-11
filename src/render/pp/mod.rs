@@ -121,59 +121,6 @@ impl State {
     pub fn lights_ubo(&self) -> BufferDescriptor {
         unsafe { self.lights_ubo.as_ref().clone() }
     }
-
-    /// Resets WebGl state
-    fn reset_gl(&mut self) {
-        self.program_store_mut().unuse_program();
-        let gl = self.gl();
-        gl.viewport(
-            0,
-            0,
-            self.canvas().width() as i32,
-            self.canvas().height() as i32,
-        );
-        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
-        gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
-        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
-        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
-        for index in 0..32 {
-            gl.active_texture(WebGl2RenderingContext::TEXTURE0 + index);
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, None);
-        }
-        gl.read_buffer(WebGl2RenderingContext::NONE);
-        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-        gl.bind_vertex_array(None);
-        gl.disable(WebGl2RenderingContext::DEPTH_TEST);
-        gl.disable(WebGl2RenderingContext::CULL_FACE);
-        gl.disable(WebGl2RenderingContext::BLEND);
-        gl.disable(WebGl2RenderingContext::DITHER);
-        gl.disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
-        gl.disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
-        gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
-        gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
-        gl.disable(WebGl2RenderingContext::STENCIL_TEST);
-        gl.disable(WebGl2RenderingContext::RASTERIZER_DISCARD);
-        gl.clear_color(0.0, 0.0, 0.0, 0.0);
-        gl.clear_depth(1.0);
-        gl.clear_stencil(0);
-        gl.depth_mask(true);
-        gl.stencil_func(WebGl2RenderingContext::ALWAYS, 0, 1);
-        gl.stencil_mask(1);
-        gl.stencil_op(
-            WebGl2RenderingContext::KEEP,
-            WebGl2RenderingContext::KEEP,
-            WebGl2RenderingContext::KEEP,
-        );
-    }
 }
 
 /// A rendering pipeline.
@@ -340,8 +287,6 @@ impl<E> Pipeline for GraphPipeline<E> {
 
     fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
         for (_, executor) in self.graph.iter_mut().unwrap() {
-            state.reset_gl();
-
             if executor.before(state, scene, &mut self.resources)? {
                 executor.execute(state, scene, &mut self.resources)?;
                 executor.after(state, scene, &mut self.resources)?;
@@ -506,12 +451,12 @@ impl Resources {
 
     /// Returns `true` if the resources contains a value for the specified [`ResourceKey`]
     /// and successfully downcast to specified type.
-    pub fn contains_key<V: 'static>(&mut self, key: &ResourceKey<V>) -> bool {
+    pub fn contains_resource<V: 'static>(&mut self, key: &ResourceKey<V>) -> bool {
         self.get(key).is_some()
     }
 
     /// Returns `true` if the resources contains a value for the specified [`ResourceKey`].
-    pub fn contains_key_unchecked<V>(&mut self, key: &ResourceKey<V>) -> bool {
+    pub fn contains_resource_unchecked<V>(&mut self, key: &ResourceKey<V>) -> bool {
         match key {
             ResourceKey::Runtime(key, _) => self.runtime.contains_key(key),
             ResourceKey::Persist(key, _) => self.persist.contains_key(key),

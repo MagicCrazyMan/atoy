@@ -219,15 +219,15 @@ impl Pipeline for PickingPipeline {
 /// - `picked_entity`: [`Weak`](crate::entity::Weak), picked entity.
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
-    in_entities: ResourceKey<Vec<NonNull<Entity>>>,
+    entities_key: ResourceKey<Vec<NonNull<Entity>>>,
     frame: Framebuffer,
     material: PickingMaterial,
 }
 
 impl Picking {
-    pub fn new(in_entities: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
+    pub fn new(entities_key: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
         Self {
-            in_entities,
+            entities_key,
             frame: Framebuffer::new(
                 [
                     TextureProvider::new(
@@ -269,7 +269,7 @@ impl Executor for Picking {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        if !resources.contains_key_unchecked(&self.in_entities) {
+        if !resources.contains_resource_unchecked(&self.entities_key) {
             return Ok(false);
         }
 
@@ -297,6 +297,7 @@ impl Executor for Picking {
         _: &mut Resources,
     ) -> Result<(), Self::Error> {
         self.frame.unbind(state.gl());
+        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         Ok(())
     }
 
@@ -306,7 +307,7 @@ impl Executor for Picking {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
-        let Some(entities) = resources.get(&self.in_entities) else {
+        let Some(entities) = resources.get(&self.entities_key) else {
             return Ok(());
         };
 

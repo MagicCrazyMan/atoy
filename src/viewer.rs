@@ -201,8 +201,7 @@ impl Viewer {
                 .or(Err(Error::MountElementFailed))?;
         }
         inner.mount = mount;
-        inner.render_next = true;
-
+        self.should_render_next();
         Ok(())
     }
 
@@ -229,7 +228,9 @@ impl Viewer {
     }
 
     pub fn disable_distance_sorting(&mut self) {
-        self.inner_mut().standard_pipeline.disable_distance_sorting()
+        self.inner_mut()
+            .standard_pipeline
+            .disable_distance_sorting()
     }
 
     pub fn clear_color(&self) -> Vec4 {
@@ -240,7 +241,7 @@ impl Viewer {
         self.inner_mut()
             .standard_pipeline
             .set_clear_color(clear_color);
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn multisample(&self) -> Option<i32> {
@@ -249,21 +250,32 @@ impl Viewer {
 
     pub fn set_multisample(&mut self, samples: Option<i32>) {
         self.inner_mut().standard_pipeline.set_multisample(samples);
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn hdr_enabled(&self) -> bool {
+        let supported = self
+            .inner()
+            .render
+            .gl()
+            .get_extension("EXT_color_buffer_float")
+            .map(|extension| extension.is_some())
+            .unwrap_or(false);
+        if !supported {
+            return false;
+        }
+
         self.inner().standard_pipeline.hdr_enabled()
     }
 
     pub fn enable_hdr(&mut self) {
         self.inner_mut().standard_pipeline.enable_hdr();
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn disable_hdr(&mut self) {
         self.inner_mut().standard_pipeline.disable_hdr();
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn hdr_tone_mapping_type(&self) -> HdrToneMappingType {
@@ -274,7 +286,7 @@ impl Viewer {
         self.inner_mut()
             .standard_pipeline
             .set_hdr_tone_mapping_type(hdr_tone_mapping_type);
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn weak(&self) -> ViewerWeak {
@@ -322,7 +334,7 @@ impl Viewer {
     {
         controller.on_add(self);
         self.inner_mut().controllers.push(Box::new(controller));
-        self.inner_mut().render_next = true;
+        self.should_render_next();
     }
 
     pub fn remove_controller(&mut self, index: usize) -> Option<Box<dyn Controller>> {
@@ -334,7 +346,7 @@ impl Viewer {
 
         let mut controller = controllers.remove(index);
         controller.on_remove(self);
-        self.inner_mut().render_next = true;
+        self.should_render_next();
         Some(controller)
     }
 
@@ -410,12 +422,14 @@ impl Viewer {
             }
 
             if me.inner().render_next {
+                web_sys::console::time_with_label("render");
                 if let Err(err) = me.render_frame() {
                     error!("error occurred during rendering {err}");
                     if me.inner().stop_render_loop_when_error {
                         return;
                     }
                 }
+                web_sys::console::time_end_with_label("render");
             }
 
             if let Some(render_loop) = me.inner().render_loop.as_ref() {
