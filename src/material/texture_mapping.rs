@@ -41,14 +41,14 @@ impl TextureMaterial {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
                         TextureDataType::UNSIGNED_BYTE,
-                        TextureInternalFormat::SRGB8,
-                        TextureFormat::RGB,
+                        TextureInternalFormat::SRGB8_ALPHA8,
+                        TextureFormat::RGBA,
                         0,
                         vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
-                        false,
+                        true,
                     ),
                     params: vec![
-                        TextureParameter::MinFilter(TextureMinificationFilter::Linear),
+                        TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
                         TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
                         TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
                         TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),

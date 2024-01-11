@@ -12,7 +12,7 @@ use crate::{
         webgl::{
             attribute::{bind_attributes, unbind_attributes, AttributeBinding},
             conversion::ToGlEnum,
-            draw::draw,
+            draw::{draw, CullFace},
             error::Error,
             framebuffer::{
                 Framebuffer, FramebufferAttachment, FramebufferTarget, RenderbufferProvider,
@@ -269,12 +269,15 @@ impl StandardDrawer {
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn Material,
+        cull_face: Option<CullFace>,
     ) -> Result<(), Error> {
         let program_item = state.program_store_mut().use_program(material)?;
 
-        if let Some(cull_face) = geometry.cull_face() {
+        if let Some(cull_face) = cull_face {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
             state.gl().cull_face(cull_face.gl_enum());
+        } else {
+            state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }
 
         let bound_attributes = bind_attributes(state, &entity, geometry, material, &program_item);
@@ -282,9 +285,6 @@ impl StandardDrawer {
         draw(state, geometry, material);
         unbind_attributes(state, bound_attributes);
         unbind_uniforms(state, bound_uniforms);
-
-        state.gl().disable(WebGl2RenderingContext::CULL_FACE);
-        state.gl().cull_face(WebGl2RenderingContext::BACK);
 
         Ok(())
     }
@@ -295,13 +295,20 @@ impl StandardDrawer {
         opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
     ) -> Result<(), Error> {
+        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
+        state.gl().clear_depth(1.0);
+        state.gl().clear(
+            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
+        );
+
         // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
         state.gl().depth_mask(true);
         for (entity, geometry, material) in opaques {
-            self.draw_entity(state, entity, geometry, material)?;
+            self.draw_entity(state, entity, geometry, material, geometry.cull_face())?;
         }
 
-        // then draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws theme from farthest to nearest
+        // then draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
         state.gl().enable(WebGl2RenderingContext::BLEND);
         state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
         state.gl().blend_func(
@@ -310,11 +317,18 @@ impl StandardDrawer {
         );
         state.gl().depth_mask(false);
         for (entity, geometry, material) in translucents.into_iter().rev() {
-            self.draw_entity(state, entity, geometry, material)?;
+            self.draw_entity(state, entity, geometry, material, None)?; // transparency entities never cull face
         }
 
+        // reset to default
         state.gl().depth_mask(true);
         state.gl().disable(WebGl2RenderingContext::BLEND);
+        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
+        state.gl().disable(WebGl2RenderingContext::CULL_FACE);
+        state.gl().cull_face(WebGl2RenderingContext::BACK);
+        state
+            .gl()
+            .blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ZERO);
 
         Ok(())
     }
@@ -327,12 +341,6 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         self.normal_framebuffer
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
-        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-        state.gl().clear_depth(1.0);
-        state.gl().clear(
-            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-        );
         self.draw_entities(state, opaques, translucents)?;
         self.normal_framebuffer.unbind(state.gl());
 
@@ -348,12 +356,6 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         let normal_multisample_framebuffer = self.normal_multisample_framebuffer(samples);
         normal_multisample_framebuffer.bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
-        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-        state.gl().clear_depth(1.0);
-        state.gl().clear(
-            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-        );
         self.draw_entities(state, opaques, translucents)?;
         self.normal_multisample_framebuffer
             .as_mut()
@@ -395,15 +397,8 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         self.hdr_framebuffer
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
-        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-        state.gl().clear_depth(1.0);
-        state.gl().clear(
-            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-        );
         self.draw_entities(state, opaques, translucents)?;
         self.hdr_framebuffer.unbind(state.gl());
-        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         Ok(())
     }
@@ -417,18 +412,11 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         let hdr_multisample_framebuffer = self.hdr_multisample_framebuffer(samples);
         hdr_multisample_framebuffer.bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
-        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-        state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-        state.gl().clear_depth(1.0);
-        state.gl().clear(
-            WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-        );
         self.draw_entities(state, opaques, translucents)?;
         self.hdr_multisample_framebuffer
             .as_mut()
             .unwrap()
             .unbind(state.gl());
-        state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         Ok(())
     }
@@ -588,7 +576,7 @@ impl Executor for StandardDrawer {
 
     fn after(
         &mut self,
-        state: &mut State,
+        _: &mut State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {

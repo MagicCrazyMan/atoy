@@ -211,11 +211,13 @@ impl Viewer {
     }
 
     pub fn enable_culling(&mut self) {
-        self.inner_mut().standard_pipeline.enable_culling()
+        self.inner_mut().standard_pipeline.enable_culling();
+        self.should_render_next();
     }
 
     pub fn disable_culling(&mut self) {
-        self.inner_mut().standard_pipeline.disable_culling()
+        self.inner_mut().standard_pipeline.disable_culling();
+        self.should_render_next();
     }
 
     /// Returns `true` if entity distance sorting enabled.
@@ -224,13 +226,15 @@ impl Viewer {
     }
 
     pub fn enable_distance_sorting(&mut self) {
-        self.inner_mut().standard_pipeline.enable_distance_sorting()
+        self.inner_mut().standard_pipeline.enable_distance_sorting();
+        self.should_render_next();
     }
 
     pub fn disable_distance_sorting(&mut self) {
         self.inner_mut()
             .standard_pipeline
-            .disable_distance_sorting()
+            .disable_distance_sorting();
+        self.should_render_next();
     }
 
     pub fn clear_color(&self) -> Vec4 {
@@ -422,14 +426,12 @@ impl Viewer {
             }
 
             if me.inner().render_next {
-                web_sys::console::time_with_label("render");
                 if let Err(err) = me.render_frame() {
                     error!("error occurred during rendering {err}");
                     if me.inner().stop_render_loop_when_error {
                         return;
                     }
                 }
-                web_sys::console::time_end_with_label("render");
             }
 
             if let Some(render_loop) = me.inner().render_loop.as_ref() {
