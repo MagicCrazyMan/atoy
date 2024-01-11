@@ -52,10 +52,11 @@ pub enum HdrToneMappingType {
 /// # Provides Resources & Data Type
 /// - `texture`: [`ResourceKey<WebGlTexture>`], a resource key telling where to get the draw texture.
 pub struct StandardDrawer {
-    normal_framebuffer: Framebuffer,
-    hdr_framebuffer: Framebuffer,
+    normal_framebuffer: Option<Framebuffer>,
+    hdr_framebuffer: Option<Framebuffer>,
     normal_multisample_framebuffer: Option<Framebuffer>,
     hdr_multisample_framebuffer: Option<Framebuffer>,
+    bloom_framebuffer: Option<Framebuffer>,
 
     hdr_supported: Option<bool>,
 
@@ -76,36 +77,9 @@ impl StandardDrawer {
     ) -> Self {
         Self {
             entities_key,
-            normal_framebuffer: Framebuffer::new(
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA,
-                    TextureFormat::RGBA,
-                    TextureDataType::UNSIGNED_BYTE,
-                    0,
-                )],
-                [RenderbufferProvider::new(
-                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                )],
-                [],
-                None,
-            ),
-            hdr_framebuffer: Framebuffer::new(
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                    0,
-                )],
-                [RenderbufferProvider::new(
-                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                )],
-                [],
-                None,
-            ),
+            normal_framebuffer: None,
+            hdr_framebuffer: None,
+            bloom_framebuffer: None,
 
             hdr_supported: None,
 
@@ -159,6 +133,51 @@ impl StandardDrawer {
             .and_then(|samples| if samples == 0 { None } else { Some(samples) })
     }
 
+    #[inline]
+    fn normal_framebuffer(&mut self) -> &mut Framebuffer {
+        self.normal_framebuffer.get_or_insert_with(|| {
+            log::info!("1");
+            Framebuffer::new(
+                [TextureProvider::new(
+                    FramebufferAttachment::COLOR_ATTACHMENT0,
+                    TextureInternalFormat::RGBA,
+                    TextureFormat::RGBA,
+                    TextureDataType::UNSIGNED_BYTE,
+                    0,
+                )],
+                [RenderbufferProvider::new(
+                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                )],
+                [],
+                None,
+            )
+        })
+    }
+
+    #[inline]
+    fn hdr_framebuffer(&mut self) -> &mut Framebuffer {
+        self.hdr_framebuffer.get_or_insert_with(|| {
+            log::info!("2");
+            Framebuffer::new(
+                [TextureProvider::new(
+                    FramebufferAttachment::COLOR_ATTACHMENT0,
+                    TextureInternalFormat::RGBA32F,
+                    TextureFormat::RGBA,
+                    TextureDataType::FLOAT,
+                    0,
+                )],
+                [RenderbufferProvider::new(
+                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                )],
+                [],
+                None,
+            )
+        })
+    }
+
+    #[inline]
     fn normal_multisample_framebuffer(&mut self, samples: i32) -> &mut Framebuffer {
         if self
             .normal_multisample_framebuffer
@@ -169,7 +188,8 @@ impl StandardDrawer {
         {
             self.normal_multisample_framebuffer.as_mut().unwrap()
         } else {
-            self.normal_multisample_framebuffer = Some(Framebuffer::new(
+            log::info!("3");
+            self.normal_multisample_framebuffer.insert(Framebuffer::new(
                 [],
                 [
                     RenderbufferProvider::new(
@@ -183,11 +203,11 @@ impl StandardDrawer {
                 ],
                 [],
                 Some(samples),
-            ));
-            self.normal_multisample_framebuffer.as_mut().unwrap()
+            ))
         }
     }
 
+    #[inline]
     fn hdr_multisample_framebuffer(&mut self, samples: i32) -> &mut Framebuffer {
         if self
             .hdr_multisample_framebuffer
@@ -198,7 +218,8 @@ impl StandardDrawer {
         {
             self.hdr_multisample_framebuffer.as_mut().unwrap()
         } else {
-            self.hdr_multisample_framebuffer = Some(Framebuffer::new(
+            log::info!("4");
+            self.hdr_multisample_framebuffer.insert(Framebuffer::new(
                 [],
                 [
                     RenderbufferProvider::new(
@@ -212,8 +233,7 @@ impl StandardDrawer {
                 ],
                 [],
                 Some(samples),
-            ));
-            self.hdr_multisample_framebuffer.as_mut().unwrap()
+            ))
         }
     }
 
@@ -339,10 +359,10 @@ impl StandardDrawer {
         opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
     ) -> Result<(), Error> {
-        self.normal_framebuffer
+        self.normal_framebuffer()
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         self.draw_entities(state, opaques, translucents)?;
-        self.normal_framebuffer.unbind(state.gl());
+        self.normal_framebuffer().unbind(state.gl());
 
         Ok(())
     }
@@ -365,26 +385,30 @@ impl StandardDrawer {
         Ok(())
     }
 
-    fn blit_normal_multisample(&mut self, state: &mut State) -> Result<(), Error> {
-        let normal_framebuffer = &mut self.normal_framebuffer;
-        let normal_multisample_framebuffer = self.normal_multisample_framebuffer.as_mut().unwrap();
+    fn blit_normal_multisample(&mut self, state: &mut State, samples: i32) -> Result<(), Error> {
+        unsafe {
+            let normal_framebuffer: *mut Framebuffer = self.normal_framebuffer();
+            let normal_multisample_framebuffer: *mut Framebuffer =
+                self.normal_multisample_framebuffer(samples);
 
-        normal_framebuffer.bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        normal_multisample_framebuffer.bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
-        state.gl().blit_framebuffer(
-            0,
-            0,
-            normal_multisample_framebuffer.width(),
-            normal_multisample_framebuffer.height(),
-            0,
-            0,
-            normal_framebuffer.width(),
-            normal_framebuffer.height(),
-            WebGl2RenderingContext::COLOR_BUFFER_BIT,
-            WebGl2RenderingContext::LINEAR,
-        );
-        normal_framebuffer.unbind(state.gl());
-        normal_multisample_framebuffer.unbind(state.gl());
+            (*normal_framebuffer).bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
+            (*normal_multisample_framebuffer)
+                .bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
+            state.gl().blit_framebuffer(
+                0,
+                0,
+                (*normal_multisample_framebuffer).width(),
+                (*normal_multisample_framebuffer).height(),
+                0,
+                0,
+                (*normal_framebuffer).width(),
+                (*normal_framebuffer).height(),
+                WebGl2RenderingContext::COLOR_BUFFER_BIT,
+                WebGl2RenderingContext::LINEAR,
+            );
+            (*normal_framebuffer).unbind(state.gl());
+            (*normal_multisample_framebuffer).unbind(state.gl());
+        }
 
         Ok(())
     }
@@ -395,10 +419,10 @@ impl StandardDrawer {
         opaques: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn Material)>,
     ) -> Result<(), Error> {
-        self.hdr_framebuffer
+        self.hdr_framebuffer()
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         self.draw_entities(state, opaques, translucents)?;
-        self.hdr_framebuffer.unbind(state.gl());
+        self.hdr_framebuffer().unbind(state.gl());
 
         Ok(())
     }
@@ -421,26 +445,29 @@ impl StandardDrawer {
         Ok(())
     }
 
-    fn blit_hdr_multisample(&mut self, state: &mut State) -> Result<(), Error> {
-        let hdr_framebuffer = &mut self.hdr_framebuffer;
-        let hdr_multisample_framebuffer = self.hdr_multisample_framebuffer.as_mut().unwrap();
+    fn blit_hdr_multisample(&mut self, state: &mut State, samples: i32) -> Result<(), Error> {
+        unsafe {
+            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer();
+            let hdr_multisample_framebuffer: *mut Framebuffer =
+                self.hdr_multisample_framebuffer(samples);
 
-        hdr_framebuffer.bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        hdr_multisample_framebuffer.bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
-        state.gl().blit_framebuffer(
-            0,
-            0,
-            hdr_multisample_framebuffer.width(),
-            hdr_multisample_framebuffer.height(),
-            0,
-            0,
-            hdr_framebuffer.width(),
-            hdr_framebuffer.height(),
-            WebGl2RenderingContext::COLOR_BUFFER_BIT,
-            WebGl2RenderingContext::LINEAR,
-        );
-        hdr_framebuffer.unbind(state.gl());
-        hdr_multisample_framebuffer.unbind(state.gl());
+            (*hdr_framebuffer).bind(state.gl(), FramebufferTarget::DRAW_FRAMEBUFFER)?;
+            (*hdr_multisample_framebuffer).bind(state.gl(), FramebufferTarget::READ_FRAMEBUFFER)?;
+            state.gl().blit_framebuffer(
+                0,
+                0,
+                (*hdr_multisample_framebuffer).width(),
+                (*hdr_multisample_framebuffer).height(),
+                0,
+                0,
+                (*hdr_framebuffer).width(),
+                (*hdr_framebuffer).height(),
+                WebGl2RenderingContext::COLOR_BUFFER_BIT,
+                WebGl2RenderingContext::LINEAR,
+            );
+            (*hdr_framebuffer).unbind(state.gl());
+            (*hdr_multisample_framebuffer).unbind(state.gl());
+        }
 
         Ok(())
     }
@@ -450,7 +477,7 @@ impl StandardDrawer {
             .program_store_mut()
             .use_program(&HdrReinhardToneMapping)?;
 
-        self.normal_framebuffer
+        self.normal_framebuffer()
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
@@ -464,7 +491,7 @@ impl StandardDrawer {
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
         state.gl().bind_texture(
             WebGl2RenderingContext::TEXTURE_2D,
-            self.hdr_framebuffer
+            self.hdr_framebuffer()
                 .textures()
                 .and_then(|textures| textures.get(0))
                 .map(|(texture, _)| texture),
@@ -490,7 +517,7 @@ impl StandardDrawer {
         state
             .gl()
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-        self.normal_framebuffer.unbind(state.gl());
+        self.normal_framebuffer().unbind(state.gl());
 
         Ok(())
     }
@@ -500,7 +527,7 @@ impl StandardDrawer {
             .program_store_mut()
             .use_program(&HdrExposureToneMapping)?;
 
-        self.normal_framebuffer
+        self.normal_framebuffer()
             .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
@@ -520,7 +547,7 @@ impl StandardDrawer {
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
         state.gl().bind_texture(
             WebGl2RenderingContext::TEXTURE_2D,
-            self.hdr_framebuffer
+            self.hdr_framebuffer()
                 .textures()
                 .and_then(|textures| textures.get(0))
                 .map(|(texture, _)| texture),
@@ -546,7 +573,7 @@ impl StandardDrawer {
         state
             .gl()
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-        self.normal_framebuffer.unbind(state.gl());
+        self.normal_framebuffer().unbind(state.gl());
 
         Ok(())
     }
@@ -581,7 +608,7 @@ impl Executor for StandardDrawer {
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
         let texture = self
-            .normal_framebuffer
+            .normal_framebuffer()
             .textures()
             .and_then(|textures| textures.get(0))
             .map(|(texture, _)| texture.clone())
@@ -614,12 +641,12 @@ impl Executor for StandardDrawer {
             }
             (Some(samples), true) => {
                 self.draw_hdr_multisample(state, samples, opaques, translucents)?;
-                self.blit_hdr_multisample(state)?;
+                self.blit_hdr_multisample(state, samples)?;
                 self.hdr_tone_mapping(state, &resources)?;
             }
             (Some(samples), false) => {
                 self.draw_normal_multisample(state, samples, opaques, translucents)?;
-                self.blit_normal_multisample(state)?;
+                self.blit_normal_multisample(state, samples)?;
             }
         }
 
