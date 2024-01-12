@@ -53,10 +53,7 @@ impl Transparency {
     }
 }
 
-pub trait StandardMaterial {
-    /// Returns [`StandardMaterialSource`] of this material.
-    fn source(&self) -> StandardMaterialSource;
-
+pub trait StandardMaterial: StandardMaterialSource {
     /// Returns `true` if material is ready for drawing.
     /// Drawer skips entity drawing if material is not ready.
     fn ready(&self) -> bool;
@@ -81,102 +78,53 @@ pub trait StandardMaterial {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource;
+
+    fn as_program_source(&self) -> &dyn ProgramSource;
 }
 
 /// A standard material source for building up a standard material.
 /// Standard material source implements [`ProgramSource`] in default,
 /// material implemented under this trait gains the abilities of
 /// drawing basic effects, such as lighting, gamma correction and etc.
-#[derive(Clone)]
-pub struct StandardMaterialSource {
-    name: Cow<'static, str>,
-    vertex_process: Option<Cow<'static, str>>,
-    fragment_process: Cow<'static, str>,
-    vertex_defines: Vec<Cow<'static, str>>,
-    fragment_defines: Vec<Cow<'static, str>>,
-    attribute_bindings: Vec<AttributeBinding>,
-    uniform_bindings: Vec<UniformBinding>,
-    uniform_structural_bindings: Vec<UniformStructuralBinding>,
-    uniform_block_bindings: Vec<UniformBlockBinding>,
-}
-
-impl StandardMaterialSource {
-    /// Constructs a new material source.
-    pub fn new(
-        name: Cow<'static, str>,
-        vertex_process: Option<Cow<'static, str>>,
-        fragment_process: Cow<'static, str>,
-        vertex_defines: Vec<Cow<'static, str>>,
-        fragment_defines: Vec<Cow<'static, str>>,
-        attribute_bindings: Vec<AttributeBinding>,
-        uniform_bindings: Vec<UniformBinding>,
-        uniform_structural_bindings: Vec<UniformStructuralBinding>,
-        uniform_block_bindings: Vec<UniformBlockBinding>,
-    ) -> Self {
-        Self {
-            name,
-            vertex_process,
-            fragment_process,
-            vertex_defines,
-            fragment_defines,
-            attribute_bindings,
-            uniform_bindings,
-            uniform_structural_bindings,
-            uniform_block_bindings,
-        }
-    }
-
+pub trait StandardMaterialSource {
     /// Returns a material name.
-    pub fn name(&self) -> Cow<'static, str> {
-        self.name.clone()
-    }
+    fn name(&self) -> Cow<'static, str>;
 
     /// Returns a process function for vertex shader.
     /// Uses a default one if none.
-    pub fn vertex_process(&self) -> Option<Cow<'static, str>> {
-        self.vertex_process.clone()
-    }
+    fn vertex_process(&self) -> Option<Cow<'static, str>>;
 
     /// Returns a process function for fragment shader.
-    pub fn fragment_process(&self) -> Cow<'static, str> {
-        self.fragment_process.clone()
-    }
+    fn fragment_process(&self) -> Cow<'static, str>;
 
     /// Returns custom vertex shader defines arguments.
-    pub fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
-        self.vertex_defines.clone()
-    }
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>>;
 
     /// Returns custom fragment shader defines arguments.
-    pub fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
-        self.fragment_defines.clone()
-    }
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>>;
 
     /// Returns custom attribute bindings.
-    pub fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        self.attribute_bindings.clone()
-    }
+    fn attribute_bindings(&self) -> Vec<AttributeBinding>;
 
     /// Returns custom uniform bindings.
-    pub fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        self.uniform_bindings.clone()
-    }
+    fn uniform_bindings(&self) -> Vec<UniformBinding>;
 
     /// Returns custom uniform structural bindings.
-    pub fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        self.uniform_structural_bindings.clone()
-    }
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding>;
 
     /// Returns custom uniform block bindings.
-    pub fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        self.uniform_block_bindings.clone()
-    }
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding>;
 }
 
 static DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
     Cow::Borrowed(include_str!("./shaders/default_process_vert.glsl"));
 
-impl ProgramSource for StandardMaterialSource {
+impl<S> ProgramSource for S
+where
+    S: StandardMaterialSource,
+{
     fn name(&self) -> Cow<'static, str> {
         self.name()
     }

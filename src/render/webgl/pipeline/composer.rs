@@ -17,7 +17,7 @@ use crate::{
     scene::Scene,
 };
 
-const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Sampler"));
+const TEXTURE: &'static str = "u_Texture";
 
 pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
 
@@ -82,7 +82,7 @@ impl Executor for StandardComposer {
 
         state
             .gl()
-            .uniform1i(program.uniform_locations().get(&SAMPLER_UNIFORM), 0);
+            .uniform1i(program.uniform_locations().get(TEXTURE), 0);
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
         Ok(true)
@@ -167,7 +167,7 @@ impl ProgramSource for ComposerProgram {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM]
+        vec![UniformBinding::Manual(Cow::Borrowed(TEXTURE))]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {

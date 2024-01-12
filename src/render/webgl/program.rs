@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::{hash_map::Entry, HashMap},
-    rc::Rc,
 };
 
 use log::warn;
@@ -50,16 +49,21 @@ pub enum ShaderSource {
 }
 
 /// Compiled program item.
-#[derive(Clone)]
 pub struct Program {
     name: String,
     program: WebGlProgram,
-    shaders: Rc<Vec<WebGlShader>>,
-    attributes: Rc<HashMap<AttributeBinding, GLuint>>,
-    uniform_locations: Rc<HashMap<UniformBinding, WebGlUniformLocation>>,
-    uniform_structural_locations:
-        Rc<HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>>>,
-    uniform_block_indices: Rc<HashMap<UniformBlockBinding, u32>>,
+    shaders: Vec<WebGlShader>,
+
+    name_attribute_locations: HashMap<String, GLuint>,
+    name_uniform_locations: HashMap<String, WebGlUniformLocation>,
+    name_uniform_structural_locations: HashMap<String, WebGlUniformLocation>,
+    name_uniform_block_indices: HashMap<String, u32>,
+
+    binding_attribute_locations: HashMap<AttributeBinding, GLuint>,
+    binding_uniform_locations: HashMap<UniformBinding, WebGlUniformLocation>,
+    binding_uniform_structural_locations:
+        HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>>,
+    binding_uniform_block_indices: HashMap<UniformBlockBinding, u32>,
 }
 
 impl Program {
@@ -69,30 +73,50 @@ impl Program {
     }
 
     /// Returns the native [`WebGlProgram`].
-    pub fn gl_program(&self) -> &WebGlProgram {
+    pub fn program(&self) -> &WebGlProgram {
         &self.program
     }
 
-    /// Returns attribute locations.
-    pub fn attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
-        &self.attributes
+    /// Returns variable names to attribute locations mapping.
+    pub fn attribute_locations(&self) -> &HashMap<String, GLuint> {
+        &self.name_attribute_locations
     }
 
-    /// Returns uniform locations.
-    pub fn uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
-        &self.uniform_locations
+    /// Returns variable names to uniform locations mapping.
+    pub fn uniform_locations(&self) -> &HashMap<String, WebGlUniformLocation> {
+        &self.name_uniform_locations
     }
 
-    /// Returns uniform struct field locations.
-    pub fn uniform_structural_locations(
+    /// Returns variable names to uniform struct field locations mapping.
+    pub fn uniform_structural_locations(&self) -> &HashMap<String, WebGlUniformLocation> {
+        &self.name_uniform_structural_locations
+    }
+
+    /// Returns blovk names to uniform block indices mapping.
+    pub fn uniform_block_indices(&self) -> &HashMap<String, u32> {
+        &self.name_uniform_block_indices
+    }
+
+    /// Returns [`AttributeBinding`] to attribute locations mapping.
+    pub fn binding_attribute_locations(&self) -> &HashMap<AttributeBinding, GLuint> {
+        &self.binding_attribute_locations
+    }
+
+    /// Returns [`UniformBinding`] to uniform locations mapping.
+    pub fn binding_uniform_locations(&self) -> &HashMap<UniformBinding, WebGlUniformLocation> {
+        &self.binding_uniform_locations
+    }
+
+    /// Returns [`UniformStructuralBinding`] to uniform struct field locations mapping.
+    pub fn binding_uniform_structural_locations(
         &self,
     ) -> &HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>> {
-        &self.uniform_structural_locations
+        &self.binding_uniform_structural_locations
     }
 
-    /// Returns uniform block indices.
-    pub fn uniform_block_indices(&self) -> &HashMap<UniformBlockBinding, u32> {
-        &self.uniform_block_indices
+    /// Returns [`UniformBlockBinding`] to uniform block indices mapping.
+    pub fn binding_uniform_block_indices(&self) -> &HashMap<UniformBlockBinding, u32> {
+        &self.binding_uniform_block_indices
     }
 }
 
@@ -100,8 +124,8 @@ impl Program {
 /// Program store caches a program by an unique name provided by [`ProgramSource::name`].
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
-    store: HashMap<String, Program>,
-    using_program: Option<Program>,
+    store: HashMap<String, *mut Program>,
+    using_program: Option<*const Program>,
 }
 
 impl ProgramStore {
@@ -116,11 +140,11 @@ impl ProgramStore {
 
     /// Compiles and returns a program item.
     /// If program source already compiled, returns cached one.
-    pub fn compile_program<S>(
-        &mut self,
-        source: &S,
+    pub fn compile_program<'a, 'b, 'c, S>(
+        &'a mut self,
+        source: &'b S,
         custom_name: Option<Cow<'static, str>>,
-    ) -> Result<Program, Error>
+    ) -> Result<&'c Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -128,41 +152,48 @@ impl ProgramStore {
 
         let name = custom_name.unwrap_or(source.name());
         match store.entry(name.to_string()) {
-            Entry::Occupied(occupied) => Ok(occupied.get().clone()),
+            Entry::Occupied(occupied) => unsafe { Ok(&**occupied.get()) },
             Entry::Vacant(vacant) => {
-                let item = vacant.insert(compile_program(&self.gl, source)?);
-                Ok(item.clone())
+                let program = compile_program(&self.gl, source)?;
+                let program: *mut Program = Box::leak(Box::new(program));
+                let program = vacant.insert(program);
+                unsafe { Ok(&**program) }
             }
         }
     }
 
     /// Uses a program from a program source and uses a custom name instead of program source name.
     /// Compiles program from program source if never uses before.
-    pub fn use_program_with_custom_name<S>(
-        &mut self,
-        source: &S,
+    pub fn use_program_with_custom_name<'a, 'b, 'c, S>(
+        &'a mut self,
+        source: &'b S,
         custom_name: Option<Cow<'static, str>>,
-    ) -> Result<Program, Error>
+    ) -> Result<&'c Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
         let name = source.name();
         let name = custom_name.as_ref().unwrap_or(&name);
         if let Some(program) = self.using_program.as_ref() {
-            if program.name() == name {
-                return Ok(program.clone());
+            unsafe {
+                let program = &**program;
+                if program.name() == name {
+                    return Ok(program);
+                }
             }
         }
 
-        let program = self.compile_program(source, custom_name)?;
-        self.gl.use_program(Some(&program.program));
-        self.using_program = Some(program.clone());
-        Ok(program)
+        unsafe {
+            let program: *const Program = self.compile_program(source, custom_name)?;
+            self.gl.use_program(Some(&(*program).program));
+            self.using_program = Some(program);
+            Ok(&*program)
+        }
     }
 
     /// Uses a program from a program source.
     /// Compiles program from program source if never uses before.
-    pub fn use_program<S>(&mut self, source: &S) -> Result<Program, Error>
+    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, source: &'b S) -> Result<&'c Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -181,16 +212,31 @@ impl ProgramStore {
             return;
         };
 
-        if self
-            .using_program
-            .as_ref()
-            .map(|using_program| using_program.name() == removed.name())
-            .unwrap_or(false)
-        {
-            self.using_program = None;
-        }
+        unsafe {
+            let removed = Box::from_raw(removed);
+            if self
+                .using_program
+                .as_ref()
+                .map(|using_program| (**using_program).name() == removed.name())
+                .unwrap_or(false)
+            {
+                self.using_program = None;
+            }
 
-        delete_program(&self.gl, removed);
+            delete_program(&self.gl, *removed);
+        }
+    }
+}
+
+impl Drop for ProgramStore {
+    fn drop(&mut self) {
+        self.using_program.take();
+
+        let gl = self.gl.clone();
+        self.store.drain().for_each(|(_, program)| unsafe {
+            let program = Box::from_raw(program);
+            delete_program(&gl, *program);
+        });
     }
 }
 
@@ -199,36 +245,40 @@ pub fn compile_program<S>(gl: &WebGl2RenderingContext, source: &S) -> Result<Pro
 where
     S: ProgramSource + ?Sized,
 {
-    let mut shaders = Vec::with_capacity(source.sources().len());
-    source.sources().iter().try_for_each(|source| {
+    let sources = source.sources();
+    let mut shaders = Vec::with_capacity(sources.len());
+    sources.iter().try_for_each(|source| {
         shaders.push(compile_shaders(gl, source)?);
         Ok(()) as Result<(), Error>
     })?;
 
     let program = create_program(gl, &shaders)?;
-    Ok(Program {
-        name: source.name().to_string(),
-        attributes: Rc::new(collect_attribute_locations(
-            gl,
-            &program,
-            source.attribute_bindings().as_slice(),
-        )),
-        uniform_locations: Rc::new(collect_uniform_locations(
-            gl,
-            &program,
-            source.uniform_bindings().as_slice(),
-        )),
-        uniform_block_indices: Rc::new(collect_uniform_block_indices(
-            gl,
-            &program,
-            source.uniform_block_bindings().as_slice(),
-        )),
-        uniform_structural_locations: Rc::new(collect_uniform_structural_locations(
+    let (name_attribute_locations, binding_attribute_locations) =
+        collect_attribute_locations(gl, &program, source.attribute_bindings().as_slice());
+    let (name_uniform_locations, binding_uniform_locations) =
+        collect_uniform_locations(gl, &program, source.uniform_bindings().as_slice());
+    let (name_uniform_block_indices, binding_uniform_block_indices) =
+        collect_uniform_block_indices(gl, &program, source.uniform_block_bindings().as_slice());
+    let (name_uniform_structural_locations, binding_uniform_structural_locations) =
+        collect_uniform_structural_locations(
             gl,
             &program,
             source.uniform_structural_bindings().as_slice(),
-        )),
-        shaders: Rc::new(shaders),
+        );
+    Ok(Program {
+        name: source.name().to_string(),
+
+        name_attribute_locations,
+        name_uniform_locations,
+        name_uniform_structural_locations,
+        name_uniform_block_indices,
+
+        binding_attribute_locations,
+        binding_uniform_locations,
+        binding_uniform_structural_locations,
+        binding_uniform_block_indices,
+        
+        shaders,
         program,
     })
 }
@@ -327,8 +377,9 @@ fn collect_attribute_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[AttributeBinding],
-) -> HashMap<AttributeBinding, GLuint> {
-    let mut locations = HashMap::with_capacity(bindings.len());
+) -> (HashMap<String, GLuint>, HashMap<AttributeBinding, GLuint>) {
+    let mut name_locations = HashMap::with_capacity(bindings.len());
+    let mut binding_locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
         let variable_name = binding.variable_name();
@@ -340,19 +391,24 @@ fn collect_attribute_locations(
                 "failed to get attribute location {}", variable_name
             );
         } else {
-            locations.insert(binding.clone(), location as GLuint);
+            name_locations.insert(binding.variable_name().to_string(), location as GLuint);
+            binding_locations.insert(binding.clone(), location as GLuint);
         }
     });
 
-    locations
+    (name_locations, binding_locations)
 }
 
 fn collect_uniform_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBinding],
-) -> HashMap<UniformBinding, WebGlUniformLocation> {
-    let mut locations = HashMap::with_capacity(bindings.len());
+) -> (
+    HashMap<String, WebGlUniformLocation>,
+    HashMap<UniformBinding, WebGlUniformLocation>,
+) {
+    let mut name_locations = HashMap::with_capacity(bindings.len());
+    let mut binding_locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
         let variable_name = binding.variable_name();
@@ -365,20 +421,25 @@ fn collect_uniform_locations(
                 );
             }
             Some(location) => {
-                locations.insert(binding.clone(), location);
+                name_locations.insert(binding.variable_name().to_string(), location.clone());
+                binding_locations.insert(binding.clone(), location);
             }
         }
     });
 
-    locations
+    (name_locations, binding_locations)
 }
 
 fn collect_uniform_structural_locations(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformStructuralBinding],
-) -> HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>> {
-    let mut locations = HashMap::with_capacity(bindings.len());
+) -> (
+    HashMap<String, WebGlUniformLocation>,
+    HashMap<UniformStructuralBinding, HashMap<String, WebGlUniformLocation>>,
+) {
+    let mut name_locations = HashMap::with_capacity(bindings.len());
+    let mut binding_locations = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
         let variable_name = binding.variable_name();
@@ -399,6 +460,7 @@ fn collect_uniform_structural_locations(
                                 );
                             }
                             Some(location) => {
+                                name_locations.insert(complete_field_name.clone(), location.clone());
                                 field_locations.insert(complete_field_name, location);
                             }
                         }
@@ -415,30 +477,33 @@ fn collect_uniform_structural_locations(
                             );
                         }
                         Some(location) => {
+                            name_locations.insert(complete_field_name.clone(), location.clone());
                             field_locations.insert(complete_field_name, location);
                         }
                     }
                 }
             };
         });
-        locations.insert(binding.clone(), field_locations);
+        binding_locations.insert(binding.clone(), field_locations);
     });
 
-    locations
+    (name_locations, binding_locations)
 }
 
 pub fn collect_uniform_block_indices(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
     bindings: &[UniformBlockBinding],
-) -> HashMap<UniformBlockBinding, u32> {
-    let mut indices = HashMap::with_capacity(bindings.len());
+) -> (HashMap<String, u32>, HashMap<UniformBlockBinding, u32>) {
+    let mut name_indices = HashMap::with_capacity(bindings.len());
+    let mut binding_indices = HashMap::with_capacity(bindings.len());
 
     bindings.into_iter().for_each(|binding| {
         let variable_name = binding.block_name();
         let index = gl.get_uniform_block_index(program, variable_name);
-        indices.insert(binding.clone(), index);
+        name_indices.insert(binding.block_name().to_string(), index);
+        binding_indices.insert(binding.clone(), index);
     });
 
-    indices
+    (name_indices, binding_indices)
 }

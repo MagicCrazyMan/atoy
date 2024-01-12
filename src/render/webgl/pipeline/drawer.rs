@@ -32,17 +32,15 @@ use crate::{
     scene::Scene,
 };
 
-static UNIVERSAL_UNIFORM_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
-static LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
+static UNIVERSAL_UNIFORMS_BLOCK: &'static str = "atoy_UniversalUniforms";
+static LIGHTS_BLOCK: &'static str = "atoy_Lights";
+const GAUSSIAN_KERNEL_BLOCK: &'static str = "atoy_GaussianKernel";
 
-const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Sampler"));
-const SAMPLER_BLOOM_BLUR_UNIFORM: UniformBinding =
-    UniformBinding::Manual(Cow::Borrowed("u_SamplerBloomBlur"));
-const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Exposure"));
-const BLOOM_THRESHOLD_UNIFORM: UniformBinding =
-    UniformBinding::Manual(Cow::Borrowed("u_BloomThreshold"));
-const GAUSSIAN_KERNEL_UNIFORM_BLOCK: UniformBlockBinding =
-    UniformBlockBinding::Manual(Cow::Borrowed("Kernel"));
+const BLOOM_THRESHOLD: &'static str = "u_BloomThreshold";
+const BASE_TEXTURE: &'static str = "u_BaseTexture";
+const BLOOM_BLUR_TEXTURE: &'static str = "u_BloomBlurTexture";
+const HDR_TEXTURE: &'static str = "u_HdrTexture";
+const HDR_EXPOSURE: &'static str = "u_HdrExposure";
 
 pub static DEFAULT_MULTISAMPLE: i32 = 4;
 pub static DEFAULT_BLOOM_ENABLED: bool = true;
@@ -393,21 +391,23 @@ impl StandardDrawer {
             state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }
 
-        let program = state.program_store_mut().use_program(&material.source())?;
+        let program = state
+            .program_store_mut()
+            .use_program(material.as_program_source())?;
         let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
         let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
         state.gl().uniform_block_binding(
-            program.gl_program(),
+            program.program(),
             state
                 .gl()
-                .get_uniform_block_index(program.gl_program(), UNIVERSAL_UNIFORM_BLOCK_NAME),
+                .get_uniform_block_index(program.program(), UNIVERSAL_UNIFORMS_BLOCK),
             UBO_UNIVERSAL_UNIFORMS_BINDING,
         );
         state.gl().uniform_block_binding(
-            program.gl_program(),
+            program.program(),
             state
                 .gl()
-                .get_uniform_block_index(program.gl_program(), LIGHTS_BLOCK_NAME),
+                .get_uniform_block_index(program.program(), LIGHTS_BLOCK),
             UBO_LIGHTS_BINDING,
         );
         state.draw(&geometry.draw())?;
@@ -586,12 +586,9 @@ impl StandardDrawer {
         normal_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        state.gl().uniform1i(
-            tone_mapping_program
-                .uniform_locations()
-                .get(&SAMPLER_UNIFORM),
-            0,
-        );
+        state
+            .gl()
+            .uniform1i(tone_mapping_program.uniform_locations().get(HDR_TEXTURE), 0);
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl()
@@ -637,16 +634,11 @@ impl StandardDrawer {
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        state.gl().uniform1i(
-            tone_mapping_program
-                .uniform_locations()
-                .get(&SAMPLER_UNIFORM),
-            0,
-        );
+        state
+            .gl()
+            .uniform1i(tone_mapping_program.uniform_locations().get(HDR_TEXTURE), 0);
         state.gl().uniform1f(
-            tone_mapping_program
-                .uniform_locations()
-                .get(&EXPOSURE_UNIFORM),
+            tone_mapping_program.uniform_locations().get(HDR_EXPOSURE),
             exposure,
         );
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
@@ -709,14 +701,14 @@ impl StandardDrawer {
 
             (*hdr_bloom_blur_even_framebuffer).bind(FramebufferTarget::FRAMEBUFFER)?;
             state.gl().uniform3f(
-                program.uniform_locations().get(&BLOOM_THRESHOLD_UNIFORM),
+                program.uniform_locations().get(BLOOM_THRESHOLD),
                 0.2126,
                 0.7152,
                 0.0722,
             );
             state
                 .gl()
-                .uniform1i(program.uniform_locations().get(&SAMPLER_UNIFORM), 0);
+                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -764,17 +756,17 @@ impl StandardDrawer {
                 .buffer_store_mut()
                 .bind_uniform_buffer_object(&gaussian_kernel(), UBO_GAUSSIAN_BLUR_BINDING)?;
             state.gl().uniform_block_binding(
-                program.gl_program(),
+                program.program(),
                 program
                     .uniform_block_indices()
-                    .get(&GAUSSIAN_KERNEL_UNIFORM_BLOCK)
+                    .get(GAUSSIAN_KERNEL_BLOCK)
                     .cloned()
                     .unwrap(),
                 UBO_GAUSSIAN_BLUR_BINDING,
             );
             state
                 .gl()
-                .uniform1i(program.uniform_locations().get(&SAMPLER_UNIFORM), 0);
+                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
 
             for i in 0..self.bloom_blur_iterations() {
                 let (from, to) = if i % 2 == 0 {
@@ -790,8 +782,6 @@ impl StandardDrawer {
                 };
 
                 to.bind(FramebufferTarget::FRAMEBUFFER)?;
-                // state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-                // state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
                 state
                     .gl()
                     .bind_texture(WebGl2RenderingContext::TEXTURE_2D, from.texture(0));
@@ -851,7 +841,7 @@ impl StandardDrawer {
             state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
             state
                 .gl()
-                .uniform1i(program.uniform_locations().get(&SAMPLER_UNIFORM), 0);
+                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -873,10 +863,9 @@ impl StandardDrawer {
                 0,
             );
 
-            state.gl().uniform1i(
-                program.uniform_locations().get(&SAMPLER_BLOOM_BLUR_UNIFORM),
-                1,
-            );
+            state
+                .gl()
+                .uniform1i(program.uniform_locations().get(BLOOM_BLUR_TEXTURE), 1);
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE1);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -1022,7 +1011,7 @@ impl ProgramSource for HdrReinhardToneMapping {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM]
+        vec![UniformBinding::Manual(Cow::Borrowed(HDR_TEXTURE))]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
@@ -1055,7 +1044,10 @@ impl ProgramSource for HdrExposureToneMapping {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM, EXPOSURE_UNIFORM]
+        vec![
+            UniformBinding::Manual(Cow::Borrowed(HDR_TEXTURE)),
+            UniformBinding::Manual(Cow::Borrowed(HDR_EXPOSURE)),
+        ]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
@@ -1086,7 +1078,10 @@ impl ProgramSource for BloomMapping {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM, BLOOM_THRESHOLD_UNIFORM]
+        vec![
+            UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE)),
+            UniformBinding::Manual(Cow::Borrowed(BLOOM_THRESHOLD)),
+        ]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
@@ -1231,7 +1226,7 @@ impl ProgramSource for GaussianBlurMapping {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM]
+        vec![UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE))]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
@@ -1239,7 +1234,9 @@ impl ProgramSource for GaussianBlurMapping {
     }
 
     fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![GAUSSIAN_KERNEL_UNIFORM_BLOCK]
+        vec![UniformBlockBinding::Manual(Cow::Borrowed(
+            GAUSSIAN_KERNEL_BLOCK,
+        ))]
     }
 }
 
@@ -1262,7 +1259,10 @@ impl ProgramSource for BloomBlendMapping {
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![SAMPLER_UNIFORM, SAMPLER_BLOOM_BLUR_UNIFORM]
+        vec![
+            UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE)),
+            UniformBinding::Manual(Cow::Borrowed(BLOOM_BLUR_TEXTURE)),
+        ]
     }
 
     fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {

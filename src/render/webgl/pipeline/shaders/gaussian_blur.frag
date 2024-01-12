@@ -16,9 +16,9 @@ precision mediump sampler2D;
 
 in vec2 v_TexCoord;
 
-uniform sampler2D u_Sampler;
+uniform sampler2D u_BaseTexture;
 
-layout(std140) uniform Kernel {
+layout(std140) uniform atoy_GaussianKernel {
     float u_Kernel[KERNEL_SIZE];
 };
 
@@ -26,13 +26,13 @@ out vec4 o_Color;
 
 void main() {
     // maps v_TexCoord to pixel coordinate
-    ivec2 center = ivec2(v_TexCoord * vec2(textureSize(u_Sampler, 0)));
+    ivec2 center = ivec2(v_TexCoord * vec2(textureSize(u_BaseTexture, 0)));
 
     vec3 color = vec3(0.0f);
     for(int t = 0; t < KERNEL_HEIGHT; t++) {
         for(int s = 0; s < KERNEL_WIDTH; s++) {
             ivec2 pixel = ivec2(center.s + s - KERNEL_HALF_WIDTH, center.t + t - KERNEL_HALF_HEIGHT) ;
-            vec3 rgb = texelFetch(u_Sampler, pixel, 0).rgb;
+            vec3 rgb = texelFetch(u_BaseTexture, pixel, 0).rgb;
             color += rgb * u_Kernel[t * KERNEL_WIDTH + s];
         }
     }

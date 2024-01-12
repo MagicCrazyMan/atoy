@@ -125,10 +125,10 @@ impl FrameState {
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundAttribute>, Error> {
-        let program = self.program_store_mut().use_program(&material.source())?;
+        let program = self.program_store_mut().use_program(material.as_program_source())?;
 
-        let mut bounds = Vec::with_capacity(program.attribute_locations().len());
-        for (binding, location) in program.attribute_locations() {
+        let mut bounds = Vec::with_capacity(program.binding_attribute_locations().len());
+        for (binding, location) in program.binding_attribute_locations() {
             let value = match binding {
                 AttributeBinding::GeometryPosition => geometry.vertices(),
                 AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
@@ -269,10 +269,10 @@ impl FrameState {
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundUniform>, Error> {
-        let program = self.program_store_mut().use_program(&material.source())?;
+        let program = self.program_store_mut().use_program(material.as_program_source())?;
 
         // binds simple uniforms
-        for (name, location) in program.uniform_locations() {
+        for (name, location) in program.binding_uniform_locations() {
             let value = match name {
                 UniformBinding::ModelMatrix
                 | UniformBinding::ViewMatrix
@@ -308,8 +308,8 @@ impl FrameState {
                     self.gl.drawing_buffer_width(),
                     self.gl.drawing_buffer_width(),
                 ])),
-                UniformBinding::FromGeometry(name) => geometry.uniform_value(name),
-                UniformBinding::FromMaterial(name) => material.uniform_value(name, entity),
+                UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
+                UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref(), entity),
                 UniformBinding::FromEntity(name) => {
                     entity.uniform_values().get(name.as_ref()).cloned()
                 }
@@ -328,7 +328,7 @@ impl FrameState {
         }
 
         // binds structural uniform, converts it to simple uniform bindings
-        for (binding, fields) in program.uniform_structural_locations() {
+        for (binding, fields) in program.binding_uniform_structural_locations() {
             let mut values = Vec::with_capacity(fields.len());
             match binding {
                 UniformStructuralBinding::FromGeometry { .. } => {
@@ -364,8 +364,8 @@ impl FrameState {
         }
 
         // binds uniform blocks
-        let mut bounds = Vec::with_capacity(program.uniform_block_indices().len());
-        for (binding, uniform_block_index) in program.uniform_block_indices() {
+        let mut bounds = Vec::with_capacity(program.binding_uniform_block_indices().len());
+        for (binding, uniform_block_index) in program.binding_uniform_block_indices() {
             let value = match binding {
                 UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name),
                 UniformBlockBinding::FromMaterial(name) => {
@@ -389,7 +389,7 @@ impl FrameState {
                         .bind_uniform_buffer_object(&descriptor, binding)?;
 
                     self.gl.uniform_block_binding(
-                        program.gl_program(),
+                        program.program(),
                         *uniform_block_index,
                         binding,
                     );
@@ -410,7 +410,7 @@ impl FrameState {
                     )?;
 
                     self.gl.uniform_block_binding(
-                        program.gl_program(),
+                        program.program(),
                         *uniform_block_index,
                         binding,
                     );

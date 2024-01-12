@@ -10,13 +10,13 @@ precision mediump sampler2D;
 
 in vec2 v_TexCoord;
 
-uniform sampler2D u_Sampler;
+uniform sampler2D u_BaseTexture;
 uniform vec3 u_BloomThreshold;
 
 out vec4 o_Color;
 
 void main() {
-    vec4 color = texture(u_Sampler, v_TexCoord);
+    vec4 color = texture(u_BaseTexture, v_TexCoord);
     vec3 rgb = color.rgb;
     float brightness = dot(rgb, u_BloomThreshold);
     if(brightness > 1.0f) {

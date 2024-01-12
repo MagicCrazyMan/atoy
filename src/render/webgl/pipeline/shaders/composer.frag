@@ -10,7 +10,7 @@ precision mediump sampler2D;
 
 in vec2 v_TexCoord;
 
-uniform sampler2D u_Sampler;
+uniform sampler2D u_Texture;
 
 out vec4 o_Color;
 
@@ -33,7 +33,7 @@ vec3 atoy_gamma(vec3 color, float gamma) {
 }
 
 void main() {
-    vec4 color = texture(u_Sampler, v_TexCoord);
+    vec4 color = texture(u_Texture, v_TexCoord);
     vec3 rgb = atoy_gamma_correction(color.rgb, 2.2f);
     o_Color = vec4(rgb, color.a);
 }

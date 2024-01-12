@@ -8,7 +8,10 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         state::FrameState,
-        uniform::{UniformBinding, UniformBlockValue, UniformValue},
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
+        }, program::ProgramSource,
     },
 };
 
@@ -52,28 +55,6 @@ impl SolidColorMaterial {
 }
 
 impl StandardMaterial for SolidColorMaterial {
-    fn source(&self) -> StandardMaterialSource {
-        StandardMaterialSource::new(
-            Cow::Borrowed("SolidColorMaterial"),
-            None,
-            Cow::Borrowed(include_str!("./shaders/solid_color_process_frag.glsl")),
-            vec![],
-            vec![],
-            vec![
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryNormal,
-            ],
-            vec![
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::Transparency,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
-            ],
-            vec![],
-            vec![],
-        )
-    }
-
     fn transparency(&self) -> Transparency {
         self.transparency
     }
@@ -109,5 +90,59 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource {
+        self
+    }
+
+    fn as_program_source(&self) -> &dyn ProgramSource {
+        self
+    }
+}
+
+impl StandardMaterialSource for SolidColorMaterial {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("SolidColorMaterial")
+    }
+
+    fn vertex_process(&self) -> Option<Cow<'static, str>> {
+        None
+    }
+
+    fn fragment_process(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("./shaders/solid_color_process_frag.glsl"))
+    }
+
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
+        ]
+    }
+
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
+            UniformBinding::ModelMatrix,
+            UniformBinding::NormalMatrix,
+            UniformBinding::Transparency,
+            UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
+        ]
+    }
+
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
+    }
+
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }

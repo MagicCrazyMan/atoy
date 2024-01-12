@@ -11,7 +11,7 @@ use crate::{
             TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
             TexturePixelStorage, TextureUnit, TextureWrapMethod,
         },
-        uniform::{UniformBinding, UniformBlockValue, UniformValue},
+        uniform::{UniformBinding, UniformBlockValue, UniformValue, UniformStructuralBinding, UniformBlockBinding}, program::ProgramSource,
     },
 };
 
@@ -56,29 +56,6 @@ impl TextureMaterial {
 }
 
 impl StandardMaterial for TextureMaterial {
-    fn source(&self) -> StandardMaterialSource {
-        StandardMaterialSource::new(
-            Cow::Borrowed("TextureMaterial"),
-            None,
-            Cow::Borrowed(include_str!("./shaders/texture_process_frag.glsl")),
-            vec![],
-            vec![],
-            vec![
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryNormal,
-                AttributeBinding::GeometryTextureCoordinate,
-            ],
-            vec![
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::Transparency,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseSampler")),
-            ],
-            vec![],
-            vec![],
-        )
-    }
-
     fn transparency(&self) -> Transparency {
         self.transparency
     }
@@ -116,5 +93,60 @@ impl StandardMaterial for TextureMaterial {
 
     fn prepare(&mut self, _: &mut FrameState, _: &Entity) {
         self.diffuse_texture.load();
+    }
+
+    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource {
+        self
+    }
+
+    fn as_program_source(&self) -> &dyn ProgramSource {
+        self
+    }
+}
+
+impl StandardMaterialSource for TextureMaterial {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("TextureMaterial")
+    }
+
+    fn vertex_process(&self) -> Option<Cow<'static, str>> {
+        None
+    }
+
+    fn fragment_process(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("./shaders/texture_process_frag.glsl"))
+    }
+
+    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
+        vec![]
+    }
+
+    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
+        vec![
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
+            AttributeBinding::GeometryTextureCoordinate,
+        ]
+    }
+
+    fn uniform_bindings(&self) -> Vec<UniformBinding> {
+        vec![
+            UniformBinding::ModelMatrix,
+            UniformBinding::NormalMatrix,
+            UniformBinding::Transparency,
+            UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseSampler")),
+        ]
+    }
+
+    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
+        vec![]
+    }
+
+    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
+        vec![]
     }
 }

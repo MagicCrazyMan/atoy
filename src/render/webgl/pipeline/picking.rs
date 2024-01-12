@@ -333,12 +333,12 @@ impl Executor for Picking {
         let program = state.program_store_mut().use_program(&PickingMaterial)?;
         let position_location = program
             .attribute_locations()
-            .get(&POSITIONS_ATTRIBUTE)
+            .get(POSITIONS)
             .cloned()
             .unwrap();
-        let index_location = program.uniform_locations().get(&INDEX_UNIFORM);
-        let model_matrix_location = program.uniform_locations().get(&MODEL_MATRIX_UNIFORM);
-        let view_proj_matrix_location = program.uniform_locations().get(&VIEW_PROJ_MATRIX_UNIFORM);
+        let index_location = program.uniform_locations().get(INDEX);
+        let model_matrix_location = program.uniform_locations().get(MODEL_MATRIX);
+        let view_proj_matrix_location = program.uniform_locations().get(VIEW_PROJ_MATRIX);
 
         let view_proj_matrix = state.camera().view_proj_matrix();
         state.gl().uniform_matrix4fv_with_f32_array(
@@ -390,11 +390,10 @@ impl Executor for Picking {
     }
 }
 
-const POSITIONS_ATTRIBUTE: AttributeBinding = AttributeBinding::Manual(Cow::Borrowed("a_Position"));
-const INDEX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Index"));
-const MODEL_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_ModelMatrix"));
-const VIEW_PROJ_MATRIX_UNIFORM: UniformBinding =
-    UniformBinding::Manual(Cow::Borrowed("u_ViewProjMatrix"));
+static POSITIONS: &'static str = "a_Position";
+static INDEX: &'static str = "u_Index";
+static MODEL_MATRIX: &'static str = "u_ModelMatrix";
+static VIEW_PROJ_MATRIX: &'static str = "u_ViewProjMatrix";
 
 struct PickingMaterial;
 
@@ -411,14 +410,14 @@ impl ProgramSource for PickingMaterial {
     }
 
     fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![POSITIONS_ATTRIBUTE]
+        vec![AttributeBinding::Manual(Cow::Borrowed(POSITIONS))]
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
         vec![
-            MODEL_MATRIX_UNIFORM,
-            VIEW_PROJ_MATRIX_UNIFORM,
-            INDEX_UNIFORM,
+            UniformBinding::Manual(Cow::Borrowed(MODEL_MATRIX)),
+            UniformBinding::Manual(Cow::Borrowed(VIEW_PROJ_MATRIX)),
+            UniformBinding::Manual(Cow::Borrowed(INDEX)),
         ]
     }
 
