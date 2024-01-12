@@ -9,10 +9,7 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            uniform::{
-                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-                UniformValue,
-            },
+            uniform::{UniformBinding, UniformBlockValue, UniformValue},
         },
     },
 };
@@ -56,49 +53,29 @@ impl SolidColorMaterial {
     }
 }
 
-impl MaterialSource for SolidColorMaterial {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("SolidColorMaterial")
-    }
-
-    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
-        vec![]
-    }
-
-    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
-        vec![]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
-        ]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::Transparency,
-            UniformBinding::FromMaterial("u_Color"),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
-    }
-
-    fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./standard/solid_color_process_frag.glsl"))
-    }
-}
-
 impl Material for SolidColorMaterial {
+    fn source(&self) -> MaterialSource {
+        MaterialSource::new(
+            Cow::Borrowed("SolidColorMaterial"),
+            None,
+            Cow::Borrowed(include_str!("./shaders/solid_color_process_frag.glsl")),
+            vec![],
+            vec![],
+            vec![
+                AttributeBinding::GeometryPosition,
+                AttributeBinding::GeometryNormal,
+            ],
+            vec![
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::Transparency,
+                UniformBinding::FromMaterial("u_Color"),
+            ],
+            vec![],
+            vec![],
+        )
+    }
+
     fn transparency(&self) -> Transparency {
         self.transparency
     }

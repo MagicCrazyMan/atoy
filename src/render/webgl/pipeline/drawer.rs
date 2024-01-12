@@ -369,7 +369,7 @@ impl StandardDrawer {
         material: &dyn Material,
         cull_face: Option<CullFace>,
     ) -> Result<(), Error> {
-        let program_item = state.program_store_mut().use_program(material as &dyn ProgramSource)?;
+        let program_item = state.program_store_mut().use_program(&material.source())?;
 
         if let Some(cull_face) = cull_face {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);

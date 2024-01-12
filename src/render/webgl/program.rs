@@ -7,8 +7,6 @@ use std::{
 use log::warn;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::material::Material;
-
 use super::{
     attribute::AttributeBinding,
     conversion::GLuint,
@@ -140,11 +138,14 @@ impl ProgramStore {
 
     /// Uses a program from a program source and uses a custom name instead of program source name.
     /// Compiles program from program source if never uses before.
-    pub fn use_program_with_custom_name(
+    pub fn use_program_with_custom_name<S>(
         &mut self,
-        source: &dyn ProgramSource,
+        source: &S,
         custom_name: Option<Cow<'static, str>>,
-    ) -> Result<ProgramItem, Error> {
+    ) -> Result<ProgramItem, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
         let name = source.name();
         let name = custom_name.as_ref().unwrap_or(&name);
         if let Some(program_item) = self.using_program.as_ref() {
@@ -161,7 +162,10 @@ impl ProgramStore {
 
     /// Uses a program from a program source.
     /// Compiles program from program source if never uses before.
-    pub fn use_program(&mut self, source: &dyn ProgramSource) -> Result<ProgramItem, Error> {
+    pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
         self.use_program_with_custom_name(source, None)
     }
 

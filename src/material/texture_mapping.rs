@@ -12,10 +12,7 @@ use crate::{
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
                 TexturePixelStorage, TextureUnit, TextureWrapMethod,
             },
-            uniform::{
-                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-                UniformValue,
-            },
+            uniform::{UniformBinding, UniformBlockValue, UniformValue},
         },
     },
 };
@@ -60,50 +57,30 @@ impl TextureMaterial {
     }
 }
 
-impl MaterialSource for TextureMaterial {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("TextureMaterial")
-    }
-
-    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
-        vec![]
-    }
-
-    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
-        vec![]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
-            AttributeBinding::GeometryTextureCoordinate,
-        ]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::Transparency,
-            UniformBinding::FromMaterial("u_DiffuseSampler"),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
-    }
-
-    fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./standard/texture_process_frag.glsl"))
-    }
-}
-
 impl Material for TextureMaterial {
+    fn source(&self) -> MaterialSource {
+        MaterialSource::new(
+            Cow::Borrowed("TextureMaterial"),
+            None,
+            Cow::Borrowed(include_str!("./shaders/texture_process_frag.glsl")),
+            vec![],
+            vec![],
+            vec![
+                AttributeBinding::GeometryPosition,
+                AttributeBinding::GeometryNormal,
+                AttributeBinding::GeometryTextureCoordinate,
+            ],
+            vec![
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::Transparency,
+                UniformBinding::FromMaterial("u_DiffuseSampler"),
+            ],
+            vec![],
+            vec![],
+        )
+    }
+
     fn transparency(&self) -> Transparency {
         self.transparency
     }

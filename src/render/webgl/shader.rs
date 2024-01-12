@@ -21,24 +21,19 @@ pub struct ShaderBuilder {
 
 impl ShaderBuilder {
     /// Constructs a new shader builder.
-    pub fn new<D, P, A>(
+    pub fn new(
         shader_type: ShaderType,
         include_header: bool,
-        defines: D,
-        prepends: P,
-        appends: A,
-    ) -> Self
-    where
-        D: IntoIterator<Item = Cow<'static, str>>,
-        P: IntoIterator<Item = Cow<'static, str>>,
-        A: IntoIterator<Item = Cow<'static, str>>,
-    {
+        defines: Vec<Cow<'static, str>>,
+        prepends: Vec<Cow<'static, str>>,
+        appends: Vec<Cow<'static, str>>,
+    ) -> Self {
         Self {
             shader_type,
             include_header,
-            defines: defines.into_iter().collect(),
-            prepends: prepends.into_iter().collect(),
-            appends: appends.into_iter().collect(),
+            defines,
+            prepends,
+            appends,
         }
     }
 
