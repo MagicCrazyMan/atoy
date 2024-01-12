@@ -112,10 +112,6 @@ impl Material for TextureMaterial {
         self.diffuse_texture.loaded()
     }
 
-    fn instanced(&self) -> Option<i32> {
-        None
-    }
-
     fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }

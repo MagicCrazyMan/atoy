@@ -1,6 +1,6 @@
 use log::warn;
 
-use crate::{geometry::Geometry, material::Material, render::pp::State};
+use crate::render::pp::State;
 
 use super::{
     buffer::{BufferDescriptor, BufferTarget},
@@ -49,96 +49,47 @@ pub enum DrawMode {
 }
 
 /// Invokes WebGL draw call by a geometry and material.
-pub fn draw(state: &mut State, geometry: &dyn Geometry, material: &dyn Material) {
-    // draws entity
-    if let Some(num_instances) = (*material).instanced() {
-        // draw instanced
-        match (*geometry).draw() {
-            Draw::Arrays { mode, first, count } => {
-                state
-                    .gl()
-                    .draw_arrays_instanced(mode.gl_enum(), first, count, num_instances)
-            }
-            Draw::Elements {
-                mode,
-                count,
-                element_type,
-                offset,
-                indices,
-            } => {
-                let buffer = match state
-                    .buffer_store_mut()
-                    .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
-                {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "Draw",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        return;
-                    }
-                };
-
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
-                state.gl().draw_elements_instanced_with_i32(
-                    mode.gl_enum(),
-                    count,
-                    element_type.gl_enum(),
-                    offset,
-                    num_instances,
-                );
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
-                state.buffer_store_mut().unuse_buffer(&indices);
-            }
+pub fn draw(state: &mut State, draw: &Draw) {
+    // draw normally!
+    match draw {
+        Draw::Arrays { mode, first, count } => {
+            state.gl().draw_arrays(mode.gl_enum(), *first, *count)
         }
-    } else {
-        // draw normally!
-        match (*geometry).draw() {
-            Draw::Arrays { mode, first, count } => {
-                state.gl().draw_arrays(mode.gl_enum(), first, count)
-            }
-            Draw::Elements {
-                mode,
-                count,
-                element_type,
-                offset,
-                indices,
-            } => {
-                let buffer = match state
-                    .buffer_store_mut()
-                    .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
-                {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "Draw",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        return;
-                    }
-                };
+        Draw::Elements {
+            mode,
+            count,
+            element_type,
+            offset,
+            indices,
+        } => {
+            let buffer = match state
+                .buffer_store_mut()
+                .use_buffer(&indices, BufferTarget::ElementArrayBuffer)
+            {
+                Ok(buffer) => buffer,
+                Err(err) => {
+                    warn!(
+                        target: "Draw",
+                        "use buffer store error: {}",
+                        err
+                    );
+                    return;
+                }
+            };
 
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
-                state.gl().draw_elements_with_i32(
-                    mode.gl_enum(),
-                    count,
-                    element_type.gl_enum(),
-                    offset,
-                );
-                state
-                    .gl()
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
-                state.buffer_store_mut().unuse_buffer(&indices);
-            }
+            state
+                .gl()
+                .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
+            state.gl().draw_elements_with_i32(
+                mode.gl_enum(),
+                *count,
+                element_type.gl_enum(),
+                *offset,
+            );
+            state
+                .gl()
+                .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
+            state.buffer_store_mut().unuse_buffer(&indices);
         }
     }
 }

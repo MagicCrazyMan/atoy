@@ -5,6 +5,7 @@ use crate::{entity::Entity, geometry::Geometry, material::Material, render::pp::
 use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
     conversion::{GLboolean, GLint, GLintptr, GLsizei, GLuint, ToGlEnum},
+    error::Error,
     program::ProgramItem,
 };
 
@@ -52,6 +53,7 @@ pub enum AttributeBinding {
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
+    Manual(&'static str),
 }
 
 impl AttributeBinding {
@@ -63,7 +65,8 @@ impl AttributeBinding {
             AttributeBinding::GeometryNormal => "a_Normal",
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name) => name,
+            | AttributeBinding::FromEntity(name)
+            | AttributeBinding::Manual(name) => name,
         }
     }
 }
@@ -92,6 +95,7 @@ pub fn bind_attributes(
             AttributeBinding::FromGeometry(name) => geometry.attribute_value(name),
             AttributeBinding::FromMaterial(name) => material.attribute_value(name, entity),
             AttributeBinding::FromEntity(name) => entity.attribute_values().get(*name).cloned(),
+            AttributeBinding::Manual(_) => None,
         };
         let Some(value) = value else {
             warn!(
@@ -102,123 +106,113 @@ pub fn bind_attributes(
             continue;
         };
 
-        match value {
-            AttributeValue::Buffer {
-                descriptor,
-                target,
-                component_size,
-                data_type,
-                normalized,
-                bytes_stride,
-                bytes_offset,
-            } => {
-                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "BindAttributes",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        continue;
-                    }
-                };
-
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
-                state.gl().vertex_attrib_pointer_with_i32(
-                    *location,
-                    component_size as GLint,
-                    data_type.gl_enum(),
-                    normalized,
-                    bytes_stride,
-                    bytes_offset,
+        let ba = match bind_attribute(value, state, *location) {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                warn!(
+                    target: "BindAttributes",
+                    "use buffer store error: {}",
+                    err
                 );
-                state.gl().enable_vertex_attrib_array(*location);
-                state.gl().bind_buffer(target.gl_enum(), None);
-
-                bounds.push(BoundAttribute {
-                    location: *location,
-                    descriptor,
-                });
+                continue;
             }
-            AttributeValue::InstancedBuffer {
-                descriptor,
-                target,
-                component_size,
-                data_type,
-                normalized,
-                component_count_per_instance: components_length_per_instance,
-                divisor,
-            } => {
-                let buffer = match state.buffer_store_mut().use_buffer(&descriptor, target) {
-                    Ok(buffer) => buffer,
-                    Err(err) => {
-                        warn!(
-                            target: "BindAttributes",
-                            "use buffer store error: {}",
-                            err
-                        );
-                        continue;
-                    }
-                };
-
-                state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
-                let component_size = component_size as GLint;
-                // binds each instance
-                for i in 0..components_length_per_instance {
-                    let offset_location = *location + (i as GLuint);
-                    state.gl().vertex_attrib_pointer_with_i32(
-                        offset_location,
-                        component_size,
-                        data_type.gl_enum(),
-                        normalized,
-                        data_type.bytes_length() * component_size * components_length_per_instance,
-                        i * data_type.bytes_length() * component_size,
-                    );
-                    state.gl().enable_vertex_attrib_array(offset_location);
-                    state.gl().vertex_attrib_divisor(offset_location, divisor);
-
-                    bounds.push(BoundAttribute {
-                        location: offset_location,
-                        descriptor: descriptor.clone(),
-                    });
-                }
-                state.gl().bind_buffer(target.gl_enum(), None);
-            }
-            AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(*location, x),
-            AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(*location, x, y),
-            AttributeValue::Vertex3f(x, y, z) => state.gl().vertex_attrib3f(*location, x, y, z),
-            AttributeValue::Vertex4f(x, y, z, w) => {
-                state.gl().vertex_attrib4f(*location, x, y, z, w)
-            }
-            AttributeValue::Vertex1fv(v) => {
-                state.gl().vertex_attrib1fv_with_f32_array(*location, &v)
-            }
-            AttributeValue::Vertex2fv(v) => {
-                state.gl().vertex_attrib2fv_with_f32_array(*location, &v)
-            }
-            AttributeValue::Vertex3fv(v) => {
-                state.gl().vertex_attrib3fv_with_f32_array(*location, &v)
-            }
-            AttributeValue::Vertex4fv(v) => {
-                state.gl().vertex_attrib4fv_with_f32_array(*location, &v)
-            }
-            AttributeValue::UnsignedInteger4(x, y, z, w) => {
-                state.gl().vertex_attrib_i4ui(*location, x, y, z, w)
-            }
-            AttributeValue::Integer4(x, y, z, w) => {
-                state.gl().vertex_attrib_i4i(*location, x, y, z, w)
-            }
-            AttributeValue::IntegerVector4(mut values) => state
-                .gl()
-                .vertex_attrib_i4iv_with_i32_array(*location, &mut values),
-            AttributeValue::UnsignedIntegerVector4(mut values) => state
-                .gl()
-                .vertex_attrib_i4uiv_with_u32_array(*location, &mut values),
         };
+        bounds.extend(ba);
     }
 
     bounds
+}
+
+pub fn bind_attribute(
+    value: AttributeValue,
+    state: &mut State,
+    location: u32,
+) -> Result<Vec<BoundAttribute>, Error> {
+    let mut bounds = Vec::new();
+    match value {
+        AttributeValue::Buffer {
+            descriptor,
+            target,
+            component_size,
+            data_type,
+            normalized,
+            bytes_stride,
+            bytes_offset,
+        } => {
+            let buffer = state.buffer_store_mut().use_buffer(&descriptor, target)?;
+
+            state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
+            state.gl().vertex_attrib_pointer_with_i32(
+                location,
+                component_size as GLint,
+                data_type.gl_enum(),
+                normalized,
+                bytes_stride,
+                bytes_offset,
+            );
+            state.gl().enable_vertex_attrib_array(location);
+            state.gl().bind_buffer(target.gl_enum(), None);
+
+            bounds.push(BoundAttribute {
+                location,
+                descriptor,
+            });
+        }
+        AttributeValue::InstancedBuffer {
+            descriptor,
+            target,
+            component_size,
+            data_type,
+            normalized,
+            component_count_per_instance: components_length_per_instance,
+            divisor,
+        } => {
+            let buffer = state.buffer_store_mut().use_buffer(&descriptor, target)?;
+
+            state.gl().bind_buffer(target.gl_enum(), Some(&buffer));
+            let component_size = component_size as GLint;
+            // binds each instance
+            for i in 0..components_length_per_instance {
+                let offset_location = location + (i as GLuint);
+                state.gl().vertex_attrib_pointer_with_i32(
+                    offset_location,
+                    component_size,
+                    data_type.gl_enum(),
+                    normalized,
+                    data_type.bytes_length() * component_size * components_length_per_instance,
+                    i * data_type.bytes_length() * component_size,
+                );
+                state.gl().enable_vertex_attrib_array(offset_location);
+                state.gl().vertex_attrib_divisor(offset_location, divisor);
+
+                bounds.push(BoundAttribute {
+                    location: offset_location,
+                    descriptor: descriptor.clone(),
+                });
+            }
+            state.gl().bind_buffer(target.gl_enum(), None);
+        }
+        AttributeValue::Vertex1f(x) => state.gl().vertex_attrib1f(location, x),
+        AttributeValue::Vertex2f(x, y) => state.gl().vertex_attrib2f(location, x, y),
+        AttributeValue::Vertex3f(x, y, z) => state.gl().vertex_attrib3f(location, x, y, z),
+        AttributeValue::Vertex4f(x, y, z, w) => state.gl().vertex_attrib4f(location, x, y, z, w),
+        AttributeValue::Vertex1fv(v) => state.gl().vertex_attrib1fv_with_f32_array(location, &v),
+        AttributeValue::Vertex2fv(v) => state.gl().vertex_attrib2fv_with_f32_array(location, &v),
+        AttributeValue::Vertex3fv(v) => state.gl().vertex_attrib3fv_with_f32_array(location, &v),
+        AttributeValue::Vertex4fv(v) => state.gl().vertex_attrib4fv_with_f32_array(location, &v),
+        AttributeValue::UnsignedInteger4(x, y, z, w) => {
+            state.gl().vertex_attrib_i4ui(location, x, y, z, w)
+        }
+        AttributeValue::Integer4(x, y, z, w) => state.gl().vertex_attrib_i4i(location, x, y, z, w),
+        AttributeValue::IntegerVector4(mut values) => state
+            .gl()
+            .vertex_attrib_i4iv_with_i32_array(location, &mut values),
+        AttributeValue::UnsignedIntegerVector4(mut values) => state
+            .gl()
+            .vertex_attrib_i4uiv_with_u32_array(location, &mut values),
+    };
+
+    Ok(bounds)
 }
 
 /// Unbinds all attributes after draw calls.

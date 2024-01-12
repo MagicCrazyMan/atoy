@@ -1,17 +1,17 @@
 use std::{any::Any, borrow::Cow, ptr::NonNull};
 
-use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::{mat4::AsMat4, vec3::Vec3};
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     entity::Entity,
-    material::{Material, Transparency},
+    material::Transparency,
     render::{
         pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
         webgl::{
-            attribute::{bind_attributes, unbind_attributes, AttributeBinding},
+            attribute::{bind_attribute, unbind_attributes, AttributeBinding},
             draw::draw,
             error::Error,
             framebuffer::{
@@ -317,12 +317,32 @@ impl Executor for Picking {
 
         // prepare material
         let program_item = state.program_store_mut().use_program(&PickingMaterial)?;
+        let position_location = program_item
+            .attribute_locations()
+            .get(&POSITIONS_ATTRIBUTE)
+            .cloned()
+            .unwrap();
         let index_location = program_item.uniform_locations().get(&INDEX_UNIFORM);
+        let model_matrix_location = program_item.uniform_locations().get(&MODEL_MATRIX_UNIFORM);
+        let view_proj_matrix_location = program_item
+            .uniform_locations()
+            .get(&VIEW_PROJ_MATRIX_UNIFORM);
+
+        let view_proj_matrix = state.camera().view_proj_matrix();
+        state.gl().uniform_matrix4fv_with_f32_array(
+            view_proj_matrix_location,
+            false,
+            &view_proj_matrix.to_gl(),
+        );
 
         // render each entity by material
         for (index, entity) in entities.iter().enumerate() {
             let entity = unsafe { entity.as_ref() };
+
             let Some(geometry) = entity.geometry() else {
+                continue;
+            };
+            let Some(vertices) = geometry.vertices() else {
                 continue;
             };
 
@@ -335,11 +355,14 @@ impl Executor for Picking {
                 continue;
             }
 
-            // sets index and window position for current draw
-            let bound_attributes =
-                bind_attributes(state, &entity, geometry, &self.material, &program_item);
+            state.gl().uniform_matrix4fv_with_f32_array(
+                model_matrix_location,
+                false,
+                &entity.compose_model_matrix().to_gl(),
+            );
             state.gl().uniform1ui(index_location, (index + 1) as u32);
-            draw(state, geometry, &PickingMaterial);
+            let bound_attributes = bind_attribute(vertices, state, position_location)?;
+            draw(state, &geometry.draw());
             unbind_attributes(state, bound_attributes);
         }
 
@@ -355,7 +378,10 @@ impl Executor for Picking {
     }
 }
 
-static INDEX_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Index");
+static POSITIONS_ATTRIBUTE: AttributeBinding = AttributeBinding::Manual("a_Position");
+static INDEX_UNIFORM: UniformBinding = UniformBinding::Manual("u_Index");
+static MODEL_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual("u_ModelMatrix");
+static VIEW_PROJ_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual("u_ViewProjMatrix");
 
 struct PickingMaterial;
 
@@ -372,13 +398,13 @@ impl ProgramSource for PickingMaterial {
     }
 
     fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![AttributeBinding::GeometryPosition]
+        vec![POSITIONS_ATTRIBUTE]
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
         vec![
-            UniformBinding::ModelMatrix,
-            UniformBinding::ViewProjMatrix,
+            MODEL_MATRIX_UNIFORM,
+            VIEW_PROJ_MATRIX_UNIFORM,
             INDEX_UNIFORM,
         ]
     }

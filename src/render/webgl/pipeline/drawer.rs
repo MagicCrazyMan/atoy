@@ -31,13 +31,11 @@ use crate::{
     scene::Scene,
 };
 
-const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
-const SAMPLER_BLOOM_BLUR_UNIFORM: UniformBinding =
-    UniformBinding::FromMaterial("u_SamplerBloomBlur");
-const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Exposure");
-const BLOOM_THRESHOLD_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_BloomThreshold");
-const GAUSSIAN_KERNEL_UNIFORM_BLOCK: UniformBlockBinding =
-    UniformBlockBinding::FromMaterial("Kernel");
+const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual("u_Sampler");
+const SAMPLER_BLOOM_BLUR_UNIFORM: UniformBinding = UniformBinding::Manual("u_SamplerBloomBlur");
+const EXPOSURE_UNIFORM: UniformBinding = UniformBinding::Manual("u_Exposure");
+const BLOOM_THRESHOLD_UNIFORM: UniformBinding = UniformBinding::Manual("u_BloomThreshold");
+const GAUSSIAN_KERNEL_UNIFORM_BLOCK: UniformBlockBinding = UniformBlockBinding::Manual("Kernel");
 
 pub static DEFAULT_MULTISAMPLE: i32 = 4;
 pub static DEFAULT_BLOOM_ENABLED: bool = true;
@@ -371,7 +369,7 @@ impl StandardDrawer {
         material: &dyn Material,
         cull_face: Option<CullFace>,
     ) -> Result<(), Error> {
-        let program_item = state.program_store_mut().use_program(material)?;
+        let program_item = state.program_store_mut().use_program(material as &dyn ProgramSource)?;
 
         if let Some(cull_face) = cull_face {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
@@ -382,7 +380,7 @@ impl StandardDrawer {
 
         let bound_attributes = bind_attributes(state, &entity, geometry, material, &program_item);
         let bound_uniforms = bind_uniforms(state, &entity, geometry, material, &program_item);
-        draw(state, geometry, material);
+        draw(state, &geometry.draw());
         unbind_attributes(state, bound_attributes);
         unbind_uniforms(state, bound_uniforms);
 

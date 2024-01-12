@@ -16,7 +16,7 @@ use crate::{
     scene::Scene,
 };
 
-const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
+const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual("u_Sampler");
 
 pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
 

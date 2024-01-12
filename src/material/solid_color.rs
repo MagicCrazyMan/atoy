@@ -107,10 +107,6 @@ impl Material for SolidColorMaterial {
         true
     }
 
-    fn instanced(&self) -> Option<i32> {
-        None
-    }
-
     fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
         None
     }

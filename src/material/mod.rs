@@ -72,8 +72,6 @@ pub trait Material: MaterialSource {
     /// Drawer skips entity drawing if material is not ready.
     fn ready(&self) -> bool;
 
-    fn instanced(&self) -> Option<i32>;
-
     /// Prepares material.
     fn prepare(&mut self, state: &mut State, entity: &Entity);
 

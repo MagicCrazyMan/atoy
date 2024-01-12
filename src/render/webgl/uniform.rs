@@ -153,6 +153,7 @@ pub enum UniformBinding {
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
+    Manual(&'static str),
 }
 
 impl UniformBinding {
@@ -171,7 +172,8 @@ impl UniformBinding {
             UniformBinding::Transparency => "u_Transparency",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
-            | UniformBinding::FromEntity(name) => name,
+            | UniformBinding::FromEntity(name)
+            | UniformBinding::Manual(name) => name,
         }
     }
 }
@@ -184,6 +186,7 @@ pub enum UniformBlockBinding {
     FromGeometry(&'static str),
     FromMaterial(&'static str),
     FromEntity(&'static str),
+    Manual(&'static str),
 }
 
 impl UniformBlockBinding {
@@ -194,7 +197,8 @@ impl UniformBlockBinding {
             UniformBlockBinding::StandardLights => "atoy_Lights",
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
-            | UniformBlockBinding::FromEntity(name) => name,
+            | UniformBlockBinding::FromEntity(name)
+            | UniformBlockBinding::Manual(name) => name,
         }
     }
 }
@@ -217,6 +221,11 @@ pub enum UniformStructuralBinding {
         fields: Vec<&'static str>,
         array_len: Option<usize>,
     },
+    Manual {
+        variable_name: &'static str,
+        fields: Vec<&'static str>,
+        array_len: Option<usize>,
+    },
 }
 
 impl UniformStructuralBinding {
@@ -225,7 +234,8 @@ impl UniformStructuralBinding {
         match self {
             UniformStructuralBinding::FromGeometry { variable_name, .. }
             | UniformStructuralBinding::FromMaterial { variable_name, .. }
-            | UniformStructuralBinding::FromEntity { variable_name, .. } => variable_name,
+            | UniformStructuralBinding::FromEntity { variable_name, .. }
+            | UniformStructuralBinding::Manual { variable_name, .. } => variable_name,
         }
     }
 
@@ -234,7 +244,8 @@ impl UniformStructuralBinding {
         match self {
             UniformStructuralBinding::FromGeometry { fields, .. }
             | UniformStructuralBinding::FromMaterial { fields, .. }
-            | UniformStructuralBinding::FromEntity { fields, .. } => &fields,
+            | UniformStructuralBinding::FromEntity { fields, .. }
+            | UniformStructuralBinding::Manual { fields, .. } => &fields,
         }
     }
 
@@ -243,7 +254,8 @@ impl UniformStructuralBinding {
         match self {
             UniformStructuralBinding::FromGeometry { array_len, .. }
             | UniformStructuralBinding::FromMaterial { array_len, .. }
-            | UniformStructuralBinding::FromEntity { array_len, .. } => array_len.clone(),
+            | UniformStructuralBinding::FromEntity { array_len, .. }
+            | UniformStructuralBinding::Manual { array_len, .. } => array_len.clone(),
         }
     }
 }
@@ -264,9 +276,6 @@ pub fn bind_uniforms(
     // binds simple uniforms
     for (name, location) in program_item.uniform_locations() {
         let value = match name {
-            UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name),
-            UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
-            UniformBinding::FromEntity(name) => entity.uniform_values().get(*name).cloned(),
             UniformBinding::ModelMatrix
             | UniformBinding::ViewMatrix
             | UniformBinding::ProjMatrix
@@ -304,6 +313,10 @@ pub fn bind_uniforms(
                 state.gl().drawing_buffer_width(),
                 state.gl().drawing_buffer_width(),
             ])),
+            UniformBinding::FromGeometry(name) => (*geometry).uniform_value(name),
+            UniformBinding::FromMaterial(name) => (*material).uniform_value(name, entity),
+            UniformBinding::FromEntity(name) => entity.uniform_values().get(*name).cloned(),
+            UniformBinding::Manual(_) => None,
         };
         let Some(value) = value else {
             warn!(
@@ -345,6 +358,7 @@ pub fn bind_uniforms(
                     }
                 }
             }
+            UniformStructuralBinding::Manual { .. } => {}
         };
 
         for (location, value) in values {
@@ -369,6 +383,7 @@ pub fn bind_uniforms(
             UniformBlockBinding::FromEntity(name) => {
                 entity.uniform_blocks_values().get(*name).cloned()
             }
+            UniformBlockBinding::Manual(_) => None,
         };
         let Some(value) = value else {
             continue;

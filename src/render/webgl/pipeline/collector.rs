@@ -107,10 +107,7 @@ impl Executor for StandardEntitiesCollector {
                 for entity in collection.entities_mut() {
                     entity.update();
 
-                    let distance = if entity.material().and_then(|m| m.instanced()).is_some() {
-                        // never apply culling to an instanced material
-                        f64::INFINITY
-                    } else if culling_enabled {
+                    let distance = if culling_enabled {
                         match entity.bounding() {
                             Some(bounding) => {
                                 match bounding.cull(&view_frustum) {
