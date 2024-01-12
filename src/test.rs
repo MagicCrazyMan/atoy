@@ -34,7 +34,6 @@ use crate::light::spot_light::SpotLight;
 use crate::material::loader::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, Transparency};
-use crate::render::pp::ResourceKey;
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -47,6 +46,7 @@ use crate::render::webgl::texture::{
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::Render;
+use crate::render::ResourceKey;
 use crate::utils::slice_to_float32_array;
 use crate::viewer::Viewer;
 use crate::{document, entity};

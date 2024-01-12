@@ -41,7 +41,7 @@ use self::{
     },
 };
 
-use super::{pp::Pipeline, Render};
+use super::{Pipeline, Render};
 
 pub mod attribute;
 pub mod buffer;

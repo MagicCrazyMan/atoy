@@ -9,7 +9,6 @@ use crate::{
     entity::Entity,
     material::Transparency,
     render::{
-        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources},
         webgl::{
             attribute::AttributeBinding,
             error::Error,
@@ -23,6 +22,7 @@ use crate::{
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
+        Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources,
     },
     scene::Scene,
 };

@@ -688,7 +688,7 @@ struct Arc {
 
 #[cfg(test)]
 mod tests {
-    use crate::render::pp::error::Error;
+    use crate::render::error::Error;
 
     use super::DirectedGraph;
 

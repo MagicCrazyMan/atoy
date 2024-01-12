@@ -6,8 +6,8 @@ use crate::{
     bounding::Culling,
     entity::Entity,
     render::{
-        pp::{Executor, ResourceKey, Resources},
         webgl::{error::Error, state::FrameState},
+        Executor, ResourceKey, Resources,
     },
     scene::Scene,
 };

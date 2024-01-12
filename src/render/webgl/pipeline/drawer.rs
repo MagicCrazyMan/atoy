@@ -8,7 +8,6 @@ use crate::{
     geometry::Geometry,
     material::{StandardMaterial, Transparency},
     render::{
-        pp::{Executor, ResourceKey, Resources},
         webgl::{
             attribute::AttributeBinding,
             buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
@@ -28,6 +27,7 @@ use crate::{
                 UBO_GAUSSIAN_BLUR_BINDING,
             },
         },
+        Executor, ResourceKey, Resources,
     },
     scene::Scene,
 };

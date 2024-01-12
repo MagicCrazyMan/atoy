@@ -9,7 +9,7 @@ pub mod preparation;
 use gl_matrix4rust::vec4::Vec4;
 
 use crate::{
-    render::pp::{GraphPipeline, ItemKey, Pipeline, ResourceKey},
+    render::{GraphPipeline, ItemKey, Pipeline, ResourceKey},
     scene::Scene,
 };
 

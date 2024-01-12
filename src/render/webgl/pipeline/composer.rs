@@ -5,13 +5,14 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
     render::{
-        pp::{Executor, ResourceKey, Resources},
         webgl::{
             attribute::AttributeBinding,
             error::Error,
             program::{ProgramSource, ShaderSource},
-            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding}, state::FrameState,
+            state::FrameState,
+            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
+        Executor, ResourceKey, Resources,
     },
     scene::Scene,
 };
