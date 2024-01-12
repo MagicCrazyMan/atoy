@@ -24,13 +24,16 @@ use crate::{
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
                 UniformBinding, UniformBlockBinding, UniformStructuralBinding,
-                UBO_GAUSSIAN_BLUR_BINDING,
+                UBO_GAUSSIAN_BLUR_BINDING, UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING,
             },
         },
         Executor, ResourceKey, Resources,
     },
     scene::Scene,
 };
+
+static UNIVERSAL_UNIFORM_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
+static LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
 
 const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Sampler"));
 const SAMPLER_BLOOM_BLUR_UNIFORM: UniformBinding =
@@ -390,8 +393,23 @@ impl StandardDrawer {
             state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }
 
+        let program = state.program_store_mut().use_program(&material.source())?;
         let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
         let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
+        state.gl().uniform_block_binding(
+            program.gl_program(),
+            state
+                .gl()
+                .get_uniform_block_index(program.gl_program(), UNIVERSAL_UNIFORM_BLOCK_NAME),
+            UBO_UNIVERSAL_UNIFORMS_BINDING,
+        );
+        state.gl().uniform_block_binding(
+            program.gl_program(),
+            state
+                .gl()
+                .get_uniform_block_index(program.gl_program(), LIGHTS_BLOCK_NAME),
+            UBO_LIGHTS_BINDING,
+        );
         state.draw(&geometry.draw())?;
         state.unbind_attributes(bound_attributes);
         state.unbind_uniforms(bound_uniforms);

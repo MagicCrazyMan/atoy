@@ -175,8 +175,6 @@ impl UniformBinding {
 /// Uniform block binding sources.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum UniformBlockBinding {
-    StandardUniversalUniforms,
-    StandardLights,
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
@@ -187,8 +185,6 @@ impl UniformBlockBinding {
     /// Returns uniform block interface name.
     pub fn block_name(&self) -> &str {
         match self {
-            UniformBlockBinding::StandardUniversalUniforms => "atoy_UniversalUniforms",
-            UniformBlockBinding::StandardLights => "atoy_Lights",
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
             | UniformBlockBinding::FromEntity(name)

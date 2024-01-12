@@ -8,12 +8,12 @@ in vec3 v_PositionCS;
 in vec3 v_NormalWS;
 in vec2 v_TexCoord;
 
-/**
- * Transparency of this material.
- */
 uniform float u_Transparency;
+uniform uint u_Index;
 
-out vec4 o_Color;
+layout(location = 0) out vec4 o_Color;
+layout(location = 1) out uint o_Index;
+layout(location = 2) out uvec3 o_Position;
 
 /**
  * Input fragment difinition.

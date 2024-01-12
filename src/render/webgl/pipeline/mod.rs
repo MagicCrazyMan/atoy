@@ -194,7 +194,7 @@ impl StandardPipeline {
         let standard_draw_texture_key = ResourceKey::new_runtime_uuid();
 
         let mut pipeline = GraphPipeline::new();
-        pipeline.add_executor(preparation_key.clone(), StandardPreparation);
+        pipeline.add_executor(preparation_key.clone(), StandardPreparation::new());
         pipeline.add_executor(
             collector_key.clone(),
             StandardEntitiesCollector::new(

@@ -390,12 +390,10 @@ impl Executor for Picking {
     }
 }
 
-static POSITIONS_ATTRIBUTE: AttributeBinding =
-    AttributeBinding::Manual(Cow::Borrowed("a_Position"));
-static INDEX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Index"));
-static MODEL_MATRIX_UNIFORM: UniformBinding =
-    UniformBinding::Manual(Cow::Borrowed("u_ModelMatrix"));
-static VIEW_PROJ_MATRIX_UNIFORM: UniformBinding =
+const POSITIONS_ATTRIBUTE: AttributeBinding = AttributeBinding::Manual(Cow::Borrowed("a_Position"));
+const INDEX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Index"));
+const MODEL_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_ModelMatrix"));
+const VIEW_PROJ_MATRIX_UNIFORM: UniformBinding =
     UniformBinding::Manual(Cow::Borrowed("u_ViewProjMatrix"));
 
 struct PickingMaterial;
@@ -413,14 +411,14 @@ impl ProgramSource for PickingMaterial {
     }
 
     fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![POSITIONS_ATTRIBUTE.clone()]
+        vec![POSITIONS_ATTRIBUTE]
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
         vec![
-            MODEL_MATRIX_UNIFORM.clone(),
-            VIEW_PROJ_MATRIX_UNIFORM.clone(),
-            INDEX_UNIFORM.clone(),
+            MODEL_MATRIX_UNIFORM,
+            VIEW_PROJ_MATRIX_UNIFORM,
+            INDEX_UNIFORM,
         ]
     }
 

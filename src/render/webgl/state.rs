@@ -2,7 +2,7 @@ use std::ptr::NonNull;
 
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use log::warn;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlUniformLocation};
+use web_sys::{js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext, WebGlUniformLocation};
 
 use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial};
 
@@ -17,7 +17,7 @@ use super::{
     texture::{TextureParameter, TextureStore},
     uniform::{
         UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-        UniformValue, UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING,
+        UniformValue,
     },
 };
 
@@ -36,9 +36,6 @@ pub struct FrameState {
     canvas: HtmlCanvasElement,
     camera: NonNull<(dyn Camera + 'static)>,
 
-    universal_ubo: NonNull<BufferDescriptor>,
-    lights_ubo: NonNull<BufferDescriptor>,
-
     program_store: NonNull<ProgramStore>,
     buffer_store: NonNull<BufferStore>,
     texture_store: NonNull<TextureStore>,
@@ -51,8 +48,6 @@ impl FrameState {
         camera: &mut (dyn Camera + 'static),
         gl: WebGl2RenderingContext,
         canvas: HtmlCanvasElement,
-        universal_ubo: &mut BufferDescriptor,
-        lights_ubo: &mut BufferDescriptor,
         program_store: &mut ProgramStore,
         buffer_store: &mut BufferStore,
         texture_store: &mut TextureStore,
@@ -63,8 +58,6 @@ impl FrameState {
                 gl,
                 canvas,
                 camera: NonNull::new_unchecked(camera),
-                universal_ubo: NonNull::new_unchecked(universal_ubo),
-                lights_ubo: NonNull::new_unchecked(lights_ubo),
                 program_store: NonNull::new_unchecked(program_store),
                 buffer_store: NonNull::new_unchecked(buffer_store),
                 texture_store: NonNull::new_unchecked(texture_store),
@@ -124,18 +117,6 @@ impl FrameState {
     #[inline]
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
         unsafe { self.texture_store.as_mut() }
-    }
-
-    /// Returns uniform buffer object for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-    #[inline]
-    pub fn universal_ubo(&self) -> BufferDescriptor {
-        unsafe { self.universal_ubo.as_ref().clone() }
-    }
-
-    /// Returns uniform buffer object for `atoy_Lights`.
-    #[inline]
-    pub fn lights_ubo(&self) -> BufferDescriptor {
-        unsafe { self.lights_ubo.as_ref().clone() }
     }
 
     pub fn bind_attributes(
@@ -386,16 +367,6 @@ impl FrameState {
         let mut bounds = Vec::with_capacity(program.uniform_block_indices().len());
         for (binding, uniform_block_index) in program.uniform_block_indices() {
             let value = match binding {
-                UniformBlockBinding::StandardUniversalUniforms => {
-                    Some(UniformBlockValue::BufferBase {
-                        descriptor: self.universal_ubo(),
-                        binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
-                    })
-                }
-                UniformBlockBinding::StandardLights => Some(UniformBlockValue::BufferBase {
-                    descriptor: self.lights_ubo(),
-                    binding: UBO_LIGHTS_BINDING,
-                }),
                 UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name),
                 UniformBlockBinding::FromMaterial(name) => {
                     material.uniform_block_value(name, entity)
@@ -643,5 +614,25 @@ impl FrameState {
             draw_buffers,
             renderbuffer_samples,
         )
+    }
+
+    /// Reads pixels from current binding framebuffer.
+    pub fn read_pixels(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        format: u32,
+        type_: u32,
+        dst_data: &Object,
+        dst_offset: u32,
+    ) -> Result<(), Error> {
+        self.gl
+            .read_pixels_with_array_buffer_view_and_dst_offset(
+                x, y, width, height, format, type_, dst_data, dst_offset,
+            )
+            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+        Ok(())
     }
 }

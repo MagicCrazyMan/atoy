@@ -9,10 +9,11 @@ use crate::{
         attribute::{AttributeBinding, AttributeValue},
         program::{ProgramSource, ShaderSource},
         shader::{ShaderBuilder, ShaderType},
+        state::FrameState,
         uniform::{
             UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
             UniformValue,
-        }, state::FrameState,
+        },
     },
 };
 
@@ -229,11 +230,6 @@ impl ProgramSource for StandardMaterialSource {
     }
 
     fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        let mut bindings = vec![
-            UniformBlockBinding::StandardUniversalUniforms,
-            UniformBlockBinding::StandardLights,
-        ];
-        bindings.extend(self.uniform_block_bindings());
-        bindings
+        self.uniform_block_bindings()
     }
 }

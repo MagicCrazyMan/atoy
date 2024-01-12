@@ -21,7 +21,7 @@ void main() {
         color = material.diffuse;
     }
 
-    // color = atoy_gamma_correction(color, u_GammaCorrection);
-
     o_Color = vec4(color, material.transparency);
+    o_Index = u_Index;
+    o_Position = uvec3(floatBitsToUint(v_PositionWS.x), floatBitsToUint(v_PositionWS.y), floatBitsToUint(v_PositionWS.z));;
 }
