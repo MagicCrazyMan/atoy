@@ -1,7 +1,7 @@
 use gl_matrix4rust::vec3::Vec3;
 
 /// Maximum point lights.
-pub const MAX_POINT_LIGHTS: usize = 12;
+pub static MAX_POINT_LIGHTS: usize = 12;
 
 /// Point light. Position of a point light should be in world space.
 pub struct PointLight {

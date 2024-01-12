@@ -1,7 +1,7 @@
 use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 /// Maximum spot lights.
-pub const MAX_SPOT_LIGHTS: usize = 12;
+pub static MAX_SPOT_LIGHTS: usize = 12;
 
 /// Spot light. Position and direction of a spot light should be in world space.
 pub struct SpotLight {

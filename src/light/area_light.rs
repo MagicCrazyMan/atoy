@@ -1,7 +1,7 @@
 use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 /// Maximum area lights.
-pub const MAX_AREA_LIGHTS: usize = 12;
+pub static MAX_AREA_LIGHTS: usize = 12;
 
 /// Area light. Position and direction of a area light should be in world space.
 pub struct AreaLight {

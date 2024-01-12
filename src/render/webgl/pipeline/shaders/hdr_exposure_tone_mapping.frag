@@ -16,10 +16,10 @@ uniform float u_Exposure;
 out vec4 o_Color;
 
 void main() {
-    vec4 sampled = texture(u_Sampler, v_TexCoord);
-    vec3 hdr_color = sampled.rgb;
+    vec4 hdr_color = texture(u_Sampler, v_TexCoord);
+    vec3 rgb = hdr_color.rgb;
 
-    vec3 mapped = 1.0 - exp(-hdr_color * u_Exposure);
+    vec3 mapped = 1.0 - exp(-rgb * u_Exposure);
     
-    o_Color = vec4(mapped, sampled.a);
+    o_Color = vec4(mapped, hdr_color.a);
 }

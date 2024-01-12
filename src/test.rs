@@ -197,8 +197,8 @@ fn create_scene() -> Scene {
     scene.add_point_light(PointLight::new(
         Vec3::from_values(0.0, 1.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(1.6, 1.6, 1.6),
+        Vec3::from_values(5.39, 5.39, 5.39),
+        Vec3::from_values(10.6, 10.6, 10.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
@@ -366,8 +366,14 @@ pub fn test_cube(
             {
                 material.set_color(
                     Vec3::from_values(rand::random(), rand::random(), rand::random()),
-                    rand::random(),
+                    Transparency::Opaque,
                 )
+            }
+            if let Some(geometry) = entity
+                .geometry_mut()
+                .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
+            {
+                geometry.set_size(rand::random::<f64>() * 3.0)
             }
             console_log!("pick entity {}", entity.id());
         };

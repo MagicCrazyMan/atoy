@@ -7,10 +7,12 @@
     v-model:render-when-needed="renderWhenNeeded"
     v-model:culling="culling"
     v-model:sorting="sorting"
+    v-model:lighting="lighting"
     v-model:samples="samples"
     v-model:hdr="hdr"
     v-model:hdr-tone-mapping="hdrToneMapping"
     v-model:hdr-exposure="hdrExposure"
+    v-model:bloom="bloom"
   />
 </template>
 
@@ -26,6 +28,7 @@ const clearColor = ref("#0000");
 const renderWhenNeeded = ref(true);
 const culling = ref(false);
 const sorting = ref(false);
+const lighting = ref(false);
 const renderTime = ref(0);
 const pickTime = ref(0);
 const samples = ref(0);
@@ -34,6 +37,7 @@ const hdrToneMapping = ref<HdrToneMappingType>({
   type: "Reinhard",
 });
 const hdrExposure = ref(1.0);
+const bloom = ref(false);
 
 onMounted(async () => {
   await init();
@@ -71,8 +75,10 @@ onMounted(async () => {
   renderWhenNeeded.value = viewer.render_when_needed_wasm();
   culling.value = viewer.culling_enabled_wasm();
   sorting.value = viewer.distance_sorting_enabled_wasm();
+  lighting.value = viewer.lighting_enabled_wasm();
   samples.value = viewer.multisample_wasm() ?? 0;
   hdr.value = viewer.hdr_enabled_wasm();
+  bloom.value = viewer.hdr_enabled_wasm();
 
   hdrToneMapping.value =
     viewer.hdr_tone_mapping_type_wasm() as HdrToneMappingType;
@@ -115,6 +121,13 @@ onMounted(async () => {
       viewer.disable_distance_sorting_wasm();
     }
   });
+  watch(lighting, (lighting) => {
+    if (lighting) {
+      viewer.enable_lighting_wasm();
+    } else {
+      viewer.disable_lighting_wasm();
+    }
+  });
   watch(samples, (samples) => {
     viewer.set_multisample_wasm(samples);
   });
@@ -133,6 +146,13 @@ onMounted(async () => {
       type: "Exposure",
       value,
     });
+  });
+  watch(bloom, (bloom) => {
+    if (bloom) {
+      viewer.enable_bloom_wasm();
+    } else {
+      viewer.disable_bloom_wasm();
+    }
   });
 });
 </script>

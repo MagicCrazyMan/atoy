@@ -1,7 +1,7 @@
-use std::any::Any;
+use std::{any::Any, cell::OnceCell, collections::HashMap};
 
 use gl_matrix4rust::vec3::Vec3;
-use web_sys::js_sys::{ArrayBuffer, Float32Array};
+use ordered_float::OrderedFloat;
 
 use crate::{
     bounding::BoundingVolume,
@@ -12,7 +12,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage, MemoryPolicy,
         },
-        draw::{Draw, DrawMode, CullFace},
+        draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -21,7 +21,8 @@ use super::Geometry;
 
 pub struct Cube {
     size: f64,
-    data: BufferDescriptor,
+    vertices: BufferDescriptor,
+    normals_textures: BufferDescriptor,
     bounding_volume: BoundingVolume,
     changed_event: EventAgency<()>,
 }
@@ -36,16 +37,8 @@ impl Cube {
     pub fn with_size(size: f64) -> Cube {
         Self {
             size,
-            data: BufferDescriptor::with_memory_policy(
-                BufferSource::from_function(
-                    move || BufferSource::from_array_buffer(build_data(size)),
-                    264 * 4,
-                    0,
-                    264 * 4,
-                ),
-                BufferUsage::StaticDraw,
-                MemoryPolicy::restorable(move || BufferSource::from_array_buffer(build_data(size))),
-            ),
+            vertices: get_or_cache_vertices(size),
+            normals_textures: normals_texture_coordinates_buffer_descriptor(),
             bounding_volume: build_bounding_volume(size),
             changed_event: EventAgency::new(),
         }
@@ -59,18 +52,7 @@ impl Cube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.data.buffer_sub_data(
-            BufferSource::from_binary(
-                unsafe { std::mem::transmute::<[f32; 108], [u8; 432]>(build_vertices(size)) },
-                0,
-                432,
-            ),
-            0,
-        );
-        self.data
-            .set_memory_policy(MemoryPolicy::restorable(move || {
-                BufferSource::from_array_buffer(build_data(size))
-            }));
+        self.vertices = get_or_cache_vertices(size);
         self.bounding_volume = build_bounding_volume(size);
         self.changed_event.raise(());
     }
@@ -95,7 +77,7 @@ impl Geometry for Cube {
 
     fn vertices(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.data.clone(),
+            descriptor: self.vertices.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -107,25 +89,25 @@ impl Geometry for Cube {
 
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.data.clone(),
+            descriptor: self.normals_textures.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 108 * 4,
+            bytes_offset: 0,
         })
     }
 
     fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.data.clone(),
+            descriptor: self.normals_textures.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::Float,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 216 * 4,
+            bytes_offset: 108 * 4,
         })
     }
 
@@ -154,17 +136,6 @@ impl Geometry for Cube {
     }
 }
 
-fn build_data(size: f64) -> ArrayBuffer {
-    let data = ArrayBuffer::new(264 * 4);
-    let v = Float32Array::new_with_byte_offset_and_length(&data, 0, 108);
-    v.copy_from(&build_vertices(size));
-    let n = Float32Array::new_with_byte_offset_and_length(&data, 108 * 4, 108);
-    n.copy_from(&NORMALS);
-    let t = Float32Array::new_with_byte_offset_and_length(&data, 216 * 4, 48);
-    t.copy_from(&TEXTURE_COORDINATES);
-    data
-}
-
 fn build_bounding_volume(size: f64) -> BoundingVolume {
     let s = size / 2.0;
     BoundingVolume::BoundingSphere {
@@ -174,30 +145,30 @@ fn build_bounding_volume(size: f64) -> BoundingVolume {
 }
 
 #[rustfmt::skip]
-fn build_vertices(size: f64) -> [f32; 108] {
+fn build_vertices(size: f64) -> [u8; 108 * 4] {
     let s = (size / 2.0) as f32;
-    [
+    let vertices = [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
         -s,  s, -s,  -s,  s,  s,   s,  s, -s,   s,  s, -s,  -s,  s,  s,   s,  s,  s, // up
         -s,  s, -s,   s,  s, -s,  -s, -s, -s,   s,  s, -s,   s, -s, -s,  -s, -s, -s, // back
         -s, -s, -s,   s, -s, -s,  -s, -s,  s,   s, -s, -s,   s, -s,  s,  -s, -s,  s, // bottom
         -s,  s, -s,  -s, -s, -s,  -s,  s,  s,  -s,  s,  s,  -s, -s, -s,  -s, -s,  s, // left
          s,  s,  s,   s, -s,  s,   s,  s, -s,   s,  s, -s,   s, -s,  s,   s, -s, -s, // right
-    ]
+    ];
+    unsafe {
+        std::mem::transmute::<[f32; 108], [u8; 108 * 4]>(vertices)
+    }
 }
 
 #[rustfmt::skip]
-const NORMALS: [f32; 108] = [
+static NORMALS_TEXTURE_COORDINATES: [f32; 108 + 48] = [
      0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0, // front
      0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0, // up
      0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0, // back
      0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0,  0.0,-1.0, 0.0, // bottom
     -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, // left
      1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0,  1.0, 0.0, 0.0, // right
-];
 
-#[rustfmt::skip]
-const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // front
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // up
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // back
@@ -205,3 +176,64 @@ const TEXTURE_COORDINATES: [f32; 48] = [
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // left
     1.5, 1.5,  -0.5, 1.5,  -0.5, -0.5,  1.5, -0.5, // right
 ];
+
+static mut NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR: OnceCell<BufferDescriptor> =
+    OnceCell::new();
+
+fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
+    unsafe {
+        NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR
+            .get_or_init(|| {
+                BufferDescriptor::with_memory_policy(
+                    BufferSource::from_binary(
+                        std::mem::transmute_copy::<[f32; 108 + 48], [u8; (108 + 48) * 4]>(
+                            &NORMALS_TEXTURE_COORDINATES,
+                        ),
+                        0,
+                        (108 + 48) * 4,
+                    ),
+                    BufferUsage::StaticDraw,
+                    MemoryPolicy::restorable(|| {
+                        BufferSource::from_binary(
+                            std::mem::transmute_copy::<[f32; 108 + 48], [u8; (108 + 48) * 4]>(
+                                &NORMALS_TEXTURE_COORDINATES,
+                            ),
+                            0,
+                            (108 + 48) * 4,
+                        )
+                    }),
+                )
+            })
+            .clone()
+    }
+}
+
+static mut VERTICES_BUFFER_DESCRIPTOR_CACHES: OnceCell<
+    HashMap<OrderedFloat<f64>, BufferDescriptor>,
+> = OnceCell::new();
+
+fn get_or_cache_vertices(size: f64) -> BufferDescriptor {
+    unsafe {
+        let caches = if VERTICES_BUFFER_DESCRIPTOR_CACHES.get().is_some() {
+            VERTICES_BUFFER_DESCRIPTOR_CACHES.get_mut().unwrap()
+        } else {
+            let _ = VERTICES_BUFFER_DESCRIPTOR_CACHES.set(HashMap::new());
+            VERTICES_BUFFER_DESCRIPTOR_CACHES.get_mut().unwrap()
+        };
+
+        match caches.entry(OrderedFloat(size)) {
+            std::collections::hash_map::Entry::Occupied(v) => v.get().clone(),
+            std::collections::hash_map::Entry::Vacant(v) => {
+                let descriptor = BufferDescriptor::with_memory_policy(
+                    BufferSource::from_binary(build_vertices(size), 0, 108 * 4),
+                    BufferUsage::StaticDraw,
+                    MemoryPolicy::restorable(move || {
+                        BufferSource::from_binary(build_vertices(size), 0, 108 * 4)
+                    }),
+                );
+                let cache = v.insert(descriptor);
+                cache.clone()
+            }
+        }
+    }
+}

@@ -123,7 +123,7 @@ pub fn create_texture_2d(
     width: i32,
     height: i32,
 ) -> Result<WebGlTexture, Error> {
-    let texture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
+    let texture: WebGlTexture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
 
     gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
     gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
@@ -312,7 +312,8 @@ impl Framebuffer {
 
     /// Returns number of sample of the render buffers if multisample is enabled.
     pub fn renderbuffer_samples(&self) -> Option<i32> {
-        self.renderbuffer_samples.clone()
+        self.renderbuffer_samples
+            .and_then(|samples| if samples == 0 { None } else { Some(samples) })
     }
 
     fn create_framebuffer(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
@@ -389,7 +390,7 @@ impl Framebuffer {
                 .create_renderbuffer()
                 .ok_or(Error::CreateRenderbufferFailed)?;
             gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-            match self.renderbuffer_samples {
+            match self.renderbuffer_samples() {
                 Some(samples) => gl.renderbuffer_storage_multisample(
                     WebGl2RenderingContext::RENDERBUFFER,
                     samples,
@@ -463,14 +464,12 @@ impl Framebuffer {
             .map(|(renderbuffer, _)| renderbuffer)
     }
 
-    /// Returns list containing [`WebGlRenderbuffer`]s,
-    /// following the orders of [`OffscreenRenderbufferProvider`]s.
+    /// Returns a list containing [`WebGlRenderbuffer`]s and [RenderbufferProvider``]s.
     pub fn renderbuffers(&self) -> Option<&Vec<(WebGlRenderbuffer, RenderbufferProvider)>> {
         self.renderbuffers.as_ref()
     }
 
-    /// Returns list containing [`WebGlTexture`]s,
-    /// following the orders of [`OffscreenTextureProvider`]s.
+    /// Returns a list containing [`WebGlTexture`]s and [TextureProvider``]s.
     pub fn textures(&self) -> Option<&Vec<(WebGlTexture, TextureProvider)>> {
         self.textures.as_ref()
     }

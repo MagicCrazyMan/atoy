@@ -1,7 +1,7 @@
 use gl_matrix4rust::vec3::{Vec3, AsVec3};
 
 /// Maximum directional lights.
-pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;
+pub static MAX_DIRECTIONAL_LIGHTS: usize = 12;
 
 /// Directional light.
 /// Direction of a directional light should points from light to outside

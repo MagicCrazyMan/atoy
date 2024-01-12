@@ -22,7 +22,9 @@
             density="compact"
             color="primary"
             :model-value="renderWhenNeeded"
-            @update:model-value="(value) => emit('update:render-when-needed', !!value)"
+            @update:model-value="
+              (value) => emit('update:render-when-needed', !!value)
+            "
           ></v-switch>
         </div>
 
@@ -45,6 +47,17 @@
             color="primary"
             :model-value="sorting"
             @update:model-value="(value) => emit('update:sorting', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller">
+          Enable Lighting
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="lighting"
+            @update:model-value="(value) => emit('update:lighting', !!value)"
           ></v-switch>
         </div>
 
@@ -119,6 +132,17 @@
         </div>
 
         <div class="controller">
+          Bloom
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="bloom"
+            @update:model-value="(value) => emit('update:bloom', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller">
           Pick Render Time:
           <span class="time">{{ pickTime.toFixed(2) }}</span>
           ms
@@ -151,6 +175,18 @@ defineProps({
     type: String,
     required: true,
   },
+  culling: {
+    type: Boolean,
+    required: true,
+  },
+  sorting: {
+    type: Boolean,
+    required: true,
+  },
+  lighting: {
+    type: Boolean,
+    required: true,
+  },
   renderWhenNeeded: {
     type: Boolean,
     required: true,
@@ -171,11 +207,7 @@ defineProps({
     type: Number,
     required: true,
   },
-  culling: {
-    type: Boolean,
-    required: true,
-  },
-  sorting: {
+  bloom: {
     type: Boolean,
     required: true,
   },
@@ -188,10 +220,12 @@ const emit = defineEmits<{
   (event: "update:render-when-needed", value: boolean): void;
   (event: "update:culling", value: boolean): void;
   (event: "update:sorting", value: boolean): void;
+  (event: "update:lighting", value: boolean): void;
   (event: "update:samples", value: number): void;
   (event: "update:hdr", value: boolean): void;
   (event: "update:hdr-tone-mapping", value: HdrToneMappingType): void;
   (event: "update:hdr-exposure", value: number): void;
+  (event: "update:bloom", value: boolean): void;
 }>();
 </script>
 

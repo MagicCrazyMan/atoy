@@ -15,10 +15,10 @@ uniform sampler2D u_Sampler;
 out vec4 o_Color;
 
 void main() {
-    vec4 sampled = texture(u_Sampler, v_TexCoord);
-    vec3 hdr_color = sampled.rgb;
+    vec4 hdr_color = texture(u_Sampler, v_TexCoord);
+    vec3 rgb = hdr_color.rgb;
 
-    vec3 mapped = hdr_color / (hdr_color + 1.0f);
+    vec3 mapped = rgb / (rgb + 1.0f);
 
-    o_Color = vec4(mapped, sampled.a);
+    o_Color = vec4(mapped, hdr_color.a);
 }

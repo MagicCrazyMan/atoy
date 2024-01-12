@@ -18,7 +18,7 @@ use crate::{
 
 const SAMPLER_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Sampler");
 
-pub const DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
+pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
 
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.

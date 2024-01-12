@@ -11,11 +11,11 @@ use web_sys::MouseEvent;
 
 use super::Camera;
 
-const BASE_RIGHTWARD: Vec3 = Vec3::from_values(1.0, 0.0, 0.0);
-const BASE_UPWARD: Vec3 = Vec3::from_values(0.0, 1.0, 0.0);
+static BASE_RIGHTWARD: Vec3 = Vec3::from_values(1.0, 0.0, 0.0);
+static BASE_UPWARD: Vec3 = Vec3::from_values(0.0, 1.0, 0.0);
 // camera coordinate system is a right hand side coordinate system
 // flip z axis to convert it to left hand side
-const BASE_FORWARD: Vec3 = Vec3::from_values(0.0, 0.0, -1.0);
+static BASE_FORWARD: Vec3 = Vec3::from_values(0.0, 0.0, -1.0);
 
 struct Control {
     pressed_keys: HashSet<String>,

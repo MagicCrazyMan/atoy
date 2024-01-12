@@ -12,8 +12,8 @@ use crate::{
     scene::Scene,
 };
 
-pub const DEFAULT_CULLING_ENABLED: bool = true;
-pub const DEFAULT_SORTING_ENABLED: bool = true;
+pub static DEFAULT_CULLING_ENABLED: bool = true;
+pub static DEFAULT_SORTING_ENABLED: bool = true;
 
 /// Standard entities collector, collects and flatten entities from entities collection of [`Stuff`].
 ///

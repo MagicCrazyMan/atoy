@@ -22,6 +22,9 @@ use crate::{
     scene::Scene,
 };
 
+pub static RENDER_WHEN_NEEDED: bool = false;
+pub static STOP_RENDER_LOOP_WHEN_ERROR: bool = true;
+
 struct Inner {
     mount: Option<Element>,
     timestamp: f64,
@@ -62,11 +65,9 @@ impl Viewer {
         self.render_when_needed()
     }
 
-
     pub fn enable_render_when_needed_wasm(&mut self) {
         self.enable_render_when_needed()
     }
-
 
     pub fn disable_render_when_needed_wasm(&mut self) {
         self.disable_render_when_needed()
@@ -102,6 +103,18 @@ impl Viewer {
         Box::new(self.clear_color().0)
     }
 
+    pub fn lighting_enabled_wasm(&self) -> bool {
+        self.lighting_enabled()
+    }
+
+    pub fn enable_lighting_wasm(&mut self) {
+        self.enable_lighting();
+    }
+
+    pub fn disable_lighting_wasm(&mut self) {
+        self.disable_lighting();
+    }
+
     pub fn set_clear_color_wasm(&mut self, r: f64, g: f64, b: f64, a: f64) {
         self.set_clear_color(Vec4::from_values(r, g, b, a))
     }
@@ -135,6 +148,18 @@ impl Viewer {
             serde_wasm_bindgen::from_value::<HdrToneMappingType>(hdr_tone_mapping_type).unwrap();
         self.set_hdr_tone_mapping_type(t);
     }
+
+    pub fn bloom_enabled_wasm(&self) -> bool {
+        self.bloom_enabled()
+    }
+
+    pub fn enable_bloom_wasm(&mut self) {
+        self.enable_bloom()
+    }
+
+    pub fn disable_bloom_wasm(&mut self) {
+        self.disable_bloom()
+    }
 }
 
 impl Viewer {
@@ -154,9 +179,9 @@ impl Viewer {
 
             render_loop: None,
             render_next: true,
-            render_when_needed: true,
+            render_when_needed: RENDER_WHEN_NEEDED,
             stopping_render_loop: false,
-            stop_render_loop_when_error: true,
+            stop_render_loop_when_error: STOP_RENDER_LOOP_WHEN_ERROR,
 
             entities_changed_listener: None,
         };
@@ -227,12 +252,10 @@ impl Viewer {
         self.inner().render_when_needed
     }
 
-
     pub fn enable_render_when_needed(&mut self) {
         self.inner_mut().render_when_needed = true;
         self.should_render_next();
     }
-
 
     pub fn disable_render_when_needed(&mut self) {
         self.inner_mut().render_when_needed = false;
@@ -251,6 +274,20 @@ impl Viewer {
 
     pub fn disable_culling(&mut self) {
         self.inner_mut().standard_pipeline.disable_culling();
+        self.should_render_next();
+    }
+
+    pub fn lighting_enabled(&self) -> bool {
+        self.inner().scene.lighting_enabled()
+    }
+
+    pub fn enable_lighting(&mut self) {
+        self.inner_mut().scene.enable_lighting();
+        self.should_render_next();
+    }
+
+    pub fn disable_lighting(&mut self) {
+        self.inner_mut().scene.disable_lighting();
         self.should_render_next();
     }
 
@@ -324,6 +361,20 @@ impl Viewer {
         self.inner_mut()
             .standard_pipeline
             .set_hdr_tone_mapping_type(hdr_tone_mapping_type);
+        self.should_render_next();
+    }
+
+    pub fn bloom_enabled(&self) -> bool {
+        self.inner().standard_pipeline.bloom_enabled()
+    }
+
+    pub fn enable_bloom(&mut self) {
+        self.inner_mut().standard_pipeline.enable_bloom();
+        self.should_render_next();
+    }
+
+    pub fn disable_bloom(&mut self) {
+        self.inner_mut().standard_pipeline.disable_bloom();
         self.should_render_next();
     }
 

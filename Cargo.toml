@@ -30,6 +30,7 @@ log = "0.4.20"
 console_log = "1.0.0"
 fern = "0.6.2"
 wasm-bindgen-futures = "0.4.39"
+ordered-float = "4.2.0"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"

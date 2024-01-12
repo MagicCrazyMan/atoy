@@ -2,8 +2,10 @@
 
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+precision highp sampler2D;
 #else
 precision mediump float;
+precision mediump sampler2D;
 #endif
 
 #define KERNEL_SIZE 81
@@ -20,21 +22,20 @@ layout(std140) uniform Kernel {
     float u_Kernel[KERNEL_SIZE];
 };
 
-out vec4 out_Color;
+out vec4 o_Color;
 
 void main() {
     // maps v_TexCoord to pixel coordinate
     ivec2 center = ivec2(v_TexCoord * vec2(textureSize(u_Sampler, 0)));
 
-    vec4 color = vec4(0.0f);
+    vec3 color = vec3(0.0f);
     for(int t = 0; t < KERNEL_HEIGHT; t++) {
         for(int s = 0; s < KERNEL_WIDTH; s++) {
-            // vec2 tex_coord = vec2(v_TexCoord.s + offsets_s[s], v_TexCoord.t + offsets_t[t]);
-            // color += texture(u_ColorSampler, tex_coord) * u_Kernel[t * KERNEL_WIDTH + s];
             ivec2 pixel = ivec2(center.s + s - KERNEL_HALF_WIDTH, center.t + t - KERNEL_HALF_HEIGHT) ;
-            color += texelFetch(u_Sampler, pixel, 0) * u_Kernel[t * KERNEL_WIDTH + s];
+            vec3 rgb = texelFetch(u_Sampler, pixel, 0).rgb;
+            color += rgb * u_Kernel[t * KERNEL_WIDTH + s];
         }
     }
 
-    out_Color = color;
+    o_Color = vec4(color, 1.0);
 }
