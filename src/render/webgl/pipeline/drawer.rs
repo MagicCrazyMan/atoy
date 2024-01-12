@@ -1,4 +1,4 @@
-use std::{any::Any, borrow::Cow, ptr::NonNull};
+use std::{any::Any, borrow::Cow, cell::OnceCell, ptr::NonNull};
 
 use serde::{Deserialize, Serialize};
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
@@ -61,16 +61,12 @@ pub enum HdrToneMappingType {
 pub struct StandardDrawer {
     normal_framebuffer: Option<Framebuffer>,
     normal_multisample_framebuffer: Option<Framebuffer>,
-    normal_bloom_blur_even_framebuffer: Option<Framebuffer>,
-    normal_bloom_blur_odd_framebuffer: Option<Framebuffer>,
-    normal_bloom_blend_framebuffer: Option<Framebuffer>,
     hdr_framebuffer: Option<Framebuffer>,
     hdr_multisample_framebuffer: Option<Framebuffer>,
     hdr_bloom_blur_even_framebuffer: Option<Framebuffer>,
     hdr_bloom_blur_odd_framebuffer: Option<Framebuffer>,
     hdr_bloom_blend_framebuffer: Option<Framebuffer>,
 
-    gaussian_kernel: Option<BufferDescriptor>,
     hdr_supported: Option<bool>,
 
     entities_key: ResourceKey<Vec<NonNull<Entity>>>,
@@ -93,16 +89,12 @@ impl StandardDrawer {
         Self {
             normal_framebuffer: None,
             normal_multisample_framebuffer: None,
-            normal_bloom_blur_even_framebuffer: None,
-            normal_bloom_blur_odd_framebuffer: None,
-            normal_bloom_blend_framebuffer: None,
             hdr_framebuffer: None,
             hdr_multisample_framebuffer: None,
             hdr_bloom_blur_even_framebuffer: None,
             hdr_bloom_blur_odd_framebuffer: None,
             hdr_bloom_blend_framebuffer: None,
 
-            gaussian_kernel: None,
             hdr_supported: None,
 
             entities_key,
@@ -323,28 +315,6 @@ impl StandardDrawer {
                 None,
             )
         })
-    }
-
-    fn gaussian_kernel(&mut self) -> BufferDescriptor {
-        self.gaussian_kernel
-            .get_or_insert_with(|| {
-                BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(
-                        &GAUSSIAN_KERNEL_BINARY,
-                        0,
-                        GAUSSIAN_KERNEL_BINARY.len() as u32,
-                    ),
-                    BufferUsage::StaticDraw,
-                    MemoryPolicy::restorable(|| {
-                        BufferSource::from_binary(
-                            &GAUSSIAN_KERNEL_BINARY,
-                            0,
-                            GAUSSIAN_KERNEL_BINARY.len() as u32,
-                        )
-                    }),
-                )
-            })
-            .clone()
     }
 
     fn prepare_entities<'a, 'b>(
@@ -769,7 +739,7 @@ impl StandardDrawer {
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
             state
                 .buffer_store_mut()
-                .bind_uniform_buffer_object(&self.gaussian_kernel(), UBO_GAUSSIAN_BLUR_BINDING)?;
+                .bind_uniform_buffer_object(&gaussian_kernel(), UBO_GAUSSIAN_BLUR_BINDING)?;
             state.gl().uniform_block_binding(
                 program_item.gl_program(),
                 program_item
@@ -1188,6 +1158,32 @@ static GAUSSIAN_KERNEL: [f32; 324] = [
 
 static GAUSSIAN_KERNEL_BINARY: [u8; 324 * 4] =
     unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&GAUSSIAN_KERNEL) };
+
+static mut GAUSSIAN_KERNEL_BUFFER_DESCRIPTOR: OnceCell<BufferDescriptor> = OnceCell::new();
+
+fn gaussian_kernel() -> BufferDescriptor {
+    unsafe {
+        GAUSSIAN_KERNEL_BUFFER_DESCRIPTOR
+            .get_or_init(|| {
+                BufferDescriptor::with_memory_policy(
+                    BufferSource::from_binary(
+                        &GAUSSIAN_KERNEL_BINARY,
+                        0,
+                        GAUSSIAN_KERNEL_BINARY.len() as u32,
+                    ),
+                    BufferUsage::StaticDraw,
+                    MemoryPolicy::restorable(|| {
+                        BufferSource::from_binary(
+                            &GAUSSIAN_KERNEL_BINARY,
+                            0,
+                            GAUSSIAN_KERNEL_BINARY.len() as u32,
+                        )
+                    }),
+                )
+            })
+            .clone()
+    }
+}
 
 struct GaussianBlurMapping;
 

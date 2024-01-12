@@ -131,7 +131,7 @@
           </v-slider>
         </div>
 
-        <div class="controller">
+        <div class="controller" v-if="hdr">
           Bloom
           <v-switch
             hide-details
