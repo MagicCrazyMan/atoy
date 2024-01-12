@@ -151,8 +151,8 @@ fn create_camera(
 
 fn create_scene() -> Scene {
     let mut scene = Scene::new();
-    scene.set_light_attenuations(Vec3::from_values(1.0, 1.0, 1.0));
-    scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
+    scene.set_light_attenuations(Vec3::from_values(0.0, 1.0, 0.0));
+    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
     // scene.add_directional_light(DirectionalLight::new(
     //     Vec3::from_values(0.0, -1.0, -1.0),
     //     Vec3::from_values(0.01, 0.01, 0.01),
@@ -165,7 +165,7 @@ fn create_scene() -> Scene {
         Vec3::from_values(1.0, -1.0, -1.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(1.6, 1.6, 1.6),
+        Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         40f64.to_radians(),
@@ -175,7 +175,7 @@ fn create_scene() -> Scene {
         Vec3::from_values(0.0, -1.0, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(1.6, 1.6, 1.6),
+        Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         60f64.to_radians(),
@@ -190,22 +190,22 @@ fn create_scene() -> Scene {
         4.5,
         2.0,
         Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(1.39, 1.39, 1.39),
-        Vec3::from_values(1.6, 1.6, 1.6),
+        Vec3::from_values(0.39, 0.39, 0.39),
+        Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(0.0, 1.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(1.6, 1.6, 1.6),
+        Vec3::from_values(0.6, 0.6, 0.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::from_values(8.0, 0.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.69, 0.69, 0.69),
-        Vec3::from_values(1.3, 1.3, 1.3),
+        Vec3::from_values(0.3, 0.3, 0.3),
         64.0,
     ));
     scene

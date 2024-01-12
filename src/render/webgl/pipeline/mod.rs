@@ -197,7 +197,6 @@ impl StandardPipeline {
         // let picked_position = ResourceKey::new_runtime_uuid();
         // let outline_texture = ResourceKey::new_runtime_uuid();
         let standard_draw_texture_key = ResourceKey::new_runtime_uuid();
-        let gaussian_blur_texture_key = ResourceKey::new_runtime_uuid();
 
         let mut pipeline = GraphPipeline::new();
         pipeline.add_executor(preparation_key.clone(), StandardPreparation);
@@ -236,7 +235,7 @@ impl StandardPipeline {
         pipeline.add_executor(
             composer_key.clone(),
             StandardComposer::new(
-                vec![standard_draw_texture_key, gaussian_blur_texture_key],
+                vec![standard_draw_texture_key],
                 Some(clear_color_key.clone()),
             ),
         );

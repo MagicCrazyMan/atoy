@@ -1,5 +1,5 @@
 <template>
-  <v-card class="card" density="compact">
+  <v-card class="container" density="compact">
     <v-card-title>Scene State</v-card-title>
     <v-card-text>
       <div class="controllers">
@@ -230,12 +230,15 @@ const emit = defineEmits<{
 </script>
 
 <style lang="less" scoped>
-.card {
+.container {
   position: absolute;
   z-index: 2;
 
-  top: 0.5rem;
-  left: 0.5rem;
+  max-height: 100vh;
+  overflow-y: auto;
+
+  top: 0;
+  left: 0;
 }
 
 .time {
