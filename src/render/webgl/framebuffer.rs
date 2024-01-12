@@ -7,7 +7,8 @@
 
 use wasm_bindgen::JsValue;
 use web_sys::{
-    js_sys::Array, WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+    js_sys::{Array, Object},
+    WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
 use super::{
@@ -75,74 +76,6 @@ pub enum FramebufferDrawBuffer {
     COLOR_ATTACHMENT15,
 }
 
-/// Creates a [`WebGlFramebuffer`].
-pub fn create_framebuffer(gl: &WebGl2RenderingContext) -> Result<WebGlFramebuffer, Error> {
-    gl.create_framebuffer()
-        .ok_or(Error::CreateFramebufferFailed)
-}
-
-/// Creates a [`WebGlFramebuffer`] with [`RenderbufferInternalFormat`], width and height.
-pub fn create_renderbuffer(
-    gl: &WebGl2RenderingContext,
-    internal_format: RenderbufferInternalFormat,
-    samples: Option<i32>,
-    width: i32,
-    height: i32,
-) -> Result<WebGlRenderbuffer, Error> {
-    let renderbuffer = gl
-        .create_renderbuffer()
-        .ok_or(Error::CreateRenderbufferFailed)?;
-
-    gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-    match samples {
-        Some(samples) => gl.renderbuffer_storage_multisample(
-            WebGl2RenderingContext::RENDERBUFFER,
-            samples,
-            internal_format.gl_enum(),
-            width,
-            height,
-        ),
-        None => gl.renderbuffer_storage(
-            WebGl2RenderingContext::RENDERBUFFER,
-            internal_format.gl_enum(),
-            width,
-            height,
-        ),
-    }
-    gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
-
-    Ok(renderbuffer)
-}
-
-/// Creates a [`WebGlTexture`] with [`TextureInternalFormat`], width and height.
-pub fn create_texture_2d(
-    gl: &WebGl2RenderingContext,
-    internal_format: TextureInternalFormat,
-    format: TextureFormat,
-    data_type: TextureDataType,
-    width: i32,
-    height: i32,
-) -> Result<WebGlTexture, Error> {
-    let texture: WebGlTexture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
-
-    gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-    gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-        WebGl2RenderingContext::TEXTURE_2D,
-        0,
-        internal_format.gl_enum() as i32,
-        width,
-        height,
-        0,
-        format.gl_enum(),
-        data_type.gl_enum(),
-        None,
-    )
-    .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
-    gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-    Ok(texture)
-}
-
 /// Offscreen frame containing [`WebGlFramebuffer`], [`WebGlRenderbuffer`], [`WebGlTexture`] and other stuffs
 /// to make WebGl draw entities to framebuffer.
 ///
@@ -153,6 +86,8 @@ pub fn create_texture_2d(
 ///
 /// [`drawBuffers`](https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/drawBuffers)
 pub struct Framebuffer {
+    gl: WebGl2RenderingContext,
+
     width: i32,
     height: i32,
 
@@ -160,9 +95,7 @@ pub struct Framebuffer {
     renderbuffer_providers: Vec<RenderbufferProvider>,
     renderbuffer_samples: Option<i32>,
 
-    gl: Option<WebGl2RenderingContext>,
     binding_target: Option<FramebufferTarget>,
-    reading_buffer: Option<FramebufferDrawBuffer>,
     framebuffer: Option<WebGlFramebuffer>,
     textures: Option<Vec<(WebGlTexture, TextureProvider)>>,
     renderbuffers: Option<Vec<(WebGlRenderbuffer, RenderbufferProvider)>>,
@@ -173,8 +106,7 @@ pub struct Framebuffer {
 
 impl Drop for Framebuffer {
     fn drop(&mut self) {
-        let (Some(gl), Some(framebuffer), Some(textures), Some(renderbuffers)) = (
-            self.gl.as_ref(),
+        let (Some(framebuffer), Some(textures), Some(renderbuffers)) = (
             self.framebuffer.as_ref(),
             self.textures.as_ref(),
             self.renderbuffers.as_ref(),
@@ -182,13 +114,13 @@ impl Drop for Framebuffer {
             return;
         };
 
-        gl.delete_framebuffer(Some(framebuffer));
+        self.gl.delete_framebuffer(Some(framebuffer));
         textures
             .iter()
-            .for_each(|(texture, _)| gl.delete_texture(Some(texture)));
+            .for_each(|(texture, _)| self.gl.delete_texture(Some(texture)));
         renderbuffers
             .iter()
-            .for_each(|(renderbuffer, _)| gl.delete_renderbuffer(Some(renderbuffer)));
+            .for_each(|(renderbuffer, _)| self.gl.delete_renderbuffer(Some(renderbuffer)));
     }
 }
 
@@ -199,6 +131,7 @@ impl Framebuffer {
         RI: IntoIterator<Item = RenderbufferProvider>,
         DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
+        gl: WebGl2RenderingContext,
         texture_providers: TI,
         renderbuffer_providers: RI,
         draw_buffers: DI,
@@ -210,6 +143,8 @@ impl Framebuffer {
         }
 
         Self {
+            gl,
+
             width: 0,
             height: 0,
 
@@ -217,9 +152,7 @@ impl Framebuffer {
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
             renderbuffer_samples,
 
-            gl: None,
             binding_target: None,
-            reading_buffer: None,
             framebuffer: None,
             textures: None,
             renderbuffers: None,
@@ -229,36 +162,30 @@ impl Framebuffer {
         }
     }
 
-    /// Binds framebuffer to WebGL.
-    pub fn bind(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        target: FramebufferTarget,
-    ) -> Result<(), Error> {
-        if let Some(sgl) = self.gl.as_ref() {
-            if sgl != gl {
-                panic!("share framebuffer between different WebGL is not allowed");
-            }
-        }
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
+    }
 
-        let drawing_buffer_width = gl.drawing_buffer_width();
-        let drawing_buffer_height = gl.drawing_buffer_height();
+    /// Binds framebuffer to WebGL.
+    pub fn bind(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+        let drawing_buffer_width = self.gl.drawing_buffer_width();
+        let drawing_buffer_height = self.gl.drawing_buffer_height();
 
         // delete previous framebuffers, textures and renderbuffers if size changed
         if drawing_buffer_width != self.width || drawing_buffer_height != self.height {
             if let Some(framebuffer) = &mut self.framebuffer {
-                gl.delete_framebuffer(Some(&framebuffer));
+                self.gl.delete_framebuffer(Some(&framebuffer));
             }
 
             if let Some(textures) = &mut self.textures {
                 for (texture, _) in textures {
-                    gl.delete_texture(Some(&texture));
+                    self.gl.delete_texture(Some(&texture));
                 }
             }
 
             if let Some(renderbuffers) = &mut self.renderbuffers {
                 for (renderbuffer, _) in renderbuffers {
-                    gl.delete_renderbuffer(Some(&renderbuffer));
+                    self.gl.delete_renderbuffer(Some(&renderbuffer));
                 }
             }
 
@@ -271,43 +198,75 @@ impl Framebuffer {
             self.height = drawing_buffer_height;
         }
 
-        self.unbind(gl);
+        self.unbind();
 
-        self.create_framebuffer(gl)?;
-        gl.bind_framebuffer(target.gl_enum(), Some(self.framebuffer.as_ref().unwrap()));
-        self.create_textures(gl, target)?;
-        self.create_renderbuffers(gl, target)?;
+        self.create_framebuffer()?;
+        self.gl
+            .bind_framebuffer(target.gl_enum(), Some(self.framebuffer.as_ref().unwrap()));
+        self.create_textures(target)?;
+        self.create_renderbuffers(target)?;
 
         if self.draw_buffers.length() > 0 {
-            gl.draw_buffers(&self.draw_buffers);
+            self.gl.draw_buffers(&self.draw_buffers);
         }
 
-        self.gl = Some(gl.clone());
         self.binding_target = Some(target);
 
         Ok(())
     }
 
     /// Unbinds framebuffer from WebGL.
-    pub fn unbind(&mut self, gl: &WebGl2RenderingContext) {
-        if let Some(sgl) = self.gl.as_ref() {
-            if sgl != gl {
-                panic!("share framebuffer between different WebGL is not allowed");
-            }
-        }
-
+    pub fn unbind(&mut self) {
         if let Some(binding_target) = self.binding_target.take() {
-            gl.bind_framebuffer(binding_target.gl_enum(), None);
-        }
-        if let Some(_) = self.reading_buffer.take() {
-            gl.read_buffer(WebGl2RenderingContext::BACK);
+            self.gl.bind_framebuffer(binding_target.gl_enum(), None);
         }
     }
 
-    /// Sets read buffer.
-    pub fn set_read_buffer(&mut self, gl: &WebGl2RenderingContext, source: FramebufferDrawBuffer) {
-        gl.read_buffer(source.gl_enum());
-        self.reading_buffer = Some(source);
+    /// Reads pixels.
+    pub fn read_pixels(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        format: u32,
+        type_: u32,
+        dst_data: &Object,
+        dst_offset: u32,
+    ) -> Result<(), Error> {
+        self.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        self.gl
+            .read_pixels_with_array_buffer_view_and_dst_offset(
+                x, y, width, height, format, type_, dst_data, dst_offset,
+            )
+            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+        self.unbind();
+        Ok(())
+    }
+
+    /// Reads pixels.
+    pub fn read_pixels_with_read_buffer(
+        &mut self,
+        source: FramebufferDrawBuffer,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        format: u32,
+        type_: u32,
+        dst_data: &Object,
+        dst_offset: u32,
+    ) -> Result<(), Error> {
+        self.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        self.gl.read_buffer(source.gl_enum());
+        self.gl
+            .read_pixels_with_array_buffer_view_and_dst_offset(
+                x, y, width, height, format, type_, dst_data, dst_offset,
+            )
+            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+        self.gl.read_buffer(WebGl2RenderingContext::BACK);
+        self.unbind();
+        Ok(())
     }
 
     /// Returns number of sample of the render buffers if multisample is enabled.
@@ -316,12 +275,13 @@ impl Framebuffer {
             .and_then(|samples| if samples == 0 { None } else { Some(samples) })
     }
 
-    fn create_framebuffer(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+    fn create_framebuffer(&mut self) -> Result<(), Error> {
         if self.framebuffer.is_some() {
             return Ok(());
         }
 
-        let framebuffer = gl
+        let framebuffer = self
+            .gl
             .create_framebuffer()
             .ok_or(Error::CreateFramebufferFailed)?;
         self.framebuffer = Some(framebuffer);
@@ -329,34 +289,32 @@ impl Framebuffer {
         Ok(())
     }
 
-    fn create_textures(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        target: FramebufferTarget,
-    ) -> Result<(), Error> {
+    fn create_textures(&mut self, target: FramebufferTarget) -> Result<(), Error> {
         if self.textures.is_some() {
             return Ok(());
         }
 
-        gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
 
         let mut textures = Vec::with_capacity(self.texture_providers.len());
         for provider in &self.texture_providers {
-            let texture = gl.create_texture().ok_or(Error::CreateTextureFailed)?;
-            gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-            gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                WebGl2RenderingContext::TEXTURE_2D,
-                provider.level,
-                provider.internal_format.gl_enum() as i32,
-                self.width,
-                self.height,
-                0,
-                provider.format.gl_enum(),
-                provider.data_type.gl_enum(),
-                None,
-            )
-            .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
-            gl.framebuffer_texture_2d(
+            let texture = self.gl.create_texture().ok_or(Error::CreateTextureFailed)?;
+            self.gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+            self.gl
+                .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                    WebGl2RenderingContext::TEXTURE_2D,
+                    provider.level,
+                    provider.internal_format.gl_enum() as i32,
+                    self.width,
+                    self.height,
+                    0,
+                    provider.format.gl_enum(),
+                    provider.data_type.gl_enum(),
+                    None,
+                )
+                .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+            self.gl.framebuffer_texture_2d(
                 target.gl_enum(),
                 provider.attachment.gl_enum(),
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -369,43 +327,42 @@ impl Framebuffer {
                 .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
         }
 
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        self.gl
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
         self.textures = Some(textures);
 
         Ok(())
     }
 
-    fn create_renderbuffers(
-        &mut self,
-        gl: &WebGl2RenderingContext,
-        target: FramebufferTarget,
-    ) -> Result<(), Error> {
+    fn create_renderbuffers(&mut self, target: FramebufferTarget) -> Result<(), Error> {
         if self.renderbuffers.is_some() {
             return Ok(());
         }
 
         let mut renderbuffers = Vec::with_capacity(self.renderbuffer_providers.len());
         for provider in &self.renderbuffer_providers {
-            let renderbuffer = gl
+            let renderbuffer = self
+                .gl
                 .create_renderbuffer()
                 .ok_or(Error::CreateRenderbufferFailed)?;
-            gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
+            self.gl
+                .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
             match self.renderbuffer_samples() {
-                Some(samples) => gl.renderbuffer_storage_multisample(
+                Some(samples) => self.gl.renderbuffer_storage_multisample(
                     WebGl2RenderingContext::RENDERBUFFER,
                     samples,
                     provider.internal_format.gl_enum(),
                     self.width,
                     self.height,
                 ),
-                None => gl.renderbuffer_storage(
+                None => self.gl.renderbuffer_storage(
                     WebGl2RenderingContext::RENDERBUFFER,
                     provider.internal_format.gl_enum(),
                     self.width,
                     self.height,
                 ),
             }
-            gl.framebuffer_renderbuffer(
+            self.gl.framebuffer_renderbuffer(
                 target.gl_enum(),
                 provider.attachment.gl_enum(),
                 WebGl2RenderingContext::RENDERBUFFER,
@@ -417,7 +374,8 @@ impl Framebuffer {
                 .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
         }
 
-        gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+        self.gl
+            .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
         self.renderbuffers = Some(renderbuffers);
 
         Ok(())
@@ -436,11 +394,6 @@ impl Framebuffer {
     /// Returns [`FramebufferTarget`] currently binding to this framebuffer.
     pub fn binding_target(&self) -> Option<FramebufferTarget> {
         self.binding_target.clone()
-    }
-
-    /// Returns [`FramebufferDrawBuffer`] currently reading from this framebuffer.
-    pub fn reading_buffer(&self) -> Option<FramebufferDrawBuffer> {
-        self.reading_buffer.clone()
     }
 
     /// Returns [`WebGlFramebuffer`],

@@ -51,7 +51,7 @@ pub enum ShaderSource {
 
 /// Compiled program item.
 #[derive(Clone)]
-pub struct ProgramItem {
+pub struct Program {
     name: String,
     program: WebGlProgram,
     shaders: Rc<Vec<WebGlShader>>,
@@ -62,7 +62,7 @@ pub struct ProgramItem {
     uniform_block_indices: Rc<HashMap<UniformBlockBinding, u32>>,
 }
 
-impl ProgramItem {
+impl Program {
     /// Returns program source name.
     pub fn name(&self) -> &str {
         &self.name
@@ -100,8 +100,8 @@ impl ProgramItem {
 /// Program store caches a program by an unique name provided by [`ProgramSource::name`].
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
-    store: HashMap<String, ProgramItem>,
-    using_program: Option<ProgramItem>,
+    store: HashMap<String, Program>,
+    using_program: Option<Program>,
 }
 
 impl ProgramStore {
@@ -120,7 +120,7 @@ impl ProgramStore {
         &mut self,
         source: &S,
         custom_name: Option<Cow<'static, str>>,
-    ) -> Result<ProgramItem, Error>
+    ) -> Result<Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -142,27 +142,27 @@ impl ProgramStore {
         &mut self,
         source: &S,
         custom_name: Option<Cow<'static, str>>,
-    ) -> Result<ProgramItem, Error>
+    ) -> Result<Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
         let name = source.name();
         let name = custom_name.as_ref().unwrap_or(&name);
-        if let Some(program_item) = self.using_program.as_ref() {
-            if program_item.name() == name {
-                return Ok(program_item.clone());
+        if let Some(program) = self.using_program.as_ref() {
+            if program.name() == name {
+                return Ok(program.clone());
             }
         }
 
-        let program_item = self.compile_program(source, custom_name)?;
-        self.gl.use_program(Some(&program_item.program));
-        self.using_program = Some(program_item.clone());
-        Ok(program_item)
+        let program = self.compile_program(source, custom_name)?;
+        self.gl.use_program(Some(&program.program));
+        self.using_program = Some(program.clone());
+        Ok(program)
     }
 
     /// Uses a program from a program source.
     /// Compiles program from program source if never uses before.
-    pub fn use_program<S>(&mut self, source: &S) -> Result<ProgramItem, Error>
+    pub fn use_program<S>(&mut self, source: &S) -> Result<Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -195,7 +195,7 @@ impl ProgramStore {
 }
 
 /// Compiles a [`WebGlProgram`] from a [`ProgramSource`].
-pub fn compile_program<S>(gl: &WebGl2RenderingContext, source: &S) -> Result<ProgramItem, Error>
+pub fn compile_program<S>(gl: &WebGl2RenderingContext, source: &S) -> Result<Program, Error>
 where
     S: ProgramSource + ?Sized,
 {
@@ -206,7 +206,7 @@ where
     })?;
 
     let program = create_program(gl, &shaders)?;
-    Ok(ProgramItem {
+    Ok(Program {
         name: source.name().to_string(),
         attributes: Rc::new(collect_attribute_locations(
             gl,
@@ -233,10 +233,10 @@ where
     })
 }
 
-fn delete_program(gl: &WebGl2RenderingContext, program_item: ProgramItem) {
-    let ProgramItem {
+fn delete_program(gl: &WebGl2RenderingContext, program: Program) {
+    let Program {
         program, shaders, ..
-    } = program_item;
+    } = program;
     gl.use_program(None);
     shaders.iter().for_each(|shader| {
         gl.delete_shader(Some(&shader));
@@ -437,7 +437,7 @@ pub fn collect_uniform_block_indices(
     bindings.into_iter().for_each(|binding| {
         let variable_name = binding.block_name();
         let index = gl.get_uniform_block_index(program, variable_name);
-        indices.insert(*binding, index);
+        indices.insert(binding.clone(), index);
     });
 
     indices

@@ -1,7 +1,7 @@
 use crate::{
     render::{
-        pp::{Executor, Resources, State},
-        webgl::error::Error,
+        pp::{Executor, Resources},
+        webgl::{error::Error, state::FrameState},
     },
     scene::Scene,
 };
@@ -9,11 +9,13 @@ use crate::{
 pub struct StandardPreparation;
 
 impl Executor for StandardPreparation {
+    type State = FrameState;
+
     type Error = Error;
 
     fn execute(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         _: &mut Resources,
     ) -> Result<(), Self::Error> {

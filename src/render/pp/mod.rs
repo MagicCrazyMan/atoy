@@ -5,135 +5,31 @@ use std::{
     any::Any,
     collections::{hash_map::Entry, HashMap},
     marker::PhantomData,
-    ptr::NonNull,
 };
 
 use uuid::Uuid;
-use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, scene::Scene};
+use crate::scene::Scene;
 
 use self::{error::Error, graph::DirectedGraph};
 
-use super::webgl::{
-    buffer::{BufferDescriptor, BufferStore},
-    program::ProgramStore,
-    texture::TextureStore,
-};
-
-/// Pipeline rendering state.
-pub struct State {
-    timestamp: f64,
-    camera: NonNull<(dyn Camera + 'static)>,
-    canvas: NonNull<HtmlCanvasElement>,
-    gl: NonNull<WebGl2RenderingContext>,
-    universal_ubo: NonNull<BufferDescriptor>,
-    lights_ubo: NonNull<BufferDescriptor>,
-    program_store: NonNull<ProgramStore>,
-    buffer_store: NonNull<BufferStore>,
-    texture_store: NonNull<TextureStore>,
-}
-
-impl State {
-    /// Constructs a new rendering state.
-    pub(crate) fn new(
-        timestamp: f64,
-        camera: &mut (dyn Camera + 'static),
-        gl: &mut WebGl2RenderingContext,
-        canvas: &mut HtmlCanvasElement,
-        universal_ubo: &mut BufferDescriptor,
-        lights_ubo: &mut BufferDescriptor,
-        program_store: &mut ProgramStore,
-        buffer_store: &mut BufferStore,
-        texture_store: &mut TextureStore,
-    ) -> Self {
-        unsafe {
-            Self {
-                timestamp,
-                gl: NonNull::new_unchecked(gl),
-                canvas: NonNull::new_unchecked(canvas),
-                camera: NonNull::new_unchecked(camera),
-                universal_ubo: NonNull::new_unchecked(universal_ubo),
-                lights_ubo: NonNull::new_unchecked(lights_ubo),
-                program_store: NonNull::new_unchecked(program_store),
-                buffer_store: NonNull::new_unchecked(buffer_store),
-                texture_store: NonNull::new_unchecked(texture_store),
-            }
-        }
-    }
-
-    /// Returns the [`WebGl2RenderingContext`] associated with the canvas.
-    pub fn gl(&self) -> &WebGl2RenderingContext {
-        unsafe { self.gl.as_ref() }
-    }
-
-    /// Returns the [`HtmlCanvasElement`] to be drawn to.
-    pub fn canvas(&self) -> &HtmlCanvasElement {
-        unsafe { self.canvas.as_ref() }
-    }
-
-    /// Returns the [`Camera`].
-    pub fn camera(&self) -> &dyn Camera {
-        unsafe { self.camera.as_ref() }
-    }
-
-    /// Returns the `requestAnimationFrame` timestamp.
-    pub fn timestamp(&self) -> f64 {
-        self.timestamp
-    }
-
-    /// Returns the [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn program_store(&self) -> &ProgramStore {
-        unsafe { self.program_store.as_ref() }
-    }
-
-    /// Returns the mutable [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn program_store_mut(&mut self) -> &mut ProgramStore {
-        unsafe { self.program_store.as_mut() }
-    }
-
-    /// Returns the [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn buffer_store(&self) -> &BufferStore {
-        unsafe { self.buffer_store.as_ref() }
-    }
-
-    /// Returns the mutable [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
-        unsafe { self.buffer_store.as_mut() }
-    }
-
-    /// Returns the [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn texture_store(&self) -> &TextureStore {
-        unsafe { self.texture_store.as_ref() }
-    }
-
-    /// Returns the mutable [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    pub fn texture_store_mut(&mut self) -> &mut TextureStore {
-        unsafe { self.texture_store.as_mut() }
-    }
-
-    /// Returns uniform buffer object for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-    pub fn universal_ubo(&self) -> BufferDescriptor {
-        unsafe { self.universal_ubo.as_ref().clone() }
-    }
-
-    /// Returns uniform buffer object for `atoy_Lights`.
-    pub fn lights_ubo(&self) -> BufferDescriptor {
-        unsafe { self.lights_ubo.as_ref().clone() }
-    }
-}
-
 /// A rendering pipeline.
 pub trait Pipeline {
+    /// Runtime state.
+    type State;
+
     /// Error that could be thrown during execution.
     type Error;
 
     /// Executes this rendering pipeline with specified [`State`] and rendering [`Stuff`].
-    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error>;
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error>;
 }
 
 /// An execution node for [`Pipeline`].
 pub trait Executor {
+    /// Runtime state.
+    type State;
+
     /// Error that could be thrown during execution.
     type Error;
 
@@ -142,7 +38,7 @@ pub trait Executor {
     #[allow(unused)]
     fn before(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
@@ -152,7 +48,7 @@ pub trait Executor {
     /// Main execution procedure.
     fn execute(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error>;
@@ -162,7 +58,7 @@ pub trait Executor {
     #[allow(unused)]
     fn after(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
@@ -175,13 +71,13 @@ pub trait Executor {
 }
 
 /// A standard rendering pipeline container based on [`DirectedGraph`].
-pub struct GraphPipeline<E> {
-    graph: DirectedGraph<Box<dyn Executor<Error = E>>>,
+pub struct GraphPipeline<S, E> {
+    graph: DirectedGraph<Box<dyn Executor<State = S, Error = E>>>,
     executor_keys: HashMap<ItemKey, usize>,
     resources: Resources,
 }
 
-impl<E> GraphPipeline<E> {
+impl<S, E> GraphPipeline<S, E> {
     /// Constructs a new standard pipeline.
     pub fn new() -> Self {
         Self {
@@ -194,7 +90,7 @@ impl<E> GraphPipeline<E> {
     /// Adds a new executor with a [`ItemKey`].
     pub fn add_executor<T>(&mut self, key: ItemKey, executor: T)
     where
-        T: Executor<Error = E> + 'static,
+        T: Executor<State = S, Error = E> + 'static,
     {
         let index = self.graph.add_vertex(Box::new(executor));
         self.executor_keys.insert(key, index);
@@ -213,14 +109,17 @@ impl<E> GraphPipeline<E> {
     }
 
     /// Returns an executor by a [`ItemKey`].
-    pub fn executor(&self, key: &ItemKey) -> Option<&dyn Executor<Error = E>> {
+    pub fn executor(&self, key: &ItemKey) -> Option<&dyn Executor<State = S, Error = E>> {
         self.executor_keys
             .get(key)
             .and_then(|index| self.graph.vertex(*index))
             .map(|vertex| vertex.as_ref())
     }
 
-    pub fn executor_mut(&mut self, key: &ItemKey) -> Option<&mut dyn Executor<Error = E>> {
+    pub fn executor_mut(
+        &mut self,
+        key: &ItemKey,
+    ) -> Option<&mut dyn Executor<State = S, Error = E>> {
         let Some(index) = self.executor_keys.get(key) else {
             return None;
         };
@@ -282,10 +181,12 @@ impl<E> GraphPipeline<E> {
     }
 }
 
-impl<E> Pipeline for GraphPipeline<E> {
+impl<S, E> Pipeline for GraphPipeline<S, E> {
+    type State = S;
+
     type Error = E;
 
-    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
         for (_, executor) in self.graph.iter_mut().unwrap() {
             if executor.before(state, scene, &mut self.resources)? {
                 executor.execute(state, scene, &mut self.resources)?;

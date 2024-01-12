@@ -6,11 +6,13 @@ pub mod pp;
 pub mod webgl;
 
 pub trait Render {
+    type State;
+
     type Error;
 
     fn render(
         &mut self,
-        pipeline: &mut (dyn Pipeline<Error = Self::Error> + 'static),
+        pipeline: &mut (dyn Pipeline<State = Self::State, Error = Self::Error> + 'static),
         camera: &mut (dyn Camera + 'static),
         scene: &mut Scene,
         timestamp: f64,

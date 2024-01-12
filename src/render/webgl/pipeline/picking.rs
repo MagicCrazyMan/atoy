@@ -9,10 +9,9 @@ use crate::{
     entity::Entity,
     material::Transparency,
     render::{
-        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
+        pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources},
         webgl::{
-            attribute::{bind_attribute, unbind_attributes, AttributeBinding},
-            draw::draw,
+            attribute::AttributeBinding,
             error::Error,
             framebuffer::{
                 Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
@@ -20,6 +19,7 @@ use crate::{
             },
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
+            state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
@@ -31,7 +31,7 @@ use super::collector::StandardEntitiesCollector;
 
 /// A [`Pipeline`] for picking purpose.
 pub struct PickingPipeline {
-    pipeline: GraphPipeline<Error>,
+    pipeline: GraphPipeline<FrameState, Error>,
     picking: ItemKey,
     entities: ResourceKey<Vec<NonNull<Entity>>>,
     dirty: bool,
@@ -102,28 +102,31 @@ impl PickingPipeline {
         };
 
         let picking = self.picking_executor();
-        picking.frame.bind(&gl, FramebufferTarget::FRAMEBUFFER)?;
-        picking
-            .frame
-            .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT0);
+        let Some(picking_framebuffer) = picking.picking_framebuffer.as_mut() else {
+            return Ok(None);
+        };
 
-        let canvas = gl
+        let Some(canvas) = gl
             .canvas()
             .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(Error::CanvasNotFound)?;
+        else {
+            return Ok(None);
+        };
+
         let pixel = Uint32Array::new_with_length(1);
-        gl.read_pixels_with_opt_array_buffer_view(
+        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
+        picking_framebuffer.read_pixels_with_read_buffer(
+            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
             window_position_x,
             canvas.height() as i32 - window_position_y,
             1,
             1,
             WebGl2RenderingContext::RED_INTEGER,
             WebGl2RenderingContext::UNSIGNED_INT,
-            Some(&pixel),
-        )
-        .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
-
-        picking.frame.unbind(&gl);
+            &pixel,
+            0,
+        )?;
+        picking_framebuffer.unbind();
 
         let index = pixel.get_index(0) as usize;
         if index > 0 {
@@ -153,28 +156,31 @@ impl PickingPipeline {
         };
 
         let picking = self.picking_executor();
-        picking.frame.bind(&gl, FramebufferTarget::FRAMEBUFFER)?;
-        picking
-            .frame
-            .set_read_buffer(&gl, FramebufferDrawBuffer::COLOR_ATTACHMENT1);
+        let Some(picking_framebuffer) = picking.picking_framebuffer.as_mut() else {
+            return Ok(None);
+        };
 
-        let canvas = gl
+        let Some(canvas) = gl
             .canvas()
             .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(Error::CanvasNotFound)?;
-        let pixel = Uint32Array::new_with_length(4);
-        gl.read_pixels_with_opt_array_buffer_view(
+        else {
+            return Ok(None);
+        };
+
+        let pixel = Uint32Array::new_with_length(1);
+        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
+        picking_framebuffer.read_pixels_with_read_buffer(
+            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
             window_position_x,
             canvas.height() as i32 - window_position_y,
             1,
             1,
-            WebGl2RenderingContext::RGBA_INTEGER,
+            WebGl2RenderingContext::RGBA32UI,
             WebGl2RenderingContext::UNSIGNED_INT,
-            Some(&pixel),
-        )
-        .or_else(|err| Err(Error::CommonWebGLError(err.as_string())))?;
-
-        picking.frame.unbind(&gl);
+            &pixel,
+            0,
+        )?;
+        picking_framebuffer.unbind();
 
         let position = [
             f32::from_ne_bytes(pixel.get_index(0).to_ne_bytes()),
@@ -195,9 +201,11 @@ impl PickingPipeline {
 }
 
 impl Pipeline for PickingPipeline {
+    type State = FrameState;
+
     type Error = Error;
 
-    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
         self.pipeline.execute(state, scene)?;
         self.dirty = false;
         self.gl = Some(state.gl().clone());
@@ -216,15 +224,20 @@ impl Pipeline for PickingPipeline {
 /// - `picked_position`: `[f32; 4]`, picked position. Picked position regards as `None` if components are all `0.0`.
 pub struct Picking {
     entities_key: ResourceKey<Vec<NonNull<Entity>>>,
-    frame: Framebuffer,
-    material: PickingMaterial,
+    picking_framebuffer: Option<Framebuffer>,
 }
 
 impl Picking {
     pub fn new(entities_key: ResourceKey<Vec<NonNull<Entity>>>) -> Self {
         Self {
             entities_key,
-            frame: Framebuffer::new(
+            picking_framebuffer: None,
+        }
+    }
+
+    fn picking_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
+        self.picking_framebuffer.get_or_insert_with(|| {
+            state.create_framebuffer(
                 [
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -250,18 +263,19 @@ impl Picking {
                     FramebufferDrawBuffer::COLOR_ATTACHMENT1,
                 ],
                 None,
-            ),
-            material: PickingMaterial,
-        }
+            )
+        })
     }
 }
 
 impl Executor for Picking {
+    type State = FrameState;
+
     type Error = Error;
 
     fn before(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
@@ -269,8 +283,8 @@ impl Executor for Picking {
             return Ok(false);
         }
 
-        self.frame
-            .bind(state.gl(), FramebufferTarget::FRAMEBUFFER)?;
+        let picking_framebuffer = self.picking_framebuffer(&state);
+        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
 
         state
@@ -288,18 +302,18 @@ impl Executor for Picking {
 
     fn after(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         _: &mut Resources,
     ) -> Result<(), Self::Error> {
-        self.frame.unbind(state.gl());
+        self.picking_framebuffer(&state).unbind();
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         Ok(())
     }
 
     fn execute(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
@@ -316,17 +330,15 @@ impl Executor for Picking {
         }
 
         // prepare material
-        let program_item = state.program_store_mut().use_program(&PickingMaterial)?;
-        let position_location = program_item
+        let program = state.program_store_mut().use_program(&PickingMaterial)?;
+        let position_location = program
             .attribute_locations()
             .get(&POSITIONS_ATTRIBUTE)
             .cloned()
             .unwrap();
-        let index_location = program_item.uniform_locations().get(&INDEX_UNIFORM);
-        let model_matrix_location = program_item.uniform_locations().get(&MODEL_MATRIX_UNIFORM);
-        let view_proj_matrix_location = program_item
-            .uniform_locations()
-            .get(&VIEW_PROJ_MATRIX_UNIFORM);
+        let index_location = program.uniform_locations().get(&INDEX_UNIFORM);
+        let model_matrix_location = program.uniform_locations().get(&MODEL_MATRIX_UNIFORM);
+        let view_proj_matrix_location = program.uniform_locations().get(&VIEW_PROJ_MATRIX_UNIFORM);
 
         let view_proj_matrix = state.camera().view_proj_matrix();
         state.gl().uniform_matrix4fv_with_f32_array(
@@ -361,9 +373,9 @@ impl Executor for Picking {
                 &entity.compose_model_matrix().to_gl(),
             );
             state.gl().uniform1ui(index_location, (index + 1) as u32);
-            let bound_attributes = bind_attribute(vertices, state, position_location)?;
-            draw(state, &geometry.draw());
-            unbind_attributes(state, bound_attributes);
+            let bound_attributes = state.bind_attribute(vertices, position_location)?;
+            state.draw(&geometry.draw())?;
+            state.unbind_attributes(bound_attributes);
         }
 
         Ok(())
@@ -378,10 +390,13 @@ impl Executor for Picking {
     }
 }
 
-static POSITIONS_ATTRIBUTE: AttributeBinding = AttributeBinding::Manual("a_Position");
-static INDEX_UNIFORM: UniformBinding = UniformBinding::Manual("u_Index");
-static MODEL_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual("u_ModelMatrix");
-static VIEW_PROJ_MATRIX_UNIFORM: UniformBinding = UniformBinding::Manual("u_ViewProjMatrix");
+static POSITIONS_ATTRIBUTE: AttributeBinding =
+    AttributeBinding::Manual(Cow::Borrowed("a_Position"));
+static INDEX_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Index"));
+static MODEL_MATRIX_UNIFORM: UniformBinding =
+    UniformBinding::Manual(Cow::Borrowed("u_ModelMatrix"));
+static VIEW_PROJ_MATRIX_UNIFORM: UniformBinding =
+    UniformBinding::Manual(Cow::Borrowed("u_ViewProjMatrix"));
 
 struct PickingMaterial;
 
@@ -398,14 +413,14 @@ impl ProgramSource for PickingMaterial {
     }
 
     fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![POSITIONS_ATTRIBUTE]
+        vec![POSITIONS_ATTRIBUTE.clone()]
     }
 
     fn uniform_bindings(&self) -> Vec<UniformBinding> {
         vec![
-            MODEL_MATRIX_UNIFORM,
-            VIEW_PROJ_MATRIX_UNIFORM,
-            INDEX_UNIFORM,
+            MODEL_MATRIX_UNIFORM.clone(),
+            VIEW_PROJ_MATRIX_UNIFORM.clone(),
+            INDEX_UNIFORM.clone(),
         ]
     }
 

@@ -5,18 +5,18 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
     render::{
-        pp::{Executor, ResourceKey, Resources, State},
+        pp::{Executor, ResourceKey, Resources},
         webgl::{
             attribute::AttributeBinding,
             error::Error,
             program::{ProgramSource, ShaderSource},
-            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
+            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding}, state::FrameState,
         },
     },
     scene::Scene,
 };
 
-const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual("u_Sampler");
+const SAMPLER_UNIFORM: UniformBinding = UniformBinding::Manual(Cow::Borrowed("u_Sampler"));
 
 pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
 
@@ -52,15 +52,17 @@ impl StandardComposer {
 }
 
 impl Executor for StandardComposer {
+    type State = FrameState;
+
     type Error = Error;
 
     fn before(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        let program_item = state.program_store_mut().use_program(&ComposerProgram)?;
+        let program = state.program_store_mut().use_program(&ComposerProgram)?;
 
         let clear_color = self.clear_color(resources);
         state.gl().clear_color(
@@ -79,7 +81,7 @@ impl Executor for StandardComposer {
 
         state
             .gl()
-            .uniform1i(program_item.uniform_locations().get(&SAMPLER_UNIFORM), 0);
+            .uniform1i(program.uniform_locations().get(&SAMPLER_UNIFORM), 0);
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
         Ok(true)
@@ -87,7 +89,7 @@ impl Executor for StandardComposer {
 
     fn after(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         _: &mut Resources,
     ) -> Result<(), Self::Error> {
@@ -100,7 +102,7 @@ impl Executor for StandardComposer {
 
     fn execute(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {

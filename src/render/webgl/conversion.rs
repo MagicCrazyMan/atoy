@@ -399,17 +399,17 @@ impl ToGlEnum for TextureParameter {
     #[inline]
     fn gl_enum(&self) -> GLenum {
         match self {
-            TextureParameter::MagFilter(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-            TextureParameter::MinFilter(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-            TextureParameter::WrapS(_) => WebGl2RenderingContext::TEXTURE_WRAP_S,
-            TextureParameter::WrapT(_) => WebGl2RenderingContext::TEXTURE_WRAP_T,
-            TextureParameter::WrapR(_) => WebGl2RenderingContext::TEXTURE_WRAP_R,
-            TextureParameter::BaseLevel(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-            TextureParameter::CompareFunc(_) => WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
-            TextureParameter::CompareMode(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
-            TextureParameter::MaxLevel(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
-            TextureParameter::MaxLod(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
-            TextureParameter::MinLod(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
+            TextureParameter::MAG_FILTER(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+            TextureParameter::MIN_FILTER(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+            TextureParameter::WRAP_S(_) => WebGl2RenderingContext::TEXTURE_WRAP_S,
+            TextureParameter::WRAP_T(_) => WebGl2RenderingContext::TEXTURE_WRAP_T,
+            TextureParameter::WRAP_R(_) => WebGl2RenderingContext::TEXTURE_WRAP_R,
+            TextureParameter::BASE_LEVEL(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
+            TextureParameter::COMPARE_FUNC(_) => WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
+            TextureParameter::COMPARE_MODE(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
+            TextureParameter::MAX_LEVEL(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
+            TextureParameter::MAX_LOD(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
+            TextureParameter::MIN_LOD(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
         }
     }
 }

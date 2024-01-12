@@ -6,8 +6,8 @@ use crate::{
     bounding::Culling,
     entity::Entity,
     render::{
-        pp::{Executor, ResourceKey, Resources, State},
-        webgl::error::Error,
+        pp::{Executor, ResourceKey, Resources},
+        webgl::{error::Error, state::FrameState},
     },
     scene::Scene,
 };
@@ -66,11 +66,13 @@ impl StandardEntitiesCollector {
 }
 
 impl Executor for StandardEntitiesCollector {
+    type State = FrameState;
+
     type Error = Error;
 
     fn execute(
         &mut self,
-        state: &mut State,
+        state: &mut Self::State,
         scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {

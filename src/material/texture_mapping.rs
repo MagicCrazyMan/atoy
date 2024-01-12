@@ -3,21 +3,19 @@ use std::{any::Any, borrow::Cow};
 use crate::{
     entity::Entity,
     event::EventAgency,
-    render::{
-        pp::State,
-        webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            texture::{
-                TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
-                TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-                TexturePixelStorage, TextureUnit, TextureWrapMethod,
-            },
-            uniform::{UniformBinding, UniformBlockValue, UniformValue},
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        state::FrameState,
+        texture::{
+            TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
+            TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+            TexturePixelStorage, TextureUnit, TextureWrapMethod,
         },
+        uniform::{UniformBinding, UniformBlockValue, UniformValue},
     },
 };
 
-use super::{loader::TextureLoader, Material, MaterialSource, Transparency};
+use super::{loader::TextureLoader, StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -44,10 +42,10 @@ impl TextureMaterial {
                         true,
                     ),
                     params: vec![
-                        TextureParameter::MinFilter(TextureMinificationFilter::LinearMipmapLinear),
-                        TextureParameter::MagFilter(TextureMagnificationFilter::Linear),
-                        TextureParameter::WrapS(TextureWrapMethod::MirroredRepeat),
-                        TextureParameter::WrapT(TextureWrapMethod::MirroredRepeat),
+                        TextureParameter::MIN_FILTER(TextureMinificationFilter::LinearMipmapLinear),
+                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::Linear),
+                        TextureParameter::WRAP_S(TextureWrapMethod::MirroredRepeat),
+                        TextureParameter::WRAP_T(TextureWrapMethod::MirroredRepeat),
                     ],
                     unit: TextureUnit::TEXTURE0,
                 }
@@ -57,9 +55,9 @@ impl TextureMaterial {
     }
 }
 
-impl Material for TextureMaterial {
-    fn source(&self) -> MaterialSource {
-        MaterialSource::new(
+impl StandardMaterial for TextureMaterial {
+    fn source(&self) -> StandardMaterialSource {
+        StandardMaterialSource::new(
             Cow::Borrowed("TextureMaterial"),
             None,
             Cow::Borrowed(include_str!("./shaders/texture_process_frag.glsl")),
@@ -74,7 +72,7 @@ impl Material for TextureMaterial {
                 UniformBinding::ModelMatrix,
                 UniformBinding::NormalMatrix,
                 UniformBinding::Transparency,
-                UniformBinding::FromMaterial("u_DiffuseSampler"),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseSampler")),
             ],
             vec![],
             vec![],
@@ -116,7 +114,7 @@ impl Material for TextureMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &mut State, _: &Entity) {
+    fn prepare(&mut self, _: &mut FrameState, _: &Entity) {
         self.diffuse_texture.load();
     }
 }

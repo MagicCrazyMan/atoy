@@ -13,7 +13,7 @@ use crate::{
     bounding::CullingBoundingVolume,
     event::EventAgency,
     geometry::Geometry,
-    material::Material,
+    material::StandardMaterial,
     render::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
@@ -30,7 +30,7 @@ struct Inner {
     uniform_blocks_values: HashMap<String, UniformBlockValue>,
     properties: HashMap<String, Box<dyn Any>>,
     geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn Material>>,
+    material: Option<Box<dyn StandardMaterial>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -220,11 +220,11 @@ impl Entity {
         }
     }
 
-    pub fn material(&self) -> Option<&dyn Material> {
+    pub fn material(&self) -> Option<&dyn StandardMaterial> {
         self.inner().material.as_deref()
     }
 
-    pub fn material_mut(&mut self) -> Option<&mut dyn Material> {
+    pub fn material_mut(&mut self) -> Option<&mut dyn StandardMaterial> {
         match &mut self.inner_mut().material {
             Some(material) => Some(&mut **material),
             None => None,
@@ -255,11 +255,11 @@ impl Entity {
 
     pub fn set_material<M>(&mut self, material: Option<M>)
     where
-        M: Material + 'static,
+        M: StandardMaterial + 'static,
     {
         self.undelegate_event(DelegateKind::Material);
         self.inner_mut().material =
-            material.map(|material| Box::new(material) as Box<dyn Material>);
+            material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
         self.runtime_mut().dirty = true;
         self.delegate_event(DelegateKind::Material);
         self.runtime()

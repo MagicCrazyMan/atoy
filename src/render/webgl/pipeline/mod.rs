@@ -9,7 +9,7 @@ pub mod preparation;
 use gl_matrix4rust::vec4::Vec4;
 
 use crate::{
-    render::pp::{GraphPipeline, ItemKey, Pipeline, ResourceKey, State},
+    render::pp::{GraphPipeline, ItemKey, Pipeline, ResourceKey},
     scene::Scene,
 };
 
@@ -17,16 +17,16 @@ use self::{
     collector::{StandardEntitiesCollector, DEFAULT_CULLING_ENABLED, DEFAULT_SORTING_ENABLED},
     composer::{StandardComposer, DEFAULT_CLEAR_COLOR},
     drawer::{
-        HdrToneMappingType, StandardDrawer, DEFAULT_HDR_ENABLED, DEFAULT_HDR_TONE_MAPPING_TYPE,
-        DEFAULT_MULTISAMPLE, DEFAULT_BLOOM_ENABLED,
+        HdrToneMappingType, StandardDrawer, DEFAULT_BLOOM_ENABLED, DEFAULT_HDR_ENABLED,
+        DEFAULT_HDR_TONE_MAPPING_TYPE, DEFAULT_MULTISAMPLE,
     },
     preparation::StandardPreparation,
 };
 
-use super::error::Error;
+use super::{error::Error, state::FrameState};
 
 pub struct StandardPipeline {
-    pipeline: GraphPipeline<Error>,
+    pipeline: GraphPipeline<FrameState, Error>,
     enable_culling_key: ResourceKey<bool>,
     enable_sorting_key: ResourceKey<bool>,
     clear_color_key: ResourceKey<Vec4>,
@@ -180,8 +180,6 @@ impl StandardPipeline {
     pub fn new() -> Self {
         let preparation_key = ItemKey::new_uuid();
         let collector_key = ItemKey::new_uuid();
-        // let picking = ItemKey::new_uuid();
-        // let outlining = ItemKey::new_uuid();
         let drawer_key = ItemKey::new_uuid();
         let composer_key = ItemKey::new_uuid();
 
@@ -193,9 +191,6 @@ impl StandardPipeline {
         let hdr_key = ResourceKey::new_persist_uuid();
         let hdr_tone_mapping_type_key = ResourceKey::new_persist_uuid();
         let collected_entities_key = ResourceKey::new_runtime_uuid();
-        // let picked_entity = ResourceKey::new_runtime_uuid();
-        // let picked_position = ResourceKey::new_runtime_uuid();
-        // let outline_texture = ResourceKey::new_runtime_uuid();
         let standard_draw_texture_key = ResourceKey::new_runtime_uuid();
 
         let mut pipeline = GraphPipeline::new();
@@ -208,19 +203,6 @@ impl StandardPipeline {
                 Some(enable_sorting_key.clone()),
             ),
         );
-        // pipeline.add_executor(
-        //     picking.clone(),
-        //     Picking::new(
-        //         collected_entities.clone(),
-        //         in_window_position,
-        //         picked_entity.clone(),
-        //         picked_position.clone(),
-        //     ),
-        // );
-        // pipeline.add_executor(
-        //     outlining.clone(),
-        //     Outlining::new(picked_entity, outline_texture.clone()),
-        // );
         pipeline.add_executor(
             drawer_key.clone(),
             StandardDrawer::new(
@@ -241,8 +223,6 @@ impl StandardPipeline {
         );
 
         // safely unwraps
-        // pipeline.connect(&collector, &picking).unwrap();
-        // pipeline.connect(&picking, &outlining).unwrap();
         pipeline.connect(&collector_key, &preparation_key).unwrap();
         pipeline.connect(&preparation_key, &drawer_key).unwrap();
         pipeline.connect(&drawer_key, &composer_key).unwrap();
@@ -261,9 +241,11 @@ impl StandardPipeline {
 }
 
 impl Pipeline for StandardPipeline {
+    type State = FrameState;
+
     type Error = Error;
 
-    fn execute(&mut self, state: &mut State, scene: &mut Scene) -> Result<(), Self::Error> {
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
         self.pipeline.execute(state, scene)
     }
 }

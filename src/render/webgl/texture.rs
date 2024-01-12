@@ -285,49 +285,20 @@ pub enum TextureCompareMode {
     CompareRefToTexture,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TextureParameter {
-    MagFilter(TextureMagnificationFilter),
-    MinFilter(TextureMinificationFilter),
-    WrapS(TextureWrapMethod),
-    WrapT(TextureWrapMethod),
-    WrapR(TextureWrapMethod),
-    BaseLevel(GLint),
-    CompareFunc(TextureCompareFunction),
-    CompareMode(TextureCompareMode),
-    MaxLevel(GLint),
-    MaxLod(GLfloat),
-    MinLod(GLfloat),
-}
-
-impl TextureParameter {
-    pub fn tex_parameteri(&self, gl: &WebGl2RenderingContext, target: GLenum) {
-        match self {
-            TextureParameter::MagFilter(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)
-            }
-            TextureParameter::MinFilter(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)
-            }
-            TextureParameter::WrapS(v)
-            | TextureParameter::WrapT(v)
-            | TextureParameter::WrapR(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)
-            }
-            TextureParameter::CompareFunc(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)
-            }
-            TextureParameter::CompareMode(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), v.gl_enum() as GLint)
-            }
-            TextureParameter::BaseLevel(v) | TextureParameter::MaxLevel(v) => {
-                gl.tex_parameteri(target, self.gl_enum(), *v)
-            }
-            TextureParameter::MaxLod(v) | TextureParameter::MinLod(v) => {
-                gl.tex_parameterf(target, self.gl_enum(), *v)
-            }
-        }
-    }
+    MAG_FILTER(TextureMagnificationFilter),
+    MIN_FILTER(TextureMinificationFilter),
+    WRAP_S(TextureWrapMethod),
+    WRAP_T(TextureWrapMethod),
+    WRAP_R(TextureWrapMethod),
+    BASE_LEVEL(GLint),
+    COMPARE_FUNC(TextureCompareFunction),
+    COMPARE_MODE(TextureCompareMode),
+    MAX_LEVEL(GLint),
+    MAX_LOD(GLfloat),
+    MIN_LOD(GLfloat),
 }
 
 pub enum TextureSource {

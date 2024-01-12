@@ -5,16 +5,14 @@ use gl_matrix4rust::vec3::{AsVec3, Vec3};
 use crate::{
     entity::Entity,
     event::EventAgency,
-    render::{
-        pp::State,
-        webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            uniform::{UniformBinding, UniformBlockValue, UniformValue},
-        },
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        state::FrameState,
+        uniform::{UniformBinding, UniformBlockValue, UniformValue},
     },
 };
 
-use super::{Material, MaterialSource, Transparency};
+use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -53,9 +51,9 @@ impl SolidColorMaterial {
     }
 }
 
-impl Material for SolidColorMaterial {
-    fn source(&self) -> MaterialSource {
-        MaterialSource::new(
+impl StandardMaterial for SolidColorMaterial {
+    fn source(&self) -> StandardMaterialSource {
+        StandardMaterialSource::new(
             Cow::Borrowed("SolidColorMaterial"),
             None,
             Cow::Borrowed(include_str!("./shaders/solid_color_process_frag.glsl")),
@@ -69,7 +67,7 @@ impl Material for SolidColorMaterial {
                 UniformBinding::ModelMatrix,
                 UniformBinding::NormalMatrix,
                 UniformBinding::Transparency,
-                UniformBinding::FromMaterial("u_Color"),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
             ],
             vec![],
             vec![],
@@ -99,7 +97,7 @@ impl Material for SolidColorMaterial {
         None
     }
 
-    fn prepare(&mut self, _: &mut State, _: &Entity) {}
+    fn prepare(&mut self, _: &mut FrameState, _: &Entity) {}
 
     fn changed_event(&self) -> &EventAgency<()> {
         &self.changed_event

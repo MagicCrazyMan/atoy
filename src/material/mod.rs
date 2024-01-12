@@ -5,17 +5,14 @@ use rand::distributions::{Distribution, Standard};
 use crate::{
     entity::Entity,
     event::EventAgency,
-    render::{
-        pp::State,
-        webgl::{
-            attribute::{AttributeBinding, AttributeValue},
-            program::{ProgramSource, ShaderSource},
-            shader::{ShaderBuilder, ShaderType},
-            uniform::{
-                UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-                UniformValue,
-            },
-        },
+    render::webgl::{
+        attribute::{AttributeBinding, AttributeValue},
+        program::{ProgramSource, ShaderSource},
+        shader::{ShaderBuilder, ShaderType},
+        uniform::{
+            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
+            UniformValue,
+        }, state::FrameState,
     },
 };
 
@@ -55,16 +52,16 @@ impl Transparency {
     }
 }
 
-pub trait Material {
-    /// Returns [`MaterialSource`] of this material.
-    fn source(&self) -> MaterialSource;
+pub trait StandardMaterial {
+    /// Returns [`StandardMaterialSource`] of this material.
+    fn source(&self) -> StandardMaterialSource;
 
     /// Returns `true` if material is ready for drawing.
     /// Drawer skips entity drawing if material is not ready.
     fn ready(&self) -> bool;
 
     /// Prepares material.
-    fn prepare(&mut self, state: &mut State, entity: &Entity);
+    fn prepare(&mut self, state: &mut FrameState, entity: &Entity);
 
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
@@ -90,7 +87,7 @@ pub trait Material {
 /// material implemented under this trait gains the abilities of
 /// drawing basic effects, such as lighting, gamma correction and etc.
 #[derive(Clone)]
-pub struct MaterialSource {
+pub struct StandardMaterialSource {
     name: Cow<'static, str>,
     vertex_process: Option<Cow<'static, str>>,
     fragment_process: Cow<'static, str>,
@@ -102,7 +99,7 @@ pub struct MaterialSource {
     uniform_block_bindings: Vec<UniformBlockBinding>,
 }
 
-impl MaterialSource {
+impl StandardMaterialSource {
     /// Constructs a new material source.
     pub fn new(
         name: Cow<'static, str>,
@@ -178,13 +175,15 @@ impl MaterialSource {
 static DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
     Cow::Borrowed(include_str!("./shaders/default_process_vert.glsl"));
 
-impl ProgramSource for MaterialSource {
+impl ProgramSource for StandardMaterialSource {
     fn name(&self) -> Cow<'static, str> {
         self.name()
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
-        let vertex_process = self.vertex_process().unwrap_or(DEFAULT_VERTEX_PROCESS.clone());
+        let vertex_process = self
+            .vertex_process()
+            .unwrap_or(DEFAULT_VERTEX_PROCESS.clone());
         let fragment_process = self.fragment_process();
         vec![
             ShaderSource::Builder(ShaderBuilder::new(

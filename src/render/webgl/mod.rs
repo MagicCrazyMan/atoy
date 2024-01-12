@@ -17,6 +17,7 @@ use self::{
     buffer::{BufferDescriptor, BufferSource, BufferStore, BufferUsage, MemoryPolicy},
     error::Error,
     program::ProgramStore,
+    state::FrameState,
     texture::TextureStore,
     uniform::{
         UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
@@ -40,10 +41,7 @@ use self::{
     },
 };
 
-use super::{
-    pp::{Pipeline, State},
-    Render,
-};
+use super::{pp::Pipeline, Render};
 
 pub mod attribute;
 pub mod buffer;
@@ -56,10 +54,10 @@ pub mod pipeline;
 pub mod program;
 pub mod renderbuffer;
 pub mod shader;
+pub mod state;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
-mod context;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]
@@ -194,7 +192,6 @@ impl WebGL2Render {
             ),
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
-            // buffer_store: BufferStore::with_max_memory(gl.clone(), 1000),
             texture_store: TextureStore::new(gl.clone()),
             gl,
             canvas,
@@ -576,11 +573,13 @@ impl WebGL2Render {
 }
 
 impl Render for WebGL2Render {
+    type State = FrameState;
+
     type Error = Error;
 
     fn render(
         &mut self,
-        pipeline: &mut (dyn Pipeline<Error = Self::Error> + 'static),
+        pipeline: &mut (dyn Pipeline<State = Self::State, Error = Self::Error> + 'static),
         camera: &mut (dyn Camera + 'static),
         scene: &mut Scene,
         timestamp: f64,
@@ -588,11 +587,11 @@ impl Render for WebGL2Render {
         self.update_universal_ubo(camera, scene, timestamp);
         self.update_lights_ubo(scene);
 
-        let mut state = State::new(
+        let mut state = FrameState::new(
             timestamp,
             camera,
-            &mut self.gl,
-            &mut self.canvas,
+            self.gl.clone(),
+            self.canvas.clone(),
             &mut self.universal_ubo,
             &mut self.lights_ubo,
             &mut self.program_store,
@@ -695,18 +694,18 @@ impl CanvasChangedEvent {
     }
 }
 
-pub struct RenderEvent(NonNull<State>);
+pub struct RenderEvent(NonNull<FrameState>);
 
 impl RenderEvent {
-    fn new(state: &mut State) -> Self {
+    fn new(state: &mut FrameState) -> Self {
         Self(unsafe { NonNull::new_unchecked(state) })
     }
 
-    pub fn state(&self) -> &State {
+    pub fn state(&self) -> &FrameState {
         unsafe { self.0.as_ref() }
     }
 
-    pub fn state_mut(&mut self) -> &mut State {
+    pub fn state_mut(&mut self) -> &mut FrameState {
         unsafe { self.0.as_mut() }
     }
 }
