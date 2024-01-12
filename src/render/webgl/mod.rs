@@ -59,6 +59,7 @@ pub mod shader;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
+mod context;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]
@@ -115,7 +116,6 @@ pub enum WebGL2ContextPowerPerformance {
 pub struct WebGL2Render {
     gl: WebGl2RenderingContext,
     canvas: HtmlCanvasElement,
-    gamma: f64,
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
     program_store: ProgramStore,
@@ -192,7 +192,6 @@ impl WebGL2Render {
                 BufferUsage::DynamicDraw,
                 MemoryPolicy::Unfree,
             ),
-            gamma: 2.2,
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
             // buffer_store: BufferStore::with_max_memory(gl.clone(), 1000),
