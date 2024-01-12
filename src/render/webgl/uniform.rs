@@ -9,7 +9,6 @@ use super::{
     buffer::BufferDescriptor,
     conversion::{GLintptr, GLsizeiptr, ToGlEnum},
     program::ProgramItem,
-    shader::VariableDataType,
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
@@ -26,10 +25,6 @@ pub static UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
 pub static UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
 /// Uniform Buffer Object bytes length for `u_EnableLighting`.
 pub static UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH: u32 = 4;
-/// Uniform Buffer Object bytes length for `u_GammaCorrection`.
-pub static UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH: u32 = 4;
-/// Uniform Buffer Object bytes length for `u_GammaCorrectionInverse`.
-pub static UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH: u32 = 4;
 /// Uniform Buffer Object bytes length for `u_CameraPosition`.
 pub static UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
 /// Uniform Buffer Object bytes length for `u_ViewMatrix`.
@@ -43,10 +38,6 @@ pub static UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
 pub static UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
 /// Uniform Buffer Object bytes offset for `u_EnableLighting`.
 pub static UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET: u32 = 4;
-/// Uniform Buffer Object bytes offset for `u_GammaCorrection`.
-pub static UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET: u32 = 8;
-/// Uniform Buffer Object bytes offset for `u_GammaCorrectionInverse`.
-pub static UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET: u32 = 12;
 /// Uniform Buffer Object bytes offset for `u_CameraPosition`.
 pub static UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
 /// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
@@ -183,25 +174,6 @@ impl UniformBinding {
             | UniformBinding::FromEntity(name) => name,
         }
     }
-
-    /// Returns [`VariableDataType`] for non-custom bindings.
-    pub fn data_type(&self) -> Option<VariableDataType> {
-        match self {
-            UniformBinding::RenderTime => Some(VariableDataType::Float),
-            UniformBinding::CanvasSize => Some(VariableDataType::FloatVec2),
-            UniformBinding::DrawingBufferSize => Some(VariableDataType::FloatVec2),
-            UniformBinding::ModelMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::NormalMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::ViewMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::ProjMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::ViewProjMatrix => Some(VariableDataType::Mat4),
-            UniformBinding::CameraPosition => Some(VariableDataType::FloatVec3),
-            UniformBinding::Transparency => Some(VariableDataType::Float),
-            UniformBinding::FromGeometry(_)
-            | UniformBinding::FromMaterial(_)
-            | UniformBinding::FromEntity(_) => None,
-        }
-    }
 }
 
 /// Uniform block binding sources.
@@ -272,15 +244,6 @@ impl UniformStructuralBinding {
             UniformStructuralBinding::FromGeometry { array_len, .. }
             | UniformStructuralBinding::FromMaterial { array_len, .. }
             | UniformStructuralBinding::FromEntity { array_len, .. } => array_len.clone(),
-        }
-    }
-
-    /// Returns [`VariableDataType`] for non-custom bindings.
-    pub fn data_type(&self) -> Option<VariableDataType> {
-        match self {
-            UniformStructuralBinding::FromGeometry { .. }
-            | UniformStructuralBinding::FromMaterial { .. }
-            | UniformStructuralBinding::FromEntity { .. } => None,
         }
     }
 }

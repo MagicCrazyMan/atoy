@@ -10,7 +10,7 @@ use crate::{
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
             program::{ProgramSource, ShaderSource},
-            shader::{ShaderBuilder, ShaderType, Variable},
+            shader::{ShaderBuilder, ShaderType},
             uniform::{
                 UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
                 UniformValue,
@@ -19,12 +19,8 @@ use crate::{
     },
 };
 
-pub mod environment_mapping;
-pub mod icon;
 pub mod loader;
-pub mod multiple_textures_instanced;
 pub mod solid_color;
-pub mod solid_color_instanced;
 pub mod texture_mapping;
 
 /// Material transparency.
@@ -59,7 +55,7 @@ impl Transparency {
     }
 }
 
-pub trait Material: ProgramSource {
+pub trait Material: MaterialSource {
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
 
@@ -78,11 +74,7 @@ pub trait Material: ProgramSource {
 
     fn instanced(&self) -> Option<i32>;
 
-    /// Preparation before entering drawing stage.
-    ///
-    /// Depending on [`MaterialPolicy`](crate::render::webgl::pipeline::policy::MaterialPolicy),
-    /// `self` is not always extracted from entity. Thus, if you are not sure where the `self` from,
-    /// do not borrow material from entity.
+    /// Prepares material.
     fn prepare(&mut self, state: &mut State, entity: &Entity);
 
     fn changed_event(&self) -> &EventAgency<()>;
@@ -96,7 +88,7 @@ pub trait Material: ProgramSource {
 /// Standard material source implements [`ProgramSource`] in default,
 /// material implemented under this trait gains the abilities of
 /// drawing basic effects, such as lighting, gamma correction and etc.
-pub trait StandardMaterialSource {
+pub trait MaterialSource {
     /// Returns a material name.
     fn name(&self) -> Cow<'static, str>;
 
@@ -115,12 +107,6 @@ pub trait StandardMaterialSource {
     /// Returns custom fragment shader defines arguments.
     fn fragment_defines(&self) -> Vec<Cow<'static, str>>;
 
-    /// Returns custom vertex shader variables.
-    fn vertex_variables(&self) -> Vec<Variable>;
-
-    /// Returns custom fragment shader variables.
-    fn fragment_variables(&self) -> Vec<Variable>;
-
     /// Returns custom attribute bindings.
     fn attribute_bindings(&self) -> Vec<AttributeBinding>;
 
@@ -134,15 +120,19 @@ pub trait StandardMaterialSource {
     fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding>;
 }
 
-impl<T> ProgramSource for T
+impl<M> ProgramSource for M
 where
-    T: StandardMaterialSource,
+    M: MaterialSource,
 {
     fn name(&self) -> Cow<'static, str> {
         self.name()
     }
 
     fn sources(&self) -> Vec<ShaderSource> {
+        let vertex_process = self.vertex_process().unwrap_or(Cow::Borrowed(include_str!(
+            "./standard/default_process_vert.glsl"
+        )));
+        let fragment_process = self.fragment_process();
         vec![
             ShaderSource::Builder(ShaderBuilder::new(
                 ShaderType::Vertex,
@@ -152,11 +142,8 @@ where
                     Cow::Borrowed(include_str!("./standard/constants.glsl")),
                     Cow::Borrowed(include_str!("./standard/constants_vert.glsl")),
                 ],
-                self.vertex_variables(),
                 [
-                    self.vertex_process().unwrap_or(Cow::Borrowed(include_str!(
-                        "./standard/default_process_vert.glsl"
-                    ))),
+                    vertex_process,
                     Cow::Borrowed(include_str!("./standard/entry_vert.glsl")),
                 ],
             )),
@@ -168,9 +155,7 @@ where
                     Cow::Borrowed(include_str!("./standard/constants.glsl")),
                     Cow::Borrowed(include_str!("./standard/constants_frag.glsl")),
                 ],
-                self.fragment_variables(),
                 [
-                    Cow::Borrowed(include_str!("./standard/gamma.glsl")),
                     Cow::Borrowed(include_str!("./standard/lighting.glsl")),
                     self.fragment_process(),
                     Cow::Borrowed(include_str!("./standard/entry_frag.glsl")),

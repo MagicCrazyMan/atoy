@@ -9,7 +9,6 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            shader::Variable,
             uniform::{
                 UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
                 UniformValue,
@@ -18,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{Material, StandardMaterialSource, Transparency};
+use super::{Material, MaterialSource, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -57,17 +56,9 @@ impl SolidColorMaterial {
     }
 }
 
-impl StandardMaterialSource for SolidColorMaterial {
+impl MaterialSource for SolidColorMaterial {
     fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed("SolidColorMaterial")
-    }
-
-    fn vertex_variables(&self) -> Vec<Variable> {
-        vec![]
-    }
-
-    fn fragment_variables(&self) -> Vec<Variable> {
-        vec![]
     }
 
     fn vertex_defines(&self) -> Vec<Cow<'static, str>> {

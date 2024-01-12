@@ -7,12 +7,11 @@ use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     entity::Entity,
-    event::EventAgency,
     material::{Material, Transparency},
     render::{
         pp::{Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources, State},
         webgl::{
-            attribute::{bind_attributes, unbind_attributes, AttributeBinding, AttributeValue},
+            attribute::{bind_attributes, unbind_attributes, AttributeBinding},
             draw::draw,
             error::Error,
             framebuffer::{
@@ -22,10 +21,7 @@ use crate::{
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
-            uniform::{
-                bind_uniforms, unbind_uniforms, UniformBinding, UniformBlockBinding,
-                UniformBlockValue, UniformStructuralBinding, UniformValue,
-            },
+            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
     },
     scene::Scene,
@@ -255,7 +251,7 @@ impl Picking {
                 ],
                 None,
             ),
-            material: PickingMaterial { index: 0 },
+            material: PickingMaterial,
         }
     }
 }
@@ -320,7 +316,8 @@ impl Executor for Picking {
         }
 
         // prepare material
-        let program_item = state.program_store_mut().use_program(&self.material)?;
+        let program_item = state.program_store_mut().use_program(&PickingMaterial)?;
+        let index_location = program_item.uniform_locations().get(&INDEX_UNIFORM);
 
         // render each entity by material
         for (index, entity) in entities.iter().enumerate() {
@@ -339,15 +336,11 @@ impl Executor for Picking {
             }
 
             // sets index and window position for current draw
-            self.material.index = (index + 1) as u32;
-
             let bound_attributes =
                 bind_attributes(state, &entity, geometry, &self.material, &program_item);
-            let bound_uniforms =
-                bind_uniforms(state, &entity, geometry, &self.material, &program_item);
-            draw(state, geometry, &self.material);
+            state.gl().uniform1ui(index_location, (index + 1) as u32);
+            draw(state, geometry, &PickingMaterial);
             unbind_attributes(state, bound_attributes);
-            unbind_uniforms(state, bound_uniforms);
         }
 
         Ok(())
@@ -362,9 +355,9 @@ impl Executor for Picking {
     }
 }
 
-struct PickingMaterial {
-    index: u32,
-}
+static INDEX_UNIFORM: UniformBinding = UniformBinding::FromMaterial("u_Index");
+
+struct PickingMaterial;
 
 impl ProgramSource for PickingMaterial {
     fn name(&self) -> Cow<'static, str> {
@@ -386,7 +379,7 @@ impl ProgramSource for PickingMaterial {
         vec![
             UniformBinding::ModelMatrix,
             UniformBinding::ViewProjMatrix,
-            UniformBinding::FromMaterial("u_Index"),
+            INDEX_UNIFORM,
         ]
     }
 
@@ -397,47 +390,4 @@ impl ProgramSource for PickingMaterial {
     fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
         vec![]
     }
-}
-
-impl Material for PickingMaterial {
-    fn transparency(&self) -> Transparency {
-        Transparency::Opaque
-    }
-
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
-        None
-    }
-
-    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
-        match name {
-            "u_Index" => Some(UniformValue::UnsignedInteger1(self.index)),
-            _ => None,
-        }
-    }
-
-    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
-        None
-    }
-
-    fn ready(&self) -> bool {
-        true
-    }
-
-    fn instanced(&self) -> Option<i32> {
-        None
-    }
-
-    fn changed_event(&self) -> &EventAgency<()> {
-        unreachable!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn prepare(&mut self, _: &mut State, _: &Entity) {}
 }

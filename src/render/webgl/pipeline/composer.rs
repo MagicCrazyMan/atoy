@@ -60,7 +60,7 @@ impl Executor for StandardComposer {
         _: &mut Scene,
         resources: &mut Resources,
     ) -> Result<bool, Self::Error> {
-        let program_item = state.program_store_mut().use_program(&ComposerMaterial)?;
+        let program_item = state.program_store_mut().use_program(&ComposerProgram)?;
 
         let clear_color = self.clear_color(resources);
         state.gl().clear_color(
@@ -145,11 +145,11 @@ impl Executor for StandardComposer {
     }
 }
 
-struct ComposerMaterial;
+struct ComposerProgram;
 
-impl ProgramSource for ComposerMaterial {
+impl ProgramSource for ComposerProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("ComposerMaterial")
+        Cow::Borrowed("ComposerProgram")
     }
 
     fn sources(&self) -> Vec<ShaderSource> {

@@ -6,7 +6,6 @@ use super::{
     buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
     conversion::{GLboolean, GLint, GLintptr, GLsizei, GLuint, ToGlEnum},
     program::ProgramItem,
-    shader::VariableDataType,
 };
 
 /// Available attribute values.
@@ -67,18 +66,6 @@ impl AttributeBinding {
             | AttributeBinding::FromEntity(name) => name,
         }
     }
-
-    /// Returns [`VariableDataType`] for non-custom bindings.
-    pub fn data_type(&self) -> Option<VariableDataType> {
-        match self {
-            AttributeBinding::GeometryPosition => Some(VariableDataType::FloatVec4),
-            AttributeBinding::GeometryNormal => Some(VariableDataType::FloatVec4),
-            AttributeBinding::GeometryTextureCoordinate => Some(VariableDataType::FloatVec2),
-            AttributeBinding::FromGeometry(_)
-            | AttributeBinding::FromMaterial(_)
-            | AttributeBinding::FromEntity(_) => None,
-        }
-    }
 }
 
 pub struct BoundAttribute {
@@ -99,11 +86,11 @@ pub fn bind_attributes(
     let mut bounds = Vec::with_capacity(program_item.attribute_locations().len());
     for (binding, location) in program_item.attribute_locations() {
         let value = match binding {
-            AttributeBinding::GeometryPosition => (*geometry).vertices(),
-            AttributeBinding::GeometryTextureCoordinate => (*geometry).texture_coordinates(),
-            AttributeBinding::GeometryNormal => (*geometry).normals(),
-            AttributeBinding::FromGeometry(name) => (*geometry).attribute_value(name),
-            AttributeBinding::FromMaterial(name) => (*material).attribute_value(name, entity),
+            AttributeBinding::GeometryPosition => geometry.vertices(),
+            AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
+            AttributeBinding::GeometryNormal => geometry.normals(),
+            AttributeBinding::FromGeometry(name) => geometry.attribute_value(name),
+            AttributeBinding::FromMaterial(name) => material.attribute_value(name, entity),
             AttributeBinding::FromEntity(name) => entity.attribute_values().get(*name).cloned(),
         };
         let Some(value) = value else {

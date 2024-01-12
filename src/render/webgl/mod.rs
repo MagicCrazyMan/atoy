@@ -29,10 +29,6 @@ use self::{
         UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
-        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH,
-        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET,
-        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH,
-        UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH,
         UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
         UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH,
@@ -402,22 +398,6 @@ impl WebGL2Render {
             UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH / 4,
         )
         .set_index(0, if scene.lighting_enabled() { 1.0 } else { 0.0 });
-
-        // u_GammaCorrection
-        Float32Array::new_with_byte_offset_and_length(
-            &data,
-            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_BYTES_LENGTH / 4,
-        )
-        .set_index(0, (1.0 / self.gamma) as f32);
-
-        // u_GammaCorrectionInverse
-        Float32Array::new_with_byte_offset_and_length(
-            &data,
-            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_GAMMA_CORRECTION_INVERSE_BYTES_LENGTH / 4,
-        )
-        .set_index(0, self.gamma as f32);
 
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(

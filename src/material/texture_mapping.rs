@@ -7,7 +7,6 @@ use crate::{
         pp::State,
         webgl::{
             attribute::{AttributeBinding, AttributeValue},
-            shader::Variable,
             texture::{
                 TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
                 TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
@@ -21,7 +20,7 @@ use crate::{
     },
 };
 
-use super::{loader::TextureLoader, Material, StandardMaterialSource, Transparency};
+use super::{loader::TextureLoader, Material, MaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -61,17 +60,9 @@ impl TextureMaterial {
     }
 }
 
-impl StandardMaterialSource for TextureMaterial {
+impl MaterialSource for TextureMaterial {
     fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed("TextureMaterial")
-    }
-
-    fn vertex_variables(&self) -> Vec<Variable> {
-        vec![]
-    }
-
-    fn fragment_variables(&self) -> Vec<Variable> {
-        vec![]
     }
 
     fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
