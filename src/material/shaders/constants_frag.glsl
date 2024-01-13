@@ -9,10 +9,10 @@ in vec3 v_NormalWS;
 in vec2 v_TexCoord;
 
 uniform float u_Transparency;
-uniform vec3 u_BloomThreshold;
 
 layout(location = 0) out vec4 o_Color;
 #ifdef BLOOM
+uniform vec3 u_BloomThreshold;
 layout(location = 1) out vec4 o_BloomColor;
 #endif
 

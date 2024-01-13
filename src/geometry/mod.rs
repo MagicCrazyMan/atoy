@@ -11,7 +11,7 @@ use crate::{
     event::EventAgency,
     render::webgl::{
         attribute::AttributeValue,
-        draw::{Draw, CullFace},
+        draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
     },
 };

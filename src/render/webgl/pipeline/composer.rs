@@ -6,11 +6,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::{
     render::{
         webgl::{
-            attribute::AttributeBinding,
             error::Error,
             program::{ProgramSource, ShaderSource},
             state::FrameState,
-            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
         Executor, ResourceKey, Resources,
     },
@@ -80,9 +78,10 @@ impl Executor for StandardComposer {
             WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
         );
 
-        state
-            .gl()
-            .uniform1i(program.uniform_locations().get(TEXTURE), 0);
+        state.gl().uniform1i(
+            program.get_or_retrieve_uniform_location(TEXTURE).as_ref(),
+            0,
+        );
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
         Ok(true)
@@ -160,21 +159,5 @@ impl ProgramSource for ComposerProgram {
             ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/composer.frag"))),
         ]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![UniformBinding::Manual(Cow::Borrowed(TEXTURE))]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
     }
 }

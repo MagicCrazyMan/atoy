@@ -5,13 +5,14 @@ use crate::{
     event::EventAgency,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
+        program::ProgramSource,
         state::FrameState,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
             TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
             TexturePixelStorage, TextureUnit, TextureWrapMethod,
         },
-        uniform::{UniformBinding, UniformBlockValue, UniformValue, UniformStructuralBinding, UniformBlockBinding}, program::ProgramSource,
+        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
 
@@ -64,18 +65,39 @@ impl StandardMaterial for TextureMaterial {
         self.diffuse_texture.loaded()
     }
 
-    fn attribute_value(&self, _: &str, _: &Entity) -> Option<AttributeValue> {
+    fn attribute_bindings(&self) -> &[AttributeBinding] {
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
+            AttributeBinding::GeometryTextureCoordinate,
+        ]
+    }
+
+    fn uniform_bindings(&self) -> &[UniformBinding] {
+        &[
+            UniformBinding::ModelMatrix,
+            UniformBinding::NormalMatrix,
+            UniformBinding::Transparency,
+            UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseTexture")),
+        ]
+    }
+
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
         None
     }
 
-    fn uniform_value(&self, name: &str, _: &Entity) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
-            "u_DiffuseSampler" => self.diffuse_texture.texture(),
+            "u_DiffuseTexture" => self.diffuse_texture.texture(),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str, _: &Entity) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
         None
     }
 
@@ -122,31 +144,6 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
-        vec![]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
-            AttributeBinding::GeometryTextureCoordinate,
-        ]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::Transparency,
-            UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseSampler")),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
         vec![]
     }
 }

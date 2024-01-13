@@ -846,10 +846,11 @@ impl BufferStoreInner {
         &mut self,
         descriptor: &BufferDescriptor,
         binding: u32,
+        offset_and_size: Option<(i32, i32)>,
     ) -> Result<(), Error> {
         let new_binding = if let Some(id) = self.ubo_bindings.get(&binding) {
             if *id != descriptor.id() {
-                return Err(Error::UniformBufferObjectBindingIndexAlreadyBound(binding));
+                return Err(Error::UniformBufferObjectIndexAlreadyBound(binding));
             }
             false
         } else {
@@ -859,49 +860,23 @@ impl BufferStoreInner {
         let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
 
         if new_binding {
+            log::info!("new binding {}", binding);
             self.gl
                 .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-            self.gl.bind_buffer_base(
-                WebGl2RenderingContext::UNIFORM_BUFFER,
-                binding,
-                Some(&buffer),
-            );
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
-            self.ubo_bindings.insert(binding, descriptor.id());
-        }
-
-        Ok(())
-    }
-
-    fn bind_uniform_buffer_object_range(
-        &mut self,
-        descriptor: &BufferDescriptor,
-        offset: i32,
-        size: i32,
-        binding: u32,
-    ) -> Result<(), Error> {
-        let new_binding = if let Some(id) = self.ubo_bindings.get(&binding) {
-            if *id != descriptor.id() {
-                return Err(Error::UniformBufferObjectBindingIndexAlreadyBound(binding));
-            }
-            false
-        } else {
-            true
-        };
-
-        let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
-
-        if new_binding {
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-            self.gl.bind_buffer_range_with_i32_and_i32(
-                WebGl2RenderingContext::UNIFORM_BUFFER,
-                binding,
-                Some(&buffer),
-                offset,
-                size,
-            );
+            match offset_and_size {
+                Some((offset, size)) => self.gl.bind_buffer_range_with_i32_and_i32(
+                    WebGl2RenderingContext::UNIFORM_BUFFER,
+                    binding,
+                    Some(&buffer),
+                    offset,
+                    size,
+                ),
+                None => self.gl.bind_buffer_base(
+                    WebGl2RenderingContext::UNIFORM_BUFFER,
+                    binding,
+                    Some(&buffer),
+                ),
+            };
             self.gl
                 .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
             self.ubo_bindings.insert(binding, descriptor.id());
@@ -1167,23 +1142,11 @@ impl BufferStore {
         &mut self,
         descriptor: &BufferDescriptor,
         binding: u32,
+        offset_and_size: Option<(i32, i32)>,
     ) -> Result<(), Error> {
         self.0
             .borrow_mut()
-            .bind_uniform_buffer_object(descriptor, binding)
-    }
-
-    /// Binds a [`WebGlBuffer`] in range by a [`BufferDescriptor`] to a uniform buffer object mount point.
-    pub fn bind_uniform_buffer_object_range(
-        &mut self,
-        descriptor: &BufferDescriptor,
-        offset: i32,
-        size: i32,
-        binding: u32,
-    ) -> Result<(), Error> {
-        self.0
-            .borrow_mut()
-            .bind_uniform_buffer_object_range(descriptor, offset, size, binding)
+            .bind_uniform_buffer_object(descriptor, binding, offset_and_size)
     }
 
     /// Unbinds a uniform buffer object at mount point.

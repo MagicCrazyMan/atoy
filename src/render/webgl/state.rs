@@ -2,7 +2,9 @@ use std::ptr::NonNull;
 
 use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use log::warn;
-use web_sys::{js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext, WebGlUniformLocation};
+use web_sys::{
+    js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
+};
 
 use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial};
 
@@ -13,12 +15,9 @@ use super::{
     draw::Draw,
     error::Error,
     framebuffer::{Framebuffer, FramebufferDrawBuffer, RenderbufferProvider, TextureProvider},
-    program::ProgramStore,
+    program::{Program, ProgramStore},
     texture::{TextureParameter, TextureStore},
-    uniform::{
-        UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-        UniformValue,
-    },
+    uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
 pub struct BoundAttribute {
@@ -119,26 +118,40 @@ impl FrameState {
         unsafe { self.texture_store.as_mut() }
     }
 
+    /// Binds attribute values from a entity, geometry and material.
     pub fn bind_attributes(
         &mut self,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundAttribute>, Error> {
-        let program = self.program_store_mut().use_program(material.as_program_source())?;
+        let program = self
+            .program_store_mut()
+            .use_program(material.as_program_source())?;
 
-        let mut bounds = Vec::with_capacity(program.binding_attribute_locations().len());
-        for (binding, location) in program.binding_attribute_locations() {
+        let attribute_bindings = material.attribute_bindings();
+        let mut bounds = Vec::with_capacity(attribute_bindings.len());
+        for binding in attribute_bindings {
+            let Some(location) =
+                program.get_or_retrieve_attribute_locations(binding.variable_name())
+            else {
+                warn!(
+                    target: "BindAttributes",
+                    "failed to get attribute location {}",
+                    binding.variable_name()
+                );
+                continue;
+            };
+
             let value = match binding {
                 AttributeBinding::GeometryPosition => geometry.vertices(),
                 AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
                 AttributeBinding::GeometryNormal => geometry.normals(),
-                AttributeBinding::FromGeometry(name) => geometry.attribute_value(name),
-                AttributeBinding::FromMaterial(name) => material.attribute_value(name, entity),
+                AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
+                AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
                 AttributeBinding::FromEntity(name) => {
                     entity.attribute_values().get(name.as_ref()).cloned()
                 }
-                AttributeBinding::Manual(_) => None,
             };
             let Some(value) = value else {
                 warn!(
@@ -149,17 +162,24 @@ impl FrameState {
                 continue;
             };
 
-            let ba = self.bind_attribute(value, *location)?;
-            bounds.extend(ba);
+            match self.bind_attribute_value(location, value) {
+                Ok(ba) => bounds.extend(ba),
+                Err(err) => warn!(
+                    target: "BindUniforms",
+                    "failed to bind attribute value {}",
+                    err
+                ),
+            }
         }
 
         Ok(bounds)
     }
 
-    pub fn bind_attribute(
+    /// Binds an [`AttributeValue`] to an attribute.
+    pub fn bind_attribute_value(
         &mut self,
-        value: AttributeValue,
         location: u32,
+        value: AttributeValue,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let mut bounds = Vec::new();
         match value {
@@ -248,6 +268,18 @@ impl FrameState {
         Ok(bounds)
     }
 
+    pub fn bind_attribute_value_by_variable_name(
+        &mut self,
+        program: &mut Program,
+        variable_name: &str,
+        value: AttributeValue,
+    ) -> Result<Vec<BoundAttribute>, Error> {
+        let Some(location) = program.get_or_retrieve_attribute_locations(variable_name) else {
+            return Err(Error::NoSuchAttribute(variable_name.to_string()));
+        };
+        self.bind_attribute_value(location, value)
+    }
+
     /// Unbinds all attributes after draw calls.
     ///
     /// If you bind buffer attributes ever,
@@ -262,24 +294,38 @@ impl FrameState {
             self.buffer_store_mut().unuse_buffer(&descriptor);
         }
     }
-    /// Binds uniform data from a entity.
+
+    /// Binds uniform values from a entity, geometry and material.
     pub fn bind_uniforms(
         &mut self,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundUniform>, Error> {
-        let program = self.program_store_mut().use_program(material.as_program_source())?;
+        let program = self
+            .program_store_mut()
+            .use_program(material.as_program_source())?;
 
-        // binds simple uniforms
-        for (name, location) in program.binding_uniform_locations() {
-            let value = match name {
+        // binds uniforms
+        let uniform_bindings = material.uniform_bindings();
+        for binding in uniform_bindings {
+            let Some(location) = program.get_or_retrieve_uniform_location(binding.variable_name())
+            else {
+                warn!(
+                    target: "BindUniforms",
+                    "failed to get uniform location {}",
+                    binding.variable_name()
+                );
+                continue;
+            };
+
+            let value = match binding {
                 UniformBinding::ModelMatrix
                 | UniformBinding::ViewMatrix
                 | UniformBinding::ProjMatrix
                 | UniformBinding::NormalMatrix
                 | UniformBinding::ViewProjMatrix => {
-                    let data = match name {
+                    let data = match binding {
                         UniformBinding::ModelMatrix => entity.compose_model_matrix().to_gl(),
                         UniformBinding::NormalMatrix => entity.compose_normal_matrix().to_gl(),
                         UniformBinding::ViewMatrix => self.camera().view_matrix().to_gl(),
@@ -309,122 +355,73 @@ impl FrameState {
                     self.gl.drawing_buffer_width(),
                 ])),
                 UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
-                UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref(), entity),
+                UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
                 UniformBinding::FromEntity(name) => {
                     entity.uniform_values().get(name.as_ref()).cloned()
                 }
-                UniformBinding::Manual(_) => None,
             };
             let Some(value) = value else {
                 warn!(
                     target: "BindUniforms",
                     "no value specified for uniform {}",
-                    name.variable_name()
+                    binding.variable_name()
                 );
                 continue;
             };
 
-            self.bind_uniform_value(location, value);
-        }
-
-        // binds structural uniform, converts it to simple uniform bindings
-        for (binding, fields) in program.binding_uniform_structural_locations() {
-            let mut values = Vec::with_capacity(fields.len());
-            match binding {
-                UniformStructuralBinding::FromGeometry { .. } => {
-                    for (field, location) in fields {
-                        let value = geometry.uniform_value(field);
-                        if let Some(value) = value {
-                            values.push((location, value));
-                        }
-                    }
-                }
-                UniformStructuralBinding::FromMaterial { .. } => {
-                    for (field, location) in fields {
-                        let value = material.uniform_value(field, entity);
-                        if let Some(value) = value {
-                            values.push((location, value));
-                        }
-                    }
-                }
-                UniformStructuralBinding::FromEntity { .. } => {
-                    for (field, location) in fields {
-                        let value = entity.uniform_values().get(field).cloned();
-                        if let Some(value) = value {
-                            values.push((location, value));
-                        }
-                    }
-                }
-                UniformStructuralBinding::Manual { .. } => {}
+            if let Err(err) = self.bind_uniform_value(&location, value) {
+                warn!(
+                    target: "BindUniforms",
+                    "failed to bind uniform value {}",
+                    err
+                );
             };
-
-            for (location, value) in values {
-                self.bind_uniform_value(location, value);
-            }
         }
 
         // binds uniform blocks
-        let mut bounds = Vec::with_capacity(program.binding_uniform_block_indices().len());
-        for (binding, uniform_block_index) in program.binding_uniform_block_indices() {
+        let uniform_block_bindings = material.uniform_block_bindings();
+        let mut bounds = Vec::with_capacity(uniform_block_bindings.len());
+        for binding in uniform_block_bindings {
+            let uniform_block_index =
+                program.get_or_retrieve_uniform_block_index(binding.block_name());
+
             let value = match binding {
-                UniformBlockBinding::FromGeometry(name) => geometry.uniform_block_value(name),
+                UniformBlockBinding::FromGeometry(name) => {
+                    geometry.uniform_block_value(name.as_ref())
+                }
                 UniformBlockBinding::FromMaterial(name) => {
-                    material.uniform_block_value(name, entity)
+                    material.uniform_block_value(name.as_ref())
                 }
                 UniformBlockBinding::FromEntity(name) => {
                     entity.uniform_blocks_values().get(name.as_ref()).cloned()
                 }
-                UniformBlockBinding::Manual(_) => None,
             };
             let Some(value) = value else {
+                warn!(
+                    target: "BindUniforms",
+                    "no value specified for uniform block {}",
+                    binding.block_name()
+                );
                 continue;
             };
 
-            match value {
-                UniformBlockValue::BufferBase {
-                    descriptor,
-                    binding,
-                } => {
-                    self.buffer_store_mut()
-                        .bind_uniform_buffer_object(&descriptor, binding)?;
-
-                    self.gl.uniform_block_binding(
-                        program.program(),
-                        *uniform_block_index,
-                        binding,
-                    );
-
-                    bounds.push(BoundUniform { descriptor });
-                }
-                UniformBlockValue::BufferRange {
-                    descriptor,
-                    offset,
-                    size,
-                    binding,
-                } => {
-                    self.buffer_store_mut().bind_uniform_buffer_object_range(
-                        &descriptor,
-                        offset,
-                        size,
-                        binding,
-                    )?;
-
-                    self.gl.uniform_block_binding(
-                        program.program(),
-                        *uniform_block_index,
-                        binding,
-                    );
-
-                    bounds.push(BoundUniform { descriptor });
-                }
-            }
+            bounds.push(self.bind_uniform_block_value(
+                program.program(),
+                uniform_block_index,
+                value,
+            )?);
         }
 
         Ok(bounds)
     }
 
-    /// Binds a [`UniformValue`] to a [`WebGlUniformLocation`]
-    pub fn bind_uniform_value(&mut self, location: &WebGlUniformLocation, value: UniformValue) {
+    /// Binds a [`UniformValue`] to a uniform.
+    pub fn bind_uniform_value(
+        &mut self,
+        location: &WebGlUniformLocation,
+        value: UniformValue,
+    ) -> Result<(), Error> {
+        // let location = s
         match value {
             UniformValue::Bool(v) => {
                 if v {
@@ -503,17 +500,7 @@ impl FrameState {
                 // active texture
                 self.gl.active_texture(unit.gl_enum());
 
-                let (target, texture) = match self.texture_store_mut().use_texture(&descriptor) {
-                    Ok(texture) => texture,
-                    Err(err) => {
-                        warn!(
-                            target: "BindUniforms",
-                            "use texture store error: {}",
-                            err
-                        );
-                        return;
-                    }
-                };
+                let (target, texture) = self.texture_store_mut().use_texture(&descriptor)?;
                 let texture = texture.clone();
 
                 self.gl.uniform1i(Some(location), unit.unit_index());
@@ -550,6 +537,67 @@ impl FrameState {
                 });
             }
         };
+        Ok(())
+    }
+
+    /// Binds a [`UniformValue`] to a uniform by variable name.
+    pub fn bind_uniform_value_by_variable_name(
+        &mut self,
+        program: &mut Program,
+        variable_name: &str,
+        value: UniformValue,
+    ) -> Result<(), Error> {
+        let Some(location) = program.get_or_retrieve_uniform_location(variable_name) else {
+            return Err(Error::NoSuchUniform(variable_name.to_string()));
+        };
+        self.bind_uniform_value(&location, value)
+    }
+
+    /// Binds a [`UniformBlockValue`] to a uniform block.
+    pub fn bind_uniform_block_value(
+        &mut self,
+        program: &WebGlProgram,
+        uniform_block_index: u32,
+        value: UniformBlockValue,
+    ) -> Result<BoundUniform, Error> {
+        let (descriptor, binding) = match value {
+            UniformBlockValue::BufferBase {
+                descriptor,
+                binding,
+            } => {
+                self.buffer_store_mut()
+                    .bind_uniform_buffer_object(&descriptor, binding, None)?;
+                (descriptor, binding)
+            }
+            UniformBlockValue::BufferRange {
+                descriptor,
+                binding,
+                offset,
+                size,
+            } => {
+                self.buffer_store_mut().bind_uniform_buffer_object(
+                    &descriptor,
+                    binding,
+                    Some((offset, size)),
+                )?;
+                (descriptor, binding)
+            }
+        };
+
+        self.gl
+            .uniform_block_binding(program, uniform_block_index, binding);
+        Ok(BoundUniform { descriptor })
+    }
+
+    /// Binds a [`UniformBlockValue`] to a uniform block by a block name.
+    pub fn bind_uniform_block_value_by_block_name(
+        &mut self,
+        program: &mut Program,
+        uniform_block_name: &str,
+        value: UniformBlockValue,
+    ) -> Result<BoundUniform, Error> {
+        let uniform_block_index = program.get_or_retrieve_uniform_block_index(uniform_block_name);
+        self.bind_uniform_block_value(program.program(), uniform_block_index, value)
     }
 
     /// Unbinds all uniforms after draw calls.

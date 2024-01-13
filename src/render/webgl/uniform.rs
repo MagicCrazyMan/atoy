@@ -125,14 +125,15 @@ pub enum UniformBlockValue {
     },
     BufferRange {
         descriptor: BufferDescriptor,
+        binding: u32,
         offset: GLintptr,
         size: GLsizeiptr,
-        binding: u32,
     },
 }
 
 /// Uniform binding sources.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UniformBinding {
     RenderTime,
     CanvasSize,
@@ -147,7 +148,6 @@ pub enum UniformBinding {
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
-    Manual(Cow<'static, str>),
 }
 
 impl UniformBinding {
@@ -166,19 +166,18 @@ impl UniformBinding {
             UniformBinding::Transparency => "u_Transparency",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
-            | UniformBinding::FromEntity(name)
-            | UniformBinding::Manual(name) => name,
+            | UniformBinding::FromEntity(name) => name,
         }
     }
 }
 
 /// Uniform block binding sources.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UniformBlockBinding {
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
-    Manual(Cow<'static, str>),
 }
 
 impl UniformBlockBinding {
@@ -187,65 +186,7 @@ impl UniformBlockBinding {
         match self {
             UniformBlockBinding::FromGeometry(name)
             | UniformBlockBinding::FromMaterial(name)
-            | UniformBlockBinding::FromEntity(name)
-            | UniformBlockBinding::Manual(name) => name,
-        }
-    }
-}
-
-/// Structural uniform binding sources.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum UniformStructuralBinding {
-    FromGeometry {
-        variable_name: Cow<'static, str>,
-        fields: Vec<Cow<'static, str>>,
-        array_len: Option<usize>,
-    },
-    FromMaterial {
-        variable_name: Cow<'static, str>,
-        fields: Vec<Cow<'static, str>>,
-        array_len: Option<usize>,
-    },
-    FromEntity {
-        variable_name: Cow<'static, str>,
-        fields: Vec<Cow<'static, str>>,
-        array_len: Option<usize>,
-    },
-    Manual {
-        variable_name: Cow<'static, str>,
-        fields: Vec<Cow<'static, str>>,
-        array_len: Option<usize>,
-    },
-}
-
-impl UniformStructuralBinding {
-    /// Returns variable name.
-    pub fn variable_name(&self) -> &str {
-        match self {
-            UniformStructuralBinding::FromGeometry { variable_name, .. }
-            | UniformStructuralBinding::FromMaterial { variable_name, .. }
-            | UniformStructuralBinding::FromEntity { variable_name, .. }
-            | UniformStructuralBinding::Manual { variable_name, .. } => variable_name,
-        }
-    }
-
-    /// Returns fields.
-    pub fn fields(&self) -> &[Cow<'static, str>] {
-        match self {
-            UniformStructuralBinding::FromGeometry { fields, .. }
-            | UniformStructuralBinding::FromMaterial { fields, .. }
-            | UniformStructuralBinding::FromEntity { fields, .. }
-            | UniformStructuralBinding::Manual { fields, .. } => &fields,
-        }
-    }
-
-    /// Returns array len. Returns `None` if not a array.
-    pub fn array_len(&self) -> Option<usize> {
-        match self {
-            UniformStructuralBinding::FromGeometry { array_len, .. }
-            | UniformStructuralBinding::FromMaterial { array_len, .. }
-            | UniformStructuralBinding::FromEntity { array_len, .. }
-            | UniformStructuralBinding::Manual { array_len, .. } => array_len.clone(),
+            | UniformBlockBinding::FromEntity(name) => name,
         }
     }
 }

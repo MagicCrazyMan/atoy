@@ -1,8 +1,12 @@
 use std::{any::Any, borrow::Cow, cell::OnceCell, iter::FromIterator, ptr::NonNull};
 
+use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
-use web_sys::{js_sys::Array, WebGl2RenderingContext, WebGlTexture};
+use web_sys::{
+    js_sys::{Array, ArrayBuffer, Float32Array},
+    WebGl2RenderingContext, WebGlTexture,
+};
 
 use crate::{
     entity::Entity,
@@ -10,7 +14,6 @@ use crate::{
     material::{StandardMaterial, Transparency},
     render::{
         webgl::{
-            attribute::AttributeBinding,
             buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
             conversion::ToGlEnum,
             draw::CullFace,
@@ -24,8 +27,28 @@ use crate::{
             state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
             uniform::{
-                UniformBinding, UniformBlockBinding, UniformStructuralBinding,
-                UBO_GAUSSIAN_BLUR_BINDING, UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING,
+                UniformBlockValue, UniformValue, UBO_GAUSSIAN_BLUR_BINDING,
+                UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+                UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET,
+                UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH, UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
+                UBO_LIGHTS_BINDING, UBO_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET, UBO_UNIVERSAL_UNIFORMS_BINDING,
+                UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
+                UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
+                UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
+                UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
+                UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
+                UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH,
+                UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
             },
         },
         Executor, ResourceKey, Resources,
@@ -74,6 +97,8 @@ pub struct StandardDrawer {
     hdr_bloom_blend_framebuffer: Option<Framebuffer>,
 
     hdr_supported: Option<bool>,
+    universal_ubo: BufferDescriptor,
+    lights_ubo: BufferDescriptor,
 
     entities_key: ResourceKey<Vec<NonNull<Entity>>>,
     texture_key: ResourceKey<WebGlTexture>,
@@ -83,7 +108,6 @@ pub struct StandardDrawer {
     hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
 
     previous_bloom_enabled: Option<bool>,
-    blit_color_attachment_0: Array,
     blit_color_attachment_1: Array,
     blit_color_attachment_reset: Array,
 }
@@ -107,6 +131,16 @@ impl StandardDrawer {
             hdr_bloom_blend_framebuffer: None,
 
             hdr_supported: None,
+            universal_ubo: BufferDescriptor::with_memory_policy(
+                BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
+                BufferUsage::DynamicDraw,
+                MemoryPolicy::Unfree,
+            ),
+            lights_ubo: BufferDescriptor::with_memory_policy(
+                BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH as i32),
+                BufferUsage::DynamicDraw,
+                MemoryPolicy::Unfree,
+            ),
 
             entities_key,
             texture_key,
@@ -116,9 +150,6 @@ impl StandardDrawer {
             hdr_tone_mapping_type_key,
 
             previous_bloom_enabled: None,
-            blit_color_attachment_0: Array::from_iter([JsValue::from_f64(
-                WebGl2RenderingContext::COLOR_ATTACHMENT0 as f64,
-            )]),
             blit_color_attachment_1: Array::from_iter([
                 JsValue::from_f64(WebGl2RenderingContext::NONE as f64),
                 JsValue::from_f64(WebGl2RenderingContext::COLOR_ATTACHMENT1 as f64),
@@ -128,6 +159,137 @@ impl StandardDrawer {
                 JsValue::from_f64(WebGl2RenderingContext::COLOR_ATTACHMENT1 as f64),
             ]),
         }
+    }
+
+    fn update_universal_ubo(
+        &mut self,
+        state: &mut FrameState,
+        scene: &mut Scene,
+    ) -> Result<(), Error> {
+        let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
+
+        // u_RenderTime
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH / 4,
+        )
+        .set_index(0, state.timestamp() as f32);
+
+        // u_EnableLighting
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH / 4,
+        )
+        .set_index(0, if scene.lighting_enabled() { 1.0 } else { 0.0 });
+
+        // u_CameraPosition
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
+        )
+        .copy_from(&state.camera().position().to_gl());
+
+        // u_ViewMatrix
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
+        )
+        .copy_from(&state.camera().view_matrix().to_gl());
+
+        // u_ProjMatrix
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
+        )
+        .copy_from(&state.camera().proj_matrix().to_gl());
+
+        // u_ProjViewMatrix
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
+        )
+        .copy_from(&state.camera().view_proj_matrix().to_gl());
+
+        self.universal_ubo
+            .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
+        Ok(())
+    }
+
+    fn update_lights_ubo(&mut self, scene: &mut Scene) -> Result<(), Error> {
+        let data = ArrayBuffer::new(UBO_LIGHTS_BYTES_LENGTH);
+
+        // u_Attenuations
+        Float32Array::new_with_byte_offset_and_length(
+            &data,
+            UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
+            UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH / 4,
+        )
+        .copy_from(&scene.light_attenuations().to_gl());
+
+        // u_AmbientLight
+        if let Some(light) = scene.ambient_light() {
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+                UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        // u_DirectionalLights
+        for (index, light) in scene.directional_lights().into_iter().enumerate() {
+            let index = index as u32;
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET
+                    + index * UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        // u_PointLights
+        for (index, light) in scene.point_lights().into_iter().enumerate() {
+            let index = index as u32;
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET + index * UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        // u_SpotLights
+        for (index, light) in scene.spot_lights().into_iter().enumerate() {
+            let index = index as u32;
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET + index * UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        // u_AreaLights
+        for (index, light) in scene.area_lights().into_iter().enumerate() {
+            let index = index as u32;
+            Float32Array::new_with_byte_offset_and_length(
+                &data,
+                UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET + index * UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH,
+                UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH / 4,
+            )
+            .copy_from(&light.gl_ubo());
+        }
+
+        self.lights_ubo
+            .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
+        Ok(())
     }
 
     fn bloom_enabled(&mut self, resources: &Resources) -> bool {
@@ -485,12 +647,11 @@ impl StandardDrawer {
                 vec![],
                 vec![Cow::Borrowed(ENABLE_BLOOM_DEFINE)],
             )?;
-            state.gl().uniform3f(
-                Some(&program.get_or_uniform_locations(BLOOM_THRESHOLD).unwrap()),
-                0.2126,
-                0.7152,
-                0.0722,
-            );
+            state.bind_uniform_value_by_variable_name(
+                program,
+                BLOOM_THRESHOLD,
+                UniformValue::Float3(0.2126, 0.7152, 0.0722),
+            )?;
             program
         } else {
             state
@@ -498,20 +659,22 @@ impl StandardDrawer {
                 .use_program(material.as_program_source())?
         };
 
-        state.gl().uniform_block_binding(
-            program.program(),
-            state
-                .gl()
-                .get_uniform_block_index(program.program(), UNIVERSAL_UNIFORMS_BLOCK),
-            UBO_UNIVERSAL_UNIFORMS_BINDING,
-        );
-        state.gl().uniform_block_binding(
-            program.program(),
-            state
-                .gl()
-                .get_uniform_block_index(program.program(), LIGHTS_BLOCK),
-            UBO_LIGHTS_BINDING,
-        );
+        state.bind_uniform_block_value_by_block_name(
+            program,
+            UNIVERSAL_UNIFORMS_BLOCK,
+            UniformBlockValue::BufferBase {
+                descriptor: self.universal_ubo.clone(),
+                binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+            },
+        )?;
+        state.bind_uniform_block_value_by_block_name(
+            program,
+            LIGHTS_BLOCK,
+            UniformBlockValue::BufferBase {
+                descriptor: self.lights_ubo.clone(),
+                binding: UBO_LIGHTS_BINDING,
+            },
+        )?;
 
         let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
         let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
@@ -725,16 +888,18 @@ impl StandardDrawer {
         texture: &WebGlTexture,
     ) -> Result<(), Error> {
         let normal_framebuffer = self.normal_framebuffer(state);
-        let tone_mapping_program = state
+        let program = state
             .program_store_mut()
             .use_program(&HdrReinhardToneMapping)?;
 
         normal_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        state
-            .gl()
-            .uniform1i(tone_mapping_program.uniform_locations().get(HDR_TEXTURE), 0);
+        state.bind_uniform_value_by_variable_name(
+            program,
+            HDR_TEXTURE,
+            UniformValue::Integer1(0),
+        )?;
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl()
@@ -772,7 +937,7 @@ impl StandardDrawer {
         exposure: f32,
     ) -> Result<(), Error> {
         let normal_framebuffer = self.normal_framebuffer(state);
-        let tone_mapping_program = state
+        let program = state
             .program_store_mut()
             .use_program(&HdrExposureToneMapping)?;
 
@@ -780,13 +945,16 @@ impl StandardDrawer {
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
         state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        state
-            .gl()
-            .uniform1i(tone_mapping_program.uniform_locations().get(HDR_TEXTURE), 0);
-        state.gl().uniform1f(
-            tone_mapping_program.uniform_locations().get(HDR_EXPOSURE),
-            exposure,
-        );
+        state.bind_uniform_value_by_variable_name(
+            program,
+            HDR_TEXTURE,
+            UniformValue::Integer1(0),
+        )?;
+        state.bind_uniform_value_by_variable_name(
+            program,
+            HDR_EXPOSURE,
+            UniformValue::Float1(exposure),
+        )?;
         state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
         state
             .gl()
@@ -856,23 +1024,15 @@ impl StandardDrawer {
                 let (from, from_texture_index, to) = if i % 2 == 0 {
                     if i == 0 {
                         // first epoch, do some initialization
-                        state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
-                        state.buffer_store_mut().bind_uniform_buffer_object(
-                            &gaussian_kernel(),
-                            UBO_GAUSSIAN_BLUR_BINDING,
+                        state.bind_uniform_block_value_by_block_name(
+                            program,
+                            GAUSSIAN_KERNEL_BLOCK,
+                            UniformBlockValue::BufferBase {
+                                descriptor: gaussian_kernel(),
+                                binding: UBO_GAUSSIAN_BLUR_BINDING,
+                            },
                         )?;
-                        state.gl().uniform_block_binding(
-                            program.program(),
-                            program
-                                .uniform_block_indices()
-                                .get(GAUSSIAN_KERNEL_BLOCK)
-                                .cloned()
-                                .unwrap(),
-                            UBO_GAUSSIAN_BLUR_BINDING,
-                        );
-                        state
-                            .gl()
-                            .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
+                        state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
 
                         (
                             &mut *hdr_bloom_blur_first_framebuffer,
@@ -957,9 +1117,11 @@ impl StandardDrawer {
             (*hdr_bloom_blend_framebuffer).bind(FramebufferTarget::FRAMEBUFFER)?;
             state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
             state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-            state
-                .gl()
-                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
+            state.bind_uniform_value_by_variable_name(
+                program,
+                BASE_TEXTURE,
+                UniformValue::Integer1(0),
+            )?;
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -981,9 +1143,11 @@ impl StandardDrawer {
                 0,
             );
 
-            state
-                .gl()
-                .uniform1i(program.uniform_locations().get(BLOOM_BLUR_TEXTURE), 1);
+            state.bind_uniform_value_by_variable_name(
+                program,
+                BLOOM_BLUR_TEXTURE,
+                UniformValue::Integer1(1),
+            )?;
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE1);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -1057,9 +1221,12 @@ impl Executor for StandardDrawer {
     fn execute(
         &mut self,
         state: &mut Self::State,
-        _: &mut Scene,
+        scene: &mut Scene,
         resources: &mut Resources,
     ) -> Result<(), Self::Error> {
+        self.update_universal_ubo(state, scene)?;
+        self.update_lights_ubo(scene)?;
+
         let Some((opaques, translucents)) = self.prepare_entities(state, resources)? else {
             return Ok(());
         };
@@ -1127,22 +1294,6 @@ impl ProgramSource for HdrReinhardToneMapping {
             ))),
         ]
     }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![UniformBinding::Manual(Cow::Borrowed(HDR_TEXTURE))]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
-    }
 }
 
 struct HdrExposureToneMapping;
@@ -1160,25 +1311,6 @@ impl ProgramSource for HdrExposureToneMapping {
             ))),
         ]
     }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::Manual(Cow::Borrowed(HDR_TEXTURE)),
-            UniformBinding::Manual(Cow::Borrowed(HDR_EXPOSURE)),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
-    }
 }
 
 struct BloomMapping;
@@ -1193,25 +1325,6 @@ impl ProgramSource for BloomMapping {
             ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/bloom_mapping.frag"))),
         ]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE)),
-            UniformBinding::Manual(Cow::Borrowed(BLOOM_THRESHOLD)),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
     }
 }
 
@@ -1342,24 +1455,6 @@ impl ProgramSource for GaussianBlurMapping {
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/gaussian_blur.frag"))),
         ]
     }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE))]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![UniformBlockBinding::Manual(Cow::Borrowed(
-            GAUSSIAN_KERNEL_BLOCK,
-        ))]
-    }
 }
 
 struct BloomBlendMapping;
@@ -1374,24 +1469,5 @@ impl ProgramSource for BloomBlendMapping {
             ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/bloom_blend.frag"))),
         ]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::Manual(Cow::Borrowed(BASE_TEXTURE)),
-            UniformBinding::Manual(Cow::Borrowed(BLOOM_BLUR_TEXTURE)),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
     }
 }

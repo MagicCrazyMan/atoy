@@ -10,10 +10,7 @@ use crate::{
         program::{ProgramSource, ShaderSource},
         shader::{ShaderBuilder, ShaderType},
         state::FrameState,
-        uniform::{
-            UniformBinding, UniformBlockBinding, UniformBlockValue, UniformStructuralBinding,
-            UniformValue,
-        },
+        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
 
@@ -64,14 +61,23 @@ pub trait StandardMaterial: StandardMaterialSource {
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
 
+    /// Returns attribute bindings requirements.
+    fn attribute_bindings(&self) -> &[AttributeBinding];
+
+    /// Returns uniform bindings requirements.
+    fn uniform_bindings(&self) -> &[UniformBinding];
+
+    /// Returns uniform block bindings requirements.
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
+
     /// Returns an attribute value by an attribute variable name.
-    fn attribute_value(&self, name: &str, entity: &Entity) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
 
     /// Returns an uniform value by an uniform variable name.
-    fn uniform_value(&self, name: &str, entity: &Entity) -> Option<UniformValue>;
+    fn uniform_value(&self, name: &str) -> Option<UniformValue>;
 
-    /// Returns an uniform block buffer binding value by an uniform block interface name.
-    fn uniform_block_value(&self, name: &str, entity: &Entity) -> Option<UniformBlockValue>;
+    /// Returns an uniform block buffer binding value by an uniform block name.
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue>;
 
     fn changed_event(&self) -> &EventAgency<()>;
 
@@ -104,18 +110,6 @@ pub trait StandardMaterialSource {
 
     /// Returns custom fragment shader defines arguments.
     fn fragment_defines(&self) -> Vec<Cow<'static, str>>;
-
-    /// Returns custom attribute bindings.
-    fn attribute_bindings(&self) -> Vec<AttributeBinding>;
-
-    /// Returns custom uniform bindings.
-    fn uniform_bindings(&self) -> Vec<UniformBinding>;
-
-    /// Returns custom uniform structural bindings.
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding>;
-
-    /// Returns custom uniform block bindings.
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding>;
 }
 
 static DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
@@ -164,21 +158,5 @@ where
                 ],
             )),
         ]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        self.attribute_bindings()
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        self.uniform_bindings()
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        self.uniform_structural_bindings()
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        self.uniform_block_bindings()
     }
 }

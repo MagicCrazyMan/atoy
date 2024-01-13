@@ -12,7 +12,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        draw::{Draw, DrawMode, CullFace},
+        draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
 };

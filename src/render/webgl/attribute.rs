@@ -41,7 +41,7 @@ pub enum AttributeValue {
 }
 
 /// Attribute binding sources.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum AttributeBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
@@ -49,7 +49,6 @@ pub enum AttributeBinding {
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
-    Manual(Cow<'static, str>),
 }
 
 impl AttributeBinding {
@@ -61,8 +60,7 @@ impl AttributeBinding {
             AttributeBinding::GeometryNormal => "a_Normal",
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name)
-            | AttributeBinding::Manual(name) => name,
+            | AttributeBinding::FromEntity(name) => name,
         }
     }
 }

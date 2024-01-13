@@ -10,7 +10,6 @@ use crate::{
     material::Transparency,
     render::{
         webgl::{
-            attribute::AttributeBinding,
             error::Error,
             framebuffer::{
                 Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
@@ -20,7 +19,6 @@ use crate::{
             renderbuffer::RenderbufferInternalFormat,
             state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
-            uniform::{UniformBinding, UniformBlockBinding, UniformStructuralBinding},
         },
         Executor, GraphPipeline, ItemKey, Pipeline, ResourceKey, Resources,
     },
@@ -332,17 +330,15 @@ impl Executor for Picking {
         // prepare material
         let program = state.program_store_mut().use_program(&PickingMaterial)?;
         let position_location = program
-            .attribute_locations()
-            .get(POSITIONS)
-            .cloned()
+            .get_or_retrieve_attribute_locations(POSITIONS)
             .unwrap();
-        let index_location = program.uniform_locations().get(INDEX);
-        let model_matrix_location = program.uniform_locations().get(MODEL_MATRIX);
-        let view_proj_matrix_location = program.uniform_locations().get(VIEW_PROJ_MATRIX);
+        let index_location = program.get_or_retrieve_uniform_location(INDEX);
+        let model_matrix_location = program.get_or_retrieve_uniform_location(MODEL_MATRIX);
+        let view_proj_matrix_location = program.get_or_retrieve_uniform_location(VIEW_PROJ_MATRIX);
 
         let view_proj_matrix = state.camera().view_proj_matrix();
         state.gl().uniform_matrix4fv_with_f32_array(
-            view_proj_matrix_location,
+            view_proj_matrix_location.as_ref(),
             false,
             &view_proj_matrix.to_gl(),
         );
@@ -368,12 +364,12 @@ impl Executor for Picking {
             }
 
             state.gl().uniform_matrix4fv_with_f32_array(
-                model_matrix_location,
+                model_matrix_location.as_ref(),
                 false,
                 &entity.compose_model_matrix().to_gl(),
             );
-            state.gl().uniform1ui(index_location, (index + 1) as u32);
-            let bound_attributes = state.bind_attribute(vertices, position_location)?;
+            state.gl().uniform1ui(index_location.as_ref(), (index + 1) as u32);
+            let bound_attributes = state.bind_attribute_value(position_location, vertices)?;
             state.draw(&geometry.draw())?;
             state.unbind_attributes(bound_attributes);
         }
@@ -407,25 +403,5 @@ impl ProgramSource for PickingMaterial {
             ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/picking.vert"))),
             ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/picking.frag"))),
         ]
-    }
-
-    fn attribute_bindings(&self) -> Vec<AttributeBinding> {
-        vec![AttributeBinding::Manual(Cow::Borrowed(POSITIONS))]
-    }
-
-    fn uniform_bindings(&self) -> Vec<UniformBinding> {
-        vec![
-            UniformBinding::Manual(Cow::Borrowed(MODEL_MATRIX)),
-            UniformBinding::Manual(Cow::Borrowed(VIEW_PROJ_MATRIX)),
-            UniformBinding::Manual(Cow::Borrowed(INDEX)),
-        ]
-    }
-
-    fn uniform_structural_bindings(&self) -> Vec<UniformStructuralBinding> {
-        vec![]
-    }
-
-    fn uniform_block_bindings(&self) -> Vec<UniformBlockBinding> {
-        vec![]
     }
 }
