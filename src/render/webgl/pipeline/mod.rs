@@ -17,8 +17,8 @@ use self::{
     collector::{StandardEntitiesCollector, DEFAULT_CULLING_ENABLED, DEFAULT_SORTING_ENABLED},
     composer::{StandardComposer, DEFAULT_CLEAR_COLOR},
     drawer::{
-        HdrToneMappingType, StandardDrawer, DEFAULT_BLOOM_ENABLED, DEFAULT_HDR_ENABLED,
-        DEFAULT_HDR_TONE_MAPPING_TYPE, DEFAULT_MULTISAMPLE,
+        HdrToneMappingType, StandardDrawer, DEFAULT_BLOOM_BLUR_EPOCH, DEFAULT_BLOOM_ENABLED,
+        DEFAULT_HDR_ENABLED, DEFAULT_HDR_TONE_MAPPING_TYPE, DEFAULT_MULTISAMPLE,
     },
     preparation::StandardPreparation,
 };
@@ -31,9 +31,10 @@ pub struct StandardPipeline {
     enable_sorting_key: ResourceKey<bool>,
     clear_color_key: ResourceKey<Vec4>,
     multisample_key: ResourceKey<i32>,
-    bloom_key: ResourceKey<bool>,
     hdr_key: ResourceKey<bool>,
     hdr_tone_mapping_type_key: ResourceKey<HdrToneMappingType>,
+    bloom_key: ResourceKey<bool>,
+    bloom_epoch_key: ResourceKey<usize>,
 }
 
 impl StandardPipeline {
@@ -174,6 +175,20 @@ impl StandardPipeline {
             .resources_mut()
             .insert(self.bloom_key.clone(), false);
     }
+
+    pub fn bloom_blur_epoch(&self) -> usize {
+        self.pipeline
+            .resources()
+            .get(&self.bloom_epoch_key)
+            .cloned()
+            .unwrap_or(DEFAULT_BLOOM_BLUR_EPOCH)
+    }
+
+    pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
+        self.pipeline
+            .resources_mut()
+            .insert(self.bloom_epoch_key.clone(), epoch);
+    }
 }
 
 impl StandardPipeline {
@@ -188,6 +203,7 @@ impl StandardPipeline {
         let clear_color_key = ResourceKey::new_persist_uuid();
         let multisample_key = ResourceKey::new_persist_uuid();
         let bloom_key = ResourceKey::new_persist_uuid();
+        let bloom_epoch_key = ResourceKey::new_persist_uuid();
         let hdr_key = ResourceKey::new_persist_uuid();
         let hdr_tone_mapping_type_key = ResourceKey::new_persist_uuid();
         let collected_entities_key = ResourceKey::new_runtime_uuid();
@@ -209,9 +225,10 @@ impl StandardPipeline {
                 collected_entities_key,
                 standard_draw_texture_key.clone(),
                 Some(multisample_key.clone()),
-                Some(bloom_key.clone()),
                 Some(hdr_key.clone()),
                 Some(hdr_tone_mapping_type_key.clone()),
+                Some(bloom_key.clone()),
+                Some(bloom_epoch_key.clone()),
             ),
         );
         pipeline.add_executor(
@@ -233,9 +250,10 @@ impl StandardPipeline {
             enable_sorting_key,
             clear_color_key,
             multisample_key,
-            bloom_key,
             hdr_key,
             hdr_tone_mapping_type_key,
+            bloom_key,
+            bloom_epoch_key,
         }
     }
 }

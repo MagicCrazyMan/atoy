@@ -160,6 +160,14 @@ impl Viewer {
     pub fn disable_bloom_wasm(&mut self) {
         self.disable_bloom()
     }
+
+    pub fn bloom_blur_epoch_wasm(&self) -> usize {
+        self.bloom_blur_epoch()
+    }
+
+    pub fn set_bloom_blur_epoch_wasm(&mut self, epoch: usize) {
+        self.set_bloom_blur_epoch(epoch);
+    }
 }
 
 impl Viewer {
@@ -375,6 +383,15 @@ impl Viewer {
 
     pub fn disable_bloom(&mut self) {
         self.inner_mut().standard_pipeline.disable_bloom();
+        self.should_render_next();
+    }
+
+    pub fn bloom_blur_epoch(&self) -> usize {
+        self.inner().standard_pipeline.bloom_blur_epoch()
+    }
+
+    pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
+        self.inner_mut().standard_pipeline.set_bloom_blur_epoch(epoch);
         self.should_render_next();
     }
 

@@ -13,6 +13,7 @@
     v-model:hdr-tone-mapping="hdrToneMapping"
     v-model:hdr-exposure="hdrExposure"
     v-model:bloom="bloom"
+    v-model:bloom-blur-epoch="bloomBlurEpoch"
   />
 </template>
 
@@ -38,6 +39,7 @@ const hdrToneMapping = ref<HdrToneMappingType>({
 });
 const hdrExposure = ref(1.0);
 const bloom = ref(false);
+const bloomBlurEpoch = ref(10);
 
 onMounted(async () => {
   await init();
@@ -80,7 +82,8 @@ onMounted(async () => {
   lighting.value = viewer.lighting_enabled_wasm();
   samples.value = viewer.multisample_wasm() ?? 0;
   hdr.value = viewer.hdr_enabled_wasm();
-  bloom.value = viewer.hdr_enabled_wasm();
+  bloom.value = viewer.bloom_enabled_wasm();
+  bloomBlurEpoch.value = viewer.bloom_blur_epoch_wasm();
 
   hdrToneMapping.value =
     viewer.hdr_tone_mapping_type_wasm() as HdrToneMappingType;
@@ -155,6 +158,9 @@ onMounted(async () => {
     } else {
       viewer.disable_bloom_wasm();
     }
+  });
+  watch(bloomBlurEpoch, (bloom_blur_epoch) => {
+    viewer.set_bloom_blur_epoch_wasm(bloom_blur_epoch);
   });
 });
 </script>

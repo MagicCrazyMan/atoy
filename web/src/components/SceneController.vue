@@ -142,6 +142,22 @@
           ></v-switch>
         </div>
 
+        <div class="controller" v-if="hdr && bloom">
+          Bloom Blur Epoch
+          <v-slider
+            hide-details
+            :min="0"
+            :max="20"
+            :step="1"
+            :model-value="bloomBlurEpoch"
+            @update:model-value="(value) => emit('update:bloom-blur-epoch', value)"
+          >
+            <template v-slot:append>
+              <div>{{ bloomBlurEpoch }}</div>
+            </template>
+          </v-slider>
+        </div>
+
         <div class="controller">
           Pick Render Time:
           <span class="time">{{ pickTime.toFixed(2) }}</span>
@@ -211,6 +227,10 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  bloomBlurEpoch: {
+    type: Number,
+    required: true,
+  },
 });
 
 const hdrToneMappings = ["Reinhard", "Exposure"];
@@ -226,6 +246,7 @@ const emit = defineEmits<{
   (event: "update:hdr-tone-mapping", value: HdrToneMappingType): void;
   (event: "update:hdr-exposure", value: number): void;
   (event: "update:bloom", value: boolean): void;
+  (event: "update:bloom-blur-epoch", value: number): void;
 }>();
 </script>
 

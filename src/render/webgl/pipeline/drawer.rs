@@ -70,6 +70,7 @@ static HDR_EXPOSURE: &'static str = "u_HdrExposure";
 
 pub static DEFAULT_MULTISAMPLE: i32 = 4;
 pub static DEFAULT_BLOOM_ENABLED: bool = true;
+pub static DEFAULT_BLOOM_BLUR_EPOCH: usize = 10;
 pub static DEFAULT_HDR_ENABLED: bool = true;
 pub static DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 
@@ -104,6 +105,7 @@ pub struct StandardDrawer {
     texture_key: ResourceKey<WebGlTexture>,
     multisample_key: Option<ResourceKey<i32>>,
     bloom_key: Option<ResourceKey<bool>>,
+    bloom_epoch_key: Option<ResourceKey<usize>>,
     hdr_key: Option<ResourceKey<bool>>,
     hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
 
@@ -117,9 +119,10 @@ impl StandardDrawer {
         entities_key: ResourceKey<Vec<NonNull<Entity>>>,
         texture_key: ResourceKey<WebGlTexture>,
         multisample_key: Option<ResourceKey<i32>>,
-        bloom_key: Option<ResourceKey<bool>>,
         hdr_key: Option<ResourceKey<bool>>,
         hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
+        bloom_key: Option<ResourceKey<bool>>,
+        bloom_epoch_key: Option<ResourceKey<usize>>,
     ) -> Self {
         Self {
             normal_framebuffer: None,
@@ -146,6 +149,7 @@ impl StandardDrawer {
             texture_key,
             multisample_key,
             bloom_key,
+            bloom_epoch_key,
             hdr_key,
             hdr_tone_mapping_type_key,
 
@@ -309,8 +313,12 @@ impl StandardDrawer {
         enabled
     }
 
-    fn bloom_blur_iterations(&self) -> usize {
-        10
+    fn bloom_blur_epoch(&self, resources: &Resources) -> usize {
+        self.bloom_epoch_key
+            .as_ref()
+            .and_then(|key| resources.get(key))
+            .cloned()
+            .unwrap_or(DEFAULT_BLOOM_BLUR_EPOCH)
     }
 
     fn hdr_supported(&mut self, state: &FrameState) -> bool {
@@ -1007,7 +1015,7 @@ impl StandardDrawer {
         Ok(())
     }
 
-    fn hdr_bloom_blur(&mut self, state: &mut FrameState) -> Result<(), Error> {
+    fn hdr_bloom_blur(&mut self, state: &mut FrameState, bloom_epoch: usize) -> Result<(), Error> {
         unsafe {
             let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
                 self.hdr_framebuffer(state, true);
@@ -1020,7 +1028,7 @@ impl StandardDrawer {
                 .program_store_mut()
                 .use_program(&GaussianBlurMapping)?;
 
-            for i in 0..self.bloom_blur_iterations() {
+            for i in 0..bloom_epoch {
                 let (from, from_texture_index, to) = if i % 2 == 0 {
                     if i == 0 {
                         // first epoch, do some initialization
@@ -1097,15 +1105,15 @@ impl StandardDrawer {
         Ok(())
     }
 
-    fn hdr_bloom_blend(&mut self, state: &mut FrameState) -> Result<(), Error> {
+    fn hdr_bloom_blend(&mut self, state: &mut FrameState, bloom_epoch: usize) -> Result<(), Error> {
         unsafe {
             let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state, true);
             let (hdr_bloom_blur_framebuffer, hdr_bloom_blur_framebuffer_texture_index): (
                 *mut Framebuffer,
                 usize,
-            ) = if self.bloom_blur_iterations() == 0 {
+            ) = if bloom_epoch == 0 {
                 (self.hdr_framebuffer(state, true), 1)
-            } else if self.bloom_blur_iterations() % 2 == 0 {
+            } else if bloom_epoch % 2 == 0 {
                 (self.hdr_bloom_blur_even_framebuffer(state), 0)
             } else {
                 (self.hdr_bloom_blur_odd_framebuffer(state), 0)
@@ -1237,12 +1245,13 @@ impl Executor for StandardDrawer {
         ) {
             (None, true) => {
                 let bloom = self.bloom_enabled(resources);
+                let bloom_epoch = self.bloom_blur_epoch(resources);
                 let hdr_tone_mapping_type = self.hdr_tone_mapping_type(resources);
 
                 self.draw_hdr(state, bloom, opaques, translucents)?;
                 if bloom {
-                    self.hdr_bloom_blur(state)?;
-                    self.hdr_bloom_blend(state)?;
+                    self.hdr_bloom_blur(state, bloom_epoch)?;
+                    self.hdr_bloom_blend(state, bloom_epoch)?;
                 }
                 self.hdr_tone_mapping(state, bloom, &hdr_tone_mapping_type)?;
             }
@@ -1251,13 +1260,14 @@ impl Executor for StandardDrawer {
             }
             (Some(samples), true) => {
                 let bloom = self.bloom_enabled(resources);
+                let bloom_epoch = self.bloom_blur_epoch(resources);
                 let hdr_tone_mapping_type = self.hdr_tone_mapping_type(resources);
 
                 self.draw_hdr_multisample(state, samples, bloom, opaques, translucents)?;
                 self.blit_hdr_multisample(state, samples, bloom)?;
                 if bloom {
-                    self.hdr_bloom_blur(state)?;
-                    self.hdr_bloom_blend(state)?;
+                    self.hdr_bloom_blur(state, bloom_epoch)?;
+                    self.hdr_bloom_blend(state, bloom_epoch)?;
                 }
                 self.hdr_tone_mapping(state, bloom, &hdr_tone_mapping_type)?;
             }
