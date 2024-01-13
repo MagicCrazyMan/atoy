@@ -1,18 +1,10 @@
 use std::borrow::Cow;
 
-/// Available shader types.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ShaderType {
-    Vertex,
-    Fragment,
-}
-
 /// GLSL shaders builder.
 ///
 /// Only GLSL version 300 es supported.
 #[derive(Clone)]
 pub struct ShaderBuilder {
-    shader_type: ShaderType,
     include_header: bool,
     defines: Vec<Cow<'static, str>>,
     prepends: Vec<Cow<'static, str>>,
@@ -22,32 +14,17 @@ pub struct ShaderBuilder {
 impl ShaderBuilder {
     /// Constructs a new shader builder.
     pub fn new(
-        shader_type: ShaderType,
         include_header: bool,
         defines: Vec<Cow<'static, str>>,
         prepends: Vec<Cow<'static, str>>,
         appends: Vec<Cow<'static, str>>,
     ) -> Self {
         Self {
-            shader_type,
             include_header,
             defines,
             prepends,
             appends,
         }
-    }
-
-    /// Builds complete shader source.
-    pub fn build(&self) -> String {
-        match self.shader_type {
-            ShaderType::Vertex => self.build_vertex_shader(),
-            ShaderType::Fragment => self.build_fragment_shader(),
-        }
-    }
-
-    /// Returns shader type.
-    pub fn shader_type(&self) -> ShaderType {
-        self.shader_type
     }
 
     pub fn include_header(&self) -> bool {
@@ -85,7 +62,8 @@ impl ShaderBuilder {
         &mut self.appends
     }
 
-    fn build_vertex_shader(&self) -> String {
+    /// Builds to vertex shader source.
+    pub fn build_vertex_shader(&self) -> String {
         let mut source = String::new();
 
         if self.include_header {
@@ -108,7 +86,8 @@ impl ShaderBuilder {
         source
     }
 
-    fn build_fragment_shader(&self) -> String {
+    /// Builds to fragment shader source.
+    pub fn build_fragment_shader(&self) -> String {
         let mut source = String::new();
 
         if self.include_header {

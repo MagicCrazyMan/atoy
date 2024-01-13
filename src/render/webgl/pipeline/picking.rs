@@ -15,7 +15,7 @@ use crate::{
                 Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
                 RenderbufferProvider, TextureProvider,
             },
-            program::{ProgramSource, ShaderSource},
+            program::{ProgramSource, VertexShaderSource, FragmentShaderSource},
             renderbuffer::RenderbufferInternalFormat,
             state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
@@ -398,10 +398,11 @@ impl ProgramSource for PickingMaterial {
         Cow::Borrowed("PickingMaterial")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/picking.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/picking.frag"))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/picking.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/picking.frag")))
     }
 }

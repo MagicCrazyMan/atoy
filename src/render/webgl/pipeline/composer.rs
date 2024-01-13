@@ -7,7 +7,7 @@ use crate::{
     render::{
         webgl::{
             error::Error,
-            program::{ProgramSource, ShaderSource},
+            program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
             state::FrameState,
         },
         Executor, ResourceKey, Resources,
@@ -154,10 +154,11 @@ impl ProgramSource for ComposerProgram {
         Cow::Borrowed("ComposerProgram")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/composer.frag"))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/composer.frag")))
     }
 }

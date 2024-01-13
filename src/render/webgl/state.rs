@@ -121,14 +121,11 @@ impl FrameState {
     /// Binds attribute values from a entity, geometry and material.
     pub fn bind_attributes(
         &mut self,
+        program: &mut Program,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundAttribute>, Error> {
-        let program = self
-            .program_store_mut()
-            .use_program(material.as_program_source())?;
-
         let attribute_bindings = material.attribute_bindings();
         let mut bounds = Vec::with_capacity(attribute_bindings.len());
         for binding in attribute_bindings {
@@ -298,14 +295,11 @@ impl FrameState {
     /// Binds uniform values from a entity, geometry and material.
     pub fn bind_uniforms(
         &mut self,
+        program: &mut Program,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundUniform>, Error> {
-        let program = self
-            .program_store_mut()
-            .use_program(material.as_program_source())?;
-
         // binds uniforms
         let uniform_bindings = material.uniform_bindings();
         for binding in uniform_bindings {

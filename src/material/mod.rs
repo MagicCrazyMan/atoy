@@ -7,8 +7,8 @@ use crate::{
     event::EventAgency,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::{ProgramSource, ShaderSource},
-        shader::{ShaderBuilder, ShaderType},
+        program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
+        shader::ShaderBuilder,
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
@@ -123,40 +123,38 @@ where
         self.name()
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
+    fn vertex_source(&self) -> VertexShaderSource {
         let vertex_process = self
             .vertex_process()
             .unwrap_or(DEFAULT_VERTEX_PROCESS.clone());
-        let fragment_process = self.fragment_process();
-        vec![
-            ShaderSource::Builder(ShaderBuilder::new(
-                ShaderType::Vertex,
-                true,
-                self.vertex_defines(),
-                vec![
-                    Cow::Borrowed(include_str!("./shaders/constants.glsl")),
-                    Cow::Borrowed(include_str!("./shaders/constants_vert.glsl")),
-                ],
-                vec![
-                    vertex_process,
-                    Cow::Borrowed(include_str!("./shaders/entry_vert.glsl")),
-                ],
-            )),
-            ShaderSource::Builder(ShaderBuilder::new(
-                ShaderType::Fragment,
-                true,
-                self.fragment_defines(),
-                vec![
-                    Cow::Borrowed(include_str!("./shaders/constants.glsl")),
-                    Cow::Borrowed(include_str!("./shaders/constants_frag.glsl")),
-                ],
-                vec![
-                    Cow::Borrowed(include_str!("./shaders/lighting.glsl")),
-                    Cow::Borrowed(include_str!("./shaders/bloom.glsl")),
-                    fragment_process,
-                    Cow::Borrowed(include_str!("./shaders/entry_frag.glsl")),
-                ],
-            )),
-        ]
+        VertexShaderSource::Builder(ShaderBuilder::new(
+            true,
+            self.vertex_defines(),
+            vec![
+                Cow::Borrowed(include_str!("./shaders/constants.glsl")),
+                Cow::Borrowed(include_str!("./shaders/constants_vert.glsl")),
+            ],
+            vec![
+                vertex_process,
+                Cow::Borrowed(include_str!("./shaders/entry_vert.glsl")),
+            ],
+        ))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Builder(ShaderBuilder::new(
+            true,
+            self.fragment_defines(),
+            vec![
+                Cow::Borrowed(include_str!("./shaders/constants.glsl")),
+                Cow::Borrowed(include_str!("./shaders/constants_frag.glsl")),
+            ],
+            vec![
+                Cow::Borrowed(include_str!("./shaders/lighting.glsl")),
+                Cow::Borrowed(include_str!("./shaders/bloom.glsl")),
+                self.fragment_process(),
+                Cow::Borrowed(include_str!("./shaders/entry_frag.glsl")),
+            ],
+        ))
     }
 }

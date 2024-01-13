@@ -4,11 +4,7 @@ use hashbrown::HashMap;
 use log::warn;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use super::{
-    conversion::GLuint,
-    error::Error,
-    shader::{ShaderBuilder, ShaderType},
-};
+use super::{conversion::GLuint, error::Error, shader::ShaderBuilder};
 
 /// Source providing basic data for compiling a [`WebGlProgram`].
 /// Data provided by program source should never change even in different condition.
@@ -16,20 +12,51 @@ pub trait ProgramSource {
     /// Program name, should be unique,
     fn name(&self) -> Cow<'static, str>;
 
-    /// Shader sources, at least one vertex shader and one fragment shader should be specified.
-    fn sources(&self) -> Vec<ShaderSource>;
+    /// Returns [`VertexShaderSource`]  for vertex shader.
+    fn vertex_source(&self) -> VertexShaderSource;
+
+    /// Returns [`FragmentShaderSource`]  for vertex shader.
+    fn fragment_source(&self) -> FragmentShaderSource;
 }
 
-/// Shader source codes. 3 available types:
+/// Vertex shader source code. 2 available types:
 ///
 /// 1. `Builder`, build shader source code from a [`ShaderBuilder`].
-/// 2. `VertexRaw`, developer provides a complete vertex shader source code.
-/// 3. `FragmentRaw`, developer provides a complete fragment shader source code.
+/// 2. `Rsw`, developer provides a complete vertex shader source code.
 #[derive(Clone)]
-pub enum ShaderSource {
+pub enum VertexShaderSource {
     Builder(ShaderBuilder),
-    VertexRaw(Cow<'static, str>),
-    FragmentRaw(Cow<'static, str>),
+    Raw(Cow<'static, str>),
+}
+
+impl VertexShaderSource {
+    /// Returns vertex shader code.
+    pub fn code(self) -> Cow<'static, str> {
+        match self {
+            VertexShaderSource::Builder(builder) => Cow::Owned(builder.build_vertex_shader()),
+            VertexShaderSource::Raw(code) => code,
+        }
+    }
+}
+
+/// Fragment shader source code. 2 available types:
+///
+/// 1. `Builder`, build shader source code from a [`ShaderBuilder`].
+/// 2. `Rsw`, developer provides a complete fragment shader source code.
+#[derive(Clone)]
+pub enum FragmentShaderSource {
+    Builder(ShaderBuilder),
+    Raw(Cow<'static, str>),
+}
+
+impl FragmentShaderSource {
+    /// Returns fragment shader code.
+    pub fn code(self) -> Cow<'static, str> {
+        match self {
+            FragmentShaderSource::Builder(builder) => Cow::Owned(builder.build_fragment_shader()),
+            FragmentShaderSource::Raw(code) => code,
+        }
+    }
 }
 
 /// Compiled program item.
@@ -37,7 +64,8 @@ pub struct Program {
     name: String,
     gl: WebGl2RenderingContext,
     program: WebGlProgram,
-    shaders: Vec<WebGlShader>,
+    vertex_shader: WebGlShader,
+    fragment_shader: WebGlShader,
 
     attribute_locations: HashMap<String, GLuint>,
     uniform_locations: HashMap<String, WebGlUniformLocation>,
@@ -74,8 +102,8 @@ impl Program {
 
     /// Returns uniform locations from variable name.
     pub fn get_or_retrieve_uniform_location(
-        & mut self,
-        variable_name: & str,
+        &mut self,
+        variable_name: &str,
     ) -> Option<WebGlUniformLocation> {
         match self.uniform_locations.entry_ref(variable_name) {
             hashbrown::hash_map::EntryRef::Occupied(v) => Some(v.get().clone()),
@@ -131,9 +159,16 @@ impl ProgramStore {
     where
         S: ProgramSource + ?Sized,
     {
-        let name = match fragment_defines.as_ref() {
-            Some(defines) => Cow::Owned(format!("{}_{}", source.name(), defines.join("_"))),
-            None => source.name(),
+        let name = match (vertex_defines.as_ref(), fragment_defines.as_ref()) {
+            (None, None) => source.name(),
+            (Some(defines), None) => Cow::Owned(format!("{}!{}", source.name(), defines.join("_"))),
+            (None, Some(defines)) => Cow::Owned(format!("{}!!{}", source.name(), defines.join("_"))),
+            (Some(vertex_defines), Some(fragment_defines)) => Cow::Owned(format!(
+                "{}!{}!{}",
+                source.name(),
+                vertex_defines.join("_"),
+                fragment_defines.join("_")
+            )),
         };
         unsafe {
             if let Some(using_program) = self.using_program.as_ref() {
@@ -150,11 +185,16 @@ impl ProgramStore {
                 return Ok(program);
             }
 
-            let program = compile_program(&self.gl, source, vertex_defines, fragment_defines)?;
+            let name = name.to_string();
+            let program = compile_program(
+                self.gl.clone(),
+                name.clone(),
+                source,
+                vertex_defines,
+                fragment_defines,
+            )?;
             let program: *mut Program = Box::leak(Box::new(program));
-            let (_, program) = self
-                .store
-                .insert_unique_unchecked(name.to_string(), program);
+            let (_, program) = self.store.insert_unique_unchecked(name, program);
             self.gl.use_program(Some(&(**program).program));
             self.using_program = Some(*program);
             Ok(&mut **program)
@@ -205,6 +245,7 @@ impl ProgramStore {
                 .unwrap_or(false)
             {
                 self.using_program = None;
+                self.gl.use_program(None);
             }
 
             delete_program(&self.gl, *removed);
@@ -217,6 +258,7 @@ impl Drop for ProgramStore {
         self.using_program.take();
 
         let gl = self.gl.clone();
+        gl.use_program(None);
         self.store.drain().for_each(|(_, program)| unsafe {
             let program = Box::from_raw(program);
             delete_program(&gl, *program);
@@ -226,7 +268,8 @@ impl Drop for ProgramStore {
 
 /// Compiles a [`WebGlProgram`] from a [`ProgramSource`].
 pub fn compile_program<S>(
-    gl: &WebGl2RenderingContext,
+    gl: WebGl2RenderingContext,
+    name: String,
     source: &S,
     vertex_defines: Option<Vec<Cow<'static, str>>>,
     fragment_defines: Option<Vec<Cow<'static, str>>>,
@@ -234,96 +277,65 @@ pub fn compile_program<S>(
 where
     S: ProgramSource + ?Sized,
 {
-    let mut sources = source.sources();
-    let mut shaders = Vec::with_capacity(sources.len());
-    sources.iter_mut().try_for_each(|source| {
-        shaders.push(compile_shader(
-            gl,
-            source,
-            vertex_defines.as_ref(),
-            fragment_defines.as_ref(),
-        )?);
-        Ok(()) as Result<(), Error>
-    })?;
+    let mut vertex_source = source.vertex_source();
+    if let Some(vertex_defines) = vertex_defines {
+        if let VertexShaderSource::Builder(builder) = &mut vertex_source {
+            builder.defines_mut().extend(vertex_defines);
+        } else {
+            warn!("vertex defines for VertexShaderSource::Raw is not supported");
+        }
+    }
+    let mut fragment_source = source.fragment_source();
+    if let Some(fragment_defines) = fragment_defines {
+        if let FragmentShaderSource::Builder(builder) = &mut fragment_source {
+            builder.defines_mut().extend(fragment_defines);
+        } else {
+            warn!("fragment defines for FragmentShaderSource::Raw is not supported");
+        }
+    }
+    let vertex_shader = compile_shader(&gl, true, vertex_source.code().as_ref())?;
+    let fragment_shader = compile_shader(&gl, false, fragment_source.code().as_ref())?;
 
-    let program = create_program(gl, &shaders)?;
+    let program = create_program(&gl, &vertex_shader, &fragment_shader)?;
     Ok(Program {
-        name: source.name().to_string(),
+        name,
+
+        gl,
+        program,
+        vertex_shader,
+        fragment_shader,
 
         attribute_locations: HashMap::new(),
         uniform_locations: HashMap::new(),
         uniform_block_indices: HashMap::new(),
-
-        shaders,
-        program,
-        gl: gl.clone(),
     })
 }
 
 fn delete_program(gl: &WebGl2RenderingContext, program: Program) {
     let Program {
-        program, shaders, ..
+        program,
+        vertex_shader,
+        fragment_shader,
+        ..
     } = program;
-    gl.use_program(None);
-    shaders.iter().for_each(|shader| {
-        gl.delete_shader(Some(&shader));
-    });
+    gl.delete_shader(Some(&vertex_shader));
+    gl.delete_shader(Some(&fragment_shader));
     gl.delete_program(Some(&program));
 }
 
 /// Compiles [`WebGlShader`] by [`ShaderSource`].
 pub fn compile_shader(
     gl: &WebGl2RenderingContext,
-    source: &mut ShaderSource,
-    vertex_defines: Option<&Vec<Cow<'static, str>>>,
-    fragment_defines: Option<&Vec<Cow<'static, str>>>,
+    is_vertex_shader: bool,
+    code: &str,
 ) -> Result<WebGlShader, Error> {
-    let (shader, code) = match source {
-        ShaderSource::Builder(builder) => match builder.shader_type() {
-            ShaderType::Vertex => {
-                if let Some(vertex_defines) = vertex_defines {
-                    builder.defines_mut().extend_from_slice(vertex_defines);
-                }
-
-                (
-                    gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                        .ok_or(Error::CreateVertexShaderFailed)?,
-                    Cow::Owned(builder.build()),
-                )
-            }
-            ShaderType::Fragment => {
-                if let Some(fragment_defines) = fragment_defines {
-                    builder.defines_mut().extend_from_slice(fragment_defines);
-                }
-
-                (
-                    gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                        .ok_or(Error::CreateVertexShaderFailed)?,
-                    Cow::Owned(builder.build()),
-                )
-            }
-        },
-        ShaderSource::VertexRaw(code) => {
-            if vertex_defines.is_some() {
-                warn!("vertex defines for ShaderSource::VertexRaw is not supported");
-            }
-
-            let shader = gl
-                .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                .ok_or(Error::CreateVertexShaderFailed)?;
-            (shader, code.clone())
-        }
-        ShaderSource::FragmentRaw(code) => {
-            if fragment_defines.is_some() {
-                warn!("fragment defines for ShaderSource::FragmentRaw is not supported");
-            }
-
-            let shader = gl
-                .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                .ok_or(Error::CreateFragmentShaderFailed)?;
-            (shader, code.clone())
-        }
-    };
+    let shader = gl
+        .create_shader(if is_vertex_shader {
+            WebGl2RenderingContext::VERTEX_SHADER
+        } else {
+            WebGl2RenderingContext::FRAGMENT_SHADER
+        })
+        .ok_or(Error::CreateFragmentShaderFailed)?;
 
     // attaches shader source
     gl.shader_source(&shader, &code);
@@ -346,14 +358,14 @@ pub fn compile_shader(
 /// Creates a [`WebGlProgram`], and links compiled [`WebGlShader`] to the program.
 pub fn create_program(
     gl: &WebGl2RenderingContext,
-    shaders: &[WebGlShader],
+    vertex_shader: &WebGlShader,
+    fragment_shader: &WebGlShader,
 ) -> Result<WebGlProgram, Error> {
     let program = gl.create_program().ok_or(Error::CreateProgramFailed)?;
 
     // attaches shader to program
-    for shader in shaders {
-        gl.attach_shader(&program, shader);
-    }
+    gl.attach_shader(&program, vertex_shader);
+    gl.attach_shader(&program, fragment_shader);
     // links program
     gl.link_program(&program);
     // validates program

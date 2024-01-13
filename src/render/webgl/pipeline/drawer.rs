@@ -22,7 +22,7 @@ use crate::{
                 Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
                 RenderbufferProvider, TextureProvider,
             },
-            program::{ProgramSource, ShaderSource},
+            program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
             renderbuffer::RenderbufferInternalFormat,
             state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
@@ -676,8 +676,8 @@ impl StandardDrawer {
             },
         )?;
 
-        let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
-        let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
+        let bound_attributes = state.bind_attributes(program, &entity, geometry, material)?;
+        let bound_uniforms = state.bind_uniforms(program, &entity, geometry, material)?;
         state.draw(&geometry.draw())?;
         state.unbind_attributes(bound_attributes);
         state.unbind_uniforms(bound_uniforms);
@@ -1286,13 +1286,14 @@ impl ProgramSource for HdrReinhardToneMapping {
         Cow::Borrowed("HdrReinhardToneMapping")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!(
-                "./shaders/hdr_reinhard_tone_mapping.frag"
-            ))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!(
+            "./shaders/hdr_reinhard_tone_mapping.frag"
+        )))
     }
 }
 
@@ -1303,13 +1304,14 @@ impl ProgramSource for HdrExposureToneMapping {
         Cow::Borrowed("HdrExposureToneMapping")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!(
-                "./shaders/hdr_exposure_tone_mapping.frag"
-            ))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!(
+            "./shaders/hdr_exposure_tone_mapping.frag"
+        )))
     }
 }
 
@@ -1320,11 +1322,12 @@ impl ProgramSource for BloomMapping {
         Cow::Borrowed("BloomMapping")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/bloom_mapping.frag"))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/bloom_mapping.frag")))
     }
 }
 
@@ -1449,11 +1452,12 @@ impl ProgramSource for GaussianBlurMapping {
         Cow::Borrowed("GaussianBlurMapping")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/gaussian_blur.frag"))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/gaussian_blur.frag")))
     }
 }
 
@@ -1464,10 +1468,11 @@ impl ProgramSource for BloomBlendMapping {
         Cow::Borrowed("BloomBlendMapping")
     }
 
-    fn sources(&self) -> Vec<ShaderSource> {
-        vec![
-            ShaderSource::VertexRaw(Cow::Borrowed(include_str!("./shaders/computation.vert"))),
-            ShaderSource::FragmentRaw(Cow::Borrowed(include_str!("./shaders/bloom_blend.frag"))),
-        ]
+    fn vertex_source(&self) -> VertexShaderSource {
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    }
+
+    fn fragment_source(&self) -> FragmentShaderSource {
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/bloom_blend.frag")))
     }
 }
