@@ -1,5 +1,5 @@
 /**
- * Sold Color Material Fragment Shader Process Function Source Code.
+ * Solid Color Material Fragment Shader Process Function Source Code.
  */
 
 uniform vec3 u_Color;

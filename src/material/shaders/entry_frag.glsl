@@ -22,6 +22,12 @@ void main() {
     }
 
     o_Color = vec4(color, material.transparency);
-    o_Index = u_Index;
-    o_Position = uvec3(floatBitsToUint(v_PositionWS.x), floatBitsToUint(v_PositionWS.y), floatBitsToUint(v_PositionWS.z));;
+
+    #ifdef BLOOM
+    if (atoy_is_bloom_color(color, u_BloomThreshold)) {
+        o_BloomColor = vec4(color, 1.0f);
+    } else {
+        o_BloomColor = vec4(0.0, 0.0, 0.0, 1.0f);
+    }
+    #endif
 }

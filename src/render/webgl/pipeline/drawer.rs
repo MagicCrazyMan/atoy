@@ -1,7 +1,8 @@
-use std::{any::Any, borrow::Cow, cell::OnceCell, ptr::NonNull};
+use std::{any::Any, borrow::Cow, cell::OnceCell, iter::FromIterator, ptr::NonNull};
 
 use serde::{Deserialize, Serialize};
-use web_sys::{WebGl2RenderingContext, WebGlTexture};
+use wasm_bindgen::JsValue;
+use web_sys::{js_sys::Array, WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
     entity::Entity,
@@ -15,8 +16,8 @@ use crate::{
             draw::CullFace,
             error::Error,
             framebuffer::{
-                Framebuffer, FramebufferAttachment, FramebufferTarget, RenderbufferProvider,
-                TextureProvider,
+                Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
+                RenderbufferProvider, TextureProvider,
             },
             program::{ProgramSource, ShaderSource},
             renderbuffer::RenderbufferInternalFormat,
@@ -32,15 +33,17 @@ use crate::{
     scene::Scene,
 };
 
+static ENABLE_BLOOM_DEFINE: &'static str = "BLOOM";
+
 static UNIVERSAL_UNIFORMS_BLOCK: &'static str = "atoy_UniversalUniforms";
 static LIGHTS_BLOCK: &'static str = "atoy_Lights";
-const GAUSSIAN_KERNEL_BLOCK: &'static str = "atoy_GaussianKernel";
+static GAUSSIAN_KERNEL_BLOCK: &'static str = "atoy_GaussianKernel";
 
-const BLOOM_THRESHOLD: &'static str = "u_BloomThreshold";
-const BASE_TEXTURE: &'static str = "u_BaseTexture";
-const BLOOM_BLUR_TEXTURE: &'static str = "u_BloomBlurTexture";
-const HDR_TEXTURE: &'static str = "u_HdrTexture";
-const HDR_EXPOSURE: &'static str = "u_HdrExposure";
+static BLOOM_THRESHOLD: &'static str = "u_BloomThreshold";
+static BASE_TEXTURE: &'static str = "u_BaseTexture";
+static BLOOM_BLUR_TEXTURE: &'static str = "u_BloomBlurTexture";
+static HDR_TEXTURE: &'static str = "u_HdrTexture";
+static HDR_EXPOSURE: &'static str = "u_HdrExposure";
 
 pub static DEFAULT_MULTISAMPLE: i32 = 4;
 pub static DEFAULT_BLOOM_ENABLED: bool = true;
@@ -78,6 +81,11 @@ pub struct StandardDrawer {
     bloom_key: Option<ResourceKey<bool>>,
     hdr_key: Option<ResourceKey<bool>>,
     hdr_tone_mapping_type_key: Option<ResourceKey<HdrToneMappingType>>,
+
+    previous_bloom_enabled: Option<bool>,
+    blit_color_attachment_0: Array,
+    blit_color_attachment_1: Array,
+    blit_color_attachment_reset: Array,
 }
 
 impl StandardDrawer {
@@ -106,19 +114,41 @@ impl StandardDrawer {
             bloom_key,
             hdr_key,
             hdr_tone_mapping_type_key,
+
+            previous_bloom_enabled: None,
+            blit_color_attachment_0: Array::from_iter([JsValue::from_f64(
+                WebGl2RenderingContext::COLOR_ATTACHMENT0 as f64,
+            )]),
+            blit_color_attachment_1: Array::from_iter([
+                JsValue::from_f64(WebGl2RenderingContext::NONE as f64),
+                JsValue::from_f64(WebGl2RenderingContext::COLOR_ATTACHMENT1 as f64),
+            ]),
+            blit_color_attachment_reset: Array::from_iter([
+                JsValue::from_f64(WebGl2RenderingContext::COLOR_ATTACHMENT0 as f64),
+                JsValue::from_f64(WebGl2RenderingContext::COLOR_ATTACHMENT1 as f64),
+            ]),
         }
     }
 
     fn bloom_enabled(&mut self, resources: &Resources) -> bool {
-        self.bloom_key
+        let enabled = self
+            .bloom_key
             .as_ref()
             .and_then(|key| resources.get(key))
             .copied()
-            .unwrap_or(DEFAULT_BLOOM_ENABLED)
+            .unwrap_or(DEFAULT_BLOOM_ENABLED);
+
+        if Some(enabled) != self.previous_bloom_enabled {
+            self.hdr_framebuffer.take();
+            self.hdr_multisample_framebuffer.take();
+            self.previous_bloom_enabled = Some(enabled);
+        }
+
+        enabled
     }
 
     fn bloom_blur_iterations(&self) -> usize {
-        20
+        10
     }
 
     fn hdr_supported(&mut self, state: &FrameState) -> bool {
@@ -220,24 +250,54 @@ impl StandardDrawer {
     }
 
     #[inline]
-    fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
+    fn hdr_framebuffer(&mut self, state: &FrameState, bloom: bool) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
             log::info!("2");
-            state.create_framebuffer(
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                    0,
-                )],
-                [RenderbufferProvider::new(
-                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                )],
-                [],
-                None,
-            )
+            if bloom {
+                state.create_framebuffer(
+                    [
+                        TextureProvider::new(
+                            FramebufferAttachment::COLOR_ATTACHMENT0,
+                            TextureInternalFormat::RGBA32F,
+                            TextureFormat::RGBA,
+                            TextureDataType::FLOAT,
+                            0,
+                        ),
+                        TextureProvider::new(
+                            FramebufferAttachment::COLOR_ATTACHMENT1,
+                            TextureInternalFormat::RGBA32F,
+                            TextureFormat::RGBA,
+                            TextureDataType::FLOAT,
+                            0,
+                        ),
+                    ],
+                    [RenderbufferProvider::new(
+                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    )],
+                    [
+                        FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+                        FramebufferDrawBuffer::COLOR_ATTACHMENT1,
+                    ],
+                    None,
+                )
+            } else {
+                state.create_framebuffer(
+                    [TextureProvider::new(
+                        FramebufferAttachment::COLOR_ATTACHMENT0,
+                        TextureInternalFormat::RGBA32F,
+                        TextureFormat::RGBA,
+                        TextureDataType::FLOAT,
+                        0,
+                    )],
+                    [RenderbufferProvider::new(
+                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    )],
+                    [],
+                    None,
+                )
+            }
         })
     }
 
@@ -246,6 +306,7 @@ impl StandardDrawer {
         &mut self,
         state: &FrameState,
         samples: i32,
+        bloom: bool,
     ) -> &mut Framebuffer {
         if self
             .hdr_multisample_framebuffer
@@ -257,22 +318,48 @@ impl StandardDrawer {
             self.hdr_multisample_framebuffer.as_mut().unwrap()
         } else {
             log::info!("4");
-            self.hdr_multisample_framebuffer
-                .insert(state.create_framebuffer(
-                    [],
-                    [
-                        RenderbufferProvider::new(
-                            FramebufferAttachment::COLOR_ATTACHMENT0,
-                            RenderbufferInternalFormat::RGBA32F,
-                        ),
-                        RenderbufferProvider::new(
-                            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                            RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                        ),
-                    ],
-                    [],
-                    Some(samples),
-                ))
+            if bloom {
+                self.hdr_multisample_framebuffer
+                    .insert(state.create_framebuffer(
+                        [],
+                        [
+                            RenderbufferProvider::new(
+                                FramebufferAttachment::COLOR_ATTACHMENT0,
+                                RenderbufferInternalFormat::RGBA32F,
+                            ),
+                            RenderbufferProvider::new(
+                                FramebufferAttachment::COLOR_ATTACHMENT1,
+                                RenderbufferInternalFormat::RGBA32F,
+                            ),
+                            RenderbufferProvider::new(
+                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                            ),
+                        ],
+                        [
+                            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+                            FramebufferDrawBuffer::COLOR_ATTACHMENT1,
+                        ],
+                        Some(samples),
+                    ))
+            } else {
+                self.hdr_multisample_framebuffer
+                    .insert(state.create_framebuffer(
+                        [],
+                        [
+                            RenderbufferProvider::new(
+                                FramebufferAttachment::COLOR_ATTACHMENT0,
+                                RenderbufferInternalFormat::RGBA32F,
+                            ),
+                            RenderbufferProvider::new(
+                                FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                                RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                            ),
+                        ],
+                        [],
+                        Some(samples),
+                    ))
+            }
         }
     }
 
@@ -379,6 +466,7 @@ impl StandardDrawer {
     fn draw_entity(
         &self,
         state: &mut FrameState,
+        bloom: bool,
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
@@ -391,11 +479,25 @@ impl StandardDrawer {
             state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }
 
-        let program = state
-            .program_store_mut()
-            .use_program(material.as_program_source())?;
-        let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
-        let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
+        let program = if bloom {
+            let program = state.program_store_mut().use_program_with_defines(
+                material.as_program_source(),
+                vec![],
+                vec![Cow::Borrowed(ENABLE_BLOOM_DEFINE)],
+            )?;
+            state.gl().uniform3f(
+                Some(&program.get_or_uniform_locations(BLOOM_THRESHOLD).unwrap()),
+                0.2126,
+                0.7152,
+                0.0722,
+            );
+            program
+        } else {
+            state
+                .program_store_mut()
+                .use_program(material.as_program_source())?
+        };
+
         state.gl().uniform_block_binding(
             program.program(),
             state
@@ -410,6 +512,9 @@ impl StandardDrawer {
                 .get_uniform_block_index(program.program(), LIGHTS_BLOCK),
             UBO_LIGHTS_BINDING,
         );
+
+        let bound_attributes = state.bind_attributes(&entity, geometry, material)?;
+        let bound_uniforms = state.bind_uniforms(&entity, geometry, material)?;
         state.draw(&geometry.draw())?;
         state.unbind_attributes(bound_attributes);
         state.unbind_uniforms(bound_uniforms);
@@ -420,6 +525,7 @@ impl StandardDrawer {
     fn draw_entities(
         &self,
         state: &mut FrameState,
+        bloom: bool,
         opaques: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
     ) -> Result<(), Error> {
@@ -433,7 +539,14 @@ impl StandardDrawer {
         // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
         state.gl().depth_mask(true);
         for (entity, geometry, material) in opaques {
-            self.draw_entity(state, entity, geometry, material, geometry.cull_face())?;
+            self.draw_entity(
+                state,
+                bloom,
+                entity,
+                geometry,
+                material,
+                geometry.cull_face(),
+            )?;
         }
 
         // then draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
@@ -445,7 +558,7 @@ impl StandardDrawer {
         );
         state.gl().depth_mask(false);
         for (entity, geometry, material) in translucents.into_iter().rev() {
-            self.draw_entity(state, entity, geometry, material, None)?; // transparency entities never cull face
+            self.draw_entity(state, bloom, entity, geometry, material, None)?; // transparency entities never cull face
         }
 
         // reset to default
@@ -469,7 +582,7 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         self.normal_framebuffer(state)
             .bind(FramebufferTarget::FRAMEBUFFER)?;
-        self.draw_entities(state, opaques, translucents)?;
+        self.draw_entities(state, false, opaques, translucents)?;
         self.normal_framebuffer(state).unbind();
 
         Ok(())
@@ -484,7 +597,7 @@ impl StandardDrawer {
     ) -> Result<(), Error> {
         self.normal_multisample_framebuffer(state, samples)
             .bind(FramebufferTarget::FRAMEBUFFER)?;
-        self.draw_entities(state, opaques, translucents)?;
+        self.draw_entities(state, false, opaques, translucents)?;
         self.normal_multisample_framebuffer(state, samples).unbind();
 
         Ok(())
@@ -520,13 +633,14 @@ impl StandardDrawer {
     fn draw_hdr(
         &mut self,
         state: &mut FrameState,
+        bloom: bool,
         opaques: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
     ) -> Result<(), Error> {
-        self.hdr_framebuffer(state)
+        self.hdr_framebuffer(state, bloom)
             .bind(FramebufferTarget::FRAMEBUFFER)?;
-        self.draw_entities(state, opaques, translucents)?;
-        self.hdr_framebuffer(state).unbind();
+        self.draw_entities(state, bloom, opaques, translucents)?;
+        self.hdr_framebuffer(state, bloom).unbind();
 
         Ok(())
     }
@@ -535,25 +649,35 @@ impl StandardDrawer {
         &mut self,
         state: &mut FrameState,
         samples: i32,
+        bloom: bool,
         opaques: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
         translucents: Vec<(&Entity, &dyn Geometry, &dyn StandardMaterial)>,
     ) -> Result<(), Error> {
-        self.hdr_multisample_framebuffer(state, samples)
+        self.hdr_multisample_framebuffer(state, samples, bloom)
             .bind(FramebufferTarget::FRAMEBUFFER)?;
-        self.draw_entities(state, opaques, translucents)?;
-        self.hdr_multisample_framebuffer(state, samples).unbind();
+        self.draw_entities(state, bloom, opaques, translucents)?;
+        self.hdr_multisample_framebuffer(state, samples, bloom)
+            .unbind();
 
         Ok(())
     }
 
-    fn blit_hdr_multisample(&mut self, state: &FrameState, samples: i32) -> Result<(), Error> {
+    fn blit_hdr_multisample(
+        &mut self,
+        state: &FrameState,
+        samples: i32,
+        bloom: bool,
+    ) -> Result<(), Error> {
         unsafe {
-            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state);
+            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state, bloom);
             let hdr_multisample_framebuffer: *mut Framebuffer =
-                self.hdr_multisample_framebuffer(state, samples);
+                self.hdr_multisample_framebuffer(state, samples, bloom);
 
             (*hdr_framebuffer).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
             (*hdr_multisample_framebuffer).bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+            state
+                .gl()
+                .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0);
             state.gl().blit_framebuffer(
                 0,
                 0,
@@ -566,8 +690,30 @@ impl StandardDrawer {
                 WebGl2RenderingContext::COLOR_BUFFER_BIT,
                 WebGl2RenderingContext::LINEAR,
             );
+
+            if bloom {
+                state.gl().draw_buffers(&self.blit_color_attachment_1);
+                state
+                    .gl()
+                    .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT1);
+                state.gl().blit_framebuffer(
+                    0,
+                    0,
+                    (*hdr_multisample_framebuffer).width(),
+                    (*hdr_multisample_framebuffer).height(),
+                    0,
+                    0,
+                    (*hdr_framebuffer).width(),
+                    (*hdr_framebuffer).height(),
+                    WebGl2RenderingContext::COLOR_BUFFER_BIT,
+                    WebGl2RenderingContext::LINEAR,
+                );
+                state.gl().draw_buffers(&self.blit_color_attachment_reset);
+            }
+
             (*hdr_framebuffer).unbind();
             (*hdr_multisample_framebuffer).unbind();
+            state.gl().read_buffer(WebGl2RenderingContext::BACK);
         }
 
         Ok(())
@@ -674,117 +820,85 @@ impl StandardDrawer {
     fn hdr_tone_mapping(
         &mut self,
         state: &mut FrameState,
-        resources: &Resources,
+        bloom: bool,
+        hdr_tone_mapping_type: &HdrToneMappingType,
     ) -> Result<(), Error> {
-        let texture: *const WebGlTexture = match self.bloom_enabled(resources) {
+        let texture: *const WebGlTexture = match bloom {
             true => self.hdr_bloom_blend_framebuffer(state).texture(0).unwrap(),
-            false => self.hdr_framebuffer(state).texture(0).unwrap(),
+            false => self.hdr_framebuffer(state, bloom).texture(0).unwrap(),
         };
 
-        match self.hdr_tone_mapping_type(resources) {
+        match hdr_tone_mapping_type {
             HdrToneMappingType::Reinhard => {
                 self.hdr_reinhard_tone_mapping(state, unsafe { &*texture })?
             }
             HdrToneMappingType::Exposure(exposure) => {
-                self.hdr_exposure_tone_mapping(state, unsafe { &*texture }, exposure)?
+                self.hdr_exposure_tone_mapping(state, unsafe { &*texture }, *exposure)?
             }
         };
-        Ok(())
-    }
-
-    fn hdr_bloom_mapping(&mut self, state: &mut FrameState) -> Result<(), Error> {
-        unsafe {
-            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state);
-            let hdr_bloom_blur_even_framebuffer: *mut Framebuffer =
-                self.hdr_bloom_blur_even_framebuffer(state);
-            let program = state.program_store_mut().use_program(&BloomMapping)?;
-
-            (*hdr_bloom_blur_even_framebuffer).bind(FramebufferTarget::FRAMEBUFFER)?;
-            state.gl().uniform3f(
-                program.uniform_locations().get(BLOOM_THRESHOLD),
-                0.2126,
-                0.7152,
-                0.0722,
-            );
-            state
-                .gl()
-                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
-            state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
-            state.gl().bind_texture(
-                WebGl2RenderingContext::TEXTURE_2D,
-                (*hdr_framebuffer).texture(0),
-            );
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
-            );
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
-            );
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                0,
-            );
-            state
-                .gl()
-                .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
-            state
-                .gl()
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            (*hdr_bloom_blur_even_framebuffer).unbind();
-        }
-
         Ok(())
     }
 
     fn hdr_bloom_blur(&mut self, state: &mut FrameState) -> Result<(), Error> {
         unsafe {
+            let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
+                self.hdr_framebuffer(state, true);
             let hdr_bloom_blur_even_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blur_even_framebuffer(state);
             let hdr_bloom_blur_odd_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blur_odd_framebuffer(state);
+
             let program = state
                 .program_store_mut()
                 .use_program(&GaussianBlurMapping)?;
 
-            state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
-            state
-                .buffer_store_mut()
-                .bind_uniform_buffer_object(&gaussian_kernel(), UBO_GAUSSIAN_BLUR_BINDING)?;
-            state.gl().uniform_block_binding(
-                program.program(),
-                program
-                    .uniform_block_indices()
-                    .get(GAUSSIAN_KERNEL_BLOCK)
-                    .cloned()
-                    .unwrap(),
-                UBO_GAUSSIAN_BLUR_BINDING,
-            );
-            state
-                .gl()
-                .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
-
             for i in 0..self.bloom_blur_iterations() {
-                let (from, to) = if i % 2 == 0 {
-                    (
-                        &mut *hdr_bloom_blur_even_framebuffer,
-                        &mut *hdr_bloom_blur_odd_framebuffer,
-                    )
+                let (from, from_texture_index, to) = if i % 2 == 0 {
+                    if i == 0 {
+                        // first epoch, do some initialization
+                        state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
+                        state.buffer_store_mut().bind_uniform_buffer_object(
+                            &gaussian_kernel(),
+                            UBO_GAUSSIAN_BLUR_BINDING,
+                        )?;
+                        state.gl().uniform_block_binding(
+                            program.program(),
+                            program
+                                .uniform_block_indices()
+                                .get(GAUSSIAN_KERNEL_BLOCK)
+                                .cloned()
+                                .unwrap(),
+                            UBO_GAUSSIAN_BLUR_BINDING,
+                        );
+                        state
+                            .gl()
+                            .uniform1i(program.uniform_locations().get(BASE_TEXTURE), 0);
+
+                        (
+                            &mut *hdr_bloom_blur_first_framebuffer,
+                            1,
+                            &mut *hdr_bloom_blur_odd_framebuffer,
+                        )
+                    } else {
+                        (
+                            &mut *hdr_bloom_blur_even_framebuffer,
+                            0,
+                            &mut *hdr_bloom_blur_odd_framebuffer,
+                        )
+                    }
                 } else {
                     (
                         &mut *hdr_bloom_blur_odd_framebuffer,
+                        0,
                         &mut *hdr_bloom_blur_even_framebuffer,
                     )
                 };
 
                 to.bind(FramebufferTarget::FRAMEBUFFER)?;
-                state
-                    .gl()
-                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, from.texture(0));
+                state.gl().bind_texture(
+                    WebGl2RenderingContext::TEXTURE_2D,
+                    from.texture(from_texture_index),
+                );
                 state.gl().tex_parameteri(
                     WebGl2RenderingContext::TEXTURE_2D,
                     WebGl2RenderingContext::TEXTURE_MAG_FILTER,
@@ -825,13 +939,17 @@ impl StandardDrawer {
 
     fn hdr_bloom_blend(&mut self, state: &mut FrameState) -> Result<(), Error> {
         unsafe {
-            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state);
-            let hdr_bloom_blur_framebuffer: *mut Framebuffer =
-                if self.bloom_blur_iterations() % 2 == 0 {
-                    self.hdr_bloom_blur_even_framebuffer(state)
-                } else {
-                    self.hdr_bloom_blur_odd_framebuffer(state)
-                };
+            let hdr_framebuffer: *mut Framebuffer = self.hdr_framebuffer(state, true);
+            let (hdr_bloom_blur_framebuffer, hdr_bloom_blur_framebuffer_texture_index): (
+                *mut Framebuffer,
+                usize,
+            ) = if self.bloom_blur_iterations() == 0 {
+                (self.hdr_framebuffer(state, true), 1)
+            } else if self.bloom_blur_iterations() % 2 == 0 {
+                (self.hdr_bloom_blur_even_framebuffer(state), 0)
+            } else {
+                (self.hdr_bloom_blur_odd_framebuffer(state), 0)
+            };
             let hdr_bloom_blend_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blend_framebuffer(state);
             let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
@@ -869,7 +987,7 @@ impl StandardDrawer {
             state.gl().active_texture(WebGl2RenderingContext::TEXTURE1);
             state.gl().bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D,
-                (*hdr_bloom_blur_framebuffer).texture(0),
+                (*hdr_bloom_blur_framebuffer).texture(hdr_bloom_blur_framebuffer_texture_index),
             );
             state.gl().tex_parameteri(
                 WebGl2RenderingContext::TEXTURE_2D,
@@ -951,26 +1069,30 @@ impl Executor for StandardDrawer {
             self.hdr_enabled(&state, resources),
         ) {
             (None, true) => {
-                self.draw_hdr(state, opaques, translucents)?;
-                if self.bloom_enabled(resources) {
-                    self.hdr_bloom_mapping(state)?;
+                let bloom = self.bloom_enabled(resources);
+                let hdr_tone_mapping_type = self.hdr_tone_mapping_type(resources);
+
+                self.draw_hdr(state, bloom, opaques, translucents)?;
+                if bloom {
                     self.hdr_bloom_blur(state)?;
                     self.hdr_bloom_blend(state)?;
                 }
-                self.hdr_tone_mapping(state, &resources)?;
+                self.hdr_tone_mapping(state, bloom, &hdr_tone_mapping_type)?;
             }
             (None, false) => {
                 self.draw_normal(state, opaques, translucents)?;
             }
             (Some(samples), true) => {
-                self.draw_hdr_multisample(state, samples, opaques, translucents)?;
-                self.blit_hdr_multisample(state, samples)?;
-                if self.bloom_enabled(resources) {
-                    self.hdr_bloom_mapping(state)?;
+                let bloom = self.bloom_enabled(resources);
+                let hdr_tone_mapping_type = self.hdr_tone_mapping_type(resources);
+
+                self.draw_hdr_multisample(state, samples, bloom, opaques, translucents)?;
+                self.blit_hdr_multisample(state, samples, bloom)?;
+                if bloom {
                     self.hdr_bloom_blur(state)?;
                     self.hdr_bloom_blend(state)?;
                 }
-                self.hdr_tone_mapping(state, &resources)?;
+                self.hdr_tone_mapping(state, bloom, &hdr_tone_mapping_type)?;
             }
             (Some(samples), false) => {
                 self.draw_normal_multisample(state, samples, opaques, translucents)?;

@@ -51,6 +51,7 @@ pub enum ShaderSource {
 /// Compiled program item.
 pub struct Program {
     name: String,
+    gl: WebGl2RenderingContext,
     program: WebGlProgram,
     shaders: Vec<WebGlShader>,
 
@@ -85,6 +86,33 @@ impl Program {
     /// Returns variable names to uniform locations mapping.
     pub fn uniform_locations(&self) -> &HashMap<String, WebGlUniformLocation> {
         &self.name_uniform_locations
+    }
+
+    /// Returns variable names to uniform locations mapping.
+    pub fn get_or_uniform_locations<S: Into<String>>(
+        &mut self,
+        variable_name: S,
+    ) -> Option<WebGlUniformLocation> {
+        let variable_name = variable_name.into();
+        match self.name_uniform_locations.entry(variable_name.clone()) {
+            Entry::Occupied(v) => Some(v.get().clone()),
+            Entry::Vacant(v) => {
+                let location = self.gl.get_uniform_location(&self.program, &variable_name);
+                match location {
+                    None => {
+                        warn!(
+                            target: "CompileProgram",
+                            "failed to get uniform location {}", variable_name
+                        );
+                        None
+                    }
+                    Some(location) => {
+                        let location = v.insert(location);
+                        Some(location.clone())
+                    }
+                }
+            },
+        }
     }
 
     /// Returns variable names to uniform struct field locations mapping.
@@ -125,7 +153,7 @@ impl Program {
 pub struct ProgramStore {
     gl: WebGl2RenderingContext,
     store: HashMap<String, *mut Program>,
-    using_program: Option<*const Program>,
+    using_program: Option<*mut Program>,
 }
 
 impl ProgramStore {
@@ -138,66 +166,67 @@ impl ProgramStore {
         }
     }
 
-    /// Compiles and returns a program item.
-    /// If program source already compiled, returns cached one.
-    pub fn compile_program<'a, 'b, 'c, S>(
+    fn use_program_inner<'a, 'b, 'c, S>(
         &'a mut self,
         source: &'b S,
-        custom_name: Option<Cow<'static, str>>,
-    ) -> Result<&'c Program, Error>
+        vertex_defines: Option<Vec<Cow<'static, str>>>,
+        fragment_defines: Option<Vec<Cow<'static, str>>>,
+    ) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
-        let store = &mut self.store;
+        let name = match fragment_defines.as_ref() {
+            Some(defines) => Cow::Owned(format!("{}_{}", source.name(), defines.join("_"))),
+            None => source.name(),
+        };
 
-        let name = custom_name.unwrap_or(source.name());
-        match store.entry(name.to_string()) {
-            Entry::Occupied(occupied) => unsafe { Ok(&**occupied.get()) },
-            Entry::Vacant(vacant) => {
-                let program = compile_program(&self.gl, source)?;
-                let program: *mut Program = Box::leak(Box::new(program));
-                let program = vacant.insert(program);
-                unsafe { Ok(&**program) }
-            }
-        }
-    }
-
-    /// Uses a program from a program source and uses a custom name instead of program source name.
-    /// Compiles program from program source if never uses before.
-    pub fn use_program_with_custom_name<'a, 'b, 'c, S>(
-        &'a mut self,
-        source: &'b S,
-        custom_name: Option<Cow<'static, str>>,
-    ) -> Result<&'c Program, Error>
-    where
-        S: ProgramSource + ?Sized,
-    {
-        let name = source.name();
-        let name = custom_name.as_ref().unwrap_or(&name);
-        if let Some(program) = self.using_program.as_ref() {
+        if let Some(using_program) = self.using_program.as_ref() {
             unsafe {
-                let program = &**program;
-                if program.name() == name {
-                    return Ok(program);
+                let using_program = &mut **using_program;
+                if using_program.name() == name {
+                    return Ok(using_program);
                 }
             }
         }
 
         unsafe {
-            let program: *const Program = self.compile_program(source, custom_name)?;
+            let program = match self.store.entry(name.to_string()) {
+                Entry::Occupied(mut occupied) => Ok(&mut **occupied.get_mut()),
+                Entry::Vacant(vacant) => {
+                    let program =
+                        compile_program(&self.gl, source, vertex_defines, fragment_defines)?;
+                    let program: *mut Program = Box::leak(Box::new(program));
+                    let program = vacant.insert(program);
+                    Ok(&mut **program)
+                }
+            }?;
             self.gl.use_program(Some(&(*program).program));
             self.using_program = Some(program);
-            Ok(&*program)
+            Ok(&mut *program)
         }
+    }
+
+    /// Uses a program from a program source and uses a custom name instead of program source name.
+    /// Compiles program from program source if never uses before.
+    pub fn use_program_with_defines<'a, 'b, 'c, S>(
+        &'a mut self,
+        source: &'b S,
+        vertex_defines: Vec<Cow<'static, str>>,
+        fragment_defines: Vec<Cow<'static, str>>,
+    ) -> Result<&'c mut Program, Error>
+    where
+        S: ProgramSource + ?Sized,
+    {
+        self.use_program_inner(source, Some(vertex_defines), Some(fragment_defines))
     }
 
     /// Uses a program from a program source.
     /// Compiles program from program source if never uses before.
-    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, source: &'b S) -> Result<&'c Program, Error>
+    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, source: &'b S) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
-        self.use_program_with_custom_name(source, None)
+        self.use_program_inner(source, None, None)
     }
 
     /// Unuses a program.
@@ -241,14 +270,24 @@ impl Drop for ProgramStore {
 }
 
 /// Compiles a [`WebGlProgram`] from a [`ProgramSource`].
-pub fn compile_program<S>(gl: &WebGl2RenderingContext, source: &S) -> Result<Program, Error>
+pub fn compile_program<S>(
+    gl: &WebGl2RenderingContext,
+    source: &S,
+    vertex_defines: Option<Vec<Cow<'static, str>>>,
+    fragment_defines: Option<Vec<Cow<'static, str>>>,
+) -> Result<Program, Error>
 where
     S: ProgramSource + ?Sized,
 {
-    let sources = source.sources();
+    let mut sources = source.sources();
     let mut shaders = Vec::with_capacity(sources.len());
-    sources.iter().try_for_each(|source| {
-        shaders.push(compile_shaders(gl, source)?);
+    sources.iter_mut().try_for_each(|source| {
+        shaders.push(compile_shader(
+            gl,
+            source,
+            vertex_defines.as_ref(),
+            fragment_defines.as_ref(),
+        )?);
         Ok(()) as Result<(), Error>
     })?;
 
@@ -277,9 +316,10 @@ where
         binding_uniform_locations,
         binding_uniform_structural_locations,
         binding_uniform_block_indices,
-        
+
         shaders,
         program,
+        gl: gl.clone(),
     })
 }
 
@@ -295,30 +335,52 @@ fn delete_program(gl: &WebGl2RenderingContext, program: Program) {
 }
 
 /// Compiles [`WebGlShader`] by [`ShaderSource`].
-pub fn compile_shaders(
+pub fn compile_shader(
     gl: &WebGl2RenderingContext,
-    source: &ShaderSource,
+    source: &mut ShaderSource,
+    vertex_defines: Option<&Vec<Cow<'static, str>>>,
+    fragment_defines: Option<&Vec<Cow<'static, str>>>,
 ) -> Result<WebGlShader, Error> {
     let (shader, code) = match source {
         ShaderSource::Builder(builder) => match builder.shader_type() {
-            ShaderType::Vertex => (
-                gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER)
-                    .ok_or(Error::CreateVertexShaderFailed)?,
-                Cow::Owned(builder.build()),
-            ),
-            ShaderType::Fragment => (
-                gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
-                    .ok_or(Error::CreateVertexShaderFailed)?,
-                Cow::Owned(builder.build()),
-            ),
+            ShaderType::Vertex => {
+                if let Some(vertex_defines) = vertex_defines {
+                    builder.defines_mut().extend_from_slice(vertex_defines);
+                }
+
+                (
+                    gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER)
+                        .ok_or(Error::CreateVertexShaderFailed)?,
+                    Cow::Owned(builder.build()),
+                )
+            }
+            ShaderType::Fragment => {
+                if let Some(fragment_defines) = fragment_defines {
+                    builder.defines_mut().extend_from_slice(fragment_defines);
+                }
+
+                (
+                    gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
+                        .ok_or(Error::CreateVertexShaderFailed)?,
+                    Cow::Owned(builder.build()),
+                )
+            }
         },
         ShaderSource::VertexRaw(code) => {
+            if vertex_defines.is_some() {
+                warn!("vertex defines for ShaderSource::VertexRaw is not supported");
+            }
+
             let shader = gl
                 .create_shader(WebGl2RenderingContext::VERTEX_SHADER)
                 .ok_or(Error::CreateVertexShaderFailed)?;
             (shader, code.clone())
         }
         ShaderSource::FragmentRaw(code) => {
+            if fragment_defines.is_some() {
+                warn!("fragment defines for ShaderSource::FragmentRaw is not supported");
+            }
+
             let shader = gl
                 .create_shader(WebGl2RenderingContext::FRAGMENT_SHADER)
                 .ok_or(Error::CreateFragmentShaderFailed)?;
@@ -460,7 +522,8 @@ fn collect_uniform_structural_locations(
                                 );
                             }
                             Some(location) => {
-                                name_locations.insert(complete_field_name.clone(), location.clone());
+                                name_locations
+                                    .insert(complete_field_name.clone(), location.clone());
                                 field_locations.insert(complete_field_name, location);
                             }
                         }

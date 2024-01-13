@@ -158,6 +158,7 @@ where
                 ],
                 vec![
                     Cow::Borrowed(include_str!("./shaders/lighting.glsl")),
+                    Cow::Borrowed(include_str!("./shaders/bloom.glsl")),
                     fragment_process,
                     Cow::Borrowed(include_str!("./shaders/entry_frag.glsl")),
                 ],

@@ -194,7 +194,7 @@ fn create_scene() -> Scene {
         Vec3::from_values(0.0, 1.5, 0.0),
         Vec3::from_values(0.01, 0.01, 0.01),
         Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::from_values(10.6, 10.6, 10.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(

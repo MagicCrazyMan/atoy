@@ -50,9 +50,21 @@ impl ShaderBuilder {
         self.shader_type
     }
 
+    pub fn include_header(&self) -> bool {
+        self.include_header
+    }
+
+    pub fn set_include_header(&mut self, include_header: bool) {
+        self.include_header = include_header;
+    }
+
     /// Returns defines source code.
     pub fn defines(&self) -> &[Cow<'static, str>] {
         &self.defines
+    }
+
+    pub fn defines_mut(&mut self) -> &mut Vec<Cow<'static, str>> {
+        &mut self.defines
     }
 
     /// Returns prepends source code.
@@ -60,9 +72,17 @@ impl ShaderBuilder {
         &self.prepends
     }
 
+    pub fn prepends_mut(&mut self) -> &mut Vec<Cow<'static, str>> {
+        &mut self.prepends
+    }
+
     /// Returns appends source code.
     pub fn appends(&self) -> &[Cow<'static, str>] {
         &self.appends
+    }
+
+    pub fn appends_mut(&mut self) -> &mut Vec<Cow<'static, str>> {
+        &mut self.appends
     }
 
     fn build_vertex_shader(&self) -> String {

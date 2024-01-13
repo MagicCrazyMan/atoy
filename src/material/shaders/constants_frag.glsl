@@ -9,11 +9,12 @@ in vec3 v_NormalWS;
 in vec2 v_TexCoord;
 
 uniform float u_Transparency;
-uniform uint u_Index;
+uniform vec3 u_BloomThreshold;
 
 layout(location = 0) out vec4 o_Color;
-layout(location = 1) out uint o_Index;
-layout(location = 2) out uvec3 o_Position;
+#ifdef BLOOM
+layout(location = 1) out vec4 o_BloomColor;
+#endif
 
 /**
  * Input fragment difinition.

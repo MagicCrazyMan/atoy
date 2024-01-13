@@ -56,6 +56,8 @@ onMounted(async () => {
     }
   );
 
+  viewer.set_multisample_wasm(0);
+
   clearColor.value = (() => {
     const color = viewer.clear_color_wasm();
     const r = Math.floor(color[0] * 255)
