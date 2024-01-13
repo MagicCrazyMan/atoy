@@ -229,43 +229,55 @@ impl Framebuffer {
         y: i32,
         width: i32,
         height: i32,
-        format: u32,
-        type_: u32,
+        format: TextureFormat,
+        data_type: TextureDataType,
         dst_data: &Object,
         dst_offset: u32,
     ) -> Result<(), Error> {
-        self.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        self.gl
-            .read_pixels_with_array_buffer_view_and_dst_offset(
-                x, y, width, height, format, type_, dst_data, dst_offset,
-            )
-            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
-        self.unbind();
-        Ok(())
+        self.read_pixels_with_read_buffer(
+            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+            x,
+            y,
+            width,
+            height,
+            format,
+            data_type,
+            dst_data,
+            dst_offset,
+        )
     }
 
     /// Reads pixels.
     pub fn read_pixels_with_read_buffer(
         &mut self,
-        source: FramebufferDrawBuffer,
+        read_buffer: FramebufferDrawBuffer,
         x: i32,
         y: i32,
         width: i32,
         height: i32,
-        format: u32,
-        type_: u32,
+        format: TextureFormat,
+        data_type: TextureDataType,
         dst_data: &Object,
         dst_offset: u32,
     ) -> Result<(), Error> {
-        self.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        self.gl.read_buffer(source.gl_enum());
+        let Some(framebuffer) = self.framebuffer.as_ref() else {
+            return Ok(());
+        };
+        self.gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, Some(framebuffer));
+        self.gl.read_buffer(read_buffer.gl_enum());
         self.gl
             .read_pixels_with_array_buffer_view_and_dst_offset(
-                x, y, width, height, format, type_, dst_data, dst_offset,
+                x,
+                y,
+                width,
+                height,
+                format.gl_enum(),
+                data_type.gl_enum(),
+                dst_data,
+                dst_offset,
             )
             .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
-        self.gl.read_buffer(WebGl2RenderingContext::BACK);
-        self.unbind();
+        self.gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         Ok(())
     }
 

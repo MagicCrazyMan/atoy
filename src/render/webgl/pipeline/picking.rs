@@ -15,7 +15,7 @@ use crate::{
                 Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
                 RenderbufferProvider, TextureProvider,
             },
-            program::{ProgramSource, VertexShaderSource, FragmentShaderSource},
+            program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
             renderbuffer::RenderbufferInternalFormat,
             state::FrameState,
             texture::{TextureDataType, TextureFormat, TextureInternalFormat},
@@ -112,19 +112,16 @@ impl PickingPipeline {
         };
 
         let pixel = Uint32Array::new_with_length(1);
-        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
-        picking_framebuffer.read_pixels_with_read_buffer(
-            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+        picking_framebuffer.read_pixels(
             window_position_x,
             canvas.height() as i32 - window_position_y,
             1,
             1,
-            WebGl2RenderingContext::RED_INTEGER,
-            WebGl2RenderingContext::UNSIGNED_INT,
+            TextureFormat::RED_INTEGER,
+            TextureDataType::UNSIGNED_INT,
             &pixel,
             0,
         )?;
-        picking_framebuffer.unbind();
 
         let index = pixel.get_index(0) as usize;
         if index > 0 {
@@ -165,20 +162,18 @@ impl PickingPipeline {
             return Ok(None);
         };
 
-        let pixel = Uint32Array::new_with_length(1);
-        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
+        let pixel = Uint32Array::new_with_length(4);
         picking_framebuffer.read_pixels_with_read_buffer(
-            FramebufferDrawBuffer::COLOR_ATTACHMENT0,
+            FramebufferDrawBuffer::COLOR_ATTACHMENT1,
             window_position_x,
             canvas.height() as i32 - window_position_y,
             1,
             1,
-            WebGl2RenderingContext::RGBA32UI,
-            WebGl2RenderingContext::UNSIGNED_INT,
+            TextureFormat::RGBA_INTEGER,
+            TextureDataType::UNSIGNED_INT,
             &pixel,
             0,
         )?;
-        picking_framebuffer.unbind();
 
         let position = [
             f32::from_ne_bytes(pixel.get_index(0).to_ne_bytes()),
@@ -281,8 +276,7 @@ impl Executor for Picking {
             return Ok(false);
         }
 
-        let picking_framebuffer = self.picking_framebuffer(&state);
-        picking_framebuffer.bind(FramebufferTarget::FRAMEBUFFER)?;
+        self.picking_framebuffer(&state).bind(FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
 
         state
@@ -368,7 +362,9 @@ impl Executor for Picking {
                 false,
                 &entity.compose_model_matrix().to_gl(),
             );
-            state.gl().uniform1ui(index_location.as_ref(), (index + 1) as u32);
+            state
+                .gl()
+                .uniform1ui(index_location.as_ref(), (index + 1) as u32);
             let bound_attributes = state.bind_attribute_value(position_location, vertices)?;
             state.draw(&geometry.draw())?;
             state.unbind_attributes(bound_attributes);
