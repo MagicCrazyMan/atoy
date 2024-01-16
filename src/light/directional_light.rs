@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::{Vec3, AsVec3};
+use gl_matrix4rust::vec3::Vec3;
 
 /// Maximum directional lights.
 pub static MAX_DIRECTIONAL_LIGHTS: usize = 12;
@@ -17,7 +17,13 @@ pub struct DirectionalLight {
 impl DirectionalLight {
     /// Constructs a new directional light.
     /// Position and direction of a directional light should be in world space.
-    pub fn new(direction: Vec3, ambient: Vec3, diffuse: Vec3, specular: Vec3, specular_shininess: f64) -> Self {
+    pub fn new(
+        direction: Vec3,
+        ambient: Vec3,
+        diffuse: Vec3,
+        specular: Vec3,
+        specular_shininess: f64,
+    ) -> Self {
         Self {
             enabled: true,
             direction: direction.normalize(),
@@ -96,21 +102,21 @@ impl DirectionalLight {
     /// Returns data in uniform buffer object alignment.
     pub fn gl_ubo(&self) -> [f32; 16] {
         [
-            self.direction.0[0] as f32,
-            self.direction.0[1] as f32,
-            self.direction.0[2] as f32,
+            *self.direction.x() as f32,
+            *self.direction.y() as f32,
+            *self.direction.z() as f32,
             if self.enabled { 1.0 } else { 0.0 },
-            self.ambient.0[0] as f32,
-            self.ambient.0[1] as f32,
-            self.ambient.0[2] as f32,
+            *self.ambient.x() as f32,
+            *self.ambient.y() as f32,
+            *self.ambient.z() as f32,
             0.0,
-            self.diffuse.0[0] as f32,
-            self.diffuse.0[1] as f32,
-            self.diffuse.0[2] as f32,
+            *self.diffuse.x() as f32,
+            *self.diffuse.y() as f32,
+            *self.diffuse.z() as f32,
             0.0,
-            self.specular.0[0] as f32,
-            self.specular.0[1] as f32,
-            self.specular.0[2] as f32,
+            *self.specular.x() as f32,
+            *self.specular.y() as f32,
+            *self.specular.z() as f32,
             self.specular_shininess as f32,
         ]
     }

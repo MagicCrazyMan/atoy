@@ -95,7 +95,7 @@ impl Geometry for Sphere {
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
         Some(BoundingVolume::BoundingSphere {
-            center: Vec3::from_values(0.0, 0.0, 0.0),
+            center: Vec3::<f64>::new(0.0, 0.0, 0.0),
             radius: self.radius,
         })
     }

@@ -1,7 +1,5 @@
 use std::{any::Any, collections::VecDeque, ptr::NonNull};
 
-use gl_matrix4rust::vec3::AsVec3;
-
 use crate::{
     bounding::Culling,
     entity::Entity,

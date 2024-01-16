@@ -3,7 +3,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::mat4::Mat4;
 use uuid::Uuid;
 
 use crate::{
@@ -46,14 +46,14 @@ impl EntityCollection {
             id: Uuid::new_v4(),
             entities: Vec::new(),
             collections: Vec::new(),
-            model_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::<f64>::new_identity(),
         };
         let runtime = Runtime {
             dirty: true,
             parent: None,
             bounding: None,
-            compose_model_matrix: Mat4::new_identity(),
-            compose_normal_matrix: Mat4::new_identity(),
+            compose_model_matrix: Mat4::<f64>::new_identity(),
+            compose_normal_matrix: Mat4::<f64>::new_identity(),
             enable_bounding: true,
             changed_event: EventAgency::new(),
             delegated_events: HashMap::new(),

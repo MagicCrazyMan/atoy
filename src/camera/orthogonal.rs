@@ -1,9 +1,6 @@
 use std::any::Any;
 
-use gl_matrix4rust::{
-    mat4::Mat4,
-    vec3::{AsVec3, Vec3},
-};
+use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
 use crate::{frustum::ViewFrustum, plane::Plane};
 
@@ -26,27 +23,20 @@ pub struct OrthogonalCamera {
 }
 
 impl OrthogonalCamera {
-    pub fn new<V1, V2, V3>(
-        position: V1,
-        center: V2,
-        up: V3,
+    pub fn new(
+        position: Vec3,
+        center: Vec3,
+        up: Vec3,
         left: f64,
         right: f64,
         bottom: f64,
         top: f64,
         near: f64,
         far: f64,
-    ) -> Self
-    where
-        V1: AsVec3<f64>,
-        V2: AsVec3<f64>,
-        V3: AsVec3<f64>,
-    {
-        let view = Mat4::from_look_at(&position, &center, &up);
-        let proj = Mat4::from_ortho(left, right, bottom, top, near, far);
-        let position = Vec3::from_as_vec3(position);
-        let center = Vec3::from_as_vec3(center);
-        let up = Vec3::from_as_vec3(up).normalize();
+    ) -> Self {
+        let view = Mat4::<f64>::from_look_at(&position, &center, &up);
+        let proj = Mat4::<f64>::from_ortho(left, right, bottom, top, near, far);
+        let up = up.normalize();
         let frustum = frustum(position, center, up, left, right, bottom, top, near, far);
         Self {
             position,
@@ -66,13 +56,13 @@ impl OrthogonalCamera {
     }
 
     fn update_view(&mut self) {
-        self.view = Mat4::from_look_at(&self.position, &self.center, &self.up);
+        self.view = Mat4::<f64>::from_look_at(&self.position, &self.center, &self.up);
         self.view_proj = self.proj * self.view;
         self.update_frustum();
     }
 
     fn update_proj(&mut self) {
-        self.proj = Mat4::from_ortho(
+        self.proj = Mat4::<f64>::from_ortho(
             self.left,
             self.right,
             self.bottom,
@@ -160,27 +150,19 @@ impl OrthogonalCamera {
         self.update_proj();
     }
 
-    pub fn set_position<V>(&mut self, position: &V)
-    where
-        V: AsVec3<f64> + ?Sized,
-    {
-        self.position.copy(position);
+    pub fn set_position(&mut self, position: Vec3) {
+        self.position = position;
         self.update_view();
     }
 
-    pub fn set_center<V>(&mut self, center: &V)
-    where
-        V: AsVec3<f64> + ?Sized,
-    {
-        self.center.copy(center);
+    pub fn set_center(&mut self, center: Vec3) {
+        self.center = center;
         self.update_view();
     }
 
-    pub fn set_up<V>(&mut self, up: &V)
-    where
-        V: AsVec3<f64> + ?Sized,
-    {
-        self.up = self.up.copy(up).normalize();
+    pub fn set_up(&mut self, mut up: Vec3) {
+        up.normalize_in_place();
+        self.up = up;
         self.update_view();
     }
 }
@@ -188,9 +170,9 @@ impl OrthogonalCamera {
 impl Default for OrthogonalCamera {
     fn default() -> Self {
         Self::new(
-            Vec3::from_values(0.0, 0.0, 2.0),
-            Vec3::new(),
-            Vec3::from_values(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::<f64>::new_zero(),
+            Vec3::new(0.0, 1.0, 0.0),
             -1.0,
             1.0,
             -1.0,
@@ -245,7 +227,7 @@ pub(super) fn frustum(
     let nz = (position - center).normalize();
     let x = up.cross(&nz).normalize();
     let y = nz.cross(&x).normalize();
-    let z = nz.negate();
+    let z = -nz;
 
     let p = position + z * near;
     let hh = (right - left).abs() / 2.0;
@@ -257,11 +239,11 @@ pub(super) fn frustum(
     };
     let bottom = {
         let pop = p + y * -hh;
-        Plane::new(pop, y.negate())
+        Plane::new(pop, -y)
     };
     let left = {
         let pop = p + x * -hw;
-        Plane::new(pop, x.negate())
+        Plane::new(pop, -x)
     };
     let right = {
         let pop = p + x * hw;

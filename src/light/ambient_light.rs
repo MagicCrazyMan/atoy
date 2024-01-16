@@ -44,9 +44,9 @@ impl AmbientLight {
     /// Returns data in uniform buffer object alignment.
     pub fn gl_ubo(&self) -> [f32; 4] {
         [
-            self.color.0[0] as f32,
-            self.color.0[1] as f32,
-            self.color.0[2] as f32,
+            *self.color.x() as f32,
+            *self.color.y() as f32,
+            *self.color.z() as f32,
             if self.enabled { 1.0 } else { 0.0 },
         ]
     }

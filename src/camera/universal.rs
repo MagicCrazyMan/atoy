@@ -1,21 +1,18 @@
-use std::{any::Any, cell::RefCell, collections::HashSet, f64::consts::PI, rc::Rc};
+use std::{any::Any, cell::RefCell, collections::HashSet, f64::consts::PI, ops::Neg, rc::Rc};
 
 use crate::{controller::Controller, frustum::ViewFrustum, plane::Plane, viewer::Viewer};
-use gl_matrix4rust::{
-    mat4::{AsMat4, Mat4},
-    vec3::{AsVec3, Vec3},
-};
+use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use log::warn;
 use uuid::Uuid;
 use web_sys::MouseEvent;
 
 use super::Camera;
 
-static BASE_RIGHTWARD: Vec3 = Vec3::from_values(1.0, 0.0, 0.0);
-static BASE_UPWARD: Vec3 = Vec3::from_values(0.0, 1.0, 0.0);
+const BASE_RIGHTWARD: Vec3 = Vec3::<f64>::new(1.0, 0.0, 0.0);
+const BASE_UPWARD: Vec3 = Vec3::<f64>::new(0.0, 1.0, 0.0);
 // camera coordinate system is a right hand side coordinate system
 // flip z axis to convert it to left hand side
-static BASE_FORWARD: Vec3 = Vec3::from_values(0.0, 0.0, -1.0);
+const BASE_FORWARD: Vec3 = Vec3::<f64>::new(0.0, 0.0, -1.0);
 
 struct Control {
     pressed_keys: HashSet<String>,
@@ -85,7 +82,7 @@ impl Inner {
     #[inline]
     fn move_directional(&mut self, direction: Vec3, movement: f64) {
         let offset = direction * -movement;
-        self.view = Mat4::from_translation(&offset) * self.view;
+        self.view = Mat4::<f64>::from_translation(&offset) * self.view;
         self.view_proj = self.proj * self.view;
         self.update_frustum();
     }
@@ -127,8 +124,8 @@ impl Inner {
                 .view
                 .invert() // inverts the view matrix, gets a camera transform matrix
                 .map(|rto| rto.transpose()) // transposes it, makes it available to transform a vector
-                .map(|trto| BASE_UPWARD.transform_mat4(&trto).normalize()) // transforms BASE_UPWARD vector by that matrix, we gets the Y axis of the view matrix but representing in world space
-                .and_then(|up| Mat4::from_rotation(ry,&up)) // then, makes a rotation matrix from it
+                .map(|trto| (trto * BASE_UPWARD).normalize()) // transforms BASE_UPWARD vector by that matrix, we gets the Y axis of the view matrix but representing in world space
+                .and_then(|up| Mat4::<f64>::from_rotation(ry,&up)) // then, makes a rotation matrix from it
             {
                 Ok(r) => r,
                 Err(err) => {
@@ -144,10 +141,10 @@ impl Inner {
             self.view = r * self.view;
         }
         if rx != 0.0 {
-            self.view = Mat4::from_x_rotation(rx) * self.view;
+            self.view = Mat4::<f64>::from_x_rotation(rx) * self.view;
         }
         if rz != 0.0 {
-            self.view = Mat4::from_z_rotation(rz) * self.view;
+            self.view = Mat4::<f64>::from_z_rotation(rz) * self.view;
         }
 
         self.view_proj = self.proj * self.view;
@@ -192,7 +189,7 @@ impl Inner {
     }
 
     fn set_position(&mut self, position: Vec3) {
-        let current = self.view.translation().negate();
+        let current = self.view.translation().neg();
         let offset = position - current;
         self.view = self.view.translate(&offset);
         self.view_proj = self.proj * self.view;
@@ -248,7 +245,7 @@ impl Inner {
     }
 
     fn update_proj(&mut self) {
-        self.proj = Mat4::from_perspective(self.fovy, self.aspect, self.near, self.far);
+        self.proj = Mat4::<f64>::from_perspective(self.fovy, self.aspect, self.near, self.far);
         self.view_proj = self.proj * self.view;
         self.update_frustum();
     }
@@ -268,26 +265,17 @@ pub struct UniversalCamera {
 }
 
 impl UniversalCamera {
-    pub fn new<V1, V2, V3>(
-        position: V1,
-        center: V2,
-        up: V3,
+    pub fn new(
+        position: Vec3,
+        center: Vec3,
+        up: Vec3,
         fovy: f64,
         aspect: f64,
         near: f64,
         far: Option<f64>,
-    ) -> Self
-    where
-        V1: AsVec3<f64>,
-        V2: AsVec3<f64>,
-        V3: AsVec3<f64>,
-    {
-        let position = Vec3::from_as_vec3(position);
-        let center = Vec3::from_as_vec3(center);
-        let up = Vec3::from_as_vec3(up);
-
-        let view = Mat4::from_look_at(&position, &center, &up);
-        let proj = Mat4::from_perspective(fovy, aspect, near, far);
+    ) -> Self {
+        let view = Mat4::<f64>::from_look_at(&position, &center, &up);
+        let proj = Mat4::<f64>::from_perspective(fovy, aspect, near, far);
         let frustum = frustum(&view, fovy, aspect, near, far);
 
         let default_movement = 1.0;
@@ -762,9 +750,9 @@ impl Controller for UniversalCamera {
 impl Default for UniversalCamera {
     fn default() -> Self {
         Self::new(
-            Vec3::from_values(0.0, 0.0, 2.0),
-            Vec3::new(),
-            Vec3::from_values(0.0, 1.0, 0.0),
+            Vec3::<f64>::new(0.0, 0.0, 2.0),
+            Vec3::<f64>::new_zero(),
+            Vec3::<f64>::new(0.0, 1.0, 0.0),
             60.0f64.to_radians(),
             1.0,
             0.5,
@@ -774,10 +762,10 @@ impl Default for UniversalCamera {
 }
 
 fn frustum(view: &Mat4, fovy: f64, aspect: f64, near: f64, far: Option<f64>) -> ViewFrustum {
-    let x = Vec3::from_values(view.m00(), view.m10(), view.m20());
-    let y = Vec3::from_values(view.m01(), view.m11(), view.m21());
-    let nz = Vec3::from_values(view.m02(), view.m12(), view.m22());
-    let z = nz.negate();
+    let x = Vec3::<f64>::new(*view.m00(), *view.m10(), *view.m20());
+    let y = Vec3::<f64>::new(*view.m01(), *view.m11(), *view.m21());
+    let nz = Vec3::<f64>::new(*view.m02(), *view.m12(), *view.m22());
+    let z = -nz;
     let position = view.invert().unwrap().translation();
 
     let p = position + z * near;

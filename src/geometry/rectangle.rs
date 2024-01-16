@@ -193,8 +193,8 @@ fn create_rectangle(
     texture_scale_s: f64,
     texture_scale_t: f64,
 ) -> ([u8; 112], BoundingVolume) {
-    let x = anchor.0[0];
-    let y = anchor.0[1];
+    let x = *anchor.x();
+    let y = *anchor.y();
 
     let (min_x, max_x, min_y, max_y) = match placement {
         Placement::Center => {

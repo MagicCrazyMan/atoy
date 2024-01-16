@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow};
 
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
     entity::Entity,
@@ -27,7 +27,7 @@ pub struct SolidColorMaterial {
 impl SolidColorMaterial {
     /// Constructs a solid color material with `(1.0, 0.0, 0.0, 1.0)``.
     pub fn new() -> Self {
-        Self::with_color(Vec3::from_values(1.0, 0.0, 0.0), Transparency::Opaque)
+        Self::with_color(Vec3::new(1.0, 0.0, 0.0), Transparency::Opaque)
     }
 
     /// Constructs a solid color material with specified color and transparency.
@@ -87,7 +87,7 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
-            "u_Color" => Some(UniformValue::FloatVector3(self.color.to_gl())),
+            "u_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
             _ => None,
         }
     }

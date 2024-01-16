@@ -1,9 +1,6 @@
 use std::cell::RefCell;
 
-use gl_matrix4rust::{
-    mat4::{AsMat4, Mat4},
-    vec3::{AsVec3, Vec3},
-};
+use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
 use crate::{
     frustum::{FrustumPlaneIndex, ViewFrustum},
@@ -61,20 +58,20 @@ impl CullingBoundingVolume {
                 max_z,
             } => cull_bb(
                 planes,
-                &Vec3::from_values(
+                &Vec3::<f64>::new(
                     (min_x + max_x) / 2.0,
                     (min_y + max_y) / 2.0,
                     (min_z + max_z) / 2.0,
                 ),
                 |signs| match signs {
-                    0b000 => Vec3::from_values(*max_x, *max_y, *max_z), // 000
-                    0b001 => Vec3::from_values(*min_x, *max_y, *max_z), // 001
-                    0b010 => Vec3::from_values(*max_x, *min_y, *max_z), // 010
-                    0b011 => Vec3::from_values(*min_x, *min_y, *max_z), // 011
-                    0b100 => Vec3::from_values(*max_x, *max_y, *min_z), // 100
-                    0b101 => Vec3::from_values(*min_x, *max_y, *min_z), // 101
-                    0b110 => Vec3::from_values(*max_x, *min_y, *min_z), // 110
-                    0b111 => Vec3::from_values(*min_x, *min_y, *min_z), // 111
+                    0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z), // 000
+                    0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z), // 001
+                    0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z), // 010
+                    0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z), // 011
+                    0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z), // 100
+                    0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z), // 101
+                    0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z), // 110
+                    0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z), // 111
                     _ => unreachable!(),
                 },
             ),
@@ -110,7 +107,7 @@ impl CullingBoundingVolume {
     }
 
     /// Transforms this bounding volume native by a transformation matrix.
-    pub fn transform(&mut self, transformation: &Mat4) {
+    pub fn transform(&mut self, transformation: Mat4) {
         self.bounding = self.bounding.transform(transformation);
         self.previous_outside_plane.borrow_mut().take();
     }
@@ -152,7 +149,7 @@ impl BoundingVolume {
                 max_y,
                 min_z,
                 max_z,
-            } => Vec3::from_values(
+            } => Vec3::<f64>::new(
                 (min_x + max_x) / 2.0,
                 (min_y + max_y) / 2.0,
                 (min_z + max_z) / 2.0,
@@ -185,20 +182,20 @@ impl BoundingVolume {
                 max_z,
             } => cull_bb(
                 planes,
-                &Vec3::from_values(
+                &Vec3::<f64>::new(
                     (min_x + max_x) / 2.0,
                     (min_y + max_y) / 2.0,
                     (min_z + max_z) / 2.0,
                 ),
                 |signs| match signs {
-                    0b000 => Vec3::from_values(*max_x, *max_y, *max_z),
-                    0b001 => Vec3::from_values(*min_x, *max_y, *max_z),
-                    0b010 => Vec3::from_values(*max_x, *min_y, *max_z),
-                    0b011 => Vec3::from_values(*min_x, *min_y, *max_z),
-                    0b100 => Vec3::from_values(*max_x, *max_y, *min_z),
-                    0b101 => Vec3::from_values(*min_x, *max_y, *min_z),
-                    0b110 => Vec3::from_values(*max_x, *min_y, *min_z),
-                    0b111 => Vec3::from_values(*min_x, *min_y, *min_z),
+                    0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z),
+                    0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z),
+                    0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z),
+                    0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z),
+                    0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z),
+                    0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z),
+                    0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z),
+                    0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z),
                     _ => unreachable!(),
                 },
             ),
@@ -223,13 +220,13 @@ impl BoundingVolume {
     }
 
     /// Transforms this bounding volume native by a transformation matrix.
-    pub fn transform(&self, transformation: &Mat4) -> Self {
+    pub fn transform(&self, transformation: Mat4) -> Self {
         match self {
             BoundingVolume::BoundingSphere { center, radius } => {
                 let scaling = transformation.scaling();
-                let max = scaling.x().max(scaling.y()).max(scaling.z());
+                let max = scaling.x().max(*scaling.y()).max(*scaling.z());
                 BoundingVolume::BoundingSphere {
-                    center: center.transform_mat4(transformation),
+                    center: transformation * *center,
                     radius: max * *radius,
                 }
             }
@@ -250,18 +247,45 @@ impl BoundingVolume {
                 let min_z = *min_z;
                 let max_z = *max_z;
 
-                let p0 = (min_x, min_y, min_z).transform_mat4(transformation);
-                let p1 = (min_x, max_y, min_z).transform_mat4(transformation);
-                let p2 = (min_x, min_y, max_z).transform_mat4(transformation);
-                let p3 = (min_x, max_y, max_z).transform_mat4(transformation);
-                let p4 = (max_x, max_y, min_z).transform_mat4(transformation);
-                let p5 = (max_x, min_y, max_z).transform_mat4(transformation);
-                let p6 = (max_x, min_y, min_z).transform_mat4(transformation);
-                let p7 = (max_x, max_y, max_z).transform_mat4(transformation);
+                let p0 = transformation * Vec3::new(min_x, min_y, min_z);
+                let p1 = transformation * Vec3::new(min_x, max_y, min_z);
+                let p2 = transformation * Vec3::new(min_x, min_y, max_z);
+                let p3 = transformation * Vec3::new(min_x, max_y, max_z);
+                let p4 = transformation * Vec3::new(max_x, max_y, min_z);
+                let p5 = transformation * Vec3::new(max_x, min_y, max_z);
+                let p6 = transformation * Vec3::new(max_x, min_y, min_z);
+                let p7 = transformation * Vec3::new(max_x, max_y, max_z);
 
-                let x = [p0.0, p1.0, p2.0, p3.0, p4.0, p5.0, p6.0, p7.0];
-                let y = [p0.1, p1.1, p2.1, p3.1, p4.1, p5.1, p6.1, p7.1];
-                let z = [p0.2, p1.2, p2.2, p3.2, p4.2, p5.2, p6.2, p7.2];
+                let x = [
+                    *p0.x(),
+                    *p1.x(),
+                    *p2.x(),
+                    *p3.x(),
+                    *p4.x(),
+                    *p5.x(),
+                    *p6.x(),
+                    *p7.x(),
+                ];
+                let y = [
+                    *p0.y(),
+                    *p1.y(),
+                    *p2.y(),
+                    *p3.y(),
+                    *p4.y(),
+                    *p5.y(),
+                    *p6.y(),
+                    *p7.y(),
+                ];
+                let z = [
+                    *p0.z(),
+                    *p1.z(),
+                    *p2.z(),
+                    *p3.z(),
+                    *p4.z(),
+                    *p5.z(),
+                    *p6.z(),
+                    *p7.z(),
+                ];
                 let min_x = *x.iter().min_by(|a, b| a.total_cmp(&b)).unwrap();
                 let max_x = *x.iter().max_by(|a, b| a.total_cmp(&b)).unwrap();
                 let min_y = *y.iter().min_by(|a, b| a.total_cmp(&b)).unwrap();
@@ -280,17 +304,17 @@ impl BoundingVolume {
             }
             BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
                 #[rustfmt::skip]
-                let before = Mat4::from_values(
-                    x.0[0], y.0[0], z.0[0], center.0[0],
-                    x.0[1], y.0[1], z.0[1], center.0[1],
-                    x.0[2], y.0[2], z.0[2], center.0[2],
+                let before = Mat4::new(
+                    *x.x(), *y.x(), *z.x(), *center.x(),
+                    *x.y(), *y.y(), *z.y(), *center.y(),
+                    *x.z(), *y.z(), *z.z(), *center.z(),
                     0.0, 0.0, 0.0, 1.0,
                 );
-                let after = *transformation * before;
-                let x = Vec3::from_values(after.m00(), after.m10(), after.m20());
-                let y = Vec3::from_values(after.m01(), after.m11(), after.m21());
-                let z = Vec3::from_values(after.m02(), after.m12(), after.m22());
-                let center = Vec3::from_values(after.m03(), after.m13(), after.m23());
+                let after = transformation * before;
+                let x = Vec3::new(*after.m00(), *after.m10(), *after.m20());
+                let y = Vec3::new(*after.m01(), *after.m11(), *after.m21());
+                let z = Vec3::new(*after.m02(), *after.m12(), *after.m22());
+                let center = Vec3::new(*after.m03(), *after.m13(), *after.m23());
 
                 BoundingVolume::OrientedBoundingBox { center, x, y, z }
             }
@@ -367,9 +391,9 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
             Some(plane) => unsafe {
                 let point_on_plane = plane.point_on_plane();
                 let n = plane.normal();
-                let nx = n.x();
-                let ny = n.y();
-                let nz = n.z();
+                let nx = *n.x();
+                let ny = *n.y();
+                let nz = *n.z();
 
                 // finds n- and p-vertices
                 let mut signs = 0u8;

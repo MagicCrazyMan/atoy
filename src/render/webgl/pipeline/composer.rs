@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow};
 
-use gl_matrix4rust::vec4::{AsVec4, Vec4};
+use gl_matrix4rust::vec4::Vec4;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 
 const TEXTURE: &'static str = "u_Texture";
 
-pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::from_values(0.0, 0.0, 0.0, 0.0);
+pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::<f64>::new(0.0, 0.0, 0.0, 0.0);
 
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
@@ -65,10 +65,10 @@ impl Executor for StandardComposer {
 
         let clear_color = self.clear_color(resources);
         state.gl().clear_color(
-            clear_color.x() as f32,
-            clear_color.y() as f32,
-            clear_color.z() as f32,
-            clear_color.w() as f32,
+            *clear_color.x() as f32,
+            *clear_color.y() as f32,
+            *clear_color.z() as f32,
+            *clear_color.w() as f32,
         );
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 

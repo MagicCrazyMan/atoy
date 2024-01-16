@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::{Vec3, AsVec3};
+use gl_matrix4rust::vec3::Vec3;
 
 /// Maximum area lights.
 pub static MAX_AREA_LIGHTS: usize = 12;
@@ -214,33 +214,33 @@ impl AreaLight {
     /// Returns data in uniform buffer object alignment.
     pub fn gl_ubo(&self) -> [f32; 28] {
         [
-            self.direction.0[0] as f32,
-            self.direction.0[1] as f32,
-            self.direction.0[2] as f32,
+            *self.direction.x() as f32,
+            *self.direction.y() as f32,
+            *self.direction.z() as f32,
             if self.enabled { 1.0 } else { 0.0 },
-            self.up.0[0] as f32,
-            self.up.0[1] as f32,
-            self.up.0[2] as f32,
+            *self.up.x() as f32,
+            *self.up.y() as f32,
+            *self.up.z() as f32,
             self.inner_width as f32,
-            self.right.0[0] as f32,
-            self.right.0[1] as f32,
-            self.right.0[2] as f32,
+            *self.right.x() as f32,
+            *self.right.y() as f32,
+            *self.right.z() as f32,
             self.inner_height as f32,
-            self.position.0[0] as f32,
-            self.position.0[1] as f32,
-            self.position.0[2] as f32,
+            *self.position.x() as f32,
+            *self.position.y() as f32,
+            *self.position.z() as f32,
             self.offset as f32,
-            self.ambient.0[0] as f32,
-            self.ambient.0[1] as f32,
-            self.ambient.0[2] as f32,
+            *self.ambient.x() as f32,
+            *self.ambient.y() as f32,
+            *self.ambient.z() as f32,
             self.outer_width as f32,
-            self.diffuse.0[0] as f32,
-            self.diffuse.0[1] as f32,
-            self.diffuse.0[2] as f32,
+            *self.diffuse.x() as f32,
+            *self.diffuse.y() as f32,
+            *self.diffuse.z() as f32,
             self.outer_height as f32,
-            self.specular.0[0] as f32,
-            self.specular.0[1] as f32,
-            self.specular.0[2] as f32,
+            *self.specular.x() as f32,
+            *self.specular.y() as f32,
+            *self.specular.z() as f32,
             self.specular_shininess as f32,
         ]
     }

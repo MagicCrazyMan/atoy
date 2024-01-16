@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow, cell::OnceCell, iter::FromIterator, ptr::NonNull};
 
-use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
+use gl_matrix4rust::GLF32;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -194,7 +194,7 @@ impl StandardDrawer {
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
         )
-        .copy_from(&state.camera().position().to_gl());
+        .copy_from(&state.camera().position().gl_f32());
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -202,7 +202,7 @@ impl StandardDrawer {
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&state.camera().view_matrix().to_gl());
+        .copy_from(&state.camera().view_matrix().gl_f32());
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -210,7 +210,7 @@ impl StandardDrawer {
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&state.camera().proj_matrix().to_gl());
+        .copy_from(&state.camera().proj_matrix().gl_f32());
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -218,7 +218,7 @@ impl StandardDrawer {
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
-        .copy_from(&state.camera().view_proj_matrix().to_gl());
+        .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
         self.universal_ubo
             .buffer_sub_data(BufferSource::from_array_buffer(data), 0);
@@ -234,7 +234,7 @@ impl StandardDrawer {
             UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
             UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH / 4,
         )
-        .copy_from(&scene.light_attenuations().to_gl());
+        .copy_from(&scene.light_attenuations().gl_f32());
 
         // u_AmbientLight
         if let Some(light) = scene.ambient_light() {

@@ -860,7 +860,6 @@ impl BufferStoreInner {
         let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
 
         if new_binding {
-            log::info!("new binding {}", binding);
             self.gl
                 .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
             match offset_and_size {

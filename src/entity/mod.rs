@@ -6,7 +6,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::mat4::Mat4;
 use uuid::Uuid;
 
 use crate::{
@@ -61,7 +61,7 @@ impl Entity {
     pub fn new() -> Self {
         let inner = Inner {
             id: Uuid::new_v4(),
-            model_matrix: Mat4::new_identity(),
+            model_matrix: Mat4::<f64>::new_identity(),
             attribute_values: HashMap::new(),
             uniform_values: HashMap::new(),
             uniform_blocks_values: HashMap::new(),
@@ -72,8 +72,8 @@ impl Entity {
         let runtime = Runtime {
             dirty: true,
             collection: None,
-            compose_model_matrix: Mat4::new_identity(),
-            compose_normal_matrix: Mat4::new_identity(),
+            compose_model_matrix: Mat4::<f64>::new_identity(),
+            compose_normal_matrix: Mat4::<f64>::new_identity(),
             bounding: None,
             changed_event: EventAgency::new(),
             delegated_geometry_event: None,
@@ -440,7 +440,7 @@ impl Entity {
             .geometry
             .as_ref()
             .and_then(|geom| geom.bounding_volume())
-            .map(|bounding| bounding.transform(&self.runtime().compose_model_matrix))
+            .map(|bounding| bounding.transform(self.runtime().compose_model_matrix))
             .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 

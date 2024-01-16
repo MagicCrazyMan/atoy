@@ -1,6 +1,6 @@
 use std::{any::Any, borrow::Cow, ptr::NonNull};
 
-use gl_matrix4rust::{mat4::AsMat4, vec3::Vec3};
+use gl_matrix4rust::{vec3::Vec3, GLF32};
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
@@ -182,7 +182,7 @@ impl PickingPipeline {
             f32::from_ne_bytes(pixel.get_index(3).to_ne_bytes()),
         ]; // converts unsigned int back to float
         if position != [0.0, 0.0, 0.0, 0.0] {
-            Ok(Some(Vec3::from_values(
+            Ok(Some(Vec3::<f64>::new(
                 position[0] as f64,
                 position[1] as f64,
                 position[2] as f64,
@@ -276,7 +276,8 @@ impl Executor for Picking {
             return Ok(false);
         }
 
-        self.picking_framebuffer(&state).bind(FramebufferTarget::FRAMEBUFFER)?;
+        self.picking_framebuffer(&state)
+            .bind(FramebufferTarget::FRAMEBUFFER)?;
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
 
         state
@@ -334,7 +335,7 @@ impl Executor for Picking {
         state.gl().uniform_matrix4fv_with_f32_array(
             view_proj_matrix_location.as_ref(),
             false,
-            &view_proj_matrix.to_gl(),
+            &view_proj_matrix.gl_f32(),
         );
 
         // render each entity by material
@@ -360,7 +361,7 @@ impl Executor for Picking {
             state.gl().uniform_matrix4fv_with_f32_array(
                 model_matrix_location.as_ref(),
                 false,
-                &entity.compose_model_matrix().to_gl(),
+                &entity.compose_model_matrix().gl_f32(),
             );
             state
                 .gl()

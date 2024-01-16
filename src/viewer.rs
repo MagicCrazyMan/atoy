@@ -100,7 +100,7 @@ impl Viewer {
     }
 
     pub fn clear_color_wasm(&self) -> Box<[f64]> {
-        Box::new(self.clear_color().0)
+        Box::new(self.clear_color().raw().clone())
     }
 
     pub fn lighting_enabled_wasm(&self) -> bool {
@@ -116,7 +116,7 @@ impl Viewer {
     }
 
     pub fn set_clear_color_wasm(&mut self, r: f64, g: f64, b: f64, a: f64) {
-        self.set_clear_color(Vec4::from_values(r, g, b, a))
+        self.set_clear_color(Vec4::new(r, g, b, a))
     }
 
     pub fn multisample_wasm(&self) -> Option<i32> {

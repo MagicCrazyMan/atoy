@@ -3,11 +3,10 @@ use std::f64::consts::PI;
 use std::ops::Mul;
 use std::{cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::mat4::{AsMat4, Mat4};
+use gl_matrix4rust::mat4::Mat4;
 use gl_matrix4rust::quat::Quat;
-use gl_matrix4rust::vec2::{AsVec2, Vec2};
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
-use gl_matrix4rust::vec4::{AsVec4, Vec4};
+use gl_matrix4rust::vec2::Vec2;
+use gl_matrix4rust::vec3::Vec3;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -129,11 +128,7 @@ pub fn test_gl_matrix_4_rust() {
 // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 // // }
 
-fn create_camera(
-    camera_position: impl AsVec3<f64>,
-    camera_center: impl AsVec3<f64>,
-    camera_up: impl AsVec3<f64>,
-) -> UniversalCamera {
+fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) -> UniversalCamera {
     UniversalCamera::new(
         camera_position,
         camera_center,
@@ -147,61 +142,61 @@ fn create_camera(
 
 fn create_scene() -> Scene {
     let mut scene = Scene::new();
-    scene.set_light_attenuations(Vec3::from_values(0.0, 1.0, 0.0));
-    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::from_values(0.01, 0.01, 0.01))));
+    scene.set_light_attenuations(Vec3::new(0.0, 1.0, 0.0));
+    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0.01, 0.01, 0.01))));
     // scene.add_directional_light(DirectionalLight::new(
-    //     Vec3::from_values(0.0, -1.0, -1.0),
-    //     Vec3::from_values(0.01, 0.01, 0.01),
-    //     Vec3::from_values(0.19, 0.19, 0.19),
-    //     Vec3::from_values(0.8, 0.8, 0.8),
+    //     Vec3::new(0.0, -1.0, -1.0),
+    //     Vec3::new(0.01, 0.01, 0.01),
+    //     Vec3::new(0.19, 0.19, 0.19),
+    //     Vec3::new(0.8, 0.8, 0.8),
     //     128.0,
     // ));
     scene.add_spot_light(SpotLight::new(
-        Vec3::from_values(0.0, 1.0, 0.0),
-        Vec3::from_values(1.0, -1.0, -1.0),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, -1.0, -1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         40f64.to_radians(),
     ));
     scene.add_spot_light(SpotLight::new(
-        Vec3::from_values(0.0, 1.0, 0.0),
-        Vec3::from_values(0.0, -1.0, 0.0),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.6, 0.6, 0.6),
         128.0,
         30f64.to_radians(),
         60f64.to_radians(),
     ));
     scene.add_area_light(AreaLight::new(
-        Vec3::from_values(-3.0, 2.0, 0.0),
-        Vec3::from_values(-1.0, -1.0, 1.0),
-        Vec3::from_values(1.0, 0.0, -1.0),
+        Vec3::new(-3.0, 2.0, 0.0),
+        Vec3::new(-1.0, -1.0, 1.0),
+        Vec3::new(1.0, 0.0, -1.0),
         0.5,
         4.0,
         1.5,
         4.5,
         2.0,
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(0.6, 0.6, 0.6),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.6, 0.6, 0.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
-        Vec3::from_values(0.0, 1.5, 0.0),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.39, 0.39, 0.39),
-        Vec3::from_values(10.6, 10.6, 10.6),
+        Vec3::new(0.0, 1.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
         128.0,
     ));
     scene.add_point_light(PointLight::new(
-        Vec3::from_values(8.0, 0.5, 0.0),
-        Vec3::from_values(0.01, 0.01, 0.01),
-        Vec3::from_values(0.69, 0.69, 0.69),
-        Vec3::from_values(0.3, 0.3, 0.3),
+        Vec3::new(8.0, 0.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.69, 0.69, 0.69),
+        Vec3::new(0.3, 0.3, 0.3),
         64.0,
     ));
     scene
@@ -250,7 +245,7 @@ pub fn test_cube(
     render_callback: &Function,
     pick_callback: &Function,
 ) -> Result<Viewer, Error> {
-    let camera = create_camera((0.0, 5.0, 5.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+    let camera = create_camera(Vec3::new(0.0, 5.0, 5.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let mut scene = create_scene();
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
 
@@ -265,12 +260,12 @@ pub fn test_cube(
 
         let center_x = start_x - col as f64 * cell_width;
         let center_z = start_z - row as f64 * cell_height;
-        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
         let mut cube = Entity::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
-            Vec3::from_values(rand::random(), rand::random(), rand::random()),
+            Vec3::new(rand::random(), rand::random(), rand::random()),
             Transparency::Opaque,
         )));
         cube.set_model_matrix(model_matrix);
@@ -280,7 +275,7 @@ pub fn test_cube(
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
-    //     Vec2::from_values(0.0, 0.0),
+    //     Vec2::new(0.0, 0.0),
     //     Placement::Center,
     //     4.0,
     //     4.0,
@@ -310,7 +305,7 @@ pub fn test_cube(
 
     let mut image = Entity::new();
     image.set_geometry(Some(Rectangle::new(
-        Vec2::from_values(0.0, 0.0),
+        Vec2::new(0.0, 0.0),
         Placement::Center,
         0.25,
         0.25,
@@ -325,7 +320,7 @@ pub fn test_cube(
 
     let mut floor = Entity::new();
     floor.set_geometry(Some(Rectangle::new(
-        Vec2::from_values(0.0, 0.0),
+        Vec2::new(0.0, 0.0),
         Placement::Center,
         1000.0,
         1000.0,
@@ -336,9 +331,9 @@ pub fn test_cube(
         "./wood.png",
         Transparency::Opaque,
     )));
-    floor.set_model_matrix(Mat4::from_rotation_translation(
-        &Quat::from_axis_angle(&Vec3::from_values(-1.0, 0.0, 0.0), PI / 2.0),
-        &Vec3::from_values(0.0, -0.6, 0.0),
+    floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
+        &Vec3::new(0.0, -0.6, 0.0),
     ));
     scene.entity_collection_mut().add_entity(floor);
 
@@ -361,7 +356,7 @@ pub fn test_cube(
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
             {
                 material.set_color(
-                    Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                    Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 )
             }
@@ -527,7 +522,7 @@ pub fn test_cube(
 
 // // //     let f = Rc::new(RefCell::new(None));
 // // //     let g = f.clone();
-// // //     let mut scaling = Vec3::from_values(1.0, 1.0, 1.0);
+// // //     let mut scaling = Vec3::new(1.0, 1.0, 1.0);
 // // //     *(*g).borrow_mut() = Some(Closure::new(move |timestamp: f64| {
 // // //         let seconds = timestamp / 1000.0;
 
@@ -700,7 +695,7 @@ pub fn test_pick(
     render_callback: &Function,
     pick_callback: &Function,
 ) -> Result<(), Error> {
-    let camera = create_camera((0.0, 3.0, 8.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+    let camera = create_camera(Vec3::new(0.0, 3.0, 8.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
     let mut scene = create_scene();
 
     let cell_width = width / (grid as f64);
@@ -714,12 +709,12 @@ pub fn test_pick(
 
         let center_x = start_x - col as f64 * cell_width;
         let center_z = start_z - row as f64 * cell_height;
-        let model_matrix = Mat4::from_translation(&[center_x, 0.0, center_z]);
+        let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
         let mut cube = Entity::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
-            Vec3::from_values(rand::random(), rand::random(), rand::random()),
+            Vec3::new(rand::random(), rand::random(), rand::random()),
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
@@ -746,7 +741,7 @@ pub fn test_pick(
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
             {
                 material.set_color(
-                    Vec3::from_values(rand::random(), rand::random(), rand::random()),
+                    Vec3::new(rand::random(), rand::random(), rand::random()),
                     rand::random(),
                 )
             }
@@ -817,7 +812,7 @@ pub fn test_pick(
 // //         frustum.right().point_on_plane()
 // //     );
 
-// //     let position = Vec4::from_values(0.0, 0.0, -1.0, 1.0);
+// //     let position = Vec4::new(0.0, 0.0, -1.0, 1.0);
 
 // //     let view_matrix = camera.view_matrix();
 // //     let view_translated_matrix = view_matrix.translate(&(0.0, 0.0, 2.0));
@@ -829,23 +824,23 @@ pub fn test_pick(
 // //     console_log!("{}", position.transform_mat4(&view_translated_matrix));
 // //     console_log!(
 // //         "{}",
-// //         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix)
+// //         Vec3::new(0.0, 0.0, 1.0).transform_mat4(&view_translated_matrix)
 // //     );
 // //     console_log!(
 // //         "{}",
-// //         Vec3::from_values(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix)
+// //         Vec3::new(0.0, 0.0, 3.0).transform_mat4(&view_translated_matrix)
 // //     );
 // //     console_log!(
 // //         "{}",
-// //         Vec3::from_values(0.0, 0.0, 0.0).transform_mat4(&view_matrix)
+// //         Vec3::new(0.0, 0.0, 0.0).transform_mat4(&view_matrix)
 // //     );
 // //     console_log!(
 // //         "{}",
-// //         Vec3::from_values(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix)
+// //         Vec3::new(0.0, 0.0, -1.0).transform_mat4(&view_inv_matrix)
 // //     );
 // //     console_log!(
 // //         "{}",
-// //         Vec3::from_values(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix)
+// //         Vec3::new(0.0, 0.0, 1.0).transform_mat4(&view_inv_matrix)
 // //     );
 // //     console_log!("{}", Vec3::new().transform_mat4(&view_matrix));
 // //     console_log!("{}", Vec3::new().transform_mat4(&view_inv_matrix));
@@ -873,11 +868,11 @@ pub fn test_pick(
 
 // // // #[wasm_bindgen]
 // // // pub fn test_non_simd() {
-// // //         let vec1 = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
+// // //         let vec1 = Vec4::<f32>::new(1.0, 1.0, 1.0, 1.0);
 
 // // //     let count = 1500000000usize;
 // // //     let start = window().performance().unwrap().now();
-// // //     let mut result = Vec4::<f32>::from_values(1.0, 1.0, 1.0, 1.0);
+// // //     let mut result = Vec4::<f32>::new(1.0, 1.0, 1.0, 1.0);
 // // //     for _ in 0..count {
 // // //         result = result * vec1;
 // // //     }

@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::{
     BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array, Int32Array, Int8Array,
     Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
@@ -87,26 +87,26 @@ pub fn format_bytes_length(len: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use gl_matrix4rust::vec3::{AsVec3, Vec3};
+    use gl_matrix4rust::vec3::Vec3;
 
     use crate::utils::distance_point_and_plane;
 
     #[test]
     fn test_distance_point_and_plane() {
-        let pop = Vec3::from_values(0.0, 0.0, 0.0);
-        let n = Vec3::from_values(1.0, 1.0, 0.0).normalize();
+        let pop = Vec3::<f64>::new(0.0, 0.0, 0.0);
+        let n = Vec3::<f64>::new(1.0, 1.0, 0.0).normalize();
 
         assert_eq!(
             7.071067811865475,
-            distance_point_and_plane(&Vec3::from_values(10.0, 0.0, 0.0), &pop, &n)
+            distance_point_and_plane(&Vec3::<f64>::new(10.0, 0.0, 0.0), &pop, &n)
         );
         assert_eq!(
             -7.071067811865475,
-            distance_point_and_plane(&Vec3::from_values(-10.0, 0.0, 0.0), &pop, &n)
+            distance_point_and_plane(&Vec3::<f64>::new(-10.0, 0.0, 0.0), &pop, &n)
         );
         assert_eq!(
             14.14213562373095,
-            distance_point_and_plane(&Vec3::from_values(10.0, 10.0, 0.0), &pop, &n)
+            distance_point_and_plane(&Vec3::<f64>::new(10.0, 10.0, 0.0), &pop, &n)
         );
     }
 }

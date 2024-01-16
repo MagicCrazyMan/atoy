@@ -1,4 +1,4 @@
-use gl_matrix4rust::vec3::{AsVec3, Vec3};
+use gl_matrix4rust::vec3::Vec3;
 
 use crate::utils::{distance_point_and_plane, distance_point_and_plane_abs};
 

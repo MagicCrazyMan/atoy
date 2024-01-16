@@ -139,7 +139,7 @@ impl Geometry for Cube {
 fn build_bounding_volume(size: f64) -> BoundingVolume {
     let s = size / 2.0;
     BoundingVolume::BoundingSphere {
-        center: Vec3::from_values(0.0, 0.0, 0.0),
+        center: Vec3::<f64>::new(0.0, 0.0, 0.0),
         radius: (s * s + s * s + s * s).sqrt(),
     }
 }

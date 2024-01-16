@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use gl_matrix4rust::{mat4::AsMat4, vec3::AsVec3};
+use gl_matrix4rust::GLF32;
 use log::warn;
 use web_sys::{
     js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
@@ -320,11 +320,11 @@ impl FrameState {
                 | UniformBinding::NormalMatrix
                 | UniformBinding::ViewProjMatrix => {
                     let data = match binding {
-                        UniformBinding::ModelMatrix => entity.compose_model_matrix().to_gl(),
-                        UniformBinding::NormalMatrix => entity.compose_normal_matrix().to_gl(),
-                        UniformBinding::ViewMatrix => self.camera().view_matrix().to_gl(),
-                        UniformBinding::ProjMatrix => self.camera().proj_matrix().to_gl(),
-                        UniformBinding::ViewProjMatrix => self.camera().view_proj_matrix().to_gl(),
+                        UniformBinding::ModelMatrix => entity.compose_model_matrix().gl_f32(),
+                        UniformBinding::NormalMatrix => entity.compose_normal_matrix().gl_f32(),
+                        UniformBinding::ViewMatrix => self.camera().view_matrix().gl_f32(),
+                        UniformBinding::ProjMatrix => self.camera().proj_matrix().gl_f32(),
+                        UniformBinding::ViewProjMatrix => self.camera().view_proj_matrix().gl_f32(),
                         _ => unreachable!(),
                     };
 
@@ -334,7 +334,7 @@ impl FrameState {
                     })
                 }
                 UniformBinding::CameraPosition => {
-                    Some(UniformValue::FloatVector3(self.camera().position().to_gl()))
+                    Some(UniformValue::FloatVector3(self.camera().position().gl_f32()))
                 }
                 UniformBinding::RenderTime => Some(UniformValue::Float1(self.timestamp() as f32)),
                 UniformBinding::Transparency => {

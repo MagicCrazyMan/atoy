@@ -31,7 +31,7 @@ impl Scene {
             entity_collection: EntityCollection::new(),
 
             lighting_enabled: true,
-            light_attenuations: Vec3::from_values(0.0, 1.0, 0.0),
+            light_attenuations: Vec3::<f64>::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
             directional_lights: Vec::new(),
