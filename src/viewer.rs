@@ -217,7 +217,7 @@ impl Viewer {
         let me = self.weak();
         let listener = self
             .scene_mut()
-            .entity_collection_mut()
+            .entity_container_mut()
             .changed_event()
             .on(move |_| {
                 let Some(mut viewer) = me.upgrade() else {
@@ -559,7 +559,7 @@ impl Drop for Viewer {
             // removes entities changed listener
             if let Some(listener) = self.inner_mut().entities_changed_listener.take() {
                 self.scene_mut()
-                    .entity_collection_mut()
+                    .entity_container_mut()
                     .changed_event()
                     .off(&listener);
             }

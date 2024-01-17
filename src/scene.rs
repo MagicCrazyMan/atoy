@@ -2,7 +2,7 @@ use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 
 use crate::{
-    entity::collection::EntityCollection,
+    entity::Container,
     light::{
         ambient_light::AmbientLight,
         area_light::{AreaLight, MAX_AREA_LIGHTS},
@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub struct Scene {
-    entity_collection: EntityCollection,
+    entity_container: Container,
 
     lighting_enabled: bool,
     light_attenuations: Vec3,
@@ -28,7 +28,7 @@ impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Self {
         Self {
-            entity_collection: EntityCollection::new(),
+            entity_container: Container::new(),
 
             lighting_enabled: true,
             light_attenuations: Vec3::<f64>::new(0.0, 1.0, 0.0),
@@ -41,13 +41,13 @@ impl Scene {
     }
 
     /// Returns root entities collection.
-    pub fn entity_collection(&self) -> &EntityCollection {
-        &self.entity_collection
+    pub fn entity_container(&self) -> &Container {
+        &self.entity_container
     }
 
     /// Returns mutable root entities collection.
-    pub fn entity_collection_mut(&mut self) -> &mut EntityCollection {
-        &mut self.entity_collection
+    pub fn entity_container_mut(&mut self) -> &mut Container {
+        &mut self.entity_container
     }
 
     /// Returns `true` if enable lighting.

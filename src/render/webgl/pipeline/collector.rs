@@ -1,4 +1,4 @@
-use std::{any::Any, collections::VecDeque, ptr::NonNull};
+use std::{any::Any, collections::VecDeque, iter::FromIterator, ptr::NonNull};
 
 use crate::{
     bounding::Culling,
@@ -87,36 +87,36 @@ impl Executor for StandardEntitiesCollector {
         let view_frustum = state.camera().view_frustum();
         let mut entities = Vec::new();
 
-        // entities collections waits for collecting. If parent model does not changed, set matrix to None.
-        unsafe {
-            let mut collections = VecDeque::from([scene.entity_collection_mut()]);
-            while let Some(collection) = collections.pop_front() {
-                let collection = &mut *collection;
-                collection.update();
+        scene.entity_container_mut().update();
 
-                // culls collection bounding
+        unsafe {
+            let mut groups = VecDeque::from_iter([scene.entity_container_mut().root_group_mut()]);
+            while let Some(group) = groups.pop_front() {
                 if culling_enabled {
-                    if let Some(collection_bounding) = collection.bounding() {
-                        if let Culling::Outside(_) = collection_bounding.cull(&view_frustum) {
+                    if let Some(bounding) = group.bounding() {
+                        let culling = bounding.cull(&view_frustum);
+                        if let Culling::Outside(_) = culling {
                             continue;
                         }
                     }
                 }
 
-                // travels each entity
-                for entity in collection.entities_mut() {
-                    entity.update();
-
+                for entity in group.entities_mut() {
                     let distance = if culling_enabled {
                         match entity.bounding() {
                             Some(bounding) => {
-                                match bounding.cull(&view_frustum) {
+                                let culling = bounding.cull(&view_frustum);
+                                if let Culling::Outside(_) = culling {
+                                    continue;
+                                }
+
+                                match culling {
+                                    Culling::Outside(_) => unreachable!(),
                                     Culling::Inside { near, .. }
                                     | Culling::Intersect { near, .. } => near,
-                                    Culling::Outside(_) => continue, // filters entity outside frustum
                                 }
                             }
-                            None => f64::INFINITY, // returns infinity for an entity without bounding
+                            None => f64::INFINITY,
                         }
                     } else if sorting_enabled {
                         match entity.bounding() {
@@ -134,8 +134,7 @@ impl Executor for StandardEntitiesCollector {
                     })
                 }
 
-                // adds child collections to list
-                collections.extend(collection.collections_mut().iter_mut());
+                groups.extend(group.subgroups_mut());
             }
         }
 

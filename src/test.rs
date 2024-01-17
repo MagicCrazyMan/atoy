@@ -18,8 +18,7 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::entity::collection::EntityCollection;
-use crate::entity::Entity;
+use crate::entity::{Entity, GroupOptions, EntityOptions};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -253,7 +252,7 @@ pub fn test_cube(
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
-    let mut cubes = EntityCollection::new();
+    let mut cubes = GroupOptions::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -262,16 +261,16 @@ pub fn test_cube(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
-        let mut cube = Entity::new();
+        let mut cube = EntityOptions::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             Transparency::Opaque,
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.add_entity(cube);
+        cubes.entities_mut().push(cube);
     }
-    scene.entity_collection_mut().add_collection(cubes);
+    scene.entity_container_mut().add_group(cubes)?;
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -303,7 +302,7 @@ pub fn test_cube(
     // )));
     // scene.entity_collection_mut().add_entity(entity);
 
-    let mut image = Entity::new();
+    let mut image = EntityOptions::new();
     image.set_geometry(Some(Rectangle::new(
         Vec2::new(0.0, 0.0),
         Placement::Center,
@@ -316,9 +315,9 @@ pub fn test_cube(
         "./skybox/skybox_py.jpg",
         Transparency::Opaque,
     )));
-    scene.entity_collection_mut().add_entity(image);
+    scene.entity_container_mut().add_entity(image);
 
-    let mut floor = Entity::new();
+    let mut floor = EntityOptions::new();
     floor.set_geometry(Some(Rectangle::new(
         Vec2::new(0.0, 0.0),
         Placement::Center,
@@ -335,7 +334,7 @@ pub fn test_cube(
         &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
         &Vec3::new(0.0, -0.6, 0.0),
     ));
-    scene.entity_collection_mut().add_entity(floor);
+    scene.entity_container_mut().add_entity(floor);
 
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
@@ -702,7 +701,7 @@ pub fn test_pick(
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
-    let mut cubes = EntityCollection::new();
+    let mut cubes = GroupOptions::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -711,16 +710,16 @@ pub fn test_pick(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
-        let mut cube = Entity::new();
+        let mut cube = EntityOptions::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.add_entity(cube);
+        cubes.entities_mut().push(cube);
     }
-    scene.entity_collection_mut().add_collection(cubes);
+    scene.entity_container_mut().add_group(cubes)?;
 
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
