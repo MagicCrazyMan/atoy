@@ -226,7 +226,7 @@ impl StandardMultisamplesHdrDrawer {
         self.framebuffer.as_ref().and_then(|f| f.texture(0))
     }
 
-    pub fn draw(
+    pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
         lighting: bool,
@@ -267,7 +267,7 @@ impl StandardMultisamplesHdrDrawer {
         Ok(())
     }
 
-    fn draw_hdr_multisamples(
+    unsafe fn draw_hdr_multisamples(
         &mut self,
         state: &mut FrameState,
         lighting: bool,
@@ -290,7 +290,7 @@ impl StandardMultisamplesHdrDrawer {
         Ok(())
     }
 
-    fn draw_hdr_multisamples_bloom(
+    unsafe fn draw_hdr_multisamples_bloom(
         &mut self,
         state: &mut FrameState,
         lighting: bool,

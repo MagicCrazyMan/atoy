@@ -167,7 +167,7 @@ impl StandardHdrDrawer {
         self.framebuffer.as_ref().and_then(|f| f.texture(0))
     }
 
-    pub fn draw(
+    pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
         lighting: bool,
@@ -203,7 +203,7 @@ impl StandardHdrDrawer {
         Ok(())
     }
 
-    fn draw_hdr(
+    unsafe fn draw_hdr(
         &mut self,
         state: &mut FrameState,
         lighting: bool,
@@ -225,7 +225,7 @@ impl StandardHdrDrawer {
         Ok(())
     }
 
-    fn draw_hdr_bloom(
+    unsafe fn draw_hdr_bloom(
         &mut self,
         state: &mut FrameState,
         lighting: bool,

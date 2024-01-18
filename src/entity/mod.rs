@@ -982,6 +982,11 @@ impl Container {
     }
 
     #[inline]
+    pub fn entities_raw(&mut self) -> &mut IndexMap<Uuid, *mut Entity> {
+        unsafe { &mut *self.entities }
+    }
+
+    #[inline]
     pub fn root_group(&self) -> &Group {
         unsafe { &*self.root_group }
     }
@@ -1151,6 +1156,11 @@ impl Container {
     #[inline]
     pub fn group_mut(&mut self, id: &Uuid) -> Option<&mut Group> {
         unsafe { (*self.groups).get_mut(id).map(|group| &mut **group) }
+    }
+
+    #[inline]
+    pub fn groups_raw(&mut self) -> &mut IndexMap<Uuid, *mut Group> {
+        unsafe { &mut *self.groups }
     }
 
     #[inline]

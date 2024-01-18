@@ -489,7 +489,7 @@ impl Controller for UniversalCamera {
         }
 
         let key_down_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let control = Rc::clone(&self.control);
             viewer.scene_mut().key_down_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
@@ -517,7 +517,7 @@ impl Controller for UniversalCamera {
         };
 
         let key_up_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let control = Rc::clone(&self.control);
             viewer.scene_mut().key_up_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
@@ -545,7 +545,7 @@ impl Controller for UniversalCamera {
         };
 
         let mouse_move_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             viewer.scene_mut().mouse_move_event().on(move |event| {
@@ -597,7 +597,7 @@ impl Controller for UniversalCamera {
         };
 
         let wheel_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             viewer.scene_mut().wheel_event().on(move |event| {
@@ -623,7 +623,7 @@ impl Controller for UniversalCamera {
         };
 
         let pre_render_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             viewer.render_mut().pre_render_event().on(move |event| {
@@ -688,7 +688,7 @@ impl Controller for UniversalCamera {
         };
 
         let canvas_changed_listener = {
-            let viewer_weak = viewer.weak();
+            let viewer_weak = viewer.downgrade();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
             viewer.scene_mut().canvas_changed_event().on(move |event| {
@@ -727,7 +727,7 @@ impl Controller for UniversalCamera {
             return;
         };
 
-        let scene = viewer.scene_mut();
+        let mut scene = viewer.scene_mut();
         scene.key_down_event().off(&control.key_down_listener);
         scene.key_up_event().off(&control.key_up_listener);
         scene.mouse_move_event().off(&control.mouse_move_listener);
@@ -736,7 +736,7 @@ impl Controller for UniversalCamera {
             .canvas_changed_event()
             .off(&control.canvas_changed_listener);
 
-        let render = viewer.render_mut();
+        let mut render = viewer.render_mut();
         render.pre_render_event().off(&control.pre_render_listener);
     }
 

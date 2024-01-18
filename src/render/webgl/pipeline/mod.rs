@@ -6,6 +6,7 @@ pub mod picking;
 pub mod preparation;
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
+use uuid::Uuid;
 
 use crate::{
     entity::Entity,
@@ -462,20 +463,44 @@ impl StandardPipeline {
         self.set_dirty();
     }
 
-    /// Returns picked entity.
+    /// Returns picked entity index.
     /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
-    pub unsafe fn pick_entity<'a, 'b>(
-        &'a mut self,
+    pub unsafe fn pick_entity(
+        &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<&'b mut Entity>, Error> {
-        if self.picking_dirty || self.last_picking_collected_entities_id.is_none() {
+    ) -> Result<Option<&mut Entity>, Error> {
+        if self.picking_dirty {
             return Ok(None);
         }
+        if self.last_picking_collected_entities_id.is_none() {
+            return Ok(None);
+        }
+        let Some(last_collected_entities) = self.entities_collector.last_collected_entities()
+        else {
+            return Ok(None);
+        };
 
-        self.picking
-            .pick_entity(window_position_x, window_position_y)
+        self.picking.pick_entity(
+            window_position_x,
+            window_position_y,
+            &last_collected_entities,
+        )
     }
+
+    /// Returns picked entity id.
+    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    pub unsafe fn pick_entity_id(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<Uuid>, Error> {
+        let Some(entity) = self.pick_entity(window_position_x, window_position_y)? else {
+            return Ok(None);
+        };
+        Ok(Some(*entity.id()))
+    }
+
     /// Returns picked position.
     /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
     pub unsafe fn pick_position(
@@ -483,7 +508,10 @@ impl StandardPipeline {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        if self.picking_dirty || self.last_picking_collected_entities_id.is_none() {
+        if self.picking_dirty {
+            return Ok(None);
+        }
+        if self.last_picking_collected_entities_id.is_none() {
             return Ok(None);
         }
 
@@ -503,59 +531,66 @@ impl StandardPipeline {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // skips render if collect_entities unchanged and pipeline is not dirty
-        self.preparation
-            .prepare(state, scene, lighting,&mut self.universal_ubo, &mut self.lights_ubo)?;
+        self.preparation.prepare(
+            state,
+            scene,
+            lighting,
+            &mut self.universal_ubo,
+            &mut self.lights_ubo,
+        )?;
 
-        let compose_textures = match (hdr, multisamples) {
-            (true, None) => {
-                self.hdr_drawer.draw(
-                    state,
-                    lighting,
-                    bloom_blur,
-                    bloom_blur_epoch,
-                    self.hdr_tone_mapping_type,
-                    &collected_entities,
-                    &self.universal_ubo,
-                    &self.lights_ubo,
-                    &self.gaussian_kernel_ubo,
-                )?;
-                [self.hdr_drawer.draw_texture().unwrap()]
-            }
-            (true, Some(samples)) => {
-                self.multisamples_hdr_drawer.draw(
-                    state,
-                    lighting,
-                    samples,
-                    bloom_blur,
-                    bloom_blur_epoch,
-                    self.hdr_tone_mapping_type,
-                    &collected_entities,
-                    &self.universal_ubo,
-                    &self.lights_ubo,
-                    &self.gaussian_kernel_ubo,
-                )?;
-                [self.multisamples_hdr_drawer.draw_texture().unwrap()]
-            }
-            (false, None) => {
-                self.simple_drawer.draw(
-                    state,
-                    lighting,
-                    &collected_entities,
-                    &self.universal_ubo,
-                    &self.lights_ubo,
-                )?;
-                [self.multisamples_simple_drawer.draw_texture().unwrap()]
-            }
-            (false, Some(samples)) => {
-                self.multisamples_simple_drawer.draw(
-                    state,
-                    lighting,
-                    samples,
-                    &collected_entities,
-                    &self.universal_ubo,
-                    &self.lights_ubo,
-                )?;
-                [self.multisamples_simple_drawer.draw_texture().unwrap()]
+        let compose_textures = unsafe {
+            match (hdr, multisamples) {
+                (true, None) => {
+                    self.hdr_drawer.draw(
+                        state,
+                        lighting,
+                        bloom_blur,
+                        bloom_blur_epoch,
+                        self.hdr_tone_mapping_type,
+                        &collected_entities,
+                        &self.universal_ubo,
+                        &self.lights_ubo,
+                        &self.gaussian_kernel_ubo,
+                    )?;
+                    [self.hdr_drawer.draw_texture().unwrap()]
+                }
+                (true, Some(samples)) => {
+                    self.multisamples_hdr_drawer.draw(
+                        state,
+                        lighting,
+                        samples,
+                        bloom_blur,
+                        bloom_blur_epoch,
+                        self.hdr_tone_mapping_type,
+                        &collected_entities,
+                        &self.universal_ubo,
+                        &self.lights_ubo,
+                        &self.gaussian_kernel_ubo,
+                    )?;
+                    [self.multisamples_hdr_drawer.draw_texture().unwrap()]
+                }
+                (false, None) => {
+                    self.simple_drawer.draw(
+                        state,
+                        lighting,
+                        &collected_entities,
+                        &self.universal_ubo,
+                        &self.lights_ubo,
+                    )?;
+                    [self.multisamples_simple_drawer.draw_texture().unwrap()]
+                }
+                (false, Some(samples)) => {
+                    self.multisamples_simple_drawer.draw(
+                        state,
+                        lighting,
+                        samples,
+                        &collected_entities,
+                        &self.universal_ubo,
+                        &self.lights_ubo,
+                    )?;
+                    [self.multisamples_simple_drawer.draw_texture().unwrap()]
+                }
             }
         };
         self.composer.compose(state, compose_textures)?;
@@ -577,7 +612,9 @@ impl StandardPipeline {
             return Ok(());
         }
 
-        self.picking.render(state, &collected_entities)?;
+        unsafe {
+            self.picking.render(state, &collected_entities)?;
+        }
 
         self.picking_dirty = false;
         self.last_picking_collected_entities_id = Some(collected_entities.id());

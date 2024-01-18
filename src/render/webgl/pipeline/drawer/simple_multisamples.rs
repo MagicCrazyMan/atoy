@@ -72,7 +72,7 @@ impl StandardMultisamplesSimpleDrawer {
         self.framebuffer.as_ref().and_then(|f| f.texture(0))
     }
 
-    pub fn draw(
+    pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
         lighting: bool,
@@ -93,7 +93,7 @@ impl StandardMultisamplesSimpleDrawer {
         Ok(())
     }
 
-    fn draw_multisamples(
+    unsafe fn draw_multisamples(
         &mut self,
         state: &mut FrameState,
         lighting: bool,

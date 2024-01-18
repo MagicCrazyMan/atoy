@@ -338,7 +338,7 @@ pub fn test_cube(
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
 
-    let viewer_weak = viewer.weak();
+    let viewer_weak = viewer.downgrade();
     let pick_callback = pick_callback.clone();
     viewer.scene_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
@@ -348,7 +348,7 @@ pub fn test_cube(
         let y = event.page_y();
 
         let start = window().performance().unwrap().now();
-        if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
+        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
             if let Some(material) = entity
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
@@ -723,7 +723,7 @@ pub fn test_pick(
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer.start_render_loop();
 
-    let viewer_weak = viewer.weak();
+    let viewer_weak = viewer.downgrade();
     let pick_callback = pick_callback.clone();
     viewer.scene_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
@@ -733,7 +733,7 @@ pub fn test_pick(
         let y = event.page_y();
 
         let start = window().performance().unwrap().now();
-        if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
+        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
             if let Some(material) = entity
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())

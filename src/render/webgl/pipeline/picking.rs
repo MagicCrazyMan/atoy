@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use gl_matrix4rust::{GLF32, vec3::Vec3};
+use gl_matrix4rust::{vec3::Vec3, GLF32};
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
@@ -29,7 +29,6 @@ pub struct StandardPicking {
     pixel: Uint32Array,
 
     last_gl: Option<WebGl2RenderingContext>,
-    last_entities: Vec<*mut Entity>,
 }
 
 impl StandardPicking {
@@ -39,7 +38,6 @@ impl StandardPicking {
             pixel: Uint32Array::new_with_length(4),
 
             last_gl: None,
-            last_entities: Vec::new(),
         }
     }
 
@@ -75,13 +73,12 @@ impl StandardPicking {
         })
     }
 
-    pub fn render(
+    pub unsafe fn render(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
     ) -> Result<(), Error> {
         self.last_gl = None;
-        self.last_entities.clear();
 
         self.framebuffer(&state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -167,22 +164,17 @@ impl StandardPicking {
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         self.last_gl = Some(state.gl().clone());
-        self.last_entities.extend(
-            collected_entities
-                .entities()
-                .into_iter()
-                .map(|e| e.entity_mut() as *mut Entity),
-        );
 
         Ok(())
     }
 
     /// Returns picked entity.
-    pub unsafe fn pick_entity<'a, 'b>(
-        &'a mut self,
+    pub unsafe fn pick_entity(
+        &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<&'b mut Entity>, Error> {
+        collected_entities: &CollectedEntities,
+    ) -> Result<Option<&mut Entity>, Error> {
         let Some(fbo) = self.framebuffer.as_mut() else {
             return Ok(None);
         };
@@ -208,17 +200,14 @@ impl StandardPicking {
         )?;
 
         let index = self.pixel.get_index(0) as usize;
-        if index > 0 {
-            let entity = self
-                .last_entities
-                .get_mut(index - 1)
-                .map(|entity| unsafe { &mut **entity });
-            if let Some(entity) = entity {
-                return Ok(Some(entity));
-            }
+        if index >= 1 {
+            Ok(collected_entities
+                .entities()
+                .get(index - 1)
+                .map(|e| e.entity_mut()))
+        } else {
+            Ok(None)
         }
-
-        Ok(None)
     }
 
     /// Returns picked position.

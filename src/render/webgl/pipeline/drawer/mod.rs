@@ -43,7 +43,7 @@ pub enum HdrToneMappingType {
     Exposure(f32),
 }
 
-pub(self) fn draw_entities(
+pub(self) unsafe fn draw_entities(
     state: &mut FrameState,
     lighting: bool,
     bloom_blur: bool,
@@ -207,7 +207,7 @@ fn draw_entity(
     Ok(())
 }
 
-fn draw_opaque_entities(
+unsafe fn draw_opaque_entities(
     state: &mut FrameState,
     lighting: bool,
     bloom_blur: bool,
@@ -236,7 +236,7 @@ fn draw_opaque_entities(
     Ok(())
 }
 
-fn draw_translucent_entities(
+unsafe fn draw_translucent_entities(
     state: &mut FrameState,
     lighting: bool,
     bloom_blur: bool,

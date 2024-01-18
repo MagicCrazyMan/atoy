@@ -13,12 +13,16 @@ pub struct CollectedEntity {
 }
 
 impl CollectedEntity {
-    pub fn entity(&self) -> &Entity {
-        unsafe { &*self.entity }
+    pub unsafe fn entity<'a, 'b>(&'a self) -> &'b Entity {
+        &*self.entity
     }
 
-    pub fn entity_mut(&self) -> &mut Entity {
-        unsafe { &mut *self.entity }
+    pub unsafe fn entity_mut<'a, 'b>(&'a self) -> &'b mut Entity {
+        &mut *self.entity
+    }
+
+    pub fn entity_raw(&self) -> *mut Entity {
+        self.entity
     }
 
     pub fn distance(&self) -> f64 {
@@ -62,7 +66,7 @@ pub struct StandardEntitiesCollector {
 
     last_view_frustum: Option<ViewFrustum>,
     last_container: Option<Uuid>,
-    last_collected_id: usize,
+    last_collected_id: Option<usize>,
     last_entities: Vec<CollectedEntity>,
     last_opaque_entity_indices: Vec<usize>,
     last_transparent_entity_indices: Vec<usize>,
@@ -78,7 +82,7 @@ impl StandardEntitiesCollector {
 
             last_view_frustum: None,
             last_container: None,
-            last_collected_id: 0,
+            last_collected_id: None,
             last_entities: Vec::new(),
             last_opaque_entity_indices: Vec::new(),
             last_transparent_entity_indices: Vec::new(),
@@ -138,22 +142,36 @@ impl StandardEntitiesCollector {
         }
     }
 
+    pub fn last_collected_entities(&self) -> Option<CollectedEntities> {
+        match self.last_collected_id {
+            Some(id) => Some(CollectedEntities {
+                id,
+                entities: &self.last_entities,
+                opaque_entity_indices: &self.last_opaque_entity_indices,
+                transparent_entity_indices: &self.last_transparent_entity_indices,
+                translucent_entity_indices: &self.last_translucent_entity_indices,
+            }),
+            None => None,
+        }
+    }
+
     /// Collects and returns entities.
     pub fn collect_entities(&mut self, state: &FrameState, scene: &mut Scene) -> CollectedEntities {
         let view_frustum = state.camera().view_frustum();
         match (
+            self.last_collected_id.as_ref(),
             self.last_container.as_ref(),
             self.last_view_frustum.as_ref(),
             scene.entity_container().is_dirty(),
         ) {
-            (Some(last_container), Some(last_view_frustum), false) => {
+            (Some(last_collected_id), Some(last_container), Some(last_view_frustum), false) => {
                 match (
                     last_container == scene.entity_container().id(),
                     last_view_frustum == &view_frustum,
                 ) {
                     (true, true) => {
                         return CollectedEntities {
-                            id: self.last_collected_id,
+                            id: *last_collected_id,
                             entities: &self.last_entities,
                             opaque_entity_indices: &self.last_opaque_entity_indices,
                             transparent_entity_indices: &self.last_transparent_entity_indices,
@@ -262,10 +280,13 @@ impl StandardEntitiesCollector {
 
         self.last_container = Some(*scene.entity_container().id());
         self.last_view_frustum = Some(view_frustum);
-        self.last_collected_id = self.last_collected_id.wrapping_add(1);
+        self.last_collected_id = match self.last_collected_id {
+            Some(last_collected_id) => Some(last_collected_id.wrapping_add(1)),
+            None => Some(0),
+        };
 
         CollectedEntities {
-            id: self.last_collected_id,
+            id: self.last_collected_id.unwrap(),
             entities: &self.last_entities,
             opaque_entity_indices: &self.last_opaque_entity_indices,
             transparent_entity_indices: &self.last_transparent_entity_indices,
