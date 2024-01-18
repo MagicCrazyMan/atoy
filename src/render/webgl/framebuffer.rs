@@ -298,9 +298,9 @@ impl Framebuffer {
                 dst_offset,
             )
             .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
-        self.gl.read_buffer(WebGl2RenderingContext::NONE);
         self.gl
             .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        self.gl.read_buffer(WebGl2RenderingContext::BACK);
         Ok(())
     }
 

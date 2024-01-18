@@ -15,7 +15,6 @@ use crate::{
 pub struct Scene {
     entity_container: Container,
 
-    lighting_enabled: bool,
     light_attenuations: Vec3,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
@@ -30,7 +29,6 @@ impl Scene {
         Self {
             entity_container: Container::new(),
 
-            lighting_enabled: true,
             light_attenuations: Vec3::<f64>::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
@@ -48,22 +46,6 @@ impl Scene {
     /// Returns mutable root entities collection.
     pub fn entity_container_mut(&mut self) -> &mut Container {
         &mut self.entity_container
-    }
-
-    /// Returns `true` if enable lighting.
-    /// Diffuse color of material used directly if lighting is disabled.
-    pub fn lighting_enabled(&self) -> bool {
-        self.lighting_enabled
-    }
-
-    /// Enables lighting.
-    pub fn enable_lighting(&mut self) {
-        self.lighting_enabled = true;
-    }
-
-    /// Disables lighting.
-    pub fn disable_lighting(&mut self) {
-        self.lighting_enabled = false;
     }
 
     /// Returns ambient light.

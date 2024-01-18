@@ -88,6 +88,7 @@ impl StandardEntitiesCollector {
 
     /// Clears previous collected result.
     pub fn clear(&mut self) {
+        self.last_view_frustum = None;
         self.last_container = None;
         self.last_entities.clear();
         self.last_opaque_entity_indices.clear();

@@ -1,3 +1,4 @@
+#ifdef LIGHTING
 /**
  * Standard Fragment Shader Lighting Source Code.
  */
@@ -392,3 +393,4 @@ vec3 atoy_lighting(atoy_Frag frag, atoy_Material material) {
 
     return lighting;
 }
+#endif

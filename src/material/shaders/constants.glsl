@@ -14,8 +14,7 @@
  */
 layout(std140) uniform atoy_UniversalUniforms {
                                     // base alignment (bytes) // offset alignment (bytes)
-    float u_RenderTime;             // (merged)               // 0
-    bool u_EnableLighting;          // 16                     // 4
+    float u_RenderTime;             // 16                     // 0
     vec3 u_CameraPosition;          // 16                     // 16
     mat4 u_ViewMatrix;              // 64                     // 32
     mat4 u_ProjMatrix;              // 64                     // 96

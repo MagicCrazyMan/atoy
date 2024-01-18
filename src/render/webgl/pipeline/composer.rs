@@ -7,9 +7,11 @@ use crate::render::webgl::{
     error::Error,
     program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
     state::FrameState,
+    texture::TextureUnit,
+    uniform::UniformValue,
 };
 
-const TEXTURE: &'static str = "u_Texture";
+const TEXTURE_UNIFORM_NAME: &'static str = "u_Texture";
 
 pub const DEFAULT_CLEAR_COLOR: Vec4 = Vec4::<f64>::new_zero();
 
@@ -34,11 +36,7 @@ impl StandardComposer {
         self.clear_color = clear_color;
     }
 
-    pub fn compose<'a, I>(
-        &self,
-        state: &mut FrameState,
-        textures: I,
-    ) -> Result<(), Error>
+    pub fn compose<'a, I>(&self, state: &mut FrameState, textures: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a WebGlTexture>,
     {
@@ -56,40 +54,20 @@ impl StandardComposer {
         );
 
         let program = state.program_store_mut().use_program(&ComposerProgram)?;
-        state.gl().uniform1i(
-            program.get_or_retrieve_uniform_location(TEXTURE).as_ref(),
-            0,
-        );
-        state.gl().active_texture(WebGl2RenderingContext::TEXTURE0);
-        for texture in textures {
-            state
-                .gl()
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-                WebGl2RenderingContext::LINEAR as i32,
-            );
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-                WebGl2RenderingContext::LINEAR as i32,
-            );
-            state.gl().tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                0,
-            );
 
-            state
-                .gl()
-                .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
+        state.bind_uniform_value_by_variable_name(
+            program,
+            TEXTURE_UNIFORM_NAME,
+            UniformValue::Integer1(0),
+        )?;
+        for texture in textures {
+            state.do_computation([(texture, TextureUnit::TEXTURE0)]);
         }
 
+        state.gl().disable(WebGl2RenderingContext::BLEND);
         state
             .gl()
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-        state.gl().disable(WebGl2RenderingContext::BLEND);
+            .blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ZERO);
 
         Ok(())
     }

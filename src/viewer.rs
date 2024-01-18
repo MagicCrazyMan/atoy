@@ -13,7 +13,7 @@ use crate::{
     render::{
         webgl::{
             error::Error,
-            pipeline::{drawer::HdrToneMappingType, StandardPipeline},
+            pipeline::{drawer::HdrToneMappingType, StandardPipeline, StandardPipelineState},
             WebGL2Render,
         },
         Render,
@@ -285,16 +285,16 @@ impl Viewer {
     }
 
     pub fn lighting_enabled(&self) -> bool {
-        self.inner().scene.lighting_enabled()
+        self.inner().standard_pipeline.lighting_enabled()
     }
 
     pub fn enable_lighting(&mut self) {
-        self.inner_mut().scene.enable_lighting();
+        self.inner_mut().standard_pipeline.enable_lighting();
         self.should_render_next();
     }
 
     pub fn disable_lighting(&mut self) {
-        self.inner_mut().scene.disable_lighting();
+        self.inner_mut().standard_pipeline.disable_lighting();
         self.should_render_next();
     }
 
@@ -461,19 +461,18 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
-        // let inner = self.inner_mut();
-        // let picking_pipeline = &mut inner.picking_pipeline;
-        // if picking_pipeline.is_dirty() {
-        //     let timestamp = inner.timestamp;
-        //     let scene = &mut inner.scene;
-        //     let render = &mut inner.render;
-        //     let camera = inner.camera.as_mut();
-        //     render.render(picking_pipeline, camera, scene, timestamp)?;
-        // }
+        let inner = self.inner_mut();
+        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Pick);
+        inner.render.render(
+            &mut inner.standard_pipeline,
+            &mut *inner.camera,
+            &mut inner.scene,
+            inner.timestamp,
+        )?;
+        let entity = inner.standard_pipeline.pick_entity(window_position_x, window_position_y)?;
+        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Draw);
 
-        // picking_pipeline.pick_entity(window_position_x, window_position_y)
-
-        Ok(None)
+        Ok(entity)
     }
 
     pub fn pick_position(
@@ -481,18 +480,17 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        // let inner = self.inner_mut();
-        // let picking_pipeline = &mut inner.picking_pipeline;
-        // if picking_pipeline.is_dirty() {
-        //     let timestamp = inner.timestamp;
-        //     let scene = &mut inner.scene;
-        //     let render = &mut inner.render;
-        //     let camera = inner.camera.as_mut();
-        //     render.render(picking_pipeline, camera, scene, timestamp)?;
-        // }
-
-        // picking_pipeline.pick_position(window_position_x, window_position_y)
-        Ok(None)
+        let inner = self.inner_mut();
+        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Pick);
+        inner.render.render(
+            &mut inner.standard_pipeline,
+            &mut *inner.camera,
+            &mut inner.scene,
+            inner.timestamp,
+        )?;
+        let position = inner.standard_pipeline.pick_position(window_position_x, window_position_y)?;
+        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Draw);
+        Ok(position)
     }
 
     pub fn render_frame(&mut self) -> Result<(), Error> {
@@ -504,7 +502,6 @@ impl Viewer {
             &mut inner.scene,
             inner.timestamp,
         );
-        // inner.picking_pipeline.set_dirty();
 
         result
     }

@@ -7,7 +7,9 @@ use crate::render::webgl::{
         BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
         FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
-    pipeline::collector::CollectedEntities,
+    pipeline::{
+        collector::CollectedEntities, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+    },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
@@ -16,9 +18,8 @@ use crate::render::webgl::{
 
 use super::{
     draw_entities, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
-    HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE, BLOOM_BLUR_TEXTURE,
-    HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME, UBO_GAUSSIAN_BLUR_BINDING,
-    UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+    HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE_UNIFORM_NAME,
+    BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
 };
 
 pub struct StandardMultisamplesHdrDrawer {
@@ -228,6 +229,7 @@ impl StandardMultisamplesHdrDrawer {
     pub fn draw(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         samples: i32,
         bloom_blur: bool,
         bloom_blur_epoch: usize,
@@ -240,6 +242,7 @@ impl StandardMultisamplesHdrDrawer {
         if bloom_blur {
             self.draw_hdr_multisamples_bloom(
                 state,
+                lighting,
                 samples,
                 collected_entities,
                 universal_ubo,
@@ -252,6 +255,7 @@ impl StandardMultisamplesHdrDrawer {
         } else {
             self.draw_hdr_multisamples(
                 state,
+                lighting,
                 samples,
                 collected_entities,
                 universal_ubo,
@@ -266,6 +270,7 @@ impl StandardMultisamplesHdrDrawer {
     fn draw_hdr_multisamples(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
@@ -273,7 +278,14 @@ impl StandardMultisamplesHdrDrawer {
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_entities(state, false, collected_entities, universal_ubo, lights_ubo)?;
+        draw_entities(
+            state,
+            lighting,
+            false,
+            collected_entities,
+            universal_ubo,
+            lights_ubo,
+        )?;
         hdr_multisamples_framebuffer.unbind();
         Ok(())
     }
@@ -281,6 +293,7 @@ impl StandardMultisamplesHdrDrawer {
     fn draw_hdr_multisamples_bloom(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
@@ -289,7 +302,14 @@ impl StandardMultisamplesHdrDrawer {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
         hdr_multisamples_bloom_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_entities(state, true, collected_entities, universal_ubo, lights_ubo)?;
+        draw_entities(
+            state,
+            lighting,
+            true,
+            collected_entities,
+            universal_ubo,
+            lights_ubo,
+        )?;
         hdr_multisamples_bloom_framebuffer.unbind();
         Ok(())
     }
@@ -516,12 +536,12 @@ impl StandardMultisamplesHdrDrawer {
             let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
             state.bind_uniform_value_by_variable_name(
                 program,
-                BASE_TEXTURE,
+                BASE_TEXTURE_UNIFORM_NAME,
                 UniformValue::Integer1(0),
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,
-                BLOOM_BLUR_TEXTURE,
+                BLOOM_BLUR_TEXTURE_UNIFORM_NAME,
                 UniformValue::Integer1(1),
             )?;
 

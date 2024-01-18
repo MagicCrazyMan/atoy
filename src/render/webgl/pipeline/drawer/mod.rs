@@ -5,197 +5,34 @@ use web_sys::WebGl2RenderingContext;
 
 use crate::{
     entity::Entity,
-    light::{
-        area_light::MAX_AREA_LIGHTS, directional_light::MAX_DIRECTIONAL_LIGHTS,
-        point_light::MAX_POINT_LIGHTS, spot_light::MAX_SPOT_LIGHTS,
-    },
+    material::StandardMaterial,
     render::webgl::{
         buffer::BufferDescriptor,
         conversion::ToGlEnum,
         error::Error,
-        program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
+        program::{FragmentShaderSource, Program, ProgramSource, VertexShaderSource},
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
     },
 };
 
-use super::collector::CollectedEntities;
+use super::{
+    collector::CollectedEntities, UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME,
+    UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+};
 
 pub mod hdr;
 pub mod hdr_multisamples;
 pub mod simple;
 pub mod simple_multisamples;
 
-/// Uniform Buffer Object `atoy_UniversalUniforms`.
-pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
-/// Uniform Buffer Object `atoy_Lights`.
-pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
-/// Uniform Buffer Object `atoy_GaussianKernel`.
-pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
-
-/// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BINDING: u32 = 0;
-/// Uniform Buffer Object mount point for `atoy_Lights`.
-pub const UBO_LIGHTS_BINDING: u32 = 1;
-/// Uniform Buffer Object mount point for gaussian blur.
-pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
-
-/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
-/// Uniform Buffer Object bytes length for `u_RenderTime`.
-pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
-/// Uniform Buffer Object bytes length for `u_EnableLighting`.
-pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH: u32 = 4;
-/// Uniform Buffer Object bytes length for `u_CameraPosition`.
-pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
-/// Uniform Buffer Object bytes length for `u_ViewMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_ProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
-
-/// Uniform Buffer Object bytes offset for `u_RenderTime`.
-pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
-/// Uniform Buffer Object bytes offset for `u_EnableLighting`.
-pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET: u32 = 4;
-/// Uniform Buffer Object bytes offset for `u_CameraPosition`.
-pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
-/// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET: u32 = 32;
-/// Uniform Buffer Object bytes offset for `u_ProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
-/// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
-
-/// Uniform Buffer Object bytes length for `atoy_Lights`.
-pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16
-    + 16
-    + 64 * MAX_DIRECTIONAL_LIGHTS as u32
-    + 64 * MAX_POINT_LIGHTS as u32
-    + 80 * MAX_SPOT_LIGHTS as u32
-    + 112 * MAX_AREA_LIGHTS as u32;
-/// Uniform Buffer Object bytes length for `u_Attenuations`.
-pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
-/// Uniform Buffer Object bytes length for `u_AmbientLight`.
-pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
-/// Uniform Buffer Object bytes length for `u_DirectionalLights`.
-pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_PointLights`.
-pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_SpotLights`.
-pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
-/// Uniform Buffer Object bytes length for `u_AreaLights`.
-pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH: u32 = 112;
-
-/// Uniform Buffer Object bytes offset for `u_Attenuations`.
-pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
-/// Uniform Buffer Object bytes offset for `u_AmbientLight`.
-pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: u32 = 16;
-/// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
-pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
-/// Uniform Buffer Object bytes offset for `u_PointLights`.
-pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
-/// Uniform Buffer Object bytes offset for `u_SpotLights`.
-pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
-/// Uniform Buffer Object bytes offset for `u_AreaLights`.
-pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = 2528;
-
-/// Uniform Buffer Object data in f32 for `atoy_GaussianKernel`.
-#[rustfmt::skip]
-pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0515412587290000060, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-];
-/// Uniform Buffer Object data in u8 for `atoy_GaussianKernel`.
-pub const UBO_GAUSSIAN_KERNEL_U8: [u8; 324 * 4] =
-    unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
-
 const BLOOM_GLSL_DEFINE: &'static str = "BLOOM";
+const LIGHTING_GLSL_DEFINE: &'static str = "LIGHTING";
 
 const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
 const BLOOM_THRESHOLD_VALUES: [f32; 3] = [0.2126, 0.7152, 0.0722];
-const BASE_TEXTURE: &'static str = "u_BaseTexture";
-const BLOOM_BLUR_TEXTURE: &'static str = "u_BloomBlurTexture";
+const BASE_TEXTURE_UNIFORM_NAME: &'static str = "u_BaseTexture";
+const BLOOM_BLUR_TEXTURE_UNIFORM_NAME: &'static str = "u_BloomBlurTexture";
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
 
@@ -208,6 +45,7 @@ pub enum HdrToneMappingType {
 
 pub(self) fn draw_entities(
     state: &mut FrameState,
+    lighting: bool,
     bloom_blur: bool,
     collected_entities: &CollectedEntities,
     universal_ubo: &BufferDescriptor,
@@ -222,6 +60,7 @@ pub(self) fn draw_entities(
 
     draw_opaque_entities(
         state,
+        lighting,
         bloom_blur,
         collected_entities,
         universal_ubo,
@@ -229,6 +68,7 @@ pub(self) fn draw_entities(
     )?;
     draw_translucent_entities(
         state,
+        lighting,
         bloom_blur,
         collected_entities,
         universal_ubo,
@@ -248,9 +88,73 @@ pub(self) fn draw_entities(
     Ok(())
 }
 
+fn prepare_program<'a, 'b, 'c>(
+    state: &'a mut FrameState,
+    lighting: bool,
+    bloom_blur: bool,
+    material: &'b dyn StandardMaterial,
+    universal_ubo: &BufferDescriptor,
+    lights_ubo: &BufferDescriptor,
+) -> Result<&'c mut Program, Error> {
+    let defines = match (lighting, bloom_blur) {
+        (true, true) => Some(vec![
+            Cow::Borrowed(LIGHTING_GLSL_DEFINE),
+            Cow::Borrowed(BLOOM_GLSL_DEFINE),
+        ]),
+        (true, false) => Some(vec![Cow::Borrowed(LIGHTING_GLSL_DEFINE)]),
+        (false, true) => Some(vec![Cow::Borrowed(BLOOM_GLSL_DEFINE)]),
+        (false, false) => None,
+    };
+
+    let program = match defines {
+        Some(defines) => state.program_store_mut().use_program_with_defines(
+            material.as_program_source(),
+            vec![],
+            defines,
+        )?,
+        None => state
+            .program_store_mut()
+            .use_program(material.as_program_source())?,
+    };
+
+    // binds atoy_UniversalUniforms
+    state.bind_uniform_block_value_by_block_name(
+        program,
+        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        UniformBlockValue::BufferBase {
+            descriptor: universal_ubo.clone(),
+            binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+        },
+    )?;
+
+    // binds atoy_Lights
+    if lighting {
+        state.bind_uniform_block_value_by_block_name(
+            program,
+            UBO_LIGHTS_BLOCK_NAME,
+            UniformBlockValue::BufferBase {
+                descriptor: lights_ubo.clone(),
+                binding: UBO_LIGHTS_BINDING,
+            },
+        )?;
+    }
+
+    // binds bloom blur threshold
+    if bloom_blur {
+        state.bind_uniform_value_by_variable_name(
+            program,
+            BLOOM_THRESHOLD_UNIFORM_NAME,
+            UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
+        )?;
+    }
+
+    Ok(program)
+}
+
 fn draw_entity(
     state: &mut FrameState,
-    enable_bloom: bool,
+    lighting: bool,
+    bloom_blur: bool,
     should_cull_face: bool,
     entity: &mut Entity,
     universal_ubo: &BufferDescriptor,
@@ -286,41 +190,13 @@ fn draw_entity(
     }
 
     // binds program
-    let program = if enable_bloom {
-        let program = state.program_store_mut().use_program_with_defines(
-            material.as_program_source(),
-            vec![],
-            vec![Cow::Borrowed(BLOOM_GLSL_DEFINE)],
-        )?;
-        state.bind_uniform_value_by_variable_name(
-            program,
-            BLOOM_THRESHOLD_UNIFORM_NAME,
-            UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
-        )?;
-        program
-    } else {
-        state
-            .program_store_mut()
-            .use_program(material.as_program_source())?
-    };
-
-    // binds atoy_UniversalUniforms
-    state.bind_uniform_block_value_by_block_name(
-        program,
-        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-        UniformBlockValue::BufferBase {
-            descriptor: universal_ubo.clone(),
-            binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
-        },
-    )?;
-    // binds atoy_Lights
-    state.bind_uniform_block_value_by_block_name(
-        program,
-        UBO_LIGHTS_BLOCK_NAME,
-        UniformBlockValue::BufferBase {
-            descriptor: lights_ubo.clone(),
-            binding: UBO_LIGHTS_BINDING,
-        },
+    let program = prepare_program(
+        state,
+        lighting,
+        bloom_blur,
+        material,
+        universal_ubo,
+        lights_ubo,
     )?;
 
     let bound_attributes = state.bind_attributes(program, &entity, geometry, material)?;
@@ -333,7 +209,8 @@ fn draw_entity(
 
 fn draw_opaque_entities(
     state: &mut FrameState,
-    enable_bloom: bool,
+    lighting: bool,
+    bloom_blur: bool,
     collected_entities: &CollectedEntities,
     universal_ubo: &BufferDescriptor,
     lights_ubo: &BufferDescriptor,
@@ -345,7 +222,15 @@ fn draw_opaque_entities(
     state.gl().depth_mask(true);
     for index in opaque_entity_indices {
         let entity = entities[*index].entity_mut();
-        draw_entity(state, enable_bloom, true, entity, universal_ubo, lights_ubo)?;
+        draw_entity(
+            state,
+            lighting,
+            bloom_blur,
+            true,
+            entity,
+            universal_ubo,
+            lights_ubo,
+        )?;
     }
 
     Ok(())
@@ -353,7 +238,8 @@ fn draw_opaque_entities(
 
 fn draw_translucent_entities(
     state: &mut FrameState,
-    enable_bloom: bool,
+    lighting: bool,
+    bloom_blur: bool,
     collected_entities: &CollectedEntities,
     universal_ubo: &BufferDescriptor,
     lights_ubo: &BufferDescriptor,
@@ -373,12 +259,14 @@ fn draw_translucent_entities(
         let entity = entities[*index].entity_mut();
         draw_entity(
             state,
-            enable_bloom,
+            lighting,
+            bloom_blur,
             false,
             entity,
             universal_ubo,
             lights_ubo,
-        )?; // transparency entities never cull face
+        )?;
+        // transparency entities never cull face
     }
 
     Ok(())

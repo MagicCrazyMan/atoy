@@ -5,9 +5,17 @@ pub mod drawer;
 pub mod picking;
 pub mod preparation;
 
-use gl_matrix4rust::vec4::Vec4;
+use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 
-use crate::{render::Pipeline, scene::Scene};
+use crate::{
+    entity::Entity,
+    light::{
+        area_light::MAX_AREA_LIGHTS, directional_light::MAX_DIRECTIONAL_LIGHTS,
+        point_light::MAX_POINT_LIGHTS, spot_light::MAX_SPOT_LIGHTS,
+    },
+    render::Pipeline,
+    scene::Scene,
+};
 
 use self::{
     cleanup::StandardCleanup,
@@ -16,9 +24,9 @@ use self::{
     drawer::{
         hdr::StandardHdrDrawer, hdr_multisamples::StandardMultisamplesHdrDrawer,
         simple::StandardSimpleDrawer, simple_multisamples::StandardMultisamplesSimpleDrawer,
-        HdrToneMappingType, UBO_GAUSSIAN_KERNEL_U8, UBO_LIGHTS_BYTES_LENGTH,
-        UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
+        HdrToneMappingType,
     },
+    picking::StandardPicking,
     preparation::StandardPreparation,
 };
 
@@ -28,13 +36,182 @@ use super::{
     state::FrameState,
 };
 
+/// Uniform Buffer Object `atoy_UniversalUniforms`.
+pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
+/// Uniform Buffer Object `atoy_Lights`.
+pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
+/// Uniform Buffer Object `atoy_GaussianKernel`.
+pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
+
+/// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BINDING: u32 = 0;
+/// Uniform Buffer Object mount point for `atoy_Lights`.
+pub const UBO_LIGHTS_BINDING: u32 = 1;
+/// Uniform Buffer Object mount point for gaussian blur.
+pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
+
+/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
+/// Uniform Buffer Object bytes length for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+
+/// Uniform Buffer Object bytes offset for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
+/// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
+
+/// Uniform Buffer Object bytes length for `atoy_Lights`.
+pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16
+    + 16
+    + 64 * MAX_DIRECTIONAL_LIGHTS as u32
+    + 64 * MAX_POINT_LIGHTS as u32
+    + 80 * MAX_SPOT_LIGHTS as u32
+    + 112 * MAX_AREA_LIGHTS as u32;
+/// Uniform Buffer Object bytes length for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
+/// Uniform Buffer Object bytes length for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
+/// Uniform Buffer Object bytes length for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH: u32 = 112;
+
+/// Uniform Buffer Object bytes offset for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
+/// Uniform Buffer Object bytes offset for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
+/// Uniform Buffer Object bytes offset for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = 2528;
+
+/// Uniform Buffer Object data in f32 for `atoy_GaussianKernel`.
+#[rustfmt::skip]
+pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0515412587290000060, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+];
+/// Uniform Buffer Object data in u8 for `atoy_GaussianKernel`.
+pub const UBO_GAUSSIAN_KERNEL_U8: [u8; 324 * 4] =
+    unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
+
+pub const DEFAULT_LIGHTING_ENABLED: bool = true;
 pub const DEFAULT_MULTISAMPLES: i32 = 4;
 pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 pub const DEFAULT_BLOOM_ENABLED: bool = true;
 pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 10;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StandardPipelineState {
+    Draw,
+    Pick,
+}
+
 pub struct StandardPipeline {
+    pipeline_state: StandardPipelineState,
+
     preparation: StandardPreparation,
     entities_collector: StandardEntitiesCollector,
     simple_drawer: StandardSimpleDrawer,
@@ -43,6 +220,7 @@ pub struct StandardPipeline {
     hdr_drawer: StandardHdrDrawer,
     composer: StandardComposer,
     cleanup: StandardCleanup,
+    picking: StandardPicking,
 
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
@@ -50,19 +228,24 @@ pub struct StandardPipeline {
 
     hdr_supported: bool,
 
+    enable_lighting: bool,
     multisamples: Option<i32>,
     enable_hdr: bool,
     hdr_tone_mapping_type: HdrToneMappingType,
     enable_bloom: bool,
     bloom_blur_epoch: usize,
 
-    dirty: bool,
-    last_render_collected_id: Option<usize>,
+    render_dirty: bool,
+    last_render_collected_entities_id: Option<usize>,
+    picking_dirty: bool,
+    last_picking_collected_entities_id: Option<usize>,
 }
 
 impl StandardPipeline {
     pub fn new(hdr_supported: bool) -> Self {
         Self {
+            pipeline_state: StandardPipelineState::Draw,
+
             preparation: StandardPreparation::new(),
             entities_collector: StandardEntitiesCollector::new(),
             simple_drawer: StandardSimpleDrawer::new(),
@@ -71,6 +254,7 @@ impl StandardPipeline {
             hdr_drawer: StandardHdrDrawer::new(),
             composer: StandardComposer::new(),
             cleanup: StandardCleanup::new(),
+            picking: StandardPicking::new(),
 
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
@@ -100,20 +284,29 @@ impl StandardPipeline {
 
             hdr_supported,
 
+            enable_lighting: DEFAULT_LIGHTING_ENABLED,
             multisamples: Some(DEFAULT_MULTISAMPLES),
             enable_hdr: DEFAULT_HDR_ENABLED,
             hdr_tone_mapping_type: DEFAULT_HDR_TONE_MAPPING_TYPE,
             enable_bloom: DEFAULT_BLOOM_ENABLED,
             bloom_blur_epoch: DEFAULT_BLOOM_BLUR_EPOCH,
 
-            dirty: true,
-            last_render_collected_id: None,
+            render_dirty: true,
+            last_render_collected_entities_id: None,
+            picking_dirty: true,
+            last_picking_collected_entities_id: None,
         }
     }
 
     #[inline]
-    fn set_dirty(&mut self) {
-        self.dirty = true;
+    pub fn set_dirty(&mut self) {
+        self.render_dirty = true;
+        self.picking_dirty = true;
+    }
+
+    #[inline]
+    pub fn set_pipeline_state(&mut self, pipeline_state: StandardPipelineState) {
+        self.pipeline_state = pipeline_state;
     }
 
     #[inline]
@@ -164,6 +357,27 @@ impl StandardPipeline {
     #[inline]
     pub fn disable_distance_sorting(&mut self) {
         self.entities_collector.disable_distance_sorting();
+        self.set_dirty();
+    }
+
+    /// Returns `true` if enable lighting.
+    /// Diffuse color of material used directly if lighting is disabled.
+    #[inline]
+    pub fn lighting_enabled(&self) -> bool {
+        self.enable_lighting
+    }
+
+    /// Enables lighting.
+    #[inline]
+    pub fn enable_lighting(&mut self) {
+        self.enable_lighting = true;
+        self.set_dirty();
+    }
+
+    /// Disables lighting.
+    #[inline]
+    pub fn disable_lighting(&mut self) {
+        self.enable_lighting = false;
         self.set_dirty();
     }
 
@@ -252,14 +466,40 @@ impl StandardPipeline {
         };
         self.set_dirty();
     }
+
+    /// Returns picked entity.
+    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    pub fn pick_entity<'a, 'b>(
+        &'a mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<&'b mut Entity>, Error> {
+        if self.picking_dirty || self.last_picking_collected_entities_id.is_none() {
+            return Ok(None);
+        }
+
+        self.picking
+            .pick_entity(window_position_x, window_position_y)
+    }
+    /// Returns picked position.
+    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    pub fn pick_position(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<Vec3>, Error> {
+        if self.picking_dirty || self.last_picking_collected_entities_id.is_none() {
+            return Ok(None);
+        }
+
+        self.picking
+            .pick_position(window_position_x, window_position_y)
+    }
 }
 
-impl Pipeline for StandardPipeline {
-    type State = FrameState;
-
-    type Error = Error;
-
-    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
+impl StandardPipeline {
+    fn draw(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+        let lighting = self.lighting_enabled();
         let hdr = self.hdr_enabled() && self.hdr_supported;
         let bloom_blur = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
@@ -268,9 +508,9 @@ impl Pipeline for StandardPipeline {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // skips render if collect_entities unchanged and pipeline is not dirty
-        let dirty = self.dirty
+        let dirty = self.render_dirty
             || self
-                .last_render_collected_id
+                .last_render_collected_entities_id
                 .map(|id| id != collected_entities.id())
                 .unwrap_or(true);
         if !dirty {
@@ -278,12 +518,13 @@ impl Pipeline for StandardPipeline {
         }
 
         self.preparation
-            .prepare(state, scene, &mut self.universal_ubo, &mut self.lights_ubo)?;
+            .prepare(state, scene, lighting,&mut self.universal_ubo, &mut self.lights_ubo)?;
 
         let compose_textures = match (hdr, multisamples) {
             (true, None) => {
                 self.hdr_drawer.draw(
                     state,
+                    lighting,
                     bloom_blur,
                     bloom_blur_epoch,
                     self.hdr_tone_mapping_type,
@@ -297,6 +538,7 @@ impl Pipeline for StandardPipeline {
             (true, Some(samples)) => {
                 self.multisamples_hdr_drawer.draw(
                     state,
+                    lighting,
                     samples,
                     bloom_blur,
                     bloom_blur_epoch,
@@ -311,6 +553,7 @@ impl Pipeline for StandardPipeline {
             (false, None) => {
                 self.simple_drawer.draw(
                     state,
+                    lighting,
                     &collected_entities,
                     &self.universal_ubo,
                     &self.lights_ubo,
@@ -320,6 +563,7 @@ impl Pipeline for StandardPipeline {
             (false, Some(samples)) => {
                 self.multisamples_simple_drawer.draw(
                     state,
+                    lighting,
                     samples,
                     &collected_entities,
                     &self.universal_ubo,
@@ -331,9 +575,43 @@ impl Pipeline for StandardPipeline {
         self.composer.compose(state, compose_textures)?;
         self.cleanup.cleanup(state);
 
-        self.last_render_collected_id = Some(collected_entities.id());
-        self.dirty = false;
+        self.render_dirty = false;
+        self.last_render_collected_entities_id = Some(collected_entities.id());
 
         Ok(())
+    }
+
+    fn pick(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+        let collected_entities = self.entities_collector.collect_entities(state, scene);
+
+        // skips render if collect_entities unchanged and pipeline is not dirty
+        let dirty = self.picking_dirty
+            || self
+                .last_picking_collected_entities_id
+                .map(|id| id != collected_entities.id())
+                .unwrap_or(true);
+        if !dirty {
+            return Ok(());
+        }
+
+        self.picking.render(state, &collected_entities)?;
+
+        self.picking_dirty = false;
+        self.last_picking_collected_entities_id = Some(collected_entities.id());
+
+        Ok(())
+    }
+}
+
+impl Pipeline for StandardPipeline {
+    type State = FrameState;
+
+    type Error = Error;
+
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
+        match self.pipeline_state {
+            StandardPipelineState::Draw => self.draw(state, scene),
+            StandardPipelineState::Pick => self.pick(state, scene),
+        }
     }
 }

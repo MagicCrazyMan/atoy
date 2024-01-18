@@ -51,13 +51,21 @@ impl StandardSimpleDrawer {
     pub fn draw(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_entities(state, false, collected_entities, universal_ubo, lights_ubo)?;
+        draw_entities(
+            state,
+            lighting,
+            false,
+            collected_entities,
+            universal_ubo,
+            lights_ubo,
+        )?;
         framebuffer.unbind();
         Ok(())
     }

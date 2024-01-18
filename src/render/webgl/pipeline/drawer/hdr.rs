@@ -7,7 +7,9 @@ use crate::render::webgl::{
         Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferTarget,
         RenderbufferProvider, TextureProvider,
     },
-    pipeline::collector::CollectedEntities,
+    pipeline::{
+        collector::CollectedEntities, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+    },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
@@ -16,9 +18,8 @@ use crate::render::webgl::{
 
 use super::{
     draw_entities, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
-    HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE, BLOOM_BLUR_TEXTURE,
-    HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME, UBO_GAUSSIAN_BLUR_BINDING,
-    UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+    HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE_UNIFORM_NAME,
+    BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
 };
 
 pub struct StandardHdrDrawer {
@@ -169,6 +170,7 @@ impl StandardHdrDrawer {
     pub fn draw(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         bloom_blur: bool,
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
@@ -178,12 +180,24 @@ impl StandardHdrDrawer {
         gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         if bloom_blur {
-            self.draw_hdr_bloom(state, collected_entities, universal_ubo, lights_ubo)?;
+            self.draw_hdr_bloom(
+                state,
+                lighting,
+                collected_entities,
+                universal_ubo,
+                lights_ubo,
+            )?;
             self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
-            self.draw_hdr(state, collected_entities, universal_ubo, lights_ubo)?;
+            self.draw_hdr(
+                state,
+                lighting,
+                collected_entities,
+                universal_ubo,
+                lights_ubo,
+            )?;
             self.tone_mapping(state, tone_mapping_type)?;
         }
         Ok(())
@@ -192,13 +206,21 @@ impl StandardHdrDrawer {
     fn draw_hdr(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         let fbo = self.hdr_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_entities(state, false, collected_entities, universal_ubo, lights_ubo)?;
+        draw_entities(
+            state,
+            lighting,
+            false,
+            collected_entities,
+            universal_ubo,
+            lights_ubo,
+        )?;
         fbo.unbind();
         Ok(())
     }
@@ -206,13 +228,21 @@ impl StandardHdrDrawer {
     fn draw_hdr_bloom(
         &mut self,
         state: &mut FrameState,
+        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         let fbo = self.hdr_bloom_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_entities(state, true, collected_entities, universal_ubo, lights_ubo)?;
+        draw_entities(
+            state,
+            lighting,
+            true,
+            collected_entities,
+            universal_ubo,
+            lights_ubo,
+        )?;
         fbo.unbind();
         Ok(())
     }
@@ -385,12 +415,12 @@ impl StandardHdrDrawer {
             let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
             state.bind_uniform_value_by_variable_name(
                 program,
-                BASE_TEXTURE,
+                BASE_TEXTURE_UNIFORM_NAME,
                 UniformValue::Integer1(0),
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,
-                BLOOM_BLUR_TEXTURE,
+                BLOOM_BLUR_TEXTURE_UNIFORM_NAME,
                 UniformValue::Integer1(1),
             )?;
 

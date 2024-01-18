@@ -10,7 +10,7 @@ use crate::{
     scene::Scene,
 };
 
-use super::drawer::{
+use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET,
     UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH, UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING,
@@ -20,8 +20,6 @@ use super::drawer::{
     UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET, UBO_UNIVERSAL_UNIFORMS_BINDING,
     UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH, UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH,
@@ -43,7 +41,6 @@ impl StandardPreparation {
         &mut self,
         universal_ubo: &mut BufferDescriptor,
         state: &mut FrameState,
-        scene: &Scene,
     ) -> Result<(), Error> {
         let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
 
@@ -54,14 +51,6 @@ impl StandardPreparation {
             UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH / 4,
         )
         .set_index(0, state.timestamp() as f32);
-
-        // u_EnableLighting
-        Float32Array::new_with_byte_offset_and_length(
-            &data,
-            UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH / 4,
-        )
-        .set_index(0, if scene.lighting_enabled() { 1.0 } else { 0.0 });
 
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(
@@ -190,6 +179,7 @@ impl StandardPreparation {
         &mut self,
         state: &mut FrameState,
         scene: &Scene,
+        lighting: bool,
         universal_ubo: &mut BufferDescriptor,
         lights_ubo: &mut BufferDescriptor,
     ) -> Result<(), Error> {
@@ -199,8 +189,10 @@ impl StandardPreparation {
             state.canvas().width() as i32,
             state.canvas().height() as i32,
         );
-        self.update_universal_ubo(universal_ubo, state, scene)?;
-        self.update_lights_ubo(lights_ubo, state, scene)?;
+        self.update_universal_ubo(universal_ubo, state)?;
+        if lighting {
+            self.update_lights_ubo(lights_ubo, state, scene)?;
+        }
         Ok(())
     }
 }

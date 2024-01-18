@@ -1,6 +1,6 @@
 use crate::render::webgl::state::FrameState;
 
-use super::drawer::{UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING};
+use super::{UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING};
 
 pub struct StandardCleanup;
 
