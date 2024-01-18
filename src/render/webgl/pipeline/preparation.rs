@@ -110,7 +110,6 @@ impl StandardPreparation {
             .map(|a| a != scene.light_attenuations())
             .unwrap_or(true)
         {
-            log::info!("attenuations");
             lights_ubo.buffer_sub_data(
                 BufferSource::from_binary(
                     scene.light_attenuations().gl_u8_borrowed().clone(),
@@ -125,7 +124,6 @@ impl StandardPreparation {
         // u_AmbientLight
         if let Some(light) = scene.ambient_light_mut() {
             if light.ubo_dirty() {
-                log::info!("ambient light");
                 light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
@@ -142,7 +140,6 @@ impl StandardPreparation {
         // u_DirectionalLights
         for (index, light) in scene.directional_lights_mut().into_iter().enumerate() {
             if light.ubo_dirty() {
-                log::info!("directional light {index}");
                 light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
@@ -160,7 +157,6 @@ impl StandardPreparation {
         // u_PointLights
         for (index, light) in scene.point_lights_mut().into_iter().enumerate() {
             if light.ubo_dirty() {
-                log::info!("point light {index}");
                 light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
@@ -178,7 +174,6 @@ impl StandardPreparation {
         // u_SpotLights
         for (index, light) in scene.spot_lights_mut().into_iter().enumerate() {
             if light.ubo_dirty() {
-                log::info!("spot light {index}");
                 light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
@@ -196,7 +191,6 @@ impl StandardPreparation {
         // u_AreaLights
         for (index, light) in scene.area_lights_mut().into_iter().enumerate() {
             if light.ubo_dirty() {
-                log::info!("area light {index}");
                 light.update_ubo();
 
                 lights_ubo.buffer_sub_data(

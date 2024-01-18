@@ -30,7 +30,6 @@ impl StandardMultisamplesSimpleDrawer {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            log::info!("1111");
             state.create_framebuffer(
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
