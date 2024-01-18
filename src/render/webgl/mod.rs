@@ -89,6 +89,8 @@ pub struct WebGL2Render {
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
+    
+    hdr_supported: Option<bool>,
 
     // required for storing callback closure function
     resize_observer: Option<(ResizeObserver, Closure<dyn FnMut(Vec<ResizeObserverEntry>)>)>,
@@ -155,6 +157,8 @@ impl WebGL2Render {
             texture_store: TextureStore::new(gl.clone()),
             gl,
             canvas,
+
+            hdr_supported: None,
 
             resize_observer: None,
             select_start_callback: None,
@@ -344,6 +348,19 @@ impl WebGL2Render {
     /// Returns [`WebGl2RenderingContext`].
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
+    }
+
+    pub fn hdr_supported(&mut self) -> bool {
+        if let Some(hdr_supported) = self.hdr_supported {
+            return hdr_supported;
+        }
+
+        let supported = self.gl
+            .get_extension("EXT_color_buffer_float")
+            .map(|extension| extension.is_some())
+            .unwrap_or(false);
+        self.hdr_supported = Some(supported);
+        supported
     }
 
     pub fn click_event(&mut self) -> &mut EventAgency<MouseEvent> {

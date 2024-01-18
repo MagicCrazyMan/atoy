@@ -22,8 +22,8 @@ use crate::{
     scene::Scene,
 };
 
-pub static RENDER_WHEN_NEEDED: bool = false;
-pub static STOP_RENDER_LOOP_WHEN_ERROR: bool = true;
+pub const RENDER_WHEN_NEEDED: bool = false;
+pub const STOP_RENDER_LOOP_WHEN_ERROR: bool = true;
 
 struct Inner {
     mount: Option<Element>,
@@ -174,14 +174,15 @@ impl Viewer {
     where
         C: Camera + 'static,
     {
+        let mut render = WebGL2Render::new(None)?;
         let inner = Inner {
             mount: None,
             timestamp: 0.0,
             controllers: Vec::new(),
             scene,
             camera: Box::new(camera),
-            render: WebGL2Render::new(None)?,
-            standard_pipeline: StandardPipeline::new(),
+            standard_pipeline: StandardPipeline::new(render.hdr_supported()),
+            render,
 
             render_loop: None,
             render_next: true,

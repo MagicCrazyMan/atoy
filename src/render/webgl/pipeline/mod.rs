@@ -6,7 +6,6 @@ pub mod picking;
 pub mod preparation;
 
 use gl_matrix4rust::vec4::Vec4;
-use web_sys::WebGl2RenderingContext;
 
 use crate::{render::Pipeline, scene::Scene};
 
@@ -49,8 +48,9 @@ pub struct StandardPipeline {
     lights_ubo: BufferDescriptor,
     gaussian_kernel_ubo: BufferDescriptor,
 
+    hdr_supported: bool,
+
     multisamples: Option<i32>,
-    hdr_supported: Option<bool>,
     enable_hdr: bool,
     hdr_tone_mapping_type: HdrToneMappingType,
     enable_bloom: bool,
@@ -61,7 +61,7 @@ pub struct StandardPipeline {
 }
 
 impl StandardPipeline {
-    pub fn new() -> Self {
+    pub fn new(hdr_supported: bool) -> Self {
         Self {
             preparation: StandardPreparation::new(),
             entities_collector: StandardEntitiesCollector::new(),
@@ -98,8 +98,9 @@ impl StandardPipeline {
                 }),
             ),
 
+            hdr_supported,
+
             multisamples: Some(DEFAULT_MULTISAMPLES),
-            hdr_supported: None,
             enable_hdr: DEFAULT_HDR_ENABLED,
             hdr_tone_mapping_type: DEFAULT_HDR_TONE_MAPPING_TYPE,
             enable_bloom: DEFAULT_BLOOM_ENABLED,
@@ -124,19 +125,6 @@ impl StandardPipeline {
     pub fn set_clear_color(&mut self, clear_color: Vec4) {
         self.composer.set_clear_color(clear_color);
         self.set_dirty();
-    }
-
-    pub fn hdr_supported(&mut self, gl: &WebGl2RenderingContext) -> bool {
-        if let Some(hdr_supported) = self.hdr_supported {
-            return hdr_supported;
-        }
-
-        let supported = gl
-            .get_extension("EXT_color_buffer_float")
-            .map(|extension| extension.is_some())
-            .unwrap_or(false);
-        self.hdr_supported = Some(supported);
-        supported
     }
 
     /// Returns `true` if entity culling enabled.
@@ -272,7 +260,7 @@ impl Pipeline for StandardPipeline {
     type Error = Error;
 
     fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
-        let hdr = self.hdr_enabled() && self.hdr_supported(state.gl());
+        let hdr = self.hdr_enabled() && self.hdr_supported;
         let bloom_blur = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
         let multisamples = self.multisamples();
