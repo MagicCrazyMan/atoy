@@ -201,8 +201,8 @@ pub const DEFAULT_LIGHTING_ENABLED: bool = true;
 pub const DEFAULT_MULTISAMPLES: i32 = 4;
 pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
-pub const DEFAULT_BLOOM_ENABLED: bool = true;
-pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 10;
+pub const DEFAULT_BLOOM_ENABLED: bool = false;
+pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StandardPipelineState {
@@ -578,7 +578,7 @@ impl StandardPipeline {
                         &self.universal_ubo,
                         &self.lights_ubo,
                     )?;
-                    [self.multisamples_simple_drawer.draw_texture().unwrap()]
+                    [self.simple_drawer.draw_texture().unwrap()]
                 }
                 (false, Some(samples)) => {
                     self.multisamples_simple_drawer.draw(
