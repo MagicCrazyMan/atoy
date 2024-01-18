@@ -186,7 +186,7 @@ fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
             .get_or_init(|| {
                 BufferDescriptor::with_memory_policy(
                     BufferSource::from_binary(
-                        std::mem::transmute_copy::<[f32; 108 + 48], [u8; (108 + 48) * 4]>(
+                        std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
                             &NORMALS_TEXTURE_COORDINATES,
                         ),
                         0,
@@ -195,7 +195,7 @@ fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
                     BufferUsage::StaticDraw,
                     MemoryPolicy::restorable(|| {
                         BufferSource::from_binary(
-                            std::mem::transmute_copy::<[f32; 108 + 48], [u8; (108 + 48) * 4]>(
+                            std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
                                 &NORMALS_TEXTURE_COORDINATES,
                             ),
                             0,

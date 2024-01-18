@@ -25,7 +25,7 @@ pub struct Scene {
     canvas: HtmlCanvasElement,
 
     entity_container: Container,
-    light_attenuations: Vec3,
+    light_attenuations: Vec3::<f32>,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
     directional_lights: Vec<DirectionalLight>,
@@ -82,7 +82,7 @@ impl Scene {
             canvas,
 
             entity_container: Container::new(),
-            light_attenuations: Vec3::<f64>::new(0.0, 1.0, 0.0),
+            light_attenuations: Vec3::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
             directional_lights: Vec::new(),
@@ -298,12 +298,12 @@ impl Scene {
     }
 
     /// Returns lighting attenuation.
-    pub fn light_attenuations(&self) -> &Vec3 {
+    pub fn light_attenuations(&self) -> &Vec3::<f32> {
         &self.light_attenuations
     }
 
     /// Sets lighting attenuation.
-    pub fn set_light_attenuations(&mut self, attenuations: Vec3) {
+    pub fn set_light_attenuations(&mut self, attenuations: Vec3::<f32>) {
         self.light_attenuations = attenuations;
     }
 
@@ -332,6 +332,11 @@ impl Scene {
     /// Returns point lights.
     pub fn point_lights(&self) -> &[PointLight] {
         &self.point_lights
+    }
+
+    /// Returns mutable point lights.
+    pub fn point_lights_mut(&mut self) -> &mut [PointLight] {
+        &mut self.point_lights
     }
 
     /// Returns a point light by index.
@@ -371,6 +376,11 @@ impl Scene {
         &self.directional_lights
     }
 
+    /// Returns mutable directional lights.
+    pub fn directional_lights_mut(&mut self) -> &mut [DirectionalLight] {
+        &mut self.directional_lights
+    }
+
     /// Returns a directional light by index.
     pub fn directional_light(&self, index: usize) -> Option<&DirectionalLight> {
         self.directional_lights.get(index)
@@ -408,6 +418,11 @@ impl Scene {
         &self.spot_lights
     }
 
+    /// Returns mutable spot lights.
+    pub fn spot_lights_mut(&mut self) -> &mut [SpotLight] {
+        &mut self.spot_lights
+    }
+
     /// Returns a spot light by index.
     pub fn spot_light(&self, index: usize) -> Option<&SpotLight> {
         self.spot_lights.get(index)
@@ -443,6 +458,11 @@ impl Scene {
     /// Returns area lights.
     pub fn area_lights(&self) -> &[AreaLight] {
         &self.area_lights
+    }
+
+    /// Returns mutable area lights.
+    pub fn area_lights_mut(&mut self) -> &mut [AreaLight] {
+        &mut self.area_lights
     }
 
     /// Returns a area light by index.

@@ -156,8 +156,8 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(0.6, 0.6, 0.6),
         128.0,
-        30f64.to_radians(),
-        40f64.to_radians(),
+        30f32.to_radians(),
+        40f32.to_radians(),
     ));
     scene.add_spot_light(SpotLight::new(
         Vec3::new(0.0, 1.0, 0.0),
@@ -166,8 +166,8 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(0.6, 0.6, 0.6),
         128.0,
-        30f64.to_radians(),
-        60f64.to_radians(),
+        30f32.to_radians(),
+        60f32.to_radians(),
     ));
     scene.add_area_light(AreaLight::new(
         Vec3::new(-3.0, 2.0, 0.0),

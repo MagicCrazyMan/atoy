@@ -84,16 +84,16 @@ pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16
     + 112 * MAX_AREA_LIGHTS as u32;
 /// Uniform Buffer Object bytes length for `u_Attenuations`.
 pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
-/// Uniform Buffer Object bytes length for `u_AmbientLight`.
+/// Uniform Buffer Object bytes length for a `u_AmbientLight` item.
 pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
-/// Uniform Buffer Object bytes length for `u_DirectionalLights`.
-pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_PointLights`.
-pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
-/// Uniform Buffer Object bytes length for `u_SpotLights`.
-pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
-/// Uniform Buffer Object bytes length for `u_AreaLights`.
-pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH: u32 = 112;
+/// Uniform Buffer Object bytes length for a `u_DirectionalLights` item.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for a `u_PointLights` item.
+pub const UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for a `u_SpotLights` item.
+pub const UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH: u32 = 80;
+/// Uniform Buffer Object bytes length for a `u_AreaLights` item.
+pub const UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH: u32 = 112;
 
 /// Uniform Buffer Object bytes offset for `u_Attenuations`.
 pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
@@ -194,8 +194,8 @@ pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
     0.0002629586560000000, 0.0, 0.0, 0.0,
 ];
 /// Uniform Buffer Object data in u8 for `atoy_GaussianKernel`.
-pub const UBO_GAUSSIAN_KERNEL_U8: [u8; 324 * 4] =
-    unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
+pub const UBO_GAUSSIAN_KERNEL_U8: &[u8; 324 * 4] =
+    unsafe { std::mem::transmute::<&[f32; 324], &[u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
 
 pub const DEFAULT_LIGHTING_ENABLED: bool = true;
 pub const DEFAULT_MULTISAMPLES: i32 = 4;

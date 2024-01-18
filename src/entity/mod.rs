@@ -912,7 +912,7 @@ impl Container {
     }
 
     #[inline]
-    pub fn is_dirty(&self) -> bool {
+    pub fn dirty(&self) -> bool {
         unsafe { *self.dirty }
     }
 
