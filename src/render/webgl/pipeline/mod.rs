@@ -464,7 +464,7 @@ impl StandardPipeline {
 
     /// Returns picked entity.
     /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
-    pub fn pick_entity<'a, 'b>(
+    pub unsafe fn pick_entity<'a, 'b>(
         &'a mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -478,7 +478,7 @@ impl StandardPipeline {
     }
     /// Returns picked position.
     /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
-    pub fn pick_position(
+    pub unsafe fn pick_position(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,

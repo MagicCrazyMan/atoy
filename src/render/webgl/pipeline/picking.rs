@@ -178,7 +178,7 @@ impl StandardPicking {
     }
 
     /// Returns picked entity.
-    pub fn pick_entity<'a, 'b>(
+    pub unsafe fn pick_entity<'a, 'b>(
         &'a mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -222,7 +222,7 @@ impl StandardPicking {
     }
 
     /// Returns picked position.
-    pub fn pick_position(
+    pub unsafe fn pick_position(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,

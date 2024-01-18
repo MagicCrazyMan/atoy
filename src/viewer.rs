@@ -461,24 +461,26 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
-        let inner = self.inner_mut();
-        inner
-            .standard_pipeline
-            .set_pipeline_state(StandardPipelineState::Pick);
-        inner.render.render(
-            &mut inner.standard_pipeline,
-            &mut *inner.camera,
-            &mut inner.scene,
-            inner.timestamp,
-        )?;
-        let entity = inner
-            .standard_pipeline
-            .pick_entity(window_position_x, window_position_y)?;
-        inner
-            .standard_pipeline
-            .set_pipeline_state(StandardPipelineState::Draw);
+        unsafe {
+            let inner = self.inner_mut();
+            inner
+                .standard_pipeline
+                .set_pipeline_state(StandardPipelineState::Pick);
+            inner.render.render(
+                &mut inner.standard_pipeline,
+                &mut *inner.camera,
+                &mut inner.scene,
+                inner.timestamp,
+            )?;
+            let entity = inner
+                .standard_pipeline
+                .pick_entity(window_position_x, window_position_y)?;
+            inner
+                .standard_pipeline
+                .set_pipeline_state(StandardPipelineState::Draw);
 
-        Ok(entity)
+            Ok(entity)
+        }
     }
 
     pub fn pick_position(
@@ -486,23 +488,25 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        let inner = self.inner_mut();
-        inner
-            .standard_pipeline
-            .set_pipeline_state(StandardPipelineState::Pick);
-        inner.render.render(
-            &mut inner.standard_pipeline,
-            &mut *inner.camera,
-            &mut inner.scene,
-            inner.timestamp,
-        )?;
-        let position = inner
-            .standard_pipeline
-            .pick_position(window_position_x, window_position_y)?;
-        inner
-            .standard_pipeline
-            .set_pipeline_state(StandardPipelineState::Draw);
-        Ok(position)
+        unsafe {
+            let inner = self.inner_mut();
+            inner
+                .standard_pipeline
+                .set_pipeline_state(StandardPipelineState::Pick);
+            inner.render.render(
+                &mut inner.standard_pipeline,
+                &mut *inner.camera,
+                &mut inner.scene,
+                inner.timestamp,
+            )?;
+            let position = inner
+                .standard_pipeline
+                .pick_position(window_position_x, window_position_y)?;
+            inner
+                .standard_pipeline
+                .set_pipeline_state(StandardPipelineState::Draw);
+            Ok(position)
+        }
     }
 
     pub fn render_frame(&mut self) -> Result<(), Error> {
