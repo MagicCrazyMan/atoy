@@ -44,7 +44,6 @@ use crate::render::webgl::texture::{
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::Render;
-use crate::render::ResourceKey;
 use crate::utils::slice_to_float32_array;
 use crate::viewer::Viewer;
 use crate::{document, entity};

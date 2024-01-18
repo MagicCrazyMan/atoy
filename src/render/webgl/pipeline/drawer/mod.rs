@@ -1,19 +1,21 @@
-use std::{borrow::Cow, cell::OnceCell};
+use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
     entity::Entity,
+    light::{
+        area_light::MAX_AREA_LIGHTS, directional_light::MAX_DIRECTIONAL_LIGHTS,
+        point_light::MAX_POINT_LIGHTS, spot_light::MAX_SPOT_LIGHTS,
+    },
     render::webgl::{
-        buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
+        buffer::BufferDescriptor,
         conversion::ToGlEnum,
         error::Error,
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         state::FrameState,
-        uniform::{
-            UniformBlockValue, UniformValue, UBO_LIGHTS_BINDING, UBO_UNIVERSAL_UNIFORMS_BINDING,
-        },
+        uniform::{UniformBlockValue, UniformValue},
     },
 };
 
@@ -24,6 +26,170 @@ pub mod hdr_multisamples;
 pub mod simple;
 pub mod simple_multisamples;
 
+/// Uniform Buffer Object `atoy_UniversalUniforms`.
+pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
+/// Uniform Buffer Object `atoy_Lights`.
+pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
+/// Uniform Buffer Object `atoy_GaussianKernel`.
+pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
+
+/// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BINDING: u32 = 0;
+/// Uniform Buffer Object mount point for `atoy_Lights`.
+pub const UBO_LIGHTS_BINDING: u32 = 1;
+/// Uniform Buffer Object mount point for gaussian blur.
+pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
+
+/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
+/// Uniform Buffer Object bytes length for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_EnableLighting`.
+pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_LENGTH: u32 = 4;
+/// Uniform Buffer Object bytes length for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+
+/// Uniform Buffer Object bytes offset for `u_RenderTime`.
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_EnableLighting`.
+pub const UBO_UNIVERSAL_UNIFORMS_ENABLE_LIGHTING_BYTES_OFFSET: u32 = 4;
+/// Uniform Buffer Object bytes offset for `u_CameraPosition`.
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_ProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
+/// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
+
+/// Uniform Buffer Object bytes length for `atoy_Lights`.
+pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16
+    + 16
+    + 64 * MAX_DIRECTIONAL_LIGHTS as u32
+    + 64 * MAX_POINT_LIGHTS as u32
+    + 80 * MAX_SPOT_LIGHTS as u32
+    + 112 * MAX_AREA_LIGHTS as u32;
+/// Uniform Buffer Object bytes length for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
+/// Uniform Buffer Object bytes length for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
+/// Uniform Buffer Object bytes length for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_LENGTH: u32 = 64;
+/// Uniform Buffer Object bytes length for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_LENGTH: u32 = 80;
+/// Uniform Buffer Object bytes length for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_LENGTH: u32 = 112;
+
+/// Uniform Buffer Object bytes offset for `u_Attenuations`.
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
+/// Uniform Buffer Object bytes offset for `u_AmbientLight`.
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: u32 = 16;
+/// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
+/// Uniform Buffer Object bytes offset for `u_PointLights`.
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
+/// Uniform Buffer Object bytes offset for `u_SpotLights`.
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
+/// Uniform Buffer Object bytes offset for `u_AreaLights`.
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = 2528;
+
+/// Uniform Buffer Object data in f32 for `atoy_GaussianKernel`.
+#[rustfmt::skip]
+pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0515412587290000060, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0441782282542000000, 0.0, 0.0, 0.0,
+    0.0378670583491600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0276113869832000000, 0.0, 0.0, 0.0,
+    0.0236669066033600000, 0.0, 0.0, 0.0,
+    0.0147918135865600000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0122717174580000000, 0.0, 0.0, 0.0,
+    0.0105186165084000000, 0.0, 0.0, 0.0,
+    0.0065741339663999990, 0.0, 0.0, 0.0,
+    0.0029218349159999997, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0036814698320000003, 0.0, 0.0, 0.0,
+    0.0031555460336000003, 0.0, 0.0, 0.0,
+    0.0019722158656000000, 0.0, 0.0, 0.0,
+    0.0008765396640000000, 0.0, 0.0, 0.0,
+    0.0002629586560000000, 0.0, 0.0, 0.0,
+];
+/// Uniform Buffer Object data in u8 for `atoy_GaussianKernel`.
+pub const UBO_GAUSSIAN_KERNEL_U8: [u8; 324 * 4] =
+    unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
+
 const BLOOM_GLSL_DEFINE: &'static str = "BLOOM";
 
 const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
@@ -32,10 +198,6 @@ const BASE_TEXTURE: &'static str = "u_BaseTexture";
 const BLOOM_BLUR_TEXTURE: &'static str = "u_BloomBlurTexture";
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
-
-const UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
-const LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
-const GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -145,7 +307,7 @@ fn draw_entity(
     // binds atoy_UniversalUniforms
     state.bind_uniform_block_value_by_block_name(
         program,
-        UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
         UniformBlockValue::BufferBase {
             descriptor: universal_ubo.clone(),
             binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
@@ -154,7 +316,7 @@ fn draw_entity(
     // binds atoy_Lights
     state.bind_uniform_block_value_by_block_name(
         program,
-        LIGHTS_BLOCK_NAME,
+        UBO_LIGHTS_BLOCK_NAME,
         UniformBlockValue::BufferBase {
             descriptor: lights_ubo.clone(),
             binding: UBO_LIGHTS_BINDING,
@@ -176,10 +338,13 @@ fn draw_opaque_entities(
     universal_ubo: &BufferDescriptor,
     lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
+    let entities = collected_entities.entities();
+    let opaque_entity_indices = collected_entities.opaque_entity_indices();
+
     // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
     state.gl().depth_mask(true);
-    for index in collected_entities.opaque_entities {
-        let entity = collected_entities.entities[*index].entity_mut();
+    for index in opaque_entity_indices {
+        let entity = entities[*index].entity_mut();
         draw_entity(state, enable_bloom, true, entity, universal_ubo, lights_ubo)?;
     }
 
@@ -193,6 +358,9 @@ fn draw_translucent_entities(
     universal_ubo: &BufferDescriptor,
     lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
+    let entities = collected_entities.entities();
+    let translucent_entity_indices = collected_entities.translucent_entity_indices();
+
     // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
     state.gl().enable(WebGl2RenderingContext::BLEND);
     state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
@@ -201,8 +369,8 @@ fn draw_translucent_entities(
         WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
     );
     state.gl().depth_mask(false);
-    for index in collected_entities.translucent_entities.iter().rev() {
-        let entity = collected_entities.entities[*index].entity_mut();
+    for index in translucent_entity_indices.iter().rev() {
+        let entity = entities[*index].entity_mut();
         draw_entity(
             state,
             enable_bloom,
@@ -265,120 +433,6 @@ impl ProgramSource for BloomMapping {
 
     fn fragment_source(&self) -> FragmentShaderSource {
         FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/bloom_mapping.frag")))
-    }
-}
-
-#[rustfmt::skip]
-const GAUSSIAN_KERNEL: [f32; 324] = [
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0515412587290000060, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0441782282542000000, 0.0, 0.0, 0.0,
-    0.0378670583491600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0276113869832000000, 0.0, 0.0, 0.0,
-    0.0236669066033600000, 0.0, 0.0, 0.0,
-    0.0147918135865600000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0122717174580000000, 0.0, 0.0, 0.0,
-    0.0105186165084000000, 0.0, 0.0, 0.0,
-    0.0065741339663999990, 0.0, 0.0, 0.0,
-    0.0029218349159999997, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0036814698320000003, 0.0, 0.0, 0.0,
-    0.0031555460336000003, 0.0, 0.0, 0.0,
-    0.0019722158656000000, 0.0, 0.0, 0.0,
-    0.0008765396640000000, 0.0, 0.0, 0.0,
-    0.0002629586560000000, 0.0, 0.0, 0.0,
-];
-
-const GAUSSIAN_KERNEL_BINARY: [u8; 324 * 4] =
-    unsafe { std::mem::transmute_copy::<[f32; 324], [u8; 324 * 4]>(&GAUSSIAN_KERNEL) };
-
-static mut GAUSSIAN_KERNEL_BUFFER_DESCRIPTOR: OnceCell<BufferDescriptor> = OnceCell::new();
-
-pub(self) fn gaussian_kernel() -> BufferDescriptor {
-    unsafe {
-        GAUSSIAN_KERNEL_BUFFER_DESCRIPTOR
-            .get_or_init(|| {
-                BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(
-                        &GAUSSIAN_KERNEL_BINARY,
-                        0,
-                        GAUSSIAN_KERNEL_BINARY.len() as u32,
-                    ),
-                    BufferUsage::StaticDraw,
-                    MemoryPolicy::restorable(|| {
-                        BufferSource::from_binary(
-                            &GAUSSIAN_KERNEL_BINARY,
-                            0,
-                            GAUSSIAN_KERNEL_BINARY.len() as u32,
-                        )
-                    }),
-                )
-            })
-            .clone()
     }
 }
 

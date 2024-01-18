@@ -11,13 +11,14 @@ use crate::render::webgl::{
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
-    uniform::{UniformBlockValue, UniformValue, UBO_GAUSSIAN_BLUR_BINDING},
+    uniform::{UniformBlockValue, UniformValue},
 };
 
 use super::{
-    draw_entities, gaussian_kernel, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
+    draw_entities, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
     HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE, BLOOM_BLUR_TEXTURE,
-    GAUSSIAN_KERNEL_BLOCK_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
+    HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME, UBO_GAUSSIAN_BLUR_BINDING,
+    UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
 };
 
 pub struct StandardMultisamplesHdrDrawer {
@@ -234,6 +235,7 @@ impl StandardMultisamplesHdrDrawer {
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: &BufferDescriptor,
+        gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         if bloom_blur {
             self.draw_hdr_multisamples_bloom(
@@ -244,7 +246,7 @@ impl StandardMultisamplesHdrDrawer {
                 lights_ubo,
             )?;
             self.blit_bloom(state)?;
-            self.blur_bloom(state, bloom_blur_epoch)?;
+            self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
@@ -416,7 +418,12 @@ impl StandardMultisamplesHdrDrawer {
         Ok(())
     }
 
-    fn blur_bloom(&mut self, state: &mut FrameState, bloom_blur_epoch: usize) -> Result<(), Error> {
+    fn blur_bloom(
+        &mut self,
+        state: &mut FrameState,
+        bloom_blur_epoch: usize,
+        gaussian_kernel_ubo: &BufferDescriptor,
+    ) -> Result<(), Error> {
         unsafe {
             let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_framebuffer.as_mut().unwrap();
@@ -435,9 +442,9 @@ impl StandardMultisamplesHdrDrawer {
                         // first epoch, do some initialization
                         state.bind_uniform_block_value_by_block_name(
                             program,
-                            GAUSSIAN_KERNEL_BLOCK_NAME,
+                            UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             UniformBlockValue::BufferBase {
-                                descriptor: gaussian_kernel(),
+                                descriptor: gaussian_kernel_ubo.clone(),
                                 binding: UBO_GAUSSIAN_BLUR_BINDING,
                             },
                         )?;

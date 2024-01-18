@@ -27,10 +27,33 @@ impl CollectedEntity {
 }
 
 pub struct CollectedEntities<'a> {
-    pub entities: &'a [CollectedEntity],
-    pub opaque_entities: &'a [usize],
-    pub transparent_entities: &'a [usize],
-    pub translucent_entities: &'a [usize],
+    id: usize,
+    entities: &'a [CollectedEntity],
+    opaque_entity_indices: &'a [usize],
+    transparent_entity_indices: &'a [usize],
+    translucent_entity_indices: &'a [usize],
+}
+
+impl<'a> CollectedEntities<'a> {
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
+    pub fn entities(&self) -> &[CollectedEntity] {
+        self.entities
+    }
+
+    pub fn opaque_entity_indices(&self) -> &[usize] {
+        self.opaque_entity_indices
+    }
+
+    pub fn transparent_entity_indices(&self) -> &[usize] {
+        self.transparent_entity_indices
+    }
+
+    pub fn translucent_entity_indices(&self) -> &[usize] {
+        self.translucent_entity_indices
+    }
 }
 
 pub struct StandardEntitiesCollector {
@@ -39,10 +62,11 @@ pub struct StandardEntitiesCollector {
 
     last_view_frustum: Option<ViewFrustum>,
     last_container: Option<Uuid>,
+    last_collected_id: usize,
     last_entities: Vec<CollectedEntity>,
-    last_opaque_entities: Vec<usize>,
-    last_transparent_entities: Vec<usize>,
-    last_translucent_entities: Vec<usize>,
+    last_opaque_entity_indices: Vec<usize>,
+    last_transparent_entity_indices: Vec<usize>,
+    last_translucent_entity_indices: Vec<usize>,
 }
 
 impl StandardEntitiesCollector {
@@ -54,10 +78,11 @@ impl StandardEntitiesCollector {
 
             last_view_frustum: None,
             last_container: None,
+            last_collected_id: 0,
             last_entities: Vec::new(),
-            last_opaque_entities: Vec::new(),
-            last_transparent_entities: Vec::new(),
-            last_translucent_entities: Vec::new(),
+            last_opaque_entity_indices: Vec::new(),
+            last_transparent_entity_indices: Vec::new(),
+            last_translucent_entity_indices: Vec::new(),
         }
     }
 
@@ -65,9 +90,9 @@ impl StandardEntitiesCollector {
     pub fn clear(&mut self) {
         self.last_container = None;
         self.last_entities.clear();
-        self.last_opaque_entities.clear();
-        self.last_transparent_entities.clear();
-        self.last_translucent_entities.clear();
+        self.last_opaque_entity_indices.clear();
+        self.last_transparent_entity_indices.clear();
+        self.last_translucent_entity_indices.clear();
     }
 
     /// Returns `true` if entity culling enabled.
@@ -127,10 +152,11 @@ impl StandardEntitiesCollector {
                 ) {
                     (true, true) => {
                         return CollectedEntities {
+                            id: self.last_collected_id,
                             entities: &self.last_entities,
-                            opaque_entities: &self.last_opaque_entities,
-                            transparent_entities: &self.last_transparent_entities,
-                            translucent_entities: &self.last_translucent_entities,
+                            opaque_entity_indices: &self.last_opaque_entity_indices,
+                            transparent_entity_indices: &self.last_transparent_entity_indices,
+                            translucent_entity_indices: &self.last_translucent_entity_indices,
                         }
                     }
                     _ => {
@@ -184,14 +210,14 @@ impl StandardEntitiesCollector {
                         entity.material().map(|material| material.transparency())
                     {
                         match transparency {
-                            Transparency::Opaque => {
-                                self.last_opaque_entities.push(self.last_entities.len() - 1)
-                            }
+                            Transparency::Opaque => self
+                                .last_opaque_entity_indices
+                                .push(self.last_entities.len() - 1),
                             Transparency::Transparent => self
-                                .last_transparent_entities
+                                .last_transparent_entity_indices
                                 .push(self.last_entities.len() - 1),
                             Transparency::Translucent(_) => self
-                                .last_translucent_entities
+                                .last_translucent_entity_indices
                                 .push(self.last_entities.len() - 1),
                         }
                     }
@@ -214,14 +240,14 @@ impl StandardEntitiesCollector {
                     entity.material().map(|material| material.transparency())
                 {
                     match transparency {
-                        Transparency::Opaque => {
-                            self.last_opaque_entities.push(self.last_entities.len() - 1)
-                        }
+                        Transparency::Opaque => self
+                            .last_opaque_entity_indices
+                            .push(self.last_entities.len() - 1),
                         Transparency::Transparent => self
-                            .last_transparent_entities
+                            .last_transparent_entity_indices
                             .push(self.last_entities.len() - 1),
                         Transparency::Translucent(_) => self
-                            .last_translucent_entities
+                            .last_translucent_entity_indices
                             .push(self.last_entities.len() - 1),
                     }
                 }
@@ -235,12 +261,14 @@ impl StandardEntitiesCollector {
 
         self.last_container = Some(*scene.entity_container().id());
         self.last_view_frustum = Some(view_frustum);
+        self.last_collected_id = self.last_collected_id.wrapping_add(1);
 
         CollectedEntities {
+            id: self.last_collected_id,
             entities: &self.last_entities,
-            opaque_entities: &self.last_opaque_entities,
-            transparent_entities: &self.last_transparent_entities,
-            translucent_entities: &self.last_translucent_entities,
+            opaque_entity_indices: &self.last_opaque_entity_indices,
+            transparent_entity_indices: &self.last_transparent_entity_indices,
+            translucent_entity_indices: &self.last_translucent_entity_indices,
         }
     }
 }

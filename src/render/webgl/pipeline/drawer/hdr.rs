@@ -11,13 +11,14 @@ use crate::render::webgl::{
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
-    uniform::{UniformBlockValue, UniformValue, UBO_GAUSSIAN_BLUR_BINDING},
+    uniform::{UniformBlockValue, UniformValue},
 };
 
 use super::{
-    draw_entities, gaussian_kernel, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
+    draw_entities, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
     HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE, BLOOM_BLUR_TEXTURE,
-    GAUSSIAN_KERNEL_BLOCK_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
+    HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME, UBO_GAUSSIAN_BLUR_BINDING,
+    UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
 };
 
 pub struct StandardHdrDrawer {
@@ -174,10 +175,11 @@ impl StandardHdrDrawer {
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: &BufferDescriptor,
+        gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         if bloom_blur {
             self.draw_hdr_bloom(state, collected_entities, universal_ubo, lights_ubo)?;
-            self.blur_bloom(state, bloom_blur_epoch)?;
+            self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
@@ -252,7 +254,8 @@ impl StandardHdrDrawer {
     ) -> Result<(), Error> {
         self.prepare_tone_mapping(state, tone_mapping_type)?;
 
-        self.framebuffer(state).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer(state)
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         state.do_computation([(
             self.hdr_framebuffer.as_ref().unwrap().texture(0).unwrap(),
             TextureUnit::TEXTURE0,
@@ -268,10 +271,15 @@ impl StandardHdrDrawer {
         tone_mapping_type: HdrToneMappingType,
     ) -> Result<(), Error> {
         self.prepare_tone_mapping(state, tone_mapping_type)?;
-        
-        self.framebuffer(state).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+
+        self.framebuffer(state)
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         state.do_computation([(
-            self.hdr_bloom_blend_framebuffer.as_ref().unwrap().texture(0).unwrap(),
+            self.hdr_bloom_blend_framebuffer
+                .as_ref()
+                .unwrap()
+                .texture(0)
+                .unwrap(),
             TextureUnit::TEXTURE0,
         )]);
         self.framebuffer(state).unbind();
@@ -283,6 +291,7 @@ impl StandardHdrDrawer {
         &mut self,
         state: &mut FrameState,
         bloom_blur_epoch: usize,
+        gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         unsafe {
             let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
@@ -302,9 +311,9 @@ impl StandardHdrDrawer {
                         // first epoch, do some initialization
                         state.bind_uniform_block_value_by_block_name(
                             program,
-                            GAUSSIAN_KERNEL_BLOCK_NAME,
+                            UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             UniformBlockValue::BufferBase {
-                                descriptor: gaussian_kernel(),
+                                descriptor: gaussian_kernel_ubo.clone(),
                                 binding: UBO_GAUSSIAN_BLUR_BINDING,
                             },
                         )?;
