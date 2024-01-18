@@ -11,7 +11,7 @@ use crate::render::webgl::{
 
 const TEXTURE: &'static str = "u_Texture";
 
-pub static DEFAULT_CLEAR_COLOR: Vec4 = Vec4::<f64>::new(0.0, 0.0, 0.0, 0.0);
+pub const DEFAULT_CLEAR_COLOR: Vec4 = Vec4::<f64>::new_zero();
 
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
@@ -22,7 +22,7 @@ pub struct StandardComposer {
 impl StandardComposer {
     pub fn new() -> Self {
         Self {
-            clear_color: Vec4::<f64>::new_zero(),
+            clear_color: DEFAULT_CLEAR_COLOR,
         }
     }
 
@@ -43,10 +43,10 @@ impl StandardComposer {
         I: IntoIterator<Item = &'a WebGlTexture>,
     {
         state.gl().clear_color(
-            *self.clear_color.x() as f32,
-            *self.clear_color.y() as f32,
-            *self.clear_color.z() as f32,
-            *self.clear_color.w() as f32,
+            *self.clear_color.r() as f32,
+            *self.clear_color.g() as f32,
+            *self.clear_color.b() as f32,
+            *self.clear_color.a() as f32,
         );
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
         state.gl().enable(WebGl2RenderingContext::BLEND);

@@ -56,6 +56,7 @@ pub struct StandardPipeline {
     enable_bloom: bool,
     bloom_blur_epoch: usize,
 
+    dirty: bool,
     last_render_collected_id: Option<usize>,
 }
 
@@ -104,8 +105,14 @@ impl StandardPipeline {
             enable_bloom: DEFAULT_BLOOM_ENABLED,
             bloom_blur_epoch: DEFAULT_BLOOM_BLUR_EPOCH,
 
+            dirty: true,
             last_render_collected_id: None,
         }
+    }
+
+    #[inline]
+    fn set_dirty(&mut self) {
+        self.dirty = true;
     }
 
     #[inline]
@@ -116,6 +123,7 @@ impl StandardPipeline {
     #[inline]
     pub fn set_clear_color(&mut self, clear_color: Vec4) {
         self.composer.set_clear_color(clear_color);
+        self.set_dirty();
     }
 
     pub fn hdr_supported(&mut self, gl: &WebGl2RenderingContext) -> bool {
@@ -141,12 +149,14 @@ impl StandardPipeline {
     #[inline]
     pub fn enable_culling(&mut self) {
         self.entities_collector.enable_culling();
+        self.set_dirty();
     }
 
     /// Disables culling by bounding volumes.
     #[inline]
     pub fn disable_culling(&mut self) {
         self.entities_collector.disable_culling();
+        self.set_dirty();
     }
 
     /// Returns `true` if entity distance sorting enabled.
@@ -158,13 +168,15 @@ impl StandardPipeline {
     /// Enables distance sorting by bounding volumes.
     #[inline]
     pub fn enable_distance_sorting(&mut self) {
-        self.entities_collector.enable_distance_sorting()
+        self.entities_collector.enable_distance_sorting();
+        self.set_dirty();
     }
 
     /// Disables distance sorting by bounding volumes.
     #[inline]
     pub fn disable_distance_sorting(&mut self) {
-        self.entities_collector.disable_distance_sorting()
+        self.entities_collector.disable_distance_sorting();
+        self.set_dirty();
     }
 
     #[inline]
@@ -175,11 +187,13 @@ impl StandardPipeline {
     #[inline]
     pub fn enable_hdr(&mut self) {
         self.enable_hdr = true;
+        self.set_dirty();
     }
 
     #[inline]
     pub fn disable_hdr(&mut self) {
         self.enable_hdr = false;
+        self.set_dirty();
     }
 
     #[inline]
@@ -190,6 +204,7 @@ impl StandardPipeline {
     #[inline]
     pub fn set_hdr_tone_mapping_type(&mut self, tone_mapping_type: HdrToneMappingType) {
         self.hdr_tone_mapping_type = tone_mapping_type;
+        self.set_dirty();
     }
 
     #[inline]
@@ -200,11 +215,13 @@ impl StandardPipeline {
     #[inline]
     pub fn enable_bloom(&mut self) {
         self.enable_bloom = true;
+        self.set_dirty();
     }
 
     #[inline]
     pub fn disable_bloom(&mut self) {
         self.enable_bloom = false;
+        self.set_dirty();
     }
 
     #[inline]
@@ -215,6 +232,7 @@ impl StandardPipeline {
     #[inline]
     pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
         self.bloom_blur_epoch = epoch;
+        self.set_dirty();
     }
 
     #[inline]
@@ -244,6 +262,7 @@ impl StandardPipeline {
                 self.multisamples = None;
             }
         };
+        self.set_dirty();
     }
 }
 
@@ -260,12 +279,13 @@ impl Pipeline for StandardPipeline {
 
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
-        // skips render if collect_entities unchanged
-        if self
-            .last_render_collected_id
-            .map(|id| id == collected_entities.id())
-            .unwrap_or(false)
-        {
+        // skips render if collect_entities unchanged and pipeline is not dirty
+        let dirty = self.dirty
+            || self
+                .last_render_collected_id
+                .map(|id| id != collected_entities.id())
+                .unwrap_or(true);
+        if !dirty {
             return Ok(());
         }
 
@@ -324,6 +344,7 @@ impl Pipeline for StandardPipeline {
         self.cleanup.cleanup(state);
 
         self.last_render_collected_id = Some(collected_entities.id());
+        self.dirty = false;
 
         Ok(())
     }
