@@ -837,6 +837,7 @@ impl ContainerEvent {
 pub struct Container {
     temporary: bool,
 
+    id: Uuid,
     entities: *mut IndexMap<Uuid, *mut Entity>,
     groups: *mut IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
@@ -872,6 +873,7 @@ impl Container {
         let mut container = Self {
             temporary: false,
 
+            id: Uuid::new_v4(),
             entities: Box::leak(Box::new(IndexMap::new())),
             groups: Box::leak(Box::new(IndexMap::new())),
             root_group: std::ptr::null_mut(),
@@ -886,6 +888,7 @@ impl Container {
     fn clone_temporary(&self) -> Self {
         Self {
             temporary: true,
+            id: self.id,
             entities: self.entities,
             groups: self.groups,
             root_group: self.root_group,
@@ -901,6 +904,16 @@ impl Container {
             (*self.changed_event).raise(event);
             (*self.changed_event).raise(ContainerEvent::new(ContainerEventKind::Changed, self));
         }
+    }
+
+    #[inline]
+    pub fn id(&self) -> &Uuid {
+        &self.id
+    }
+
+    #[inline]
+    pub fn is_dirty(&self) -> bool {
+        unsafe { *self.dirty }
     }
 
     #[inline]
@@ -1238,6 +1251,7 @@ impl Container {
     pub fn update(&mut self) {
         unsafe {
             (*self.root_group).update();
+            (*self.dirty) = false;
         }
     }
 }

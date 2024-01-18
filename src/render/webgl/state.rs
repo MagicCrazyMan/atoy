@@ -1,9 +1,12 @@
-use std::ptr::NonNull;
+use std::{iter::FromIterator, ptr::NonNull};
 
 use gl_matrix4rust::GLF32;
 use log::warn;
+use wasm_bindgen::JsValue;
 use web_sys::{
-    js_sys::Object, HtmlCanvasElement, WebGl2RenderingContext, WebGlProgram, WebGlUniformLocation,
+    js_sys::{Array, Object},
+    HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer, WebGlProgram, WebGlTexture,
+    WebGlUniformLocation,
 };
 
 use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial};
@@ -14,18 +17,17 @@ use super::{
     conversion::{GLint, GLuint, ToGlEnum},
     draw::Draw,
     error::Error,
-    framebuffer::{Framebuffer, FramebufferDrawBuffer, RenderbufferProvider, TextureProvider},
+    framebuffer::{
+        BlitFlilter, BlitMask, Framebuffer, FramebufferDrawBuffer, FramebufferTarget,
+        RenderbufferProvider, TextureProvider,
+    },
     program::{Program, ProgramStore},
-    texture::{TextureParameter, TextureStore},
+    texture::{TextureParameter, TextureStore, TextureUnit},
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
 pub struct BoundAttribute {
     location: u32,
-    descriptor: BufferDescriptor,
-}
-
-pub struct BoundUniform {
     descriptor: BufferDescriptor,
 }
 
@@ -299,7 +301,7 @@ impl FrameState {
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
-    ) -> Result<Vec<BoundUniform>, Error> {
+    ) -> Result<(), Error> {
         // binds uniforms
         let uniform_bindings = material.uniform_bindings();
         for binding in uniform_bindings {
@@ -333,9 +335,9 @@ impl FrameState {
                         transpose: false,
                     })
                 }
-                UniformBinding::CameraPosition => {
-                    Some(UniformValue::FloatVector3(self.camera().position().gl_f32()))
-                }
+                UniformBinding::CameraPosition => Some(UniformValue::FloatVector3(
+                    self.camera().position().gl_f32(),
+                )),
                 UniformBinding::RenderTime => Some(UniformValue::Float1(self.timestamp() as f32)),
                 UniformBinding::Transparency => {
                     Some(UniformValue::Float1(material.transparency().alpha()))
@@ -374,7 +376,6 @@ impl FrameState {
 
         // binds uniform blocks
         let uniform_block_bindings = material.uniform_block_bindings();
-        let mut bounds = Vec::with_capacity(uniform_block_bindings.len());
         for binding in uniform_block_bindings {
             let uniform_block_index =
                 program.get_or_retrieve_uniform_block_index(binding.block_name());
@@ -399,14 +400,10 @@ impl FrameState {
                 continue;
             };
 
-            bounds.push(self.bind_uniform_block_value(
-                program.program(),
-                uniform_block_index,
-                value,
-            )?);
+            self.bind_uniform_block_value(program.program(), uniform_block_index, value)?;
         }
 
-        Ok(bounds)
+        Ok(())
     }
 
     /// Binds a [`UniformValue`] to a uniform.
@@ -553,15 +550,15 @@ impl FrameState {
         program: &WebGlProgram,
         uniform_block_index: u32,
         value: UniformBlockValue,
-    ) -> Result<BoundUniform, Error> {
-        let (descriptor, binding) = match value {
+    ) -> Result<(), Error> {
+        let binding = match value {
             UniformBlockValue::BufferBase {
                 descriptor,
                 binding,
             } => {
                 self.buffer_store_mut()
                     .bind_uniform_buffer_object(&descriptor, binding, None)?;
-                (descriptor, binding)
+                binding
             }
             UniformBlockValue::BufferRange {
                 descriptor,
@@ -574,13 +571,13 @@ impl FrameState {
                     binding,
                     Some((offset, size)),
                 )?;
-                (descriptor, binding)
+                binding
             }
         };
 
         self.gl
             .uniform_block_binding(program, uniform_block_index, binding);
-        Ok(BoundUniform { descriptor })
+        Ok(())
     }
 
     /// Binds a [`UniformBlockValue`] to a uniform block by a block name.
@@ -589,23 +586,12 @@ impl FrameState {
         program: &mut Program,
         uniform_block_name: &str,
         value: UniformBlockValue,
-    ) -> Result<BoundUniform, Error> {
+    ) -> Result<(), Error> {
         let uniform_block_index = program.get_or_retrieve_uniform_block_index(uniform_block_name);
         self.bind_uniform_block_value(program.program(), uniform_block_index, value)
     }
 
-    /// Unbinds all uniforms after draw calls.
-    ///
-    /// If you bind buffer attributes ever,
-    /// remember to unbind them by yourself or use this function.
-    pub fn unbind_uniforms(&mut self, bounds: Vec<BoundUniform>) {
-        for BoundUniform { descriptor } in bounds {
-            self.buffer_store_mut().unuse_buffer(&descriptor);
-        }
-    }
-
     pub fn draw(&mut self, draw: &Draw) -> Result<(), Error> {
-        // draw normally!
         match draw {
             Draw::Arrays { mode, first, count } => {
                 self.gl.draw_arrays(mode.gl_enum(), *first, *count)
@@ -675,6 +661,234 @@ impl FrameState {
                 x, y, width, height, format, type_, dst_data, dst_offset,
             )
             .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+        Ok(())
+    }
+
+    /// Applies computation using current binding framebuffer and program.
+    pub fn do_computation<'a, I>(&mut self, textures: I)
+    where
+        I: IntoIterator<Item = (&'a WebGlTexture, TextureUnit)>,
+    {
+        let mut texture_units = Vec::new();
+        for (texture, texture_unit) in textures {
+            self.gl.active_texture(texture_unit.gl_enum());
+            self.gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+                WebGl2RenderingContext::NEAREST as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+                WebGl2RenderingContext::NEAREST as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
+                0,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_S,
+                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_T,
+                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+            );
+            texture_units.push(texture_unit);
+        }
+
+        self.gl
+            .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
+
+        for texture_unit in texture_units {
+            self.gl.active_texture(texture_unit.gl_enum());
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+                WebGl2RenderingContext::LINEAR as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+                WebGl2RenderingContext::NEAREST_MIPMAP_LINEAR as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_S,
+                WebGl2RenderingContext::REPEAT as i32,
+            );
+            self.gl.tex_parameteri(
+                WebGl2RenderingContext::TEXTURE_2D,
+                WebGl2RenderingContext::TEXTURE_WRAP_T,
+                WebGl2RenderingContext::REPEAT as i32,
+            );
+            self.gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        }
+    }
+
+    /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].
+    pub fn blit_framebuffers(
+        &self,
+        read_framebuffer: &mut Framebuffer,
+        draw_framebuffer: &mut Framebuffer,
+        mask: BlitMask,
+        filter: BlitFlilter,
+    ) -> Result<(), Error> {
+        draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        let dst_width = draw_framebuffer.width();
+        let dst_height = draw_framebuffer.height();
+
+        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        let src_width = read_framebuffer.width();
+        let src_height = read_framebuffer.height();
+
+        self.gl.blit_framebuffer(
+            0,
+            0,
+            src_width,
+            src_height,
+            0,
+            0,
+            dst_width,
+            dst_height,
+            mask.gl_enum(),
+            filter.gl_enum(),
+        );
+
+        read_framebuffer.unbind();
+        draw_framebuffer.unbind();
+
+        Ok(())
+    }
+
+    /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].
+    pub fn blit_framebuffers_with_buffers<I1, I2>(
+        &self,
+        read_framebuffer: &mut Framebuffer,
+        read_buffer: FramebufferDrawBuffer,
+        draw_framebuffer: &mut Framebuffer,
+        draw_buffers: I1,
+        reset_draw_buffers: I2,
+        mask: BlitMask,
+        filter: BlitFlilter,
+    ) -> Result<(), Error>
+    where
+        I1: IntoIterator<Item = FramebufferDrawBuffer>,
+        I2: IntoIterator<Item = FramebufferDrawBuffer>,
+    {
+        draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        let dst_width = draw_framebuffer.width();
+        let dst_height = draw_framebuffer.height();
+        let draw_buffers = Array::from_iter(
+            draw_buffers
+                .into_iter()
+                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
+        );
+        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        let src_width = read_framebuffer.width();
+        let src_height = read_framebuffer.height();
+
+        self.gl.draw_buffers(&draw_buffers);
+        self.gl.read_buffer(read_buffer.gl_enum());
+
+        self.gl.blit_framebuffer(
+            0,
+            0,
+            src_width,
+            src_height,
+            0,
+            0,
+            dst_width,
+            dst_height,
+            mask.gl_enum(),
+            filter.gl_enum(),
+        );
+
+        let draw_buffers = Array::from_iter(
+            reset_draw_buffers
+                .into_iter()
+                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
+        );
+        self.gl.draw_buffers(&draw_buffers);
+        draw_framebuffer.unbind();
+        read_framebuffer.unbind();
+        self.gl.read_buffer(WebGl2RenderingContext::BACK);
+
+        Ok(())
+    }
+
+    /// Blits between read [`WebGlFramebuffer`](WebGlFramebuffer) and draw [`WebGlFramebuffer`](WebGlFramebuffer).
+    pub fn blit_framebuffers_native<I1, I2>(
+        &self,
+        read_framebuffer: &WebGlFramebuffer,
+        read_buffer: FramebufferDrawBuffer,
+        draw_framebuffer: &WebGlFramebuffer,
+        draw_buffers: I1,
+        reset_draw_buffers: I2,
+        src_x0: i32,
+        src_y0: i32,
+        src_x1: i32,
+        src_y1: i32,
+        dst_x0: i32,
+        dst_y0: i32,
+        dst_x1: i32,
+        dst_y1: i32,
+        mask: BlitMask,
+        filter: BlitFlilter,
+    ) -> Result<(), Error>
+    where
+        I1: IntoIterator<Item = FramebufferDrawBuffer>,
+        I2: IntoIterator<Item = FramebufferDrawBuffer>,
+    {
+        self.gl.bind_framebuffer(
+            WebGl2RenderingContext::DRAW_FRAMEBUFFER,
+            Some(draw_framebuffer),
+        );
+        self.gl.bind_framebuffer(
+            WebGl2RenderingContext::READ_FRAMEBUFFER,
+            Some(read_framebuffer),
+        );
+
+        let draw_buffers = Array::from_iter(
+            draw_buffers
+                .into_iter()
+                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
+        );
+        self.gl.draw_buffers(&draw_buffers);
+        self.gl.read_buffer(read_buffer.gl_enum());
+
+        self.gl.blit_framebuffer(
+            src_x0,
+            src_y0,
+            src_x1,
+            src_y1,
+            dst_x0,
+            dst_y0,
+            dst_x1,
+            dst_y1,
+            mask.gl_enum(),
+            filter.gl_enum(),
+        );
+
+        let draw_buffers = Array::from_iter(
+            reset_draw_buffers
+                .into_iter()
+                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
+        );
+        self.gl.draw_buffers(&draw_buffers);
+        self.gl
+            .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
+
+        self.gl
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        self.gl.read_buffer(WebGl2RenderingContext::BACK);
+
         Ok(())
     }
 }

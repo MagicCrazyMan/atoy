@@ -3,7 +3,6 @@ use std::{any::Any, borrow::Cow};
 use rand::distributions::{Distribution, Standard};
 
 use crate::{
-    entity::Entity,
     event::EventAgency,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -56,7 +55,7 @@ pub trait StandardMaterial: StandardMaterialSource {
     fn ready(&self) -> bool;
 
     /// Prepares material.
-    fn prepare(&mut self, state: &mut FrameState, entity: &Entity);
+    fn prepare(&mut self, state: &mut FrameState);
 
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;

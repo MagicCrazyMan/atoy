@@ -13,7 +13,7 @@ use crate::{
     render::{
         webgl::{
             error::Error,
-            pipeline::{drawer::HdrToneMappingType, picking::PickingPipeline, StandardPipeline},
+            pipeline::{drawer::HdrToneMappingType, StandardPipeline},
             WebGL2Render,
         },
         Render,
@@ -33,7 +33,6 @@ struct Inner {
     camera: Box<dyn Camera>,
     render: WebGL2Render,
     standard_pipeline: StandardPipeline,
-    picking_pipeline: PickingPipeline,
 
     render_loop: Option<Closure<dyn FnMut(f64)>>,
     render_next: bool,
@@ -119,12 +118,12 @@ impl Viewer {
         self.set_clear_color(Vec4::new(r, g, b, a))
     }
 
-    pub fn multisample_wasm(&self) -> Option<i32> {
-        self.multisample()
+    pub fn multisamples_wasm(&self) -> Option<i32> {
+        self.multisamples()
     }
 
-    pub fn set_multisample_wasm(&mut self, samples: Option<i32>) {
-        self.set_multisample(samples)
+    pub fn set_multisamples_wasm(&mut self, samples: Option<i32>) {
+        self.set_multisamples(samples)
     }
 
     pub fn hdr_enabled_wasm(&self) -> bool {
@@ -183,7 +182,6 @@ impl Viewer {
             camera: Box::new(camera),
             render: WebGL2Render::new(None)?,
             standard_pipeline: StandardPipeline::new(),
-            picking_pipeline: PickingPipeline::new(),
 
             render_loop: None,
             render_next: true,
@@ -316,7 +314,7 @@ impl Viewer {
         self.should_render_next();
     }
 
-    pub fn clear_color(&self) -> Vec4 {
+    pub fn clear_color(&self) -> &Vec4 {
         self.inner().standard_pipeline.clear_color()
     }
 
@@ -324,15 +322,14 @@ impl Viewer {
         self.inner_mut()
             .standard_pipeline
             .set_clear_color(clear_color);
-        self.should_render_next();
     }
 
-    pub fn multisample(&self) -> Option<i32> {
-        self.inner().standard_pipeline.multisample()
+    pub fn multisamples(&self) -> Option<i32> {
+        self.inner().standard_pipeline.multisamples()
     }
 
-    pub fn set_multisample(&mut self, samples: Option<i32>) {
-        self.inner_mut().standard_pipeline.set_multisample(samples);
+    pub fn set_multisamples(&mut self, samples: Option<i32>) {
+        self.inner_mut().standard_pipeline.set_multisamples(samples);
         self.should_render_next();
     }
 
@@ -391,7 +388,9 @@ impl Viewer {
     }
 
     pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
-        self.inner_mut().standard_pipeline.set_bloom_blur_epoch(epoch);
+        self.inner_mut()
+            .standard_pipeline
+            .set_bloom_blur_epoch(epoch);
         self.should_render_next();
     }
 
@@ -461,17 +460,19 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
-        let inner = self.inner_mut();
-        let picking_pipeline = &mut inner.picking_pipeline;
-        if picking_pipeline.is_dirty() {
-            let timestamp = inner.timestamp;
-            let scene = &mut inner.scene;
-            let render = &mut inner.render;
-            let camera = inner.camera.as_mut();
-            render.render(picking_pipeline, camera, scene, timestamp)?;
-        }
+        // let inner = self.inner_mut();
+        // let picking_pipeline = &mut inner.picking_pipeline;
+        // if picking_pipeline.is_dirty() {
+        //     let timestamp = inner.timestamp;
+        //     let scene = &mut inner.scene;
+        //     let render = &mut inner.render;
+        //     let camera = inner.camera.as_mut();
+        //     render.render(picking_pipeline, camera, scene, timestamp)?;
+        // }
 
-        picking_pipeline.pick_entity(window_position_x, window_position_y)
+        // picking_pipeline.pick_entity(window_position_x, window_position_y)
+
+        Ok(None)
     }
 
     pub fn pick_position(
@@ -479,17 +480,18 @@ impl Viewer {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        let inner = self.inner_mut();
-        let picking_pipeline = &mut inner.picking_pipeline;
-        if picking_pipeline.is_dirty() {
-            let timestamp = inner.timestamp;
-            let scene = &mut inner.scene;
-            let render = &mut inner.render;
-            let camera = inner.camera.as_mut();
-            render.render(picking_pipeline, camera, scene, timestamp)?;
-        }
+        // let inner = self.inner_mut();
+        // let picking_pipeline = &mut inner.picking_pipeline;
+        // if picking_pipeline.is_dirty() {
+        //     let timestamp = inner.timestamp;
+        //     let scene = &mut inner.scene;
+        //     let render = &mut inner.render;
+        //     let camera = inner.camera.as_mut();
+        //     render.render(picking_pipeline, camera, scene, timestamp)?;
+        // }
 
-        picking_pipeline.pick_position(window_position_x, window_position_y)
+        // picking_pipeline.pick_position(window_position_x, window_position_y)
+        Ok(None)
     }
 
     pub fn render_frame(&mut self) -> Result<(), Error> {
@@ -501,7 +503,7 @@ impl Viewer {
             &mut inner.scene,
             inner.timestamp,
         );
-        inner.picking_pipeline.set_dirty();
+        // inner.picking_pipeline.set_dirty();
 
         result
     }

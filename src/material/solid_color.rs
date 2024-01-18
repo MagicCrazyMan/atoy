@@ -3,7 +3,6 @@ use std::{any::Any, borrow::Cow};
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
-    entity::Entity,
     event::EventAgency,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -96,7 +95,7 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn prepare(&mut self, _: &mut FrameState, _: &Entity) {}
+    fn prepare(&mut self, _: &mut FrameState) {}
 
     fn changed_event(&self) -> &EventAgency<()> {
         &self.changed_event

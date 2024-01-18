@@ -1,7 +1,6 @@
 use std::{any::Any, borrow::Cow};
 
 use crate::{
-    entity::Entity,
     event::EventAgency,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -113,7 +112,7 @@ impl StandardMaterial for TextureMaterial {
         self
     }
 
-    fn prepare(&mut self, _: &mut FrameState, _: &Entity) {
+    fn prepare(&mut self, _: &mut FrameState) {
         self.diffuse_texture.load();
     }
 

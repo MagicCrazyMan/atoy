@@ -76,6 +76,23 @@ pub enum FramebufferDrawBuffer {
     COLOR_ATTACHMENT15,
 }
 
+/// Available blit framebuffer masks mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlitMask {
+    COLOR_BUFFER_BIT,
+    DEPTH_BUFFER_BIT,
+    STENCIL_BUFFER_BIT,
+}
+
+/// Available blit framebuffer filters mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlitFlilter {
+    NEAREST,
+    LINEAR,
+}
+
 /// Offscreen frame containing [`WebGlFramebuffer`], [`WebGlRenderbuffer`], [`WebGlTexture`] and other stuffs
 /// to make WebGl draw entities to framebuffer.
 ///
@@ -99,7 +116,7 @@ pub struct Framebuffer {
     framebuffer: Option<WebGlFramebuffer>,
     textures: Option<Vec<(WebGlTexture, TextureProvider)>>,
     renderbuffers: Option<Vec<(WebGlRenderbuffer, RenderbufferProvider)>>,
-    attachments: Array,
+    attachments: Vec<FramebufferAttachment>,
 
     draw_buffers: Array,
 }
@@ -156,7 +173,7 @@ impl Framebuffer {
             framebuffer: None,
             textures: None,
             renderbuffers: None,
-            attachments: Array::new(),
+            attachments: Vec::new(),
 
             draw_buffers: draw_buffers_array,
         }
@@ -166,39 +183,42 @@ impl Framebuffer {
         &self.gl
     }
 
+    /// Clears framebuffer and its associated renderbuffers and textures.
+    pub fn clear(&mut self) {
+        if let Some(framebuffer) = &mut self.framebuffer {
+            self.gl.delete_framebuffer(Some(&framebuffer));
+        }
+
+        if let Some(textures) = &mut self.textures {
+            for (texture, _) in textures {
+                self.gl.delete_texture(Some(&texture));
+            }
+        }
+
+        if let Some(renderbuffers) = &mut self.renderbuffers {
+            for (renderbuffer, _) in renderbuffers {
+                self.gl.delete_renderbuffer(Some(&renderbuffer));
+            }
+        }
+
+        self.framebuffer = None;
+        self.textures = None;
+        self.renderbuffers = None;
+        self.attachments.clear();
+    }
+
     /// Binds framebuffer to WebGL.
     pub fn bind(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+        self.unbind();
+
+        // recreates framebuffer if size changed
         let drawing_buffer_width = self.gl.drawing_buffer_width();
         let drawing_buffer_height = self.gl.drawing_buffer_height();
-
-        // delete previous framebuffers, textures and renderbuffers if size changed
         if drawing_buffer_width != self.width || drawing_buffer_height != self.height {
-            if let Some(framebuffer) = &mut self.framebuffer {
-                self.gl.delete_framebuffer(Some(&framebuffer));
-            }
-
-            if let Some(textures) = &mut self.textures {
-                for (texture, _) in textures {
-                    self.gl.delete_texture(Some(&texture));
-                }
-            }
-
-            if let Some(renderbuffers) = &mut self.renderbuffers {
-                for (renderbuffer, _) in renderbuffers {
-                    self.gl.delete_renderbuffer(Some(&renderbuffer));
-                }
-            }
-
-            self.framebuffer = None;
-            self.textures = None;
-            self.renderbuffers = None;
-            self.attachments.set_length(0);
-
+            self.clear();
             self.width = drawing_buffer_width;
             self.height = drawing_buffer_height;
         }
-
-        self.unbind();
 
         self.create_framebuffer()?;
         self.gl
@@ -263,7 +283,8 @@ impl Framebuffer {
         let Some(framebuffer) = self.framebuffer.as_ref() else {
             return Ok(());
         };
-        self.gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, Some(framebuffer));
+        self.gl
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, Some(framebuffer));
         self.gl.read_buffer(read_buffer.gl_enum());
         self.gl
             .read_pixels_with_array_buffer_view_and_dst_offset(
@@ -278,14 +299,38 @@ impl Framebuffer {
             )
             .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
         self.gl.read_buffer(WebGl2RenderingContext::NONE);
-        self.gl.bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        self.gl
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         Ok(())
+    }
+
+    /// Returns draw buffers associated with this framebuffer.
+    pub fn draw_buffers(&self) -> &Array {
+        &self.draw_buffers
     }
 
     /// Returns number of sample of the render buffers if multisample is enabled.
     pub fn renderbuffer_samples(&self) -> Option<i32> {
         self.renderbuffer_samples
             .and_then(|samples| if samples == 0 { None } else { Some(samples) })
+    }
+
+    /// Sets render buffer samples. Disabling multisamples by providing `0` or `None`.
+    pub fn set_renderbuffer_samples(&mut self, samples: Option<i32>) {
+        let samples = match samples {
+            Some(samples) => {
+                if samples == 0 {
+                    None
+                } else {
+                    Some(samples)
+                }
+            }
+            None => None,
+        };
+        if samples != self.renderbuffer_samples {
+            self.renderbuffer_samples = samples;
+            self.clear();
+        }
     }
 
     fn create_framebuffer(&mut self) -> Result<(), Error> {
@@ -336,8 +381,7 @@ impl Framebuffer {
             );
 
             textures.push((texture, *provider));
-            self.attachments
-                .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
+            self.attachments.push(provider.attachment);
         }
 
         self.gl
@@ -383,8 +427,7 @@ impl Framebuffer {
             );
 
             renderbuffers.push((renderbuffer, *provider));
-            self.attachments
-                .push(&JsValue::from_f64(provider.attachment.gl_enum() as f64));
+            self.attachments.push(provider.attachment);
         }
 
         self.gl

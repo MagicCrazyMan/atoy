@@ -1,7 +1,7 @@
 use crate::plane::Plane;
 
 /// View frustum, for a view frustum, far plane is optional.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewFrustum {
     left: Plane,
     right: Plane,

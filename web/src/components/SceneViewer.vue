@@ -58,8 +58,6 @@ onMounted(async () => {
     }
   );
 
-  viewer.set_multisample_wasm(0);
-
   clearColor.value = (() => {
     const color = viewer.clear_color_wasm();
     const r = Math.floor(color[0] * 255)
@@ -80,7 +78,7 @@ onMounted(async () => {
   culling.value = viewer.culling_enabled_wasm();
   sorting.value = viewer.distance_sorting_enabled_wasm();
   lighting.value = viewer.lighting_enabled_wasm();
-  samples.value = viewer.multisample_wasm() ?? 0;
+  samples.value = viewer.multisamples_wasm() ?? 0;
   hdr.value = viewer.hdr_enabled_wasm();
   bloom.value = viewer.bloom_enabled_wasm();
   bloomBlurEpoch.value = viewer.bloom_blur_epoch_wasm();
@@ -134,7 +132,7 @@ onMounted(async () => {
     }
   });
   watch(samples, (samples) => {
-    viewer.set_multisample_wasm(samples);
+    viewer.set_multisamples_wasm(samples);
   });
   watch(hdr, (hdr) => {
     if (hdr) {

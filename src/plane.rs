@@ -3,7 +3,7 @@ use gl_matrix4rust::vec3::Vec3;
 use crate::utils::{distance_point_and_plane, distance_point_and_plane_abs};
 
 /// A 3-Dimensions plane defines by a point on plane and a normal.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Plane {
     pop: Vec3,
     normal: Vec3,

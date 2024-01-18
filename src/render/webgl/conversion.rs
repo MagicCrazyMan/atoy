@@ -3,7 +3,7 @@ use web_sys::WebGl2RenderingContext;
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     draw::{CullFace, DrawElementType, DrawMode},
-    framebuffer::{FramebufferAttachment, FramebufferTarget, FramebufferDrawBuffer},
+    framebuffer::{FramebufferAttachment, FramebufferTarget, FramebufferDrawBuffer, BlitMask, BlitFlilter},
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{
@@ -570,6 +570,27 @@ impl ToGlEnum for FramebufferDrawBuffer {
             FramebufferDrawBuffer::COLOR_ATTACHMENT13 => WebGl2RenderingContext::COLOR_ATTACHMENT13,
             FramebufferDrawBuffer::COLOR_ATTACHMENT14 => WebGl2RenderingContext::COLOR_ATTACHMENT14,
             FramebufferDrawBuffer::COLOR_ATTACHMENT15 => WebGl2RenderingContext::COLOR_ATTACHMENT15,
+        }
+    }
+}
+
+impl ToGlEnum for BlitMask {
+    #[inline]
+    fn gl_enum(&self) -> GLenum {
+        match self {
+            BlitMask::COLOR_BUFFER_BIT => WebGl2RenderingContext::COLOR_BUFFER_BIT,
+            BlitMask::DEPTH_BUFFER_BIT => WebGl2RenderingContext::DEPTH_BUFFER_BIT,
+            BlitMask::STENCIL_BUFFER_BIT => WebGl2RenderingContext::STENCIL_BUFFER_BIT,
+        }
+    }
+}
+
+impl ToGlEnum for BlitFlilter {
+    #[inline]
+    fn gl_enum(&self) -> GLenum {
+        match self {
+            BlitFlilter::NEAREST => WebGl2RenderingContext::NEAREST,
+            BlitFlilter::LINEAR => WebGl2RenderingContext::LINEAR,
         }
     }
 }
