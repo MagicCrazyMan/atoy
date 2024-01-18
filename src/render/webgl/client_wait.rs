@@ -8,7 +8,7 @@ use super::error::Error;
 pub async fn client_wait_async(gl: WebGl2RenderingContext, timeout: u32) -> Result<(), Error> {
     let sync = gl
         .fence_sync(WebGl2RenderingContext::SYNC_GPU_COMMANDS_COMPLETE, 0)
-        .ok_or(Error::CreateFenceSyncFailed)?;
+        .ok_or(Error::CreateFenceSyncFailure)?;
     gl.flush();
 
     let gl_cloned = gl.clone();
@@ -49,7 +49,7 @@ pub async fn client_wait_async(gl: WebGl2RenderingContext, timeout: u32) -> Resu
     let promise = Promise::new(&mut callback);
     let _ = wasm_bindgen_futures::JsFuture::from(promise)
         .await
-        .or_else(|err| Err(Error::ClientWaitFailed(err.as_string())))?;
+        .or_else(|err| Err(Error::ClientWaitFailure(err.as_string())))?;
 
     gl.delete_sync(Some(&sync));
 

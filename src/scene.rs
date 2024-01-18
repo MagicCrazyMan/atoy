@@ -70,10 +70,10 @@ impl Scene {
             .create_element("canvas")
             .ok()
             .and_then(|ele| ele.dyn_into::<HtmlCanvasElement>().ok())
-            .ok_or(Error::CreateCanvasFailed)?;
+            .ok_or(Error::CreateCanvasFailure)?;
         canvas
             .set_attribute("tabindex", "0")
-            .map_err(|_| Error::CreateCanvasFailed)?;
+            .map_err(|_| Error::CreateCanvasFailure)?;
         canvas
             .style()
             .set_css_text("width: 100%; height: 100%; outline: none;");
@@ -144,7 +144,7 @@ impl Scene {
 
         let resize_observer =
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref())
-                .or_else(|err| Err(Error::CanvasResizeObserverFailed(err.as_string())))?;
+                .or_else(|err| Err(Error::CanvasResizeObserverFailure(err.as_string())))?;
         resize_observer.observe(&self.canvas);
 
         self.resize_observer = Some((resize_observer, resize_observer_callback));

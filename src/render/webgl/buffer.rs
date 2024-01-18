@@ -763,7 +763,7 @@ impl BufferStoreInner {
                 let item = StorageItem {
                     using: false,
                     bytes_length: 0,
-                    buffer: self.gl.create_buffer().ok_or(Error::CreateBufferFailed)?,
+                    buffer: self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?,
                     lru_node: unsafe { LruNode::new(*id) },
                     descriptor: Rc::downgrade(descriptor_inner),
                 };

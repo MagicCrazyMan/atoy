@@ -287,7 +287,7 @@ impl Viewer {
         if let Some(mount) = &mount {
             mount
                 .append_child(render.canvas())
-                .or(Err(Error::MountElementFailed))?;
+                .or(Err(Error::MountElementFailure))?;
         }
         status.mount = mount;
 
@@ -485,9 +485,6 @@ impl Viewer {
 
         Ok(())
     }
-
-    #[inline]
-    pub fn should_render_next(&mut self) {}
 
     pub fn start_render_loop(&mut self) {
         if self.status().render_loop.is_some() {

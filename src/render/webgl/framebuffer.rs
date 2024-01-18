@@ -297,7 +297,7 @@ impl Framebuffer {
                 dst_data,
                 dst_offset,
             )
-            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+            .or_else(|err| Err(Error::ReadPixelsFailure(err.as_string())))?;
         self.gl
             .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         self.gl.read_buffer(WebGl2RenderingContext::BACK);
@@ -341,7 +341,7 @@ impl Framebuffer {
         let framebuffer = self
             .gl
             .create_framebuffer()
-            .ok_or(Error::CreateFramebufferFailed)?;
+            .ok_or(Error::CreateFramebufferFailure)?;
         self.framebuffer = Some(framebuffer);
 
         Ok(())
@@ -356,7 +356,7 @@ impl Framebuffer {
 
         let mut textures = Vec::with_capacity(self.texture_providers.len());
         for provider in &self.texture_providers {
-            let texture = self.gl.create_texture().ok_or(Error::CreateTextureFailed)?;
+            let texture = self.gl.create_texture().ok_or(Error::CreateTextureFailure)?;
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
             self.gl
@@ -401,7 +401,7 @@ impl Framebuffer {
             let renderbuffer = self
                 .gl
                 .create_renderbuffer()
-                .ok_or(Error::CreateRenderbufferFailed)?;
+                .ok_or(Error::CreateRenderbufferFailure)?;
             self.gl
                 .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
             match self.renderbuffer_samples() {

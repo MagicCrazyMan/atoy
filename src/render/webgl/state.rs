@@ -660,7 +660,7 @@ impl FrameState {
             .read_pixels_with_array_buffer_view_and_dst_offset(
                 x, y, width, height, format, type_, dst_data, dst_offset,
             )
-            .or_else(|err| Err(Error::ReadPixelsFailed(err.as_string())))?;
+            .or_else(|err| Err(Error::ReadPixelsFailure(err.as_string())))?;
         Ok(())
     }
 

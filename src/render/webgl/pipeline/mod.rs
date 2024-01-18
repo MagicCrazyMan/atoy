@@ -612,6 +612,8 @@ impl StandardPipeline {
             return Ok(());
         }
 
+        log::info!("222");
+
         unsafe {
             self.picking.render(state, &collected_entities)?;
         }

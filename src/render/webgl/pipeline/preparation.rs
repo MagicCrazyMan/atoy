@@ -124,13 +124,13 @@ impl StandardPreparation {
 
         // u_AmbientLight
         if let Some(light) = scene.ambient_light_mut() {
-            if light.dirty() {
+            if light.ubo_dirty() {
                 log::info!("ambient light");
-                light.update();
+                light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
                     BufferSource::from_binary(
-                        light.gl_ubo().clone(),
+                        light.ubo().clone(),
                         0,
                         UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
                     ),
@@ -141,13 +141,13 @@ impl StandardPreparation {
 
         // u_DirectionalLights
         for (index, light) in scene.directional_lights_mut().into_iter().enumerate() {
-            if light.dirty() {
+            if light.ubo_dirty() {
                 log::info!("directional light {index}");
-                light.update();
+                light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
                     BufferSource::from_binary(
-                        light.gl_ubo().clone(),
+                        light.ubo().clone(),
                         0,
                         UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
                     ),
@@ -159,13 +159,13 @@ impl StandardPreparation {
 
         // u_PointLights
         for (index, light) in scene.point_lights_mut().into_iter().enumerate() {
-            if light.dirty() {
+            if light.ubo_dirty() {
                 log::info!("point light {index}");
-                light.update();
+                light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
                     BufferSource::from_binary(
-                        light.gl_ubo().clone(),
+                        light.ubo().clone(),
                         0,
                         UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
                     ),
@@ -177,13 +177,13 @@ impl StandardPreparation {
 
         // u_SpotLights
         for (index, light) in scene.spot_lights_mut().into_iter().enumerate() {
-            if light.dirty() {
+            if light.ubo_dirty() {
                 log::info!("spot light {index}");
-                light.update();
+                light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
                     BufferSource::from_binary(
-                        light.gl_ubo().clone(),
+                        light.ubo().clone(),
                         0,
                         UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
                     ),
@@ -195,13 +195,13 @@ impl StandardPreparation {
 
         // u_AreaLights
         for (index, light) in scene.area_lights_mut().into_iter().enumerate() {
-            if light.dirty() {
+            if light.ubo_dirty() {
                 log::info!("area light {index}");
-                light.update();
+                light.update_ubo();
 
                 lights_ubo.buffer_sub_data(
                     BufferSource::from_binary(
-                        light.gl_ubo().clone(),
+                        light.ubo().clone(),
                         0,
                         UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
                     ),

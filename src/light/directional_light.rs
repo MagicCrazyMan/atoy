@@ -118,7 +118,7 @@ impl DirectionalLight {
     }
 
     /// Returns data in uniform buffer object alignment.
-    pub fn gl_ubo(&self) -> &[u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH as usize] {
+    pub fn ubo(&self) -> &[u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
             std::mem::transmute::<
                 &[f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH],
@@ -127,13 +127,13 @@ impl DirectionalLight {
         }
     }
 
-    /// Returns `true` if this directional light is dirty.
-    pub fn dirty(&self) -> bool {
+    /// Returns `true` if ubo of this directional light is dirty.
+    pub fn ubo_dirty(&self) -> bool {
         self.dirty
     }
 
     /// Updates ubo data if this directional light is dirty.
-    pub fn update(&mut self) {
+    pub fn update_ubo(&mut self) {
         if !self.dirty {
             return;
         }

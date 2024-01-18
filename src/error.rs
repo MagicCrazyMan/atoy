@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum Error {
-    CreateCanvasFailed,
-    CanvasResizeObserverFailed(Option<String>),
+    CreateCanvasFailure,
+    CanvasResizeObserverFailure(Option<String>),
     AddEventCallbackFailed(&'static str, Option<String>),
     NoSuchEntity,
     NoSuchGroup,

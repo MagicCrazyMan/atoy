@@ -20,7 +20,7 @@ pub struct SpotLight {
     outer_cutoff: f32,
 
     ubo: [f32; UBO_LIGHTS_SPOT_LIGHTS_F32_LENGTH],
-    dirty: bool,
+    ubo_dirty: bool,
 }
 
 impl SpotLight {
@@ -50,7 +50,7 @@ impl SpotLight {
             outer_cutoff: inner_cutoff.max(outer_cutoff),
 
             ubo: [0.0; UBO_LIGHTS_SPOT_LIGHTS_F32_LENGTH],
-            dirty: true,
+            ubo_dirty: true,
         }
     }
 
@@ -92,49 +92,49 @@ impl SpotLight {
     /// Enables spot light.
     pub fn enable(&mut self) {
         self.enabled = true;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Disables spot light.
     pub fn disable(&mut self) {
         self.enabled = false;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light position.
     pub fn set_position(&mut self, position: Vec3) {
         self.position = position;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light direction.
     pub fn set_direction(&mut self, direction: Vec3<f32>) {
         self.direction = direction.normalize();
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light ambient color.
     pub fn set_ambient(&mut self, ambient: Vec3<f32>) {
         self.ambient = ambient;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light diffuse color.
     pub fn set_diffuse(&mut self, diffuse: Vec3<f32>) {
         self.diffuse = diffuse;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light specular color.
     pub fn set_specular(&mut self, specular: Vec3<f32>) {
         self.specular = specular;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets spot light specular shininess.
     pub fn set_specular_shininess(&mut self, specular_shininess: f32) {
         self.specular_shininess = specular_shininess;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Returns inner cutoff for smooth lighting, in radians.
@@ -150,19 +150,19 @@ impl SpotLight {
     /// Sets inner cutoff for smooth lighting, in radians.
     pub fn set_inner_cutoff(&mut self, inner_cutoff: f32) {
         self.inner_cutoff = inner_cutoff;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets outer cutoff for smooth lighting, in radians.
     pub fn set_outer_cutoff(&mut self, outer_cutoff: f32) {
         self.outer_cutoff = outer_cutoff.max(self.inner_cutoff);
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Returns data in uniform buffer object alignment.
     ///
     /// `inner_cutoff` and `outer_cutoff` are transformed from radians to cosine values.
-    pub fn gl_ubo(&self) -> &[u8; UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH as usize] {
+    pub fn ubo(&self) -> &[u8; UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
             std::mem::transmute::<
                 &[f32; UBO_LIGHTS_SPOT_LIGHTS_F32_LENGTH],
@@ -171,14 +171,14 @@ impl SpotLight {
         }
     }
 
-    /// Returns `true` if this spot light is dirty.
-    pub fn dirty(&self) -> bool {
-        self.dirty
+    /// Returns `true` if ubo of this spot light is dirty.
+    pub fn ubo_dirty(&self) -> bool {
+        self.ubo_dirty
     }
 
     /// Updates ubo data if this spot light is dirty.
-    pub fn update(&mut self) {
-        if !self.dirty {
+    pub fn update_ubo(&mut self) {
+        if !self.ubo_dirty {
             return;
         }
 
@@ -193,6 +193,6 @@ impl SpotLight {
         self.ubo[16..19].copy_from_slice(self.specular.gl_f32_borrowed());
         self.ubo[19] = self.specular_shininess;
 
-        self.dirty = false;
+        self.ubo_dirty = false;
     }
 }

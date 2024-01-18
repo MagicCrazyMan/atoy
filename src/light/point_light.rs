@@ -17,7 +17,7 @@ pub struct PointLight {
     specular_shininess: f32,
 
     ubo: [f32; UBO_LIGHTS_POINT_LIGHTS_F32_LENGTH],
-    dirty: bool,
+    ubo_dirty: bool,
 }
 
 impl PointLight {
@@ -32,7 +32,7 @@ impl PointLight {
             specular_shininess,
 
             ubo: [0.0; UBO_LIGHTS_POINT_LIGHTS_F32_LENGTH],
-            dirty: true,
+            ubo_dirty: true,
         }
     }
 
@@ -69,47 +69,47 @@ impl PointLight {
     /// Enables point light.
     pub fn enable(&mut self) {
         self.enabled = true;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Disables point light.
     pub fn disable(&mut self) {
         self.enabled = false;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets point light position.
     pub fn set_position(&mut self, position: Vec3) {
         self.position = position;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets point light ambient color.
     pub fn set_ambient(&mut self, ambient: Vec3::<f32>) {
         self.ambient = ambient;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets point light diffuse color.
     pub fn set_diffuse(&mut self, diffuse: Vec3::<f32>) {
         self.diffuse = diffuse;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets point light specular color.
     pub fn set_specular(&mut self, specular: Vec3::<f32>) {
         self.specular = specular;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets point light specular shininess.
     pub fn set_specular_shininess(&mut self, specular_shininess: f32) {
         self.specular_shininess = specular_shininess;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Returns data in uniform buffer object alignment.
-    pub fn gl_ubo(&self) -> &[u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH as usize] {
+    pub fn ubo(&self) -> &[u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
             std::mem::transmute::<
                 &[f32; UBO_LIGHTS_POINT_LIGHTS_F32_LENGTH],
@@ -118,14 +118,14 @@ impl PointLight {
         }
     }
 
-    /// Returns `true` if this point light is dirty.
-    pub fn dirty(&self) -> bool {
-        self.dirty
+    /// Returns `true` if ubo of this point light is dirty.
+    pub fn ubo_dirty(&self) -> bool {
+        self.ubo_dirty
     }
 
     /// Updates ubo data if this point light is dirty.
-    pub fn update(&mut self) {
-        if !self.dirty {
+    pub fn update_ubo(&mut self) {
+        if !self.ubo_dirty {
             return;
         }
 
@@ -137,6 +137,6 @@ impl PointLight {
         self.ubo[15] = self.specular_shininess;
 
 
-        self.dirty = false;
+        self.ubo_dirty = false;
     }
 }
