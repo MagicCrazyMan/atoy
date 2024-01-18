@@ -29,7 +29,7 @@ use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
-use crate::material::loader::TextureLoader;
+use crate::loader::texture::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, Transparency};
 use crate::render::webgl::attribute::AttributeValue;

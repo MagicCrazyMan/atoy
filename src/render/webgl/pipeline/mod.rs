@@ -235,8 +235,6 @@ pub struct StandardPipeline {
     enable_bloom: bool,
     bloom_blur_epoch: usize,
 
-    render_dirty: bool,
-    last_render_collected_entities_id: Option<usize>,
     picking_dirty: bool,
     last_picking_collected_entities_id: Option<usize>,
 }
@@ -291,8 +289,6 @@ impl StandardPipeline {
             enable_bloom: DEFAULT_BLOOM_ENABLED,
             bloom_blur_epoch: DEFAULT_BLOOM_BLUR_EPOCH,
 
-            render_dirty: true,
-            last_render_collected_entities_id: None,
             picking_dirty: true,
             last_picking_collected_entities_id: None,
         }
@@ -300,7 +296,6 @@ impl StandardPipeline {
 
     #[inline]
     pub fn set_dirty(&mut self) {
-        self.render_dirty = true;
         self.picking_dirty = true;
     }
 
@@ -508,15 +503,6 @@ impl StandardPipeline {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // skips render if collect_entities unchanged and pipeline is not dirty
-        let dirty = self.render_dirty
-            || self
-                .last_render_collected_entities_id
-                .map(|id| id != collected_entities.id())
-                .unwrap_or(true);
-        if !dirty {
-            return Ok(());
-        }
-
         self.preparation
             .prepare(state, scene, lighting,&mut self.universal_ubo, &mut self.lights_ubo)?;
 
@@ -574,9 +560,6 @@ impl StandardPipeline {
         };
         self.composer.compose(state, compose_textures)?;
         self.cleanup.cleanup(state);
-
-        self.render_dirty = false;
-        self.last_render_collected_entities_id = Some(collected_entities.id());
 
         Ok(())
     }

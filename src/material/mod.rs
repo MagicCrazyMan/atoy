@@ -13,7 +13,6 @@ use crate::{
     },
 };
 
-pub mod loader;
 pub mod solid_color;
 pub mod texture_mapping;
 

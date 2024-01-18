@@ -2,6 +2,7 @@ use std::{any::Any, borrow::Cow};
 
 use crate::{
     event::EventAgency,
+    loader::texture::TextureLoader,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
@@ -15,7 +16,7 @@ use crate::{
     },
 };
 
-use super::{loader::TextureLoader, StandardMaterial, StandardMaterialSource, Transparency};
+use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,

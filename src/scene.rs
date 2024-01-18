@@ -25,7 +25,6 @@ pub struct Scene {
     canvas: HtmlCanvasElement,
 
     entity_container: Container,
-
     light_attenuations: Vec3,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
@@ -83,7 +82,6 @@ impl Scene {
             canvas,
 
             entity_container: Container::new(),
-
             light_attenuations: Vec3::<f64>::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),

@@ -192,14 +192,14 @@ impl Viewer {
 
             entities_changed_listener: None,
         };
-        let mut instance = Self {
+        let mut viewer = Self {
             marker: Rc::new(()),
             inner: Box::leak(Box::new(inner)),
         };
 
-        instance.register_event();
+        viewer.register_event();
 
-        Ok(instance)
+        Ok(viewer)
     }
 
     #[inline]

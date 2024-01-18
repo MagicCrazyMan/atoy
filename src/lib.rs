@@ -19,6 +19,7 @@ pub mod scene;
 pub mod test;
 pub mod utils;
 pub mod viewer;
+pub mod loader;
 
 pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("failed to get window instance")
