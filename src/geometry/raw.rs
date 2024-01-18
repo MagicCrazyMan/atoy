@@ -15,7 +15,7 @@ use super::Geometry;
 pub struct RawGeometry {
     draw: Draw,
     cull_face: Option<CullFace>,
-    vertices: Option<AttributeValue>,
+    positions: Option<AttributeValue>,
     normals: Option<AttributeValue>,
     texture_coordinates: Option<AttributeValue>,
     attributes: HashMap<String, AttributeValue>,
@@ -28,7 +28,7 @@ impl RawGeometry {
     pub fn new(
         draw: Draw,
         cull_face: Option<CullFace>,
-        vertices: Option<AttributeValue>,
+        positions: Option<AttributeValue>,
         normals: Option<AttributeValue>,
         texture_coordinates: Option<AttributeValue>,
         attributes: HashMap<String, AttributeValue>,
@@ -38,7 +38,7 @@ impl RawGeometry {
         Self {
             draw,
             cull_face,
-            vertices,
+            positions,
             normals,
             texture_coordinates,
             attributes,
@@ -62,8 +62,8 @@ impl Geometry for RawGeometry {
         None
     }
 
-    fn vertices(&self) -> Option<AttributeValue> {
-        self.vertices.clone()
+    fn positions(&self) -> Option<AttributeValue> {
+        self.positions.clone()
     }
 
     fn normals(&self) -> Option<AttributeValue> {

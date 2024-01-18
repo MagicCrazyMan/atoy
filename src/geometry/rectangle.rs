@@ -24,7 +24,7 @@ pub struct Rectangle {
     placement: Placement,
     width: f64,
     height: f64,
-    vertices: AttributeValue,
+    positions: AttributeValue,
     texture_coordinates: AttributeValue,
     normals: AttributeValue,
     bounding: BoundingVolume,
@@ -70,7 +70,7 @@ impl Rectangle {
             width,
             height,
             bounding,
-            vertices: AttributeValue::Buffer {
+            positions: AttributeValue::Buffer {
                 descriptor: data.clone(),
                 target: BufferTarget::ArrayBuffer,
                 component_size: BufferComponentSize::Two,
@@ -135,8 +135,8 @@ impl Geometry for Rectangle {
         Some(self.bounding)
     }
 
-    fn vertices(&self) -> Option<AttributeValue> {
-        Some(self.vertices.clone())
+    fn positions(&self) -> Option<AttributeValue> {
+        Some(self.positions.clone())
     }
 
     fn normals(&self) -> Option<AttributeValue> {
@@ -242,7 +242,7 @@ fn create_rectangle(
     let (min_x, max_x, min_y, max_y) = (min_x as f32, max_x as f32, min_y as f32, max_y as f32);
     #[rustfmt::skip]
     let buffer = [
-        // vertices
+        // positions
         max_x, min_y,
         max_x, max_y,
         min_x, max_y,

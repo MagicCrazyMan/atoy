@@ -22,7 +22,7 @@ use super::Geometry;
 pub struct IndexedCube {
     size: f64,
     indices: BufferDescriptor,
-    vertices: BufferDescriptor,
+    positions: BufferDescriptor,
     normals: BufferDescriptor,
     texture_coordinates: BufferDescriptor,
     changed_event: EventAgency<()>,
@@ -42,9 +42,9 @@ impl IndexedCube {
                 BufferSource::from_uint8_array(slice_to_uint8_array(&INDICES), 0, 36),
                 BufferUsage::StaticDraw,
             ),
-            vertices: BufferDescriptor::new(
+            positions: BufferDescriptor::new(
                 BufferSource::from_float32_array(
-                    slice_to_float32_array(&calculate_vertices(size)),
+                    slice_to_float32_array(&build_positions(size)),
                     0,
                     72,
                 ),
@@ -76,9 +76,9 @@ impl IndexedCube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices.buffer_sub_data(
+        self.positions.buffer_sub_data(
             BufferSource::from_float32_array(
-                slice_to_float32_array(&calculate_vertices(size)),
+                slice_to_float32_array(&build_positions(size)),
                 0,
                 72,
             ),
@@ -111,9 +111,9 @@ impl Geometry for IndexedCube {
         })
     }
 
-    fn vertices(&self) -> Option<AttributeValue> {
+    fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.vertices.clone(),
+            descriptor: self.positions.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -173,7 +173,7 @@ impl Geometry for IndexedCube {
 }
 
 #[rustfmt::skip]
-fn calculate_vertices(size: f64) -> [f32; 72] {
+fn build_positions(size: f64) -> [f32; 72] {
     let s = (size / 2.0) as f32;
     [
         s, s, s,  -s, s, s,  -s,-s, s,   s,-s, s,  // v0-v1-v2-v3 front

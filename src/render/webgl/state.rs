@@ -143,7 +143,7 @@ impl FrameState {
             };
 
             let value = match binding {
-                AttributeBinding::GeometryPosition => geometry.vertices(),
+                AttributeBinding::GeometryPosition => geometry.positions(),
                 AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
                 AttributeBinding::GeometryNormal => geometry.normals(),
                 AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),

@@ -23,8 +23,8 @@ pub struct Sphere {
     radius: f64,
     vertical_segments: usize,
     horizontal_segments: usize,
-    num_vertices: usize,
-    vertices: BufferDescriptor,
+    num_positions: usize,
+    positions: BufferDescriptor,
     normals: BufferDescriptor,
     changed_event: EventAgency<()>,
 }
@@ -35,17 +35,17 @@ impl Sphere {
     }
 
     pub fn with_opts(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
-        let (num_vertices, vertices, normals) =
-            calculate_vertices_normals(radius, vertical_segments, horizontal_segments);
-        let vertices_len = vertices.length();
+        let (num_positions, positions, normals) =
+            build_positions_and_normals(radius, vertical_segments, horizontal_segments);
+        let positions_len = positions.length();
         let normals_len = normals.length();
         Self {
             radius,
             vertical_segments,
             horizontal_segments,
-            num_vertices,
-            vertices: BufferDescriptor::new(
-                BufferSource::from_float32_array(vertices, 0, vertices_len),
+            num_positions,
+            positions: BufferDescriptor::new(
+                BufferSource::from_float32_array(positions, 0, positions_len),
                 BufferUsage::StaticDraw,
             ),
             normals: BufferDescriptor::new(
@@ -64,14 +64,14 @@ impl Sphere {
 
     pub fn set_radius(&mut self, radius: f64) {
         self.radius = radius;
-        let (num_vertices, vertices, normals) =
-            calculate_vertices_normals(radius, self.vertical_segments, self.horizontal_segments);
-        let vertices_len = vertices.length();
+        let (num_positions, positions, normals) =
+            build_positions_and_normals(radius, self.vertical_segments, self.horizontal_segments);
+        let positions_len = positions.length();
         let normals_len = normals.length();
 
-        self.num_vertices = num_vertices;
-        self.vertices.buffer_sub_data(
-            BufferSource::from_float32_array(vertices, 0, vertices_len),
+        self.num_positions = num_positions;
+        self.positions.buffer_sub_data(
+            BufferSource::from_float32_array(positions, 0, positions_len),
             0,
         );
         self.normals
@@ -85,7 +85,7 @@ impl Geometry for Sphere {
         Draw::Arrays {
             mode: DrawMode::Triangles,
             first: 0,
-            count: self.num_vertices as i32,
+            count: self.num_positions as i32,
         }
     }
 
@@ -100,9 +100,9 @@ impl Geometry for Sphere {
         })
     }
 
-    fn vertices(&self) -> Option<AttributeValue> {
+    fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.vertices.clone(),
+            descriptor: self.positions.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -154,11 +154,11 @@ impl Geometry for Sphere {
 }
 
 #[rustfmt::skip]
-fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> (usize, Float32Array, Float32Array) {
+fn build_positions_and_normals(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> (usize, Float32Array, Float32Array) {
     let vertical_offset = std::f64::consts::PI / vertical_segments as f64;
     let horizontal_offset = (2.0 * std::f64::consts::PI) / horizontal_segments as f64;
   
-    let mut vertices = vec![0.0f32; (vertical_segments + 1) * (horizontal_segments + 1) * 3];
+    let mut positions = vec![0.0f32; (vertical_segments + 1) * (horizontal_segments + 1) * 3];
     for i in 0..=vertical_segments {
       let ri = i as f64 * vertical_offset;
       let ci = ri.cos();
@@ -172,13 +172,13 @@ fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_
         let x = radius * si * cj;
         let y = radius * ci;
         let z = radius * si * sj;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 0] = x as f32;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 1] = y as f32;
-        vertices[(i * (horizontal_segments + 1) + j) * 3 + 2] = z as f32;
+        positions[(i * (horizontal_segments + 1) + j) * 3 + 0] = x as f32;
+        positions[(i * (horizontal_segments + 1) + j) * 3 + 1] = y as f32;
+        positions[(i * (horizontal_segments + 1) + j) * 3 + 2] = z as f32;
       }
     }
   
-    let mut triangle_vertices = vec![0.0f32; vertical_segments * horizontal_segments * 2 * 3 * 3];
+    let mut triangle_positions = vec![0.0f32; vertical_segments * horizontal_segments * 2 * 3 * 3];
     let mut triangle_normals = vec![0.0f32; vertical_segments * horizontal_segments * 2 * 3 * 4];
     for i in 0..vertical_segments {
       for j in 0..horizontal_segments {
@@ -187,10 +187,10 @@ fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_
         let index2 = index1 + 1;
         let index3 = index0 + 1;
   
-        let vertex0 = &vertices[index0 * 3 + 0..index0 * 3 + 3];
-        let vertex1 = &vertices[index1 * 3 + 0..index1 * 3 + 3];
-        let vertex2 = &vertices[index2 * 3 + 0..index2 * 3 + 3];
-        let vertex3 = &vertices[index3 * 3 + 0..index3 * 3 + 3];
+        let vertex0 = &positions[index0 * 3 + 0..index0 * 3 + 3];
+        let vertex1 = &positions[index1 * 3 + 0..index1 * 3 + 3];
+        let vertex2 = &positions[index2 * 3 + 0..index2 * 3 + 3];
+        let vertex3 = &positions[index3 * 3 + 0..index3 * 3 + 3];
   
         let d0 = (vertex0[0].powf(2.0) + vertex0[1].powf(2.0) + vertex0[2].powf(2.0)).sqrt();
         let normal0 = [vertex0[0] / d0, vertex0[1] / d0, vertex0[2] / d0, 0.0];
@@ -202,17 +202,17 @@ fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_
         let normal3 = [vertex3[0] / d3, vertex3[1] / d3, vertex3[2] / d3, 0.0];
   
         let start_index = (i * horizontal_segments + j) * 18 + 0;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex0.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex0.iter().cloned());
         let start_index = (i * horizontal_segments + j) * 18 + 3;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex2.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex2.iter().cloned());
         let start_index = (i * horizontal_segments + j) * 18 + 6;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex1.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex1.iter().cloned());
         let start_index = (i * horizontal_segments + j) * 18 + 9;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex0.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex0.iter().cloned());
         let start_index = (i * horizontal_segments + j) * 18 + 12;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex3.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex3.iter().cloned());
         let start_index = (i * horizontal_segments + j) * 18 + 15;
-        triangle_vertices.splice(start_index..start_index + vertex0.len(), vertex2.iter().cloned());
+        triangle_positions.splice(start_index..start_index + vertex0.len(), vertex2.iter().cloned());
   
         let start_index = (i * horizontal_segments + j) * 24 + 0;
         triangle_normals.splice(start_index..start_index + vertex0.len(), normal0.iter().cloned());
@@ -229,13 +229,13 @@ fn calculate_vertices_normals(radius: f64, vertical_segments: usize, horizontal_
       }
     }
 
-    let vertices = Float32Array::new_with_length(triangle_vertices.len() as u32);
+    let positions = Float32Array::new_with_length(triangle_positions.len() as u32);
     let normals = Float32Array::new_with_length(triangle_normals.len() as u32);
-    vertices.copy_from(&triangle_vertices);
+    positions.copy_from(&triangle_positions);
     normals.copy_from(&triangle_normals);
     (
-        (triangle_vertices.len() / 3),
-        vertices,
+        (triangle_positions.len() / 3),
+        positions,
         normals,
     )
 }

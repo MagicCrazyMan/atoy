@@ -1,7 +1,6 @@
-use std::{any::Any, cell::OnceCell, collections::HashMap};
+use std::{any::Any, cell::OnceCell};
 
 use gl_matrix4rust::vec3::Vec3;
-use ordered_float::OrderedFloat;
 
 use crate::{
     bounding::BoundingVolume,
@@ -21,7 +20,7 @@ use super::Geometry;
 
 pub struct Cube {
     size: f64,
-    vertices: BufferDescriptor,
+    positions: BufferDescriptor,
     normals_textures: BufferDescriptor,
     bounding_volume: BoundingVolume,
     changed_event: EventAgency<()>,
@@ -37,7 +36,17 @@ impl Cube {
     pub fn with_size(size: f64) -> Cube {
         Self {
             size,
-            vertices: get_or_cache_vertices(size),
+            positions: if size == 1.0 {
+                buffer_descriptor_with_size_one()
+            } else {
+                BufferDescriptor::with_memory_policy(
+                    BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+                    BufferUsage::StaticDraw,
+                    MemoryPolicy::restorable(move || {
+                        BufferSource::from_binary(build_positions(size), 0, 108 * 4)
+                    }),
+                )
+            },
             normals_textures: normals_texture_coordinates_buffer_descriptor(),
             bounding_volume: build_bounding_volume(size),
             changed_event: EventAgency::new(),
@@ -52,7 +61,13 @@ impl Cube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.vertices = get_or_cache_vertices(size);
+        self.positions = BufferDescriptor::with_memory_policy(
+            BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+            BufferUsage::DynamicDraw,
+            MemoryPolicy::restorable(move || {
+                BufferSource::from_binary(build_positions(size), 0, 108 * 4)
+            }),
+        );
         self.bounding_volume = build_bounding_volume(size);
         self.changed_event.raise(());
     }
@@ -75,9 +90,9 @@ impl Geometry for Cube {
         Some(self.bounding_volume)
     }
 
-    fn vertices(&self) -> Option<AttributeValue> {
+    fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
-            descriptor: self.vertices.clone(),
+            descriptor: self.positions.clone(),
             target: BufferTarget::ArrayBuffer,
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::Float,
@@ -145,9 +160,9 @@ fn build_bounding_volume(size: f64) -> BoundingVolume {
 }
 
 #[rustfmt::skip]
-fn build_vertices(size: f64) -> [u8; 108 * 4] {
+fn build_positions(size: f64) -> [u8; 108 * 4] {
     let s = (size / 2.0) as f32;
-    let vertices = [
+    let positions = [
         -s,  s,  s,  -s, -s,  s,   s,  s,  s,   s,  s,  s,  -s, -s,  s,   s, -s,  s, // front
         -s,  s, -s,  -s,  s,  s,   s,  s, -s,   s,  s, -s,  -s,  s,  s,   s,  s,  s, // up
         -s,  s, -s,   s,  s, -s,  -s, -s, -s,   s,  s, -s,   s, -s, -s,  -s, -s, -s, // back
@@ -156,7 +171,7 @@ fn build_vertices(size: f64) -> [u8; 108 * 4] {
          s,  s,  s,   s, -s,  s,   s,  s, -s,   s,  s, -s,   s, -s,  s,   s, -s, -s, // right
     ];
     unsafe {
-        std::mem::transmute::<[f32; 108], [u8; 108 * 4]>(vertices)
+        std::mem::transmute::<[f32; 108], [u8; 108 * 4]>(positions)
     }
 }
 
@@ -208,32 +223,20 @@ fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
     }
 }
 
-static mut VERTICES_BUFFER_DESCRIPTOR_CACHES: OnceCell<
-    HashMap<OrderedFloat<f64>, BufferDescriptor>,
-> = OnceCell::new();
-
-fn get_or_cache_vertices(size: f64) -> BufferDescriptor {
+/// Positions buffer descriptor cache for cube with size 1, for debug purpose
+static mut POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE: OnceCell<BufferDescriptor> = OnceCell::new();
+fn buffer_descriptor_with_size_one() -> BufferDescriptor {
     unsafe {
-        let caches = if VERTICES_BUFFER_DESCRIPTOR_CACHES.get().is_some() {
-            VERTICES_BUFFER_DESCRIPTOR_CACHES.get_mut().unwrap()
-        } else {
-            let _ = VERTICES_BUFFER_DESCRIPTOR_CACHES.set(HashMap::new());
-            VERTICES_BUFFER_DESCRIPTOR_CACHES.get_mut().unwrap()
-        };
-
-        match caches.entry(OrderedFloat(size)) {
-            std::collections::hash_map::Entry::Occupied(v) => v.get().clone(),
-            std::collections::hash_map::Entry::Vacant(v) => {
-                let descriptor = BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(build_vertices(size), 0, 108 * 4),
+        POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE
+            .get_or_init(|| {
+                BufferDescriptor::with_memory_policy(
+                    BufferSource::from_binary(build_positions(1.0), 0, 108 * 4),
                     BufferUsage::StaticDraw,
                     MemoryPolicy::restorable(move || {
-                        BufferSource::from_binary(build_vertices(size), 0, 108 * 4)
+                        BufferSource::from_binary(build_positions(1.0), 0, 108 * 4)
                     }),
-                );
-                let cache = v.insert(descriptor);
-                cache.clone()
-            }
-        }
+                )
+            })
+            .clone()
     }
 }

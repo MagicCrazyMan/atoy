@@ -23,7 +23,7 @@ pub trait Geometry {
 
     fn bounding_volume(&self) -> Option<BoundingVolume>;
 
-    fn vertices(&self) -> Option<AttributeValue>;
+    fn positions(&self) -> Option<AttributeValue>;
 
     fn normals(&self) -> Option<AttributeValue>;
 
