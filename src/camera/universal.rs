@@ -491,7 +491,7 @@ impl Controller for UniversalCamera {
         let key_down_listener = {
             let viewer_weak = viewer.weak();
             let control = Rc::clone(&self.control);
-            viewer.render_mut().key_down_event().on(move |event| {
+            viewer.scene_mut().key_down_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
                     *control.borrow_mut() = None;
                     return;
@@ -519,7 +519,7 @@ impl Controller for UniversalCamera {
         let key_up_listener = {
             let viewer_weak = viewer.weak();
             let control = Rc::clone(&self.control);
-            viewer.render_mut().key_up_event().on(move |event| {
+            viewer.scene_mut().key_up_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
                     *control.borrow_mut() = None;
                     return;
@@ -548,7 +548,7 @@ impl Controller for UniversalCamera {
             let viewer_weak = viewer.weak();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
-            viewer.render_mut().mouse_move_event().on(move |event| {
+            viewer.scene_mut().mouse_move_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
                     *control.borrow_mut() = None;
                     return;
@@ -600,7 +600,7 @@ impl Controller for UniversalCamera {
             let viewer_weak = viewer.weak();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
-            viewer.render_mut().wheel_event().on(move |event| {
+            viewer.scene_mut().wheel_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
                     *control.borrow_mut() = None;
                     return;
@@ -691,7 +691,7 @@ impl Controller for UniversalCamera {
             let viewer_weak = viewer.weak();
             let inner = Rc::clone(&self.inner);
             let control = Rc::clone(&self.control);
-            viewer.render_mut().canvas_changed_event().on(move |event| {
+            viewer.scene_mut().canvas_changed_event().on(move |event| {
                 let Some(mut viewer) = viewer_weak.upgrade() else {
                     *control.borrow_mut() = None;
                     return;
@@ -727,14 +727,16 @@ impl Controller for UniversalCamera {
             return;
         };
 
-        let render = viewer.render_mut();
-        render.key_down_event().off(&control.key_down_listener);
-        render.key_up_event().off(&control.key_up_listener);
-        render.mouse_move_event().off(&control.mouse_move_listener);
-        render.wheel_event().off(&control.wheel_listener);
-        render
+        let scene = viewer.scene_mut();
+        scene.key_down_event().off(&control.key_down_listener);
+        scene.key_up_event().off(&control.key_up_listener);
+        scene.mouse_move_event().off(&control.mouse_move_listener);
+        scene.wheel_event().off(&control.wheel_listener);
+        scene
             .canvas_changed_event()
             .off(&control.canvas_changed_listener);
+
+        let render = viewer.render_mut();
         render.pre_render_event().off(&control.pre_render_listener);
     }
 

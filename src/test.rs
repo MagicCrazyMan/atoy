@@ -138,8 +138,8 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
     )
 }
 
-fn create_scene() -> Scene {
-    let mut scene = Scene::new();
+fn create_scene() -> Result<Scene, Error> {
+    let mut scene = Scene::new()?;
     scene.set_light_attenuations(Vec3::new(0.0, 1.0, 0.0));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0.01, 0.01, 0.01))));
     // scene.add_directional_light(DirectionalLight::new(
@@ -197,7 +197,7 @@ fn create_scene() -> Scene {
         Vec3::new(0.3, 0.3, 0.3),
         64.0,
     ));
-    scene
+    Ok(scene)
 }
 
 fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Function) -> Viewer {
@@ -244,7 +244,7 @@ pub fn test_cube(
     pick_callback: &Function,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(Vec3::new(0.0, 5.0, 5.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
-    let mut scene = create_scene();
+    let mut scene = create_scene()?;
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
 
     let cell_width = width / (grid as f64);
@@ -340,7 +340,7 @@ pub fn test_cube(
 
     let viewer_weak = viewer.weak();
     let pick_callback = pick_callback.clone();
-    viewer.render_mut().click_event().on(move |event| {
+    viewer.scene_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
             return;
         };
@@ -694,7 +694,7 @@ pub fn test_pick(
     pick_callback: &Function,
 ) -> Result<(), Error> {
     let camera = create_camera(Vec3::new(0.0, 3.0, 8.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
-    let mut scene = create_scene();
+    let mut scene = create_scene()?;
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -725,7 +725,7 @@ pub fn test_pick(
 
     let viewer_weak = viewer.weak();
     let pick_callback = pick_callback.clone();
-    viewer.render_mut().click_event().on(move |event| {
+    viewer.scene_mut().click_event().on(move |event| {
         let Some(mut viewer) = viewer_weak.upgrade() else {
             return;
         };

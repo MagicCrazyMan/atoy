@@ -174,7 +174,7 @@ impl Viewer {
     where
         C: Camera + 'static,
     {
-        let mut render = WebGL2Render::new(None)?;
+        let mut render = WebGL2Render::new(scene.canvas().clone(), None)?;
         let inner = Inner {
             mount: None,
             timestamp: 0.0,
@@ -462,15 +462,21 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
         let inner = self.inner_mut();
-        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Pick);
+        inner
+            .standard_pipeline
+            .set_pipeline_state(StandardPipelineState::Pick);
         inner.render.render(
             &mut inner.standard_pipeline,
             &mut *inner.camera,
             &mut inner.scene,
             inner.timestamp,
         )?;
-        let entity = inner.standard_pipeline.pick_entity(window_position_x, window_position_y)?;
-        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Draw);
+        let entity = inner
+            .standard_pipeline
+            .pick_entity(window_position_x, window_position_y)?;
+        inner
+            .standard_pipeline
+            .set_pipeline_state(StandardPipelineState::Draw);
 
         Ok(entity)
     }
@@ -481,15 +487,21 @@ impl Viewer {
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
         let inner = self.inner_mut();
-        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Pick);
+        inner
+            .standard_pipeline
+            .set_pipeline_state(StandardPipelineState::Pick);
         inner.render.render(
             &mut inner.standard_pipeline,
             &mut *inner.camera,
             &mut inner.scene,
             inner.timestamp,
         )?;
-        let position = inner.standard_pipeline.pick_position(window_position_x, window_position_y)?;
-        inner.standard_pipeline.set_pipeline_state(StandardPipelineState::Draw);
+        let position = inner
+            .standard_pipeline
+            .pick_position(window_position_x, window_position_y)?;
+        inner
+            .standard_pipeline
+            .set_pipeline_state(StandardPipelineState::Draw);
         Ok(position)
     }
 

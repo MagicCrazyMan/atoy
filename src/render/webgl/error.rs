@@ -6,12 +6,8 @@ use super::conversion::GLuint;
 #[derive(Debug, Clone)]
 pub enum Error {
     WebGL2Unsupported,
-    CanvasNotFound,
-    CanvasResizeObserverFailed(Option<String>),
-    AddEventCallbackFailed(&'static str, Option<String>),
     MountElementNotFound,
     MountElementFailed,
-    CreateCanvasFailed,
     CreateProgramFailed,
     GetUniformIndicesFailed,
     CreateBufferFailed,
