@@ -159,24 +159,32 @@ impl ProgramStore {
     where
         S: ProgramSource + ?Sized,
     {
+        let vertex_defines = vertex_defines.and_then(|defines| {
+            if defines.len() == 0 {
+                None
+            } else {
+                Some(defines)
+            }
+        });
+        let fragment_defines = fragment_defines.and_then(|defines| {
+            if defines.len() == 0 {
+                None
+            } else {
+                Some(defines)
+            }
+        });
         let name = match (vertex_defines.as_ref(), fragment_defines.as_ref()) {
             (None, None) => source.name(),
             (Some(defines), None) => Cow::Owned(format!("{}!{}", source.name(), defines.join("_"))),
             (None, Some(defines)) => {
                 Cow::Owned(format!("{}!!{}", source.name(), defines.join("_")))
             }
-            (Some(vertex_defines), Some(fragment_defines)) => {
-                if vertex_defines.len() + fragment_defines.len() == 0 {
-                    source.name()
-                } else {
-                    Cow::Owned(format!(
-                        "{}!{}!{}",
-                        source.name(),
-                        vertex_defines.join("_"),
-                        fragment_defines.join("_")
-                    ))
-                }
-            }
+            (Some(vertex_defines), Some(fragment_defines)) => Cow::Owned(format!(
+                "{}!{}!{}",
+                source.name(),
+                vertex_defines.join("_"),
+                fragment_defines.join("_")
+            )),
         };
         unsafe {
             if let Some(using_program) = self.using_program.as_ref() {
@@ -293,6 +301,8 @@ where
             warn!("vertex defines for VertexShaderSource::Raw is not supported");
         }
     }
+    let vertex_shader = compile_shader(&gl, true, vertex_source.code().as_ref())?;
+
     let mut fragment_source = source.fragment_source();
     if let Some(fragment_defines) = fragment_defines {
         if let FragmentShaderSource::Builder(builder) = &mut fragment_source {
@@ -301,7 +311,6 @@ where
             warn!("fragment defines for FragmentShaderSource::Raw is not supported");
         }
     }
-    let vertex_shader = compile_shader(&gl, true, vertex_source.code().as_ref())?;
     let fragment_shader = compile_shader(&gl, false, fragment_source.code().as_ref())?;
 
     let program = create_program(&gl, &vertex_shader, &fragment_shader)?;

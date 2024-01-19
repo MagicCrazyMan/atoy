@@ -7,13 +7,14 @@ use crate::render::webgl::{
         BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferSizePolicy,
         FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
-    pipeline::collector::CollectedEntities,
+    pipeline::{
+        collector::CollectedEntities,
+        shading::{draw_entities, DrawState},
+    },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
-
-use super::{draw_entities, DrawState};
 
 pub struct StandardMultisamplesSimpleShading {
     multisample_framebuffer: Option<Framebuffer>,

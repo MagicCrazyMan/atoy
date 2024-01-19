@@ -4,7 +4,7 @@ use std::{
 };
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
-use log::error;
+use log::{error, warn};
 use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsValue};
 use web_sys::Element;
 
@@ -12,15 +12,16 @@ use crate::{
     camera::Camera,
     controller::Controller,
     entity::Entity,
+    error::Error,
     render::{
         webgl::{
-            pipeline::{HdrToneMappingType, StandardPipeline, StandardPipelineState},
+            pipeline::{HdrToneMappingType, StandardPipeline, StandardPipelineShading},
             WebGL2Render,
         },
         Render,
     },
     request_animation_frame,
-    scene::Scene, error::Error,
+    scene::Scene,
 };
 
 // pub const DEFAULT_RENDER_WHEN_NEEDED: bool = false;
@@ -95,8 +96,41 @@ impl Viewer {
         self.disable_distance_sorting()
     }
 
-    pub fn clear_color_wasm(&self) -> Box<[f64]> {
+    pub fn pipeline_shading_wasm(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.pipeline_shading()).unwrap()
+    }
+
+    pub fn set_pipeline_shading_wasm(&mut self, shading: JsValue) {
+        let shading = serde_wasm_bindgen::from_value::<StandardPipelineShading>(shading).unwrap();
+        self.set_pipeline_shading(shading);
+    }
+
+    pub fn clear_color_wasm(&self) -> Box<[f32]> {
         Box::new(self.clear_color().raw().clone())
+    }
+
+    pub fn set_clear_color_wasm(&mut self, r: f32, g: f32, b: f32, a: f32) {
+        self.set_clear_color(Vec4::new(r, g, b, a))
+    }
+
+    pub fn gamma_correction_enabled_wasm(&self) -> bool {
+        self.gamma_correction_enabled()
+    }
+
+    pub fn enable_gamma_correction_wasm(&mut self) {
+        self.enable_gamma_correction();
+    }
+
+    pub fn disable_gamma_correction_wasm(&mut self) {
+        self.disable_gamma_correction();
+    }
+
+    pub fn gamma_wasm(&self) -> f32 {
+        self.gamma()
+    }
+
+    pub fn set_gamma_wasm(&mut self, gamma: f32) {
+        self.set_gamma(gamma);
     }
 
     pub fn lighting_enabled_wasm(&self) -> bool {
@@ -109,10 +143,6 @@ impl Viewer {
 
     pub fn disable_lighting_wasm(&mut self) {
         self.disable_lighting();
-    }
-
-    pub fn set_clear_color_wasm(&mut self, r: f64, g: f64, b: f64, a: f64) {
-        self.set_clear_color(Vec4::new(r, g, b, a))
     }
 
     pub fn multisamples_wasm(&self) -> Option<i32> {
@@ -347,12 +377,45 @@ impl Viewer {
         self.standard_pipeline_mut().disable_distance_sorting();
     }
 
-    pub fn clear_color(&self) -> Vec4 {
+    pub fn pipeline_shading(&self) -> StandardPipelineShading {
+        self.standard_pipeline().pipeline_shading()
+    }
+
+    pub fn set_pipeline_shading(&mut self, shading: StandardPipelineShading) {
+        if shading == StandardPipelineShading::Picking {
+            warn!("manually setting pipeline shading to picking is not allowed");
+            return;
+        }
+
+        self.standard_pipeline_mut().set_pipeline_shading(shading);
+    }
+
+    pub fn clear_color(&self) -> Vec4<f32> {
         self.standard_pipeline().clear_color().clone()
     }
 
-    pub fn set_clear_color(&mut self, clear_color: Vec4) {
+    pub fn set_clear_color(&mut self, clear_color: Vec4<f32>) {
         self.standard_pipeline_mut().set_clear_color(clear_color);
+    }
+
+    pub fn gamma_correction_enabled(&self) -> bool {
+        self.standard_pipeline().gamma_correction_enabled()
+    }
+
+    pub fn enable_gamma_correction(&mut self) {
+        self.standard_pipeline_mut().enable_gamma_correction();
+    }
+
+    pub fn disable_gamma_correction(&mut self) {
+        self.standard_pipeline_mut().disable_gamma_correction();
+    }
+
+    pub fn gamma(&self) -> f32 {
+        self.standard_pipeline().gamma()
+    }
+
+    pub fn set_gamma(&mut self, gamma: f32) {
+        self.standard_pipeline_mut().set_gamma(gamma);
     }
 
     pub fn multisamples(&self) -> Option<i32> {
@@ -438,9 +501,10 @@ impl Viewer {
             let mut render = self.render_mut();
             let mut pipeline = self.standard_pipeline_mut();
             let status = self.status_mut();
-            pipeline.set_pipeline_state(StandardPipelineState::Picking);
+            let previous_pipeline_shading = pipeline.pipeline_shading();
+            pipeline.set_pipeline_shading(StandardPipelineShading::Picking);
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
-            pipeline.set_pipeline_state(StandardPipelineState::Shading);
+            pipeline.set_pipeline_shading(previous_pipeline_shading);
 
             let Some(id) = pipeline.pick_entity_id(window_position_x, window_position_y)? else {
                 return Ok(None);
@@ -463,10 +527,11 @@ impl Viewer {
             let mut camera = self.camera_mut();
             let mut render = self.render_mut();
             let mut pipeline = self.standard_pipeline_mut();
-            let status = self.status_mut();
-            pipeline.set_pipeline_state(StandardPipelineState::Picking);
+            let status: RefMut<'_, Status> = self.status_mut();
+            let previous_pipeline_shading = pipeline.pipeline_shading();
+            pipeline.set_pipeline_shading(StandardPipelineShading::Picking);
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
-            pipeline.set_pipeline_state(StandardPipelineState::Shading);
+            pipeline.set_pipeline_shading(previous_pipeline_shading);
 
             let position = pipeline.pick_position(window_position_x, window_position_y)?;
             Ok(position)
@@ -480,7 +545,6 @@ impl Viewer {
         let mut pipeline = self.standard_pipeline_mut();
         let status = self.status_mut();
 
-        pipeline.set_pipeline_state(StandardPipelineState::Shading);
         render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
 
         Ok(())

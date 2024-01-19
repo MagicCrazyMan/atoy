@@ -7,7 +7,10 @@
     v-model:render-when-needed="renderWhenNeeded"
     v-model:culling="culling"
     v-model:sorting="sorting"
+    v-model:gamma-correction="gammaCorrection"
+    v-model:gamma="gamma"
     v-model:lighting="lighting"
+    v-model:shading-type="shadingType"
     v-model:samples="samples"
     v-model:hdr="hdr"
     v-model:hdr-tone-mapping="hdrToneMapping"
@@ -23,15 +26,18 @@ import { onMounted } from "vue";
 import SceneController from "./SceneController.vue";
 import { ref } from "vue";
 import { watch } from "vue";
-import { HdrToneMappingType } from "@/types";
+import { HdrToneMappingType, ShadingType } from "@/types";
 
 const clearColor = ref("#0000");
 const renderWhenNeeded = ref(true);
 const culling = ref(false);
 const sorting = ref(false);
+const gammaCorrection = ref(true);
+const gamma = ref(2.2);
 const lighting = ref(false);
-const renderTime = ref(0);
-const pickTime = ref(0);
+const shadingType = ref<ShadingType>({
+  type: "ForwardShading",
+});
 const samples = ref(0);
 const hdr = ref(false);
 const hdrToneMapping = ref<HdrToneMappingType>({
@@ -40,6 +46,8 @@ const hdrToneMapping = ref<HdrToneMappingType>({
 const hdrExposure = ref(1.0);
 const bloom = ref(false);
 const bloomBlurEpoch = ref(10);
+const renderTime = ref(0);
+const pickTime = ref(0);
 
 onMounted(async () => {
   await init();
@@ -77,7 +85,10 @@ onMounted(async () => {
   renderWhenNeeded.value = viewer.render_when_needed_wasm();
   culling.value = viewer.culling_enabled_wasm();
   sorting.value = viewer.distance_sorting_enabled_wasm();
+  gammaCorrection.value = viewer.gamma_correction_enabled_wasm();
+  gamma.value = viewer.gamma_wasm();
   lighting.value = viewer.lighting_enabled_wasm();
+  shadingType.value = viewer.pipeline_shading_wasm();
   samples.value = viewer.multisamples_wasm() ?? 0;
   hdr.value = viewer.hdr_enabled_wasm();
   bloom.value = viewer.bloom_enabled_wasm();
@@ -124,11 +135,26 @@ onMounted(async () => {
       viewer.disable_distance_sorting_wasm();
     }
   });
+  watch(gammaCorrection, (gammaCorrection) => {
+    if (gammaCorrection) {
+      viewer.enable_gamma_correction_wasm();
+    } else {
+      viewer.disable_gamma_correction_wasm();
+    }
+  });
+  watch(gamma, (gamma) => {
+    viewer.set_gamma_wasm(gamma);
+  });
   watch(lighting, (lighting) => {
     if (lighting) {
       viewer.enable_lighting_wasm();
     } else {
       viewer.disable_lighting_wasm();
+    }
+  });
+  watch(shadingType, (shadingType) => {
+    if (shadingType.type === "ForwardShading" || shadingType.type === "DeferredShading") {
+      viewer.set_pipeline_shading_wasm(shadingType);
     }
   });
   watch(samples, (samples) => {

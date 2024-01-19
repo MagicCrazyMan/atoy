@@ -44,6 +44,7 @@ struct atoy_Material {
     vec3 specular;
     float specular_shininess;
 };
+
 /**
  * Build atoy_Fragment from varyings and uniforms.
  */

@@ -7,13 +7,14 @@ use crate::render::webgl::{
         Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferSizePolicy,
         FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
-    pipeline::collector::CollectedEntities,
+    pipeline::{
+        collector::CollectedEntities,
+        shading::{draw_entities, DrawState},
+    },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
-
-use super::{draw_entities, DrawState};
 
 pub struct StandardGBufferCollector {
     framebuffer: Option<Framebuffer>,
@@ -29,7 +30,7 @@ impl StandardGBufferCollector {
             state.create_framebuffer(
                 FramebufferSizePolicy::FollowDrawingBuffer,
                 [
-                    // positions
+                    // positions and specular shininess
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
                         TextureInternalFormat::RGBA32F,
@@ -43,7 +44,7 @@ impl StandardGBufferCollector {
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
                     ),
-                    // albedo and specular shininess
+                    // albedo and transparency
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT2,
                         TextureInternalFormat::RGBA32F,
@@ -75,7 +76,7 @@ impl StandardGBufferCollector {
         })
     }
 
-    pub fn positions_texture(&self) -> Option<&WebGlTexture> {
+    pub fn positions_and_specular_shininess_texture(&self) -> Option<&WebGlTexture> {
         self.framebuffer.as_ref().and_then(|fbo| fbo.texture(0))
     }
 
@@ -83,8 +84,28 @@ impl StandardGBufferCollector {
         self.framebuffer.as_ref().and_then(|fbo| fbo.texture(1))
     }
 
-    pub fn albedo_specular_shininess_texture(&self) -> Option<&WebGlTexture> {
+    pub fn albedo_and_transparency_texture(&self) -> Option<&WebGlTexture> {
         self.framebuffer.as_ref().and_then(|fbo| fbo.texture(2))
+    }
+
+    pub fn deferred_shading_textures(&self) -> Option<[&WebGlTexture; 3]> {
+        if let (
+            Some(positions_and_specular_shininess_texture),
+            Some(normals_texture),
+            Some(albedo_and_transparency_texture),
+        ) = (
+            self.framebuffer.as_ref().and_then(|fbo| fbo.texture(0)),
+            self.framebuffer.as_ref().and_then(|fbo| fbo.texture(1)),
+            self.framebuffer.as_ref().and_then(|fbo| fbo.texture(2)),
+        ) {
+            Some([
+                positions_and_specular_shininess_texture,
+                normals_texture,
+                albedo_and_transparency_texture,
+            ])
+        } else {
+            None
+        }
     }
 
     pub unsafe fn draw(

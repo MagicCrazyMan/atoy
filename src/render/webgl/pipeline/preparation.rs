@@ -31,12 +31,14 @@ use super::{
 };
 
 pub struct StandardPreparation {
+    universal_data: ArrayBuffer,
     last_light_attenuations: Option<Vec3<f32>>,
 }
 
 impl StandardPreparation {
     pub fn new() -> Self {
         Self {
+            universal_data: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
             last_light_attenuations: None,
         }
     }
@@ -46,11 +48,9 @@ impl StandardPreparation {
         universal_ubo: &mut BufferDescriptor,
         state: &mut FrameState,
     ) -> Result<(), Error> {
-        let data = ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH);
-
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
-            &data,
+            &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH / 4,
         )
@@ -58,7 +58,7 @@ impl StandardPreparation {
 
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(
-            &data,
+            &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
         )
@@ -66,7 +66,7 @@ impl StandardPreparation {
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &data,
+            &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
         )
@@ -74,7 +74,7 @@ impl StandardPreparation {
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &data,
+            &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
@@ -82,13 +82,13 @@ impl StandardPreparation {
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &data,
+            &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
         )
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
-        universal_ubo.buffer_sub_data(BufferSource::from_array_buffer(data), 0);
+        universal_ubo.buffer_sub_data(BufferSource::from_array_buffer(self.universal_data.clone()), 0);
         state.buffer_store_mut().bind_uniform_buffer_object(
             universal_ubo,
             UBO_UNIVERSAL_UNIFORMS_BINDING,

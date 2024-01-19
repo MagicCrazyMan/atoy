@@ -62,6 +62,58 @@
         </div>
 
         <div class="controller">
+          Enable Gamma Correction
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="gammaCorrection"
+            @update:model-value="
+              (value) => emit('update:gamma-correction', !!value)
+            "
+          ></v-switch>
+        </div>
+
+        <div class="controller" v-if="gammaCorrection">
+          Gamma
+          <v-slider
+            hide-details
+            :min="0"
+            :max="4"
+            :step="0.1"
+            :model-value="gamma"
+            @update:model-value="(value) => emit('update:gamma', value)"
+          >
+            <template v-slot:append>
+              <div>{{ gamma.toFixed(2) }}</div>
+            </template>
+          </v-slider>
+        </div>
+
+        <div class="controller">
+          Shading Type
+          <v-select
+            hide-details
+            density="compact"
+            :items="shadingTypes"
+            :model-value="shadingType.type"
+            @update:model-value="
+              (type) => {
+                if (type === 'ForwardShading') {
+                  emit('update:shading-type', {
+                    type: 'ForwardShading',
+                  });
+                } else {
+                  emit('update:shading-type', {
+                    type: 'DeferredShading',
+                  });
+                }
+              }
+            "
+          ></v-select>
+        </div>
+
+        <div class="controller" v-if="shadingType.type === 'ForwardShading'">
           Multisample
           <v-slider
             show-ticks="always"
@@ -78,7 +130,7 @@
           </v-slider>
         </div>
 
-        <div class="controller">
+        <div class="controller" v-if="shadingType.type === 'ForwardShading'">
           High Dynamic Range
           <v-switch
             hide-details
@@ -89,7 +141,7 @@
           ></v-switch>
         </div>
 
-        <div class="controller" v-if="hdr">
+        <div class="controller" v-if="shadingType.type === 'ForwardShading' && hdr">
           HDR Tone Mapping
           <v-select
             hide-details
@@ -115,7 +167,7 @@
 
         <div
           class="controller"
-          v-if="hdr && hdrToneMapping.type === 'Exposure'"
+          v-if="shadingType.type === 'ForwardShading' && hdr && hdrToneMapping.type === 'Exposure'"
         >
           HDR Exposure
           <v-slider
@@ -131,7 +183,7 @@
           </v-slider>
         </div>
 
-        <div class="controller" v-if="hdr">
+        <div class="controller" v-if="shadingType.type === 'ForwardShading' && hdr">
           Bloom
           <v-switch
             hide-details
@@ -142,7 +194,7 @@
           ></v-switch>
         </div>
 
-        <div class="controller" v-if="hdr && bloom">
+        <div class="controller" v-if="shadingType.type === 'ForwardShading' && hdr && bloom">
           Bloom Blur Epoch
           <v-slider
             hide-details
@@ -150,7 +202,9 @@
             :max="20"
             :step="1"
             :model-value="bloomBlurEpoch"
-            @update:model-value="(value) => emit('update:bloom-blur-epoch', value)"
+            @update:model-value="
+              (value) => emit('update:bloom-blur-epoch', value)
+            "
           >
             <template v-slot:append>
               <div>{{ bloomBlurEpoch }}</div>
@@ -175,8 +229,9 @@
 </template>
 
 <script setup lang="ts">
-import { HdrToneMappingType } from "@/types";
+import { HdrToneMappingType, ShadingType } from "@/types";
 import { PropType } from "vue";
+import { VListItem } from "vuetify/lib/components/index.mjs";
 
 defineProps({
   renderTime: {
@@ -199,8 +254,20 @@ defineProps({
     type: Boolean,
     required: true,
   },
+  gammaCorrection: {
+    type: Boolean,
+    required: true,
+  },
+  gamma: {
+    type: Number,
+    required: true,
+  },
   lighting: {
     type: Boolean,
+    required: true,
+  },
+  shadingType: {
+    type: Object as PropType<ShadingType>,
     required: true,
   },
   renderWhenNeeded: {
@@ -234,13 +301,26 @@ defineProps({
 });
 
 const hdrToneMappings = ["Reinhard", "Exposure"];
+const shadingTypes = [
+  {
+    title: "Forward Shading",
+    value: "ForwardShading",
+  },
+  {
+    title: "Deferred Shading",
+    value: "DeferredShading",
+  },
+];
 
 const emit = defineEmits<{
   (event: "update:clear-color", value: string): void;
   (event: "update:render-when-needed", value: boolean): void;
   (event: "update:culling", value: boolean): void;
   (event: "update:sorting", value: boolean): void;
+  (event: "update:gamma-correction", value: boolean): void;
+  (event: "update:gamma", value: number): void;
   (event: "update:lighting", value: boolean): void;
+  (event: "update:shading-type", value: ShadingType): void;
   (event: "update:samples", value: number): void;
   (event: "update:hdr", value: boolean): void;
   (event: "update:hdr-tone-mapping", value: HdrToneMappingType): void;

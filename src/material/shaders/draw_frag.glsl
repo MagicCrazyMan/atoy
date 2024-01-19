@@ -17,7 +17,9 @@ void main() {
     atoy_Material material = atoy_build_material(fragment);
 
     #ifdef LIGHTING
-    vec3 color = atoy_lighting(fragment, material);
+    atoy_LightingFragment lighting_fragment = atoy_LightingFragment(fragment.position_ws, fragment.normal_ws);
+    atoy_LightingMaterial lighting_material = atoy_LightingMaterial(material.ambient, material.diffuse, material.specular, material.specular_shininess);
+    vec3 color = atoy_lighting(u_CameraPosition, lighting_fragment, lighting_material);
     #else
     vec3 color = material.diffuse;
     #endif

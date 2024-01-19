@@ -20,12 +20,8 @@ use super::{
     UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
 };
 
-pub mod gbuffer;
-pub mod hdr;
-pub mod hdr_multisamples;
-pub mod simple;
-pub mod simple_multisamples;
 pub mod deferred;
+pub mod forward;
 
 const BLOOM_DEFINE: &'static str = "BLOOM";
 const LIGHTING_DEFINE: &'static str = "LIGHTING";

@@ -93,6 +93,32 @@ float atoy_attenuation_power(
 }
 
 /**
+ * Lighting fragment difinition.
+ * 
+ * - `position`: Fragment position in WORLD space.
+ * - `normal`: Normal vector in WORLD space.
+ */
+struct atoy_LightingFragment {
+    vec3 position;
+    vec3 normal;
+};
+
+/**
+ * Lighting material difinition.
+ * 
+ * - `ambient`: Ambient color of the material.
+ * - `diffuse`: Diffuse color of the material.
+ * - `specular`: Specular color of the material.
+ * - `specular_shininess`: Specular shininess of the material.
+ */
+struct atoy_LightingMaterial {
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+    float specular_shininess;
+};
+
+/**
  * Ambient light definition.
  * 
  * - `color`: Light color.
@@ -208,7 +234,7 @@ layout(std140) uniform atoy_Lights {
 /**
  * Applies `atoy_AmbientLight` to a lighting result.
  */
-void atoy_ambient_lighting(atoy_AmbientLight light, atoy_Material material, inout vec3 lighting) {
+void atoy_ambient_lighting(atoy_AmbientLight light, atoy_LightingMaterial material, inout vec3 lighting) {
     if(!u_AmbientLight.enabled) {
         return;
     }
@@ -219,7 +245,7 @@ void atoy_ambient_lighting(atoy_AmbientLight light, atoy_Material material, inou
 /**
  * Applies `atoy_DirectionalLight` to a lighting result.
  */
-void atoy_directional_lighting(atoy_DirectionalLight light, atoy_Fragment fragment, atoy_Material material, vec3 to_camera, inout vec3 lighting) {
+void atoy_directional_lighting(atoy_DirectionalLight light, atoy_LightingFragment fragment, atoy_LightingMaterial material, vec3 to_camera, inout vec3 lighting) {
     if(!light.enabled) {
         return;
     }
@@ -228,10 +254,10 @@ void atoy_directional_lighting(atoy_DirectionalLight light, atoy_Fragment fragme
 
     vec3 color = vec3(0.0);
     color += atoy_ambient(light.ambient, material.ambient);
-    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal_ws, to_camera);
+    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal, to_camera);
     // for directional light, skip specular lighting if incident of lighting is perpendicular with surface normal
-    if(max(dot(-light.direction, fragment.normal_ws), 0.0) != 0.0) {
-        color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal_ws, -light.direction, to_camera);
+    if(max(dot(-light.direction, fragment.normal), 0.0) != 0.0) {
+        color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal, -light.direction, to_camera);
     }
 
     lighting += color;
@@ -240,19 +266,19 @@ void atoy_directional_lighting(atoy_DirectionalLight light, atoy_Fragment fragme
 /**
  * Applies `atoy_PointLight` to a lighting result.
  */
-void atoy_point_lighting(atoy_PointLight light, atoy_Fragment fragment, atoy_Material material, vec3 to_camera, inout vec3 lighting) {
+void atoy_point_lighting(atoy_PointLight light, atoy_LightingFragment fragment, atoy_LightingMaterial material, vec3 to_camera, inout vec3 lighting) {
     if(!light.enabled) {
         return;
     }
 
-    vec3 to_light = light.position - fragment.position_ws;
+    vec3 to_light = light.position - fragment.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
 
     vec3 color = vec3(0.0);
     color += atoy_ambient(light.ambient, material.ambient);
-    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal_ws, to_camera);
-    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal_ws, to_light, to_camera);
+    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal, to_camera);
+    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal, to_light, to_camera);
 
     float attenuation = atoy_attenuation_power(u_Attenuations.x, u_Attenuations.y, u_Attenuations.z, light_distance);
     color *= attenuation;
@@ -263,12 +289,12 @@ void atoy_point_lighting(atoy_PointLight light, atoy_Fragment fragment, atoy_Mat
 /**
  * Applies `atoy_SpotLight` to a lighting result.
  */
-void atoy_spot_lighting(atoy_SpotLight light, atoy_Fragment fragment, atoy_Material material, vec3 to_camera, inout vec3 lighting) {
+void atoy_spot_lighting(atoy_SpotLight light, atoy_LightingFragment fragment, atoy_LightingMaterial material, vec3 to_camera, inout vec3 lighting) {
     if(!light.enabled) {
         return;
     }
 
-    vec3 to_light = light.position - fragment.position_ws;
+    vec3 to_light = light.position - fragment.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
 
@@ -280,8 +306,8 @@ void atoy_spot_lighting(atoy_SpotLight light, atoy_Fragment fragment, atoy_Mater
 
     vec3 color = vec3(0.0);
     color += atoy_ambient(light.ambient, material.ambient);
-    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal_ws, to_camera);
-    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal_ws, to_light, to_camera);
+    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal, to_camera);
+    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal, to_light, to_camera);
 
     float attenuation = atoy_attenuation_power(u_Attenuations.x, u_Attenuations.y, u_Attenuations.z, light_distance);
     color *= attenuation;
@@ -298,12 +324,12 @@ void atoy_spot_lighting(atoy_SpotLight light, atoy_Fragment fragment, atoy_Mater
 /**
  * Applies `atoy_AreaLight` to a lighting result.
  */
-void atoy_area_lighting(atoy_AreaLight light, atoy_Fragment fragment, atoy_Material material, vec3 to_camera, inout vec3 lighting) {
+void atoy_area_lighting(atoy_AreaLight light, atoy_LightingFragment fragment, atoy_LightingMaterial material, vec3 to_camera, inout vec3 lighting) {
     if(!light.enabled) {
         return;
     }
 
-    vec3 to_light = light.position - fragment.position_ws;
+    vec3 to_light = light.position - fragment.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
     vec3 from_light = -to_light;
@@ -319,7 +345,7 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_Fragment fragment, atoy_Mater
 
     float h = light.offset / cos_theta;
     float d = light_distance - h;
-    vec3 p = fragment.position_ws + d * to_light;
+    vec3 p = fragment.position + d * to_light;
 
     vec3 v = p - pop;
     float x = abs(dot(v, light.right));
@@ -330,8 +356,8 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_Fragment fragment, atoy_Mater
 
     vec3 color = vec3(0.0);
     color += atoy_ambient(light.ambient, material.ambient);
-    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal_ws, to_camera);
-    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal_ws, to_light, to_camera);
+    color += atoy_diffuse(light.diffuse, material.diffuse, fragment.normal, to_camera);
+    color += atoy_specular_phong(light.specular, material.specular_shininess, material.specular, fragment.normal, to_light, to_camera);
 
     float attenuation = atoy_attenuation_power(u_Attenuations.x, u_Attenuations.y, u_Attenuations.z, light_distance);
     color *= attenuation;
@@ -355,8 +381,8 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_Fragment fragment, atoy_Mater
 /**
  * Calculates scene mixed lighting.
  */
-vec3 atoy_lighting(atoy_Fragment fragment, atoy_Material material) {
-    vec3 to_camera = normalize(u_CameraPosition - fragment.position_ws);
+vec3 atoy_lighting(vec3 camera_position, atoy_LightingFragment fragment, atoy_LightingMaterial material) {
+    vec3 to_camera = normalize(camera_position - fragment.position);
 
     vec3 lighting = vec3(0.0);
 

@@ -1,9 +1,9 @@
 pub mod cleanup;
 pub mod collector;
 pub mod composer;
-pub mod shading;
 pub mod picking;
 pub mod preparation;
+pub mod shading;
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
@@ -23,13 +23,15 @@ use self::{
     cleanup::StandardCleanup,
     collector::StandardEntitiesCollector,
     composer::StandardComposer,
-    shading::{
-        gbuffer::StandardGBufferCollector, hdr::StandardHdrShading,
-        hdr_multisamples::StandardMultisamplesHdrShading, simple::StandardSimpleShading,
-        simple_multisamples::StandardMultisamplesSimpleShading, deferred::StandardDeferredShading,
-    },
     picking::StandardPicking,
     preparation::StandardPreparation,
+    shading::{
+        deferred::{gbuffer::StandardGBufferCollector, StandardDeferredShading},
+        forward::{
+            hdr::StandardHdrShading, hdr_multisamples::StandardMultisamplesHdrShading,
+            simple::StandardSimpleShading, simple_multisamples::StandardMultisamplesSimpleShading,
+        },
+    },
 };
 
 use super::{
@@ -198,13 +200,6 @@ pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
 pub const UBO_GAUSSIAN_KERNEL_U8: &[u8; 324 * 4] =
     unsafe { std::mem::transmute::<&[f32; 324], &[u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
 
-pub const DEFAULT_LIGHTING_ENABLED: bool = true;
-pub const DEFAULT_MULTISAMPLES: i32 = 4;
-pub const DEFAULT_HDR_ENABLED: bool = true;
-pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
-pub const DEFAULT_BLOOM_ENABLED: bool = false;
-pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 5;
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum HdrToneMappingType {
@@ -212,15 +207,24 @@ pub enum HdrToneMappingType {
     Exposure(f32),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum StandardPipelineState {
-    Shading,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum StandardPipelineShading {
+    ForwardShading,
     DeferredShading,
     Picking,
 }
 
+pub const DEFAULT_SHADING: StandardPipelineShading = StandardPipelineShading::DeferredShading;
+pub const DEFAULT_LIGHTING_ENABLED: bool = true;
+pub const DEFAULT_MULTISAMPLES: i32 = 4;
+pub const DEFAULT_HDR_ENABLED: bool = true;
+pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
+pub const DEFAULT_BLOOM_ENABLED: bool = false;
+pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 5;
+
 pub struct StandardPipeline {
-    pipeline_state: StandardPipelineState,
+    pipeline_shading: StandardPipelineShading,
 
     preparation: StandardPreparation,
     entities_collector: StandardEntitiesCollector,
@@ -255,7 +259,7 @@ pub struct StandardPipeline {
 impl StandardPipeline {
     pub fn new(hdr_supported: bool) -> Self {
         Self {
-            pipeline_state: StandardPipelineState::Shading,
+            pipeline_shading: DEFAULT_SHADING,
 
             preparation: StandardPreparation::new(),
             entities_collector: StandardEntitiesCollector::new(),
@@ -316,19 +320,49 @@ impl StandardPipeline {
     }
 
     #[inline]
-    pub fn set_pipeline_state(&mut self, pipeline_state: StandardPipelineState) {
-        self.pipeline_state = pipeline_state;
+    pub fn pipeline_shading(&self) -> StandardPipelineShading {
+        self.pipeline_shading
     }
 
     #[inline]
-    pub fn clear_color(&self) -> &Vec4 {
+    pub fn set_pipeline_shading(&mut self, pipeline_shading: StandardPipelineShading) {
+        self.pipeline_shading = pipeline_shading;
+    }
+
+    #[inline]
+    pub fn clear_color(&self) -> &Vec4<f32> {
         self.composer.clear_color()
     }
 
     #[inline]
-    pub fn set_clear_color(&mut self, clear_color: Vec4) {
+    pub fn set_clear_color(&mut self, clear_color: Vec4<f32>) {
         self.composer.set_clear_color(clear_color);
         self.set_dirty();
+    }
+
+    #[inline]
+    pub fn gamma_correction_enabled(&self) -> bool {
+        self.composer.gamma_correction_enabled()
+    }
+
+    #[inline]
+    pub fn enable_gamma_correction(&mut self) {
+        self.composer.enable_gamma_correction();
+    }
+
+    #[inline]
+    pub fn disable_gamma_correction(&mut self) {
+        self.composer.disable_gamma_correction();
+    }
+
+    #[inline]
+    pub fn gamma(&self) -> f32 {
+        self.composer.gamma()
+    }
+
+    #[inline]
+    pub fn set_gamma(&mut self, gamma: f32) {
+        self.composer.set_gamma(gamma);
     }
 
     /// Returns `true` if entity culling enabled.
@@ -536,32 +570,20 @@ impl StandardPipeline {
 }
 
 impl StandardPipeline {
-    fn shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
-        let lighting = self.lighting_enabled();
+    fn forward_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+        let lights_ubo = if self.lighting_enabled() {
+            Some(&self.lights_ubo)
+        } else {
+            None
+        };
         let hdr = self.hdr_enabled() && self.hdr_supported;
         let bloom = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
         let multisamples = self.multisamples();
 
-        let collected_entities = self.entities_collector.collect_entities(state, scene);
-
-        // skips render if collect_entities unchanged and pipeline is not dirty
-        let lights_ubo = if lighting {
-            Some(&mut self.lights_ubo)
-        } else {
-            None
-        };
-        self.preparation
-            .prepare(state, scene, &mut self.universal_ubo, lights_ubo)?;
-
-        // draw
-        let lights_ubo = if lighting {
-            Some(&self.lights_ubo)
-        } else {
-            None
-        };
-        let compose_textures = unsafe {
-            match (hdr, multisamples) {
+        unsafe {
+            let collected_entities = self.entities_collector.collect_entities(state, scene);
+            let compose_textures = match (hdr, multisamples) {
                 (true, None) => {
                     self.hdr_shading.draw(
                         state,
@@ -608,20 +630,38 @@ impl StandardPipeline {
                     )?;
                     [self.multisamples_simple_shading.draw_texture().unwrap()]
                 }
-            }
+            };
+            self.composer.compose(state, compose_textures)?;
+            self.cleanup.cleanup(state);
         };
-        self.composer.compose(state, compose_textures)?;
-        self.cleanup.cleanup(state);
 
         Ok(())
     }
 
     fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+        let lights_ubo = if self.lighting_enabled() {
+            Some(&self.lights_ubo)
+        } else {
+            None
+        };
+
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         unsafe {
             self.gbuffer
                 .draw(state, &collected_entities, &self.universal_ubo)?;
+            let [positions_texture, normals_texture, albedo_and_specular_shininess_texture] =
+                self.gbuffer.deferred_shading_textures().unwrap();
+            self.deferred_shading.draw(
+                state,
+                positions_texture,
+                normals_texture,
+                albedo_and_specular_shininess_texture,
+                &self.universal_ubo,
+                lights_ubo,
+            )?;
+            let compose_textures = self.deferred_shading.draw_texture().unwrap();
+            self.composer.compose(state, [compose_textures])?;
         }
 
         Ok(())
@@ -657,16 +697,33 @@ impl Pipeline for StandardPipeline {
     type Error = Error;
 
     fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
-        match self.pipeline_state {
-            StandardPipelineState::Shading => {
-                self.shading(state, scene)?;
-                self.deferred_shading(state, scene)?;
-                Ok(())
+        match self.pipeline_shading {
+            StandardPipelineShading::Picking => self.picking(state, scene),
+            _ => {
+                // prepares
+                {
+                    let lights_ubo = if self.lighting_enabled() {
+                        Some(&mut self.lights_ubo)
+                    } else {
+                        None
+                    };
+                    self.preparation
+                        .prepare(state, scene, &mut self.universal_ubo, lights_ubo)?;
+                }
+
+                // shading
+                {
+                    match self.pipeline_shading {
+                        StandardPipelineShading::ForwardShading => {
+                            self.forward_shading(state, scene)
+                        }
+                        StandardPipelineShading::DeferredShading => {
+                            self.deferred_shading(state, scene)
+                        }
+                        StandardPipelineShading::Picking => unreachable!(),
+                    }
+                }
             }
-            StandardPipelineState::DeferredShading => {
-                todo!()
-            }
-            StandardPipelineState::Picking => self.picking(state, scene),
         }
     }
 }
