@@ -18,6 +18,30 @@ use super::{
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
 
+/// Available framebuffer size policies.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FramebufferSizePolicy {
+    FollowDrawBuffer,
+    Scale(f64),
+    Custom { width: i32, height: i32 },
+}
+
+impl FramebufferSizePolicy {
+    fn size(&self, gl: &WebGl2RenderingContext) -> (i32, i32) {
+        let width = gl.drawing_buffer_width();
+        let height = gl.drawing_buffer_height();
+
+        match self {
+            Self::FollowDrawBuffer => (width, height),
+            Self::Scale(scale) => (
+                (width as f64 * scale).round() as i32,
+                (height as f64 * scale).round() as i32,
+            ),
+            Self::Custom { width, height } => (*width, *height),
+        }
+    }
+}
+
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -104,21 +128,19 @@ pub enum BlitFlilter {
 /// [`drawBuffers`](https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/drawBuffers)
 pub struct Framebuffer {
     gl: WebGl2RenderingContext,
-
-    width: i32,
-    height: i32,
+    size_policy: FramebufferSizePolicy,
 
     texture_providers: Vec<TextureProvider>,
     renderbuffer_providers: Vec<RenderbufferProvider>,
     renderbuffer_samples: Option<i32>,
+    draw_buffers: Array,
 
-    binding_target: Option<FramebufferTarget>,
+    size: Option<(i32, i32)>,
     framebuffer: Option<WebGlFramebuffer>,
     textures: Option<Vec<WebGlTexture>>,
     renderbuffers: Option<Vec<WebGlRenderbuffer>>,
-    attachments: Vec<FramebufferAttachment>,
 
-    draw_buffers: Array,
+    binding_target: Option<FramebufferTarget>,
 }
 
 impl Drop for Framebuffer {
@@ -145,12 +167,14 @@ impl Framebuffer {
     /// Constructs a new framebuffer object.
     ///
     /// Multisamples does not works on [`TextureProvider`] and [`RenderbufferProvider::FromExisting`].
+    /// Size policy does not works on [`TextureProvider::FromExisting`] and [`RenderbufferProvider::FromExisting`].
     pub fn new<
         TI: IntoIterator<Item = TextureProvider>,
         RI: IntoIterator<Item = RenderbufferProvider>,
         DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
         gl: WebGl2RenderingContext,
+        size_policy: FramebufferSizePolicy,
         texture_providers: TI,
         renderbuffer_providers: RI,
         draw_buffers: DI,
@@ -163,21 +187,18 @@ impl Framebuffer {
 
         Self {
             gl,
+            size_policy,
 
-            width: 0,
-            height: 0,
-
+            size: None,
             texture_providers: texture_providers.into_iter().collect(),
             renderbuffer_providers: renderbuffer_providers.into_iter().collect(),
             renderbuffer_samples,
+            draw_buffers: draw_buffers_array,
 
             binding_target: None,
             framebuffer: None,
             textures: None,
             renderbuffers: None,
-            attachments: Vec::new(),
-
-            draw_buffers: draw_buffers_array,
         }
     }
 
@@ -203,27 +224,16 @@ impl Framebuffer {
             }
         }
 
+        self.size = None;
         self.framebuffer = None;
         self.textures = None;
         self.renderbuffers = None;
-        self.attachments.clear();
     }
 
     /// Binds framebuffer to WebGL.
     pub fn bind(&mut self, target: FramebufferTarget) -> Result<(), Error> {
         self.unbind();
-
-        // recreates framebuffer if size changed
-        let drawing_buffer_width = self.gl.drawing_buffer_width();
-        let drawing_buffer_height = self.gl.drawing_buffer_height();
-        if drawing_buffer_width != self.width || drawing_buffer_height != self.height {
-            self.clear();
-            self.width = drawing_buffer_width;
-            self.height = drawing_buffer_height;
-        }
-
-        self.create_framebuffer(target)?;
-
+        self.use_framebuffer(target)?;
         if self.draw_buffers.length() > 0 {
             self.gl.draw_buffers(&self.draw_buffers);
         }
@@ -331,30 +341,56 @@ impl Framebuffer {
         }
     }
 
-    fn create_framebuffer(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+    fn verify_size_policy(&mut self) -> (i32, i32) {
+        let Some((width, height)) = self.size else {
+            return self.size_policy.size(&self.gl);
+        };
+
+        let (twidth, theight) = self.size_policy.size(&self.gl);
+        if twidth != width || theight != height {
+            self.clear();
+        }
+
+        (twidth, theight)
+    }
+
+    fn use_framebuffer(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+        let (width, height) = self.verify_size_policy();
+
         match self.framebuffer.as_ref() {
             Some(framebuffer) => {
                 self.gl
                     .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
             }
             None => {
-                let framebuffer = self
-                    .gl
-                    .create_framebuffer()
-                    .ok_or(Error::CreateFramebufferFailure)?;
+                let framebuffer = self.create_framebuffer()?;
                 self.gl
                     .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
-                self.framebuffer = Some(framebuffer);
+                self.create_textures(target, width, height)?;
+                self.create_renderbuffers(target, width, height)?;
 
-                self.create_textures(target)?;
-                self.create_renderbuffers(target)?;
+                self.framebuffer = Some(framebuffer);
+                self.size = Some((width, height));
             }
         }
 
         Ok(())
     }
 
-    fn create_textures(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+    fn create_framebuffer(&mut self) -> Result<WebGlFramebuffer, Error> {
+        let framebuffer = self
+            .gl
+            .create_framebuffer()
+            .ok_or(Error::CreateFramebufferFailure)?;
+        Ok(framebuffer)
+    }
+
+    fn create_textures(
+        &mut self,
+        target: FramebufferTarget,
+        width: i32,
+        height: i32,
+    ) -> Result<(), Error> {
         if self.textures.is_some() {
             return Ok(());
         }
@@ -381,8 +417,8 @@ impl Framebuffer {
                             WebGl2RenderingContext::TEXTURE_2D,
                             0,
                             internal_format.gl_enum() as i32,
-                            self.width,
-                            self.height,
+                            width,
+                            height,
                             0,
                             format.gl_enum(),
                             data_type.gl_enum(),
@@ -412,7 +448,6 @@ impl Framebuffer {
             );
 
             textures.push(texture);
-            self.attachments.push(attachment);
         }
 
         self.gl
@@ -422,7 +457,12 @@ impl Framebuffer {
         Ok(())
     }
 
-    fn create_renderbuffers(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+    fn create_renderbuffers(
+        &mut self,
+        target: FramebufferTarget,
+        width: i32,
+        height: i32,
+    ) -> Result<(), Error> {
         if self.renderbuffers.is_some() {
             return Ok(());
         }
@@ -447,14 +487,14 @@ impl Framebuffer {
                             WebGl2RenderingContext::RENDERBUFFER,
                             samples,
                             internal_format.gl_enum(),
-                            self.width,
-                            self.height,
+                            width,
+                            height,
                         ),
                         None => self.gl.renderbuffer_storage(
                             WebGl2RenderingContext::RENDERBUFFER,
                             internal_format.gl_enum(),
-                            self.width,
-                            self.height,
+                            width,
+                            height,
                         ),
                     }
                     (*attachment, renderbuffer)
@@ -473,7 +513,6 @@ impl Framebuffer {
             );
 
             renderbuffers.push(renderbuffer);
-            self.attachments.push(attachment);
         }
 
         self.gl
@@ -484,13 +523,13 @@ impl Framebuffer {
     }
 
     /// Returns framebuffer width.
-    pub fn width(&self) -> i32 {
-        self.width
+    pub fn width(&self) -> Option<i32> {
+        self.size.map(|(width, _)| width)
     }
 
     /// Returns framebuffer height.
-    pub fn height(&self) -> i32 {
-        self.height
+    pub fn height(&self) -> Option<i32> {
+        self.size.map(|(_, height)| height)
     }
 
     /// Returns [`FramebufferTarget`] currently binding to this framebuffer.

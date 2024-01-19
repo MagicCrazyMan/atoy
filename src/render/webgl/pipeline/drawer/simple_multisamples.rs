@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferTarget,
-        RenderbufferProvider, TextureProvider,
+        BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferSizePolicy,
+        FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::collector::CollectedEntities,
     renderbuffer::RenderbufferInternalFormat,
@@ -31,6 +31,7 @@ impl StandardMultisamplesSimpleDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
+                FramebufferSizePolicy::FollowDrawBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,
@@ -47,6 +48,7 @@ impl StandardMultisamplesSimpleDrawer {
     fn multisample_framebuffer(&mut self, state: &FrameState, samples: i32) -> &mut Framebuffer {
         let fbo = self.multisample_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
+                FramebufferSizePolicy::FollowDrawBuffer,
                 [],
                 [
                     RenderbufferProvider::new(

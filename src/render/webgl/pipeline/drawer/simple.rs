@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        Framebuffer, FramebufferAttachment, FramebufferTarget, RenderbufferProvider,
-        TextureProvider,
+        Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
+        RenderbufferProvider, TextureProvider,
     },
     pipeline::collector::CollectedEntities,
     renderbuffer::RenderbufferInternalFormat,
@@ -27,6 +27,7 @@ impl StandardSimpleDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
+                FramebufferSizePolicy::FollowDrawBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,

@@ -285,7 +285,6 @@ pub fn compile_program<S>(
 where
     S: ProgramSource + ?Sized,
 {
-    log::info!("{name}");
     let mut vertex_source = source.vertex_source();
     if let Some(vertex_defines) = vertex_defines {
         if let VertexShaderSource::Builder(builder) = &mut vertex_source {

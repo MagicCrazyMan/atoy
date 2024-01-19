@@ -28,6 +28,7 @@ pub enum Error {
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
     CommonWebGLError(Option<String>),
+    FramebufferUninitialized,
 }
 
 impl Error {}

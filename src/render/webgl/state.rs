@@ -18,8 +18,8 @@ use super::{
     draw::Draw,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, Framebuffer, FramebufferDrawBuffer, FramebufferTarget,
-        RenderbufferProvider, TextureProvider,
+        BlitFlilter, BlitMask, Framebuffer, FramebufferDrawBuffer, FramebufferSizePolicy,
+        FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     program::{Program, ProgramStore},
     texture::{TextureParameter, TextureStore, TextureUnit},
@@ -630,6 +630,7 @@ impl FrameState {
         DI: IntoIterator<Item = FramebufferDrawBuffer>,
     >(
         &self,
+        size_policy: FramebufferSizePolicy,
         texture_providers: TI,
         renderbuffer_providers: RI,
         draw_buffers: DI,
@@ -637,6 +638,7 @@ impl FrameState {
     ) -> Framebuffer {
         Framebuffer::new(
             self.gl.clone(),
+            size_policy,
             texture_providers,
             renderbuffer_providers,
             draw_buffers,
@@ -741,12 +743,20 @@ impl FrameState {
         filter: BlitFlilter,
     ) -> Result<(), Error> {
         draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        let dst_width = draw_framebuffer.width();
-        let dst_height = draw_framebuffer.height();
+        let dst_width = draw_framebuffer
+            .width()
+            .ok_or(Error::FramebufferUninitialized)?;
+        let dst_height = draw_framebuffer
+            .height()
+            .ok_or(Error::FramebufferUninitialized)?;
 
         read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        let src_width = read_framebuffer.width();
-        let src_height = read_framebuffer.height();
+        let src_width = read_framebuffer
+            .width()
+            .ok_or(Error::FramebufferUninitialized)?;
+        let src_height = read_framebuffer
+            .height()
+            .ok_or(Error::FramebufferUninitialized)?;
 
         self.gl.blit_framebuffer(
             0,
@@ -783,16 +793,24 @@ impl FrameState {
         I2: IntoIterator<Item = FramebufferDrawBuffer>,
     {
         draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        let dst_width = draw_framebuffer.width();
-        let dst_height = draw_framebuffer.height();
+        let dst_width = draw_framebuffer
+            .width()
+            .ok_or(Error::FramebufferUninitialized)?;
+        let dst_height = draw_framebuffer
+            .height()
+            .ok_or(Error::FramebufferUninitialized)?;
         let draw_buffers = Array::from_iter(
             draw_buffers
                 .into_iter()
                 .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
         );
         read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        let src_width = read_framebuffer.width();
-        let src_height = read_framebuffer.height();
+        let src_width = read_framebuffer
+            .width()
+            .ok_or(Error::FramebufferUninitialized)?;
+        let src_height = read_framebuffer
+            .height()
+            .ok_or(Error::FramebufferUninitialized)?;
 
         self.gl.draw_buffers(&draw_buffers);
         self.gl.read_buffer(read_buffer.gl_enum());
