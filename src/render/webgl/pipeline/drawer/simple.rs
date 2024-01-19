@@ -27,7 +27,7 @@ impl StandardSimpleDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,

@@ -46,7 +46,7 @@ impl StandardHdrDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,
@@ -63,7 +63,7 @@ impl StandardHdrDrawer {
     fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -83,7 +83,7 @@ impl StandardHdrDrawer {
     fn hdr_bloom_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -114,7 +114,7 @@ impl StandardHdrDrawer {
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -131,7 +131,7 @@ impl StandardHdrDrawer {
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -148,7 +148,7 @@ impl StandardHdrDrawer {
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,

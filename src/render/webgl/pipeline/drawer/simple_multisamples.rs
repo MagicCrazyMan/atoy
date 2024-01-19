@@ -31,7 +31,7 @@ impl StandardMultisamplesSimpleDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,
@@ -48,7 +48,7 @@ impl StandardMultisamplesSimpleDrawer {
     fn multisample_framebuffer(&mut self, state: &FrameState, samples: i32) -> &mut Framebuffer {
         let fbo = self.multisample_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [],
                 [
                     RenderbufferProvider::new(

@@ -50,7 +50,7 @@ impl StandardMultisamplesHdrDrawer {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA,
@@ -67,7 +67,7 @@ impl StandardMultisamplesHdrDrawer {
     fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -84,7 +84,7 @@ impl StandardMultisamplesHdrDrawer {
     fn hdr_bloom_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
@@ -116,7 +116,7 @@ impl StandardMultisamplesHdrDrawer {
     ) -> &mut Framebuffer {
         let fbo = self.hdr_multisamples_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [],
                 [
                     RenderbufferProvider::new(
@@ -145,7 +145,7 @@ impl StandardMultisamplesHdrDrawer {
             .hdr_multisamples_bloom_framebuffer
             .get_or_insert_with(|| {
                 state.create_framebuffer(
-                    FramebufferSizePolicy::FollowDrawBuffer,
+                    FramebufferSizePolicy::FollowDrawingBuffer,
                     [],
                     [
                         RenderbufferProvider::new(
@@ -175,7 +175,7 @@ impl StandardMultisamplesHdrDrawer {
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -192,7 +192,7 @@ impl StandardMultisamplesHdrDrawer {
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,
@@ -209,7 +209,7 @@ impl StandardMultisamplesHdrDrawer {
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawBuffer,
+                FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
                     TextureInternalFormat::RGBA32F,

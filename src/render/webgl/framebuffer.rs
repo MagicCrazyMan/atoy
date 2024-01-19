@@ -21,22 +21,27 @@ use super::{
 /// Available framebuffer size policies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FramebufferSizePolicy {
-    FollowDrawBuffer,
-    Scale(f64),
+    FollowDrawingBuffer,
+    ScaleDrawingBuffer(f64),
     Custom { width: i32, height: i32 },
 }
 
 impl FramebufferSizePolicy {
     fn size(&self, gl: &WebGl2RenderingContext) -> (i32, i32) {
-        let width = gl.drawing_buffer_width();
-        let height = gl.drawing_buffer_height();
-
         match self {
-            Self::FollowDrawBuffer => (width, height),
-            Self::Scale(scale) => (
-                (width as f64 * scale).round() as i32,
-                (height as f64 * scale).round() as i32,
-            ),
+            Self::FollowDrawingBuffer => {
+                let width = gl.drawing_buffer_width();
+                let height = gl.drawing_buffer_height();
+                (width, height)
+            }
+            Self::ScaleDrawingBuffer(scale) => {
+                let width = gl.drawing_buffer_width();
+                let height = gl.drawing_buffer_height();
+                (
+                    (width as f64 * scale).round() as i32,
+                    (height as f64 * scale).round() as i32,
+                )
+            }
             Self::Custom { width, height } => (*width, *height),
         }
     }
