@@ -1,7 +1,6 @@
 pub mod cleanup;
 pub mod collector;
 pub mod composer;
-pub mod picking;
 pub mod preparation;
 pub mod shading;
 
@@ -23,7 +22,6 @@ use self::{
     cleanup::StandardCleanup,
     collector::StandardEntitiesCollector,
     composer::StandardComposer,
-    picking::StandardPicking,
     preparation::StandardPreparation,
     shading::{
         deferred::{gbuffer::StandardGBufferCollector, StandardDeferredShading},
@@ -31,6 +29,7 @@ use self::{
             hdr::StandardHdrShading, hdr_multisamples::StandardMultisamplesHdrShading,
             simple::StandardSimpleShading, simple_multisamples::StandardMultisamplesSimpleShading,
         },
+        picking::StandardPicking,
     },
 };
 
@@ -234,10 +233,11 @@ pub struct StandardPipeline {
     multisamples_hdr_shading: StandardMultisamplesHdrShading,
     composer: StandardComposer,
     cleanup: StandardCleanup,
-    picking: StandardPicking,
 
     gbuffer: StandardGBufferCollector,
     deferred_shading: StandardDeferredShading,
+
+    picking: StandardPicking,
 
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
@@ -652,6 +652,7 @@ impl StandardPipeline {
                 .draw(state, &collected_entities, &self.universal_ubo)?;
             let [positions_texture, normals_texture, albedo_and_specular_shininess_texture] =
                 self.gbuffer.deferred_shading_textures().unwrap();
+
             self.deferred_shading.draw(
                 state,
                 positions_texture,

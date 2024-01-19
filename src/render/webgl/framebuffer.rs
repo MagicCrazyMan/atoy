@@ -5,6 +5,7 @@
 //! [`ProgramStore`](super::program::ProgramStore), stuffs created from here does not manage automatically,
 //! you should cleanups everything by yourself when finishing drawing.
 
+use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
     js_sys::{Array, Object},
@@ -81,6 +82,32 @@ pub enum FramebufferAttachment {
     DEPTH_STENCIL_ATTACHMENT,
 }
 
+impl FramebufferAttachment {
+    fn to_draw_buffer_index(&self) -> i32 {
+        match self {
+            FramebufferAttachment::COLOR_ATTACHMENT0 => 0,
+            FramebufferAttachment::COLOR_ATTACHMENT1 => 1,
+            FramebufferAttachment::COLOR_ATTACHMENT2 => 2,
+            FramebufferAttachment::COLOR_ATTACHMENT3 => 3,
+            FramebufferAttachment::COLOR_ATTACHMENT4 => 4,
+            FramebufferAttachment::COLOR_ATTACHMENT5 => 5,
+            FramebufferAttachment::COLOR_ATTACHMENT6 => 6,
+            FramebufferAttachment::COLOR_ATTACHMENT7 => 7,
+            FramebufferAttachment::COLOR_ATTACHMENT8 => 8,
+            FramebufferAttachment::COLOR_ATTACHMENT9 => 9,
+            FramebufferAttachment::COLOR_ATTACHMENT10 => 10,
+            FramebufferAttachment::COLOR_ATTACHMENT11 => 11,
+            FramebufferAttachment::COLOR_ATTACHMENT12 => 12,
+            FramebufferAttachment::COLOR_ATTACHMENT13 => 13,
+            FramebufferAttachment::COLOR_ATTACHMENT14 => 14,
+            FramebufferAttachment::COLOR_ATTACHMENT15 => 15,
+            FramebufferAttachment::DEPTH_ATTACHMENT => 0,
+            FramebufferAttachment::STENCIL_ATTACHMENT => 0,
+            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => 0,
+        }
+    }
+}
+
 /// Available draw buffer source mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -142,8 +169,8 @@ pub struct Framebuffer {
 
     size: Option<(i32, i32)>,
     framebuffer: Option<WebGlFramebuffer>,
-    textures: Option<Vec<WebGlTexture>>,
-    renderbuffers: Option<Vec<WebGlRenderbuffer>>,
+    textures: Option<Vec<(WebGlTexture, FramebufferAttachment, ClearPolicy)>>,
+    renderbuffers: Option<Vec<(WebGlRenderbuffer, FramebufferAttachment, ClearPolicy)>>,
 
     binding_target: Option<FramebufferTarget>,
 }
@@ -161,10 +188,10 @@ impl Drop for Framebuffer {
         self.gl.delete_framebuffer(Some(framebuffer));
         textures
             .iter()
-            .for_each(|texture| self.gl.delete_texture(Some(texture)));
+            .for_each(|(texture, _, _)| self.gl.delete_texture(Some(texture)));
         renderbuffers
             .iter()
-            .for_each(|renderbuffer| self.gl.delete_renderbuffer(Some(renderbuffer)));
+            .for_each(|(renderbuffer, _, _)| self.gl.delete_renderbuffer(Some(renderbuffer)));
     }
 }
 
@@ -218,13 +245,13 @@ impl Framebuffer {
         }
 
         if let Some(textures) = &mut self.textures {
-            for texture in textures {
+            for (texture, _, _) in textures {
                 self.gl.delete_texture(Some(&texture));
             }
         }
 
         if let Some(renderbuffers) = &mut self.renderbuffers {
-            for renderbuffer in renderbuffers {
+            for (renderbuffer, _, _) in renderbuffers {
                 self.gl.delete_renderbuffer(Some(&renderbuffer));
             }
         }
@@ -233,6 +260,24 @@ impl Framebuffer {
         self.framebuffer = None;
         self.textures = None;
         self.renderbuffers = None;
+    }
+
+    pub fn clear_buffers(&self) {
+        if self.binding_target.is_none() {
+            warn!("can not clear buffer bits of a unbound framebuffer");
+            return;
+        }
+
+        if let Some(textures) = &self.textures {
+            for (_, attachment, clear_policy) in textures {
+                clear_policy.clear(&self.gl, attachment.to_draw_buffer_index());
+            }
+        }
+        if let Some(renderbuffers) = &self.renderbuffers {
+            for (_, attachment, clear_policy) in renderbuffers {
+                clear_policy.clear(&self.gl, attachment.to_draw_buffer_index());
+            }
+        }
     }
 
     /// Binds framebuffer to WebGL.
@@ -404,12 +449,13 @@ impl Framebuffer {
 
         let mut textures = Vec::with_capacity(self.texture_providers.len());
         for provider in &self.texture_providers {
-            let (texture, attachment) = match provider {
+            let (texture, attachment, clear_policy) = match provider {
                 TextureProvider::FromNew {
                     attachment,
                     internal_format,
                     format,
                     data_type,
+                    clear_policy,
                 } => {
                     let texture = self
                         .gl
@@ -431,16 +477,17 @@ impl Framebuffer {
                         )
                         .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
 
-                    (texture, *attachment)
+                    (texture, *attachment, *clear_policy)
                 }
                 TextureProvider::FromExisting {
                     attachment,
                     texture,
+                    clear_policy,
                 } => {
                     self.gl
                         .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
 
-                    (texture.clone(), *attachment)
+                    (texture.clone(), *attachment, *clear_policy)
                 }
             };
 
@@ -452,7 +499,7 @@ impl Framebuffer {
                 0,
             );
 
-            textures.push(texture);
+            textures.push((texture, attachment, clear_policy));
         }
 
         self.gl
@@ -474,10 +521,11 @@ impl Framebuffer {
 
         let mut renderbuffers = Vec::with_capacity(self.renderbuffer_providers.len());
         for provider in &self.renderbuffer_providers {
-            let (attachment, renderbuffer) = match provider {
+            let (renderbuffer, attachment, clear_policy) = match provider {
                 RenderbufferProvider::FromNew {
                     attachment,
                     internal_format,
+                    clear_policy,
                 } => {
                     let renderbuffer = self
                         .gl
@@ -502,12 +550,13 @@ impl Framebuffer {
                             height,
                         ),
                     }
-                    (*attachment, renderbuffer)
+                    (renderbuffer, *attachment, *clear_policy)
                 }
                 RenderbufferProvider::FromExisting {
                     attachment,
                     renderbuffer,
-                } => (*attachment, renderbuffer.clone()),
+                    clear_policy,
+                } => (renderbuffer.clone(), *attachment, *clear_policy),
             };
 
             self.gl.framebuffer_renderbuffer(
@@ -517,7 +566,7 @@ impl Framebuffer {
                 Some(&renderbuffer),
             );
 
-            renderbuffers.push(renderbuffer);
+            renderbuffers.push((renderbuffer, attachment, clear_policy));
         }
 
         self.gl
@@ -552,7 +601,7 @@ impl Framebuffer {
         self.textures
             .as_ref()
             .and_then(|list| list.get(index))
-            .map(|texture| texture)
+            .map(|(texture, _, _)| texture)
     }
 
     /// Returns a [`WebGlRenderbuffer`] by index.
@@ -560,38 +609,68 @@ impl Framebuffer {
         self.renderbuffers
             .as_ref()
             .and_then(|list| list.get(index))
-            .map(|renderbuffer| renderbuffer)
+            .map(|(renderbuffer, _, _)| renderbuffer)
     }
+}
 
-    /// Returns a list containing [`WebGlRenderbuffer`]s.
-    pub fn renderbuffers(&self) -> Option<&[WebGlRenderbuffer]> {
-        match self.renderbuffers.as_ref() {
-            Some(renderbuffers) => Some(&renderbuffers),
-            None => None,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ClearPolicy {
+    ColorFloat([f32; 4]),
+    ColorInteger([i32; 4]),
+    ColorUnsignedInteger([u32; 4]),
+    Depth(f32),
+    Stencil(i32),
+    DepthStencil(f32, i32),
+}
 
-    /// Returns a list containing [`WebGlTexture`]s.
-    pub fn textures(&self) -> Option<&[WebGlTexture]> {
-        match self.textures.as_ref() {
-            Some(textures) => Some(&textures),
-            None => None,
+impl ClearPolicy {
+    fn clear(&self, gl: &WebGl2RenderingContext, draw_buffer: i32) {
+        match self {
+            ClearPolicy::ColorFloat(values) => {
+                gl.clear_bufferfv_with_f32_array(WebGl2RenderingContext::COLOR, draw_buffer, values)
+            }
+            ClearPolicy::ColorInteger(values) => {
+                gl.clear_bufferiv_with_i32_array(WebGl2RenderingContext::COLOR, draw_buffer, values)
+            }
+            ClearPolicy::ColorUnsignedInteger(values) => gl.clear_bufferuiv_with_u32_array(
+                WebGl2RenderingContext::COLOR,
+                draw_buffer,
+                values,
+            ),
+            ClearPolicy::Depth(depth) => gl.clear_bufferfv_with_f32_array(
+                WebGl2RenderingContext::DEPTH,
+                draw_buffer,
+                &[*depth],
+            ),
+            ClearPolicy::Stencil(stencil) => gl.clear_bufferiv_with_i32_array(
+                WebGl2RenderingContext::STENCIL,
+                draw_buffer,
+                &[*stencil],
+            ),
+            ClearPolicy::DepthStencil(depth, stencil) => gl.clear_bufferfi(
+                WebGl2RenderingContext::DEPTH_STENCIL,
+                draw_buffer,
+                *depth,
+                *stencil,
+            ),
         }
     }
 }
 
 /// Offscreen texture provider specifies texture configurations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TextureProvider {
     FromNew {
         attachment: FramebufferAttachment,
         internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
+        clear_policy: ClearPolicy,
     },
     FromExisting {
         attachment: FramebufferAttachment,
         texture: WebGlTexture,
+        clear_policy: ClearPolicy,
     },
 }
 
@@ -602,34 +681,51 @@ impl TextureProvider {
         internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
+        clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNew {
             attachment,
             internal_format,
             format,
             data_type,
+            clear_policy,
         }
     }
 
     /// Constructs a new renderbuffer provider by using a existing [`WebGlTexture`].
-    pub fn from_existing(attachment: FramebufferAttachment, texture: WebGlTexture) -> Self {
+    pub fn from_existing(
+        attachment: FramebufferAttachment,
+        texture: WebGlTexture,
+        clear_policy: ClearPolicy,
+    ) -> Self {
         Self::FromExisting {
             attachment,
             texture,
+            clear_policy,
+        }
+    }
+
+    /// Returns [`ClearPolicy`] for this texture.
+    pub fn clear_policy(&self) -> &ClearPolicy {
+        match self {
+            TextureProvider::FromNew { clear_policy, .. } => clear_policy,
+            TextureProvider::FromExisting { clear_policy, .. } => clear_policy,
         }
     }
 }
 
 /// Offscreen renderbuffer provider specifies renderbuffer configurations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RenderbufferProvider {
     FromNew {
         attachment: FramebufferAttachment,
         internal_format: RenderbufferInternalFormat,
+        clear_policy: ClearPolicy,
     },
     FromExisting {
         attachment: FramebufferAttachment,
         renderbuffer: WebGlRenderbuffer,
+        clear_policy: ClearPolicy,
     },
 }
 
@@ -638,10 +734,12 @@ impl RenderbufferProvider {
     pub fn new(
         attachment: FramebufferAttachment,
         internal_format: RenderbufferInternalFormat,
+        clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNew {
             internal_format,
             attachment,
+            clear_policy,
         }
     }
 
@@ -649,10 +747,20 @@ impl RenderbufferProvider {
     pub fn from_existing(
         attachment: FramebufferAttachment,
         renderbuffer: WebGlRenderbuffer,
+        clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromExisting {
             attachment,
             renderbuffer,
+            clear_policy,
+        }
+    }
+
+    /// Returns [`ClearPolicy`] for this renderbuffer.
+    pub fn clear_policy(&self) -> &ClearPolicy {
+        match self {
+            RenderbufferProvider::FromNew { clear_policy, .. } => clear_policy,
+            RenderbufferProvider::FromExisting { clear_policy, .. } => clear_policy,
         }
     }
 }

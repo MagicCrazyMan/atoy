@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferSizePolicy,
-        FramebufferTarget, RenderbufferProvider, TextureProvider,
+        BlitFlilter, BlitMask, ClearPolicy, Framebuffer, FramebufferAttachment,
+        FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -38,6 +38,7 @@ impl StandardMultisamplesSimpleShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -55,10 +56,12 @@ impl StandardMultisamplesSimpleShading {
                     RenderbufferProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
                         RenderbufferInternalFormat::RGBA8,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     RenderbufferProvider::new(
                         FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                        ClearPolicy::DepthStencil(1.0, 0),
                     ),
                 ],
                 [],
@@ -102,9 +105,11 @@ impl StandardMultisamplesSimpleShading {
     ) -> Result<(), Error> {
         let multisample_framebuffer = self.multisample_framebuffer(state, samples);
         multisample_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        multisample_framebuffer.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: false,

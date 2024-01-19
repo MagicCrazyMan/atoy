@@ -8,7 +8,7 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
+        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
         TextureProvider,
     },
     pipeline::{
@@ -42,6 +42,7 @@ impl StandardDeferredShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],

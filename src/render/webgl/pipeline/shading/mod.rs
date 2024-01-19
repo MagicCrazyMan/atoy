@@ -22,6 +22,7 @@ use super::{
 
 pub mod deferred;
 pub mod forward;
+pub mod picking;
 
 const BLOOM_DEFINE: &'static str = "BLOOM";
 const LIGHTING_DEFINE: &'static str = "LIGHTING";
@@ -47,20 +48,62 @@ pub(self) enum DrawState<'a> {
 
 pub(self) unsafe fn draw_entities(
     state: &mut FrameState,
-    draw_state: DrawState,
+    draw_state: &DrawState,
+    collected_entities: &CollectedEntities,
+) -> Result<(), Error> {
+    draw_opaque_entities(state, &draw_state, collected_entities)?;
+    draw_translucent_entities(state, &draw_state, collected_entities)?;
+    Ok(())
+}
+
+unsafe fn draw_opaque_entities(
+    state: &mut FrameState,
+    draw_state: &DrawState,
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-    state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
-    state.gl().clear_depth(1.0);
-    state
-        .gl()
-        .clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
+    state.gl().depth_mask(true);
 
-    draw_opaque_entities(state, &draw_state, collected_entities)?;
-    draw_translucent_entities(state, &draw_state, collected_entities)?;
+    let entities = collected_entities.entities();
+    let opaque_entity_indices = collected_entities.opaque_entity_indices();
 
-    // reset to default
+    // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
+    for index in opaque_entity_indices {
+        let entity = entities[*index].entity_mut();
+        draw_entity(state, draw_state, true, entity)?;
+    }
+
+    state.gl().disable(WebGl2RenderingContext::CULL_FACE);
+    state.gl().cull_face(WebGl2RenderingContext::BACK);
+    state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
+
+    Ok(())
+}
+
+unsafe fn draw_translucent_entities(
+    state: &mut FrameState,
+    draw_state: &DrawState,
+    collected_entities: &CollectedEntities,
+) -> Result<(), Error> {
+    state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
+    state.gl().depth_mask(false);
+    state.gl().enable(WebGl2RenderingContext::BLEND);
+    state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
+    state.gl().blend_func(
+        WebGl2RenderingContext::SRC_ALPHA,
+        WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
+    );
+
+    let entities = collected_entities.entities();
+    let translucent_entity_indices = collected_entities.translucent_entity_indices();
+
+    // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
+    for index in translucent_entity_indices.iter().rev() {
+        let entity = entities[*index].entity_mut();
+        draw_entity(state, draw_state, false, entity)?;
+        // transparency entities never cull face
+    }
+
     state.gl().depth_mask(true);
     state.gl().disable(WebGl2RenderingContext::BLEND);
     state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
@@ -196,49 +239,6 @@ fn draw_entity(
     state.bind_uniforms(program, &entity, geometry, material)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
-
-    Ok(())
-}
-
-unsafe fn draw_opaque_entities(
-    state: &mut FrameState,
-    draw_state: &DrawState,
-    collected_entities: &CollectedEntities,
-) -> Result<(), Error> {
-    let entities = collected_entities.entities();
-    let opaque_entity_indices = collected_entities.opaque_entity_indices();
-
-    // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
-    state.gl().depth_mask(true);
-    for index in opaque_entity_indices {
-        let entity = entities[*index].entity_mut();
-        draw_entity(state, draw_state, true, entity)?;
-    }
-
-    Ok(())
-}
-
-unsafe fn draw_translucent_entities(
-    state: &mut FrameState,
-    draw_state: &DrawState,
-    collected_entities: &CollectedEntities,
-) -> Result<(), Error> {
-    let entities = collected_entities.entities();
-    let translucent_entity_indices = collected_entities.translucent_entity_indices();
-
-    // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
-    state.gl().enable(WebGl2RenderingContext::BLEND);
-    state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
-    state.gl().blend_func(
-        WebGl2RenderingContext::SRC_ALPHA,
-        WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
-    );
-    state.gl().depth_mask(false);
-    for index in translucent_entity_indices.iter().rev() {
-        let entity = entities[*index].entity_mut();
-        draw_entity(state, draw_state, false, entity)?;
-        // transparency entities never cull face
-    }
 
     Ok(())
 }

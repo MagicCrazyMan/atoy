@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferSizePolicy,
-        FramebufferTarget, RenderbufferProvider, TextureProvider,
+        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
+        FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -18,11 +18,16 @@ use crate::render::webgl::{
 
 pub struct StandardGBufferCollector {
     framebuffer: Option<Framebuffer>,
+
+    last_collected_entities_id: Option<usize>,
 }
 
 impl StandardGBufferCollector {
     pub fn new() -> Self {
-        Self { framebuffer: None }
+        Self {
+            framebuffer: None,
+            last_collected_entities_id: None,
+        }
     }
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
@@ -36,6 +41,7 @@ impl StandardGBufferCollector {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     // normals
                     TextureProvider::new(
@@ -43,6 +49,7 @@ impl StandardGBufferCollector {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     // albedo and transparency
                     TextureProvider::new(
@@ -50,26 +57,18 @@ impl StandardGBufferCollector {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
-                    ),
-                    // depths
-                    TextureProvider::new(
-                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                        TextureInternalFormat::DEPTH32F_STENCIL8,
-                        TextureFormat::DEPTH_STENCIL,
-                        TextureDataType::FLOAT_32_UNSIGNED_INT_24_8_REV,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                 ],
-                [
-                //     RenderbufferProvider::new(
-                //     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                //     RenderbufferInternalFormat::DEPTH24_STENCIL8,
-                // )
-                ],
+                [RenderbufferProvider::new(
+                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                    RenderbufferInternalFormat::DEPTH24_STENCIL8,
+                    ClearPolicy::DepthStencil(1.0, 0),
+                )],
                 [
                     FramebufferDrawBuffer::COLOR_ATTACHMENT0,
                     FramebufferDrawBuffer::COLOR_ATTACHMENT1,
                     FramebufferDrawBuffer::COLOR_ATTACHMENT2,
-                    // FramebufferDrawBuffer::COLOR_ATTACHMENT3,
                 ],
                 None,
             )
@@ -114,14 +113,28 @@ impl StandardGBufferCollector {
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
+        // only redraw gbuffer when collected entities changed
+        if self
+            .last_collected_entities_id
+            .map(|id| collected_entities.id() == id)
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        framebuffer.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::GBuffer { universal_ubo },
+            &DrawState::GBuffer { universal_ubo },
             collected_entities,
         )?;
         framebuffer.unbind();
+
+        self.last_collected_entities_id = Some(collected_entities.id());
+
         Ok(())
     }
 }

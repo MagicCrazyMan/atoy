@@ -4,7 +4,7 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
+        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
         RenderbufferProvider, TextureProvider,
     },
     pipeline::{
@@ -34,10 +34,12 @@ impl StandardSimpleShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    ClearPolicy::DepthStencil(1.0, 0),
                 )],
                 [],
                 None,
@@ -58,9 +60,10 @@ impl StandardSimpleShading {
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        framebuffer.clear_buffers();
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: false,

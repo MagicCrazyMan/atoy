@@ -11,9 +11,10 @@ use crate::{
     render::webgl::{
         error::Error,
         framebuffer::{
-            Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferSizePolicy,
-            FramebufferTarget, RenderbufferProvider, TextureProvider,
+            ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
+            FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
         },
+        pipeline::collector::CollectedEntities,
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
@@ -21,8 +22,6 @@ use crate::{
         uniform::UniformValue,
     },
 };
-
-use super::collector::CollectedEntities;
 
 pub struct StandardPicking {
     framebuffer: Option<Framebuffer>,
@@ -51,17 +50,20 @@ impl StandardPicking {
                         TextureInternalFormat::R32UI,
                         TextureFormat::RED_INTEGER,
                         TextureDataType::UNSIGNED_INT,
+                        ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ),
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT1,
                         TextureInternalFormat::RGBA32UI,
                         TextureFormat::RGBA_INTEGER,
                         TextureDataType::UNSIGNED_INT,
+                        ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ),
                 ],
                 [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH_COMPONENT24,
+                    ClearPolicy::Depth(1.0),
                 )],
                 [
                     FramebufferDrawBuffer::COLOR_ATTACHMENT0,
@@ -79,19 +81,10 @@ impl StandardPicking {
     ) -> Result<(), Error> {
         self.last_gl = None;
 
+        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         self.framebuffer(&state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
-
-        state
-            .gl()
-            .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 0, &[0, 0, 0, 0]);
-        state
-            .gl()
-            .clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, 1, &[0, 0, 0, 0]);
-        state
-            .gl()
-            .clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, 0, &[1.0]);
+        self.framebuffer(&state).clear_buffers();
 
         let entities = collected_entities.entities();
         let max_entities_len = (u32::MAX - 1) as usize;
@@ -271,10 +264,10 @@ impl ProgramSource for PickingProgram {
     }
 
     fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/picking.vert")))
+        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../../shaders/picking.vert")))
     }
 
     fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/picking.frag")))
+        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../../shaders/picking.frag")))
     }
 }

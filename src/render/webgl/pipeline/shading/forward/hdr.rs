@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        Framebuffer, FramebufferAttachment, FramebufferDrawBuffer, FramebufferSizePolicy,
-        FramebufferTarget, RenderbufferProvider, TextureProvider,
+        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
+        FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -53,6 +53,7 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -70,10 +71,12 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    ClearPolicy::DepthStencil(1.0, 0),
                 )],
                 [],
                 None,
@@ -91,17 +94,20 @@ impl StandardHdrShading {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT1,
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                 ],
                 [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    ClearPolicy::DepthStencil(1.0, 0),
                 )],
                 [
                     FramebufferDrawBuffer::COLOR_ATTACHMENT0,
@@ -121,6 +127,7 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -138,6 +145,7 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -155,6 +163,7 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -199,9 +208,11 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let fbo = self.hdr_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        fbo.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: false,
@@ -221,9 +232,11 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let fbo = self.hdr_bloom_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        fbo.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: true,

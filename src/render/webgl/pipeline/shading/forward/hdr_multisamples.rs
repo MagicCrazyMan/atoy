@@ -4,8 +4,9 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
-        FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
+        BlitFlilter, BlitMask, ClearPolicy, Framebuffer, FramebufferAttachment,
+        FramebufferDrawBuffer, FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider,
+        TextureProvider,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -57,6 +58,7 @@ impl StandardMultisamplesHdrShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -74,6 +76,7 @@ impl StandardMultisamplesHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -92,12 +95,14 @@ impl StandardMultisamplesHdrShading {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT1,
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                 ],
                 [],
@@ -123,10 +128,12 @@ impl StandardMultisamplesHdrShading {
                     RenderbufferProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT0,
                         RenderbufferInternalFormat::RGBA32F,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ),
                     RenderbufferProvider::new(
                         FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                        ClearPolicy::DepthStencil(1.0, 0),
                     ),
                 ],
                 [],
@@ -152,14 +159,17 @@ impl StandardMultisamplesHdrShading {
                         RenderbufferProvider::new(
                             FramebufferAttachment::COLOR_ATTACHMENT0,
                             RenderbufferInternalFormat::RGBA32F,
+                            ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                         ),
                         RenderbufferProvider::new(
                             FramebufferAttachment::COLOR_ATTACHMENT1,
                             RenderbufferInternalFormat::RGBA32F,
+                            ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                         ),
                         RenderbufferProvider::new(
                             FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
                             RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                            ClearPolicy::DepthStencil(1.0, 0),
                         ),
                     ],
                     [
@@ -182,6 +192,7 @@ impl StandardMultisamplesHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -199,6 +210,7 @@ impl StandardMultisamplesHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -216,6 +228,7 @@ impl StandardMultisamplesHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
+                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 )],
                 [],
                 [],
@@ -276,9 +289,11 @@ impl StandardMultisamplesHdrShading {
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        hdr_multisamples_framebuffer.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: false,
@@ -300,9 +315,11 @@ impl StandardMultisamplesHdrShading {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
         hdr_multisamples_bloom_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        hdr_multisamples_bloom_framebuffer.clear_buffers();
+
         draw_entities(
             state,
-            DrawState::Draw {
+            &DrawState::Draw {
                 universal_ubo,
                 lights_ubo,
                 bloom: true,
