@@ -72,7 +72,7 @@ impl StandardPicking {
         })
     }
 
-    pub unsafe fn render(
+    pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,

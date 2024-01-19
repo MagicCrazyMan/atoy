@@ -18,12 +18,12 @@ use crate::render::webgl::{
 };
 
 use super::{
-    draw_entities, BloomBlendMappingProgram, GaussianBlurMappingProgram,
+    draw_entities, BloomBlendMappingProgram, DrawState, GaussianBlurMappingProgram,
     HdrExposureToneMappingProgram, HdrReinhardToneMappingProgram, BASE_TEXTURE_UNIFORM_NAME,
     BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
 };
 
-pub struct StandardMultisamplesHdrDrawer {
+pub struct StandardMultisamplesHdrShading {
     hdr_multisamples_framebuffer: Option<Framebuffer>,
     hdr_framebuffer: Option<Framebuffer>,
     hdr_multisamples_bloom_framebuffer: Option<Framebuffer>,
@@ -34,7 +34,7 @@ pub struct StandardMultisamplesHdrDrawer {
     framebuffer: Option<Framebuffer>,
 }
 
-impl StandardMultisamplesHdrDrawer {
+impl StandardMultisamplesHdrShading {
     pub fn new() -> Self {
         Self {
             hdr_multisamples_framebuffer: None,
@@ -54,7 +54,7 @@ impl StandardMultisamplesHdrDrawer {
                 FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA,
+                    TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                 )],
@@ -231,20 +231,18 @@ impl StandardMultisamplesHdrDrawer {
     pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         samples: i32,
-        bloom_blur: bool,
+        bloom: bool,
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
         gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
-        if bloom_blur {
+        if bloom {
             self.draw_hdr_multisamples_bloom(
                 state,
-                lighting,
                 samples,
                 collected_entities,
                 universal_ubo,
@@ -257,7 +255,6 @@ impl StandardMultisamplesHdrDrawer {
         } else {
             self.draw_hdr_multisamples(
                 state,
-                lighting,
                 samples,
                 collected_entities,
                 universal_ubo,
@@ -272,21 +269,21 @@ impl StandardMultisamplesHdrDrawer {
     unsafe fn draw_hdr_multisamples(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            false,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: false,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         hdr_multisamples_framebuffer.unbind();
         Ok(())
@@ -295,22 +292,22 @@ impl StandardMultisamplesHdrDrawer {
     unsafe fn draw_hdr_multisamples_bloom(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
         hdr_multisamples_bloom_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            true,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: true,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         hdr_multisamples_bloom_framebuffer.unbind();
         Ok(())

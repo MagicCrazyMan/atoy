@@ -438,9 +438,9 @@ impl Viewer {
             let mut render = self.render_mut();
             let mut pipeline = self.standard_pipeline_mut();
             let status = self.status_mut();
-            pipeline.set_pipeline_state(StandardPipelineState::Pick);
+            pipeline.set_pipeline_state(StandardPipelineState::Picking);
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
-            pipeline.set_pipeline_state(StandardPipelineState::Draw);
+            pipeline.set_pipeline_state(StandardPipelineState::Shading);
 
             let Some(id) = pipeline.pick_entity_id(window_position_x, window_position_y)? else {
                 return Ok(None);
@@ -464,9 +464,9 @@ impl Viewer {
             let mut render = self.render_mut();
             let mut pipeline = self.standard_pipeline_mut();
             let status = self.status_mut();
-            pipeline.set_pipeline_state(StandardPipelineState::Pick);
+            pipeline.set_pipeline_state(StandardPipelineState::Picking);
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
-            pipeline.set_pipeline_state(StandardPipelineState::Draw);
+            pipeline.set_pipeline_state(StandardPipelineState::Shading);
 
             let position = pipeline.pick_position(window_position_x, window_position_y)?;
             Ok(position)
@@ -480,7 +480,7 @@ impl Viewer {
         let mut pipeline = self.standard_pipeline_mut();
         let status = self.status_mut();
 
-        pipeline.set_pipeline_state(StandardPipelineState::Draw);
+        pipeline.set_pipeline_state(StandardPipelineState::Shading);
         render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
 
         Ok(())

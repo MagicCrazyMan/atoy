@@ -13,13 +13,13 @@ use crate::render::webgl::{
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
 
-use super::draw_entities;
+use super::{draw_entities, DrawState};
 
-pub struct StandardSimpleDrawer {
+pub struct StandardSimpleShading {
     framebuffer: Option<Framebuffer>,
 }
 
-impl StandardSimpleDrawer {
+impl StandardSimpleShading {
     pub fn new() -> Self {
         Self { framebuffer: None }
     }
@@ -30,7 +30,7 @@ impl StandardSimpleDrawer {
                 FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA,
+                    TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                 )],
@@ -51,20 +51,20 @@ impl StandardSimpleDrawer {
     pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            false,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: false,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         framebuffer.unbind();
         Ok(())

@@ -13,14 +13,14 @@ use crate::render::webgl::{
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
 
-use super::draw_entities;
+use super::{draw_entities, DrawState};
 
-pub struct StandardMultisamplesSimpleDrawer {
+pub struct StandardMultisamplesSimpleShading {
     multisample_framebuffer: Option<Framebuffer>,
     framebuffer: Option<Framebuffer>,
 }
 
-impl StandardMultisamplesSimpleDrawer {
+impl StandardMultisamplesSimpleShading {
     pub fn new() -> Self {
         Self {
             multisample_framebuffer: None,
@@ -34,7 +34,7 @@ impl StandardMultisamplesSimpleDrawer {
                 FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA,
+                    TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                 )],
@@ -75,15 +75,13 @@ impl StandardMultisamplesSimpleDrawer {
     pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         self.draw_multisamples(
             state,
-            lighting,
             samples,
             collected_entities,
             universal_ubo,
@@ -96,21 +94,21 @@ impl StandardMultisamplesSimpleDrawer {
     unsafe fn draw_multisamples(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         samples: i32,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let multisample_framebuffer = self.multisample_framebuffer(state, samples);
         multisample_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            false,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: false,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         multisample_framebuffer.unbind();
         Ok(())

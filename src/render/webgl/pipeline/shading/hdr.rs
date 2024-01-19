@@ -8,7 +8,8 @@ use crate::render::webgl::{
         FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::{
-        collector::CollectedEntities, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME, HdrToneMappingType,
+        collector::CollectedEntities, HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING,
+        UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
@@ -17,12 +18,12 @@ use crate::render::webgl::{
 };
 
 use super::{
-    draw_entities, BloomBlendMappingProgram, GaussianBlurMappingProgram,
+    draw_entities, BloomBlendMappingProgram, DrawState, GaussianBlurMappingProgram,
     HdrExposureToneMappingProgram, HdrReinhardToneMappingProgram, BASE_TEXTURE_UNIFORM_NAME,
     BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
 };
 
-pub struct StandardHdrDrawer {
+pub struct StandardHdrShading {
     framebuffer: Option<Framebuffer>,
     hdr_framebuffer: Option<Framebuffer>,
     hdr_bloom_framebuffer: Option<Framebuffer>,
@@ -31,7 +32,7 @@ pub struct StandardHdrDrawer {
     hdr_bloom_blend_framebuffer: Option<Framebuffer>,
 }
 
-impl StandardHdrDrawer {
+impl StandardHdrShading {
     pub fn new() -> Self {
         Self {
             framebuffer: None,
@@ -49,7 +50,7 @@ impl StandardHdrDrawer {
                 FramebufferSizePolicy::FollowDrawingBuffer,
                 [TextureProvider::new(
                     FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA,
+                    TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                 )],
@@ -169,34 +170,21 @@ impl StandardHdrDrawer {
     pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
-        bloom_blur: bool,
+        bloom: bool,
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
         gaussian_kernel_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
-        if bloom_blur {
-            self.draw_hdr_bloom(
-                state,
-                lighting,
-                collected_entities,
-                universal_ubo,
-                lights_ubo,
-            )?;
+        if bloom {
+            self.draw_hdr_bloom(state, collected_entities, universal_ubo, lights_ubo)?;
             self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
-            self.draw_hdr(
-                state,
-                lighting,
-                collected_entities,
-                universal_ubo,
-                lights_ubo,
-            )?;
+            self.draw_hdr(state, collected_entities, universal_ubo, lights_ubo)?;
             self.tone_mapping(state, tone_mapping_type)?;
         }
         Ok(())
@@ -205,20 +193,20 @@ impl StandardHdrDrawer {
     unsafe fn draw_hdr(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let fbo = self.hdr_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            false,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: false,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         fbo.unbind();
         Ok(())
@@ -227,20 +215,20 @@ impl StandardHdrDrawer {
     unsafe fn draw_hdr_bloom(
         &mut self,
         state: &mut FrameState,
-        lighting: bool,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
-        lights_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         let fbo = self.hdr_bloom_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_entities(
             state,
-            lighting,
-            true,
+            DrawState::Draw {
+                universal_ubo,
+                lights_ubo,
+                bloom: true,
+            },
             collected_entities,
-            universal_ubo,
-            lights_ubo,
         )?;
         fbo.unbind();
         Ok(())

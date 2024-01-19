@@ -153,8 +153,8 @@ impl ProgramStore {
     fn use_program_inner<'a, 'b, 'c, S>(
         &'a mut self,
         source: &'b S,
-        vertex_defines: Option<Vec<Cow<'static, str>>>,
-        fragment_defines: Option<Vec<Cow<'static, str>>>,
+        vertex_defines: Option<&'b [Cow<'static, str>]>,
+        fragment_defines: Option<&'b [Cow<'static, str>]>,
     ) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
@@ -214,8 +214,8 @@ impl ProgramStore {
     pub fn use_program_with_defines<'a, 'b, 'c, S>(
         &'a mut self,
         source: &'b S,
-        vertex_defines: Vec<Cow<'static, str>>,
-        fragment_defines: Vec<Cow<'static, str>>,
+        vertex_defines: &'b [Cow<'static, str>],
+        fragment_defines: &'b [Cow<'static, str>],
     ) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
@@ -279,8 +279,8 @@ pub fn compile_program<S>(
     gl: WebGl2RenderingContext,
     name: String,
     source: &S,
-    vertex_defines: Option<Vec<Cow<'static, str>>>,
-    fragment_defines: Option<Vec<Cow<'static, str>>>,
+    vertex_defines: Option<&[Cow<'static, str>]>,
+    fragment_defines: Option<&[Cow<'static, str>]>,
 ) -> Result<Program, Error>
 where
     S: ProgramSource + ?Sized,
@@ -288,7 +288,7 @@ where
     let mut vertex_source = source.vertex_source();
     if let Some(vertex_defines) = vertex_defines {
         if let VertexShaderSource::Builder(builder) = &mut vertex_source {
-            builder.defines_mut().extend(vertex_defines);
+            builder.defines_mut().extend_from_slice(vertex_defines);
         } else {
             warn!("vertex defines for VertexShaderSource::Raw is not supported");
         }
@@ -296,7 +296,7 @@ where
     let mut fragment_source = source.fragment_source();
     if let Some(fragment_defines) = fragment_defines {
         if let FragmentShaderSource::Builder(builder) = &mut fragment_source {
-            builder.defines_mut().extend(fragment_defines);
+            builder.defines_mut().extend_from_slice(fragment_defines);
         } else {
             warn!("fragment defines for FragmentShaderSource::Raw is not supported");
         }

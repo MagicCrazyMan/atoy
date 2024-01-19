@@ -25,9 +25,11 @@ pub mod hdr;
 pub mod hdr_multisamples;
 pub mod simple;
 pub mod simple_multisamples;
+pub mod deferred;
 
-const BLOOM_GLSL_DEFINE: &'static str = "BLOOM";
-const LIGHTING_GLSL_DEFINE: &'static str = "LIGHTING";
+const BLOOM_DEFINE: &'static str = "BLOOM";
+const LIGHTING_DEFINE: &'static str = "LIGHTING";
+const GBUFFER_DEFINE: &'static str = "GBUFFER";
 
 const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
 const BLOOM_THRESHOLD_VALUES: [f32; 3] = [0.2126, 0.7152, 0.0722];
@@ -36,22 +38,21 @@ const BLOOM_BLUR_TEXTURE_UNIFORM_NAME: &'static str = "u_BloomBlurTexture";
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DrawType {
-    Drawer {
-        enable_lighting: bool,
-        enable_bloom_blur: bool,
+pub(self) enum DrawState<'a> {
+    Draw {
+        universal_ubo: &'a BufferDescriptor,
+        lights_ubo: Option<&'a BufferDescriptor>,
+        bloom: bool,
     },
-    GBuffer,
+    GBuffer {
+        universal_ubo: &'a BufferDescriptor,
+    },
 }
 
 pub(self) unsafe fn draw_entities(
     state: &mut FrameState,
-    lighting: bool,
-    bloom_blur: bool,
+    draw_state: DrawState,
     collected_entities: &CollectedEntities,
-    universal_ubo: &BufferDescriptor,
-    lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
     state.gl().clear_color(0.0, 0.0, 0.0, 0.0);
@@ -60,22 +61,8 @@ pub(self) unsafe fn draw_entities(
         .gl()
         .clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
-    draw_opaque_entities(
-        state,
-        lighting,
-        bloom_blur,
-        collected_entities,
-        universal_ubo,
-        lights_ubo,
-    )?;
-    draw_translucent_entities(
-        state,
-        lighting,
-        bloom_blur,
-        collected_entities,
-        universal_ubo,
-        lights_ubo,
-    )?;
+    draw_opaque_entities(state, &draw_state, collected_entities)?;
+    draw_translucent_entities(state, &draw_state, collected_entities)?;
 
     // reset to default
     state.gl().depth_mask(true);
@@ -92,26 +79,25 @@ pub(self) unsafe fn draw_entities(
 
 fn prepare_program<'a, 'b, 'c>(
     state: &'a mut FrameState,
-    lighting: bool,
-    bloom_blur: bool,
+    draw_state: &DrawState,
     material: &'b dyn StandardMaterial,
-    universal_ubo: &BufferDescriptor,
-    lights_ubo: &BufferDescriptor,
 ) -> Result<&'c mut Program, Error> {
-    let defines = match (lighting, bloom_blur) {
-        (true, true) => Some(vec![
-            Cow::Borrowed(LIGHTING_GLSL_DEFINE),
-            Cow::Borrowed(BLOOM_GLSL_DEFINE),
-        ]),
-        (true, false) => Some(vec![Cow::Borrowed(LIGHTING_GLSL_DEFINE)]),
-        (false, true) => Some(vec![Cow::Borrowed(BLOOM_GLSL_DEFINE)]),
-        (false, false) => None,
+    let defines: Option<&[Cow<'_, str>]> = match draw_state {
+        DrawState::Draw {
+            lights_ubo, bloom, ..
+        } => match (lights_ubo.is_some(), bloom) {
+            (true, true) => Some(&[Cow::Borrowed(LIGHTING_DEFINE), Cow::Borrowed(BLOOM_DEFINE)]),
+            (true, false) => Some(&[Cow::Borrowed(LIGHTING_DEFINE)]),
+            (false, true) => Some(&[Cow::Borrowed(BLOOM_DEFINE)]),
+            (false, false) => None,
+        },
+        DrawState::GBuffer { .. } => Some(&[Cow::Borrowed(GBUFFER_DEFINE)]),
     };
 
     let program = match defines {
         Some(defines) => state.program_store_mut().use_program_with_defines(
             material.as_program_source(),
-            vec![],
+            &[],
             defines,
         )?,
         None => state
@@ -119,35 +105,54 @@ fn prepare_program<'a, 'b, 'c>(
             .use_program(material.as_program_source())?,
     };
 
-    // binds atoy_UniversalUniforms
-    state.bind_uniform_block_value_by_block_name(
-        program,
-        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-        UniformBlockValue::BufferBase {
-            descriptor: universal_ubo.clone(),
-            binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
-        },
-    )?;
+    match draw_state {
+        DrawState::Draw {
+            universal_ubo,
+            lights_ubo,
+            bloom,
+        } => {
+            // binds atoy_UniversalUniforms
+            state.bind_uniform_block_value_by_block_name(
+                program,
+                UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+                UniformBlockValue::BufferBase {
+                    descriptor: (*universal_ubo).clone(),
+                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+                },
+            )?;
 
-    // binds atoy_Lights
-    if lighting {
-        state.bind_uniform_block_value_by_block_name(
-            program,
-            UBO_LIGHTS_BLOCK_NAME,
-            UniformBlockValue::BufferBase {
-                descriptor: lights_ubo.clone(),
-                binding: UBO_LIGHTS_BINDING,
-            },
-        )?;
-    }
+            // binds atoy_Lights
+            if let Some(lights_ubo) = lights_ubo {
+                state.bind_uniform_block_value_by_block_name(
+                    program,
+                    UBO_LIGHTS_BLOCK_NAME,
+                    UniformBlockValue::BufferBase {
+                        descriptor: (*lights_ubo).clone(),
+                        binding: UBO_LIGHTS_BINDING,
+                    },
+                )?;
+            }
 
-    // binds bloom blur threshold
-    if bloom_blur {
-        state.bind_uniform_value_by_variable_name(
-            program,
-            BLOOM_THRESHOLD_UNIFORM_NAME,
-            UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
-        )?;
+            // binds bloom blur threshold
+            if *bloom {
+                state.bind_uniform_value_by_variable_name(
+                    program,
+                    BLOOM_THRESHOLD_UNIFORM_NAME,
+                    UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
+                )?;
+            }
+        }
+        DrawState::GBuffer { universal_ubo } => {
+            // binds atoy_UniversalUniforms
+            state.bind_uniform_block_value_by_block_name(
+                program,
+                UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+                UniformBlockValue::BufferBase {
+                    descriptor: (*universal_ubo).clone(),
+                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+                },
+            )?;
+        }
     }
 
     Ok(program)
@@ -155,12 +160,9 @@ fn prepare_program<'a, 'b, 'c>(
 
 fn draw_entity(
     state: &mut FrameState,
-    lighting: bool,
-    bloom_blur: bool,
+    draw_state: &DrawState,
     should_cull_face: bool,
     entity: &mut Entity,
-    universal_ubo: &BufferDescriptor,
-    lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
     // checks material availability
     if let Some(material) = entity.material_mut() {
@@ -192,14 +194,7 @@ fn draw_entity(
     }
 
     // binds program
-    let program = prepare_program(
-        state,
-        lighting,
-        bloom_blur,
-        material,
-        universal_ubo,
-        lights_ubo,
-    )?;
+    let program = prepare_program(state, draw_state, material)?;
 
     let bound_attributes = state.bind_attributes(program, &entity, geometry, material)?;
     state.bind_uniforms(program, &entity, geometry, material)?;
@@ -211,11 +206,8 @@ fn draw_entity(
 
 unsafe fn draw_opaque_entities(
     state: &mut FrameState,
-    lighting: bool,
-    bloom_blur: bool,
+    draw_state: &DrawState,
     collected_entities: &CollectedEntities,
-    universal_ubo: &BufferDescriptor,
-    lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
     let entities = collected_entities.entities();
     let opaque_entity_indices = collected_entities.opaque_entity_indices();
@@ -224,15 +216,7 @@ unsafe fn draw_opaque_entities(
     state.gl().depth_mask(true);
     for index in opaque_entity_indices {
         let entity = entities[*index].entity_mut();
-        draw_entity(
-            state,
-            lighting,
-            bloom_blur,
-            true,
-            entity,
-            universal_ubo,
-            lights_ubo,
-        )?;
+        draw_entity(state, draw_state, true, entity)?;
     }
 
     Ok(())
@@ -240,11 +224,8 @@ unsafe fn draw_opaque_entities(
 
 unsafe fn draw_translucent_entities(
     state: &mut FrameState,
-    lighting: bool,
-    bloom_blur: bool,
+    draw_state: &DrawState,
     collected_entities: &CollectedEntities,
-    universal_ubo: &BufferDescriptor,
-    lights_ubo: &BufferDescriptor,
 ) -> Result<(), Error> {
     let entities = collected_entities.entities();
     let translucent_entity_indices = collected_entities.translucent_entity_indices();
@@ -259,15 +240,7 @@ unsafe fn draw_translucent_entities(
     state.gl().depth_mask(false);
     for index in translucent_entity_indices.iter().rev() {
         let entity = entities[*index].entity_mut();
-        draw_entity(
-            state,
-            lighting,
-            bloom_blur,
-            false,
-            entity,
-            universal_ubo,
-            lights_ubo,
-        )?;
+        draw_entity(state, draw_state, false, entity)?;
         // transparency entities never cull face
     }
 

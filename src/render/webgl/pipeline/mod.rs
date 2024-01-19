@@ -1,7 +1,7 @@
 pub mod cleanup;
 pub mod collector;
 pub mod composer;
-pub mod drawer;
+pub mod shading;
 pub mod picking;
 pub mod preparation;
 
@@ -23,9 +23,10 @@ use self::{
     cleanup::StandardCleanup,
     collector::StandardEntitiesCollector,
     composer::StandardComposer,
-    drawer::{
-        hdr::StandardHdrDrawer, hdr_multisamples::StandardMultisamplesHdrDrawer,
-        simple::StandardSimpleDrawer, simple_multisamples::StandardMultisamplesSimpleDrawer,
+    shading::{
+        gbuffer::StandardGBufferCollector, hdr::StandardHdrShading,
+        hdr_multisamples::StandardMultisamplesHdrShading, simple::StandardSimpleShading,
+        simple_multisamples::StandardMultisamplesSimpleShading, deferred::StandardDeferredShading,
     },
     picking::StandardPicking,
     preparation::StandardPreparation,
@@ -213,8 +214,9 @@ pub enum HdrToneMappingType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StandardPipelineState {
-    Draw,
-    Pick,
+    Shading,
+    DeferredShading,
+    Picking,
 }
 
 pub struct StandardPipeline {
@@ -222,13 +224,16 @@ pub struct StandardPipeline {
 
     preparation: StandardPreparation,
     entities_collector: StandardEntitiesCollector,
-    simple_drawer: StandardSimpleDrawer,
-    multisamples_simple_drawer: StandardMultisamplesSimpleDrawer,
-    multisamples_hdr_drawer: StandardMultisamplesHdrDrawer,
-    hdr_drawer: StandardHdrDrawer,
+    simple_shading: StandardSimpleShading,
+    multisamples_simple_shading: StandardMultisamplesSimpleShading,
+    hdr_shading: StandardHdrShading,
+    multisamples_hdr_shading: StandardMultisamplesHdrShading,
     composer: StandardComposer,
     cleanup: StandardCleanup,
     picking: StandardPicking,
+
+    gbuffer: StandardGBufferCollector,
+    deferred_shading: StandardDeferredShading,
 
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
@@ -250,17 +255,20 @@ pub struct StandardPipeline {
 impl StandardPipeline {
     pub fn new(hdr_supported: bool) -> Self {
         Self {
-            pipeline_state: StandardPipelineState::Draw,
+            pipeline_state: StandardPipelineState::Shading,
 
             preparation: StandardPreparation::new(),
             entities_collector: StandardEntitiesCollector::new(),
-            simple_drawer: StandardSimpleDrawer::new(),
-            multisamples_simple_drawer: StandardMultisamplesSimpleDrawer::new(),
-            multisamples_hdr_drawer: StandardMultisamplesHdrDrawer::new(),
-            hdr_drawer: StandardHdrDrawer::new(),
+            simple_shading: StandardSimpleShading::new(),
+            multisamples_simple_shading: StandardMultisamplesSimpleShading::new(),
+            multisamples_hdr_shading: StandardMultisamplesHdrShading::new(),
+            hdr_shading: StandardHdrShading::new(),
             composer: StandardComposer::new(),
             cleanup: StandardCleanup::new(),
             picking: StandardPicking::new(),
+
+            gbuffer: StandardGBufferCollector::new(),
+            deferred_shading: StandardDeferredShading::new(),
 
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
@@ -528,75 +536,77 @@ impl StandardPipeline {
 }
 
 impl StandardPipeline {
-    fn draw(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    fn shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let lighting = self.lighting_enabled();
         let hdr = self.hdr_enabled() && self.hdr_supported;
-        let bloom_blur = self.bloom_enabled();
+        let bloom = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
         let multisamples = self.multisamples();
 
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // skips render if collect_entities unchanged and pipeline is not dirty
-        self.preparation.prepare(
-            state,
-            scene,
-            lighting,
-            &mut self.universal_ubo,
-            &mut self.lights_ubo,
-        )?;
+        let lights_ubo = if lighting {
+            Some(&mut self.lights_ubo)
+        } else {
+            None
+        };
+        self.preparation
+            .prepare(state, scene, &mut self.universal_ubo, lights_ubo)?;
 
+        // draw
+        let lights_ubo = if lighting {
+            Some(&self.lights_ubo)
+        } else {
+            None
+        };
         let compose_textures = unsafe {
             match (hdr, multisamples) {
                 (true, None) => {
-                    self.hdr_drawer.draw(
+                    self.hdr_shading.draw(
                         state,
-                        lighting,
-                        bloom_blur,
+                        bloom,
                         bloom_blur_epoch,
                         self.hdr_tone_mapping_type,
                         &collected_entities,
                         &self.universal_ubo,
-                        &self.lights_ubo,
+                        lights_ubo,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    [self.hdr_drawer.draw_texture().unwrap()]
+                    [self.hdr_shading.draw_texture().unwrap()]
                 }
                 (true, Some(samples)) => {
-                    self.multisamples_hdr_drawer.draw(
+                    self.multisamples_hdr_shading.draw(
                         state,
-                        lighting,
                         samples,
-                        bloom_blur,
+                        bloom,
                         bloom_blur_epoch,
                         self.hdr_tone_mapping_type,
                         &collected_entities,
                         &self.universal_ubo,
-                        &self.lights_ubo,
+                        lights_ubo,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    [self.multisamples_hdr_drawer.draw_texture().unwrap()]
+                    [self.multisamples_hdr_shading.draw_texture().unwrap()]
                 }
                 (false, None) => {
-                    self.simple_drawer.draw(
+                    self.simple_shading.draw(
                         state,
-                        lighting,
                         &collected_entities,
                         &self.universal_ubo,
-                        &self.lights_ubo,
+                        lights_ubo,
                     )?;
-                    [self.simple_drawer.draw_texture().unwrap()]
+                    [self.simple_shading.draw_texture().unwrap()]
                 }
                 (false, Some(samples)) => {
-                    self.multisamples_simple_drawer.draw(
+                    self.multisamples_simple_shading.draw(
                         state,
-                        lighting,
                         samples,
                         &collected_entities,
                         &self.universal_ubo,
-                        &self.lights_ubo,
+                        lights_ubo,
                     )?;
-                    [self.multisamples_simple_drawer.draw_texture().unwrap()]
+                    [self.multisamples_simple_shading.draw_texture().unwrap()]
                 }
             }
         };
@@ -606,7 +616,18 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn pick(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+        let collected_entities = self.entities_collector.collect_entities(state, scene);
+
+        unsafe {
+            self.gbuffer
+                .draw(state, &collected_entities, &self.universal_ubo)?;
+        }
+
+        Ok(())
+    }
+
+    fn picking(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // skips render if collect_entities unchanged and pipeline is not dirty
@@ -620,7 +641,7 @@ impl StandardPipeline {
         }
 
         unsafe {
-            self.picking.render(state, &collected_entities)?;
+            self.picking.draw(state, &collected_entities)?;
         }
 
         self.picking_dirty = false;
@@ -637,8 +658,15 @@ impl Pipeline for StandardPipeline {
 
     fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
         match self.pipeline_state {
-            StandardPipelineState::Draw => self.draw(state, scene),
-            StandardPipelineState::Pick => self.pick(state, scene),
+            StandardPipelineState::Shading => {
+                self.shading(state, scene)?;
+                self.deferred_shading(state, scene)?;
+                Ok(())
+            }
+            StandardPipelineState::DeferredShading => {
+                todo!()
+            }
+            StandardPipelineState::Picking => self.picking(state, scene),
         }
     }
 }

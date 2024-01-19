@@ -219,9 +219,8 @@ impl StandardPreparation {
         &mut self,
         state: &mut FrameState,
         scene: &mut Scene,
-        lighting: bool,
         universal_ubo: &mut BufferDescriptor,
-        lights_ubo: &mut BufferDescriptor,
+        mut lights_ubo: Option<&mut BufferDescriptor>,
     ) -> Result<(), Error> {
         state.gl().viewport(
             0,
@@ -230,7 +229,7 @@ impl StandardPreparation {
             state.canvas().height() as i32,
         );
         self.update_universal_ubo(universal_ubo, state)?;
-        if lighting {
+        if let Some(lights_ubo) = lights_ubo.as_mut() {
             self.update_lights_ubo(lights_ubo, state, scene)?;
         }
         Ok(())

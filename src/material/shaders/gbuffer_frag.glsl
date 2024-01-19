@@ -14,7 +14,7 @@ void main() {
     atoy_Material material = atoy_build_material(fragment);
 
     o_Position = vec4(fragment.position_ws, 1.0);
-    o_Normal = vec4(fragment.normal_ws, 0.0);
+    o_Normal = vec4(fragment.normal_ws, 1.0);
     o_AlbedoAndSpecularShininess = vec4(material.albedo, material.specular_shininess);
 }
 #endif
