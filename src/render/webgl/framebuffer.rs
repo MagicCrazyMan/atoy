@@ -114,8 +114,8 @@ pub struct Framebuffer {
 
     binding_target: Option<FramebufferTarget>,
     framebuffer: Option<WebGlFramebuffer>,
-    textures: Option<Vec<(WebGlTexture, TextureProvider)>>,
-    renderbuffers: Option<Vec<(WebGlRenderbuffer, RenderbufferProvider)>>,
+    textures: Option<Vec<WebGlTexture>>,
+    renderbuffers: Option<Vec<WebGlRenderbuffer>>,
     attachments: Vec<FramebufferAttachment>,
 
     draw_buffers: Array,
@@ -134,15 +134,17 @@ impl Drop for Framebuffer {
         self.gl.delete_framebuffer(Some(framebuffer));
         textures
             .iter()
-            .for_each(|(texture, _)| self.gl.delete_texture(Some(texture)));
+            .for_each(|texture| self.gl.delete_texture(Some(texture)));
         renderbuffers
             .iter()
-            .for_each(|(renderbuffer, _)| self.gl.delete_renderbuffer(Some(renderbuffer)));
+            .for_each(|renderbuffer| self.gl.delete_renderbuffer(Some(renderbuffer)));
     }
 }
 
 impl Framebuffer {
     /// Constructs a new framebuffer object.
+    ///
+    /// Multisamples does not works on [`TextureProvider`] and [`RenderbufferProvider::FromExisting`].
     pub fn new<
         TI: IntoIterator<Item = TextureProvider>,
         RI: IntoIterator<Item = RenderbufferProvider>,
@@ -190,13 +192,13 @@ impl Framebuffer {
         }
 
         if let Some(textures) = &mut self.textures {
-            for (texture, _) in textures {
+            for texture in textures {
                 self.gl.delete_texture(Some(&texture));
             }
         }
 
         if let Some(renderbuffers) = &mut self.renderbuffers {
-            for (renderbuffer, _) in renderbuffers {
+            for renderbuffer in renderbuffers {
                 self.gl.delete_renderbuffer(Some(&renderbuffer));
             }
         }
@@ -220,11 +222,7 @@ impl Framebuffer {
             self.height = drawing_buffer_height;
         }
 
-        self.create_framebuffer()?;
-        self.gl
-            .bind_framebuffer(target.gl_enum(), Some(self.framebuffer.as_ref().unwrap()));
-        self.create_textures(target)?;
-        self.create_renderbuffers(target)?;
+        self.create_framebuffer(target)?;
 
         if self.draw_buffers.length() > 0 {
             self.gl.draw_buffers(&self.draw_buffers);
@@ -333,16 +331,25 @@ impl Framebuffer {
         }
     }
 
-    fn create_framebuffer(&mut self) -> Result<(), Error> {
-        if self.framebuffer.is_some() {
-            return Ok(());
-        }
+    fn create_framebuffer(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+        match self.framebuffer.as_ref() {
+            Some(framebuffer) => {
+                self.gl
+                    .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
+            }
+            None => {
+                let framebuffer = self
+                    .gl
+                    .create_framebuffer()
+                    .ok_or(Error::CreateFramebufferFailure)?;
+                self.gl
+                    .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
+                self.framebuffer = Some(framebuffer);
 
-        let framebuffer = self
-            .gl
-            .create_framebuffer()
-            .ok_or(Error::CreateFramebufferFailure)?;
-        self.framebuffer = Some(framebuffer);
+                self.create_textures(target)?;
+                self.create_renderbuffers(target)?;
+            }
+        }
 
         Ok(())
     }
@@ -356,32 +363,56 @@ impl Framebuffer {
 
         let mut textures = Vec::with_capacity(self.texture_providers.len());
         for provider in &self.texture_providers {
-            let texture = self.gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-            self.gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-            self.gl
-                .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                    WebGl2RenderingContext::TEXTURE_2D,
-                    provider.level,
-                    provider.internal_format.gl_enum() as i32,
-                    self.width,
-                    self.height,
-                    0,
-                    provider.format.gl_enum(),
-                    provider.data_type.gl_enum(),
-                    None,
-                )
-                .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+            let (texture, attachment) = match provider {
+                TextureProvider::FromNew {
+                    attachment,
+                    internal_format,
+                    format,
+                    data_type,
+                } => {
+                    let texture = self
+                        .gl
+                        .create_texture()
+                        .ok_or(Error::CreateTextureFailure)?;
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+                    self.gl
+                        .tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                            WebGl2RenderingContext::TEXTURE_2D,
+                            0,
+                            internal_format.gl_enum() as i32,
+                            self.width,
+                            self.height,
+                            0,
+                            format.gl_enum(),
+                            data_type.gl_enum(),
+                            None,
+                        )
+                        .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+
+                    (texture, *attachment)
+                }
+                TextureProvider::FromExisting {
+                    attachment,
+                    texture,
+                } => {
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
+
+                    (texture.clone(), *attachment)
+                }
+            };
+
             self.gl.framebuffer_texture_2d(
                 target.gl_enum(),
-                provider.attachment.gl_enum(),
+                attachment.gl_enum(),
                 WebGl2RenderingContext::TEXTURE_2D,
                 Some(&texture),
-                provider.level,
+                0,
             );
 
-            textures.push((texture, *provider));
-            self.attachments.push(provider.attachment);
+            textures.push(texture);
+            self.attachments.push(attachment);
         }
 
         self.gl
@@ -398,36 +429,51 @@ impl Framebuffer {
 
         let mut renderbuffers = Vec::with_capacity(self.renderbuffer_providers.len());
         for provider in &self.renderbuffer_providers {
-            let renderbuffer = self
-                .gl
-                .create_renderbuffer()
-                .ok_or(Error::CreateRenderbufferFailure)?;
-            self.gl
-                .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-            match self.renderbuffer_samples() {
-                Some(samples) => self.gl.renderbuffer_storage_multisample(
-                    WebGl2RenderingContext::RENDERBUFFER,
-                    samples,
-                    provider.internal_format.gl_enum(),
-                    self.width,
-                    self.height,
-                ),
-                None => self.gl.renderbuffer_storage(
-                    WebGl2RenderingContext::RENDERBUFFER,
-                    provider.internal_format.gl_enum(),
-                    self.width,
-                    self.height,
-                ),
-            }
+            let (attachment, renderbuffer) = match provider {
+                RenderbufferProvider::FromNew {
+                    attachment,
+                    internal_format,
+                } => {
+                    let renderbuffer = self
+                        .gl
+                        .create_renderbuffer()
+                        .ok_or(Error::CreateRenderbufferFailure)?;
+                    self.gl.bind_renderbuffer(
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&renderbuffer),
+                    );
+                    match self.renderbuffer_samples() {
+                        Some(samples) => self.gl.renderbuffer_storage_multisample(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            samples,
+                            internal_format.gl_enum(),
+                            self.width,
+                            self.height,
+                        ),
+                        None => self.gl.renderbuffer_storage(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            internal_format.gl_enum(),
+                            self.width,
+                            self.height,
+                        ),
+                    }
+                    (*attachment, renderbuffer)
+                }
+                RenderbufferProvider::FromExisting {
+                    attachment,
+                    renderbuffer,
+                } => (*attachment, renderbuffer.clone()),
+            };
+
             self.gl.framebuffer_renderbuffer(
                 target.gl_enum(),
-                provider.attachment.gl_enum(),
+                attachment.gl_enum(),
                 WebGl2RenderingContext::RENDERBUFFER,
                 Some(&renderbuffer),
             );
 
-            renderbuffers.push((renderbuffer, *provider));
-            self.attachments.push(provider.attachment);
+            renderbuffers.push(renderbuffer);
+            self.attachments.push(attachment);
         }
 
         self.gl
@@ -462,7 +508,7 @@ impl Framebuffer {
         self.textures
             .as_ref()
             .and_then(|list| list.get(index))
-            .map(|(texture, _)| texture)
+            .map(|texture| texture)
     }
 
     /// Returns a [`WebGlRenderbuffer`] by index.
@@ -470,100 +516,99 @@ impl Framebuffer {
         self.renderbuffers
             .as_ref()
             .and_then(|list| list.get(index))
-            .map(|(renderbuffer, _)| renderbuffer)
+            .map(|renderbuffer| renderbuffer)
     }
 
-    /// Returns a list containing [`WebGlRenderbuffer`]s and [RenderbufferProvider``]s.
-    pub fn renderbuffers(&self) -> Option<&Vec<(WebGlRenderbuffer, RenderbufferProvider)>> {
-        self.renderbuffers.as_ref()
+    /// Returns a list containing [`WebGlRenderbuffer`]s.
+    pub fn renderbuffers(&self) -> Option<&[WebGlRenderbuffer]> {
+        match self.renderbuffers.as_ref() {
+            Some(renderbuffers) => Some(&renderbuffers),
+            None => None,
+        }
     }
 
-    /// Returns a list containing [`WebGlTexture`]s and [TextureProvider``]s.
-    pub fn textures(&self) -> Option<&Vec<(WebGlTexture, TextureProvider)>> {
-        self.textures.as_ref()
+    /// Returns a list containing [`WebGlTexture`]s.
+    pub fn textures(&self) -> Option<&[WebGlTexture]> {
+        match self.textures.as_ref() {
+            Some(textures) => Some(&textures),
+            None => None,
+        }
     }
 }
 
 /// Offscreen texture provider specifies texture configurations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TextureProvider {
-    attachment: FramebufferAttachment,
-    internal_format: TextureInternalFormat,
-    format: TextureFormat,
-    data_type: TextureDataType,
-    level: i32,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextureProvider {
+    FromNew {
+        attachment: FramebufferAttachment,
+        internal_format: TextureInternalFormat,
+        format: TextureFormat,
+        data_type: TextureDataType,
+    },
+    FromExisting {
+        attachment: FramebufferAttachment,
+        texture: WebGlTexture,
+    },
 }
 
 impl TextureProvider {
-    /// Constructs a new texture provider.
+    /// Constructs a new texture provider by creating new [`WebGlTexture`].
     pub fn new(
         attachment: FramebufferAttachment,
         internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
-        level: i32,
     ) -> Self {
-        Self {
+        Self::FromNew {
             attachment,
             internal_format,
             format,
             data_type,
-            level,
         }
     }
 
-    /// Returns [`FramebufferAttachment`].
-    pub fn attachment(&self) -> FramebufferAttachment {
-        self.attachment
-    }
-
-    /// Returns [`TextureInternalFormat`].
-    pub fn internal_format(&self) -> TextureInternalFormat {
-        self.internal_format
-    }
-
-    /// Returns [`TextureFormat`].
-    pub fn format(&self) -> TextureFormat {
-        self.format
-    }
-
-    /// Returns [`TextureDataType`].
-    pub fn data_type(&self) -> TextureDataType {
-        self.data_type
-    }
-
-    /// Returns framebuffer texture binding level.
-    pub fn level(&self) -> i32 {
-        self.level
+    /// Constructs a new renderbuffer provider by using a existing [`WebGlTexture`].
+    pub fn from_existing(attachment: FramebufferAttachment, texture: WebGlTexture) -> Self {
+        Self::FromExisting {
+            attachment,
+            texture,
+        }
     }
 }
 
 /// Offscreen renderbuffer provider specifies renderbuffer configurations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RenderbufferProvider {
-    attachment: FramebufferAttachment,
-    internal_format: RenderbufferInternalFormat,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RenderbufferProvider {
+    FromNew {
+        attachment: FramebufferAttachment,
+        internal_format: RenderbufferInternalFormat,
+    },
+    FromExisting {
+        attachment: FramebufferAttachment,
+        renderbuffer: WebGlRenderbuffer,
+    },
 }
 
 impl RenderbufferProvider {
-    /// Constructs a new renderbuffer provider.
+    /// Constructs a new renderbuffer provider by creating new [`WebGlRenderbuffer`].
     pub fn new(
         attachment: FramebufferAttachment,
         internal_format: RenderbufferInternalFormat,
     ) -> Self {
-        Self {
+        Self::FromNew {
             internal_format,
             attachment,
         }
     }
 
-    /// Returns [`FramebufferAttachment`].
-    pub fn attachment(&self) -> FramebufferAttachment {
-        self.attachment
-    }
-
-    /// Returns [`RenderbufferInternalFormat`].
-    pub fn internal_format(&self) -> RenderbufferInternalFormat {
-        self.internal_format
+    /// Constructs a new renderbuffer provider by using a existing [`WebGlRenderbuffer`].
+    pub fn from_existing(
+        attachment: FramebufferAttachment,
+        renderbuffer: WebGlRenderbuffer,
+    ) -> Self {
+        Self::FromExisting {
+            attachment,
+            renderbuffer,
+        }
     }
 }

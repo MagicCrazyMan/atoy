@@ -50,14 +50,12 @@ impl StandardPicking {
                         TextureInternalFormat::R32UI,
                         TextureFormat::RED_INTEGER,
                         TextureDataType::UNSIGNED_INT,
-                        0,
                     ),
                     TextureProvider::new(
                         FramebufferAttachment::COLOR_ATTACHMENT1,
                         TextureInternalFormat::RGBA32UI,
                         TextureFormat::RGBA_INTEGER,
                         TextureDataType::UNSIGNED_INT,
-                        0,
                     ),
                 ],
                 [RenderbufferProvider::new(

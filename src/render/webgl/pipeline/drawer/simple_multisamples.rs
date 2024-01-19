@@ -36,7 +36,6 @@ impl StandardMultisamplesSimpleDrawer {
                     TextureInternalFormat::RGBA,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
-                    0,
                 )],
                 [],
                 [],

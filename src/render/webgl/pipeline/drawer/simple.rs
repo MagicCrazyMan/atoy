@@ -32,7 +32,6 @@ impl StandardSimpleDrawer {
                     TextureInternalFormat::RGBA,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
-                    0,
                 )],
                 [RenderbufferProvider::new(
                     FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
