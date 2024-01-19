@@ -18,7 +18,7 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::entity::{Entity, GroupOptions, EntityOptions};
+use crate::entity::{Entity, EntityOptions, GroupOptions};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -155,7 +155,6 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(0.6, 0.6, 0.6),
-        128.0,
         30f32.to_radians(),
         40f32.to_radians(),
     ));
@@ -165,7 +164,6 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(0.6, 0.6, 0.6),
-        128.0,
         30f32.to_radians(),
         60f32.to_radians(),
     ));
@@ -181,21 +179,18 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(0.6, 0.6, 0.6),
-        128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 0.0),
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.39, 0.39, 0.39),
         Vec3::new(10.6, 10.6, 10.6),
-        128.0,
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(8.0, 0.5, 0.0),
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.69, 0.69, 0.69),
         Vec3::new(0.3, 0.3, 0.3),
-        64.0,
     ));
     Ok(scene)
 }
@@ -243,7 +238,11 @@ pub fn test_cube(
     render_callback: &Function,
     pick_callback: &Function,
 ) -> Result<Viewer, Error> {
-    let camera = create_camera(Vec3::new(0.0, 5.0, 5.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let camera = create_camera(
+        Vec3::new(0.0, 5.0, 5.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let mut scene = create_scene()?;
     // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
 
@@ -264,6 +263,7 @@ pub fn test_cube(
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
+            128.0,
             Transparency::Opaque,
         )));
         cube.set_model_matrix(model_matrix);
@@ -693,7 +693,11 @@ pub fn test_pick(
     render_callback: &Function,
     pick_callback: &Function,
 ) -> Result<(), Error> {
-    let camera = create_camera(Vec3::new(0.0, 3.0, 8.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let camera = create_camera(
+        Vec3::new(0.0, 3.0, 8.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    );
     let mut scene = create_scene()?;
 
     let cell_width = width / (grid as f64);
@@ -713,6 +717,7 @@ pub fn test_pick(
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
+            128.0,
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);

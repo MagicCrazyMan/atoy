@@ -1,11 +1,12 @@
 /**
- * Standard Vertex Shader Entry Source Code.
+ * Standard Vertex Shader Draw Source Code.
+ *
+ * Fucntion `atoy_OutputVertex atoy_build_vertex(atoy_InputVertex)` MUST be filled.
  */
-
 
 void main() {
     atoy_InputVertex input_vertex = atoy_InputVertex(a_Position, a_Normal, a_TexCoord);
-    atoy_OutputVertex output_vertex = atoy_process_vertex(input_vertex);
+    atoy_OutputVertex output_vertex = atoy_build_vertex(input_vertex);
 
     vec4 position_ws = output_vertex.position;
     vec4 position_es = u_ViewMatrix * position_ws;

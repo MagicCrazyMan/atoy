@@ -17,7 +17,6 @@ pub struct DirectionalLight {
     ambient: Vec3<f32>,
     diffuse: Vec3<f32>,
     specular: Vec3<f32>,
-    specular_shininess: f32,
 
     ubo: [f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH],
     dirty: bool,
@@ -30,7 +29,6 @@ impl DirectionalLight {
         ambient: Vec3<f32>,
         diffuse: Vec3<f32>,
         specular: Vec3<f32>,
-        specular_shininess: f32,
     ) -> Self {
         Self {
             enabled: true,
@@ -38,7 +36,6 @@ impl DirectionalLight {
             ambient,
             diffuse,
             specular,
-            specular_shininess,
 
             ubo: [0.0; UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH],
             dirty: true,
@@ -68,11 +65,6 @@ impl DirectionalLight {
     /// Returns directional light specular color.
     pub fn specular(&self) -> Vec3<f32> {
         self.specular
-    }
-
-    /// Returns directional light specular shininess.
-    pub fn specular_shininess(&self) -> f32 {
-        self.specular_shininess
     }
 
     /// Enables directional light.
@@ -111,12 +103,6 @@ impl DirectionalLight {
         self.dirty = true;
     }
 
-    /// Sets directional light specular shininess.
-    pub fn set_specular_shininess(&mut self, specular_shininess: f32) {
-        self.specular_shininess = specular_shininess;
-        self.dirty = true;
-    }
-
     /// Returns data in uniform buffer object alignment.
     pub fn ubo(&self) -> &[u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
@@ -143,7 +129,6 @@ impl DirectionalLight {
         self.ubo[4..7].copy_from_slice(self.ambient.gl_f32_borrowed());
         self.ubo[8..11].copy_from_slice(self.diffuse.gl_f32_borrowed());
         self.ubo[12..15].copy_from_slice(self.specular.gl_f32_borrowed());
-        self.ubo[15] = self.specular_shininess;
 
         self.dirty = false;
     }

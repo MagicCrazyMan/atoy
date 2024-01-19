@@ -111,7 +111,7 @@ pub trait StandardMaterialSource {
 }
 
 static DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
-    Cow::Borrowed(include_str!("./shaders/default_process_vert.glsl"));
+    Cow::Borrowed(include_str!("./shaders/default_build_vertex.glsl"));
 
 impl<S> ProgramSource for S
 where
@@ -134,7 +134,7 @@ where
             ],
             vec![
                 vertex_process,
-                Cow::Borrowed(include_str!("./shaders/entry_vert.glsl")),
+                Cow::Borrowed(include_str!("./shaders/draw_vert.glsl")),
             ],
         ))
     }
@@ -149,9 +149,9 @@ where
             ],
             vec![
                 Cow::Borrowed(include_str!("./shaders/lighting.glsl")),
-                Cow::Borrowed(include_str!("./shaders/bloom.glsl")),
                 self.fragment_process(),
-                Cow::Borrowed(include_str!("./shaders/entry_frag.glsl")),
+                Cow::Borrowed(include_str!("./shaders/draw_frag.glsl")),
+                Cow::Borrowed(include_str!("./shaders/gbuffer_frag.glsl")),
             ],
         ))
     }

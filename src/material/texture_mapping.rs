@@ -57,12 +57,16 @@ impl TextureMaterial {
 }
 
 impl StandardMaterial for TextureMaterial {
-    fn transparency(&self) -> Transparency {
-        self.transparency
-    }
-
     fn ready(&self) -> bool {
         self.diffuse_texture.loaded()
+    }
+
+    fn prepare(&mut self, _: &mut FrameState) {
+        self.diffuse_texture.load();
+    }
+
+    fn transparency(&self) -> Transparency {
+        self.transparency
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -77,8 +81,9 @@ impl StandardMaterial for TextureMaterial {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::NormalMatrix,
-            UniformBinding::Transparency,
             UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseTexture")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
         ]
     }
 
@@ -93,6 +98,8 @@ impl StandardMaterial for TextureMaterial {
     fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
             "u_DiffuseTexture" => self.diffuse_texture.texture(),
+            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
+            "u_SpecularShininess" => Some(UniformValue::Float1(128.0)),
             _ => None,
         }
     }
@@ -111,10 +118,6 @@ impl StandardMaterial for TextureMaterial {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-
-    fn prepare(&mut self, _: &mut FrameState) {
-        self.diffuse_texture.load();
     }
 
     fn as_standard_program_source(&self) -> &dyn StandardMaterialSource {
@@ -136,7 +139,7 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./shaders/texture_process_frag.glsl"))
+        Cow::Borrowed(include_str!("./shaders/texture_build_material.glsl"))
     }
 
     fn vertex_defines(&self) -> Vec<Cow<'static, str>> {

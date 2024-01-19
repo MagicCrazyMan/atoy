@@ -81,7 +81,6 @@ pub enum UniformBinding {
     ProjMatrix,
     ViewProjMatrix,
     CameraPosition,
-    Transparency,
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
@@ -100,7 +99,6 @@ impl UniformBinding {
             UniformBinding::ProjMatrix => "u_ProjMatrix",
             UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
             UniformBinding::CameraPosition => "u_CameraPosition",
-            UniformBinding::Transparency => "u_Transparency",
             UniformBinding::FromGeometry(name)
             | UniformBinding::FromMaterial(name)
             | UniformBinding::FromEntity(name) => name,

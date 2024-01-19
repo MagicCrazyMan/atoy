@@ -339,9 +339,6 @@ impl FrameState {
                     self.camera().position().gl_f32(),
                 )),
                 UniformBinding::RenderTime => Some(UniformValue::Float1(self.timestamp() as f32)),
-                UniformBinding::Transparency => {
-                    Some(UniformValue::Float1(material.transparency().alpha()))
-                }
                 UniformBinding::CanvasSize => Some(UniformValue::UnsignedIntegerVector2([
                     self.canvas.width(),
                     self.canvas.height(),

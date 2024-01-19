@@ -161,7 +161,7 @@ impl Scene {
         let click_callback = Closure::new(move |e| click_event.raise(e));
         self.canvas
             .add_event_listener_with_callback("click", click_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailed("click", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("click", err.as_string())))?;
 
         let double_click_event = self.double_click_event.clone();
         let double_click_callback = Closure::new(move |e| double_click_event.raise(e));
@@ -170,7 +170,7 @@ impl Scene {
                 "dbclick",
                 double_click_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("dbclick", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("dbclick", err.as_string())))?;
 
         let mouse_down_event = self.mouse_down_event.clone();
         let mouse_down_callback = Closure::new(move |e| mouse_down_event.raise(e));
@@ -179,7 +179,7 @@ impl Scene {
                 "mousedown",
                 mouse_down_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mousedown", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mousedown", err.as_string())))?;
 
         let mouse_enter_event = self.mouse_enter_event.clone();
         let mouse_enter_callback = Closure::new(move |e| mouse_enter_event.raise(e));
@@ -188,7 +188,7 @@ impl Scene {
                 "mouseenter",
                 mouse_enter_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mouseenter", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseenter", err.as_string())))?;
 
         let mouse_leave_event = self.mouse_leave_event.clone();
         let mouse_leave_callback = Closure::new(move |e| mouse_leave_event.raise(e));
@@ -197,7 +197,7 @@ impl Scene {
                 "mouseleave",
                 mouse_leave_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mouseleave", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseleave", err.as_string())))?;
 
         let mouse_move_event = self.mouse_move_event.clone();
         let mouse_move_callback = Closure::new(move |e| mouse_move_event.raise(e));
@@ -206,7 +206,7 @@ impl Scene {
                 "mousemove",
                 mouse_move_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mousemove", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mousemove", err.as_string())))?;
 
         let mouse_out_event = self.mouse_out_event.clone();
         let mouse_out_callback = Closure::new(move |e| mouse_out_event.raise(e));
@@ -215,7 +215,7 @@ impl Scene {
                 "mouseout",
                 mouse_out_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mouseout", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseout", err.as_string())))?;
 
         let mouse_over_event = self.mouse_over_event.clone();
         let mouse_over_callback = Closure::new(move |e| mouse_over_event.raise(e));
@@ -224,31 +224,31 @@ impl Scene {
                 "mouseover",
                 mouse_over_callback.as_ref().unchecked_ref(),
             )
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mouseover", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseover", err.as_string())))?;
 
         let mouse_up_event = self.mouse_up_event.clone();
         let mouse_up_callback = Closure::new(move |e| mouse_up_event.raise(e));
         self.canvas
             .add_event_listener_with_callback("mouseup", mouse_up_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailed("mouseup", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseup", err.as_string())))?;
 
         let wheel_event = self.wheel_event.clone();
         let wheel_callback = Closure::new(move |e| wheel_event.raise(e));
         self.canvas
             .add_event_listener_with_callback("wheel", wheel_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailed("wheel", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("wheel", err.as_string())))?;
 
         let key_down_event = self.key_down_event.clone();
         let key_down_callback = Closure::new(move |e| key_down_event.raise(e));
         self.canvas
             .add_event_listener_with_callback("keydown", key_down_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailed("keydown", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("keydown", err.as_string())))?;
 
         let key_up_event = self.key_up_event.clone();
         let key_up_callback = Closure::new(move |e| key_up_event.raise(e));
         self.canvas
             .add_event_listener_with_callback("keyup", key_up_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailed("keyup", err.as_string())))?;
+            .or_else(|err| Err(Error::AddEventCallbackFailure("keyup", err.as_string())))?;
 
         self.select_start_callback = Some(select_start_callback);
         self.click_callback = Some(click_callback);

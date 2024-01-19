@@ -6,8 +6,6 @@ use super::conversion::GLuint;
 #[derive(Debug, Clone)]
 pub enum Error {
     WebGL2Unsupported,
-    MountElementNotFound,
-    MountElementFailure,
     CreateProgramFailure,
     GetUniformIndicesFailure,
     CreateBufferFailure,

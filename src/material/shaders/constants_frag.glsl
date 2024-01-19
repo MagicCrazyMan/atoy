@@ -8,14 +8,6 @@ in vec3 v_PositionCS;
 in vec3 v_NormalWS;
 in vec2 v_TexCoord;
 
-uniform float u_Transparency;
-
-layout(location = 0) out vec4 o_Color;
-#ifdef BLOOM
-uniform vec3 u_BloomThreshold;
-layout(location = 1) out vec4 o_BloomColor;
-#endif
-
 /**
  * Input fragment difinition.
  * 
@@ -26,8 +18,7 @@ layout(location = 1) out vec4 o_BloomColor;
  * - `normal_ws`: Normal vector in WORLD space.
  * - `tex_coord`: Texture coordinate associated with.
  */
-struct atoy_Frag {
-    float transparency;
+struct atoy_Fragment {
     vec3 position_ws;
     vec3 position_es;
     vec3 position_cs;
@@ -38,14 +29,30 @@ struct atoy_Frag {
 /**
  * Output material difinition.
  * 
- * - `transparency`: Fragment transparency.
+ * - `transparency`: Transparency of the material.
+ * - `albedo`: Albedo color of the material.
  * - `ambient`: Ambient color of the material.
  * - `diffuse`: Diffuse color of the material.
  * - `specular`: Specular color of the material.
+ * - `specular_shininess`: Specular shininess of the material.
  */
 struct atoy_Material {
     float transparency;
+    vec3 albedo;
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+    float specular_shininess;
 };
+/**
+ * Build atoy_Fragment from varyings and uniforms.
+ */
+atoy_Fragment atoy_build_fragment() {
+    vec3 normal_ws;
+    if(gl_FrontFacing) {
+        normal_ws = normalize(v_NormalWS);
+    } else {
+        normal_ws = normalize(-v_NormalWS);
+    }
+    return atoy_Fragment(v_PositionWS, v_PositionES, v_PositionCS, normal_ws, v_TexCoord);
+}

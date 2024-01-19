@@ -22,7 +22,6 @@ pub struct AreaLight {
     ambient: Vec3<f32>,
     diffuse: Vec3<f32>,
     specular: Vec3<f32>,
-    specular_shininess: f32,
 
     ubo: [f32; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH],
     dirty: bool,
@@ -43,7 +42,6 @@ impl AreaLight {
         ambient: Vec3<f32>,
         diffuse: Vec3<f32>,
         specular: Vec3<f32>,
-        specular_shininess: f32,
     ) -> Self {
         let direction = direction.normalize();
         let up = up.normalize();
@@ -63,7 +61,6 @@ impl AreaLight {
             ambient,
             diffuse,
             specular,
-            specular_shininess,
 
             ubo: [0.0; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH],
             dirty: true,
@@ -133,11 +130,6 @@ impl AreaLight {
     /// Returns area light specular color.
     pub fn specular(&self) -> Vec3<f32> {
         self.specular
-    }
-
-    /// Returns area light specular shininess.
-    pub fn specular_shininess(&self) -> f32 {
-        self.specular_shininess
     }
 
     /// Enables area light.
@@ -229,12 +221,6 @@ impl AreaLight {
         self.dirty = true;
     }
 
-    /// Sets area light specular shininess.
-    pub fn set_specular_shininess(&mut self, specular_shininess: f32) {
-        self.specular_shininess = specular_shininess;
-        self.dirty = true;
-    }
-
     /// Returns data in uniform buffer object alignment.
     pub fn ubo(&self) -> &[u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
@@ -266,7 +252,6 @@ impl AreaLight {
         self.ubo[20..23].copy_from_slice(self.diffuse.gl_f32_borrowed());
         self.ubo[23] = self.outer_height;
         self.ubo[24..27].copy_from_slice(self.specular.gl_f32_borrowed());
-        self.ubo[27] = self.specular_shininess;
 
         self.dirty = false;
     }

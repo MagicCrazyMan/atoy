@@ -1,8 +1,8 @@
 /**
- * Standard Vertex Shader Process Function Source Code.
+ * Standard Vertex Shader Build Vertex Source Code.
  */
 
-atoy_OutputVertex atoy_process_vertex(atoy_InputVertex input_vertex) {
+atoy_OutputVertex atoy_build_vertex(atoy_InputVertex input_vertex) {
     vec4 position = u_ModelMatrix * input_vertex.position;
     vec4 normal = u_NormalMatrix * vec4(input_vertex.normal, 0.0);
 

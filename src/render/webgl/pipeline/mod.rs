@@ -6,6 +6,7 @@ pub mod picking;
 pub mod preparation;
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -25,7 +26,6 @@ use self::{
     drawer::{
         hdr::StandardHdrDrawer, hdr_multisamples::StandardMultisamplesHdrDrawer,
         simple::StandardSimpleDrawer, simple_multisamples::StandardMultisamplesSimpleDrawer,
-        HdrToneMappingType,
     },
     picking::StandardPicking,
     preparation::StandardPreparation,
@@ -203,6 +203,13 @@ pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 pub const DEFAULT_BLOOM_ENABLED: bool = false;
 pub const DEFAULT_BLOOM_BLUR_EPOCH: usize = 5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum HdrToneMappingType {
+    Reinhard,
+    Exposure(f32),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StandardPipelineState {
@@ -611,8 +618,6 @@ impl StandardPipeline {
         if !dirty {
             return Ok(());
         }
-
-        log::info!("222");
 
         unsafe {
             self.picking.render(state, &collected_entities)?;

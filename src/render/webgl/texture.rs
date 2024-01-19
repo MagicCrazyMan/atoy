@@ -23,6 +23,8 @@ pub enum TextureFormat {
     LUMINANCE,
     LUMINANCE_ALPHA,
     ALPHA,
+    DEPTH_COMPONENT,
+    DEPTH_STENCIL,
 }
 
 /// Available texture internal formats mapped from [`WebGl2RenderingContext`].

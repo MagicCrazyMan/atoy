@@ -15,7 +15,6 @@ pub struct SpotLight {
     ambient: Vec3<f32>,
     diffuse: Vec3<f32>,
     specular: Vec3<f32>,
-    specular_shininess: f32,
     inner_cutoff: f32,
     outer_cutoff: f32,
 
@@ -34,7 +33,6 @@ impl SpotLight {
         ambient: Vec3<f32>,
         diffuse: Vec3<f32>,
         specular: Vec3<f32>,
-        specular_shininess: f32,
         inner_cutoff: f32,
         outer_cutoff: f32,
     ) -> Self {
@@ -45,7 +43,6 @@ impl SpotLight {
             ambient,
             diffuse,
             specular,
-            specular_shininess,
             inner_cutoff: inner_cutoff,
             outer_cutoff: inner_cutoff.max(outer_cutoff),
 
@@ -82,11 +79,6 @@ impl SpotLight {
     /// Returns spot light specular color.
     pub fn specular(&self) -> Vec3<f32> {
         self.specular
-    }
-
-    /// Returns spot light specular shininess.
-    pub fn specular_shininess(&self) -> f32 {
-        self.specular_shininess
     }
 
     /// Enables spot light.
@@ -128,12 +120,6 @@ impl SpotLight {
     /// Sets spot light specular color.
     pub fn set_specular(&mut self, specular: Vec3<f32>) {
         self.specular = specular;
-        self.ubo_dirty = true;
-    }
-
-    /// Sets spot light specular shininess.
-    pub fn set_specular_shininess(&mut self, specular_shininess: f32) {
-        self.specular_shininess = specular_shininess;
         self.ubo_dirty = true;
     }
 
@@ -191,7 +177,6 @@ impl SpotLight {
         self.ubo[12..15].copy_from_slice(self.diffuse.gl_f32_borrowed());
         self.ubo[15] = self.outer_cutoff.cos();
         self.ubo[16..19].copy_from_slice(self.specular.gl_f32_borrowed());
-        self.ubo[19] = self.specular_shininess;
 
         self.ubo_dirty = false;
     }

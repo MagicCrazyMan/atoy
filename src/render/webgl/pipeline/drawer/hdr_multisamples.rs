@@ -8,7 +8,8 @@ use crate::render::webgl::{
         FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
     },
     pipeline::{
-        collector::CollectedEntities, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+        collector::CollectedEntities, HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING,
+        UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
@@ -17,8 +18,8 @@ use crate::render::webgl::{
 };
 
 use super::{
-    draw_entities, BloomBlendMapping, GaussianBlurMapping, HdrExposureToneMapping,
-    HdrReinhardToneMapping, HdrToneMappingType, BASE_TEXTURE_UNIFORM_NAME,
+    draw_entities, BloomBlendMappingProgram, GaussianBlurMappingProgram,
+    HdrExposureToneMappingProgram, HdrReinhardToneMappingProgram, BASE_TEXTURE_UNIFORM_NAME,
     BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
 };
 
@@ -323,11 +324,11 @@ impl StandardMultisamplesHdrDrawer {
         let program = match tone_mapping_type {
             HdrToneMappingType::Reinhard => state
                 .program_store_mut()
-                .use_program(&HdrReinhardToneMapping)?,
+                .use_program(&HdrReinhardToneMappingProgram)?,
             HdrToneMappingType::Exposure(exposure) => {
                 let program = state
                     .program_store_mut()
-                    .use_program(&HdrExposureToneMapping)?;
+                    .use_program(&HdrExposureToneMappingProgram)?;
                 state.bind_uniform_value_by_variable_name(
                     program,
                     HDR_EXPOSURE_UNIFORM_NAME,
@@ -455,7 +456,7 @@ impl StandardMultisamplesHdrDrawer {
 
             let program = state
                 .program_store_mut()
-                .use_program(&GaussianBlurMapping)?;
+                .use_program(&GaussianBlurMappingProgram)?;
 
             for i in 0..bloom_blur_epoch {
                 let (from, from_texture_index, to) = if i % 2 == 0 {
@@ -534,7 +535,9 @@ impl StandardMultisamplesHdrDrawer {
             let hdr_bloom_blend_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blend_framebuffer(state);
 
-            let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
+            let program = state
+                .program_store_mut()
+                .use_program(&BloomBlendMappingProgram)?;
             state.bind_uniform_value_by_variable_name(
                 program,
                 BASE_TEXTURE_UNIFORM_NAME,

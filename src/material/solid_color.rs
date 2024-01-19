@@ -18,7 +18,8 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 /// with ambient, diffuse and specular light colors all to be the same one.
 #[derive(Clone)]
 pub struct SolidColorMaterial {
-    color: Vec3,
+    color: Vec3<f32>,
+    specular_shininess: f32,
     transparency: Transparency,
     changed_event: EventAgency<()>,
 }
@@ -26,25 +27,30 @@ pub struct SolidColorMaterial {
 impl SolidColorMaterial {
     /// Constructs a solid color material with `(1.0, 0.0, 0.0, 1.0)``.
     pub fn new() -> Self {
-        Self::with_color(Vec3::new(1.0, 0.0, 0.0), Transparency::Opaque)
+        Self::with_color(Vec3::<f32>::new(1.0, 0.0, 0.0), 128.0, Transparency::Opaque)
     }
 
     /// Constructs a solid color material with specified color and transparency.
-    pub fn with_color(color: Vec3, transparency: Transparency) -> Self {
+    pub fn with_color(
+        color: Vec3<f32>,
+        specular_shininess: f32,
+        transparency: Transparency,
+    ) -> Self {
         Self {
             color,
+            specular_shininess,
             transparency,
             changed_event: EventAgency::new(),
         }
     }
 
     /// Returns color.
-    pub fn color(&self) -> Vec3 {
+    pub fn color(&self) -> Vec3<f32> {
         self.color
     }
 
     /// Sets color,
-    pub fn set_color(&mut self, color: Vec3, transparency: Transparency) {
+    pub fn set_color(&mut self, color: Vec3<f32>, transparency: Transparency) {
         self.color = color;
         self.transparency = transparency;
         self.changed_event.raise(());
@@ -52,12 +58,14 @@ impl SolidColorMaterial {
 }
 
 impl StandardMaterial for SolidColorMaterial {
-    fn transparency(&self) -> Transparency {
-        self.transparency
-    }
-
     fn ready(&self) -> bool {
         true
+    }
+
+    fn prepare(&mut self, _: &mut FrameState) {}
+
+    fn transparency(&self) -> Transparency {
+        self.transparency
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
@@ -71,8 +79,9 @@ impl StandardMaterial for SolidColorMaterial {
         &[
             UniformBinding::ModelMatrix,
             UniformBinding::NormalMatrix,
-            UniformBinding::Transparency,
             UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
         ]
     }
 
@@ -87,6 +96,8 @@ impl StandardMaterial for SolidColorMaterial {
     fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
             "u_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
+            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
+            "u_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
             _ => None,
         }
     }
@@ -94,8 +105,6 @@ impl StandardMaterial for SolidColorMaterial {
     fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
         None
     }
-
-    fn prepare(&mut self, _: &mut FrameState) {}
 
     fn changed_event(&self) -> &EventAgency<()> {
         &self.changed_event
@@ -128,7 +137,7 @@ impl StandardMaterialSource for SolidColorMaterial {
     }
 
     fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./shaders/solid_color_process_frag.glsl"))
+        Cow::Borrowed(include_str!("./shaders/solid_color_build_material.glsl"))
     }
 
     fn vertex_defines(&self) -> Vec<Cow<'static, str>> {

@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use serde::{Deserialize, Serialize};
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
@@ -21,6 +20,7 @@ use super::{
     UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
 };
 
+pub mod gbuffer;
 pub mod hdr;
 pub mod hdr_multisamples;
 pub mod simple;
@@ -36,11 +36,13 @@ const BLOOM_BLUR_TEXTURE_UNIFORM_NAME: &'static str = "u_BloomBlurTexture";
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value")]
-pub enum HdrToneMappingType {
-    Reinhard,
-    Exposure(f32),
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DrawType {
+    Drawer {
+        enable_lighting: bool,
+        enable_bloom_blur: bool,
+    },
+    GBuffer,
 }
 
 pub(self) unsafe fn draw_entities(
@@ -272,11 +274,11 @@ unsafe fn draw_translucent_entities(
     Ok(())
 }
 
-pub(self) struct HdrReinhardToneMapping;
+pub(self) struct HdrReinhardToneMappingProgram;
 
-impl ProgramSource for HdrReinhardToneMapping {
+impl ProgramSource for HdrReinhardToneMappingProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("HdrReinhardToneMapping")
+        Cow::Borrowed("HdrReinhardToneMappingProgram")
     }
 
     fn vertex_source(&self) -> VertexShaderSource {
@@ -290,11 +292,11 @@ impl ProgramSource for HdrReinhardToneMapping {
     }
 }
 
-pub(self) struct HdrExposureToneMapping;
+pub(self) struct HdrExposureToneMappingProgram;
 
-impl ProgramSource for HdrExposureToneMapping {
+impl ProgramSource for HdrExposureToneMappingProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("HdrExposureToneMapping")
+        Cow::Borrowed("HdrExposureToneMappingProgram")
     }
 
     fn vertex_source(&self) -> VertexShaderSource {
@@ -324,11 +326,11 @@ impl ProgramSource for BloomMapping {
     }
 }
 
-struct GaussianBlurMapping;
+struct GaussianBlurMappingProgram;
 
-impl ProgramSource for GaussianBlurMapping {
+impl ProgramSource for GaussianBlurMappingProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("GaussianBlurMapping")
+        Cow::Borrowed("GaussianBlurMappingProgram")
     }
 
     fn vertex_source(&self) -> VertexShaderSource {
@@ -340,11 +342,11 @@ impl ProgramSource for GaussianBlurMapping {
     }
 }
 
-struct BloomBlendMapping;
+struct BloomBlendMappingProgram;
 
-impl ProgramSource for BloomBlendMapping {
+impl ProgramSource for BloomBlendMappingProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("BloomBlendMapping")
+        Cow::Borrowed("BloomBlendMappingProgram")
     }
 
     fn vertex_source(&self) -> VertexShaderSource {

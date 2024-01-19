@@ -204,6 +204,8 @@ impl ToGlEnum for TextureFormat {
             TextureFormat::LUMINANCE => WebGl2RenderingContext::LUMINANCE,
             TextureFormat::LUMINANCE_ALPHA => WebGl2RenderingContext::LUMINANCE_ALPHA,
             TextureFormat::ALPHA => WebGl2RenderingContext::ALPHA,
+            TextureFormat::DEPTH_COMPONENT => WebGl2RenderingContext::DEPTH_COMPONENT,
+            TextureFormat::DEPTH_STENCIL => WebGl2RenderingContext::DEPTH_STENCIL,
         }
     }
 }

@@ -14,14 +14,13 @@ use crate::{
     entity::Entity,
     render::{
         webgl::{
-            error::Error,
-            pipeline::{drawer::HdrToneMappingType, StandardPipeline, StandardPipelineState},
+            pipeline::{HdrToneMappingType, StandardPipeline, StandardPipelineState},
             WebGL2Render,
         },
         Render,
     },
     request_animation_frame,
-    scene::Scene,
+    scene::Scene, error::Error,
 };
 
 // pub const DEFAULT_RENDER_WHEN_NEEDED: bool = false;
@@ -469,7 +468,8 @@ impl Viewer {
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;
             pipeline.set_pipeline_state(StandardPipelineState::Draw);
 
-            pipeline.pick_position(window_position_x, window_position_y)
+            let position = pipeline.pick_position(window_position_x, window_position_y)?;
+            Ok(position)
         }
     }
 

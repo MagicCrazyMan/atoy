@@ -103,7 +103,7 @@ impl StandardPicking {
         }
 
         // prepare material
-        let program = state.program_store_mut().use_program(&PickingMaterial)?;
+        let program = state.program_store_mut().use_program(&PickingProgram)?;
         let position_location = program
             .get_or_retrieve_attribute_locations(POSITION_ATTRIBUTE_NAME)
             .unwrap();
@@ -263,11 +263,11 @@ const INDEX_UNIFORM_NAME: &'static str = "u_Index";
 const MODEL_MATRIX_UNIFORM_NAME: &'static str = "u_ModelMatrix";
 const VIEW_PROJ_MATRIX_UNIFORM_NAME: &'static str = "u_ViewProjMatrix";
 
-struct PickingMaterial;
+struct PickingProgram;
 
-impl ProgramSource for PickingMaterial {
+impl ProgramSource for PickingProgram {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("PickingMaterial")
+        Cow::Borrowed("PickingProgram")
     }
 
     fn vertex_source(&self) -> VertexShaderSource {
