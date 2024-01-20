@@ -6,6 +6,7 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
+        shader::Define,
         state::FrameState,
         texture::{
             TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormat,
@@ -142,11 +143,11 @@ impl StandardMaterialSource for TextureMaterial {
         Cow::Borrowed(include_str!("./shaders/texture_build_material.glsl"))
     }
 
-    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+    fn vertex_defines(&self) -> Vec<Define> {
         vec![]
     }
 
-    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
+    fn fragment_defines(&self) -> Vec<Define> {
         vec![]
     }
 }

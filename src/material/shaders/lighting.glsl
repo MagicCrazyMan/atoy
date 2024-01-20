@@ -225,10 +225,10 @@ struct atoy_AreaLight {
 layout(std140) uniform atoy_Lights {
     vec3 u_Attenuations;
     atoy_AmbientLight u_AmbientLight;
-    atoy_DirectionalLight u_DirectionalLights[12];
-    atoy_PointLight u_PointLights[12];
-    atoy_SpotLight u_SpotLights[12];
-    atoy_AreaLight u_AreaLights[12];
+    atoy_DirectionalLight u_DirectionalLights[DIRECTIONAL_LIGHTS_COUNT];
+    atoy_PointLight u_PointLights[POINT_LIGHTS_COUNT];
+    atoy_SpotLight u_SpotLights[SPOT_LIGHTS_COUNT];
+    atoy_AreaLight u_AreaLights[AREA_LIGHTS_COUNT];
 };
 
 /**
@@ -390,22 +390,22 @@ vec3 atoy_lighting(vec3 camera_position, atoy_LightingFragment fragment, atoy_Li
     atoy_ambient_lighting(u_AmbientLight, material, lighting);
 
     // directional lights
-    for(int i = 0; i < 12; i++) {
+    for(int i = 0; i < DIRECTIONAL_LIGHTS_COUNT; i++) {
         atoy_directional_lighting(u_DirectionalLights[i], fragment, material, to_camera, lighting);
     }
 
     // point lights
-    for(int i = 0; i < 12; i++) {
+    for(int i = 0; i < POINT_LIGHTS_COUNT; i++) {
         atoy_point_lighting(u_PointLights[i], fragment, material, to_camera, lighting);
     }
 
     // spot lights 
-    for(int i = 0; i < 12; i++) {
+    for(int i = 0; i < SPOT_LIGHTS_COUNT; i++) {
         atoy_spot_lighting(u_SpotLights[i], fragment, material, to_camera, lighting);
     }
 
     // area lights 
-    for(int i = 0; i < 12; i++) {
+    for(int i = 0; i < AREA_LIGHTS_COUNT; i++) {
         atoy_area_lighting(u_AreaLights[i], fragment, material, to_camera, lighting);
     }
 

@@ -53,18 +53,23 @@ pub const UBO_LIGHTS_BINDING: u32 = 1;
 /// Uniform Buffer Object mount point for gaussian blur.
 pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
 
-/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = 16 + 16 + 64 + 64 + 64;
 /// Uniform Buffer Object bytes length for `u_RenderTime`.
-pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 4;
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: u32 = 16;
 /// Uniform Buffer Object bytes length for `u_CameraPosition`.
-pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 12;
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: u32 = 16;
 /// Uniform Buffer Object bytes length for `u_ViewMatrix`.
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: u32 = 64;
 /// Uniform Buffer Object bytes length for `u_ProjMatrix`.
 pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
 /// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: u32 = 64;
+
+/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: u32 = UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH;
 
 /// Uniform Buffer Object bytes offset for `u_RenderTime`.
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: u32 = 0;
@@ -77,15 +82,8 @@ pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: u32 = 96;
 /// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: u32 = 160;
 
-/// Uniform Buffer Object bytes length for `atoy_Lights`.
-pub const UBO_LIGHTS_BYTES_LENGTH: u32 = 16
-    + 16
-    + 64 * MAX_DIRECTIONAL_LIGHTS as u32
-    + 64 * MAX_POINT_LIGHTS as u32
-    + 80 * MAX_SPOT_LIGHTS as u32
-    + 112 * MAX_AREA_LIGHTS as u32;
 /// Uniform Buffer Object bytes length for `u_Attenuations`.
-pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 12;
+pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: u32 = 16;
 /// Uniform Buffer Object bytes length for a `u_AmbientLight` item.
 pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: u32 = 16;
 /// Uniform Buffer Object bytes length for a `u_DirectionalLights` item.
@@ -97,6 +95,14 @@ pub const UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH: u32 = 80;
 /// Uniform Buffer Object bytes length for a `u_AreaLights` item.
 pub const UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH: u32 = 112;
 
+/// Uniform Buffer Object bytes length for `atoy_Lights`.
+pub const UBO_LIGHTS_BYTES_LENGTH: u32 = UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH
+    + UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH
+    + UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH * MAX_DIRECTIONAL_LIGHTS as u32
+    + UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH * MAX_POINT_LIGHTS as u32
+    + UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH * MAX_SPOT_LIGHTS as u32
+    + UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH * MAX_AREA_LIGHTS as u32;
+
 /// Uniform Buffer Object bytes offset for `u_Attenuations`.
 pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: u32 = 0;
 /// Uniform Buffer Object bytes offset for `u_AmbientLight`.
@@ -104,11 +110,14 @@ pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: u32 = 16;
 /// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
 pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: u32 = 32;
 /// Uniform Buffer Object bytes offset for `u_PointLights`.
-pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = 800;
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: u32 = UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET
+    + MAX_DIRECTIONAL_LIGHTS as u32 * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH;
 /// Uniform Buffer Object bytes offset for `u_SpotLights`.
-pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = 1568;
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: u32 = UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET
+    + MAX_POINT_LIGHTS as u32 * UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH;
 /// Uniform Buffer Object bytes offset for `u_AreaLights`.
-pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = 2528;
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: u32 = UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET
+    + MAX_SPOT_LIGHTS as u32 * UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH;
 
 /// Uniform Buffer Object data in f32 for `atoy_GaussianKernel`.
 #[rustfmt::skip]
@@ -251,9 +260,6 @@ pub struct StandardPipeline {
     hdr_tone_mapping_type: HdrToneMappingType,
     enable_bloom: bool,
     bloom_blur_epoch: usize,
-
-    picking_dirty: bool,
-    last_picking_collected_entities_id: Option<usize>,
 }
 
 impl StandardPipeline {
@@ -308,16 +314,11 @@ impl StandardPipeline {
             hdr_tone_mapping_type: DEFAULT_HDR_TONE_MAPPING_TYPE,
             enable_bloom: DEFAULT_BLOOM_ENABLED,
             bloom_blur_epoch: DEFAULT_BLOOM_BLUR_EPOCH,
-
-            picking_dirty: true,
-            last_picking_collected_entities_id: None,
         }
     }
 
     #[inline]
-    pub fn set_dirty(&mut self) {
-        self.picking_dirty = true;
-    }
+    pub fn set_dirty(&mut self) {}
 
     #[inline]
     pub fn pipeline_shading(&self) -> StandardPipelineShading {
@@ -513,18 +514,12 @@ impl StandardPipeline {
     }
 
     /// Returns picked entity index.
-    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
     pub unsafe fn pick_entity(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<&mut Entity>, Error> {
-        if self.picking_dirty {
-            return Ok(None);
-        }
-        if self.last_picking_collected_entities_id.is_none() {
-            return Ok(None);
-        }
         let Some(last_collected_entities) = self.entities_collector.last_collected_entities()
         else {
             return Ok(None);
@@ -538,7 +533,7 @@ impl StandardPipeline {
     }
 
     /// Returns picked entity id.
-    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
     pub unsafe fn pick_entity_id(
         &mut self,
         window_position_x: i32,
@@ -551,21 +546,22 @@ impl StandardPipeline {
     }
 
     /// Returns picked position.
-    /// Executes [`StandardPipeline::pick`] before calling this method, or the result maybe incorrect.
+    /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
     pub unsafe fn pick_position(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        if self.picking_dirty {
+        let Some(last_collected_entities) = self.entities_collector.last_collected_entities()
+        else {
             return Ok(None);
-        }
-        if self.last_picking_collected_entities_id.is_none() {
-            return Ok(None);
-        }
+        };
 
-        self.picking
-            .pick_position(window_position_x, window_position_y)
+        self.picking.pick_position(
+            window_position_x,
+            window_position_y,
+            &last_collected_entities,
+        )
     }
 }
 
@@ -671,22 +667,9 @@ impl StandardPipeline {
     fn picking(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
-        // skips render if collect_entities unchanged and pipeline is not dirty
-        let dirty = self.picking_dirty
-            || self
-                .last_picking_collected_entities_id
-                .map(|id| id != collected_entities.id())
-                .unwrap_or(true);
-        if !dirty {
-            return Ok(());
-        }
-
         unsafe {
             self.picking.draw(state, &collected_entities)?;
         }
-
-        self.picking_dirty = false;
-        self.last_picking_collected_entities_id = Some(collected_entities.id());
 
         Ok(())
     }

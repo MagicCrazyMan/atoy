@@ -6,7 +6,7 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{
     error::Error,
     program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
-    shader::ShaderBuilder,
+    shader::{Define, ShaderBuilder},
     state::FrameState,
     texture::TextureUnit,
     uniform::UniformValue,
@@ -87,7 +87,7 @@ impl StandardComposer {
             state.program_store_mut().use_program_with_defines(
                 &ComposerProgram,
                 &[],
-                &[Cow::Borrowed(GAMMA_CORRECTION_DEFINE)],
+                &[Define::WithoutValue(Cow::Borrowed(GAMMA_CORRECTION_DEFINE))],
             )?
         } else {
             state.program_store_mut().use_program(&ComposerProgram)?

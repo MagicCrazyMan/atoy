@@ -2,7 +2,7 @@ in vec2 v_TexCoord;
 
 uniform sampler2D u_PositionsAndSpecularShininessTexture;
 uniform sampler2D u_NormalsTexture;
-uniform sampler2D u_AlbedoAndTransparencyTexture;
+uniform sampler2D u_AlbedoTexture;
 
 out vec4 o_Color;
 
@@ -13,7 +13,7 @@ void main() {
 
     vec3 normal = texture(u_NormalsTexture, v_TexCoord).xyz;
 
-    vec4 albedo_and_transparency = texture(u_AlbedoAndTransparencyTexture, v_TexCoord);
+    vec4 albedo_and_transparency = texture(u_AlbedoTexture, v_TexCoord);
     vec3 albedo = albedo_and_transparency.xyz;
     float transparency = albedo_and_transparency.a;
 

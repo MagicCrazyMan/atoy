@@ -4,22 +4,30 @@ use std::borrow::Cow;
 
 use web_sys::WebGlTexture;
 
-use crate::render::webgl::{
-    buffer::BufferDescriptor,
-    error::Error,
-    framebuffer::{
-        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
-        TextureProvider,
+use crate::{
+    light::{
+        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS},
+        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
+        point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
+        spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
     },
-    pipeline::{
-        UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
-        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+    render::webgl::{
+        buffer::BufferDescriptor,
+        error::Error,
+        framebuffer::{
+            ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy,
+            FramebufferTarget, TextureProvider,
+        },
+        pipeline::{
+            UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
+            UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        },
+        program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
+        shader::{Define, ShaderBuilder},
+        state::FrameState,
+        texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
+        uniform::{UniformBlockValue, UniformValue},
     },
-    program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
-    shader::ShaderBuilder,
-    state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
-    uniform::{UniformBlockValue, UniformValue},
 };
 
 use super::LIGHTING_DEFINE;
@@ -58,9 +66,9 @@ impl StandardDeferredShading {
     pub fn draw(
         &mut self,
         state: &mut FrameState,
-        positions_texture: &WebGlTexture,
+        positions_and_specular_shininess_texture: &WebGlTexture,
         normals_texture: &WebGlTexture,
-        albedo_and_specular_shininess_texture: &WebGlTexture,
+        albedo_texture: &WebGlTexture,
         universal_ubo: &BufferDescriptor,
         lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
@@ -71,7 +79,7 @@ impl StandardDeferredShading {
             let program = state.program_store_mut().use_program_with_defines(
                 &DeferredShadingProgram,
                 &[],
-                &[Cow::Borrowed(LIGHTING_DEFINE)],
+                &[Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE))],
             )?;
 
             // binds atoy_Lights
@@ -113,14 +121,17 @@ impl StandardDeferredShading {
         )?;
         state.bind_uniform_value_by_variable_name(
             program,
-            ALBEDO_AND_TRANSPARENCY_TEXTURE_UNIFORM_NAME,
+            ALBEDO_TEXTURE_UNIFORM_NAME,
             UniformValue::Integer1(2),
         )?;
 
         state.do_computation([
-            (positions_texture, TextureUnit::TEXTURE0),
+            (
+                positions_and_specular_shininess_texture,
+                TextureUnit::TEXTURE0,
+            ),
             (normals_texture, TextureUnit::TEXTURE1),
-            (albedo_and_specular_shininess_texture, TextureUnit::TEXTURE2),
+            (albedo_texture, TextureUnit::TEXTURE2),
         ]);
 
         self.framebuffer(state).unbind();
@@ -132,7 +143,7 @@ impl StandardDeferredShading {
 const POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME: &'static str =
     "u_PositionsAndSpecularShininessTexture";
 const NORMALS_TEXTURE_UNIFORM_NAME: &'static str = "u_NormalsTexture";
-const ALBEDO_AND_TRANSPARENCY_TEXTURE_UNIFORM_NAME: &'static str = "u_AlbedoAndTransparencyTexture";
+const ALBEDO_TEXTURE_UNIFORM_NAME: &'static str = "u_AlbedoTexture";
 
 struct DeferredShadingProgram;
 
@@ -150,7 +161,24 @@ impl ProgramSource for DeferredShadingProgram {
     fn fragment_source(&self) -> FragmentShaderSource {
         FragmentShaderSource::Builder(ShaderBuilder::new(
             true,
-            vec![],
+            vec![
+                Define::WithValue(
+                    Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
+                    Cow::Owned(MAX_DIRECTIONAL_LIGHTS.to_string()),
+                ),
+                Define::WithValue(
+                    Cow::Borrowed(POINT_LIGHTS_COUNT_DEFINE),
+                    Cow::Owned(MAX_POINT_LIGHTS.to_string()),
+                ),
+                Define::WithValue(
+                    Cow::Borrowed(SPOT_LIGHTS_COUNT_DEFINE),
+                    Cow::Owned(MAX_SPOT_LIGHTS.to_string()),
+                ),
+                Define::WithValue(
+                    Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
+                    Cow::Owned(MAX_AREA_LIGHTS.to_string()),
+                ),
+            ],
             vec![Cow::Borrowed(include_str!(
                 "../../../../../material/shaders/constants.glsl"
             ))],

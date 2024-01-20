@@ -4,10 +4,16 @@ use rand::distributions::{Distribution, Standard};
 
 use crate::{
     event::EventAgency,
+    light::{
+        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS},
+        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
+        point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
+        spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
+    },
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
-        shader::ShaderBuilder,
+        shader::{Define, ShaderBuilder},
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
@@ -104,13 +110,13 @@ pub trait StandardMaterialSource {
     fn fragment_process(&self) -> Cow<'static, str>;
 
     /// Returns custom vertex shader defines arguments.
-    fn vertex_defines(&self) -> Vec<Cow<'static, str>>;
+    fn vertex_defines(&self) -> Vec<Define>;
 
     /// Returns custom fragment shader defines arguments.
-    fn fragment_defines(&self) -> Vec<Cow<'static, str>>;
+    fn fragment_defines(&self) -> Vec<Define>;
 }
 
-static DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
+const DEFAULT_VERTEX_PROCESS: Cow<'static, str> =
     Cow::Borrowed(include_str!("./shaders/default_build_vertex.glsl"));
 
 impl<S> ProgramSource for S
@@ -140,9 +146,28 @@ where
     }
 
     fn fragment_source(&self) -> FragmentShaderSource {
+        let mut defines = vec![
+            Define::WithValue(
+                Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
+                Cow::Owned(MAX_DIRECTIONAL_LIGHTS.to_string()),
+            ),
+            Define::WithValue(
+                Cow::Borrowed(POINT_LIGHTS_COUNT_DEFINE),
+                Cow::Owned(MAX_POINT_LIGHTS.to_string()),
+            ),
+            Define::WithValue(
+                Cow::Borrowed(SPOT_LIGHTS_COUNT_DEFINE),
+                Cow::Owned(MAX_SPOT_LIGHTS.to_string()),
+            ),
+            Define::WithValue(
+                Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
+                Cow::Owned(MAX_AREA_LIGHTS.to_string()),
+            ),
+        ];
+        defines.extend(self.fragment_defines());
         FragmentShaderSource::Builder(ShaderBuilder::new(
             true,
-            self.fragment_defines(),
+            defines,
             vec![
                 Cow::Borrowed(include_str!("./shaders/constants.glsl")),
                 Cow::Borrowed(include_str!("./shaders/constants_frag.glsl")),

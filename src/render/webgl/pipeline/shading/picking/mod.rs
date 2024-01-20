@@ -28,6 +28,7 @@ pub struct StandardPicking {
     pixel: Uint32Array,
 
     last_gl: Option<WebGl2RenderingContext>,
+    last_picking_collected_entities_id: Option<usize>,
 }
 
 impl StandardPicking {
@@ -37,6 +38,7 @@ impl StandardPicking {
             pixel: Uint32Array::new_with_length(4),
 
             last_gl: None,
+            last_picking_collected_entities_id: None,
         }
     }
 
@@ -79,7 +81,14 @@ impl StandardPicking {
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
     ) -> Result<(), Error> {
-        self.last_gl = None;
+        // skips render if collect_entities unchanged and pipeline is not dirty
+        if self
+            .last_picking_collected_entities_id
+            .map(|id| id == collected_entities.id())
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
 
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         self.framebuffer(&state)
@@ -156,6 +165,7 @@ impl StandardPicking {
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         self.last_gl = Some(state.gl().clone());
+        self.last_picking_collected_entities_id = Some(collected_entities.id());
 
         Ok(())
     }
@@ -167,6 +177,13 @@ impl StandardPicking {
         window_position_y: i32,
         collected_entities: &CollectedEntities,
     ) -> Result<Option<&mut Entity>, Error> {
+        if self
+            .last_picking_collected_entities_id
+            .map(|id| id != collected_entities.id())
+            .unwrap_or(true)
+        {
+            return Ok(None);
+        };
         let Some(fbo) = self.framebuffer.as_mut() else {
             return Ok(None);
         };
@@ -207,7 +224,15 @@ impl StandardPicking {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
+        collected_entities: &CollectedEntities,
     ) -> Result<Option<Vec3>, Error> {
+        if self
+            .last_picking_collected_entities_id
+            .map(|id| id != collected_entities.id())
+            .unwrap_or(true)
+        {
+            return Ok(None);
+        };
         let Some(fbo) = self.framebuffer.as_mut() else {
             return Ok(None);
         };

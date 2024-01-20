@@ -7,6 +7,7 @@ use crate::{
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
+        shader::Define,
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
@@ -140,11 +141,11 @@ impl StandardMaterialSource for SolidColorMaterial {
         Cow::Borrowed(include_str!("./shaders/solid_color_build_material.glsl"))
     }
 
-    fn vertex_defines(&self) -> Vec<Cow<'static, str>> {
+    fn vertex_defines(&self) -> Vec<Define> {
         vec![]
     }
 
-    fn fragment_defines(&self) -> Vec<Cow<'static, str>> {
+    fn fragment_defines(&self) -> Vec<Define> {
         vec![]
     }
 }

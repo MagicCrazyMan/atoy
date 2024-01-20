@@ -13,20 +13,15 @@ use crate::{
 use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH, UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING,
+    UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING,
     UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
     UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
     UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
 };
 
@@ -52,7 +47,7 @@ impl StandardPreparation {
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH / 4,
+            1,
         )
         .set_index(0, state.timestamp() as f32);
 
@@ -60,7 +55,7 @@ impl StandardPreparation {
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH / 4,
+            3,
         )
         .copy_from(&state.camera().position().gl_f32());
 
@@ -68,7 +63,7 @@ impl StandardPreparation {
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH / 4,
+            16,
         )
         .copy_from(&state.camera().view_matrix().gl_f32());
 
@@ -76,7 +71,7 @@ impl StandardPreparation {
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH / 4,
+            16,
         )
         .copy_from(&state.camera().proj_matrix().gl_f32());
 
@@ -84,11 +79,14 @@ impl StandardPreparation {
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH / 4,
+            16,
         )
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
-        universal_ubo.buffer_sub_data(BufferSource::from_array_buffer(self.universal_data.clone()), 0);
+        universal_ubo.buffer_sub_data(
+            BufferSource::from_array_buffer(self.universal_data.clone()),
+            0,
+        );
         state.buffer_store_mut().bind_uniform_buffer_object(
             universal_ubo,
             UBO_UNIVERSAL_UNIFORMS_BINDING,
@@ -114,7 +112,7 @@ impl StandardPreparation {
                 BufferSource::from_binary(
                     scene.light_attenuations().gl_u8_borrowed().clone(),
                     0,
-                    UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH,
+                    12,
                 ),
                 UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET as i32,
             );

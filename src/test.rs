@@ -247,10 +247,172 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(1.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-1.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, -1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, -2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, -1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 3.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 3.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 4.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 5.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 6.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
         Vec3::new(8.0, 0.5, 0.0),
         Vec3::new(0.01, 0.01, 0.01),
         Vec3::new(0.69, 0.69, 0.69),
         Vec3::new(0.3, 0.3, 0.3),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 0.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 1.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(2.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(1.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(0.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-1.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
+    ));
+    scene.add_point_light(PointLight::new(
+        Vec3::new(-2.0, 1.5, 2.0),
+        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(10.6, 10.6, 10.6),
     ));
     Ok(scene)
 }
@@ -324,7 +486,7 @@ pub fn test_cube(
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
-            Transparency::Opaque,
+            rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);

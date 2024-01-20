@@ -1,12 +1,48 @@
 use std::borrow::Cow;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Define {
+    WithValue(Cow<'static, str>, Cow<'static, str>),
+    WithoutValue(Cow<'static, str>),
+}
+
+impl Define {
+    pub fn name(&self) -> &Cow<'static, str> {
+        match self {
+            Define::WithValue(name, _) | Define::WithoutValue(name) => name,
+        }
+    }
+
+    pub fn value(&self) -> Option<&Cow<'static, str>> {
+        match self {
+            Define::WithValue(_, value) => Some(value),
+            Define::WithoutValue(_) => None,
+        }
+    }
+
+    pub fn build_code(&self) -> String {
+        let mut code = String::new();
+        code.push_str("#define ");
+        match self {
+            Define::WithValue(name, value) => {
+                code.push_str(name);
+                code.push_str(" ");
+                code.push_str(value);
+            }
+            Define::WithoutValue(name) => code.push_str(name),
+        };
+        code.push_str("\n");
+        code
+    }
+}
+
 /// GLSL shaders builder.
 ///
 /// Only GLSL version 300 es supported.
 #[derive(Clone)]
 pub struct ShaderBuilder {
     include_header: bool,
-    defines: Vec<Cow<'static, str>>,
+    defines: Vec<Define>,
     prepends: Vec<Cow<'static, str>>,
     appends: Vec<Cow<'static, str>>,
 }
@@ -15,7 +51,7 @@ impl ShaderBuilder {
     /// Constructs a new shader builder.
     pub fn new(
         include_header: bool,
-        defines: Vec<Cow<'static, str>>,
+        defines: Vec<Define>,
         prepends: Vec<Cow<'static, str>>,
         appends: Vec<Cow<'static, str>>,
     ) -> Self {
@@ -36,11 +72,11 @@ impl ShaderBuilder {
     }
 
     /// Returns defines source code.
-    pub fn defines(&self) -> &[Cow<'static, str>] {
+    pub fn defines(&self) -> &[Define] {
         &self.defines
     }
 
-    pub fn defines_mut(&mut self) -> &mut Vec<Cow<'static, str>> {
+    pub fn defines_mut(&mut self) -> &mut Vec<Define> {
         &mut self.defines
     }
 
@@ -70,9 +106,7 @@ impl ShaderBuilder {
             source.push_str(VERTEX_SHADER_PREPEND);
         }
         self.defines.iter().for_each(|define| {
-            source.push_str("#define ");
-            source.push_str(define);
-            source.push_str("\n");
+            source.push_str(&define.build_code());
         });
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);
@@ -94,9 +128,7 @@ impl ShaderBuilder {
             source.push_str(FRAGMENT_SHADER_PREPEND);
         }
         self.defines.iter().for_each(|define| {
-            source.push_str("#define ");
-            source.push_str(define);
-            source.push_str("\n");
+            source.push_str(&define.build_code());
         });
         self.prepends.iter().for_each(|prepend| {
             source.push_str(prepend);

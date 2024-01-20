@@ -3,7 +3,8 @@ use gl_matrix4rust::{vec3::Vec3, GLF32Borrowed, GLF32};
 use crate::render::webgl::pipeline::UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH;
 
 /// Maximum point lights.
-pub const MAX_POINT_LIGHTS: usize = 12;
+pub const MAX_POINT_LIGHTS: usize = 40;
+pub const POINT_LIGHTS_COUNT_DEFINE: &'static str = "POINT_LIGHTS_COUNT";
 
 const UBO_LIGHTS_POINT_LIGHTS_F32_LENGTH: usize = UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH as usize / 4;
 

@@ -4,7 +4,11 @@ use hashbrown::HashMap;
 use log::warn;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use super::{conversion::GLuint, error::Error, shader::ShaderBuilder};
+use super::{
+    conversion::GLuint,
+    error::Error,
+    shader::{Define, ShaderBuilder},
+};
 
 /// Source providing basic data for compiling a [`WebGlProgram`].
 /// Data provided by program source should never change even in different condition.
@@ -153,8 +157,8 @@ impl ProgramStore {
     fn use_program_inner<'a, 'b, 'c, S>(
         &'a mut self,
         source: &'b S,
-        vertex_defines: Option<&'b [Cow<'static, str>]>,
-        fragment_defines: Option<&'b [Cow<'static, str>]>,
+        vertex_defines: Option<&'b [Define]>,
+        fragment_defines: Option<&'b [Define]>,
     ) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
@@ -173,19 +177,44 @@ impl ProgramStore {
                 Some(defines)
             }
         });
+
+        // create shader name
         let name = match (vertex_defines.as_ref(), fragment_defines.as_ref()) {
             (None, None) => source.name(),
-            (Some(defines), None) => Cow::Owned(format!("{}!{}", source.name(), defines.join("_"))),
-            (None, Some(defines)) => {
-                Cow::Owned(format!("{}!!{}", source.name(), defines.join("_")))
-            }
+            (Some(defines), None) => Cow::Owned(format!(
+                "{}!{}",
+                source.name(),
+                defines
+                    .iter()
+                    .map(|d| d.name().clone())
+                    .collect::<Vec<_>>()
+                    .join("_")
+            )),
+            (None, Some(defines)) => Cow::Owned(format!(
+                "{}!!{}",
+                source.name(),
+                defines
+                    .iter()
+                    .map(|d| d.name().clone())
+                    .collect::<Vec<_>>()
+                    .join("_")
+            )),
             (Some(vertex_defines), Some(fragment_defines)) => Cow::Owned(format!(
                 "{}!{}!{}",
                 source.name(),
-                vertex_defines.join("_"),
-                fragment_defines.join("_")
+                vertex_defines
+                    .iter()
+                    .map(|d| d.name().clone())
+                    .collect::<Vec<_>>()
+                    .join("_"),
+                fragment_defines
+                    .iter()
+                    .map(|d| d.name().clone())
+                    .collect::<Vec<_>>()
+                    .join("_")
             )),
         };
+
         unsafe {
             if let Some(using_program) = self.using_program.as_ref() {
                 let using_program = &mut **using_program;
@@ -222,8 +251,8 @@ impl ProgramStore {
     pub fn use_program_with_defines<'a, 'b, 'c, S>(
         &'a mut self,
         source: &'b S,
-        vertex_defines: &'b [Cow<'static, str>],
-        fragment_defines: &'b [Cow<'static, str>],
+        vertex_defines: &'b [Define],
+        fragment_defines: &'b [Define],
     ) -> Result<&'c mut Program, Error>
     where
         S: ProgramSource + ?Sized,
@@ -287,8 +316,8 @@ pub fn compile_program<S>(
     gl: WebGl2RenderingContext,
     name: String,
     source: &S,
-    vertex_defines: Option<&[Cow<'static, str>]>,
-    fragment_defines: Option<&[Cow<'static, str>]>,
+    vertex_defines: Option<&[Define]>,
+    fragment_defines: Option<&[Define]>,
 ) -> Result<Program, Error>
 where
     S: ProgramSource + ?Sized,

@@ -9,7 +9,7 @@ use crate::render::webgl::{
     },
     pipeline::{
         collector::CollectedEntities,
-        shading::{draw_entities, DrawState},
+        shading::{draw_opaque_entities, DrawState},
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
@@ -83,7 +83,7 @@ impl StandardGBufferCollector {
         self.framebuffer.as_ref().and_then(|fbo| fbo.texture(1))
     }
 
-    pub fn albedo_and_transparency_texture(&self) -> Option<&WebGlTexture> {
+    pub fn albedo_texture(&self) -> Option<&WebGlTexture> {
         self.framebuffer.as_ref().and_then(|fbo| fbo.texture(2))
     }
 
@@ -91,7 +91,7 @@ impl StandardGBufferCollector {
         if let (
             Some(positions_and_specular_shininess_texture),
             Some(normals_texture),
-            Some(albedo_and_transparency_texture),
+            Some(albedo_texture),
         ) = (
             self.framebuffer.as_ref().and_then(|fbo| fbo.texture(0)),
             self.framebuffer.as_ref().and_then(|fbo| fbo.texture(1)),
@@ -100,7 +100,7 @@ impl StandardGBufferCollector {
             Some([
                 positions_and_specular_shininess_texture,
                 normals_texture,
-                albedo_and_transparency_texture,
+                albedo_texture,
             ])
         } else {
             None
@@ -114,19 +114,19 @@ impl StandardGBufferCollector {
         universal_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         // only redraw gbuffer when collected entities changed
-        if self
-            .last_collected_entities_id
-            .map(|id| collected_entities.id() == id)
-            .unwrap_or(false)
-        {
-            return Ok(());
-        }
+        // if self
+        //     .last_collected_entities_id
+        //     .map(|id| collected_entities.id() == id)
+        //     .unwrap_or(false)
+        // {
+        //     return Ok(());
+        // }
 
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         framebuffer.clear_buffers();
 
-        draw_entities(
+        draw_opaque_entities(
             state,
             &DrawState::GBuffer { universal_ubo },
             collected_entities,

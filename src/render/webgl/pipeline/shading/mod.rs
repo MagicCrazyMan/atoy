@@ -10,6 +10,7 @@ use crate::{
         conversion::ToGlEnum,
         error::Error,
         program::{FragmentShaderSource, Program, ProgramSource, VertexShaderSource},
+        shader::Define,
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -121,16 +122,19 @@ fn prepare_program<'a, 'b, 'c>(
     draw_state: &DrawState,
     material: &'b dyn StandardMaterial,
 ) -> Result<&'c mut Program, Error> {
-    let defines: Option<&[Cow<'_, str>]> = match draw_state {
+    let defines: Option<&[Define]> = match draw_state {
         DrawState::Draw {
             lights_ubo, bloom, ..
         } => match (lights_ubo.is_some(), bloom) {
-            (true, true) => Some(&[Cow::Borrowed(LIGHTING_DEFINE), Cow::Borrowed(BLOOM_DEFINE)]),
-            (true, false) => Some(&[Cow::Borrowed(LIGHTING_DEFINE)]),
-            (false, true) => Some(&[Cow::Borrowed(BLOOM_DEFINE)]),
+            (true, true) => Some(&[
+                Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE)),
+                Define::WithoutValue(Cow::Borrowed(BLOOM_DEFINE)),
+            ]),
+            (true, false) => Some(&[Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE))]),
+            (false, true) => Some(&[Define::WithoutValue(Cow::Borrowed(BLOOM_DEFINE))]),
             (false, false) => None,
         },
-        DrawState::GBuffer { .. } => Some(&[Cow::Borrowed(GBUFFER_DEFINE)]),
+        DrawState::GBuffer { .. } => Some(&[Define::WithoutValue(Cow::Borrowed(GBUFFER_DEFINE))]),
     };
 
     let program = match defines {
