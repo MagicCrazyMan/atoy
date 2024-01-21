@@ -1,6 +1,6 @@
 use std::iter::FromIterator;
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -50,69 +50,6 @@ pub enum FramebufferAttachment {
 }
 
 impl FramebufferAttachment {
-    #[rustfmt::skip]
-    #[inline]
-    fn to_bit_field(&self) -> u32 {
-        match self {
-            FramebufferAttachment::COLOR_ATTACHMENT0 =>        0b0000000000000000001,
-            FramebufferAttachment::COLOR_ATTACHMENT1 =>        0b0000000000000000010,
-            FramebufferAttachment::COLOR_ATTACHMENT2 =>        0b0000000000000000100,
-            FramebufferAttachment::COLOR_ATTACHMENT3 =>        0b0000000000000001000,
-            FramebufferAttachment::COLOR_ATTACHMENT4 =>        0b0000000000000010000,
-            FramebufferAttachment::COLOR_ATTACHMENT5 =>        0b0000000000000100000,
-            FramebufferAttachment::COLOR_ATTACHMENT6 =>        0b0000000000001000000,
-            FramebufferAttachment::COLOR_ATTACHMENT7 =>        0b0000000000010000000,
-            FramebufferAttachment::COLOR_ATTACHMENT8 =>        0b0000000000100000000,
-            FramebufferAttachment::COLOR_ATTACHMENT9 =>        0b0000000001000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT10 =>       0b0000000010000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT11 =>       0b0000000100000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT12 =>       0b0000001000000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT13 =>       0b0000010000000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT14 =>       0b0000100000000000000,
-            FramebufferAttachment::COLOR_ATTACHMENT15 =>       0b0001000000000000000,
-            FramebufferAttachment::DEPTH_ATTACHMENT =>         0b0010000000000000000,
-            FramebufferAttachment::STENCIL_ATTACHMENT =>       0b0100000000000000000,
-            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => 0b1000000000000000000,
-        }
-    }
-
-    #[inline]
-    fn from_index(index: u8) -> Self {
-        match index {
-            0 => FramebufferAttachment::COLOR_ATTACHMENT0,
-            1 => FramebufferAttachment::COLOR_ATTACHMENT1,
-            2 => FramebufferAttachment::COLOR_ATTACHMENT2,
-            3 => FramebufferAttachment::COLOR_ATTACHMENT3,
-            4 => FramebufferAttachment::COLOR_ATTACHMENT4,
-            5 => FramebufferAttachment::COLOR_ATTACHMENT5,
-            6 => FramebufferAttachment::COLOR_ATTACHMENT6,
-            7 => FramebufferAttachment::COLOR_ATTACHMENT7,
-            8 => FramebufferAttachment::COLOR_ATTACHMENT8,
-            9 => FramebufferAttachment::COLOR_ATTACHMENT9,
-            10 => FramebufferAttachment::COLOR_ATTACHMENT10,
-            11 => FramebufferAttachment::COLOR_ATTACHMENT11,
-            12 => FramebufferAttachment::COLOR_ATTACHMENT12,
-            13 => FramebufferAttachment::COLOR_ATTACHMENT13,
-            14 => FramebufferAttachment::COLOR_ATTACHMENT14,
-            15 => FramebufferAttachment::COLOR_ATTACHMENT15,
-            16 => FramebufferAttachment::DEPTH_ATTACHMENT,
-            17 => FramebufferAttachment::STENCIL_ATTACHMENT,
-            18 => FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-            _ => unreachable!(),
-        }
-    }
-
-    fn extract_bit_field(bit_field: u32) -> Vec<Self> {
-        let mut attachments = Vec::new();
-        for i in 0..18u8 {
-            if (bit_field >> i) & 1 != 0 {
-                attachments.push(Self::from_index(i));
-            }
-        }
-
-        attachments
-    }
-
     #[inline]
     fn to_draw_buffer_index(&self) -> i32 {
         match self {
@@ -550,104 +487,8 @@ struct Runtime {
     height: i32,
     framebuffer: WebGlFramebuffer,
     attaches: HashMap<FramebufferAttachment, Attach>,
-    attachment_bit_field: u32,
+    removes: HashSet<FramebufferAttachment>,
     bound: Option<Bound>,
-}
-
-impl Runtime {
-    // fn new(
-    //     gl: &WebGl2RenderingContext,
-    //     providers: &HashMap<FramebufferAttachment, AttachmentProvider>,
-    //     renderbuffer_samples: Option<i32>,
-    //     target: FramebufferTarget,
-    //     width: i32,
-    //     height: i32,
-    // ) -> Result<Self, Error> {
-    //     let framebuffer = gl
-    //         .create_framebuffer()
-    //         .ok_or(Error::CreateFramebufferFailure)?;
-    //     gl.bind_framebuffer(target.gl_enum(), Some(&framebuffer));
-    //     gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-
-    //     let mut attaches = HashMap::with_capacity(providers.len());
-    //     for (attachment, provider) in providers {
-    //         let attach = provider.create_attach(
-    //             gl,
-    //             target,
-    //             *attachment,
-    //             width,
-    //             height,
-    //             renderbuffer_samples,
-    //         )?;
-    //         attaches.insert(*attachment, attach);
-    //     }
-
-    //     gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-    //     gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
-
-    //     Ok(Runtime {
-    //         width,
-    //         height,
-    //         attaches,
-    //         framebuffer,
-    //         attachment_bit_field: 0,
-    //         bound: Some(Bound {
-    //             target,
-    //             read_buffer: None,
-    //             draw_buffers: None,
-    //         }),
-    //     })
-    // }
-
-    // fn update_attachment_lazily(
-    //     &mut self,
-    //     gl: &WebGl2RenderingContext,
-    //     attachment: FramebufferAttachment,
-    //     provider: &AttachmentProvider,
-    //     renderbuffer_samples: Option<i32>,
-    // ) -> Result<(), Error> {
-    //     match self.bound.as_ref() {
-    //         Some(bound) => {
-    //             if let Some(attach) = self.attaches.remove(&attachment) {
-    //                 match attach {
-    //                     Attach::Texture { texture, .. } => {
-    //                         gl.framebuffer_texture_2d(
-    //                             bound.target.gl_enum(),
-    //                             attachment.gl_enum(),
-    //                             WebGl2RenderingContext::TEXTURE_2D,
-    //                             None,
-    //                             0,
-    //                         );
-    //                         gl.delete_texture(Some(&texture));
-    //                     }
-    //                     Attach::Renderbuffer { renderbuffer, .. } => {
-    //                         gl.framebuffer_renderbuffer(
-    //                             bound.target.gl_enum(),
-    //                             attachment.gl_enum(),
-    //                             WebGl2RenderingContext::RENDERBUFFER,
-    //                             None,
-    //                         );
-    //                         gl.delete_renderbuffer(Some(&renderbuffer));
-    //                     }
-    //                 }
-    //             }
-
-    //             let attach = provider.create_attach(
-    //                 gl,
-    //                 bound.target,
-    //                 attachment,
-    //                 self.width,
-    //                 self.height,
-    //                 renderbuffer_samples,
-    //             )?;
-    //         }
-    //         None => {
-    //             self.attaches.remove(&attachment);
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 pub struct Framebuffer {
@@ -656,7 +497,7 @@ pub struct Framebuffer {
 
     providers: HashMap<FramebufferAttachment, AttachmentProvider>,
     draw_buffers: Array,
-    attachment_bit_field: u32,
+    adds: HashSet<FramebufferAttachment>,
     renderbuffer_samples: Option<i32>,
 
     runtime: Option<Runtime>,
@@ -691,7 +532,7 @@ impl Framebuffer {
     where
         P: IntoIterator<Item = (FramebufferAttachment, AttachmentProvider)>,
     {
-        let mut attachment_bit_field = 0b0000000000000000000;
+        let mut adds = HashSet::new();
         let draw_buffers = Array::new();
         let mut ps = HashMap::new();
         for (attachment, provider) in providers {
@@ -702,8 +543,19 @@ impl Framebuffer {
                     draw_buffers.push(&JsValue::from_f64(draw_buffer.gl_enum() as f64));
                 }
             }
-            attachment_bit_field |= attachment.to_bit_field();
+            adds.insert(attachment);
         }
+
+        let renderbuffer_samples = match renderbuffer_samples {
+            Some(samples) => {
+                if samples == 0 {
+                    None
+                } else {
+                    Some(samples)
+                }
+            }
+            None => None,
+        };
 
         Self {
             gl,
@@ -711,7 +563,7 @@ impl Framebuffer {
 
             providers: ps,
             draw_buffers,
-            attachment_bit_field,
+            adds,
             renderbuffer_samples,
 
             runtime: None,
@@ -777,7 +629,7 @@ impl Framebuffer {
                     width,
                     height,
                     framebuffer,
-                    attachment_bit_field: 0b0000000000000000000,
+                    removes: HashSet::new(),
                     attaches: HashMap::new(),
                     bound: None,
                 });
@@ -792,6 +644,14 @@ impl Framebuffer {
                 return Ok(());
             }
         }
+
+        self.gl
+            .bind_framebuffer(target.gl_enum(), Some(&runtime.framebuffer));
+        runtime.bound = Some(Bound {
+            target,
+            read_buffer: None,
+            draw_buffers: None,
+        });
 
         if width != runtime.width || height != runtime.height {
             for (attachment, attach) in runtime.attaches.drain() {
@@ -816,58 +676,51 @@ impl Framebuffer {
                         self.gl.delete_renderbuffer(Some(&renderbuffer));
                     }
                 }
+                self.adds.insert(attachment);
             }
             runtime.width = width;
             runtime.height = height;
-            runtime.attachment_bit_field = 0b0000000000000000000;
+            runtime.removes.clear();
         }
 
-        if self.attachment_bit_field != runtime.attachment_bit_field {
-            log::info!("111");
-            let should_removes = FramebufferAttachment::extract_bit_field(
-                !self.attachment_bit_field & runtime.attachment_bit_field,
-            );
-            for attachment in should_removes {
-                let attach = runtime.attaches.remove(&attachment).unwrap();
-                match attach {
-                    Attach::Texture { texture, .. } => {
-                        self.gl.framebuffer_texture_2d(
-                            target.gl_enum(),
-                            attachment.gl_enum(),
-                            WebGl2RenderingContext::TEXTURE_2D,
-                            None,
-                            0,
-                        );
-                        self.gl.delete_texture(Some(&texture));
-                    }
-                    Attach::Renderbuffer { renderbuffer, .. } => {
-                        self.gl.framebuffer_renderbuffer(
-                            target.gl_enum(),
-                            attachment.gl_enum(),
-                            WebGl2RenderingContext::RENDERBUFFER,
-                            None,
-                        );
-                        self.gl.delete_renderbuffer(Some(&renderbuffer));
-                    }
+        for attachment in runtime.removes.drain() {
+            let Some(attach) = runtime.attaches.remove(&attachment) else {
+                continue;
+            };
+            match attach {
+                Attach::Texture { texture, .. } => {
+                    self.gl.framebuffer_texture_2d(
+                        target.gl_enum(),
+                        attachment.gl_enum(),
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        None,
+                        0,
+                    );
+                    self.gl.delete_texture(Some(&texture));
+                }
+                Attach::Renderbuffer { renderbuffer, .. } => {
+                    self.gl.framebuffer_renderbuffer(
+                        target.gl_enum(),
+                        attachment.gl_enum(),
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        None,
+                    );
+                    self.gl.delete_renderbuffer(Some(&renderbuffer));
                 }
             }
+        }
 
-            let should_adds = FramebufferAttachment::extract_bit_field(
-                self.attachment_bit_field & !runtime.attachment_bit_field,
-            );
-            for attachment in should_adds {
-                let provider = self.providers.get(&attachment).unwrap();
-                let attach = provider.create_attach(
-                    &self.gl,
-                    target,
-                    attachment,
-                    width,
-                    height,
-                    self.renderbuffer_samples,
-                )?;
-                runtime.attaches.insert(attachment, attach);
-            }
-            runtime.attachment_bit_field = self.attachment_bit_field;
+        for attachment in self.adds.drain() {
+            let provider = self.providers.get(&attachment).unwrap();
+            let attach = provider.create_attach(
+                &self.gl,
+                target,
+                attachment,
+                width,
+                height,
+                self.renderbuffer_samples,
+            )?;
+            runtime.attaches.insert(attachment, attach);
         }
 
         self.gl.draw_buffers(&self.draw_buffers);
@@ -950,7 +803,7 @@ impl Framebuffer {
         let Some(bound) = self.bound_target() else {
             return Err(Error::FramebufferUnbound);
         };
-        if bound != FramebufferTarget::READ_FRAMEBUFFER || bound != FramebufferTarget::FRAMEBUFFER {
+        if bound != FramebufferTarget::READ_FRAMEBUFFER && bound != FramebufferTarget::FRAMEBUFFER {
             return Err(Error::FramebufferUnbound);
         }
 
@@ -978,7 +831,6 @@ impl Framebuffer {
     /// Returns number of sample of the render buffers if multisample is enabled.
     pub fn renderbuffer_samples(&self) -> Option<i32> {
         self.renderbuffer_samples
-            .and_then(|samples| if samples == 0 { None } else { Some(samples) })
     }
 
     /// Returns framebuffer width.
@@ -1011,7 +863,13 @@ impl Framebuffer {
     pub fn texture(&self, attachment: FramebufferAttachment) -> Option<&WebGlTexture> {
         self.runtime
             .as_ref()
-            .and_then(|runtime| runtime.attaches.get(&attachment))
+            .and_then(|runtime| {
+                if runtime.removes.contains(&attachment) {
+                    None
+                } else {
+                    runtime.attaches.get(&attachment)
+                }
+            })
             .and_then(|attach| match attach {
                 Attach::Texture { texture, .. } => Some(texture),
                 Attach::Renderbuffer { .. } => None,
@@ -1023,7 +881,13 @@ impl Framebuffer {
     pub fn renderbuffer(&self, attachment: FramebufferAttachment) -> Option<&WebGlRenderbuffer> {
         self.runtime
             .as_ref()
-            .and_then(|runtime| runtime.attaches.get(&attachment))
+            .and_then(|runtime| {
+                if runtime.removes.contains(&attachment) {
+                    None
+                } else {
+                    runtime.attaches.get(&attachment)
+                }
+            })
             .and_then(|attach| match attach {
                 Attach::Texture { .. } => None,
                 Attach::Renderbuffer { renderbuffer, .. } => Some(renderbuffer),
@@ -1032,7 +896,6 @@ impl Framebuffer {
 
     /// Sets render buffer samples. Disabling multisamples by providing `0` or `None`.
     pub fn set_renderbuffer_samples(&mut self, samples: Option<i32>) -> Result<(), Error> {
-
         let samples = match samples {
             Some(samples) => {
                 if samples == 0 {
@@ -1043,7 +906,7 @@ impl Framebuffer {
             }
             None => None,
         };
-        
+
         let Some(runtime) = self.runtime.as_mut() else {
             self.renderbuffer_samples = samples;
             return Ok(());
@@ -1055,18 +918,11 @@ impl Framebuffer {
         if samples != self.renderbuffer_samples {
             self.renderbuffer_samples = samples;
 
-            if let Some(runtime) = self.runtime.as_mut() {
-                for (_, attach) in runtime.attaches.drain() {
-                    match attach {
-                        Attach::Texture { texture, .. } => {
-                            self.gl.delete_texture(Some(&texture));
-                        }
-                        Attach::Renderbuffer { renderbuffer, .. } => {
-                            self.gl.delete_renderbuffer(Some(&renderbuffer));
-                        }
-                    }
+            for (attachment, attach) in &runtime.attaches {
+                if let Attach::Renderbuffer { .. } = attach {
+                    runtime.removes.insert(*attachment);
+                    self.adds.insert(*attachment);
                 }
-                runtime.attachment_bit_field = 0b0000000000000000000;
             }
         }
 
@@ -1078,28 +934,16 @@ impl Framebuffer {
         attachment: FramebufferAttachment,
         provider: AttachmentProvider,
     ) -> Result<(), Error> {
-        if let Some(bound) = self
-            .runtime
-            .as_ref()
-            .and_then(|runtime| runtime.bound.as_ref())
-        {
+        let Some(runtime) = self.runtime.as_mut() else {
+            return Ok(());
+        };
+        if let Some(bound) = runtime.bound.as_ref() {
             return Err(Error::FramebufferBinding(bound.target));
         }
 
-        // match self.runtime.as_mut() {
-        //     Some(runtime) => {
-        //         runtime.update_attachment_lazily(
-        //             &self.gl,
-        //             attachment,
-        //             &provider,
-        //             self.renderbuffer_samples(),
-        //         )?;
-        //         self.providers.insert(attachment, provider);
-        //     }
-        //     None => {
-        //         self.providers.insert(attachment, provider);
-        //     }
-        // };
+        self.providers.insert(attachment, provider);
+        self.adds.insert(attachment);
+        runtime.removes.insert(attachment);
 
         Ok(())
     }
@@ -1108,6 +952,7 @@ impl Framebuffer {
 pub struct FramebufferBuilder {
     size_policy: SizePolicy,
     providers: HashMap<FramebufferAttachment, AttachmentProvider>,
+    adds: HashSet<FramebufferAttachment>,
     draw_buffers: Array,
     renderbuffer_samples: Option<i32>,
 }
@@ -1117,6 +962,7 @@ impl FramebufferBuilder {
         Self {
             size_policy: SizePolicy::FollowDrawingBuffer,
             providers: HashMap::new(),
+            adds: HashSet::new(),
             draw_buffers: Array::new(),
             renderbuffer_samples: None,
         }
@@ -1128,7 +974,8 @@ impl FramebufferBuilder {
     }
 
     pub fn with_samples(mut self, samples: i32) -> Self {
-        self.renderbuffer_samples = Some(samples);
+        let samples = if samples == 0 { None } else { Some(samples) };
+        self.renderbuffer_samples = samples;
         self
     }
 
@@ -1144,8 +991,8 @@ impl FramebufferBuilder {
             providers: self.providers,
             draw_buffers: self.draw_buffers,
             renderbuffer_samples: self.renderbuffer_samples,
+            adds: self.adds,
 
-            attachment_bit_field: todo!(),
             runtime: None,
         }
     }
@@ -1160,6 +1007,7 @@ macro_rules! framebuffer_build_attachments {
                 if let Some(draw_buffer) = $attachment.to_draw_buffer() {
                     self.draw_buffers.push(&JsValue::from_f64(draw_buffer.gl_enum() as f64));
                 }
+                self.adds.insert($attachment);
                 self
             }
 
@@ -1171,6 +1019,7 @@ macro_rules! framebuffer_build_attachments {
                             .to_draw_buffer()
                             .map(|draw_buffer| draw_buffer.gl_enum() as f64)
                 });
+                self.adds.remove(&$attachment);
                 self
             }
         )+
