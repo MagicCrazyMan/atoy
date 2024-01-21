@@ -1,7 +1,7 @@
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
 
-use super::conversion::GLuint;
+use super::{conversion::GLuint, framebuffer::FramebufferTarget};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -27,6 +27,8 @@ pub enum Error {
     TextureStorageNotFount(Uuid),
     CommonWebGLError(Option<String>),
     FramebufferUninitialized,
+    FramebufferUnbound,
+    FramebufferBinding(FramebufferTarget),
 }
 
 impl Error {}

@@ -11,8 +11,8 @@ use crate::{
     render::webgl::{
         error::Error,
         framebuffer::{
-            ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferDrawBuffer,
-            FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider, TextureProvider,
+            AttachmentProvider, ClearPolicy, Framebuffer, FramebufferBuilder,
+            FramebufferDrawBuffer, FramebufferTarget,
         },
         pipeline::collector::CollectedEntities,
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
@@ -44,34 +44,24 @@ impl StandardPicking {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [
-                    TextureProvider::new(
-                        FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(
+                FramebufferBuilder::new()
+                    .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::R32UI,
                         TextureFormat::RED_INTEGER,
                         TextureDataType::UNSIGNED_INT,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
-                    ),
-                    TextureProvider::new(
-                        FramebufferAttachment::COLOR_ATTACHMENT1,
+                    ))
+                    .with_color_attachment1(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32UI,
                         TextureFormat::RGBA_INTEGER,
                         TextureDataType::UNSIGNED_INT,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
-                    ),
-                ],
-                [RenderbufferProvider::new(
-                    FramebufferAttachment::DEPTH_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH_COMPONENT24,
-                    ClearPolicy::Depth(1.0),
-                )],
-                [
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT0,
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT1,
-                ],
-                None,
+                    ))
+                    .with_depth_attachment(AttachmentProvider::new_renderbuffer(
+                        RenderbufferInternalFormat::DEPTH_COMPONENT24,
+                        ClearPolicy::Depth(1.0),
+                    )),
             )
         })
     }
@@ -93,7 +83,7 @@ impl StandardPicking {
         state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
         self.framebuffer(&state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        self.framebuffer(&state).clear_buffers();
+        self.framebuffer(&state).clear_buffer_bits()?;
 
         let entities = collected_entities.entities();
         let max_entities_len = (u32::MAX - 1) as usize;
@@ -246,8 +236,9 @@ impl StandardPicking {
             return Ok(None);
         };
 
-        fbo.read_pixels_with_read_buffer(
-            FramebufferDrawBuffer::COLOR_ATTACHMENT1,
+        fbo.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        fbo.set_read_buffer(FramebufferDrawBuffer::COLOR_ATTACHMENT1)?;
+        fbo.read_pixels(
             window_position_x,
             canvas.height() as i32 - window_position_y,
             1,
@@ -257,6 +248,7 @@ impl StandardPicking {
             &self.pixel,
             0,
         )?;
+        fbo.unbind();
 
         let position = [
             f32::from_ne_bytes(self.pixel.get_index(0).to_ne_bytes()),

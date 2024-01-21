@@ -18,8 +18,8 @@ use super::{
     draw::Draw,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, Framebuffer, FramebufferDrawBuffer, FramebufferSizePolicy,
-        FramebufferTarget, RenderbufferProvider, TextureProvider,
+        AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
+        FramebufferBuilder, FramebufferDrawBuffer, FramebufferTarget, SizePolicy,
     },
     program::{Program, ProgramStore},
     texture::{TextureParameter, TextureStore, TextureUnit},
@@ -621,26 +621,25 @@ impl FrameState {
         Ok(())
     }
 
-    pub fn create_framebuffer<
-        TI: IntoIterator<Item = TextureProvider>,
-        RI: IntoIterator<Item = RenderbufferProvider>,
-        DI: IntoIterator<Item = FramebufferDrawBuffer>,
-    >(
+    pub fn create_framebuffer<P>(
         &self,
-        size_policy: FramebufferSizePolicy,
-        texture_providers: TI,
-        renderbuffer_providers: RI,
-        draw_buffers: DI,
+        size_policy: SizePolicy,
+        providers: P,
         renderbuffer_samples: Option<i32>,
-    ) -> Framebuffer {
+    ) -> Framebuffer
+    where
+        P: IntoIterator<Item = (FramebufferAttachment, AttachmentProvider)>,
+    {
         Framebuffer::new(
             self.gl.clone(),
             size_policy,
-            texture_providers,
-            renderbuffer_providers,
-            draw_buffers,
+            providers,
             renderbuffer_samples,
         )
+    }
+
+    pub fn create_framebuffer_with_builder(&self, builder: FramebufferBuilder) -> Framebuffer {
+        builder.build(self.gl.clone())
     }
 
     /// Reads pixels from current binding framebuffer.
@@ -775,42 +774,34 @@ impl FrameState {
     }
 
     /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].
-    pub fn blit_framebuffers_with_buffers<I1, I2>(
+    pub fn blit_framebuffers_with_buffers<I>(
         &self,
         read_framebuffer: &mut Framebuffer,
         read_buffer: FramebufferDrawBuffer,
         draw_framebuffer: &mut Framebuffer,
-        draw_buffers: I1,
-        reset_draw_buffers: I2,
+        draw_buffers: I,
         mask: BlitMask,
         filter: BlitFlilter,
     ) -> Result<(), Error>
     where
-        I1: IntoIterator<Item = FramebufferDrawBuffer>,
-        I2: IntoIterator<Item = FramebufferDrawBuffer>,
+        I: IntoIterator<Item = FramebufferDrawBuffer>,
     {
         draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        draw_framebuffer.set_draw_buffers(draw_buffers)?;
+        read_framebuffer.set_read_buffer(read_buffer)?;
         let dst_width = draw_framebuffer
             .width()
             .ok_or(Error::FramebufferUninitialized)?;
         let dst_height = draw_framebuffer
             .height()
             .ok_or(Error::FramebufferUninitialized)?;
-        let draw_buffers = Array::from_iter(
-            draw_buffers
-                .into_iter()
-                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
-        );
-        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
         let src_width = read_framebuffer
             .width()
             .ok_or(Error::FramebufferUninitialized)?;
         let src_height = read_framebuffer
             .height()
             .ok_or(Error::FramebufferUninitialized)?;
-
-        self.gl.draw_buffers(&draw_buffers);
-        self.gl.read_buffer(read_buffer.gl_enum());
 
         self.gl.blit_framebuffer(
             0,
@@ -825,15 +816,8 @@ impl FrameState {
             filter.gl_enum(),
         );
 
-        let draw_buffers = Array::from_iter(
-            reset_draw_buffers
-                .into_iter()
-                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
-        );
-        self.gl.draw_buffers(&draw_buffers);
         draw_framebuffer.unbind();
         read_framebuffer.unbind();
-        self.gl.read_buffer(WebGl2RenderingContext::BACK);
 
         Ok(())
     }

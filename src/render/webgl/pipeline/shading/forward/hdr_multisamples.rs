@@ -4,9 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        BlitFlilter, BlitMask, ClearPolicy, Framebuffer, FramebufferAttachment,
-        FramebufferDrawBuffer, FramebufferSizePolicy, FramebufferTarget, RenderbufferProvider,
-        TextureProvider,
+        AttachmentProvider, BlitFlilter, BlitMask, ClearPolicy, Framebuffer, FramebufferAttachment,
+        FramebufferBuilder, FramebufferDrawBuffer, FramebufferTarget,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -51,66 +50,46 @@ impl StandardMultisamplesHdrShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     fn hdr_bloom_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [
-                    TextureProvider::new(
-                        FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(
+                FramebufferBuilder::new()
+                    .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
                         ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                    ),
-                    TextureProvider::new(
-                        FramebufferAttachment::COLOR_ATTACHMENT1,
+                    ))
+                    .with_color_attachment1(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
                         ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                    ),
-                ],
-                [],
-                [
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT0,
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT1,
-                ],
-                None,
+                    )),
             )
         })
     }
@@ -121,26 +100,20 @@ impl StandardMultisamplesHdrShading {
         samples: i32,
     ) -> &mut Framebuffer {
         let fbo = self.hdr_multisamples_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [],
-                [
-                    RenderbufferProvider::new(
-                        FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(
+                FramebufferBuilder::new()
+                    .with_color_attachment0(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::RGBA32F,
                         ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                    ),
-                    RenderbufferProvider::new(
-                        FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                    ))
+                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                         ClearPolicy::DepthStencil(1.0, 0),
-                    ),
-                ],
-                [],
-                Some(samples),
+                    ))
+                    .with_samples(samples),
             )
         });
-        fbo.set_renderbuffer_samples(Some(samples));
+        fbo.set_renderbuffer_samples(Some(samples)).unwrap();
         fbo
     }
 
@@ -152,93 +125,70 @@ impl StandardMultisamplesHdrShading {
         let fbo = self
             .hdr_multisamples_bloom_framebuffer
             .get_or_insert_with(|| {
-                state.create_framebuffer(
-                    FramebufferSizePolicy::FollowDrawingBuffer,
-                    [],
-                    [
-                        RenderbufferProvider::new(
-                            FramebufferAttachment::COLOR_ATTACHMENT0,
+                state.create_framebuffer_with_builder(
+                    FramebufferBuilder::new()
+                        .with_color_attachment0(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::RGBA32F,
                             ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                        ),
-                        RenderbufferProvider::new(
-                            FramebufferAttachment::COLOR_ATTACHMENT1,
+                        ))
+                        .with_color_attachment1(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::RGBA32F,
                             ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                        ),
-                        RenderbufferProvider::new(
-                            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+                        ))
+                        .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                             ClearPolicy::DepthStencil(1.0, 0),
-                        ),
-                    ],
-                    [
-                        FramebufferDrawBuffer::COLOR_ATTACHMENT0,
-                        FramebufferDrawBuffer::COLOR_ATTACHMENT1,
-                    ],
-                    None,
+                        ))
+                        .with_samples(samples),
                 )
             });
-        fbo.set_renderbuffer_samples(Some(samples));
+        fbo.set_renderbuffer_samples(Some(samples)).unwrap();
         fbo
     }
 
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     pub fn draw_texture(&self) -> Option<&WebGlTexture> {
-        self.framebuffer.as_ref().and_then(|f| f.texture(0))
+        self.framebuffer
+            .as_ref()
+            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
     }
 
     pub unsafe fn draw(
@@ -289,8 +239,7 @@ impl StandardMultisamplesHdrShading {
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        hdr_multisamples_framebuffer.clear_buffers();
-
+        hdr_multisamples_framebuffer.clear_buffer_bits()?;
         draw_entities(
             state,
             &DrawState::Draw {
@@ -315,8 +264,7 @@ impl StandardMultisamplesHdrShading {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
         hdr_multisamples_bloom_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        hdr_multisamples_bloom_framebuffer.clear_buffers();
-
+        hdr_multisamples_bloom_framebuffer.clear_buffer_bits()?;
         draw_entities(
             state,
             &DrawState::Draw {
@@ -370,7 +318,11 @@ impl StandardMultisamplesHdrShading {
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         state.do_computation([(
-            self.hdr_framebuffer.as_ref().unwrap().texture(0).unwrap(),
+            self.hdr_framebuffer
+                .as_ref()
+                .unwrap()
+                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
+                .unwrap(),
             TextureUnit::TEXTURE0,
         )]);
         self.framebuffer(state).unbind();
@@ -391,7 +343,7 @@ impl StandardMultisamplesHdrShading {
             self.hdr_bloom_blend_framebuffer
                 .as_ref()
                 .unwrap()
-                .texture(0)
+                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )]);
@@ -428,10 +380,6 @@ impl StandardMultisamplesHdrShading {
                     FramebufferDrawBuffer::COLOR_ATTACHMENT0,
                     FramebufferDrawBuffer::NONE,
                 ],
-                [
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT0,
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT1,
-                ],
                 BlitMask::COLOR_BUFFER_BIT,
                 BlitFlilter::LINEAR,
             )?;
@@ -441,10 +389,6 @@ impl StandardMultisamplesHdrShading {
                 &mut *hdr_bloom_framebuffer,
                 [
                     FramebufferDrawBuffer::NONE,
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT1,
-                ],
-                [
-                    FramebufferDrawBuffer::COLOR_ATTACHMENT0,
                     FramebufferDrawBuffer::COLOR_ATTACHMENT1,
                 ],
                 BlitMask::COLOR_BUFFER_BIT,
@@ -473,7 +417,7 @@ impl StandardMultisamplesHdrShading {
                 .use_program(&GaussianBlurMappingProgram)?;
 
             for i in 0..bloom_blur_epoch {
-                let (from, from_texture_index, to) = if i % 2 == 0 {
+                let (from, from_attachment, to) = if i % 2 == 0 {
                     if i == 0 {
                         // first epoch, do some initialization
                         state.bind_uniform_block_value_by_block_name(
@@ -487,26 +431,26 @@ impl StandardMultisamplesHdrShading {
 
                         (
                             &mut *hdr_bloom_blur_first_framebuffer,
-                            1,
+                            FramebufferAttachment::COLOR_ATTACHMENT1,
                             &mut *hdr_bloom_blur_odd_framebuffer,
                         )
                     } else {
                         (
                             &mut *hdr_bloom_blur_even_framebuffer,
-                            0,
+                            FramebufferAttachment::COLOR_ATTACHMENT0,
                             &mut *hdr_bloom_blur_odd_framebuffer,
                         )
                     }
                 } else {
                     (
                         &mut *hdr_bloom_blur_odd_framebuffer,
-                        0,
+                        FramebufferAttachment::COLOR_ATTACHMENT0,
                         &mut *hdr_bloom_blur_even_framebuffer,
                     )
                 };
                 to.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
                 state.do_computation([(
-                    from.texture(from_texture_index).unwrap(),
+                    from.texture(from_attachment).unwrap(),
                     TextureUnit::TEXTURE0,
                 )]);
                 to.unbind();
@@ -525,25 +469,25 @@ impl StandardMultisamplesHdrShading {
                 .hdr_bloom_framebuffer
                 .as_ref()
                 .unwrap()
-                .texture(0)
+                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap();
             let hdr_bloom_blur_texture: *const WebGlTexture = if bloom_blur_epoch == 0 {
                 self.hdr_bloom_framebuffer
                     .as_ref()
                     .unwrap()
-                    .texture(1)
+                    .texture(FramebufferAttachment::COLOR_ATTACHMENT1)
                     .unwrap()
             } else if bloom_blur_epoch % 2 == 0 {
                 self.hdr_bloom_blur_even_framebuffer
                     .as_ref()
                     .unwrap()
-                    .texture(0)
+                    .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                     .unwrap()
             } else {
                 self.hdr_bloom_blur_odd_framebuffer
                     .as_ref()
                     .unwrap()
-                    .texture(0)
+                    .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                     .unwrap()
             };
             let hdr_bloom_blend_framebuffer: *mut Framebuffer =

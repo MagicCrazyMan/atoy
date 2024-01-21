@@ -15,8 +15,8 @@ use crate::{
         buffer::BufferDescriptor,
         error::Error,
         framebuffer::{
-            ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy,
-            FramebufferTarget, TextureProvider,
+            AttachmentProvider, ClearPolicy, Framebuffer, FramebufferAttachment,
+            FramebufferBuilder, FramebufferTarget,
         },
         pipeline::{
             UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
@@ -43,24 +43,21 @@ impl StandardDeferredShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+                AttachmentProvider::new_texture(
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
                     ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [],
-                [],
-                None,
-            )
+                ),
+            ))
         })
     }
 
     pub fn draw_texture(&self) -> Option<&WebGlTexture> {
-        self.framebuffer.as_ref().and_then(|fbo| fbo.texture(0))
+        self.framebuffer
+            .as_ref()
+            .and_then(|fbo| fbo.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
     }
 
     pub fn draw(

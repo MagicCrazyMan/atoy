@@ -4,8 +4,8 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferSizePolicy, FramebufferTarget,
-        RenderbufferProvider, TextureProvider,
+        AttachmentProvider, ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+        FramebufferTarget,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -27,28 +27,26 @@ impl StandardSimpleShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer(
-                FramebufferSizePolicy::FollowDrawingBuffer,
-                [TextureProvider::new(
-                    FramebufferAttachment::COLOR_ATTACHMENT0,
-                    TextureInternalFormat::RGBA8,
-                    TextureFormat::RGBA,
-                    TextureDataType::UNSIGNED_BYTE,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
-                )],
-                [RenderbufferProvider::new(
-                    FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                    ClearPolicy::DepthStencil(1.0, 0),
-                )],
-                [],
-                None,
+            state.create_framebuffer_with_builder(
+                FramebufferBuilder::new()
+                    .with_color_attachment0(AttachmentProvider::new_texture(
+                        TextureInternalFormat::RGBA8,
+                        TextureFormat::RGBA,
+                        TextureDataType::UNSIGNED_BYTE,
+                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+                    ))
+                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
+                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                        ClearPolicy::DepthStencil(1.0, 0),
+                    )),
             )
         })
     }
 
     pub fn draw_texture(&self) -> Option<&WebGlTexture> {
-        self.framebuffer.as_ref().and_then(|f| f.texture(0))
+        self.framebuffer
+            .as_ref()
+            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
     }
 
     pub unsafe fn draw(
@@ -60,7 +58,7 @@ impl StandardSimpleShading {
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        framebuffer.clear_buffers();
+        framebuffer.clear_buffer_bits()?;
         draw_entities(
             state,
             &DrawState::Draw {

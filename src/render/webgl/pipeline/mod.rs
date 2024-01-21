@@ -644,11 +644,11 @@ impl StandardPipeline {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         unsafe {
+            // deferred shading on opaque entities
             self.gbuffer
                 .draw(state, &collected_entities, &self.universal_ubo)?;
             let [positions_texture, normals_texture, albedo_and_specular_shininess_texture] =
                 self.gbuffer.deferred_shading_textures().unwrap();
-
             self.deferred_shading.draw(
                 state,
                 positions_texture,
@@ -657,6 +657,9 @@ impl StandardPipeline {
                 &self.universal_ubo,
                 lights_ubo,
             )?;
+
+            // then forward shading on transparent entities
+
             let compose_textures = self.deferred_shading.draw_texture().unwrap();
             self.composer.compose(state, [compose_textures])?;
         }
