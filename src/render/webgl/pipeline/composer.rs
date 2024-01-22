@@ -96,7 +96,7 @@ impl StandardComposer {
         Ok(())
     }
 
-    pub fn compose<'a, I>(&mut self, state: &mut FrameState, textures: I) -> Result<(), Error>
+    fn compose<'a, I>(&mut self, state: &mut FrameState, textures: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a WebGlTexture>,
     {
@@ -133,7 +133,7 @@ impl StandardComposer {
         Ok(())
     }
 
-    pub fn print(&mut self, state: &mut FrameState) -> Result<(), Error> {
+    fn print(&mut self, state: &mut FrameState) -> Result<(), Error> {
         state.gl().clear_color(
             *self.clear_color.r() as f32,
             *self.clear_color.g() as f32,
