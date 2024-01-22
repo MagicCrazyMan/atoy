@@ -917,6 +917,20 @@ impl Container {
     }
 
     #[inline]
+    pub fn entities_len(&self) -> usize {
+        unsafe {
+            (*self.entities).len()
+        }
+    }
+
+    #[inline]
+    pub fn groups_len(&self) -> usize {
+        unsafe {
+            (*self.groups).len()
+        }
+    }
+
+    #[inline]
     pub fn changed_event(&self) -> &EventAgency<ContainerEvent> {
         unsafe { &*self.changed_event }
     }

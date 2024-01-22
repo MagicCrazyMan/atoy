@@ -65,13 +65,9 @@ unsafe fn draw_opaque_entities(
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
     state.gl().depth_mask(true);
 
-    let entities = collected_entities.entities();
-    let opaque_entity_indices = collected_entities.opaque_entity_indices();
-
     // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
-    for index in opaque_entity_indices {
-        let entity = entities[*index].entity_mut();
-        draw_entity(state, draw_state, true, entity)?;
+    for collected_entity in collected_entities.opaque_entities() {
+        draw_entity(state, draw_state, true, collected_entity.entity_mut())?;
     }
 
     state.gl().disable(WebGl2RenderingContext::CULL_FACE);
@@ -95,13 +91,9 @@ unsafe fn draw_translucent_entities(
         WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
     );
 
-    let entities = collected_entities.entities();
-    let translucent_entity_indices = collected_entities.translucent_entity_indices();
-
     // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
-    for index in translucent_entity_indices.iter().rev() {
-        let entity = entities[*index].entity_mut();
-        draw_entity(state, draw_state, false, entity)?;
+    for collected_entity in collected_entities.translucent_entities().iter().rev() {
+        draw_entity(state, draw_state, false, collected_entity.entity_mut())?;
         // transparency entities never cull face
     }
 

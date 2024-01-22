@@ -141,10 +141,10 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
 fn create_scene() -> Result<Scene, Error> {
     let mut scene = Scene::new()?;
     scene.set_light_attenuations(Vec3::new(0.0, 1.0, 0.0));
-    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0.01, 0.01, 0.01))));
+    // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0,0,0))));
     // scene.add_directional_light(DirectionalLight::new(
     //     Vec3::new(0.0, -1.0, -1.0),
-    //     Vec3::new(0.01, 0.01, 0.01),
+    //     Vec3::new(0,0,0),
     //     Vec3::new(0.19, 0.19, 0.19),
     //     Vec3::new(0.8, 0.8, 0.8),
     //     128.0,
@@ -152,8 +152,8 @@ fn create_scene() -> Result<Scene, Error> {
     scene.add_spot_light(SpotLight::new(
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(1.0, -1.0, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
         30f32.to_radians(),
         40f32.to_radians(),
@@ -161,8 +161,8 @@ fn create_scene() -> Result<Scene, Error> {
     scene.add_spot_light(SpotLight::new(
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
         30f32.to_radians(),
         60f32.to_radians(),
@@ -176,242 +176,242 @@ fn create_scene() -> Result<Scene, Error> {
         1.5,
         4.5,
         2.0,
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-1.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-1.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-1.0, 1.5, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-1.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, -2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, -1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 4.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 5.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 6.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(8.0, 0.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
+        Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.69, 0.69, 0.69),
         Vec3::new(0.3, 0.3, 0.3),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 0.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 1.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(2.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-1.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.01, 0.01, 0.01),
-        Vec3::new(0.39, 0.39, 0.39),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(10.6, 10.6, 10.6),
     ));
     Ok(scene)
