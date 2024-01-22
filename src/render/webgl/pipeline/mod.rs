@@ -632,7 +632,7 @@ impl StandardPipeline {
                     self.multisamples_simple_shading.draw_texture().unwrap()
                 }
             };
-            self.composer.compose(state, [compose_textures])?;
+            self.composer.draw(state, [compose_textures])?;
             self.cleanup.cleanup(state);
         };
 
@@ -679,7 +679,7 @@ impl StandardPipeline {
             let opaque_textures = self.deferred_shading.draw_texture().unwrap();
             let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
             self.composer
-                .compose(state, [opaque_textures, translucent_texture])?;
+                .draw(state, [opaque_textures, translucent_texture])?;
         }
 
         Ok(())

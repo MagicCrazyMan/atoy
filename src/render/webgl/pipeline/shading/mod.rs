@@ -87,21 +87,21 @@ unsafe fn draw_translucent_entities(
     state.gl().enable(WebGl2RenderingContext::BLEND);
     state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
     state.gl().blend_func(
-        WebGl2RenderingContext::SRC_ALPHA,
+        WebGl2RenderingContext::ONE,
         WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
     );
 
     // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
     for collected_entity in collected_entities.translucent_entities().iter().rev() {
-        draw_entity(state, draw_state, false, collected_entity.entity_mut())?;
         // transparency entities never cull face
+        draw_entity(state, draw_state, false, collected_entity.entity_mut())?;
     }
 
     state.gl().depth_mask(true);
-    state.gl().disable(WebGl2RenderingContext::BLEND);
     state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
     state.gl().disable(WebGl2RenderingContext::CULL_FACE);
     state.gl().cull_face(WebGl2RenderingContext::BACK);
+    state.gl().disable(WebGl2RenderingContext::BLEND);
     state
         .gl()
         .blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ZERO);

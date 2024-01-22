@@ -893,11 +893,7 @@ impl BufferStoreInner {
         };
 
         self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&item.buffer));
-        self.gl
             .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
-        self.gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
 
         item.using = false;
     }

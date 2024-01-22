@@ -71,6 +71,7 @@ impl StandardDeferredShading {
     ) -> Result<(), Error> {
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer(state).clear_buffers()?;
 
         let program = if let Some(lights_ubo) = lights_ubo {
             let program = state.program_store_mut().use_program_with_defines(

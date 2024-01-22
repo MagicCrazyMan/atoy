@@ -31,7 +31,7 @@ use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
 use crate::loader::texture::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
-use crate::material::{self, Transparency};
+use crate::material::{self, StandardMaterial, Transparency};
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -184,236 +184,236 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.0, 1.5, 0.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
+        Vec3::new(0.6, 0.6, 0.6),
     ));
     scene.add_point_light(PointLight::new(
         Vec3::new(1.0, 1.5, 0.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
+        Vec3::new(0.6, 0.6, 0.6),
     ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(1.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-1.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-1.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-1.0, 1.5, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(1.0, 1.5, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(1.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-1.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, -2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 3.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 4.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 5.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 6.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(8.0, 0.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.69, 0.69, 0.69),
-        Vec3::new(0.3, 0.3, 0.3),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(2.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(1.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-1.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(-2.0, 1.5, 2.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(10.6, 10.6, 10.6),
-    ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(1.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-1.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-1.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-1.0, 1.5, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(1.0, 1.5, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 3.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(1.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-1.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, -2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 3.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 3.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 4.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 5.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 6.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(8.0, 0.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.69, 0.69, 0.69),
+    //     Vec3::new(0.3, 0.3, 0.3),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(2.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(1.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(0.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-1.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(-2.0, 1.5, 2.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
     Ok(scene)
 }
 
@@ -461,7 +461,7 @@ pub fn test_cube(
     pick_callback: &Function,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
-        Vec3::new(0.0, 5.0, 5.0),
+        Vec3::new(0.0, 5.0, 2.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
@@ -575,16 +575,17 @@ pub fn test_cube(
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
             {
-                material.set_color(
-                    Vec3::new(rand::random(), rand::random(), rand::random()),
-                    Transparency::Opaque,
-                )
+                log::info!("{}", material.transparency().alpha());
+                // material.set_color(
+                //     Vec3::new(rand::random(), rand::random(), rand::random()),
+                //     Transparency::Opaque,
+                // )
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
-                geometry.set_size(rand::random::<f64>() * 3.0)
+                // geometry.set_size(rand::random::<f64>() * 3.0)
             }
             console_log!("pick entity {}", entity.id());
         };

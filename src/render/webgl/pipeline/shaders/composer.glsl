@@ -6,6 +6,9 @@ out vec4 o_Color;
 
 void main() {
     vec4 color = texture(u_Texture, v_TexCoord);
+    if(color == vec4(0.0f)) {
+        discard;
+    }
 
     #ifdef GAMMA_CORRECTION
     vec3 rgb = atoy_gamma_correction(color.rgb, u_Gamma);

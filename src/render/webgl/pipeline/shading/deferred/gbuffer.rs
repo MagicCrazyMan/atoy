@@ -52,11 +52,6 @@ impl StandardGBufferCollector {
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
                     ))
-                    .with_color_attachment3(AttachmentProvider::new_texture(
-                        TextureInternalFormat::RGBA8,
-                        TextureFormat::RGBA,
-                        TextureDataType::UNSIGNED_BYTE,
-                    ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                     )),
@@ -133,13 +128,13 @@ impl StandardGBufferCollector {
         universal_ubo: &BufferDescriptor,
     ) -> Result<(), Error> {
         // only redraw gbuffer when collected entities changed
-        // if self
-        //     .last_collected_entities_id
-        //     .map(|id| collected_entities.id() == id)
-        //     .unwrap_or(false)
-        // {
-        //     return Ok(());
-        // }
+        if self
+            .last_collected_entities_id
+            .map(|id| collected_entities.id() == id)
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
 
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
