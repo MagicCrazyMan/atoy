@@ -1,4 +1,5 @@
 pub mod gbuffer;
+pub mod simple;
 
 use std::borrow::Cow;
 
@@ -15,7 +16,7 @@ use crate::{
         buffer::BufferDescriptor,
         error::Error,
         framebuffer::{
-            AttachmentProvider, ClearPolicy, Framebuffer, FramebufferAttachment,
+            AttachmentProvider, Framebuffer, FramebufferAttachment,
             FramebufferBuilder, FramebufferTarget,
         },
         pipeline::{
@@ -48,7 +49,6 @@ impl StandardDeferredShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })

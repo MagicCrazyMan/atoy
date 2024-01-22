@@ -24,6 +24,13 @@ pub enum FramebufferTarget {
     DRAW_FRAMEBUFFER,
 }
 
+pub const DEFAULT_CLEAR_POLICY_FOR_COLOR_ATTACHMENT: ClearPolicy =
+    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]);
+pub const DEFAULT_CLEAR_POLICY_FOR_DEPTH_ATTACHMENT: ClearPolicy = ClearPolicy::Depth(1.0);
+pub const DEFAULT_CLEAR_POLICY_FOR_STENCIL_ATTACHMENT: ClearPolicy = ClearPolicy::Stencil(0);
+pub const DEFAULT_CLEAR_POLICY_FOR_DEPTH_STENCIL_ATTACHMENT: ClearPolicy =
+    ClearPolicy::DepthStencil(1.0, 0);
+
 /// Available framebuffer attachments mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -76,62 +83,31 @@ impl FramebufferAttachment {
     }
 
     #[inline]
-    fn to_draw_buffer(&self) -> Option<FramebufferDrawBuffer> {
+    fn to_draw_buffer(&self) -> Option<OperatableBuffer> {
         match self {
-            FramebufferAttachment::COLOR_ATTACHMENT0 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT0)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT1 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT1)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT2 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT2)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT3 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT3)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT4 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT4)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT5 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT5)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT6 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT6)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT7 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT7)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT8 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT8)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT9 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT9)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT10 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT10)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT11 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT11)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT12 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT12)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT13 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT13)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT14 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT14)
-            }
-            FramebufferAttachment::COLOR_ATTACHMENT15 => {
-                Some(FramebufferDrawBuffer::COLOR_ATTACHMENT15)
-            }
+            FramebufferAttachment::COLOR_ATTACHMENT0 => Some(OperatableBuffer::COLOR_ATTACHMENT0),
+            FramebufferAttachment::COLOR_ATTACHMENT1 => Some(OperatableBuffer::COLOR_ATTACHMENT1),
+            FramebufferAttachment::COLOR_ATTACHMENT2 => Some(OperatableBuffer::COLOR_ATTACHMENT2),
+            FramebufferAttachment::COLOR_ATTACHMENT3 => Some(OperatableBuffer::COLOR_ATTACHMENT3),
+            FramebufferAttachment::COLOR_ATTACHMENT4 => Some(OperatableBuffer::COLOR_ATTACHMENT4),
+            FramebufferAttachment::COLOR_ATTACHMENT5 => Some(OperatableBuffer::COLOR_ATTACHMENT5),
+            FramebufferAttachment::COLOR_ATTACHMENT6 => Some(OperatableBuffer::COLOR_ATTACHMENT6),
+            FramebufferAttachment::COLOR_ATTACHMENT7 => Some(OperatableBuffer::COLOR_ATTACHMENT7),
+            FramebufferAttachment::COLOR_ATTACHMENT8 => Some(OperatableBuffer::COLOR_ATTACHMENT8),
+            FramebufferAttachment::COLOR_ATTACHMENT9 => Some(OperatableBuffer::COLOR_ATTACHMENT9),
+            FramebufferAttachment::COLOR_ATTACHMENT10 => Some(OperatableBuffer::COLOR_ATTACHMENT10),
+            FramebufferAttachment::COLOR_ATTACHMENT11 => Some(OperatableBuffer::COLOR_ATTACHMENT11),
+            FramebufferAttachment::COLOR_ATTACHMENT12 => Some(OperatableBuffer::COLOR_ATTACHMENT12),
+            FramebufferAttachment::COLOR_ATTACHMENT13 => Some(OperatableBuffer::COLOR_ATTACHMENT13),
+            FramebufferAttachment::COLOR_ATTACHMENT14 => Some(OperatableBuffer::COLOR_ATTACHMENT14),
+            FramebufferAttachment::COLOR_ATTACHMENT15 => Some(OperatableBuffer::COLOR_ATTACHMENT15),
             FramebufferAttachment::DEPTH_ATTACHMENT => None,
             FramebufferAttachment::STENCIL_ATTACHMENT => None,
             FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => None,
         }
     }
 
+    #[inline]
     fn as_message(&self) -> &'static str {
         match self {
             FramebufferAttachment::COLOR_ATTACHMENT0 => "COLOR_ATTACHMENT0",
@@ -155,13 +131,46 @@ impl FramebufferAttachment {
             FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => "DEPTH_STENCIL_ATTACHMENT",
         }
     }
+
+    #[inline]
+    fn default_clear_policy(&self) -> &ClearPolicy {
+        match self {
+            FramebufferAttachment::COLOR_ATTACHMENT0
+            | FramebufferAttachment::COLOR_ATTACHMENT1
+            | FramebufferAttachment::COLOR_ATTACHMENT2
+            | FramebufferAttachment::COLOR_ATTACHMENT3
+            | FramebufferAttachment::COLOR_ATTACHMENT4
+            | FramebufferAttachment::COLOR_ATTACHMENT5
+            | FramebufferAttachment::COLOR_ATTACHMENT6
+            | FramebufferAttachment::COLOR_ATTACHMENT7
+            | FramebufferAttachment::COLOR_ATTACHMENT8
+            | FramebufferAttachment::COLOR_ATTACHMENT9
+            | FramebufferAttachment::COLOR_ATTACHMENT10
+            | FramebufferAttachment::COLOR_ATTACHMENT11
+            | FramebufferAttachment::COLOR_ATTACHMENT12
+            | FramebufferAttachment::COLOR_ATTACHMENT13
+            | FramebufferAttachment::COLOR_ATTACHMENT14
+            | FramebufferAttachment::COLOR_ATTACHMENT15 => {
+                &DEFAULT_CLEAR_POLICY_FOR_COLOR_ATTACHMENT
+            }
+            FramebufferAttachment::DEPTH_ATTACHMENT => &DEFAULT_CLEAR_POLICY_FOR_DEPTH_ATTACHMENT,
+            FramebufferAttachment::STENCIL_ATTACHMENT => {
+                &DEFAULT_CLEAR_POLICY_FOR_STENCIL_ATTACHMENT
+            }
+            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => {
+                &DEFAULT_CLEAR_POLICY_FOR_DEPTH_STENCIL_ATTACHMENT
+            }
+        }
+    }
 }
 
-/// Available draw buffer source mapped from [`WebGl2RenderingContext`].
+/// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FramebufferDrawBuffer {
+pub enum OperatableBuffer {
     NONE,
+    /// [`WebGl2RenderingContext::BACK`] only works for Canvas Draw Buffer.
+    /// Do not bind this attachment to FBO.
     BACK,
     COLOR_ATTACHMENT0,
     COLOR_ATTACHMENT1,
@@ -275,30 +284,64 @@ impl ClearPolicy {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AttachmentProvider {
     FromNewTexture {
         internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
     },
     FromExistingTexture {
         texture: WebGlTexture,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
     },
     FromNewRenderbuffer {
         internal_format: RenderbufferInternalFormat,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
     },
     FromExistingRenderbuffer {
         renderbuffer: WebGlRenderbuffer,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
     },
 }
 
 impl AttachmentProvider {
     pub fn new_texture(
+        internal_format: TextureInternalFormat,
+        format: TextureFormat,
+        data_type: TextureDataType,
+    ) -> Self {
+        Self::FromNewTexture {
+            internal_format,
+            format,
+            data_type,
+            clear_policy: None,
+        }
+    }
+
+    pub fn new_renderbuffer(internal_format: RenderbufferInternalFormat) -> Self {
+        Self::FromNewRenderbuffer {
+            internal_format,
+            clear_policy: None,
+        }
+    }
+
+    pub fn from_texture(texture: WebGlTexture) -> Self {
+        Self::FromExistingTexture {
+            texture,
+            clear_policy: None,
+        }
+    }
+
+    pub fn from_renderbuffer(renderbuffer: WebGlRenderbuffer) -> Self {
+        Self::FromExistingRenderbuffer {
+            renderbuffer,
+            clear_policy: None,
+        }
+    }
+
+    pub fn new_texture_with_clear_policy(
         internal_format: TextureInternalFormat,
         format: TextureFormat,
         data_type: TextureDataType,
@@ -308,31 +351,37 @@ impl AttachmentProvider {
             internal_format,
             format,
             data_type,
-            clear_policy,
+            clear_policy: Some(clear_policy),
         }
     }
 
-    pub fn new_renderbuffer(
+    pub fn new_renderbuffer_with_clear_policy(
         internal_format: RenderbufferInternalFormat,
         clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNewRenderbuffer {
             internal_format,
-            clear_policy,
+            clear_policy: Some(clear_policy),
         }
     }
 
-    pub fn from_texture(texture: WebGlTexture, clear_policy: ClearPolicy) -> Self {
+    pub fn from_texture_with_clear_policy(
+        texture: WebGlTexture,
+        clear_policy: ClearPolicy,
+    ) -> Self {
         Self::FromExistingTexture {
             texture,
-            clear_policy,
+            clear_policy: Some(clear_policy),
         }
     }
 
-    pub fn from_renderbuffer(renderbuffer: WebGlRenderbuffer, clear_policy: ClearPolicy) -> Self {
+    pub fn from_renderbuffer_with_clear_policy(
+        renderbuffer: WebGlRenderbuffer,
+        clear_policy: ClearPolicy,
+    ) -> Self {
         Self::FromExistingRenderbuffer {
             renderbuffer,
-            clear_policy,
+            clear_policy: Some(clear_policy),
         }
     }
 }
@@ -379,6 +428,7 @@ impl AttachmentProvider {
                 Attach::Texture {
                     texture,
                     clear_policy: *clear_policy,
+                    owned: true,
                 }
             }
             AttachmentProvider::FromExistingTexture {
@@ -397,6 +447,7 @@ impl AttachmentProvider {
                 Attach::Texture {
                     texture: texture.clone(),
                     clear_policy: *clear_policy,
+                    owned: false,
                 }
             }
             AttachmentProvider::FromNewRenderbuffer {
@@ -432,6 +483,7 @@ impl AttachmentProvider {
                 Attach::Renderbuffer {
                     renderbuffer,
                     clear_policy: *clear_policy,
+                    owned: true,
                 }
             }
             AttachmentProvider::FromExistingRenderbuffer {
@@ -448,6 +500,7 @@ impl AttachmentProvider {
                 Attach::Renderbuffer {
                     renderbuffer: renderbuffer.clone(),
                     clear_policy: *clear_policy,
+                    owned: false,
                 }
             }
         };
@@ -459,26 +512,69 @@ impl AttachmentProvider {
 enum Attach {
     Texture {
         texture: WebGlTexture,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
+        owned: bool,
     },
     Renderbuffer {
         renderbuffer: WebGlRenderbuffer,
-        clear_policy: ClearPolicy,
+        clear_policy: Option<ClearPolicy>,
+        owned: bool,
     },
 }
 
 impl Attach {
-    fn clear_policy(&self) -> &ClearPolicy {
+    #[inline]
+    fn clear_policy(&self) -> Option<&ClearPolicy> {
         match self {
-            Attach::Texture { clear_policy, .. } => clear_policy,
-            Attach::Renderbuffer { clear_policy, .. } => clear_policy,
+            Attach::Texture { clear_policy, .. } | Attach::Renderbuffer { clear_policy, .. } => {
+                clear_policy.as_ref()
+            }
+        }
+    }
+
+    #[inline]
+    fn is_owned(&self) -> bool {
+        match self {
+            Attach::Texture { owned, .. } => *owned,
+            Attach::Renderbuffer { owned, .. } => *owned,
+        }
+    }
+
+    fn delete(
+        self,
+        gl: &WebGl2RenderingContext,
+        target: FramebufferTarget,
+        attachment: FramebufferAttachment,
+    ) {
+        if self.is_owned() {
+            match self {
+                Attach::Texture { texture, .. } => {
+                    gl.framebuffer_texture_2d(
+                        target.gl_enum(),
+                        attachment.gl_enum(),
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        None,
+                        0,
+                    );
+                    gl.delete_texture(Some(&texture));
+                }
+                Attach::Renderbuffer { renderbuffer, .. } => {
+                    gl.framebuffer_renderbuffer(
+                        target.gl_enum(),
+                        attachment.gl_enum(),
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        None,
+                    );
+                    gl.delete_renderbuffer(Some(&renderbuffer));
+                }
+            }
         }
     }
 }
 
 struct Bound {
     target: FramebufferTarget,
-    read_buffer: Option<FramebufferDrawBuffer>,
+    read_buffer: Option<OperatableBuffer>,
     draw_buffers: Option<Array>,
 }
 
@@ -496,6 +592,7 @@ pub struct Framebuffer {
     size_policy: SizePolicy,
 
     providers: HashMap<FramebufferAttachment, AttachmentProvider>,
+    read_buffer: u32,
     draw_buffers: Array,
     adds: HashSet<FramebufferAttachment>,
     renderbuffer_samples: Option<i32>,
@@ -508,15 +605,16 @@ impl Drop for Framebuffer {
         self.unbind();
         if let Some(runtime) = self.runtime.take() {
             self.gl.delete_framebuffer(Some(&runtime.framebuffer));
-            runtime
-                .attaches
-                .iter()
-                .for_each(|(_, attach)| match attach {
-                    Attach::Texture { texture, .. } => self.gl.delete_texture(Some(texture)),
-                    Attach::Renderbuffer { renderbuffer, .. } => {
-                        self.gl.delete_renderbuffer(Some(renderbuffer))
+            runtime.attaches.iter().for_each(|(_, attach)| {
+                if attach.is_owned() {
+                    match attach {
+                        Attach::Texture { texture, .. } => self.gl.delete_texture(Some(texture)),
+                        Attach::Renderbuffer { renderbuffer, .. } => {
+                            self.gl.delete_renderbuffer(Some(renderbuffer))
+                        }
                     }
-                });
+                }
+            });
         }
     }
 }
@@ -545,6 +643,13 @@ impl Framebuffer {
             }
             adds.insert(attachment);
         }
+        draw_buffers.sort();
+        // takes the first attachment from draw buffers as default read buffer. uses NONE if no draw buffer.
+        let read_buffer = draw_buffers
+            .get(0)
+            .as_f64()
+            .map(|v| v as u32)
+            .unwrap_or(WebGl2RenderingContext::NONE);
 
         let renderbuffer_samples = match renderbuffer_samples {
             Some(samples) => {
@@ -562,6 +667,7 @@ impl Framebuffer {
             size_policy,
 
             providers: ps,
+            read_buffer,
             draw_buffers,
             adds,
             renderbuffer_samples,
@@ -574,7 +680,7 @@ impl Framebuffer {
         &self.gl
     }
 
-    pub fn clear_buffer_bits(&self) -> Result<(), Error> {
+    pub fn clear_buffers(&self) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_ref() else {
             return Err(Error::FramebufferUninitialized);
         };
@@ -585,16 +691,17 @@ impl Framebuffer {
         runtime.attaches.iter().for_each(|(attachment, attach)| {
             attach
                 .clear_policy()
+                .unwrap_or(attachment.default_clear_policy())
                 .clear(&self.gl, attachment.to_draw_buffer_index());
         });
 
         Ok(())
     }
 
-    pub fn clear_buffer_bits_of_attachment(
-        &self,
-        attachment: FramebufferAttachment,
-    ) -> Result<(), Error> {
+    pub fn clear_buffers_of_attachments<I>(&self, attachments: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = FramebufferAttachment>,
+    {
         let Some(runtime) = self.runtime.as_ref() else {
             return Err(Error::FramebufferUninitialized);
         };
@@ -602,12 +709,12 @@ impl Framebuffer {
             return Err(Error::FramebufferUnbound);
         }
 
-        if let Some(attach) = runtime.attaches.get(&attachment) {
-            match attach {
-                Attach::Texture { clear_policy, .. }
-                | Attach::Renderbuffer { clear_policy, .. } => {
-                    clear_policy.clear(&self.gl, attachment.to_draw_buffer_index())
-                }
+        for attachment in attachments {
+            if let Some(attach) = runtime.attaches.get(&attachment) {
+                attach
+                    .clear_policy()
+                    .unwrap_or(attachment.default_clear_policy())
+                    .clear(&self.gl, attachment.to_draw_buffer_index());
             }
         }
 
@@ -647,35 +754,10 @@ impl Framebuffer {
 
         self.gl
             .bind_framebuffer(target.gl_enum(), Some(&runtime.framebuffer));
-        runtime.bound = Some(Bound {
-            target,
-            read_buffer: None,
-            draw_buffers: None,
-        });
 
         if width != runtime.width || height != runtime.height {
             for (attachment, attach) in runtime.attaches.drain() {
-                match attach {
-                    Attach::Texture { texture, .. } => {
-                        self.gl.framebuffer_texture_2d(
-                            target.gl_enum(),
-                            attachment.gl_enum(),
-                            WebGl2RenderingContext::TEXTURE_2D,
-                            None,
-                            0,
-                        );
-                        self.gl.delete_texture(Some(&texture));
-                    }
-                    Attach::Renderbuffer { renderbuffer, .. } => {
-                        self.gl.framebuffer_renderbuffer(
-                            target.gl_enum(),
-                            attachment.gl_enum(),
-                            WebGl2RenderingContext::RENDERBUFFER,
-                            None,
-                        );
-                        self.gl.delete_renderbuffer(Some(&renderbuffer));
-                    }
-                }
+                attach.delete(&self.gl, target, attachment);
                 self.adds.insert(attachment);
             }
             runtime.width = width;
@@ -687,31 +769,13 @@ impl Framebuffer {
             let Some(attach) = runtime.attaches.remove(&attachment) else {
                 continue;
             };
-            match attach {
-                Attach::Texture { texture, .. } => {
-                    self.gl.framebuffer_texture_2d(
-                        target.gl_enum(),
-                        attachment.gl_enum(),
-                        WebGl2RenderingContext::TEXTURE_2D,
-                        None,
-                        0,
-                    );
-                    self.gl.delete_texture(Some(&texture));
-                }
-                Attach::Renderbuffer { renderbuffer, .. } => {
-                    self.gl.framebuffer_renderbuffer(
-                        target.gl_enum(),
-                        attachment.gl_enum(),
-                        WebGl2RenderingContext::RENDERBUFFER,
-                        None,
-                    );
-                    self.gl.delete_renderbuffer(Some(&renderbuffer));
-                }
-            }
+            attach.delete(&self.gl, target, attachment);
         }
 
         for attachment in self.adds.drain() {
-            let provider = self.providers.get(&attachment).unwrap();
+            let Some(provider) = self.providers.get(&attachment) else {
+                continue;
+            };
             let attach = provider.create_attach(
                 &self.gl,
                 target,
@@ -723,43 +787,20 @@ impl Framebuffer {
             runtime.attaches.insert(attachment, attach);
         }
 
-        self.gl.draw_buffers(&self.draw_buffers);
-
-        Ok(())
-    }
-
-    pub fn set_read_buffer(&mut self, read_buffer: FramebufferDrawBuffer) -> Result<(), Error> {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::FramebufferUninitialized);
-        };
-        let Some(bound) = runtime.bound.as_mut() else {
-            return Err(Error::FramebufferUnbound);
-        };
-
-        self.gl.read_buffer(read_buffer.gl_enum());
-        bound.read_buffer = Some(read_buffer);
-
-        Ok(())
-    }
-
-    pub fn set_draw_buffers<I>(&mut self, draw_buffers: I) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = FramebufferDrawBuffer>,
-    {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::FramebufferUninitialized);
-        };
-        let Some(bound) = runtime.bound.as_mut() else {
-            return Err(Error::FramebufferUnbound);
-        };
-
-        let draw_buffers = Array::from_iter(
-            draw_buffers
-                .into_iter()
-                .map(|b| JsValue::from_f64(b.gl_enum() as f64)),
-        );
-        self.gl.draw_buffers(&draw_buffers);
-        bound.draw_buffers = Some(draw_buffers);
+        // binds draw buffers and read buffer to default.
+        if target == FramebufferTarget::DRAW_FRAMEBUFFER || target == FramebufferTarget::FRAMEBUFFER
+        {
+            self.gl.draw_buffers(&self.draw_buffers);
+        }
+        if target == FramebufferTarget::READ_FRAMEBUFFER || target == FramebufferTarget::FRAMEBUFFER
+        {
+            self.gl.read_buffer(self.read_buffer);
+        }
+        runtime.bound = Some(Bound {
+            target,
+            read_buffer: None,
+            draw_buffers: None,
+        });
 
         Ok(())
     }
@@ -774,15 +815,61 @@ impl Framebuffer {
             return;
         };
 
+        // resets draw buffers and read buffer to default if developer manually changes them ever.
         if bound.draw_buffers.take().is_some() {
             self.gl.draw_buffers(&self.draw_buffers);
         }
+        if bound.read_buffer.take().is_some() {
+            self.gl.read_buffer(self.read_buffer);
+        }
 
         self.gl.bind_framebuffer(bound.target.gl_enum(), None);
+    }
 
-        if bound.read_buffer.take().is_some() {
-            self.gl.read_buffer(WebGl2RenderingContext::BACK);
+    pub fn set_read_buffer(&mut self, read_buffer: OperatableBuffer) -> Result<(), Error> {
+        let Some(runtime) = self.runtime.as_mut() else {
+            return Err(Error::FramebufferUninitialized);
+        };
+        let Some(bound) = runtime.bound.as_mut() else {
+            return Err(Error::FramebufferUnbound);
+        };
+        if bound.target != FramebufferTarget::READ_FRAMEBUFFER
+            && bound.target != FramebufferTarget::FRAMEBUFFER
+        {
+            return Err(Error::FramebufferUnbound);
         }
+
+        self.gl.read_buffer(read_buffer.gl_enum());
+        bound.read_buffer = Some(read_buffer);
+
+        Ok(())
+    }
+
+    pub fn set_draw_buffers<I>(&mut self, draw_buffers: I) -> Result<(), Error>
+    where
+        I: IntoIterator<Item = OperatableBuffer>,
+    {
+        let Some(runtime) = self.runtime.as_mut() else {
+            return Err(Error::FramebufferUninitialized);
+        };
+        let Some(bound) = runtime.bound.as_mut() else {
+            return Err(Error::FramebufferUnbound);
+        };
+        if bound.target != FramebufferTarget::DRAW_FRAMEBUFFER
+            && bound.target != FramebufferTarget::FRAMEBUFFER
+        {
+            return Err(Error::FramebufferUnbound);
+        }
+
+        let draw_buffers = Array::from_iter(
+            draw_buffers
+                .into_iter()
+                .map(|b| JsValue::from_f64(b.gl_enum() as f64)),
+        );
+        self.gl.draw_buffers(&draw_buffers);
+        bound.draw_buffers = Some(draw_buffers);
+
+        Ok(())
     }
 
     /// Reads pixels.
@@ -797,13 +884,15 @@ impl Framebuffer {
         dst_data: &Object,
         dst_offset: u32,
     ) -> Result<(), Error> {
-        if self.runtime.is_none() {
+        let Some(runtime) = self.runtime.as_ref() else {
             return Err(Error::FramebufferUninitialized);
         };
-        let Some(bound) = self.bound_target() else {
+        let Some(bound) = runtime.bound.as_ref() else {
             return Err(Error::FramebufferUnbound);
         };
-        if bound != FramebufferTarget::READ_FRAMEBUFFER && bound != FramebufferTarget::FRAMEBUFFER {
+        if bound.target != FramebufferTarget::READ_FRAMEBUFFER
+            && bound.target != FramebufferTarget::FRAMEBUFFER
+        {
             return Err(Error::FramebufferUnbound);
         }
 
@@ -841,14 +930,6 @@ impl Framebuffer {
     /// Returns framebuffer height.
     pub fn height(&self) -> Option<i32> {
         self.runtime.as_ref().map(|runtime| runtime.height)
-    }
-
-    /// Returns [`FramebufferTarget`] currently binding to this framebuffer.
-    pub fn bound_target(&self) -> Option<FramebufferTarget> {
-        self.runtime
-            .as_ref()
-            .and_then(|runtime| runtime.bound.as_ref())
-            .map(|bound| bound.target)
     }
 
     /// Returns [`WebGlFramebuffer`],
@@ -932,7 +1013,7 @@ impl Framebuffer {
     pub fn set_attachment(
         &mut self,
         attachment: FramebufferAttachment,
-        provider: AttachmentProvider,
+        provider: Option<AttachmentProvider>,
     ) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Ok(());
@@ -941,9 +1022,37 @@ impl Framebuffer {
             return Err(Error::FramebufferBinding(bound.target));
         }
 
-        self.providers.insert(attachment, provider);
-        self.adds.insert(attachment);
-        runtime.removes.insert(attachment);
+        let current = self.providers.get(&attachment);
+        if current == provider.as_ref() {
+            return Ok(());
+        }
+
+        match provider {
+            Some(provider) => {
+                self.providers.insert(attachment, provider);
+                runtime.removes.insert(attachment);
+                self.adds.insert(attachment);
+
+                if let Some(draw_buffer) = attachment.to_draw_buffer() {
+                    let draw_buffer = JsValue::from_f64(draw_buffer.gl_enum() as f64);
+                    if !self.draw_buffers.includes(&draw_buffer, 0) {
+                        self.draw_buffers.push(&draw_buffer);
+                        self.draw_buffers.sort();
+                    }
+                }
+            }
+            None => {
+                self.providers.remove(&attachment);
+                runtime.removes.insert(attachment);
+
+                if let Some(draw_buffer) = attachment.to_draw_buffer() {
+                    let draw_buffer = draw_buffer.gl_enum() as u32;
+                    self.draw_buffers = self
+                        .draw_buffers
+                        .filter(&mut |value, _, _| value.as_f64().unwrap() as u32 != draw_buffer);
+                }
+            }
+        }
 
         Ok(())
     }
@@ -953,7 +1062,7 @@ pub struct FramebufferBuilder {
     size_policy: SizePolicy,
     providers: HashMap<FramebufferAttachment, AttachmentProvider>,
     adds: HashSet<FramebufferAttachment>,
-    draw_buffers: Array,
+    draw_buffers: HashSet<OperatableBuffer>,
     renderbuffer_samples: Option<i32>,
 }
 
@@ -963,7 +1072,7 @@ impl FramebufferBuilder {
             size_policy: SizePolicy::FollowDrawingBuffer,
             providers: HashMap::new(),
             adds: HashSet::new(),
-            draw_buffers: Array::new(),
+            draw_buffers: HashSet::new(),
             renderbuffer_samples: None,
         }
     }
@@ -985,11 +1094,25 @@ impl FramebufferBuilder {
     }
 
     pub fn build(self, gl: WebGl2RenderingContext) -> Framebuffer {
+        let draw_buffers = Array::from_iter(
+            self.draw_buffers
+                .into_iter()
+                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
+        );
+        draw_buffers.sort();
+        // takes the first one of draw buffers as default read buffer. uses NONE if no draw buffer.
+        let read_buffer = draw_buffers
+            .get(0)
+            .as_f64()
+            .map(|v| v as u32)
+            .unwrap_or(WebGl2RenderingContext::NONE);
+
         Framebuffer {
             gl,
             size_policy: self.size_policy,
             providers: self.providers,
-            draw_buffers: self.draw_buffers,
+            read_buffer,
+            draw_buffers,
             renderbuffer_samples: self.renderbuffer_samples,
             adds: self.adds,
 
@@ -1005,7 +1128,7 @@ macro_rules! framebuffer_build_attachments {
             pub fn $with_func(mut self, provider: AttachmentProvider) -> Self {
                 self.providers.insert($attachment, provider);
                 if let Some(draw_buffer) = $attachment.to_draw_buffer() {
-                    self.draw_buffers.push(&JsValue::from_f64(draw_buffer.gl_enum() as f64));
+                    self.draw_buffers.insert(draw_buffer);
                 }
                 self.adds.insert($attachment);
                 self
@@ -1013,12 +1136,9 @@ macro_rules! framebuffer_build_attachments {
 
             pub fn $without_func(mut self) -> Self {
                 self.providers.remove(&$attachment);
-                self.draw_buffers = self.draw_buffers.filter(&mut |v, _, _| {
-                    v.as_f64()
-                        != $attachment
-                            .to_draw_buffer()
-                            .map(|draw_buffer| draw_buffer.gl_enum() as f64)
-                });
+                if let Some(draw_buffer) = $attachment.to_draw_buffer() {
+                    self.draw_buffers.remove(&draw_buffer);
+                }
                 self.adds.remove(&$attachment);
                 self
             }

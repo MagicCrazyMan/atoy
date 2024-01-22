@@ -24,7 +24,10 @@ use self::{
     composer::StandardComposer,
     preparation::StandardPreparation,
     shading::{
-        deferred::{gbuffer::StandardGBufferCollector, StandardDeferredShading},
+        deferred::{
+            gbuffer::StandardGBufferCollector, simple::StandardDeferredTransparentShading,
+            StandardDeferredShading,
+        },
         forward::{
             hdr::StandardHdrShading, hdr_multisamples::StandardMultisamplesHdrShading,
             simple::StandardSimpleShading, simple_multisamples::StandardMultisamplesSimpleShading,
@@ -245,6 +248,7 @@ pub struct StandardPipeline {
 
     gbuffer: StandardGBufferCollector,
     deferred_shading: StandardDeferredShading,
+    deferred_translucent_shading: StandardDeferredTransparentShading,
 
     picking: StandardPicking,
 
@@ -279,6 +283,7 @@ impl StandardPipeline {
 
             gbuffer: StandardGBufferCollector::new(),
             deferred_shading: StandardDeferredShading::new(),
+            deferred_translucent_shading: StandardDeferredTransparentShading::new(),
 
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as i32),
@@ -591,7 +596,7 @@ impl StandardPipeline {
                         lights_ubo,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    [self.hdr_shading.draw_texture().unwrap()]
+                    self.hdr_shading.draw_texture().unwrap()
                 }
                 (true, Some(samples)) => {
                     self.multisamples_hdr_shading.draw(
@@ -605,7 +610,7 @@ impl StandardPipeline {
                         lights_ubo,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    [self.multisamples_hdr_shading.draw_texture().unwrap()]
+                    self.multisamples_hdr_shading.draw_texture().unwrap()
                 }
                 (false, None) => {
                     self.simple_shading.draw(
@@ -614,7 +619,7 @@ impl StandardPipeline {
                         &self.universal_ubo,
                         lights_ubo,
                     )?;
-                    [self.simple_shading.draw_texture().unwrap()]
+                    self.simple_shading.draw_texture().unwrap()
                 }
                 (false, Some(samples)) => {
                     self.multisamples_simple_shading.draw(
@@ -624,10 +629,10 @@ impl StandardPipeline {
                         &self.universal_ubo,
                         lights_ubo,
                     )?;
-                    [self.multisamples_simple_shading.draw_texture().unwrap()]
+                    self.multisamples_simple_shading.draw_texture().unwrap()
                 }
             };
-            self.composer.compose(state, compose_textures)?;
+            self.composer.compose(state, [compose_textures])?;
             self.cleanup.cleanup(state);
         };
 
@@ -647,21 +652,34 @@ impl StandardPipeline {
             // deferred shading on opaque entities
             self.gbuffer
                 .draw(state, &collected_entities, &self.universal_ubo)?;
-            let [positions_texture, normals_texture, albedo_and_specular_shininess_texture] =
-                self.gbuffer.deferred_shading_textures().unwrap();
+            let (
+                positions_and_specular_shininess_texture,
+                normals_texture,
+                albedo_texture,
+                depth_stencil,
+            ) = self.gbuffer.deferred_shading_textures().unwrap();
             self.deferred_shading.draw(
                 state,
-                positions_texture,
+                positions_and_specular_shininess_texture,
                 normals_texture,
-                albedo_and_specular_shininess_texture,
+                albedo_texture,
                 &self.universal_ubo,
                 lights_ubo,
             )?;
 
-            // then forward shading on transparent entities
+            // then forward shading on translucent entities
+            self.deferred_translucent_shading.draw(
+                state,
+                &depth_stencil,
+                &collected_entities,
+                &self.universal_ubo,
+                lights_ubo,
+            )?;
 
-            let compose_textures = self.deferred_shading.draw_texture().unwrap();
-            self.composer.compose(state, [compose_textures])?;
+            let opaque_textures = self.deferred_shading.draw_texture().unwrap();
+            let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
+            self.composer
+                .compose(state, [opaque_textures, translucent_texture])?;
         }
 
         Ok(())

@@ -486,7 +486,7 @@ pub fn test_cube(
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
-            Transparency::Opaque,
+            rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);

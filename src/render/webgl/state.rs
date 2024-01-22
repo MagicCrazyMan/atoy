@@ -19,7 +19,7 @@ use super::{
     error::Error,
     framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
-        FramebufferBuilder, FramebufferDrawBuffer, FramebufferTarget, SizePolicy,
+        FramebufferBuilder, OperatableBuffer, FramebufferTarget, SizePolicy,
     },
     program::{Program, ProgramStore},
     texture::{TextureParameter, TextureStore, TextureUnit},
@@ -777,18 +777,18 @@ impl FrameState {
     pub fn blit_framebuffers_with_buffers<I>(
         &self,
         read_framebuffer: &mut Framebuffer,
-        read_buffer: FramebufferDrawBuffer,
+        read_buffer: OperatableBuffer,
         draw_framebuffer: &mut Framebuffer,
         draw_buffers: I,
         mask: BlitMask,
         filter: BlitFlilter,
     ) -> Result<(), Error>
     where
-        I: IntoIterator<Item = FramebufferDrawBuffer>,
+        I: IntoIterator<Item = OperatableBuffer>,
     {
         draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
         draw_framebuffer.set_draw_buffers(draw_buffers)?;
+        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
         read_framebuffer.set_read_buffer(read_buffer)?;
         let dst_width = draw_framebuffer
             .width()
@@ -826,7 +826,7 @@ impl FrameState {
     pub fn blit_framebuffers_native<I1, I2>(
         &self,
         read_framebuffer: &WebGlFramebuffer,
-        read_buffer: FramebufferDrawBuffer,
+        read_buffer: OperatableBuffer,
         draw_framebuffer: &WebGlFramebuffer,
         draw_buffers: I1,
         reset_draw_buffers: I2,
@@ -842,8 +842,8 @@ impl FrameState {
         filter: BlitFlilter,
     ) -> Result<(), Error>
     where
-        I1: IntoIterator<Item = FramebufferDrawBuffer>,
-        I2: IntoIterator<Item = FramebufferDrawBuffer>,
+        I1: IntoIterator<Item = OperatableBuffer>,
+        I2: IntoIterator<Item = OperatableBuffer>,
     {
         self.gl.bind_framebuffer(
             WebGl2RenderingContext::DRAW_FRAMEBUFFER,

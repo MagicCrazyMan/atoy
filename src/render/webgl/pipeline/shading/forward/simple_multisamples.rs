@@ -4,7 +4,7 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        AttachmentProvider, BlitFlilter, BlitMask, ClearPolicy, Framebuffer, FramebufferAttachment,
+        AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
         FramebufferBuilder, FramebufferTarget,
     },
     pipeline::{
@@ -36,7 +36,6 @@ impl StandardMultisamplesSimpleShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })
@@ -48,11 +47,9 @@ impl StandardMultisamplesSimpleShading {
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::RGBA8,
-                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                        ClearPolicy::DepthStencil(1.0, 0),
                     ))
                     .with_samples(samples),
             )
@@ -96,7 +93,7 @@ impl StandardMultisamplesSimpleShading {
     ) -> Result<(), Error> {
         let multisample_framebuffer = self.multisample_framebuffer(state, samples);
         multisample_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        multisample_framebuffer.clear_buffer_bits()?;
+        multisample_framebuffer.clear_buffers()?;
         draw_entities(
             state,
             &DrawState::Draw {

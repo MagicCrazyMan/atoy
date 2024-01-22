@@ -273,10 +273,10 @@ impl StandardEntitiesCollector {
             }
         }
 
-        if self.enable_sorting {
-            self.last_entities
-                .sort_by(|a, b| a.distance.total_cmp(&b.distance));
-        }
+        // if self.enable_sorting {
+        //     self.last_entities
+        //         .sort_by(|a, b| a.distance.total_cmp(&b.distance));
+        // }
 
         self.last_container = Some(*scene.entity_container().id());
         self.last_view_frustum = Some(view_frustum);

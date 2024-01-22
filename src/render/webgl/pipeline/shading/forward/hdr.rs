@@ -4,7 +4,7 @@ use crate::render::webgl::{
     buffer::BufferDescriptor,
     error::Error,
     framebuffer::{
-        AttachmentProvider, ClearPolicy, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+        AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
         FramebufferTarget,
     },
     pipeline::{
@@ -51,7 +51,6 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA8,
                     TextureFormat::RGBA,
                     TextureDataType::UNSIGNED_BYTE,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })
@@ -65,11 +64,9 @@ impl StandardHdrShading {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
-                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                        ClearPolicy::DepthStencil(1.0, 0),
                     )),
             )
         })
@@ -83,17 +80,14 @@ impl StandardHdrShading {
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
-                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ))
                     .with_color_attachment1(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
                         TextureFormat::RGBA,
                         TextureDataType::FLOAT,
-                        ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                        ClearPolicy::DepthStencil(1.0, 0),
                     )),
             )
         })
@@ -106,7 +100,6 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })
@@ -119,7 +112,6 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })
@@ -132,7 +124,6 @@ impl StandardHdrShading {
                     TextureInternalFormat::RGBA32F,
                     TextureFormat::RGBA,
                     TextureDataType::FLOAT,
-                    ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
                 ),
             ))
         })
@@ -176,7 +167,7 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let fbo = self.hdr_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        fbo.clear_buffer_bits()?;
+        fbo.clear_buffers()?;
         draw_entities(
             state,
             &DrawState::Draw {
@@ -199,7 +190,7 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let fbo = self.hdr_bloom_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        fbo.clear_buffer_bits()?;
+        fbo.clear_buffers()?;
         draw_entities(
             state,
             &DrawState::Draw {

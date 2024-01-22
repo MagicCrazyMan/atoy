@@ -1,4 +1,4 @@
-use web_sys::WebGlTexture;
+use web_sys::{WebGlRenderbuffer, WebGlTexture};
 
 use crate::render::webgl::{
     buffer::BufferDescriptor,
@@ -9,23 +9,26 @@ use crate::render::webgl::{
     },
     pipeline::{
         collector::CollectedEntities,
-        shading::{draw_entities, DrawState},
+        shading::{draw_translucent_entities, DrawState},
     },
-    renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
 };
 
-pub struct StandardSimpleShading {
+pub struct StandardDeferredTransparentShading {
     framebuffer: Option<Framebuffer>,
 }
 
-impl StandardSimpleShading {
+impl StandardDeferredTransparentShading {
     pub fn new() -> Self {
         Self { framebuffer: None }
     }
 
-    fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
+    fn framebuffer(
+        &mut self,
+        state: &FrameState,
+        depth_stencil: &WebGlRenderbuffer,
+    ) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
@@ -34,8 +37,8 @@ impl StandardSimpleShading {
                         TextureFormat::RGBA,
                         TextureDataType::UNSIGNED_BYTE,
                     ))
-                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                    .with_depth_stencil_attachment(AttachmentProvider::from_renderbuffer(
+                        depth_stencil.clone(),
                     )),
             )
         })
@@ -50,14 +53,20 @@ impl StandardSimpleShading {
     pub unsafe fn draw(
         &mut self,
         state: &mut FrameState,
+        depth_stencil: &WebGlRenderbuffer,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
         lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
-        let framebuffer = self.framebuffer(state);
+        let framebuffer = self.framebuffer(state, depth_stencil);
+        framebuffer.set_attachment(
+            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
+            Some(AttachmentProvider::from_renderbuffer(depth_stencil.clone())),
+        )?;
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        framebuffer.clear_buffers()?;
-        draw_entities(
+        // do not clear depth buffer!!!
+        framebuffer.clear_buffers_of_attachments([FramebufferAttachment::COLOR_ATTACHMENT0])?;
+        draw_translucent_entities(
             state,
             &DrawState::Draw {
                 universal_ubo,

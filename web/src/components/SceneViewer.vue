@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import init, { LogLevel, init_with_log_level, test_cube } from "atoy";
+import init, { LogLevel, init_with_log_level, test_cube, test_pick } from "atoy";
 import { onMounted } from "vue";
 import SceneController from "./SceneController.vue";
 import { ref } from "vue";
@@ -53,6 +53,18 @@ onMounted(async () => {
   await init();
   init_with_log_level(LogLevel.Info);
 
+  // const viewer = test_cube(
+  //   40000,
+  //   200,
+  //   500,
+  //   500,
+  //   (time: number) => {
+  //     renderTime.value = time;
+  //   },
+  //   (time: number) => {
+  //     pickTime.value = time;
+  //   }
+  // );
   const viewer = test_cube(
     40000,
     200,
