@@ -30,7 +30,10 @@ impl<T> Notifying<T> {
         };
 
         if notifiee == self.notifiee {
-            inner.borrow_mut().notifiees.remove(&self.key);
+            let Some(notifiee) = inner.borrow_mut().notifiees.remove(&self.key) else {
+                return;
+            };
+            unsafe { drop(Box::from_raw(notifiee)) }
         }
     }
 }
@@ -77,7 +80,7 @@ impl<T> Notifier<T> {
                 counter: 0,
                 notifiees: HashMap::new(),
             })),
-            aborts: Vec::new()
+            aborts: Vec::new(),
         }
     }
 
@@ -98,7 +101,10 @@ impl<T> Notifier<T> {
     }
 
     pub fn unregister(&mut self, key: usize) {
-        self.inner.borrow_mut().notifiees.remove(&key);
+        let Some(notifiee) = self.inner.borrow_mut().notifiees.remove(&key) else {
+            return;
+        };
+        unsafe { drop(Box::from_raw(notifiee)) }
     }
 
     pub fn notify(&mut self, msg: &mut T) {
@@ -114,7 +120,10 @@ impl<T> Notifier<T> {
             }
 
             for abort in self.aborts.drain(..) {
-                inner.notifiees.remove(&abort);
+                let Some(notifiee) = inner.notifiees.remove(&abort) else {
+                    continue;
+                };
+                drop(Box::from_raw(notifiee));
             }
         }
     }
