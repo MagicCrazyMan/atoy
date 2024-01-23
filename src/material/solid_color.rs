@@ -3,7 +3,7 @@ use std::{any::Any, borrow::Cow};
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
-    event::EventAgency,
+    notify::Notifier,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
@@ -17,12 +17,11 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
-#[derive(Clone)]
 pub struct SolidColorMaterial {
     color: Vec3<f32>,
     specular_shininess: f32,
     transparency: Transparency,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl SolidColorMaterial {
@@ -41,7 +40,7 @@ impl SolidColorMaterial {
             color,
             specular_shininess,
             transparency,
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new(),
         }
     }
 
@@ -54,7 +53,6 @@ impl SolidColorMaterial {
     pub fn set_color(&mut self, color: Vec3<f32>, transparency: Transparency) {
         self.color = color;
         self.transparency = transparency;
-        self.changed_event.raise(());
     }
 }
 
@@ -107,8 +105,8 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -119,7 +117,7 @@ impl StandardMaterial for SolidColorMaterial {
         self
     }
 
-    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource {
+    fn as_standard_material_source(&self) -> &dyn StandardMaterialSource {
         self
     }
 

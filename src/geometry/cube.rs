@@ -4,7 +4,7 @@ use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
     bounding::BoundingVolume,
-    event::EventAgency,
+    notify::Notifier,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -23,7 +23,7 @@ pub struct Cube {
     positions: BufferDescriptor,
     normals_textures: BufferDescriptor,
     bounding_volume: BoundingVolume,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl Cube {
@@ -49,7 +49,7 @@ impl Cube {
             },
             normals_textures: normals_texture_coordinates_buffer_descriptor(),
             bounding_volume: build_bounding_volume(size),
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new(),
         }
     }
 
@@ -69,7 +69,6 @@ impl Cube {
             }),
         );
         self.bounding_volume = build_bounding_volume(size);
-        self.changed_event.raise(());
     }
 }
 
@@ -138,8 +137,8 @@ impl Geometry for Cube {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

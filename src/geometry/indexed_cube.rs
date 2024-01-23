@@ -3,18 +3,15 @@ use std::any::Any;
 use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
-    bounding::BoundingVolume,
-    event::EventAgency,
-    render::webgl::{
+    bounding::BoundingVolume, notify::Notifier, render::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage,
         },
-        draw::{Draw, DrawElementType, DrawMode, CullFace},
+        draw::{CullFace, Draw, DrawElementType, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    },
-    utils::{slice_to_float32_array, slice_to_uint8_array},
+    }, utils::{slice_to_float32_array, slice_to_uint8_array}
 };
 
 use super::Geometry;
@@ -25,7 +22,7 @@ pub struct IndexedCube {
     positions: BufferDescriptor,
     normals: BufferDescriptor,
     texture_coordinates: BufferDescriptor,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl IndexedCube {
@@ -62,7 +59,7 @@ impl IndexedCube {
                 ),
                 BufferUsage::StaticDraw,
             ),
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new(),
         }
     }
 }
@@ -77,14 +74,9 @@ impl IndexedCube {
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
         self.positions.buffer_sub_data(
-            BufferSource::from_float32_array(
-                slice_to_float32_array(&build_positions(size)),
-                0,
-                72,
-            ),
+            BufferSource::from_float32_array(slice_to_float32_array(&build_positions(size)), 0, 72),
             0,
         );
-        self.changed_event.raise(());
     }
 }
 
@@ -159,8 +151,8 @@ impl Geometry for IndexedCube {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

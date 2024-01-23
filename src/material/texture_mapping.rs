@@ -1,8 +1,8 @@
 use std::{any::Any, borrow::Cow};
 
 use crate::{
-    event::EventAgency,
     loader::texture::TextureLoader,
+    notify::Notifier,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
@@ -22,17 +22,17 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 pub struct TextureMaterial {
     transparency: Transparency,
     diffuse_texture: TextureLoader,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl TextureMaterial {
     pub fn new<S: Into<String>>(url: S, transparency: Transparency) -> Self {
-        let changed_event = EventAgency::new();
-        let changed_event_cloned = changed_event.clone();
+        let notifier = Notifier::new();
+        let mut notifier_cloned = notifier.clone();
         Self {
             transparency,
             diffuse_texture: TextureLoader::from_url(url, move |image| {
-                changed_event_cloned.raise(());
+                notifier_cloned.notify(&mut ());
                 UniformValue::Texture {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
@@ -52,7 +52,7 @@ impl TextureMaterial {
                     unit: TextureUnit::TEXTURE0,
                 }
             }),
-            changed_event,
+            notifier,
         }
     }
 }
@@ -109,8 +109,8 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -121,7 +121,7 @@ impl StandardMaterial for TextureMaterial {
         self
     }
 
-    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource {
+    fn as_standard_material_source(&self) -> &dyn StandardMaterialSource {
         self
     }
 

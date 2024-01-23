@@ -6,11 +6,11 @@ use indexmap::IndexMap;
 use uuid::Uuid;
 
 use crate::{
-    bounding::{merge_bounding_volumes, BoundingVolume, CullingBoundingVolume},
+    bounding::{merge_bounding_volumes, CullingBoundingVolume},
     error::Error,
-    event::EventAgency,
     geometry::Geometry,
     material::StandardMaterial,
+    notify::{Notifiee, Notifying},
     render::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
@@ -84,22 +84,18 @@ impl EntityOptions {
         self.material = material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
     }
 
-    #[inline]
     pub fn attribute_values(&self) -> &HashMap<String, AttributeValue> {
         &self.attribute_values
     }
 
-    #[inline]
     pub fn uniform_values(&self) -> &HashMap<String, UniformValue> {
         &self.uniform_values
     }
 
-    #[inline]
     pub fn uniform_blocks_values(&self) -> &HashMap<String, UniformBlockValue> {
         &self.uniform_blocks_values
     }
 
-    #[inline]
     pub fn properties(&self) -> &HashMap<String, Box<dyn Any>> {
         &self.properties
     }
@@ -186,31 +182,6 @@ impl EntityOptions {
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
-    }
-
-    fn to_entity(self, id: Uuid, group: *mut Group) -> *mut Entity {
-        let entity = Box::leak(Box::new(Entity {
-            id,
-            model_matrix: self.model_matrix,
-            attribute_values: self.attribute_values,
-            uniform_values: self.uniform_values,
-            uniform_blocks_values: self.uniform_blocks_values,
-            properties: self.properties,
-            geometry: self.geometry,
-            material: self.material,
-
-            group,
-            dirty: Box::leak(Box::new(true)),
-            compose_model_matrix: Mat4::<f64>::new_identity(),
-            compose_normal_matrix: Mat4::<f64>::new_identity(),
-            bounding: None,
-            changed_event: EventAgency::new(),
-            delegated_geometry_event: None,
-            delegated_material_event: None,
-        }));
-        entity.delegate_geometry_event();
-        entity.delegate_material_event();
-        entity
     }
 }
 
@@ -254,41 +225,6 @@ impl GroupOptions {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum EntityEventKind {
-    Geometry,
-    Material,
-    ModelMatrix,
-    AddAttributeValue,
-    AddUniformValue,
-    AddUniformBlockValue,
-    AddProperty,
-    RemoveAttributeValue,
-    RemoveUniformValue,
-    RemoveUniformBlockValue,
-    RemoveProperty,
-    ClearAttributeValues,
-    ClearUniformValues,
-    ClearUniformBlockValues,
-    ClearProperties,
-}
-
-pub struct EntityEvent(EntityEventKind, *const Entity);
-
-impl EntityEvent {
-    fn new(kind: EntityEventKind, entity: &Entity) -> Self {
-        Self(kind, entity)
-    }
-
-    pub fn kind(&self) -> EntityEventKind {
-        self.0
-    }
-
-    pub fn entity(&self) -> &Entity {
-        unsafe { &*self.1 }
-    }
-}
-
 pub struct Entity {
     id: Uuid,
     model_matrix: Mat4,
@@ -296,89 +232,73 @@ pub struct Entity {
     uniform_values: HashMap<String, UniformValue>,
     uniform_blocks_values: HashMap<String, UniformBlockValue>,
     properties: HashMap<String, Box<dyn Any>>,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn StandardMaterial>>,
+    geometry: Option<(
+        Box<dyn Geometry>,
+        Option<CullingBoundingVolume>,
+        Notifying<()>,
+    )>,
+    material: Option<(Box<dyn StandardMaterial>, Notifying<()>)>,
 
     group: *mut Group,
     dirty: *mut bool,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
-    bounding: Option<CullingBoundingVolume>,
-    changed_event: EventAgency<EntityEvent>,
-    delegated_geometry_event: Option<Uuid>,
-    delegated_material_event: Option<Uuid>,
+}
+struct EntityDirtyNotifiee {
+    group: *mut Group,
+    dirty: *mut bool,
 }
 
-impl Entity {
-    fn to_options(mut self) -> EntityOptions {
-        unsafe {
-            self.undelegate_geometry_event();
-            self.undelegate_material_event();
-            drop(Box::from_raw(self.dirty));
-            EntityOptions {
-                model_matrix: self.model_matrix,
-                attribute_values: self.attribute_values,
-                uniform_values: self.uniform_values,
-                uniform_blocks_values: self.uniform_blocks_values,
-                properties: self.properties,
-                geometry: self.geometry,
-                material: self.material,
-            }
-        }
-    }
-
-    fn set_dirty(&mut self) {
+impl Notifiee<()> for EntityDirtyNotifiee {
+    fn notify(&mut self, _: &mut ()) {
         unsafe {
             *self.dirty = true;
             (*self.group).set_dirty();
         }
     }
+}
 
-    fn delegate_geometry_event(&mut self) {
-        let dirty = self.dirty;
-        let group = self.group;
-        let me = self as *mut Self;
-        if let Some(geometry) = self.geometry.as_deref() {
-            let id = geometry.changed_event().on(move |_| unsafe {
-                *dirty = true;
-                (*group).set_dirty();
-                (*me)
-                    .changed_event
-                    .raise(EntityEvent::new(EntityEventKind::Geometry, &*me));
-            });
-            self.delegated_geometry_event = Some(id);
+impl Entity {
+    fn from_options(options: EntityOptions, id: Uuid, group: *mut Group) -> *mut Entity {
+        let entity = Box::leak(Box::new(Entity {
+            id,
+            model_matrix: options.model_matrix,
+            attribute_values: options.attribute_values,
+            uniform_values: options.uniform_values,
+            uniform_blocks_values: options.uniform_blocks_values,
+            properties: options.properties,
+            geometry: None,
+            material: None,
+
+            group,
+            dirty: Box::leak(Box::new(true)),
+            compose_model_matrix: Mat4::<f64>::new_identity(),
+            compose_normal_matrix: Mat4::<f64>::new_identity(),
+        }));
+        entity.set_geometry_boxed(options.geometry);
+        entity.set_material_boxed(options.material);
+        entity
+    }
+
+    fn to_options(mut self) -> EntityOptions {
+        let geometry = self.take_geometry();
+        let material = self.take_material();
+        unsafe { drop(Box::from_raw(self.dirty)) };
+        EntityOptions {
+            model_matrix: self.model_matrix,
+            attribute_values: self.attribute_values,
+            uniform_values: self.uniform_values,
+            uniform_blocks_values: self.uniform_blocks_values,
+            properties: self.properties,
+            geometry,
+            material,
         }
     }
 
-    fn undelegate_geometry_event(&mut self) {
-        if let (Some(id), Some(geometry)) =
-            (self.delegated_geometry_event.take(), self.geometry.as_ref())
-        {
-            geometry.changed_event().off(&id);
-        }
-    }
-
-    fn delegate_material_event(&mut self) {
-        let dirty = self.dirty;
-        let group = self.group;
-        let me = self as *mut Self;
-        if let Some(material) = self.material.as_deref() {
-            let id = material.changed_event().on(move |_| unsafe {
-                *dirty = true;
-                (*group).set_dirty();
-                (*me)
-                    .changed_event
-                    .raise(EntityEvent::new(EntityEventKind::Material, &*me));
-            });
-            self.delegated_material_event = Some(id);
-        }
-    }
-
-    fn undelegate_material_event(&mut self) {
-        if let (Some(id), Some(material)) =
-            (self.delegated_material_event.take(), self.material.as_ref())
-        {
-            material.changed_event().off(&id);
+    pub fn set_dirty(&mut self) {
+        unsafe {
+            *self.dirty = true;
+            (*self.group).set_dirty();
         }
     }
 
@@ -388,58 +308,106 @@ impl Entity {
     }
 
     #[inline]
-    pub fn changed_event(&self) -> &EventAgency<EntityEvent> {
-        &self.changed_event
-    }
-
-    #[inline]
     pub fn geometry(&self) -> Option<&dyn Geometry> {
-        self.geometry.as_deref()
+        match self.geometry.as_ref() {
+            Some((geometry, _, _)) => Some(geometry.as_ref()),
+            None => None,
+        }
     }
 
     #[inline]
     pub fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
-        match &mut self.geometry {
-            Some(geometry) => Some(&mut **geometry),
+        match self.geometry.as_mut() {
+            Some((geometry, _, _)) => Some(geometry.as_mut()),
             None => None,
         }
     }
 
-    #[inline]
-    pub fn set_geometry<G>(&mut self, geometry: Option<G>)
+    pub fn set_geometry<G>(&mut self, geometry: Option<G>) -> Option<Box<dyn Geometry>>
     where
         G: Geometry + 'static,
     {
-        self.undelegate_geometry_event();
-        self.geometry = geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>);
-        self.delegate_geometry_event();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::Geometry, self));
+        self.set_geometry_boxed(geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>))
     }
 
-    #[inline]
+    pub fn set_geometry_boxed(
+        &mut self,
+        geometry: Option<Box<dyn Geometry>>,
+    ) -> Option<Box<dyn Geometry>> {
+        let old = self.take_geometry();
+
+        if let Some(mut geometry) = geometry {
+            let notifying = geometry.notifier().register(EntityDirtyNotifiee {
+                group: self.group,
+                dirty: self.dirty,
+            });
+            let bounding = geometry
+                .bounding_volume()
+                .map(|bounding| bounding.transform(self.compose_model_matrix))
+                .map(|bounding| CullingBoundingVolume::new(bounding));
+            self.geometry = Some((geometry, bounding, notifying));
+        }
+
+        old
+    }
+
+    pub fn take_geometry(&mut self) -> Option<Box<dyn Geometry>> {
+        let Some((geometry, _, notifying)) = self.geometry.take() else {
+            return None;
+        };
+        notifying.unregister();
+        self.set_dirty();
+        Some(geometry)
+    }
+
     pub fn material(&self) -> Option<&dyn StandardMaterial> {
-        self.material.as_deref()
+        match self.material.as_ref() {
+            Some((material, _)) => Some(material.as_ref()),
+            None => None,
+        }
     }
 
     #[inline]
     pub fn material_mut(&mut self) -> Option<&mut dyn StandardMaterial> {
-        match &mut self.material {
-            Some(material) => Some(&mut **material),
+        match self.material.as_mut() {
+            Some((material, _)) => Some(material.as_mut()),
             None => None,
         }
     }
 
-    #[inline]
-    pub fn set_material<M>(&mut self, material: Option<M>)
+    pub fn set_material<M>(&mut self, material: Option<M>) -> Option<Box<dyn StandardMaterial>>
     where
         M: StandardMaterial + 'static,
     {
-        self.undelegate_material_event();
-        self.material = material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
-        self.delegate_material_event();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::Material, self));
+        self.set_material_boxed(
+            material.map(|material| Box::new(material) as Box<dyn StandardMaterial>),
+        )
+    }
+
+    pub fn set_material_boxed(
+        &mut self,
+        material: Option<Box<dyn StandardMaterial>>,
+    ) -> Option<Box<dyn StandardMaterial>> {
+        let old = self.take_material();
+
+        if let Some(mut material) = material {
+            let notifying = material.notifier().register(EntityDirtyNotifiee {
+                group: self.group,
+                dirty: self.dirty,
+            });
+            self.material = Some((material, notifying));
+        }
+
+        old
+    }
+
+    pub fn take_material(&mut self) -> Option<Box<dyn StandardMaterial>> {
+        let Some((material, notifying)) = self.material.take() else {
+            return None;
+        };
+        notifying.unregister();
+        self.set_dirty();
+        Some(material)
     }
 
     #[inline]
@@ -450,13 +418,13 @@ impl Entity {
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::ModelMatrix, self));
     }
 
     #[inline]
     pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding.as_ref()
+        self.geometry
+            .as_ref()
+            .and_then(|(_, bounding, _)| bounding.as_ref())
     }
 
     #[inline]
@@ -496,8 +464,6 @@ impl Entity {
         let name = name.into();
         self.attribute_values.insert(name.clone(), value);
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::AddAttributeValue, self));
     }
 
     pub fn add_uniform_value<S>(&mut self, name: S, value: UniformValue)
@@ -507,8 +473,6 @@ impl Entity {
         let name = name.into();
         self.uniform_values.insert(name.clone(), value);
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::AddUniformValue, self));
     }
 
     pub fn add_uniform_block_value<S>(&mut self, name: S, value: UniformBlockValue)
@@ -518,10 +482,6 @@ impl Entity {
         let name = name.into();
         self.uniform_blocks_values.insert(name.clone(), value);
         self.set_dirty();
-        self.changed_event.raise(EntityEvent::new(
-            EntityEventKind::AddUniformBlockValue,
-            self,
-        ));
     }
 
     pub fn add_property<S, T>(&mut self, name: S, value: T)
@@ -532,17 +492,11 @@ impl Entity {
         let name = name.into();
         self.properties.insert(name.clone(), Box::new(value));
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::AddProperty, self));
     }
 
     pub fn remove_attribute_value(&mut self, name: &str) -> Option<(String, AttributeValue)> {
         if let Some(entry) = self.attribute_values.remove_entry(name) {
             self.set_dirty();
-            self.changed_event.raise(EntityEvent::new(
-                EntityEventKind::RemoveAttributeValue,
-                self,
-            ));
             Some(entry)
         } else {
             None
@@ -552,8 +506,6 @@ impl Entity {
     pub fn remove_uniform_value(&mut self, name: &str) -> Option<(String, UniformValue)> {
         if let Some(entry) = self.uniform_values.remove_entry(name) {
             self.set_dirty();
-            self.changed_event
-                .raise(EntityEvent::new(EntityEventKind::RemoveUniformValue, self));
             Some(entry)
         } else {
             None
@@ -566,10 +518,6 @@ impl Entity {
     ) -> Option<(String, UniformBlockValue)> {
         if let Some(entry) = self.uniform_blocks_values.remove_entry(name) {
             self.set_dirty();
-            self.changed_event.raise(EntityEvent::new(
-                EntityEventKind::RemoveUniformBlockValue,
-                self,
-            ));
             Some(entry)
         } else {
             None
@@ -579,8 +527,6 @@ impl Entity {
     pub fn remove_property(&mut self, name: &str) -> Option<(String, Box<dyn Any>)> {
         if let Some(entry) = self.properties.remove_entry(name) {
             self.set_dirty();
-            self.changed_event
-                .raise(EntityEvent::new(EntityEventKind::RemoveProperty, self));
             Some(entry)
         } else {
             None
@@ -590,33 +536,21 @@ impl Entity {
     pub fn clear_attribute_values(&mut self) {
         self.attribute_values.clear();
         self.set_dirty();
-        self.changed_event.raise(EntityEvent::new(
-            EntityEventKind::ClearAttributeValues,
-            self,
-        ));
     }
 
     pub fn clear_uniform_values(&mut self) {
         self.uniform_blocks_values.clear();
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::ClearUniformValues, self));
     }
 
     pub fn clear_uniform_blocks_values(&mut self) {
         self.uniform_blocks_values.clear();
         self.set_dirty();
-        self.changed_event.raise(EntityEvent::new(
-            EntityEventKind::ClearUniformBlockValues,
-            self,
-        ));
     }
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
         self.set_dirty();
-        self.changed_event
-            .raise(EntityEvent::new(EntityEventKind::ClearProperties, self));
     }
 
     pub fn update(&mut self) {
@@ -629,68 +563,63 @@ impl Entity {
         }
     }
 
-    fn update_matrices(&mut self) {
-        self.compose_model_matrix = unsafe { &*self.group }.model_matrix * self.model_matrix;
+    unsafe fn update_matrices(&mut self) {
+        self.compose_model_matrix = (*self.group).model_matrix.clone() * self.model_matrix;
         self.compose_normal_matrix = self.compose_model_matrix.clone();
         self.compose_normal_matrix
             .invert_in_place()
-            .expect("matrix with zero determinant is not allowed");
+            .expect("invert a matrix with zero determinant is not allowed");
         self.compose_normal_matrix.transpose_in_place();
     }
 
     fn update_bounding(&mut self) {
-        let Some(geometry) = self.geometry.as_ref() else {
+        let Some((_, Some(bounding), _)) = self.geometry.as_mut() else {
             return;
         };
-        let Some(bounding) = geometry.bounding_volume() else {
-            return;
-        };
-
-        self.bounding = Some(CullingBoundingVolume::new(
-            bounding.transform(self.compose_model_matrix),
-        ));
+        bounding.transform(self.compose_model_matrix);
     }
+}
+
+enum GroupOwner {
+    Container(*mut bool),
+    Group(*mut Group),
 }
 
 pub struct Group {
     id: Uuid,
-    super_group: *mut Group,
+    owner: GroupOwner,
     entities: IndexMap<Uuid, *mut Entity>,
     sub_groups: IndexMap<Uuid, *mut Group>,
     model_matrix: Mat4,
 
     bounding: Option<CullingBoundingVolume>,
 
-    container_temporary: Container,
     dirty: bool,
 }
 
 impl Group {
-    fn new(id: Uuid, container: &mut Container) -> Self {
-        Self::with_super_group(id, container, std::ptr::null_mut())
-    }
-
-    fn with_super_group(id: Uuid, container: &mut Container, super_group: *mut Group) -> Self {
+    fn new(id: Uuid, owner: GroupOwner) -> Self {
         Self {
             id,
-            super_group,
+            owner,
             entities: IndexMap::new(),
             sub_groups: IndexMap::new(),
 
             model_matrix: Mat4::<f64>::new_identity(),
             bounding: None,
 
-            container_temporary: container.clone_temporary(),
             dirty: true,
         }
     }
 
-    fn set_dirty(&mut self) {
-        self.dirty = true;
-        self.container_temporary.set_dirty(ContainerEvent::new(
-            ContainerEventKind::Changed,
-            &self.container_temporary,
-        ));
+    pub fn set_dirty(&mut self) {
+        unsafe {
+            self.dirty = true;
+            match self.owner {
+                GroupOwner::Container(dirty) => *dirty = true,
+                GroupOwner::Group(super_group) => (*super_group).set_dirty(),
+            }
+        }
     }
 
     #[inline]
@@ -720,10 +649,11 @@ impl Group {
 
     #[inline]
     pub fn super_group(&self) -> Option<&Group> {
-        if self.super_group.is_null() {
-            None
-        } else {
-            Some(unsafe { &*self.super_group })
+        unsafe {
+            match self.owner {
+                GroupOwner::Container(_) => None,
+                GroupOwner::Group(super_group) => Some(&*super_group),
+            }
         }
     }
 
@@ -793,77 +723,36 @@ impl Group {
                 }
             }
 
-            self.update_bounding(boundings);
+            self.bounding = merge_bounding_volumes(boundings)
+                .map(|bounding| CullingBoundingVolume::new(bounding));
+
             self.dirty = false;
         }
-    }
-
-    fn update_bounding(&mut self, boundings: Vec<BoundingVolume>) {
-        self.bounding =
-            merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ContainerEventKind {
-    Changed,
-    ModelMatrix,
-    AddEntity,
-    AddGroup,
-    AddGroups,
-    RemoveEntity,
-    RemoveGroup,
-    DecomposeGroup,
-    MoveEntity,
-    MoveGroup,
-}
-
-pub struct ContainerEvent(ContainerEventKind, *const Container);
-
-impl ContainerEvent {
-    fn new(kind: ContainerEventKind, container: &Container) -> Self {
-        Self(kind, container)
-    }
-
-    pub fn kind(&self) -> ContainerEventKind {
-        self.0
-    }
-
-    pub fn container(&self) -> &Container {
-        unsafe { &*self.1 }
     }
 }
 
 pub struct Container {
-    temporary: bool,
-
     id: Uuid,
     entities: *mut IndexMap<Uuid, *mut Entity>,
     groups: *mut IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
 
     dirty: *mut bool,
-    changed_event: *mut EventAgency<ContainerEvent>,
 }
 
 impl Drop for Container {
     fn drop(&mut self) {
-        if self.temporary {
-            return;
-        }
-
         unsafe {
             let mut entities = Box::from_raw(self.entities);
             let mut groups = Box::from_raw(self.groups);
             for (_, entity) in entities.drain(..) {
-                drop(Box::from_raw(entity).to_options());
+                drop(Box::from_raw(entity));
             }
             for (_, group) in groups.drain(..) {
                 drop(Box::from_raw(group));
             }
             drop(Box::from_raw(self.root_group));
             drop(Box::from_raw(self.dirty));
-            drop(Box::from_raw(self.changed_event));
         }
     }
 }
@@ -871,38 +760,24 @@ impl Drop for Container {
 impl Container {
     pub fn new() -> Self {
         let mut container = Self {
-            temporary: false,
-
             id: Uuid::new_v4(),
             entities: Box::leak(Box::new(IndexMap::new())),
             groups: Box::leak(Box::new(IndexMap::new())),
             root_group: std::ptr::null_mut(),
 
             dirty: Box::leak(Box::new(true)),
-            changed_event: Box::leak(Box::new(EventAgency::new())),
         };
-        container.root_group = Box::leak(Box::new(Group::new(Uuid::new_v4(), &mut container)));
+        container.root_group = Box::leak(Box::new(Group::new(
+            Uuid::new_v4(),
+            GroupOwner::Container(container.dirty),
+        )));
         container
     }
 
-    fn clone_temporary(&self) -> Self {
-        Self {
-            temporary: true,
-            id: self.id,
-            entities: self.entities,
-            groups: self.groups,
-            root_group: self.root_group,
-            dirty: self.dirty,
-            changed_event: self.changed_event,
-        }
-    }
-
     #[inline]
-    fn set_dirty(&mut self, event: ContainerEvent) {
+    pub fn set_dirty(&mut self) {
         unsafe {
             *self.dirty = true;
-            (*self.changed_event).raise(event);
-            (*self.changed_event).raise(ContainerEvent::new(ContainerEventKind::Changed, self));
         }
     }
 
@@ -918,30 +793,21 @@ impl Container {
 
     #[inline]
     pub fn entities_len(&self) -> usize {
-        unsafe {
-            (*self.entities).len()
-        }
+        unsafe { (*self.entities).len() }
     }
 
     #[inline]
     pub fn groups_len(&self) -> usize {
-        unsafe {
-            (*self.groups).len()
-        }
-    }
-
-    #[inline]
-    pub fn changed_event(&self) -> &EventAgency<ContainerEvent> {
-        unsafe { &*self.changed_event }
+        unsafe { (*self.groups).len() }
     }
 
     pub fn add_entity(&mut self, entity_options: EntityOptions) -> &mut Entity {
         unsafe {
             let id = Uuid::new_v4();
-            let entity = entity_options.to_entity(id, self.root_group);
+            let entity = Entity::from_options(entity_options, id, self.root_group);
             (*self.entities).insert(id, entity);
             (*self.root_group).entities.insert(id, entity);
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::AddEntity, self));
+            self.set_dirty();
             &mut *entity
         }
     }
@@ -957,10 +823,10 @@ impl Container {
             };
 
             let id = Uuid::new_v4();
-            let entity = entity_options.to_entity(id, group);
+            let entity = Entity::from_options(entity_options, id, group);
             (*self.entities).insert(id, entity);
             (*group).entities.insert(id, entity);
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::AddEntity, self));
+            self.set_dirty();
             Ok(&mut *entity)
         }
     }
@@ -970,7 +836,7 @@ impl Container {
             let entity = (*self.entities).remove(id)?;
             let entity = Box::from_raw(entity);
             (*entity.group).entities.remove(id);
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::RemoveEntity, self));
+            self.set_dirty();
             Some(entity.to_options())
         }
     }
@@ -1033,7 +899,7 @@ impl Container {
                 )
             }
 
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::AddGroups, self))
+            self.set_dirty()
         }
 
         Ok(())
@@ -1042,10 +908,10 @@ impl Container {
     pub fn create_group(&mut self) -> &mut Group {
         unsafe {
             let id = Uuid::new_v4();
-            let group = Box::leak(Box::new(Group::with_super_group(id, self, self.root_group)));
+            let group = Box::leak(Box::new(Group::new(id, GroupOwner::Group(self.root_group))));
             (*self.groups).insert(id, group);
             (*self.root_group).sub_groups.insert(id, group);
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::AddGroup, self));
+            self.set_dirty();
 
             group
         }
@@ -1061,10 +927,10 @@ impl Container {
             };
 
             let id = Uuid::new_v4();
-            let group = Box::leak(Box::new(Group::with_super_group(id, self, super_group)));
+            let group = Box::leak(Box::new(Group::new(id, GroupOwner::Group(super_group))));
             (*self.groups).insert(id, group);
             (*super_group).sub_groups.insert(id, group);
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::AddGroup, self));
+            self.set_dirty();
 
             Ok(group)
         }
@@ -1098,7 +964,7 @@ impl Container {
                 }
             }
 
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::RemoveGroup, self));
+            self.set_dirty();
 
             Some(out)
         }
@@ -1110,7 +976,10 @@ impl Container {
                 return None;
             };
             let mut group = Box::from_raw(group);
-            let super_group = &mut *group.super_group;
+            let super_group = match group.owner {
+                GroupOwner::Container(_) => unreachable!(),
+                GroupOwner::Group(super_group) => &mut *super_group,
+            };
 
             super_group.sub_groups.remove(id);
 
@@ -1131,7 +1000,7 @@ impl Container {
                 (*self.entities).remove(&entity_id);
             }
 
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::RemoveGroup, self));
+            self.set_dirty();
 
             Some(entity_options)
         }
@@ -1155,10 +1024,7 @@ impl Container {
 
             (*self.root_group).entities.extend(entities);
 
-            self.set_dirty(ContainerEvent::new(
-                ContainerEventKind::DecomposeGroup,
-                self,
-            ));
+            self.set_dirty();
         }
     }
 
@@ -1201,7 +1067,7 @@ impl Container {
                 group.entities.remove(entity_id);
                 (*self.root_group).entities.insert(*entity_id, entity);
                 entity.group = self.root_group;
-                self.set_dirty(ContainerEvent::new(ContainerEventKind::MoveEntity, self));
+                self.set_dirty();
                 Ok(())
             }
         }
@@ -1222,7 +1088,7 @@ impl Container {
             from_group.entities.remove(entity_id);
             to_group.entities.insert(*entity_id, entity);
             entity.group = to_group;
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::MoveEntity, self));
+            self.set_dirty();
         }
 
         Ok(())
@@ -1234,15 +1100,19 @@ impl Container {
                 return Err(Error::NoSuchGroup);
             };
             let group = &mut **group;
+            let super_group = match group.owner {
+                GroupOwner::Container(_) => unreachable!(),
+                GroupOwner::Group(super_group) => super_group,
+            };
 
-            if group.super_group == self.root_group {
+            if super_group == self.root_group {
                 Ok(())
             } else {
-                let super_group = &mut *group.super_group;
+                let super_group = &mut *super_group;
                 super_group.sub_groups.remove(group_id);
                 (*self.root_group).sub_groups.insert(*group_id, group);
-                group.super_group = self.root_group;
-                self.set_dirty(ContainerEvent::new(ContainerEventKind::MoveGroup, self));
+                group.owner = GroupOwner::Group(self.root_group);
+                self.set_dirty();
                 Ok(())
             }
         }
@@ -1261,13 +1131,16 @@ impl Container {
                 return Err(Error::NoSuchGroup);
             };
             let group = &mut **group;
-            let super_group = &mut *group.super_group;
+            let super_group = match group.owner {
+                GroupOwner::Container(_) => unreachable!(),
+                GroupOwner::Group(super_group) => &mut *super_group,
+            };
             let to_group = &mut **to_group;
 
             super_group.sub_groups.remove(group_id);
             to_group.sub_groups.insert(*group_id, group);
-            group.super_group = to_group;
-            self.set_dirty(ContainerEvent::new(ContainerEventKind::MoveGroup, self));
+            group.owner = GroupOwner::Group(to_group);
+            self.set_dirty();
         }
         Ok(())
     }

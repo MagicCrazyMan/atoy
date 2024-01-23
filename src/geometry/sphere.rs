@@ -5,7 +5,7 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     bounding::BoundingVolume,
-    event::EventAgency,
+    notify::Notifier,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -26,7 +26,7 @@ pub struct Sphere {
     num_positions: usize,
     positions: BufferDescriptor,
     normals: BufferDescriptor,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl Sphere {
@@ -52,7 +52,7 @@ impl Sphere {
                 BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::StaticDraw,
             ),
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new(),
         }
     }
 }
@@ -76,7 +76,6 @@ impl Sphere {
         );
         self.normals
             .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
-        self.changed_event.raise(());
     }
 }
 
@@ -140,8 +139,8 @@ impl Geometry for Sphere {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

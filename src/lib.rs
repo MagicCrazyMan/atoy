@@ -11,15 +11,16 @@ pub mod event;
 pub mod frustum;
 pub mod geometry;
 pub mod light;
+pub mod loader;
 pub mod lru;
 pub mod material;
+pub mod notify;
 pub mod plane;
 pub mod render;
 pub mod scene;
 pub mod test;
 pub mod utils;
 pub mod viewer;
-pub mod loader;
 
 pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("failed to get window instance")

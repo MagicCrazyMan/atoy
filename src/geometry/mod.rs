@@ -8,7 +8,7 @@ use std::any::Any;
 
 use crate::{
     bounding::BoundingVolume,
-    event::EventAgency,
+    notify::Notifier,
     render::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
@@ -35,7 +35,7 @@ pub trait Geometry {
 
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue>;
 
-    fn changed_event(&self) -> &EventAgency<()>;
+    fn notifier(&mut self) -> &mut Notifier<()>;
 
     fn as_any(&self) -> &dyn Any;
 

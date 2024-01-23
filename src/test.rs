@@ -571,21 +571,23 @@ pub fn test_cube(
 
         let start = window().performance().unwrap().now();
         if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
+            let entity = &mut *entity;
             if let Some(material) = entity
                 .material_mut()
                 .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
             {
-                log::info!("{}", material.transparency().alpha());
-                // material.set_color(
-                //     Vec3::new(rand::random(), rand::random(), rand::random()),
-                //     Transparency::Opaque,
-                // )
+                material.set_color(
+                    Vec3::new(rand::random(), rand::random(), rand::random()),
+                    Transparency::Opaque,
+                );
+                entity.set_dirty();
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
-                // geometry.set_size(rand::random::<f64>() * 3.0)
+                geometry.set_size(rand::random::<f64>() * 3.0);
+                entity.set_dirty();
             }
             console_log!("pick entity {}", entity.id());
         };

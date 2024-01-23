@@ -1,13 +1,11 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume,
-    event::EventAgency,
-    render::webgl::{
+    bounding::BoundingVolume, notify::Notifier, render::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 use super::Geometry;
@@ -21,7 +19,7 @@ pub struct RawGeometry {
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     uniform_blocks: HashMap<String, UniformBlockValue>,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl RawGeometry {
@@ -44,7 +42,7 @@ impl RawGeometry {
             attributes,
             uniforms,
             uniform_blocks,
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new()
         }
     }
 }
@@ -86,8 +84,8 @@ impl Geometry for RawGeometry {
         self.uniform_blocks.get(name).map(|v| v.clone())
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

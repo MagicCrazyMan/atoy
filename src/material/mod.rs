@@ -3,13 +3,13 @@ use std::{any::Any, borrow::Cow};
 use rand::distributions::{Distribution, Standard};
 
 use crate::{
-    event::EventAgency,
     light::{
         area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS},
         directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
         point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
         spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
     },
+    notify::Notifier,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
@@ -83,13 +83,13 @@ pub trait StandardMaterial: StandardMaterialSource {
     /// Returns an uniform block buffer binding value by an uniform block name.
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue>;
 
-    fn changed_event(&self) -> &EventAgency<()>;
+    fn notifier(&mut self) -> &mut Notifier<()>;
 
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
-    fn as_standard_program_source(&self) -> &dyn StandardMaterialSource;
+    fn as_standard_material_source(&self) -> &dyn StandardMaterialSource;
 
     fn as_program_source(&self) -> &dyn ProgramSource;
 }

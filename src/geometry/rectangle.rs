@@ -4,7 +4,7 @@ use gl_matrix4rust::vec2::Vec2;
 
 use crate::{
     bounding::BoundingVolume,
-    event::EventAgency,
+    notify::Notifier,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -28,7 +28,7 @@ pub struct Rectangle {
     texture_coordinates: AttributeValue,
     normals: AttributeValue,
     bounding: BoundingVolume,
-    changed_event: EventAgency<()>,
+    notifier: Notifier<()>,
 }
 
 impl Rectangle {
@@ -97,7 +97,7 @@ impl Rectangle {
                 bytes_stride: 0,
                 bytes_offset: 64,
             },
-            changed_event: EventAgency::new(),
+            notifier: Notifier::new(),
         }
     }
 
@@ -159,8 +159,8 @@ impl Geometry for Rectangle {
         None
     }
 
-    fn changed_event(&self) -> &EventAgency<()> {
-        &self.changed_event
+    fn notifier(&mut self) -> &mut Notifier<()> {
+        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {
