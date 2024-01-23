@@ -732,7 +732,6 @@ impl Group {
 }
 
 pub struct Container {
-    id: Uuid,
     entities: *mut IndexMap<Uuid, *mut Entity>,
     groups: *mut IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
@@ -760,7 +759,6 @@ impl Drop for Container {
 impl Container {
     pub fn new() -> Self {
         let mut container = Self {
-            id: Uuid::new_v4(),
             entities: Box::leak(Box::new(IndexMap::new())),
             groups: Box::leak(Box::new(IndexMap::new())),
             root_group: std::ptr::null_mut(),
@@ -779,11 +777,6 @@ impl Container {
         unsafe {
             *self.dirty = true;
         }
-    }
-
-    #[inline]
-    pub fn id(&self) -> &Uuid {
-        &self.id
     }
 
     #[inline]

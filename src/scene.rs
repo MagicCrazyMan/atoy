@@ -22,6 +22,7 @@ use crate::{
 pub struct Scene {
     canvas: HtmlCanvasElement,
     canvas_handler: SceneCanvasHandler,
+    _select_start_callback: Closure<dyn Fn() -> bool>,
 
     entity_container: Container,
     light_attenuations: Vec3<f32>,
@@ -47,8 +48,12 @@ impl Scene {
             .style()
             .set_css_text("width: 100%; height: 100%; outline: none;");
 
+        let select_start_callback = Closure::new(|| false);
+        canvas.set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
+
         Ok(Self {
             canvas_handler: SceneCanvasHandler::new(canvas.clone())?,
+            _select_start_callback: select_start_callback,
             canvas,
 
             entity_container: Container::new(),
@@ -91,7 +96,10 @@ impl Scene {
     }
 
     /// Sets ambient light.
-    pub fn set_ambient_light(&mut self, light: Option<AmbientLight>) {
+    pub fn set_ambient_light(&mut self, mut light: Option<AmbientLight>) {
+        if let Some(light) = light.as_mut() {
+            light.set_ubo_dirty();
+        }
         self.ambient_light = light;
     }
 
@@ -106,7 +114,7 @@ impl Scene {
     }
 
     /// Adds a point light.
-    pub fn add_point_light(&mut self, light: PointLight) {
+    pub fn add_point_light(&mut self, mut light: PointLight) {
         if self.point_lights.len() == MAX_POINT_LIGHTS {
             warn!(
                 "only {} point lights are available, ignored",
@@ -115,6 +123,7 @@ impl Scene {
             return;
         }
 
+        light.set_ubo_dirty();
         self.point_lights.push(light);
     }
 
@@ -148,7 +157,7 @@ impl Scene {
     }
 
     /// Adds a directional light.
-    pub fn add_directional_light(&mut self, light: DirectionalLight) {
+    pub fn add_directional_light(&mut self, mut light: DirectionalLight) {
         if self.directional_lights.len() == MAX_DIRECTIONAL_LIGHTS {
             warn!(
                 "only {} directional lights are available, ignored",
@@ -157,6 +166,7 @@ impl Scene {
             return;
         }
 
+        light.set_ubo_dirty();
         self.directional_lights.push(light);
     }
 
@@ -190,7 +200,7 @@ impl Scene {
     }
 
     /// Adds a spot light.
-    pub fn add_spot_light(&mut self, light: SpotLight) {
+    pub fn add_spot_light(&mut self, mut light: SpotLight) {
         if self.spot_lights.len() == MAX_SPOT_LIGHTS {
             warn!(
                 "only {} spot lights are available, ignored",
@@ -199,6 +209,7 @@ impl Scene {
             return;
         }
 
+        light.set_ubo_dirty();
         self.spot_lights.push(light);
     }
 
@@ -232,7 +243,7 @@ impl Scene {
     }
 
     /// Adds a area light.
-    pub fn add_area_light(&mut self, light: AreaLight) {
+    pub fn add_area_light(&mut self, mut light: AreaLight) {
         if self.spot_lights.len() == MAX_AREA_LIGHTS {
             warn!(
                 "only {} area lights are available, ignored",
@@ -241,6 +252,7 @@ impl Scene {
             return;
         }
 
+        light.set_ubo_dirty();
         self.area_lights.push(light);
     }
 
@@ -281,7 +293,6 @@ pub struct SceneCanvasHandler {
         ResizeObserver,
         Closure<dyn FnMut(Vec<ResizeObserverEntry>)>,
     ),
-    _select_start_callback: Closure<dyn Fn() -> bool>,
     click: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
     double_click: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
     mouse_down: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
@@ -299,8 +310,6 @@ pub struct SceneCanvasHandler {
 impl Drop for SceneCanvasHandler {
     fn drop(&mut self) {
         self.canvas_resize.1.disconnect();
-
-        self.canvas.set_onselectstart(None);
 
         let _ = self
             .canvas
@@ -384,9 +393,6 @@ impl SceneCanvasHandler {
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref())
                 .or_else(|err| Err(Error::CanvasResizeObserverFailure(err.as_string())))?;
         resize_observer.observe(&canvas);
-
-        let select_start_callback = Closure::new(|| false);
-        canvas.set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
 
         let click_notifier = Notifier::new();
         let mut click_notifier_cloned = click_notifier.clone();
@@ -517,7 +523,6 @@ impl SceneCanvasHandler {
                 resize_observer,
                 resize_observer_callback,
             ),
-            _select_start_callback: select_start_callback,
             click: (click_notifier, click_callback),
             double_click: (double_click_notifier, double_click_callback),
             mouse_down: (mouse_down_notifier, mouse_down_callback),

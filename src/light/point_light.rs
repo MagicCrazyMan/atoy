@@ -111,6 +111,11 @@ impl PointLight {
         }
     }
 
+    /// Sets ubo of this point light to dirty. 
+    pub fn set_ubo_dirty(&mut self) {
+        self.ubo_dirty = true;
+    }
+
     /// Returns `true` if ubo of this point light is dirty.
     pub fn ubo_dirty(&self) -> bool {
         self.ubo_dirty

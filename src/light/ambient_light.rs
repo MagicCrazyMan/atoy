@@ -62,6 +62,11 @@ impl AmbientLight {
         }
     }
 
+    /// Sets ubo of this ambient light to dirty. 
+    pub fn set_ubo_dirty(&mut self) {
+        self.ubo_dirty = true;
+    }
+
     /// Returns `true` if ubo of this ambient light is dirty.
     pub fn ubo_dirty(&self) -> bool {
         self.ubo_dirty

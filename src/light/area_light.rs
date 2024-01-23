@@ -25,7 +25,7 @@ pub struct AreaLight {
     specular: Vec3<f32>,
 
     ubo: [f32; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH],
-    dirty: bool,
+    ubo_dirty: bool,
 }
 
 impl AreaLight {
@@ -64,7 +64,7 @@ impl AreaLight {
             specular,
 
             ubo: [0.0; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH],
-            dirty: true,
+            ubo_dirty: true,
         }
     }
 
@@ -136,19 +136,19 @@ impl AreaLight {
     /// Enables area light.
     pub fn enable(&mut self) {
         self.enabled = true;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Disables area light.
     pub fn disable(&mut self) {
         self.enabled = false;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light position.
     pub fn set_position(&mut self, position: Vec3) {
         self.position = position;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light direction.
@@ -161,7 +161,7 @@ impl AreaLight {
         self.right = right;
         self.up = up;
 
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light upward.
@@ -177,49 +177,49 @@ impl AreaLight {
     /// Sets area light offset.
     pub fn set_offset(&mut self, offset: f32) {
         self.offset = offset;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light inner width.
     pub fn set_inner_width(&mut self, inner_width: f32) {
         self.inner_width = inner_width;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light inner height.
     pub fn set_inner_height(&mut self, inner_height: f32) {
         self.inner_height = inner_height;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light outer width.
     pub fn set_outer_width(&mut self, outer_width: f32) {
         self.outer_width = outer_width.max(self.inner_width);
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light outer height.
     pub fn set_outer_height(&mut self, outer_height: f32) {
         self.outer_height = outer_height.max(self.inner_height);
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light ambient color.
     pub fn set_ambient(&mut self, ambient: Vec3<f32>) {
         self.ambient = ambient;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light diffuse color.
     pub fn set_diffuse(&mut self, diffuse: Vec3<f32>) {
         self.diffuse = diffuse;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets area light specular color.
     pub fn set_specular(&mut self, specular: Vec3<f32>) {
         self.specular = specular;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Returns data in uniform buffer object alignment.
@@ -229,14 +229,19 @@ impl AreaLight {
         }
     }
 
+    /// Sets ubo of this area light to dirty. 
+    pub fn set_ubo_dirty(&mut self) {
+        self.ubo_dirty = true;
+    }
+
     /// Returns `true` if ubo of this area light is dirty.
     pub fn ubo_dirty(&self) -> bool {
-        self.dirty
+        self.ubo_dirty
     }
 
     /// Updates ubo data if this area light is dirty.
     pub fn update_ubo(&mut self) {
-        if !self.dirty {
+        if !self.ubo_dirty {
             return;
         }
 
@@ -254,6 +259,6 @@ impl AreaLight {
         self.ubo[23] = self.outer_height;
         self.ubo[24..27].copy_from_slice(self.specular.gl_f32_borrowed());
 
-        self.dirty = false;
+        self.ubo_dirty = false;
     }
 }

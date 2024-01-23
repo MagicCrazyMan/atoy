@@ -1,8 +1,10 @@
-use uuid::Uuid;
-
 use crate::{
-    bounding::Culling, entity::Entity, frustum::ViewFrustum, material::Transparency,
-    render::webgl::state::FrameState, scene::Scene,
+    bounding::Culling,
+    entity::{Container, Entity},
+    frustum::ViewFrustum,
+    material::Transparency,
+    render::webgl::state::FrameState,
+    scene::Scene,
 };
 
 #[derive(Clone, Copy)]
@@ -69,7 +71,7 @@ pub struct StandardEntitiesCollector {
     enable_distance_sorting: bool,
 
     last_view_frustum: Option<ViewFrustum>,
-    last_container: Option<Uuid>,
+    last_container_ptr: Option<*const Container>,
     last_collected_id: Option<usize>,
     last_entities: Vec<CollectedEntity>,
     last_opaque_entities: Vec<CollectedEntity>,
@@ -85,7 +87,7 @@ impl StandardEntitiesCollector {
             enable_distance_sorting: true,
 
             last_view_frustum: None,
-            last_container: None,
+            last_container_ptr: None,
             last_collected_id: None,
             last_entities: Vec::new(),
             last_opaque_entities: Vec::new(),
@@ -97,7 +99,7 @@ impl StandardEntitiesCollector {
     /// Clears previous collected result.
     pub fn clear(&mut self) {
         self.last_view_frustum = None;
-        self.last_container = None;
+        self.last_container_ptr = None;
         self.last_entities.clear();
         self.last_opaque_entities.clear();
         self.last_transparent_entities.clear();
@@ -164,13 +166,13 @@ impl StandardEntitiesCollector {
         let view_frustum = state.camera().view_frustum();
         match (
             self.last_collected_id.as_ref(),
-            self.last_container.as_ref(),
+            self.last_container_ptr.as_ref(),
             self.last_view_frustum.as_ref(),
             scene.entity_container().dirty(),
         ) {
             (Some(last_collected_id), Some(last_container), Some(last_view_frustum), false) => {
                 match (
-                    last_container == scene.entity_container().id(),
+                    std::ptr::eq(*last_container, scene.entity_container()),
                     last_view_frustum == &view_frustum,
                 ) {
                     (true, true) => {
@@ -277,7 +279,7 @@ impl StandardEntitiesCollector {
             }
         }
 
-        self.last_container = Some(*scene.entity_container().id());
+        self.last_container_ptr = Some(scene.entity_container());
         self.last_view_frustum = Some(view_frustum);
         self.last_collected_id = match self.last_collected_id {
             Some(last_collected_id) => Some(last_collected_id.wrapping_add(1)),

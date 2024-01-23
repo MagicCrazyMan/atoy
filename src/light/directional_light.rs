@@ -20,7 +20,7 @@ pub struct DirectionalLight {
     specular: Vec3<f32>,
 
     ubo: [f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH],
-    dirty: bool,
+    ubo_dirty: bool,
 }
 impl DirectionalLight {
     /// Constructs a new directional light.
@@ -39,7 +39,7 @@ impl DirectionalLight {
             specular,
 
             ubo: [0.0; UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH],
-            dirty: true,
+            ubo_dirty: true,
         }
     }
 
@@ -71,37 +71,37 @@ impl DirectionalLight {
     /// Enables directional light.
     pub fn enable(&mut self) {
         self.enabled = true;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Disables directional light.
     pub fn disable(&mut self) {
         self.enabled = false;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets directional light direction.
     pub fn set_direction(&mut self, direction: Vec3<f32>) {
         self.direction = direction.normalize();
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets directional light ambient color.
     pub fn set_ambient(&mut self, ambient: Vec3<f32>) {
         self.ambient = ambient;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets directional light diffuse color.
     pub fn set_diffuse(&mut self, diffuse: Vec3<f32>) {
         self.diffuse = diffuse;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Sets directional light specular color.
     pub fn set_specular(&mut self, specular: Vec3<f32>) {
         self.specular = specular;
-        self.dirty = true;
+        self.ubo_dirty = true;
     }
 
     /// Returns data in uniform buffer object alignment.
@@ -114,14 +114,19 @@ impl DirectionalLight {
         }
     }
 
+    /// Sets ubo of this directional light to dirty. 
+    pub fn set_ubo_dirty(&mut self) {
+        self.ubo_dirty = true;
+    }
+
     /// Returns `true` if ubo of this directional light is dirty.
     pub fn ubo_dirty(&self) -> bool {
-        self.dirty
+        self.ubo_dirty
     }
 
     /// Updates ubo data if this directional light is dirty.
     pub fn update_ubo(&mut self) {
-        if !self.dirty {
+        if !self.ubo_dirty {
             return;
         }
 
@@ -131,6 +136,6 @@ impl DirectionalLight {
         self.ubo[8..11].copy_from_slice(self.diffuse.gl_f32_borrowed());
         self.ubo[12..15].copy_from_slice(self.specular.gl_f32_borrowed());
 
-        self.dirty = false;
+        self.ubo_dirty = false;
     }
 }

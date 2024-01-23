@@ -158,6 +158,11 @@ impl SpotLight {
         }
     }
 
+    /// Sets ubo of this spot light to dirty. 
+    pub fn set_ubo_dirty(&mut self) {
+        self.ubo_dirty = true;
+    }
+
     /// Returns `true` if ubo of this spot light is dirty.
     pub fn ubo_dirty(&self) -> bool {
         self.ubo_dirty
