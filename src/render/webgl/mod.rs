@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, event::EventAgency, scene::Scene};
+use crate::{camera::Camera, notify::Notifier, scene::Scene};
 
 use self::{
     buffer::BufferStore, error::Error, program::ProgramStore, state::FrameState,
@@ -89,8 +89,8 @@ pub struct WebGL2Render {
 
     hdr_supported: Option<bool>,
 
-    pre_render_event: EventAgency<RenderEvent>,
-    post_render_event: EventAgency<RenderEvent>,
+    pre_render_notifier: Notifier<RenderEvent>,
+    post_render_notifier: Notifier<RenderEvent>,
 }
 
 impl WebGL2Render {
@@ -119,8 +119,8 @@ impl WebGL2Render {
 
             hdr_supported: None,
 
-            pre_render_event: EventAgency::new(),
-            post_render_event: EventAgency::new(),
+            pre_render_notifier: Notifier::new(),
+            post_render_notifier: Notifier::new(),
         })
     }
 
@@ -148,12 +148,12 @@ impl WebGL2Render {
         supported
     }
 
-    pub fn pre_render_event(&mut self) -> &mut EventAgency<RenderEvent> {
-        &mut self.pre_render_event
+    pub fn pre_render(&mut self) -> &mut Notifier<RenderEvent> {
+        &mut self.pre_render_notifier
     }
 
-    pub fn post_render_event(&mut self) -> &mut EventAgency<RenderEvent> {
-        &mut self.post_render_event
+    pub fn post_render(&mut self) -> &mut Notifier<RenderEvent> {
+        &mut self.post_render_notifier
     }
 }
 
@@ -179,9 +179,9 @@ impl Render for WebGL2Render {
             &mut self.texture_store,
         );
 
-        self.pre_render_event.raise(RenderEvent::new(&mut state));
+        self.pre_render_notifier.notify(&mut RenderEvent::new(&mut state));
         pipeline.execute(&mut state, scene)?;
-        self.post_render_event.raise(RenderEvent::new(&mut state));
+        self.post_render_notifier.notify(&mut RenderEvent::new(&mut state));
 
         Ok(())
     }

@@ -7,7 +7,6 @@ pub mod camera;
 pub mod controller;
 pub mod entity;
 pub mod error;
-pub mod event;
 pub mod frustum;
 pub mod geometry;
 pub mod light;

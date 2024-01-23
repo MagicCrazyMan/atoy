@@ -1,10 +1,17 @@
-use std::{any::Any, cell::RefCell, collections::HashSet, f64::consts::PI, ops::Neg, rc::Rc};
+use std::{any::Any, cell::RefCell, f64::consts::PI, ops::Neg, rc::Rc};
 
-use crate::{controller::Controller, frustum::ViewFrustum, plane::Plane, viewer::Viewer};
+use crate::{
+    controller::Controller,
+    frustum::ViewFrustum,
+    notify::{Notifiee, Notifying},
+    plane::Plane,
+    render::webgl::RenderEvent,
+    viewer::Viewer,
+};
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use hashbrown::HashSet;
 use log::warn;
-use uuid::Uuid;
-use web_sys::MouseEvent;
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 use super::Camera;
 
@@ -15,15 +22,16 @@ const BASE_UPWARD: Vec3 = Vec3::<f64>::new(0.0, 1.0, 0.0);
 const BASE_FORWARD: Vec3 = Vec3::<f64>::new(0.0, 0.0, -1.0);
 
 struct Control {
-    pressed_keys: HashSet<String>,
-    previous_timestamp: Option<f64>,
-    previous_mouse_event: Option<MouseEvent>,
-    key_down_listener: Uuid,
-    key_up_listener: Uuid,
-    mouse_move_listener: Uuid,
-    wheel_listener: Uuid,
-    canvas_changed_listener: Uuid,
-    pre_render_listener: Uuid,
+    pressed_keys: *mut HashSet<String>,
+    previous_timestamp: *mut Option<f64>,
+    previous_mouse_event: *mut Option<MouseEvent>,
+
+    canvas_resize: Notifying<HtmlCanvasElement>,
+    key_down: Notifying<KeyboardEvent>,
+    key_up: Notifying<KeyboardEvent>,
+    mouse_move: Notifying<MouseEvent>,
+    wheel: Notifying<WheelEvent>,
+    pre_render: Notifying<RenderEvent>,
 }
 
 struct Inner {
@@ -255,6 +263,9 @@ impl Inner {
     }
 }
 
+pub const DEFAULT_MOVEMENT: f64 = 1.0;
+pub const DEFAULT_ROTATION: f64 = PI / 360.0;
+
 /// An first personal based, controllable perspective camera with mouse, keyboard or screen touching.
 ///
 /// UniversalCamera is inner by cloning, making it convenient to control outside [`Scene`].
@@ -278,9 +289,6 @@ impl UniversalCamera {
         let proj = Mat4::<f64>::from_perspective(fovy, aspect, near, far);
         let frustum = frustum(&view, fovy, aspect, near, far);
 
-        let default_movement = 1.0;
-        let default_rotation = PI / 360.0;
-
         let inner = Inner {
             fovy,
             aspect,
@@ -292,15 +300,15 @@ impl UniversalCamera {
             view_proj: proj * view,
             frustum,
 
-            left_movement: default_movement,
-            right_movement: default_movement,
-            up_movement: default_movement,
-            down_movement: default_movement,
-            forward_movement: default_movement,
-            backward_movement: default_movement,
-            y_rotation: default_rotation,
-            x_rotation: default_rotation,
-            z_rotation: default_rotation,
+            left_movement: DEFAULT_MOVEMENT,
+            right_movement: DEFAULT_MOVEMENT,
+            up_movement: DEFAULT_MOVEMENT,
+            down_movement: DEFAULT_MOVEMENT,
+            forward_movement: DEFAULT_MOVEMENT,
+            backward_movement: DEFAULT_MOVEMENT,
+            y_rotation: DEFAULT_ROTATION,
+            x_rotation: DEFAULT_ROTATION,
+            z_rotation: DEFAULT_ROTATION,
         };
 
         Self {
@@ -482,215 +490,249 @@ impl Camera for UniversalCamera {
     }
 }
 
-impl Controller for UniversalCamera {
-    fn on_add(&mut self, viewer: &mut Viewer) {
-        if self.control.borrow_mut().is_some() {
-            panic!("share UniversalCamera between different viewer is not allowed");
+struct ControllerCanvasResize(Rc<RefCell<Inner>>);
+
+impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
+    fn notify(&mut self, canvas: &mut HtmlCanvasElement) {
+        let mut inner = self.0.borrow_mut();
+
+        let aspect = canvas.width() as f64 / canvas.height() as f64;
+        if aspect != inner.aspect {
+            inner.set_aspect(aspect);
         }
+    }
+}
 
-        let key_down_listener = {
-            let control = Rc::clone(&self.control);
-            viewer.scene_mut().key_down_event().on(move |event| {
-                let key = event.key();
-                match key.as_str() {
-                    "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
-                    | "ArrowLeft" | "ArrowRight" => {
-                        control
-                            .borrow_mut()
-                            .as_mut()
-                            .unwrap()
-                            .pressed_keys
-                            .insert(key);
-                        event.prevent_default();
-                        event.stop_propagation();
-                    }
-                    _ => return,
-                }
-            })
-        };
+struct ControllerKeyDown(*mut HashSet<String>);
 
-        let key_up_listener = {
-            let control = Rc::clone(&self.control);
-            viewer.scene_mut().key_up_event().on(move |event| {
-                let mut control = control.borrow_mut();
-                let control = control.as_mut().unwrap();
-                let key = event.key();
-                match key.as_str() {
-                    "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
-                    | "ArrowLeft" | "ArrowRight" => {
-                        control.pressed_keys.remove(&key);
-
-                        event.prevent_default();
-                        event.stop_propagation();
-                    }
-                    _ => return,
-                }
-            })
-        };
-
-        let mouse_move_listener = {
-            let inner = Rc::clone(&self.inner);
-            let control = Rc::clone(&self.control);
-            viewer.scene_mut().mouse_move_event().on(move |event| {
-                let mut control = control.borrow_mut();
-                let previous_mouse_event = &mut control.as_mut().unwrap().previous_mouse_event;
-
-                // 4 refers to middle button
-                if event.buttons() == 4 {
-                    let Some(p) = previous_mouse_event.take() else {
-                        *previous_mouse_event = Some(event.clone());
-                        return;
-                    };
-
-                    let mut inner = inner.borrow_mut();
-                    if event.shift_key() {
-                        let px = p.x();
-                        let x = event.x();
-                        let ox = x - px;
-
-                        let oz = ox as f64 * inner.z_rotation;
-                        inner.rotate(0.0, 0.0, oz);
-                    } else {
-                        let px = p.x();
-                        let py = p.y();
-                        let x = event.x();
-                        let y = event.y();
-                        let ox = x - px;
-                        let oy = y - py;
-
-                        let rx = oy as f64 * inner.x_rotation;
-                        let ry = ox as f64 * inner.y_rotation;
-                        inner.rotate(rx, ry, 0.0);
-                    }
-
+impl Notifiee<KeyboardEvent> for ControllerKeyDown {
+    fn notify(&mut self, event: &mut KeyboardEvent) {
+        unsafe {
+            let key = event.key();
+            match key.as_str() {
+                "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
+                | "ArrowLeft" | "ArrowRight" => {
+                    (*self.0).insert(key);
                     event.prevent_default();
                     event.stop_propagation();
+                }
+                _ => {}
+            }
+        }
+    }
+}
 
+struct ControllerKeyUp(*mut HashSet<String>);
+
+impl Notifiee<KeyboardEvent> for ControllerKeyUp {
+    fn notify(&mut self, event: &mut KeyboardEvent) {
+        unsafe {
+            let key = event.key();
+            match key.as_str() {
+                "w" | "a" | "s" | "d" | "W" | "A" | "S" | "D" | "ArrowUp" | "ArrowDown"
+                | "ArrowLeft" | "ArrowRight" => {
+                    (*self.0).remove(&key);
+                    event.prevent_default();
+                    event.stop_propagation();
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+struct ControllerMouseMove(Rc<RefCell<Inner>>, *mut Option<MouseEvent>);
+
+impl Notifiee<MouseEvent> for ControllerMouseMove {
+    fn notify(&mut self, event: &mut MouseEvent) {
+        unsafe {
+            let previous_mouse_event = &mut *self.1;
+
+            // 4 refers to middle button
+            if event.buttons() == 4 {
+                let mut inner = self.0.borrow_mut();
+
+                let Some(p) = previous_mouse_event.take() else {
                     *previous_mouse_event = Some(event.clone());
-                } else {
-                    *previous_mouse_event = None;
-                }
-            })
-        };
-
-        let wheel_listener = {
-            let inner = Rc::clone(&self.inner);
-            viewer.scene_mut().wheel_event().on(move |event| {
-                let mut inner = inner.borrow_mut();
-
-                let forward_movement = inner.forward_movement;
-                let backward_movement = inner.backward_movement;
-
-                let delta_y = event.delta_y() / 100.0;
-                if delta_y < 0.0 {
-                    inner.move_directional(BASE_FORWARD, forward_movement / 2.0);
-                } else if delta_y > 0.0 {
-                    inner.move_directional(BASE_FORWARD, -backward_movement / 2.0);
-                }
-            })
-        };
-
-        let pre_render_listener = {
-            let inner = Rc::clone(&self.inner);
-            let control = Rc::clone(&self.control);
-            viewer.render_mut().pre_render_event().on(move |event| {
-                let mut control = control.borrow_mut();
-                let control = control.as_mut().unwrap();
-
-                if control.pressed_keys.is_empty() {
-                    return;
-                }
-
-                let timestamp = event.state().timestamp();
-
-                let Some(previous) = control.previous_timestamp else {
-                    control.previous_timestamp = Some(timestamp);
                     return;
                 };
 
-                let offset = timestamp - previous;
-                control.previous_timestamp = Some(timestamp);
+                if event.shift_key() {
+                    let px = p.x();
+                    let x = event.x();
+                    let ox = x - px;
 
-                if offset > 500.0 {
-                    return;
+                    let oz = ox as f64 * inner.z_rotation;
+                    inner.rotate(0.0, 0.0, oz);
+                } else {
+                    let px = p.x();
+                    let py = p.y();
+                    let x = event.x();
+                    let y = event.y();
+                    let ox = x - px;
+                    let oy = y - py;
+
+                    let rx = oy as f64 * inner.x_rotation;
+                    let ry = ox as f64 * inner.y_rotation;
+                    inner.rotate(rx, ry, 0.0);
                 }
 
-                let mut inner = inner.borrow_mut();
-                let offset = offset / 1000.0;
-                let forward_movement = inner.forward_movement;
-                let backward_movement = inner.backward_movement;
-                let right_movement = inner.right_movement;
-                let left_movement = inner.left_movement;
-                let up_movement = inner.up_movement;
-                let down_movement = inner.down_movement;
-                let y_rotation = inner.y_rotation * 120.0;
-                for key in control.pressed_keys.iter() {
-                    match key.as_str() {
-                        "w" | "W" => {
-                            inner.move_directional(BASE_FORWARD, offset * forward_movement)
-                        }
-                        "s" | "S" => {
-                            inner.move_directional(BASE_FORWARD, offset * -backward_movement)
-                        }
-                        "d" | "D" => {
-                            inner.move_directional(BASE_RIGHTWARD, offset * right_movement)
-                        }
-                        "a" | "A" => {
-                            inner.move_directional(BASE_RIGHTWARD, offset * -left_movement)
-                        }
-                        "ArrowUp" => inner.move_directional(BASE_UPWARD, offset * up_movement),
-                        "ArrowDown" => inner.move_directional(BASE_UPWARD, offset * -down_movement),
-                        "ArrowLeft" => inner.rotate(0.0, offset * y_rotation, 0.0),
-                        "ArrowRight" => inner.rotate(0.0, offset * -y_rotation, 0.0),
-                        _ => return,
-                    }
-                }
-            })
-        };
+                event.prevent_default();
+                event.stop_propagation();
 
-        let canvas_changed_listener = {
-            let inner = Rc::clone(&self.inner);
-            viewer.scene_mut().canvas_changed_event().on(move |event| {
-                let mut inner = inner.borrow_mut();
-                let canvas = event.canvas();
+                *previous_mouse_event = Some(event.clone());
+            } else {
+                *previous_mouse_event = None;
+            }
+        }
+    }
+}
 
-                let aspect = canvas.width() as f64 / canvas.height() as f64;
-                if aspect != inner.aspect {
-                    inner.set_aspect(aspect);
+struct ControllerWheel(Rc<RefCell<Inner>>);
+
+impl Notifiee<WheelEvent> for ControllerWheel {
+    fn notify(&mut self, event: &mut WheelEvent) {
+        let mut inner = self.0.borrow_mut();
+
+        let forward_movement = inner.forward_movement;
+        let backward_movement = inner.backward_movement;
+
+        let delta_y = event.delta_y() / 100.0;
+        if delta_y < 0.0 {
+            inner.move_directional(BASE_FORWARD, forward_movement / 2.0);
+        } else if delta_y > 0.0 {
+            inner.move_directional(BASE_FORWARD, -backward_movement / 2.0);
+        }
+    }
+}
+
+struct ControllerPreRender(Rc<RefCell<Inner>>, *mut HashSet<String>, *mut Option<f64>);
+
+impl Notifiee<RenderEvent> for ControllerPreRender {
+    fn notify(&mut self, event: &mut RenderEvent) {
+        unsafe {
+            if (*self.1).is_empty() {
+                return;
+            }
+
+            let current = event.state().timestamp();
+
+            let Some(previous) = (*self.2).as_ref() else {
+                *self.2 = Some(current);
+                return;
+            };
+
+            let offset = current - previous;
+            *self.2 = Some(current);
+
+            if offset > 500.0 {
+                return;
+            }
+
+            let mut inner = self.0.borrow_mut();
+            let offset = offset / 1000.0;
+            let forward_movement = inner.forward_movement;
+            let backward_movement = inner.backward_movement;
+            let right_movement = inner.right_movement;
+            let left_movement = inner.left_movement;
+            let up_movement = inner.up_movement;
+            let down_movement = inner.down_movement;
+            let y_rotation = inner.y_rotation * 120.0;
+            for key in (*self.1).iter() {
+                match key.as_str() {
+                    "w" | "W" => inner.move_directional(BASE_FORWARD, offset * forward_movement),
+                    "s" | "S" => inner.move_directional(BASE_FORWARD, offset * -backward_movement),
+                    "d" | "D" => inner.move_directional(BASE_RIGHTWARD, offset * right_movement),
+                    "a" | "A" => inner.move_directional(BASE_RIGHTWARD, offset * -left_movement),
+                    "ArrowUp" => inner.move_directional(BASE_UPWARD, offset * up_movement),
+                    "ArrowDown" => inner.move_directional(BASE_UPWARD, offset * -down_movement),
+                    "ArrowLeft" => inner.rotate(0.0, offset * y_rotation, 0.0),
+                    "ArrowRight" => inner.rotate(0.0, offset * -y_rotation, 0.0),
+                    _ => return,
                 }
-            })
-        };
+            }
+        }
+    }
+}
+
+impl Controller for UniversalCamera {
+    fn on_add(&mut self, viewer: &mut Viewer) {
+        if self.control.borrow_mut().is_some() {
+            panic!("add UniversalCamera as controller multiple times is not allowed");
+        }
+
+        let pressed_keys = Box::leak(Box::new(HashSet::new()));
+        let previous_timestamp = Box::leak(Box::new(None));
+        let previous_mouse_event = Box::leak(Box::new(None));
+
+        let canvas_resize = viewer
+            .scene_mut()
+            .canvas_handler()
+            .canvas_resize()
+            .register(ControllerCanvasResize(Rc::clone(&self.inner)));
+        let key_down = viewer
+            .scene_mut()
+            .canvas_handler()
+            .key_down()
+            .register(ControllerKeyDown(pressed_keys));
+        let key_up = viewer
+            .scene_mut()
+            .canvas_handler()
+            .key_down()
+            .register(ControllerKeyUp(pressed_keys));
+        let mouse_move =
+            viewer
+                .scene_mut()
+                .canvas_handler()
+                .mouse_move()
+                .register(ControllerMouseMove(
+                    Rc::clone(&self.inner),
+                    previous_mouse_event,
+                ));
+        let wheel = viewer
+            .scene_mut()
+            .canvas_handler()
+            .wheel()
+            .register(ControllerWheel(Rc::clone(&self.inner)));
+        let pre_render = viewer
+            .render_mut()
+            .pre_render()
+            .register(ControllerPreRender(
+                Rc::clone(&self.inner),
+                pressed_keys,
+                previous_timestamp,
+            ));
 
         *self.control.borrow_mut() = Some(Control {
-            pressed_keys: HashSet::new(),
-            previous_timestamp: None,
-            previous_mouse_event: None,
-            key_down_listener,
-            key_up_listener,
-            mouse_move_listener,
-            wheel_listener,
-            canvas_changed_listener,
-            pre_render_listener,
+            pressed_keys,
+            previous_timestamp,
+            previous_mouse_event,
+
+            canvas_resize,
+            key_down,
+            key_up,
+            mouse_move,
+            wheel,
+            pre_render,
         });
     }
 
-    fn on_remove(&mut self, viewer: &mut Viewer) {
-        let mut control = self.control.borrow_mut();
-        let Some(control) = control.take() else {
+    fn on_remove(&mut self, _: &mut Viewer) {
+        let Some(control) = self.control.borrow_mut().take() else {
             return;
         };
 
-        let mut scene = viewer.scene_mut();
-        scene.key_down_event().off(&control.key_down_listener);
-        scene.key_up_event().off(&control.key_up_listener);
-        scene.mouse_move_event().off(&control.mouse_move_listener);
-        scene.wheel_event().off(&control.wheel_listener);
-        scene
-            .canvas_changed_event()
-            .off(&control.canvas_changed_listener);
-
-        let mut render = viewer.render_mut();
-        render.pre_render_event().off(&control.pre_render_listener);
+        control.canvas_resize.unregister();
+        control.key_down.unregister();
+        control.key_up.unregister();
+        control.mouse_move.unregister();
+        control.wheel.unregister();
+        control.pre_render.unregister();
+        unsafe {
+            drop(Box::from_raw(control.pressed_keys));
+            drop(Box::from_raw(control.previous_mouse_event));
+            drop(Box::from_raw(control.previous_timestamp));
+        }
     }
 
     fn as_any(&self) -> &dyn Any {

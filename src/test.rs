@@ -32,6 +32,7 @@ use crate::light::spot_light::SpotLight;
 use crate::loader::texture::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
+use crate::notify::Notifiee;
 use crate::render::webgl::attribute::AttributeValue;
 use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -43,9 +44,10 @@ use crate::render::webgl::texture::{
     TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
+use crate::render::webgl::RenderEvent;
 use crate::render::Render;
 use crate::utils::slice_to_float32_array;
-use crate::viewer::Viewer;
+use crate::viewer::{Viewer, ViewerWeak};
 use crate::{document, entity};
 use crate::{
     geometry::cube::Cube,
@@ -424,19 +426,36 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
         .set_mount(document().get_element_by_id("scene"))
         .unwrap();
 
+    struct PreRenderNotifiee(Rc<RefCell<f64>>);
+    impl Notifiee<RenderEvent> for PreRenderNotifiee {
+        fn notify(&mut self, msg: &mut RenderEvent) {
+            *self.0.borrow_mut() = crate::window().performance().unwrap().now();
+        }
+    }
+
+    struct PostRenderNotifiee(Rc<RefCell<f64>>, Function);
+    impl Notifiee<RenderEvent> for PostRenderNotifiee {
+        fn notify(&mut self, msg: &mut RenderEvent) {
+            let start = *self.0.borrow();
+            let end = crate::window().performance().unwrap().now();
+            self.1
+                .call1(&JsValue::null(), &JsValue::from_f64(end - start))
+                .unwrap();
+        }
+    }
+
     let start_timestamp = Rc::new(RefCell::new(0.0));
-    let start_timestamp_cloned = Rc::clone(&start_timestamp);
-    viewer.render_mut().pre_render_event().on(move |_| {
-        *start_timestamp_cloned.borrow_mut() = crate::window().performance().unwrap().now();
-    });
-    let render_callback = render_callback.clone();
-    viewer.render_mut().post_render_event().on(move |_| {
-        let start = *start_timestamp.borrow();
-        let end = crate::window().performance().unwrap().now();
-        render_callback
-            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
-            .unwrap();
-    });
+    viewer
+        .render_mut()
+        .pre_render()
+        .register(PreRenderNotifiee(Rc::clone(&start_timestamp)));
+    viewer
+        .render_mut()
+        .post_render()
+        .register(PostRenderNotifiee(
+            Rc::clone(&start_timestamp),
+            render_callback.clone(),
+        ));
 
     viewer
 }
@@ -450,6 +469,56 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
 
 //     Ok(())
 // }
+
+struct ViewerPick {
+    viewer: ViewerWeak,
+    pick_callback: Function,
+}
+
+impl Notifiee<MouseEvent> for ViewerPick {
+    fn notify(&mut self, event: &mut MouseEvent) {
+        let Some(mut viewer) = self.viewer.upgrade() else {
+            return;
+        };
+        let x = event.page_x();
+        let y = event.page_y();
+
+        let start = window().performance().unwrap().now();
+
+        // pick entity
+        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
+            let entity = &mut *entity;
+            if let Some(material) = entity
+                .material_mut()
+                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+            {
+                material.set_color(
+                    Vec3::new(rand::random(), rand::random(), rand::random()),
+                    Transparency::Opaque,
+                );
+                entity.set_dirty();
+            }
+            if let Some(geometry) = entity
+                .geometry_mut()
+                .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
+            {
+                geometry.set_size(rand::random::<f64>() * 3.0);
+                entity.set_dirty();
+            }
+            console_log!("pick entity {}", entity.id());
+        };
+
+        // pick position
+        if let Some(position) = viewer.pick_position(x, y).unwrap() {
+            console_log!("pick position {}", position);
+        };
+
+        let end = window().performance().unwrap().now();
+        self.pick_callback
+            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
+            .unwrap();
+    }
+}
 
 #[wasm_bindgen]
 pub fn test_cube(
@@ -558,47 +627,16 @@ pub fn test_cube(
     scene.entity_container_mut().add_entity(floor);
 
     let mut viewer = create_viewer(scene, camera, render_callback);
+    viewer
+        .scene_mut()
+        .canvas_handler()
+        .click()
+        .register(ViewerPick {
+            viewer: viewer.downgrade(),
+            pick_callback: pick_callback.clone(),
+        });
+
     viewer.start_render_loop();
-
-    let viewer_weak = viewer.downgrade();
-    let pick_callback = pick_callback.clone();
-    viewer.scene_mut().click_event().on(move |event| {
-        let Some(mut viewer) = viewer_weak.upgrade() else {
-            return;
-        };
-        let x = event.page_x();
-        let y = event.page_y();
-
-        let start = window().performance().unwrap().now();
-        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
-            let entity = &mut *entity;
-            if let Some(material) = entity
-                .material_mut()
-                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-            {
-                material.set_color(
-                    Vec3::new(rand::random(), rand::random(), rand::random()),
-                    Transparency::Opaque,
-                );
-                entity.set_dirty();
-            }
-            if let Some(geometry) = entity
-                .geometry_mut()
-                .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
-            {
-                geometry.set_size(rand::random::<f64>() * 3.0);
-                entity.set_dirty();
-            }
-            console_log!("pick entity {}", entity.id());
-        };
-        if let Some(position) = viewer.pick_position(x, y).unwrap() {
-            console_log!("pick position {}", position);
-        };
-        let end = window().performance().unwrap().now();
-        pick_callback
-            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
-            .unwrap();
-    });
 
     Ok(viewer)
 }
@@ -951,38 +989,16 @@ pub fn test_pick(
     scene.entity_container_mut().add_group(cubes)?;
 
     let mut viewer = create_viewer(scene, camera, render_callback);
+    viewer
+        .scene_mut()
+        .canvas_handler()
+        .click()
+        .register(ViewerPick {
+            viewer: viewer.downgrade(),
+            pick_callback: pick_callback.clone(),
+        });
+
     viewer.start_render_loop();
-
-    let viewer_weak = viewer.downgrade();
-    let pick_callback = pick_callback.clone();
-    viewer.scene_mut().click_event().on(move |event| {
-        let Some(mut viewer) = viewer_weak.upgrade() else {
-            return;
-        };
-        let x = event.page_x();
-        let y = event.page_y();
-
-        let start = window().performance().unwrap().now();
-        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
-            if let Some(material) = entity
-                .material_mut()
-                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-            {
-                material.set_color(
-                    Vec3::new(rand::random(), rand::random(), rand::random()),
-                    rand::random(),
-                )
-            }
-            console_log!("pick entity {}", entity.id());
-        };
-        if let Some(position) = viewer.pick_position(x, y).unwrap() {
-            console_log!("pick position {}", position);
-        };
-        let end = window().performance().unwrap().now();
-        pick_callback
-            .call1(&JsValue::null(), &JsValue::from_f64(end - start))
-            .unwrap();
-    });
 
     Ok(())
 }
