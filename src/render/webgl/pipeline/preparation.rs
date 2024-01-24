@@ -33,7 +33,7 @@ pub struct StandardPreparation {
 impl StandardPreparation {
     pub fn new() -> Self {
         Self {
-            universal_data: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
+            universal_data: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as u32),
             last_light_attenuations: None,
         }
     }
@@ -46,7 +46,7 @@ impl StandardPreparation {
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
-            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET as u32,
             1,
         )
         .set_index(0, state.timestamp() as f32);
@@ -54,7 +54,7 @@ impl StandardPreparation {
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
-            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET as u32,
             3,
         )
         .copy_from(&state.camera().position().gl_f32());
@@ -62,7 +62,7 @@ impl StandardPreparation {
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().view_matrix().gl_f32());
@@ -70,7 +70,7 @@ impl StandardPreparation {
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
-            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().proj_matrix().gl_f32());
@@ -78,7 +78,7 @@ impl StandardPreparation {
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_data,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
@@ -114,7 +114,7 @@ impl StandardPreparation {
                     0,
                     12,
                 ),
-                UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET as i32,
+                UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
             );
             self.last_light_attenuations = Some(scene.light_attenuations().clone());
         }
@@ -130,7 +130,7 @@ impl StandardPreparation {
                         0,
                         UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
                     ),
-                    UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET as i32,
+                    UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
                 );
             }
         }
@@ -146,8 +146,8 @@ impl StandardPreparation {
                         0,
                         UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
                     ),
-                    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET as i32
-                        + index as i32 * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH as i32,
+                    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET
+                        + index * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
                 );
             }
         }
@@ -163,8 +163,8 @@ impl StandardPreparation {
                         0,
                         UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
                     ),
-                    UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET as i32
-                        + index as i32 * UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH as i32,
+                    UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET
+                        + index * UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
                 );
             }
         }
@@ -180,8 +180,8 @@ impl StandardPreparation {
                         0,
                         UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
                     ),
-                    UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET as i32
-                        + index as i32 * UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH as i32,
+                    UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET
+                        + index * UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
                 );
             }
         }
@@ -197,8 +197,8 @@ impl StandardPreparation {
                         0,
                         UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
                     ),
-                    UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET as i32
-                        + index as i32 * UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH as i32,
+                    UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET
+                        + index * UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
                 );
             }
         }

@@ -37,8 +37,8 @@ impl Sphere {
     pub fn with_opts(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, vertical_segments, horizontal_segments);
-        let positions_len = positions.length();
-        let normals_len = normals.length();
+        let positions_len = positions.length() as usize;
+        let normals_len = normals.length() as usize;
         Self {
             radius,
             vertical_segments,
@@ -66,8 +66,8 @@ impl Sphere {
         self.radius = radius;
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, self.vertical_segments, self.horizontal_segments);
-        let positions_len = positions.length();
-        let normals_len = normals.length();
+        let positions_len = positions.length() as usize;
+        let normals_len = normals.length() as usize;
 
         self.num_positions = num_positions;
         self.positions.buffer_sub_data(

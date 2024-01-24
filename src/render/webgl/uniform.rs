@@ -2,7 +2,6 @@ use std::borrow::Cow;
 
 use super::{
     buffer::BufferDescriptor,
-    conversion::{GLintptr, GLsizeiptr},
     texture::{TextureDescriptor, TextureParameter, TextureUnit},
 };
 
@@ -63,8 +62,8 @@ pub enum UniformBlockValue {
     BufferRange {
         descriptor: BufferDescriptor,
         binding: u32,
-        offset: GLintptr,
-        size: GLsizeiptr,
+        offset: usize,
+        size: usize,
     },
 }
 

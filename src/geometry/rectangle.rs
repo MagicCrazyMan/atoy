@@ -49,7 +49,7 @@ impl Rectangle {
             texture_scale_t,
         );
         let data = BufferDescriptor::with_memory_policy(
-            BufferSource::from_binary(compositions, 0, compositions.len() as u32),
+            BufferSource::from_binary(compositions, 0, compositions.len()),
             BufferUsage::StaticDraw,
             MemoryPolicy::restorable(move || {
                 let (compositions, _) = create_rectangle(
@@ -60,7 +60,7 @@ impl Rectangle {
                     texture_scale_s,
                     texture_scale_t,
                 );
-                BufferSource::from_binary(compositions, 0, compositions.len() as u32)
+                BufferSource::from_binary(compositions, 0, compositions.len())
             }),
         );
 
