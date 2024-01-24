@@ -577,6 +577,20 @@ struct BufferDescriptorRuntime {
     lru: *mut Lru<usize>,
 }
 
+impl Drop for BufferDescriptorRuntime {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.used_memory) -= self.bytes_length;
+            (*self.lru).remove(self.lru_node);
+            (*self.items).remove(&self.id);
+            for ubo in self.binding_ubos.iter() {
+                (*self.ubos).remove(ubo);
+            }
+            self.gl.delete_buffer(Some(&self.buffer));
+        }
+    }
+}
+
 struct BufferDescriptorInner {
     name: Option<Cow<'static, str>>,
     usage: BufferUsage,
@@ -586,29 +600,6 @@ struct BufferDescriptorInner {
     queue: Vec<(BufferSource, usize)>,
 
     runtime: Option<Box<BufferDescriptorRuntime>>,
-}
-
-impl Drop for BufferDescriptorInner {
-    fn drop(&mut self) {
-        unsafe {
-            let Some(runtime) = self.runtime.take() else {
-                return;
-            };
-
-            (*runtime.used_memory) -= runtime.bytes_length;
-            (*runtime.lru).remove(runtime.lru_node);
-            (*runtime.items).remove(&runtime.id);
-            for ubo in runtime.binding_ubos.iter() {
-                (*runtime.ubos).remove(ubo);
-            }
-            runtime.gl.delete_buffer(Some(&runtime.buffer));
-
-            debug!(
-                "buffer descriptor {} dropped",
-                self.name.as_deref().unwrap_or("unnamed")
-            );
-        }
-    }
 }
 
 /// A key to share and control the [`WebGlBuffer`].
@@ -655,14 +646,9 @@ impl BufferDescriptor {
         self.0.borrow_mut().name.replace(Cow::Borrowed(name));
     }
 
-    /// Returns [`BufferTarget`].
+    /// Returns [`BufferUsage`].
     pub fn usage(&self) -> BufferUsage {
         self.0.borrow().usage
-    }
-
-    /// Sets [`BufferTarget`].
-    pub fn set_usage(&mut self, usage: BufferUsage) {
-        self.0.borrow_mut().usage = usage;
     }
 
     pub fn memory_policy(&self) -> Ref<MemoryPolicy> {
@@ -898,14 +884,20 @@ impl BufferStore {
                     source.buffer_sub_data(&self.gl, target, dst_byte_offset);
                 }
 
-                assert_eq!(
-                    self.gl
-                        .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
-                        .as_f64()
-                        .map(|size| size as usize)
-                        .unwrap(),
-                    new_bytes_length
-                );
+                #[cfg(debug_assertions)]
+                {
+                    assert_eq!(
+                        self.gl
+                            .get_buffer_parameter(
+                                target.gl_enum(),
+                                WebGl2RenderingContext::BUFFER_SIZE
+                            )
+                            .as_f64()
+                            .map(|size| size as usize)
+                            .unwrap(),
+                        new_bytes_length
+                    );
+                }
                 runtime.bytes_length = new_bytes_length;
                 (*self.used_memory) = (*self.used_memory) - old_bytes_length + new_bytes_length;
 
