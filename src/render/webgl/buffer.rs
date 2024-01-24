@@ -21,22 +21,20 @@ use crate::{
     utils::format_bytes_length,
 };
 
-use super::{
-    conversion::{GLint, ToGlEnum},
-    error::Error,
-};
+use super::{conversion::ToGlEnum, error::Error};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferTarget {
-    ArrayBuffer,
-    ElementArrayBuffer,
-    CopyReadBuffer,
-    CopyWriteBuffer,
-    TransformFeedbackBuffer,
-    UniformBuffer,
-    PixelPackBuffer,
-    PixelUnpackBuffer,
+    ARRAY_BUFFER,
+    ELEMENT_ARRAY_BUFFER,
+    COPY_READ_BUFFER,
+    COPY_WRITE_BUFFER,
+    TRANSFORM_FEEDBACK_BUFFER,
+    UNIFORM_BUFFER,
+    PIXEL_PACK_BUFFER,
+    PIXEL_UNPACK_BUFFER,
 }
 
 /// Available component size of a value get from buffer.
@@ -54,48 +52,49 @@ pub enum BufferComponentSize {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferDataType {
-    Float,
-    Byte,
-    Short,
-    Int,
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
-    HalfFloat,
-    Int_2_10_10_10_Rev,
-    UnsignedInt_2_10_10_10_Rev,
+    FLOAT,
+    BYTE,
+    SHORT,
+    INT,
+    UNSIGNED_BYTE,
+    UNSIGNED_SHORT,
+    UNSIGNED_INT,
+    HALF_FLOAT,
+    INT_2_10_10_10_REV,
+    UNSIGNED_INT_2_10_10_10_REV,
 }
 
 impl BufferDataType {
     /// Gets bytes length of a data type.
-    pub fn bytes_length(&self) -> GLint {
+    pub fn bytes_length(&self) -> i32 {
         match self {
-            BufferDataType::Float => 4,
-            BufferDataType::Byte => 1,
-            BufferDataType::Short => 2,
-            BufferDataType::Int => 4,
-            BufferDataType::UnsignedByte => 1,
-            BufferDataType::UnsignedShort => 2,
-            BufferDataType::UnsignedInt => 4,
-            BufferDataType::HalfFloat => 2,
-            BufferDataType::Int_2_10_10_10_Rev => 4,
-            BufferDataType::UnsignedInt_2_10_10_10_Rev => 4,
+            BufferDataType::FLOAT => 4,
+            BufferDataType::BYTE => 1,
+            BufferDataType::SHORT => 2,
+            BufferDataType::INT => 4,
+            BufferDataType::UNSIGNED_BYTE => 1,
+            BufferDataType::UNSIGNED_SHORT => 2,
+            BufferDataType::UNSIGNED_INT => 4,
+            BufferDataType::HALF_FLOAT => 2,
+            BufferDataType::INT_2_10_10_10_REV => 4,
+            BufferDataType::UNSIGNED_INT_2_10_10_10_REV => 4,
         }
     }
 }
 
 /// Available buffer usages mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferUsage {
-    StaticDraw,
-    DynamicDraw,
-    StreamDraw,
-    StaticRead,
-    DynamicRead,
-    StreamRead,
-    StaticCopy,
-    DynamicCopy,
-    StreamCopy,
+    STATIC_DRAW,
+    DYNAMIC_DRAW,
+    STREAM_DRAW,
+    STATIC_READ,
+    DYNAMIC_READ,
+    STREAM_READ,
+    STATIC_COPY,
+    DYNAMIC_COPY,
+    STREAM_COPY,
 }
 
 /// Available buffer sources.
@@ -1057,13 +1056,13 @@ impl BufferStore {
                         return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding));
                     } else {
                         drop(runtime);
-                        self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
+                        self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
                         return Ok(());
                     }
                 }
                 (false, _) => {
                     drop(runtime);
-                    let buffer = self.use_buffer(descriptor, BufferTarget::UniformBuffer)?;
+                    let buffer = self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
                     let runtime =
                         RefMut::map(descriptor.0.borrow_mut(), |inner| &mut inner.runtime);
                     (buffer, runtime)

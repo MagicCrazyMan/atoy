@@ -3,7 +3,9 @@ use web_sys::WebGl2RenderingContext;
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     draw::{CullFace, DrawElementType, DrawMode},
-    framebuffer::{FramebufferAttachment, FramebufferTarget, OperatableBuffer, BlitMask, BlitFlilter},
+    framebuffer::{
+        BlitFlilter, BlitMask, FramebufferAttachment, FramebufferTarget, OperatableBuffer,
+    },
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{
@@ -14,60 +16,43 @@ use super::{
     },
 };
 
-/// Rust data type representing WebGL GLenum.
-pub type GLenum = u32;
-/// Rust data type representing WebGL GLint.
-pub type GLint = i32;
-/// Rust data type representing WebGL GLintptr.
-pub type GLintptr = i32;
-/// Rust data type representing WebGL GLsizeiptr.
-pub type GLsizeiptr = i32;
-/// Rust data type representing WebGL GLsizei.
-pub type GLsizei = i32;
-/// Rust data type representing WebGL GLuint.
-pub type GLuint = u32;
-/// Rust data type representing WebGL GLboolean.
-pub type GLboolean = bool;
-/// Rust data type representing WebGL GLfloat.
-pub type GLfloat = f32;
-
-/// A trait converts Rust data type to WebGL GLenum.
+/// A trait converts Rust data type to WebGL u32.
 pub trait ToGlEnum {
-    fn gl_enum(&self) -> GLenum;
+    fn gl_enum(&self) -> u32;
 }
 
 impl ToGlEnum for BufferTarget {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            BufferTarget::ArrayBuffer => WebGl2RenderingContext::ARRAY_BUFFER,
-            BufferTarget::ElementArrayBuffer => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
-            BufferTarget::CopyReadBuffer => WebGl2RenderingContext::COPY_READ_BUFFER,
-            BufferTarget::CopyWriteBuffer => WebGl2RenderingContext::COPY_WRITE_BUFFER,
-            BufferTarget::TransformFeedbackBuffer => {
+            BufferTarget::ARRAY_BUFFER => WebGl2RenderingContext::ARRAY_BUFFER,
+            BufferTarget::ELEMENT_ARRAY_BUFFER => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
+            BufferTarget::COPY_READ_BUFFER => WebGl2RenderingContext::COPY_READ_BUFFER,
+            BufferTarget::COPY_WRITE_BUFFER => WebGl2RenderingContext::COPY_WRITE_BUFFER,
+            BufferTarget::TRANSFORM_FEEDBACK_BUFFER => {
                 WebGl2RenderingContext::TRANSFORM_FEEDBACK_BUFFER
             }
-            BufferTarget::UniformBuffer => WebGl2RenderingContext::UNIFORM_BUFFER,
-            BufferTarget::PixelPackBuffer => WebGl2RenderingContext::PIXEL_PACK_BUFFER,
-            BufferTarget::PixelUnpackBuffer => WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+            BufferTarget::UNIFORM_BUFFER => WebGl2RenderingContext::UNIFORM_BUFFER,
+            BufferTarget::PIXEL_PACK_BUFFER => WebGl2RenderingContext::PIXEL_PACK_BUFFER,
+            BufferTarget::PIXEL_UNPACK_BUFFER => WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
         }
     }
 }
 
 impl ToGlEnum for BufferDataType {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            BufferDataType::Float => WebGl2RenderingContext::FLOAT,
-            BufferDataType::Byte => WebGl2RenderingContext::BYTE,
-            BufferDataType::Short => WebGl2RenderingContext::SHORT,
-            BufferDataType::Int => WebGl2RenderingContext::INT,
-            BufferDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            BufferDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
-            BufferDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            BufferDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            BufferDataType::Int_2_10_10_10_Rev => WebGl2RenderingContext::INT_2_10_10_10_REV,
-            BufferDataType::UnsignedInt_2_10_10_10_Rev => {
+            BufferDataType::FLOAT => WebGl2RenderingContext::FLOAT,
+            BufferDataType::BYTE => WebGl2RenderingContext::BYTE,
+            BufferDataType::SHORT => WebGl2RenderingContext::SHORT,
+            BufferDataType::INT => WebGl2RenderingContext::INT,
+            BufferDataType::UNSIGNED_BYTE => WebGl2RenderingContext::UNSIGNED_BYTE,
+            BufferDataType::UNSIGNED_SHORT => WebGl2RenderingContext::UNSIGNED_SHORT,
+            BufferDataType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
+            BufferDataType::HALF_FLOAT => WebGl2RenderingContext::HALF_FLOAT,
+            BufferDataType::INT_2_10_10_10_REV => WebGl2RenderingContext::INT_2_10_10_10_REV,
+            BufferDataType::UNSIGNED_INT_2_10_10_10_REV => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
         }
@@ -76,61 +61,61 @@ impl ToGlEnum for BufferDataType {
 
 impl ToGlEnum for BufferUsage {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            BufferUsage::StaticDraw => WebGl2RenderingContext::STATIC_DRAW,
-            BufferUsage::DynamicDraw => WebGl2RenderingContext::DYNAMIC_DRAW,
-            BufferUsage::StreamDraw => WebGl2RenderingContext::STREAM_DRAW,
-            BufferUsage::StaticRead => WebGl2RenderingContext::STATIC_READ,
-            BufferUsage::DynamicRead => WebGl2RenderingContext::DYNAMIC_READ,
-            BufferUsage::StreamRead => WebGl2RenderingContext::STREAM_READ,
-            BufferUsage::StaticCopy => WebGl2RenderingContext::STATIC_COPY,
-            BufferUsage::DynamicCopy => WebGl2RenderingContext::DYNAMIC_COPY,
-            BufferUsage::StreamCopy => WebGl2RenderingContext::STATIC_COPY,
+            BufferUsage::STATIC_DRAW => WebGl2RenderingContext::STATIC_DRAW,
+            BufferUsage::DYNAMIC_DRAW => WebGl2RenderingContext::DYNAMIC_DRAW,
+            BufferUsage::STREAM_DRAW => WebGl2RenderingContext::STREAM_DRAW,
+            BufferUsage::STATIC_READ => WebGl2RenderingContext::STATIC_READ,
+            BufferUsage::DYNAMIC_READ => WebGl2RenderingContext::DYNAMIC_READ,
+            BufferUsage::STREAM_READ => WebGl2RenderingContext::STREAM_READ,
+            BufferUsage::STATIC_COPY => WebGl2RenderingContext::STATIC_COPY,
+            BufferUsage::DYNAMIC_COPY => WebGl2RenderingContext::DYNAMIC_COPY,
+            BufferUsage::STREAM_COPY => WebGl2RenderingContext::STREAM_COPY,
         }
     }
 }
 
 impl ToGlEnum for DrawElementType {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            DrawElementType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            DrawElementType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
-            DrawElementType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            DrawElementType::UNSIGNED_BYTE => WebGl2RenderingContext::UNSIGNED_BYTE,
+            DrawElementType::UNSIGNED_SHORT => WebGl2RenderingContext::UNSIGNED_SHORT,
+            DrawElementType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
         }
     }
 }
 
 impl ToGlEnum for DrawMode {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            DrawMode::Points => WebGl2RenderingContext::POINTS,
-            DrawMode::Lines => WebGl2RenderingContext::LINES,
-            DrawMode::LineLoop => WebGl2RenderingContext::LINE_LOOP,
-            DrawMode::LineStrip => WebGl2RenderingContext::LINE_STRIP,
-            DrawMode::Triangles => WebGl2RenderingContext::TRIANGLES,
-            DrawMode::TriangleStrip => WebGl2RenderingContext::TRIANGLE_STRIP,
-            DrawMode::TriangleFan => WebGl2RenderingContext::TRIANGLE_FAN,
+            DrawMode::POINTS => WebGl2RenderingContext::POINTS,
+            DrawMode::LINES => WebGl2RenderingContext::LINES,
+            DrawMode::LINE_LOOP => WebGl2RenderingContext::LINE_LOOP,
+            DrawMode::LINE_STRIP => WebGl2RenderingContext::LINE_STRIP,
+            DrawMode::TRIANGLES => WebGl2RenderingContext::TRIANGLES,
+            DrawMode::TRIANGLE_STRIP => WebGl2RenderingContext::TRIANGLE_STRIP,
+            DrawMode::TRIANGLE_FAN => WebGl2RenderingContext::TRIANGLE_FAN,
         }
     }
 }
 
 impl ToGlEnum for CullFace {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            CullFace::Front => WebGl2RenderingContext::FRONT,
-            CullFace::Back => WebGl2RenderingContext::BACK,
-            CullFace::Both => WebGl2RenderingContext::FRONT_AND_BACK,
+            CullFace::FRONT => WebGl2RenderingContext::FRONT,
+            CullFace::BACK => WebGl2RenderingContext::BACK,
+            CullFace::FRONT_AND_BACK => WebGl2RenderingContext::FRONT_AND_BACK,
         }
     }
 }
 
 impl ToGlEnum for TextureInternalFormat {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             TextureInternalFormat::RGBA32I => WebGl2RenderingContext::RGBA32I,
             TextureInternalFormat::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
@@ -192,7 +177,7 @@ impl ToGlEnum for TextureInternalFormat {
 
 impl ToGlEnum for TextureFormat {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             TextureFormat::RED => WebGl2RenderingContext::RED,
             TextureFormat::RED_INTEGER => WebGl2RenderingContext::RED_INTEGER,
@@ -213,7 +198,7 @@ impl ToGlEnum for TextureFormat {
 
 impl ToGlEnum for TextureDataType {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             TextureDataType::FLOAT => WebGl2RenderingContext::FLOAT,
             TextureDataType::HALF_FLOAT => WebGl2RenderingContext::HALF_FLOAT,
@@ -249,7 +234,7 @@ impl ToGlEnum for TextureDataType {
 
 impl ToGlEnum for TextureUnit {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             TextureUnit::TEXTURE0 => WebGl2RenderingContext::TEXTURE0,
             TextureUnit::TEXTURE1 => WebGl2RenderingContext::TEXTURE1,
@@ -290,10 +275,10 @@ impl ToGlEnum for TextureUnit {
 
 impl ToGlEnum for TextureUnpackColorSpaceConversion {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureUnpackColorSpaceConversion::None => WebGl2RenderingContext::NONE,
-            TextureUnpackColorSpaceConversion::BrowserDefaultWebGL => {
+            TextureUnpackColorSpaceConversion::NONE => WebGl2RenderingContext::NONE,
+            TextureUnpackColorSpaceConversion::BROWSER_DEFAULT_WEBGL => {
                 WebGl2RenderingContext::BROWSER_DEFAULT_WEBGL
             }
         }
@@ -302,57 +287,63 @@ impl ToGlEnum for TextureUnpackColorSpaceConversion {
 
 impl ToGlEnum for TexturePixelStorage {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TexturePixelStorage::PackAlignment(_) => WebGl2RenderingContext::PACK_ALIGNMENT,
-            TexturePixelStorage::UnpackAlignment(_) => WebGl2RenderingContext::UNPACK_ALIGNMENT,
-            TexturePixelStorage::UnpackFlipYWebGL(_) => WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL,
-            TexturePixelStorage::UnpackPremultiplyAlphaWebGL(_) => {
+            TexturePixelStorage::PACK_ALIGNMENT(_) => WebGl2RenderingContext::PACK_ALIGNMENT,
+            TexturePixelStorage::UNPACK_ALIGNMENT(_) => WebGl2RenderingContext::UNPACK_ALIGNMENT,
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(_) => {
+                WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL
+            }
+            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(_) => {
                 WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL
             }
-            TexturePixelStorage::UnpackColorSpaceConversionWebGL(_) => {
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(_) => {
                 WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL
             }
-            TexturePixelStorage::PackRowLength(_) => WebGl2RenderingContext::PACK_ROW_LENGTH,
-            TexturePixelStorage::PackSkipPixels(_) => WebGl2RenderingContext::PACK_SKIP_PIXELS,
-            TexturePixelStorage::PackSkipRows(_) => WebGl2RenderingContext::PACK_SKIP_ROWS,
-            TexturePixelStorage::UnpackRowLength(_) => WebGl2RenderingContext::UNPACK_ROW_LENGTH,
-            TexturePixelStorage::UnpackImageHeight(_) => {
+            TexturePixelStorage::PACK_ROW_LENGTH(_) => WebGl2RenderingContext::PACK_ROW_LENGTH,
+            TexturePixelStorage::PACK_SKIP_PIXELS(_) => WebGl2RenderingContext::PACK_SKIP_PIXELS,
+            TexturePixelStorage::PACK_SKIP_ROWS(_) => WebGl2RenderingContext::PACK_SKIP_ROWS,
+            TexturePixelStorage::UNPACK_ROW_LENGTH(_) => WebGl2RenderingContext::UNPACK_ROW_LENGTH,
+            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(_) => {
                 WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT
             }
-            TexturePixelStorage::UnpackSkipPixels(_) => WebGl2RenderingContext::UNPACK_SKIP_PIXELS,
-            TexturePixelStorage::UnpackSkipRows(_) => WebGl2RenderingContext::UNPACK_SKIP_ROWS,
-            TexturePixelStorage::UnpackSkipImages(_) => WebGl2RenderingContext::UNPACK_SKIP_IMAGES,
+            TexturePixelStorage::UNPACK_SKIP_PIXELS(_) => {
+                WebGl2RenderingContext::UNPACK_SKIP_PIXELS
+            }
+            TexturePixelStorage::UNPACK_SKIP_ROWS(_) => WebGl2RenderingContext::UNPACK_SKIP_ROWS,
+            TexturePixelStorage::UNPACK_SKIP_IMAGES(_) => {
+                WebGl2RenderingContext::UNPACK_SKIP_IMAGES
+            }
         }
     }
 }
 
 impl ToGlEnum for TextureMagnificationFilter {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureMagnificationFilter::Linear => WebGl2RenderingContext::LINEAR,
-            TextureMagnificationFilter::Nearest => WebGl2RenderingContext::NEAREST,
+            TextureMagnificationFilter::LINEAR => WebGl2RenderingContext::LINEAR,
+            TextureMagnificationFilter::NEAREST => WebGl2RenderingContext::NEAREST,
         }
     }
 }
 
 impl ToGlEnum for TextureMinificationFilter {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureMinificationFilter::Linear => WebGl2RenderingContext::LINEAR,
-            TextureMinificationFilter::Nearest => WebGl2RenderingContext::NEAREST,
-            TextureMinificationFilter::NearestMipmapNearest => {
+            TextureMinificationFilter::LINEAR => WebGl2RenderingContext::LINEAR,
+            TextureMinificationFilter::NEAREST => WebGl2RenderingContext::NEAREST,
+            TextureMinificationFilter::NEAREST_MIPMAP_NEAREST => {
                 WebGl2RenderingContext::NEAREST_MIPMAP_NEAREST
             }
-            TextureMinificationFilter::LinearMipmapNearest => {
+            TextureMinificationFilter::LINEAR_MIPMAP_NEAREST => {
                 WebGl2RenderingContext::LINEAR_MIPMAP_NEAREST
             }
-            TextureMinificationFilter::NearestMipmapLinear => {
+            TextureMinificationFilter::NEAREST_MIPMAP_LINEAR => {
                 WebGl2RenderingContext::NEAREST_MIPMAP_LINEAR
             }
-            TextureMinificationFilter::LinearMipmapLinear => {
+            TextureMinificationFilter::LINEAR_MIPMAP_LINEAR => {
                 WebGl2RenderingContext::LINEAR_MIPMAP_LINEAR
             }
         }
@@ -361,37 +352,37 @@ impl ToGlEnum for TextureMinificationFilter {
 
 impl ToGlEnum for TextureWrapMethod {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureWrapMethod::Repeat => WebGl2RenderingContext::REPEAT,
-            TextureWrapMethod::ClampToEdge => WebGl2RenderingContext::CLAMP_TO_EDGE,
-            TextureWrapMethod::MirroredRepeat => WebGl2RenderingContext::MIRRORED_REPEAT,
+            TextureWrapMethod::REPEAT => WebGl2RenderingContext::REPEAT,
+            TextureWrapMethod::CLAMP_TO_EDGE => WebGl2RenderingContext::CLAMP_TO_EDGE,
+            TextureWrapMethod::MIRRORED_REPEAT => WebGl2RenderingContext::MIRRORED_REPEAT,
         }
     }
 }
 
 impl ToGlEnum for TextureCompareFunction {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureCompareFunction::LessEqual => WebGl2RenderingContext::LEQUAL,
-            TextureCompareFunction::GreaterEqual => WebGl2RenderingContext::GEQUAL,
-            TextureCompareFunction::Less => WebGl2RenderingContext::LESS,
-            TextureCompareFunction::Greater => WebGl2RenderingContext::GREATER,
-            TextureCompareFunction::Equal => WebGl2RenderingContext::EQUAL,
-            TextureCompareFunction::NotEqual => WebGl2RenderingContext::NOTEQUAL,
-            TextureCompareFunction::Always => WebGl2RenderingContext::ALWAYS,
-            TextureCompareFunction::Never => WebGl2RenderingContext::NEVER,
+            TextureCompareFunction::LEQUAL => WebGl2RenderingContext::LEQUAL,
+            TextureCompareFunction::GEQUAL => WebGl2RenderingContext::GEQUAL,
+            TextureCompareFunction::LESS => WebGl2RenderingContext::LESS,
+            TextureCompareFunction::GREATER => WebGl2RenderingContext::GREATER,
+            TextureCompareFunction::EQUAL => WebGl2RenderingContext::EQUAL,
+            TextureCompareFunction::NOTEQUAL => WebGl2RenderingContext::NOTEQUAL,
+            TextureCompareFunction::ALWAYS => WebGl2RenderingContext::ALWAYS,
+            TextureCompareFunction::NEVER => WebGl2RenderingContext::NEVER,
         }
     }
 }
 
 impl ToGlEnum for TextureCompareMode {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            TextureCompareMode::None => WebGl2RenderingContext::NONE,
-            TextureCompareMode::CompareRefToTexture => {
+            TextureCompareMode::NONE => WebGl2RenderingContext::NONE,
+            TextureCompareMode::COMPARE_REF_TO_TEXTURE => {
                 WebGl2RenderingContext::COMPARE_REF_TO_TEXTURE
             }
         }
@@ -400,7 +391,7 @@ impl ToGlEnum for TextureCompareMode {
 
 impl ToGlEnum for TextureParameter {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             TextureParameter::MAG_FILTER(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
             TextureParameter::MIN_FILTER(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
@@ -419,39 +410,39 @@ impl ToGlEnum for TextureParameter {
 
 impl ToGlEnum for StencilFunction {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            StencilFunction::Never => WebGl2RenderingContext::NEVER,
-            StencilFunction::Less => WebGl2RenderingContext::LESS,
-            StencilFunction::Equal => WebGl2RenderingContext::EQUAL,
-            StencilFunction::LessEqual => WebGl2RenderingContext::LEQUAL,
-            StencilFunction::Greater => WebGl2RenderingContext::GREATER,
-            StencilFunction::NotEqual => WebGl2RenderingContext::NOTEQUAL,
-            StencilFunction::GreaterEqual => WebGl2RenderingContext::GEQUAL,
-            StencilFunction::Always => WebGl2RenderingContext::ALWAYS,
+            StencilFunction::NEVER => WebGl2RenderingContext::NEVER,
+            StencilFunction::LESS => WebGl2RenderingContext::LESS,
+            StencilFunction::EQUAL => WebGl2RenderingContext::EQUAL,
+            StencilFunction::LEQUAL => WebGl2RenderingContext::LEQUAL,
+            StencilFunction::GREATER => WebGl2RenderingContext::GREATER,
+            StencilFunction::NOTEQUAL => WebGl2RenderingContext::NOTEQUAL,
+            StencilFunction::GEQUAL => WebGl2RenderingContext::GEQUAL,
+            StencilFunction::ALWAYS => WebGl2RenderingContext::ALWAYS,
         }
     }
 }
 
 impl ToGlEnum for StencilOp {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
-            StencilOp::Keep => WebGl2RenderingContext::KEEP,
-            StencilOp::Zero => WebGl2RenderingContext::ZERO,
-            StencilOp::Replace => WebGl2RenderingContext::REPLACE,
-            StencilOp::Increment => WebGl2RenderingContext::INCR,
-            StencilOp::IncrementWrap => WebGl2RenderingContext::INCR_WRAP,
-            StencilOp::Decrement => WebGl2RenderingContext::DECR,
-            StencilOp::DecrementWrap => WebGl2RenderingContext::DECR_WRAP,
-            StencilOp::Invert => WebGl2RenderingContext::INVERT,
+            StencilOp::KEEP => WebGl2RenderingContext::KEEP,
+            StencilOp::ZERO => WebGl2RenderingContext::ZERO,
+            StencilOp::REPLACE => WebGl2RenderingContext::REPLACE,
+            StencilOp::INCR => WebGl2RenderingContext::INCR,
+            StencilOp::INCR_WRAP => WebGl2RenderingContext::INCR_WRAP,
+            StencilOp::DECR => WebGl2RenderingContext::DECR,
+            StencilOp::DECR_WRAP => WebGl2RenderingContext::DECR_WRAP,
+            StencilOp::INVERT => WebGl2RenderingContext::INVERT,
         }
     }
 }
 
 impl ToGlEnum for RenderbufferInternalFormat {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             RenderbufferInternalFormat::RGBA32I => WebGl2RenderingContext::RGBA32I,
             RenderbufferInternalFormat::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
@@ -481,11 +472,21 @@ impl ToGlEnum for RenderbufferInternalFormat {
             RenderbufferInternalFormat::R8 => WebGl2RenderingContext::R8,
             RenderbufferInternalFormat::R8I => WebGl2RenderingContext::R8I,
             RenderbufferInternalFormat::R8UI => WebGl2RenderingContext::R8UI,
-            RenderbufferInternalFormat::DEPTH_COMPONENT32F => WebGl2RenderingContext::DEPTH_COMPONENT32F,
-            RenderbufferInternalFormat::DEPTH_COMPONENT24 => WebGl2RenderingContext::DEPTH_COMPONENT24,
-            RenderbufferInternalFormat::DEPTH_COMPONENT16 => WebGl2RenderingContext::DEPTH_COMPONENT16,
-            RenderbufferInternalFormat::DEPTH32F_STENCIL8 => WebGl2RenderingContext::DEPTH32F_STENCIL8,
-            RenderbufferInternalFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
+            RenderbufferInternalFormat::DEPTH_COMPONENT32F => {
+                WebGl2RenderingContext::DEPTH_COMPONENT32F
+            }
+            RenderbufferInternalFormat::DEPTH_COMPONENT24 => {
+                WebGl2RenderingContext::DEPTH_COMPONENT24
+            }
+            RenderbufferInternalFormat::DEPTH_COMPONENT16 => {
+                WebGl2RenderingContext::DEPTH_COMPONENT16
+            }
+            RenderbufferInternalFormat::DEPTH32F_STENCIL8 => {
+                WebGl2RenderingContext::DEPTH32F_STENCIL8
+            }
+            RenderbufferInternalFormat::DEPTH24_STENCIL8 => {
+                WebGl2RenderingContext::DEPTH24_STENCIL8
+            }
             RenderbufferInternalFormat::R16F => WebGl2RenderingContext::R16F,
             RenderbufferInternalFormat::RG16F => WebGl2RenderingContext::RG16F,
             RenderbufferInternalFormat::RGBA16F => WebGl2RenderingContext::RGBA16F,
@@ -493,14 +494,13 @@ impl ToGlEnum for RenderbufferInternalFormat {
             RenderbufferInternalFormat::RG32F => WebGl2RenderingContext::RG32F,
             RenderbufferInternalFormat::RGBA32F => WebGl2RenderingContext::RGBA32F,
             RenderbufferInternalFormat::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
-            
         }
     }
 }
 
 impl ToGlEnum for FramebufferTarget {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             FramebufferTarget::FRAMEBUFFER => WebGl2RenderingContext::FRAMEBUFFER,
             FramebufferTarget::READ_FRAMEBUFFER => WebGl2RenderingContext::READ_FRAMEBUFFER,
@@ -511,7 +511,7 @@ impl ToGlEnum for FramebufferTarget {
 
 impl ToGlEnum for FramebufferAttachment {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             FramebufferAttachment::COLOR_ATTACHMENT0 => WebGl2RenderingContext::COLOR_ATTACHMENT0,
             FramebufferAttachment::COLOR_ATTACHMENT1 => WebGl2RenderingContext::COLOR_ATTACHMENT1,
@@ -540,7 +540,7 @@ impl ToGlEnum for FramebufferAttachment {
 
 impl ToGlEnum for OperatableBuffer {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             OperatableBuffer::NONE => WebGl2RenderingContext::NONE,
             OperatableBuffer::BACK => WebGl2RenderingContext::BACK,
@@ -566,7 +566,7 @@ impl ToGlEnum for OperatableBuffer {
 
 impl ToGlEnum for BlitMask {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             BlitMask::COLOR_BUFFER_BIT => WebGl2RenderingContext::COLOR_BUFFER_BIT,
             BlitMask::DEPTH_BUFFER_BIT => WebGl2RenderingContext::DEPTH_BUFFER_BIT,
@@ -577,7 +577,7 @@ impl ToGlEnum for BlitMask {
 
 impl ToGlEnum for BlitFlilter {
     #[inline]
-    fn gl_enum(&self) -> GLenum {
+    fn gl_enum(&self) -> u32 {
         match self {
             BlitFlilter::NEAREST => WebGl2RenderingContext::NEAREST,
             BlitFlilter::LINEAR => WebGl2RenderingContext::LINEAR,

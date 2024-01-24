@@ -37,7 +37,7 @@ impl IndexedCube {
             size,
             indices: BufferDescriptor::new(
                 BufferSource::from_uint8_array(slice_to_uint8_array(&INDICES), 0, 36),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             positions: BufferDescriptor::new(
                 BufferSource::from_float32_array(
@@ -45,11 +45,11 @@ impl IndexedCube {
                     0,
                     72,
                 ),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             normals: BufferDescriptor::new(
                 BufferSource::from_float32_array(slice_to_float32_array(&NORMALS), 0, 96),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             texture_coordinates: BufferDescriptor::new(
                 BufferSource::from_float32_array(
@@ -57,7 +57,7 @@ impl IndexedCube {
                     0,
                     48,
                 ),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             notifier: Notifier::new(),
         }
@@ -83,16 +83,16 @@ impl IndexedCube {
 impl Geometry for IndexedCube {
     fn draw(&self) -> Draw {
         Draw::Elements {
-            mode: DrawMode::Triangles,
+            mode: DrawMode::TRIANGLES,
             count: 36,
-            element_type: DrawElementType::UnsignedByte,
+            element_type: DrawElementType::UNSIGNED_BYTE,
             offset: 0,
             indices: self.indices.clone(),
         }
     }
 
     fn cull_face(&self) -> Option<CullFace> {
-        Some(CullFace::Back)
+        Some(CullFace::BACK)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
@@ -106,9 +106,9 @@ impl Geometry for IndexedCube {
     fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.positions.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
@@ -118,9 +118,9 @@ impl Geometry for IndexedCube {
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.normals.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Four,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
@@ -130,9 +130,9 @@ impl Geometry for IndexedCube {
     fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.texture_coordinates.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Two,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,

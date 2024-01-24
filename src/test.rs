@@ -151,37 +151,37 @@ fn create_scene() -> Result<Scene, Error> {
     //     Vec3::new(0.8, 0.8, 0.8),
     //     128.0,
     // ));
-    scene.add_spot_light(SpotLight::new(
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(1.0, -1.0, -1.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(0.6, 0.6, 0.6),
-        30f32.to_radians(),
-        40f32.to_radians(),
-    ));
-    scene.add_spot_light(SpotLight::new(
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(0.6, 0.6, 0.6),
-        30f32.to_radians(),
-        60f32.to_radians(),
-    ));
-    scene.add_area_light(AreaLight::new(
-        Vec3::new(-3.0, 2.0, 0.0),
-        Vec3::new(-1.0, -1.0, 1.0),
-        Vec3::new(1.0, 0.0, -1.0),
-        0.5,
-        4.0,
-        1.5,
-        4.5,
-        2.0,
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(0.6, 0.6, 0.6),
-    ));
+    // scene.add_spot_light(SpotLight::new(
+    //     Vec3::new(0.0, 1.0, 0.0),
+    //     Vec3::new(1.0, -1.0, -1.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    //     30f32.to_radians(),
+    //     40f32.to_radians(),
+    // ));
+    // scene.add_spot_light(SpotLight::new(
+    //     Vec3::new(0.0, 1.0, 0.0),
+    //     Vec3::new(0.0, -1.0, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    //     30f32.to_radians(),
+    //     60f32.to_radians(),
+    // ));
+    // scene.add_area_light(AreaLight::new(
+    //     Vec3::new(-3.0, 2.0, 0.0),
+    //     Vec3::new(-1.0, -1.0, 1.0),
+    //     Vec3::new(1.0, 0.0, -1.0),
+    //     0.5,
+    //     4.0,
+    //     1.5,
+    //     4.5,
+    //     2.0,
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
     scene.add_point_light(PointLight::new(
         Vec3::new(0.0, 1.5, 0.0),
         Vec3::new(0.0, 0.0, 0.0),
@@ -502,7 +502,7 @@ impl Notifiee<MouseEvent> for ViewerPick {
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
-                geometry.set_size(rand::random::<f64>() * 3.0);
+                geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
                 entity.set_dirty();
             }
             console_log!("pick entity {}", entity.id());

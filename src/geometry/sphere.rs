@@ -46,11 +46,11 @@ impl Sphere {
             num_positions,
             positions: BufferDescriptor::new(
                 BufferSource::from_float32_array(positions, 0, positions_len),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             normals: BufferDescriptor::new(
                 BufferSource::from_float32_array(normals, 0, normals_len),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
             ),
             notifier: Notifier::new(),
         }
@@ -82,14 +82,14 @@ impl Sphere {
 impl Geometry for Sphere {
     fn draw(&self) -> Draw {
         Draw::Arrays {
-            mode: DrawMode::Triangles,
+            mode: DrawMode::TRIANGLES,
             first: 0,
             count: self.num_positions as i32,
         }
     }
 
     fn cull_face(&self) -> Option<CullFace> {
-        Some(CullFace::Back)
+        Some(CullFace::BACK)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
@@ -102,9 +102,9 @@ impl Geometry for Sphere {
     fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.positions.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
@@ -114,9 +114,9 @@ impl Geometry for Sphere {
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.normals.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Four,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,

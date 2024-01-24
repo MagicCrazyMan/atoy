@@ -611,11 +611,12 @@ struct ControllerPreRender(Rc<RefCell<Inner>>, *mut HashSet<String>, *mut Option
 impl Notifiee<RenderEvent> for ControllerPreRender {
     fn notify(&mut self, event: &mut RenderEvent) {
         unsafe {
+            let current = event.state().timestamp();
+
             if (*self.1).is_empty() {
+                *self.2 = Some(current);
                 return;
             }
-
-            let current = event.state().timestamp();
 
             let Some(previous) = (*self.2).as_ref() else {
                 *self.2 = Some(current);
@@ -678,7 +679,7 @@ impl Controller for UniversalCamera {
         let key_up = viewer
             .scene_mut()
             .canvas_handler()
-            .key_down()
+            .key_up()
             .register(ControllerKeyUp(pressed_keys));
         let mouse_move =
             viewer

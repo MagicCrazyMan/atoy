@@ -14,12 +14,12 @@ use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::Standa
 use super::{
     attribute::{AttributeBinding, AttributeValue},
     buffer::{BufferDescriptor, BufferStore, BufferTarget},
-    conversion::{GLint, GLuint, ToGlEnum},
+    conversion::ToGlEnum,
     draw::Draw,
     error::Error,
     framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
-        FramebufferBuilder, OperatableBuffer, FramebufferTarget, SizePolicy,
+        FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
     texture::{TextureParameter, TextureStore, TextureUnit},
@@ -196,7 +196,7 @@ impl FrameState {
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 self.gl.vertex_attrib_pointer_with_i32(
                     location,
-                    component_size as GLint,
+                    component_size as i32,
                     data_type.gl_enum(),
                     normalized,
                     bytes_stride,
@@ -222,10 +222,10 @@ impl FrameState {
                 let buffer = self.buffer_store_mut().use_buffer(&descriptor, target)?;
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                let component_size = component_size as GLint;
+                let component_size = component_size as i32;
                 // binds each instance
                 for i in 0..components_length_per_instance {
-                    let offset_location = location + (i as GLuint);
+                    let offset_location = location + (i as u32);
                     self.gl.vertex_attrib_pointer_with_i32(
                         offset_location,
                         component_size,
@@ -480,7 +480,7 @@ impl FrameState {
                 self.gl
                     .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
             }
-            UniformValue::Texture {
+            UniformValue::Image {
                 descriptor,
                 params,
                 unit,
@@ -496,25 +496,25 @@ impl FrameState {
                 params.iter().for_each(|param| match param {
                     TextureParameter::MAG_FILTER(v) => {
                         self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as GLint)
+                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
                     }
                     TextureParameter::MIN_FILTER(v) => {
                         self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as GLint)
+                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
                     }
                     TextureParameter::WRAP_S(v)
                     | TextureParameter::WRAP_T(v)
                     | TextureParameter::WRAP_R(v) => {
                         self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as GLint)
+                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
                     }
                     TextureParameter::COMPARE_FUNC(v) => {
                         self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as GLint)
+                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
                     }
                     TextureParameter::COMPARE_MODE(v) => {
                         self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as GLint)
+                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
                     }
                     TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => {
                         self.gl.tex_parameteri(target, param.gl_enum(), *v)
@@ -602,10 +602,10 @@ impl FrameState {
             } => {
                 let buffer = self
                     .buffer_store_mut()
-                    .use_buffer(&indices, BufferTarget::ElementArrayBuffer)?;
+                    .use_buffer(&indices, BufferTarget::ELEMENT_ARRAY_BUFFER)?;
 
                 self.gl
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), Some(&buffer));
+                    .bind_buffer(BufferTarget::ELEMENT_ARRAY_BUFFER.gl_enum(), Some(&buffer));
                 self.gl.draw_elements_with_i32(
                     mode.gl_enum(),
                     *count,
@@ -613,7 +613,7 @@ impl FrameState {
                     *offset,
                 );
                 self.gl
-                    .bind_buffer(BufferTarget::ElementArrayBuffer.gl_enum(), None);
+                    .bind_buffer(BufferTarget::ELEMENT_ARRAY_BUFFER.gl_enum(), None);
                 self.buffer_store_mut().unuse_buffer(&indices);
             }
         }

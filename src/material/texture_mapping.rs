@@ -33,21 +33,21 @@ impl TextureMaterial {
             transparency,
             diffuse_texture: TextureLoader::from_url(url, move |image| {
                 notifier_cloned.notify(&mut ());
-                UniformValue::Texture {
+                UniformValue::Image {
                     descriptor: TextureDescriptor::texture_2d_with_html_image_element(
                         image,
                         TextureDataType::UNSIGNED_BYTE,
                         TextureInternalFormat::SRGB8_ALPHA8,
                         TextureFormat::RGBA,
                         0,
-                        vec![TexturePixelStorage::UnpackFlipYWebGL(true)],
+                        vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
                         true,
                     ),
                     params: vec![
-                        TextureParameter::MIN_FILTER(TextureMinificationFilter::LinearMipmapLinear),
-                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::Linear),
-                        TextureParameter::WRAP_S(TextureWrapMethod::MirroredRepeat),
-                        TextureParameter::WRAP_T(TextureWrapMethod::MirroredRepeat),
+                        TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
+                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                        TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                        TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
                     ],
                     unit: TextureUnit::TEXTURE0,
                 }

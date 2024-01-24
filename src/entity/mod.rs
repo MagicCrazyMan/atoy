@@ -573,10 +573,14 @@ impl Entity {
     }
 
     fn update_bounding(&mut self) {
-        let Some((_, Some(bounding), _)) = self.geometry.as_mut() else {
+        let Some((geometry, bounding, _)) = self.geometry.as_mut() else {
             return;
         };
-        bounding.transform(self.compose_model_matrix);
+
+        let compose_model_matrix = self.compose_model_matrix;
+        *bounding = geometry
+            .bounding_volume()
+            .map(|bounding| CullingBoundingVolume::new(bounding.transform(compose_model_matrix)));
     }
 }
 

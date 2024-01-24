@@ -40,8 +40,13 @@ impl Cube {
                 buffer_descriptor_with_size_one()
             } else {
                 BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(build_positions(size), 0, 108 * 4),
-                    BufferUsage::StaticDraw,
+                    BufferSource::from_function(
+                        move || BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+                        108 * 4,
+                        0,
+                        108 * 4,
+                    ),
+                    BufferUsage::STATIC_DRAW,
                     MemoryPolicy::restorable(move || {
                         BufferSource::from_binary(build_positions(size), 0, 108 * 4)
                     }),
@@ -61,28 +66,39 @@ impl Cube {
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
         self.size = size;
-        self.positions = BufferDescriptor::with_memory_policy(
-            BufferSource::from_binary(build_positions(size), 0, 108 * 4),
-            BufferUsage::DynamicDraw,
-            MemoryPolicy::restorable(move || {
-                BufferSource::from_binary(build_positions(size), 0, 108 * 4)
-            }),
-        );
         self.bounding_volume = build_bounding_volume(size);
+        if let BufferUsage::STATIC_DRAW = self.positions.usage() {
+            self.positions = BufferDescriptor::with_memory_policy(
+                BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+                BufferUsage::DYNAMIC_DRAW,
+                MemoryPolicy::restorable(move || {
+                    BufferSource::from_binary(build_positions(size), 0, 108 * 4)
+                }),
+            );
+        } else {
+            self.positions.buffer_sub_data(
+                BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+                0,
+            );
+            self.positions
+                .set_memory_policy(MemoryPolicy::restorable(move || {
+                    BufferSource::from_binary(build_positions(size), 0, 108 * 4)
+                }));
+        }
     }
 }
 
 impl Geometry for Cube {
     fn draw(&self) -> Draw {
         Draw::Arrays {
-            mode: DrawMode::Triangles,
+            mode: DrawMode::TRIANGLES,
             first: 0,
             count: 36,
         }
     }
 
     fn cull_face(&self) -> Option<CullFace> {
-        Some(CullFace::Back)
+        Some(CullFace::BACK)
     }
 
     fn bounding_volume(&self) -> Option<BoundingVolume> {
@@ -92,9 +108,9 @@ impl Geometry for Cube {
     fn positions(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.positions.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
@@ -104,9 +120,9 @@ impl Geometry for Cube {
     fn normals(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.normals_textures.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
@@ -116,9 +132,9 @@ impl Geometry for Cube {
     fn texture_coordinates(&self) -> Option<AttributeValue> {
         Some(AttributeValue::Buffer {
             descriptor: self.normals_textures.clone(),
-            target: BufferTarget::ArrayBuffer,
+            target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Two,
-            data_type: BufferDataType::Float,
+            data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 108 * 4,
@@ -153,7 +169,7 @@ impl Geometry for Cube {
 fn build_bounding_volume(size: f64) -> BoundingVolume {
     let s = size / 2.0;
     BoundingVolume::BoundingSphere {
-        center: Vec3::<f64>::new(0.0, 0.0, 0.0),
+        center: Vec3::<f64>::new_zero(),
         radius: (s * s + s * s + s * s).sqrt(),
     }
 }
@@ -175,7 +191,7 @@ fn build_positions(size: f64) -> [u8; 108 * 4] {
 }
 
 #[rustfmt::skip]
-static NORMALS_TEXTURE_COORDINATES: [f32; 108 + 48] = [
+const NORMALS_TEXTURE_COORDINATES: [f32; 108 + 48] = [
      0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0,  0.0, 0.0, 1.0, // front
      0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0,  0.0, 1.0, 0.0, // up
      0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0,  0.0, 0.0,-1.0, // back
@@ -206,7 +222,7 @@ fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
                         0,
                         (108 + 48) * 4,
                     ),
-                    BufferUsage::StaticDraw,
+                    BufferUsage::STATIC_DRAW,
                     MemoryPolicy::restorable(|| {
                         BufferSource::from_binary(
                             std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
@@ -230,7 +246,7 @@ fn buffer_descriptor_with_size_one() -> BufferDescriptor {
             .get_or_init(|| {
                 BufferDescriptor::with_memory_policy(
                     BufferSource::from_binary(build_positions(1.0), 0, 108 * 4),
-                    BufferUsage::StaticDraw,
+                    BufferUsage::STATIC_DRAW,
                     MemoryPolicy::restorable(move || {
                         BufferSource::from_binary(build_positions(1.0), 0, 108 * 4)
                     }),

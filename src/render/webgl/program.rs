@@ -5,7 +5,6 @@ use log::warn;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 use super::{
-    conversion::GLuint,
     error::Error,
     shader::{Define, ShaderBuilder},
 };
@@ -71,7 +70,7 @@ pub struct Program {
     vertex_shader: WebGlShader,
     fragment_shader: WebGlShader,
 
-    attribute_locations: HashMap<String, GLuint>,
+    attribute_locations: HashMap<String, u32>,
     uniform_locations: HashMap<String, WebGlUniformLocation>,
     uniform_block_indices: HashMap<String, u32>,
 }

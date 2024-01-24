@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use wasm_bindgen::{closure::Closure, JsCast};
 
 pub mod bounding;
@@ -37,8 +35,6 @@ pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .expect("failed to invoke requestAnimationFrame");
 }
 
-const INITIALIZED: OnceLock<()> = OnceLock::new();
-
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn init() {
     init_logger(log::LevelFilter::Info);
@@ -73,25 +69,28 @@ impl LogLevel {
     }
 }
 
+static mut INITIALIZED: bool = false;
+
 fn init_logger(level: log::LevelFilter) {
-    if INITIALIZED.get().is_some() {
-        return;
+    unsafe {
+        if INITIALIZED {
+            return;
+        }
+
+        utils::set_panic_hook();
+        fern::Dispatch::new()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "[{}][{}] {}",
+                    record.level(),
+                    record.target(),
+                    message
+                ))
+            })
+            .level(level)
+            .chain(fern::Output::call(console_log::log))
+            .apply()
+            .expect("failed to init console logger");
+        INITIALIZED = true;
     }
-
-    utils::set_panic_hook();
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}][{}] {}",
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(level)
-        .chain(fern::Output::call(console_log::log))
-        .apply()
-        .expect("failed to init console logger");
-
-    INITIALIZED.set(()).expect("failed to init console logger");
 }

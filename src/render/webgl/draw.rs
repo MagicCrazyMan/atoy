@@ -1,45 +1,46 @@
-use super::{
-    buffer::BufferDescriptor,
-    conversion::{GLint, GLintptr, GLsizei},
-};
+use super::buffer::BufferDescriptor;
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CullFace {
-    Front,
-    Back,
-    Both,
+    FRONT,
+    BACK,
+    FRONT_AND_BACK,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Clone)]
 pub enum Draw {
     Arrays {
         mode: DrawMode,
-        first: GLint,
-        count: GLsizei,
+        first: i32,
+        count: i32,
     },
     Elements {
         mode: DrawMode,
-        count: GLsizei,
+        count: i32,
         element_type: DrawElementType,
-        offset: GLintptr,
+        offset: i32,
         indices: BufferDescriptor,
     },
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrawElementType {
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
+    UNSIGNED_BYTE,
+    UNSIGNED_SHORT,
+    UNSIGNED_INT,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrawMode {
-    Points,
-    Lines,
-    LineLoop,
-    LineStrip,
-    Triangles,
-    TriangleStrip,
-    TriangleFan,
+    POINTS,
+    LINES,
+    LINE_LOOP,
+    LINE_STRIP,
+    TRIANGLES,
+    TRIANGLE_STRIP,
+    TRIANGLE_FAN,
 }

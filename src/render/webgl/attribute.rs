@@ -1,9 +1,6 @@
 use std::borrow::Cow;
 
-use super::{
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
-    conversion::{GLboolean, GLintptr, GLsizei, GLuint},
-};
+use super::buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget};
 
 /// Available attribute values.
 #[derive(Clone)]
@@ -13,18 +10,18 @@ pub enum AttributeValue {
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
-        normalized: GLboolean,
-        bytes_stride: GLsizei,
-        bytes_offset: GLintptr,
+        normalized: bool,
+        bytes_stride: i32,
+        bytes_offset: i32,
     },
     InstancedBuffer {
         descriptor: BufferDescriptor,
         target: BufferTarget,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
-        normalized: GLboolean,
+        normalized: bool,
         component_count_per_instance: i32,
-        divisor: GLuint,
+        divisor: u32,
     },
     Vertex1f(f32),
     Vertex2f(f32, f32),

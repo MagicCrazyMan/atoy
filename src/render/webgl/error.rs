@@ -1,7 +1,7 @@
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
 
-use super::{conversion::GLuint, framebuffer::FramebufferTarget};
+use super::framebuffer::FramebufferTarget;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -22,7 +22,7 @@ pub enum Error {
     CompileProgramFailure(Option<String>),
     NoSuchAttribute(String),
     NoSuchUniform(String),
-    UniformBufferObjectIndexAlreadyBound(GLuint),
+    UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
     TextureStorageNotFount(Uuid),
     CommonWebGLError(Option<String>),

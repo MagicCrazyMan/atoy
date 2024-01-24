@@ -288,17 +288,17 @@ impl StandardPipeline {
 
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
-                BufferUsage::DynamicDraw,
+                BufferUsage::DYNAMIC_DRAW,
                 MemoryPolicy::Unfree,
             ),
             lights_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH),
-                BufferUsage::DynamicDraw,
+                BufferUsage::DYNAMIC_DRAW,
                 MemoryPolicy::Unfree,
             ),
             gaussian_kernel_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::from_binary(&UBO_GAUSSIAN_KERNEL_U8, 0, UBO_GAUSSIAN_KERNEL_U8.len()),
-                BufferUsage::StaticDraw,
+                BufferUsage::STATIC_DRAW,
                 MemoryPolicy::restorable(|| {
                     BufferSource::from_binary(
                         &UBO_GAUSSIAN_KERNEL_U8,

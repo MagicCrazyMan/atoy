@@ -3,10 +3,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 use uuid::Uuid;
 use web_sys::{HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext, WebGlTexture};
 
-use super::{
-    conversion::{GLboolean, GLenum, GLfloat, GLint, GLsizei, GLuint, ToGlEnum},
-    error::Error,
-};
+use super::{conversion::ToGlEnum, error::Error};
 
 /// Available texture formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -151,11 +148,11 @@ pub enum TextureUnit {
     TEXTURE29,
     TEXTURE30,
     TEXTURE31,
-    Custom(GLenum),
+    Custom(u32),
 }
 
 impl TextureUnit {
-    pub fn unit_index(&self) -> GLint {
+    pub fn unit_index(&self) -> i32 {
         match self {
             TextureUnit::TEXTURE0 => 0,
             TextureUnit::TEXTURE1 => 1,
@@ -189,110 +186,117 @@ impl TextureUnit {
             TextureUnit::TEXTURE29 => 29,
             TextureUnit::TEXTURE30 => 30,
             TextureUnit::TEXTURE31 => 31,
-            TextureUnit::Custom(index) => *index as GLint,
+            TextureUnit::Custom(index) => *index as i32,
         }
     }
 
-    pub fn max_combined_texture_image_units(gl: &WebGl2RenderingContext) -> GLuint {
+    pub fn max_combined_texture_image_units(gl: &WebGl2RenderingContext) -> u32 {
         let value = gl
             .get_parameter(WebGl2RenderingContext::MAX_COMBINED_TEXTURE_IMAGE_UNITS)
             .unwrap();
-        value.as_f64().unwrap() as GLuint
+        value.as_f64().unwrap() as u32
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureUnpackColorSpaceConversion {
-    None,
-    BrowserDefaultWebGL,
+    NONE,
+    BROWSER_DEFAULT_WEBGL,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TexturePixelStorage {
-    PackAlignment(GLint),
-    UnpackAlignment(GLint),
-    UnpackFlipYWebGL(GLboolean),
-    UnpackPremultiplyAlphaWebGL(GLboolean),
-    UnpackColorSpaceConversionWebGL(TextureUnpackColorSpaceConversion),
-    PackRowLength(GLint),
-    PackSkipPixels(GLint),
-    PackSkipRows(GLint),
-    UnpackRowLength(GLint),
-    UnpackImageHeight(GLint),
-    UnpackSkipPixels(GLint),
-    UnpackSkipRows(GLint),
-    UnpackSkipImages(GLint),
+    PACK_ALIGNMENT(i32),
+    UNPACK_ALIGNMENT(i32),
+    UNPACK_FLIP_Y_WEBGL(bool),
+    UNPACK_PREMULTIPLY_ALPHA_WEBGL(bool),
+    UNPACK_COLORSPACE_CONVERSION_WEBGL(TextureUnpackColorSpaceConversion),
+    PACK_ROW_LENGTH(i32),
+    PACK_SKIP_PIXELS(i32),
+    PACK_SKIP_ROWS(i32),
+    UNPACK_ROW_LENGTH(i32),
+    UNPACK_IMAGE_HEIGHT(i32),
+    UNPACK_SKIP_PIXELS(i32),
+    UNPACK_SKIP_ROWS(i32),
+    UNPACK_SKIP_IMAGES(i32),
 }
 
 impl TexturePixelStorage {
-    pub fn key(&self) -> GLenum {
+    pub fn key(&self) -> u32 {
         self.gl_enum()
     }
 
-    pub fn value(&self) -> GLint {
+    pub fn value(&self) -> i32 {
         match self {
-            TexturePixelStorage::UnpackFlipYWebGL(v)
-            | TexturePixelStorage::UnpackPremultiplyAlphaWebGL(v) => {
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v)
+            | TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v) => {
                 if *v {
                     1
                 } else {
                     0
                 }
             }
-            TexturePixelStorage::UnpackColorSpaceConversionWebGL(v) => v.gl_enum() as GLint,
-            TexturePixelStorage::PackAlignment(v)
-            | TexturePixelStorage::UnpackAlignment(v)
-            | TexturePixelStorage::PackRowLength(v)
-            | TexturePixelStorage::PackSkipPixels(v)
-            | TexturePixelStorage::PackSkipRows(v)
-            | TexturePixelStorage::UnpackRowLength(v)
-            | TexturePixelStorage::UnpackImageHeight(v)
-            | TexturePixelStorage::UnpackSkipPixels(v)
-            | TexturePixelStorage::UnpackSkipRows(v)
-            | TexturePixelStorage::UnpackSkipImages(v) => *v,
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v) => v.gl_enum() as i32,
+            TexturePixelStorage::PACK_ALIGNMENT(v)
+            | TexturePixelStorage::UNPACK_ALIGNMENT(v)
+            | TexturePixelStorage::PACK_ROW_LENGTH(v)
+            | TexturePixelStorage::PACK_SKIP_PIXELS(v)
+            | TexturePixelStorage::PACK_SKIP_ROWS(v)
+            | TexturePixelStorage::UNPACK_ROW_LENGTH(v)
+            | TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v)
+            | TexturePixelStorage::UNPACK_SKIP_PIXELS(v)
+            | TexturePixelStorage::UNPACK_SKIP_ROWS(v)
+            | TexturePixelStorage::UNPACK_SKIP_IMAGES(v) => *v,
         }
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureMagnificationFilter {
-    Linear,
-    Nearest,
+    LINEAR,
+    NEAREST,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureMinificationFilter {
-    Linear,
-    Nearest,
-    NearestMipmapNearest,
-    LinearMipmapNearest,
-    NearestMipmapLinear,
-    LinearMipmapLinear,
+    LINEAR,
+    NEAREST,
+    NEAREST_MIPMAP_NEAREST,
+    LINEAR_MIPMAP_NEAREST,
+    NEAREST_MIPMAP_LINEAR,
+    LINEAR_MIPMAP_LINEAR,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureWrapMethod {
-    Repeat,
-    ClampToEdge,
-    MirroredRepeat,
+    REPEAT,
+    CLAMP_TO_EDGE,
+    MIRRORED_REPEAT,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCompareFunction {
-    LessEqual,
-    GreaterEqual,
-    Less,
-    Greater,
-    Equal,
-    NotEqual,
-    Always,
-    Never,
+    LEQUAL,
+    GEQUAL,
+    LESS,
+    GREATER,
+    EQUAL,
+    NOTEQUAL,
+    ALWAYS,
+    NEVER,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCompareMode {
-    None,
-    CompareRefToTexture,
+    NONE,
+    COMPARE_REF_TO_TEXTURE,
 }
 
 #[allow(non_camel_case_types)]
@@ -303,36 +307,36 @@ pub enum TextureParameter {
     WRAP_S(TextureWrapMethod),
     WRAP_T(TextureWrapMethod),
     WRAP_R(TextureWrapMethod),
-    BASE_LEVEL(GLint),
+    BASE_LEVEL(i32),
     COMPARE_FUNC(TextureCompareFunction),
     COMPARE_MODE(TextureCompareMode),
-    MAX_LEVEL(GLint),
-    MAX_LOD(GLfloat),
-    MIN_LOD(GLfloat),
+    MAX_LEVEL(i32),
+    MAX_LOD(f32),
+    MIN_LOD(f32),
 }
 
 pub enum TextureSource {
     Preallocate {
         internal_format: TextureInternalFormat,
-        width: GLsizei,
-        height: GLsizei,
+        width: i32,
+        height: i32,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromBinary {
         internal_format: TextureInternalFormat,
-        width: GLsizei,
-        height: GLsizei,
+        width: i32,
+        height: i32,
         data: Box<dyn AsRef<[u8]>>,
         format: TextureFormat,
         data_type: TextureDataType,
-        src_offset: GLuint,
+        src_offset: u32,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlCanvasElement {
         internal_format: TextureInternalFormat,
@@ -340,19 +344,19 @@ pub enum TextureSource {
         data_type: TextureDataType,
         canvas: Box<dyn AsRef<HtmlCanvasElement>>,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlCanvasElementWithSize {
         internal_format: TextureInternalFormat,
-        width: GLsizei,
-        height: GLsizei,
+        width: i32,
+        height: i32,
         format: TextureFormat,
         data_type: TextureDataType,
         canvas: Box<dyn AsRef<HtmlCanvasElement>>,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlImageElement {
         internal_format: TextureInternalFormat,
@@ -360,19 +364,19 @@ pub enum TextureSource {
         data_type: TextureDataType,
         image: Box<dyn AsRef<HtmlImageElement>>,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
     FromHtmlImageElementWithSize {
         format: TextureFormat,
-        width: GLsizei,
-        height: GLsizei,
+        width: i32,
+        height: i32,
         internal_format: TextureInternalFormat,
         data_type: TextureDataType,
         image: Box<dyn AsRef<HtmlImageElement>>,
         pixel_storages: Vec<TexturePixelStorage>,
-        x_offset: GLint,
-        y_offset: GLint,
+        x_offset: i32,
+        y_offset: i32,
     },
 }
 
@@ -391,8 +395,8 @@ impl TextureSource {
     fn tex_image(
         &self,
         gl: &WebGl2RenderingContext,
-        tex_target: GLenum,
-        level: GLint,
+        tex_target: u32,
+        level: i32,
     ) -> Result<(), Error> {
         // setups pixel storage parameters
         self.pixel_storages()
@@ -411,7 +415,7 @@ impl TextureSource {
             } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 *width,
                 *height,
                 0,
@@ -431,7 +435,7 @@ impl TextureSource {
             } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 *width,
                 *height,
                 0,
@@ -450,7 +454,7 @@ impl TextureSource {
             .tex_image_2d_with_u32_and_u32_and_html_canvas_element(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 format.gl_enum(),
                 data_type.gl_enum(),
                 canvas.as_ref().as_ref(),
@@ -466,7 +470,7 @@ impl TextureSource {
             } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_canvas_element(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 *width,
                 *height,
                 0,
@@ -483,7 +487,7 @@ impl TextureSource {
             } => gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 format.gl_enum(),
                 data_type.gl_enum(),
                 image.as_ref().as_ref(),
@@ -499,7 +503,7 @@ impl TextureSource {
             } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_image_element(
                 tex_target,
                 level,
-                internal_format.gl_enum() as GLint,
+                internal_format.gl_enum() as i32,
                 *width,
                 *height,
                 0,
@@ -515,8 +519,8 @@ impl TextureSource {
     fn tex_sub_image(
         &self,
         gl: &WebGl2RenderingContext,
-        tex_target: GLenum,
-        level: GLint,
+        tex_target: u32,
+        level: i32,
     ) -> Result<(), Error> {
         // setups pixel storage parameters
         self.pixel_storages()
@@ -645,19 +649,19 @@ impl TextureSource {
 }
 
 enum TextureData {
-    Texture2D(HashMap<GLint, TextureSource>),
+    Texture2D(HashMap<i32, TextureSource>),
     TextureCubeMap {
-        positive_x: HashMap<GLint, TextureSource>,
-        negative_x: HashMap<GLint, TextureSource>,
-        positive_y: HashMap<GLint, TextureSource>,
-        negative_y: HashMap<GLint, TextureSource>,
-        positive_z: HashMap<GLint, TextureSource>,
-        negative_z: HashMap<GLint, TextureSource>,
+        positive_x: HashMap<i32, TextureSource>,
+        negative_x: HashMap<i32, TextureSource>,
+        positive_y: HashMap<i32, TextureSource>,
+        negative_y: HashMap<i32, TextureSource>,
+        positive_z: HashMap<i32, TextureSource>,
+        negative_z: HashMap<i32, TextureSource>,
     },
 }
 
 impl TextureData {
-    fn texture_target(&self) -> GLenum {
+    fn texture_target(&self) -> u32 {
         match self {
             TextureData::Texture2D(_) => WebGl2RenderingContext::TEXTURE_2D,
             TextureData::TextureCubeMap { .. } => WebGl2RenderingContext::TEXTURE_CUBE_MAP,
@@ -792,7 +796,7 @@ impl TextureData {
 }
 
 enum TextureStatus {
-    Unchanged { id: Uuid, target: GLenum },
+    Unchanged { id: Uuid, target: u32 },
     UpdateTexture { id: Option<Uuid>, data: TextureData },
     UpdateSubTexture { id: Uuid, data: TextureData },
 }
@@ -800,7 +804,7 @@ enum TextureStatus {
 #[derive(Clone)]
 pub struct TextureDescriptor {
     status: Rc<RefCell<TextureStatus>>,
-    generate_mipmap: GLboolean,
+    generate_mipmap: bool,
 }
 
 impl TextureDescriptor {
@@ -809,9 +813,9 @@ impl TextureDescriptor {
         data_type: TextureDataType,
         internal_format: TextureInternalFormat,
         format: TextureFormat,
-        level: GLint,
+        level: i32,
         pixel_storages: Vec<TexturePixelStorage>,
-        generate_mipmap: GLboolean,
+        generate_mipmap: bool,
     ) -> Self {
         Self {
             status: Rc::new(RefCell::new(TextureStatus::UpdateTexture {
@@ -840,7 +844,7 @@ impl TextureDescriptor {
         ny: TextureSource,
         pz: TextureSource,
         nz: TextureSource,
-        generate_mipmap: GLboolean,
+        generate_mipmap: bool,
     ) -> Self {
         Self {
             status: Rc::new(RefCell::new(TextureStatus::UpdateTexture {
@@ -878,7 +882,7 @@ impl TextureStore {
             status,
             generate_mipmap,
         }: &TextureDescriptor,
-    ) -> Result<(GLenum, &WebGlTexture), Error> {
+    ) -> Result<(u32, &WebGlTexture), Error> {
         let mut status = status.borrow_mut();
         match &*status {
             TextureStatus::Unchanged { id, target } => match self.store.get(id) {

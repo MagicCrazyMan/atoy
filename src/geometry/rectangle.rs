@@ -50,7 +50,7 @@ impl Rectangle {
         );
         let data = BufferDescriptor::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len()),
-            BufferUsage::StaticDraw,
+            BufferUsage::STATIC_DRAW,
             MemoryPolicy::restorable(move || {
                 let (compositions, _) = create_rectangle(
                     anchor,
@@ -72,27 +72,27 @@ impl Rectangle {
             bounding,
             positions: AttributeValue::Buffer {
                 descriptor: data.clone(),
-                target: BufferTarget::ArrayBuffer,
+                target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Two,
-                data_type: BufferDataType::Float,
+                data_type: BufferDataType::FLOAT,
                 normalized: false,
                 bytes_stride: 0,
                 bytes_offset: 0,
             },
             texture_coordinates: AttributeValue::Buffer {
                 descriptor: data.clone(),
-                target: BufferTarget::ArrayBuffer,
+                target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Two,
-                data_type: BufferDataType::Float,
+                data_type: BufferDataType::FLOAT,
                 normalized: false,
                 bytes_stride: 0,
                 bytes_offset: 32,
             },
             normals: AttributeValue::Buffer {
                 descriptor: data,
-                target: BufferTarget::ArrayBuffer,
+                target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Three,
-                data_type: BufferDataType::Float,
+                data_type: BufferDataType::FLOAT,
                 normalized: false,
                 bytes_stride: 0,
                 bytes_offset: 64,
@@ -121,7 +121,7 @@ impl Rectangle {
 impl Geometry for Rectangle {
     fn draw(&self) -> Draw {
         Draw::Arrays {
-            mode: DrawMode::TriangleFan,
+            mode: DrawMode::TRIANGLE_FAN,
             first: 0,
             count: 4,
         }
