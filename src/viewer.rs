@@ -527,7 +527,7 @@ impl Viewer {
             let mut camera = self.camera_mut();
             let mut render = self.render_mut();
             let mut pipeline = self.standard_pipeline_mut();
-            let status: RefMut<'_, Status> = self.status_mut();
+            let status = self.status_mut();
             let previous_pipeline_shading = pipeline.pipeline_shading();
             pipeline.set_pipeline_shading(StandardPipelineShading::Picking);
             render.render(&mut *pipeline, &mut *camera, &mut *scene, status.timestamp)?;

@@ -37,7 +37,7 @@ pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .expect("failed to invoke requestAnimationFrame");
 }
 
-static INITIALIZED: OnceLock<bool> = OnceLock::new();
+const INITIALIZED: OnceLock<()> = OnceLock::new();
 
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn init() {
@@ -74,7 +74,7 @@ impl LogLevel {
 }
 
 fn init_logger(level: log::LevelFilter) {
-    if INITIALIZED.get().cloned().unwrap_or(false) {
+    if INITIALIZED.get().is_some() {
         return;
     }
 
@@ -93,7 +93,5 @@ fn init_logger(level: log::LevelFilter) {
         .apply()
         .expect("failed to init console logger");
 
-    INITIALIZED
-        .set(true)
-        .expect("failed to init console logger");
+    INITIALIZED.set(()).expect("failed to init console logger");
 }

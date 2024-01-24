@@ -93,6 +93,12 @@ pub struct WebGL2Render {
     post_render_notifier: Notifier<RenderEvent>,
 }
 
+impl Drop for WebGL2Render {
+    fn drop(&mut self) {
+        self.canvas.remove();
+    }
+}
+
 impl WebGL2Render {
     /// Constructs a new WebGL2 render.
     pub fn new(
