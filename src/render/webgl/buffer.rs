@@ -673,14 +673,54 @@ impl BufferDescriptor {
         let mut inner = self.0.borrow_mut();
 
         let bytes_length = dst_byte_offset + source.bytes_length();
-        if dst_byte_offset == 0 && bytes_length >= inner.queue_bytes_length {
-            // overrides sources in queue if new source covers all
-            inner.queue_bytes_length = bytes_length;
-            inner.queue.clear();
-            inner.queue.push((source, 0));
+        if dst_byte_offset == 0 {
+            if bytes_length >= inner.queue_bytes_length {
+                // overrides sources in queue if new source covers all
+                inner.queue_bytes_length = bytes_length;
+                inner.queue.clear();
+                inner.queue.push((source, 0));
+            } else {
+                inner.queue.push((source, dst_byte_offset));
+            }
         } else {
-            inner.queue_bytes_length = inner.queue_bytes_length.max(bytes_length);
-            inner.queue.push((source, dst_byte_offset));
+            if bytes_length <= inner.queue_bytes_length {
+                inner.queue.push((source, dst_byte_offset));
+            } else {
+                if let Some(runtime) = inner.runtime.as_deref_mut() {
+                    // heavy job!
+                    let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
+                    runtime
+                        .gl
+                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
+                    runtime
+                        .gl
+                        .get_buffer_sub_data_with_i32_and_array_buffer_view(
+                            WebGl2RenderingContext::ARRAY_BUFFER,
+                            0,
+                            &data,
+                        );
+                    runtime
+                        .gl
+                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+
+                    inner
+                        .queue
+                        .insert(0, (BufferSource::preallocate(bytes_length), 0));
+                    inner.queue.insert(
+                        1,
+                        (
+                            BufferSource::from_uint8_array(data, 0, data.length() as usize),
+                            0,
+                        ),
+                    );
+                    inner.queue.push((source, dst_byte_offset));
+                } else {
+                    inner
+                        .queue
+                        .insert(0, (BufferSource::preallocate(bytes_length), 0));
+                    inner.queue.push((source, dst_byte_offset));
+                }
+            }
         }
     }
 }

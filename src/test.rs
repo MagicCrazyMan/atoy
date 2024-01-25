@@ -39,7 +39,7 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::{
-    TextureDataType, TextureDescriptor, TextureFormat, TextureMagnificationFilter,
+    TextureDataType, TextureDescriptor2D, TextureFormat, TextureMagnificationFilter,
     TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
     TextureWrapMethod,
 };
