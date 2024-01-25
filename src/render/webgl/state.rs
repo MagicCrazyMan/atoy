@@ -199,8 +199,8 @@ impl FrameState {
                     component_size as i32,
                     data_type.gl_enum(),
                     normalized,
-                    bytes_stride,
-                    bytes_offset,
+                    bytes_stride as i32,
+                    bytes_offset as i32,
                 );
                 self.gl.enable_vertex_attrib_array(location);
                 self.gl.bind_buffer(target.gl_enum(), None);
@@ -216,26 +216,30 @@ impl FrameState {
                 component_size,
                 data_type,
                 normalized,
-                component_count_per_instance: components_length_per_instance,
+                component_count_per_instance,
                 divisor,
             } => {
                 let buffer = self.buffer_store_mut().use_buffer(&descriptor, target)?;
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                let component_size = component_size as i32;
+                let component_size = component_size as usize;
                 // binds each instance
-                for i in 0..components_length_per_instance {
-                    let offset_location = location + (i as u32);
+                for i in 0..component_count_per_instance {
+                    let offset_location = location + i as u32;
+                    let stride =
+                        data_type.bytes_length() * component_size * component_count_per_instance;
+                    let offset = i * data_type.bytes_length() * component_size;
                     self.gl.vertex_attrib_pointer_with_i32(
                         offset_location,
-                        component_size,
+                        component_size as i32,
                         data_type.gl_enum(),
                         normalized,
-                        data_type.bytes_length() * component_size * components_length_per_instance,
-                        i * data_type.bytes_length() * component_size,
+                        stride as i32,
+                        offset as i32,
                     );
                     self.gl.enable_vertex_attrib_array(offset_location);
-                    self.gl.vertex_attrib_divisor(offset_location, divisor);
+                    self.gl
+                        .vertex_attrib_divisor(offset_location, divisor as u32);
 
                     bounds.push(BoundAttribute {
                         location: offset_location,

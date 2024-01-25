@@ -40,7 +40,7 @@ pub enum BufferTarget {
 /// Available component size of a value get from buffer.
 /// According to WebGL definition, it should only be `1`, `2`, `3` or `4`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(i32)]
+#[repr(usize)]
 pub enum BufferComponentSize {
     One = 1,
     Two = 2,
@@ -66,7 +66,7 @@ pub enum BufferDataType {
 
 impl BufferDataType {
     /// Gets bytes length of a data type.
-    pub fn bytes_length(&self) -> i32 {
+    pub fn bytes_length(&self) -> usize {
         match self {
             BufferDataType::FLOAT => 4,
             BufferDataType::BYTE => 1,
