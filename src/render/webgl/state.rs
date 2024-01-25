@@ -22,7 +22,7 @@ use super::{
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
-    texture::{TextureParameter, TextureStore, TextureUnit},
+    texture::{TextureParameter, TextureStore, TextureTarget, TextureUnit},
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
@@ -484,7 +484,7 @@ impl FrameState {
                 self.gl
                     .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
             }
-            UniformValue::Image {
+            UniformValue::Texture2D {
                 descriptor,
                 params,
                 unit,
@@ -492,40 +492,46 @@ impl FrameState {
                 // active texture
                 self.gl.active_texture(unit.gl_enum());
 
-                let (target, texture) = self.texture_store_mut().use_texture(&descriptor)?;
+                let texture = self.texture_store_mut().use_texture_2d(&descriptor, unit)?;
                 let texture = texture.clone();
 
                 self.gl.uniform1i(Some(location), unit.unit_index());
-                self.gl.bind_texture(target, Some(&texture));
+                self.gl
+                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 params.iter().for_each(|param| match param {
-                    TextureParameter::MAG_FILTER(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::MIN_FILTER(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
+                    TextureParameter::MAG_FILTER(v) => self.gl.tex_parameteri(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        param.gl_enum(),
+                        v.gl_enum() as i32,
+                    ),
+                    TextureParameter::MIN_FILTER(v) => self.gl.tex_parameteri(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        param.gl_enum(),
+                        v.gl_enum() as i32,
+                    ),
                     TextureParameter::WRAP_S(v)
                     | TextureParameter::WRAP_T(v)
-                    | TextureParameter::WRAP_R(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::COMPARE_FUNC(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::COMPARE_MODE(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => {
-                        self.gl.tex_parameteri(target, param.gl_enum(), *v)
-                    }
-                    TextureParameter::MAX_LOD(v) | TextureParameter::MIN_LOD(v) => {
-                        self.gl.tex_parameterf(target, param.gl_enum(), *v)
-                    }
+                    | TextureParameter::WRAP_R(v) => self.gl.tex_parameteri(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        param.gl_enum(),
+                        v.gl_enum() as i32,
+                    ),
+                    TextureParameter::COMPARE_FUNC(v) => self.gl.tex_parameteri(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        param.gl_enum(),
+                        v.gl_enum() as i32,
+                    ),
+                    TextureParameter::COMPARE_MODE(v) => self.gl.tex_parameteri(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        param.gl_enum(),
+                        v.gl_enum() as i32,
+                    ),
+                    TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => self
+                        .gl
+                        .tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, param.gl_enum(), *v),
+                    TextureParameter::MAX_LOD(v) | TextureParameter::MIN_LOD(v) => self
+                        .gl
+                        .tex_parameterf(WebGl2RenderingContext::TEXTURE_2D, param.gl_enum(), *v),
                 });
             }
         };

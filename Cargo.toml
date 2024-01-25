@@ -12,14 +12,14 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2.89" }
-gl-matrix4rust = { path = "../gl-matrix4rust", features = ["gl"]}
+gl-matrix4rust = { path = "../gl-matrix4rust", features = ["gl"] }
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
-web-sys = { version = "0.3.65", features = ["Performance", "Window", "Element", "HtmlElement", "Document", "HtmlCanvasElement", "WebGl2RenderingContext", "WebGlUniformLocation", "WebGlProgram", "WebGlShader", "WebGlBuffer", "WebGlFramebuffer", "WebGlActiveInfo", "CssStyleDeclaration", "WebGlVertexArrayObject", "WebGlTexture", "Headers", "Request", "RequestInit", "RequestMode", "Response", "HtmlImageElement", "ImageData", "HtmlVideoElement", "ImageBitmap", "Url", "Blob", "CanvasRenderingContext2d", "ResizeObserver", "ResizeObserverEntry", "WebGlRenderbuffer", "MouseEvent", "KeyboardEvent", "WheelEvent", "TouchEvent", "TouchList", "AddEventListenerOptions", "Touch", "WebGlSync"] }
+web-sys = { version = "0.3.65", features = ["Performance", "Window", "Element", "HtmlElement", "Document", "HtmlCanvasElement", "WebGl2RenderingContext", "WebGlUniformLocation", "WebGlProgram", "WebGlShader", "WebGlBuffer", "WebGlFramebuffer", "WebGlActiveInfo", "CssStyleDeclaration", "WebGlVertexArrayObject", "WebGlTexture", "Headers", "Request", "RequestInit", "RequestMode", "Response", "HtmlImageElement", "ImageData", "HtmlVideoElement", "ImageBitmap", "Url", "Blob", "CanvasRenderingContext2d", "ResizeObserver", "ResizeObserverEntry", "WebGlRenderbuffer", "MouseEvent", "KeyboardEvent", "WheelEvent", "TouchEvent", "TouchList", "AddEventListenerOptions", "Touch", "WebGlSync", "WebglCompressedTextureS3tc", "WebglCompressedTextureEtc", "WebglCompressedTextureAtc", "WebglCompressedTextureEtc1", "WebglCompressedTextureAstc", "WebglCompressedTextureS3tcSrgb", "WebglCompressedTexturePvrtc"] }
 wasm-bindgen-test = "0.3.38"
 serde = { version = "1.0.192", features = ["derive"] }
 serde-wasm-bindgen = "0.6.1"

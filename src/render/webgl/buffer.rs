@@ -10,8 +10,9 @@ use log::debug;
 use uuid::Uuid;
 use web_sys::{
     js_sys::{
-        ArrayBuffer, BigInt64Array, BigUint64Array, Float32Array, Float64Array, Int16Array,
-        Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
+        ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array,
+        Uint8ClampedArray,
     },
     WebGl2RenderingContext, WebGlBuffer,
 };
@@ -122,6 +123,11 @@ pub enum BufferSource {
     ArrayBuffer {
         data: ArrayBuffer,
     },
+    DataView {
+        data: DataView,
+        src_offset: usize,
+        src_length: usize,
+    },
     Int8Array {
         data: Int8Array,
         src_offset: usize,
@@ -188,6 +194,11 @@ impl BufferSource {
             | BufferSource::ArrayBuffer { .. } => {
                 unreachable!()
             }
+            BufferSource::DataView {
+                data,
+                src_offset,
+                src_length,
+            } => (data, *src_offset, *src_length),
             BufferSource::Int8Array {
                 data,
                 src_offset,
@@ -360,11 +371,19 @@ impl BufferSource {
                 ..
             } => (data.as_ref().as_ref().len(), *src_offset, *src_length),
             BufferSource::ArrayBuffer { data } => (data.byte_length() as usize, 0, 0),
+            BufferSource::DataView {
+                data,
+                src_offset,
+                src_length,
+            } => (
+                data.byte_length() as usize,
+                data.byte_offset() as usize + *src_offset,
+                *src_length,
+            ),
             BufferSource::Int8Array {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -384,7 +403,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -394,7 +412,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -404,7 +421,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -414,7 +430,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -424,7 +439,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -434,7 +448,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -444,7 +457,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -454,7 +466,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -464,7 +475,6 @@ impl BufferSource {
                 data,
                 src_offset,
                 src_length,
-                ..
             } => (
                 data.byte_length() as usize,
                 data.byte_offset() as usize + *src_offset,
@@ -688,7 +698,8 @@ impl BufferDescriptor {
             } else {
                 if let Some(runtime) = inner.runtime.as_deref_mut() {
                     // heavy job!
-                    let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
+                    let bytes_length = runtime.bytes_length;
+                    let data = Uint8Array::new_with_length(bytes_length as u32);
                     runtime
                         .gl
                         .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
@@ -708,10 +719,7 @@ impl BufferDescriptor {
                         .insert(0, (BufferSource::preallocate(bytes_length), 0));
                     inner.queue.insert(
                         1,
-                        (
-                            BufferSource::from_uint8_array(data, 0, data.length() as usize),
-                            0,
-                        ),
+                        (BufferSource::from_uint8_array(data, 0, bytes_length), 0),
                     );
                     inner.queue.push((source, dst_byte_offset));
                 } else {
@@ -865,7 +873,7 @@ impl BufferStore {
         target: BufferTarget,
     ) -> Result<WebGlBuffer, Error> {
         unsafe {
-            let mut descriptor = descriptor.0.borrow_mut();
+            let mut inner = descriptor.0.borrow_mut();
             let BufferDescriptorInner {
                 name,
                 usage,
@@ -873,7 +881,7 @@ impl BufferStore {
                 queue,
                 runtime,
                 ..
-            } = &mut *descriptor;
+            } = &mut *inner;
 
             let runtime = match runtime {
                 Some(runtime) => {
@@ -883,8 +891,9 @@ impl BufferStore {
                     runtime
                 }
                 None => {
-                    let id = self.next();
                     let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                    let id = self.next();
+                    (*self.descriptors).insert(id, Rc::downgrade(&descriptor.0));
                     runtime.insert(Box::new(BufferDescriptorRuntime {
                         id,
                         gl: self.gl.clone(),

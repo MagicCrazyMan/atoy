@@ -1,4 +1,3 @@
-use uuid::Uuid;
 use wasm_bindgen::JsValue;
 
 use super::framebuffer::FramebufferTarget;
@@ -24,11 +23,11 @@ pub enum Error {
     NoSuchUniform(String),
     UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
-    TextureStorageNotFount(Uuid),
-    CommonWebGLError(Option<String>),
+    TexImageSizeOverflowed,
     FramebufferUninitialized,
     FramebufferUnbound,
     FramebufferBinding(FramebufferTarget),
+    CommonWebGLError(Option<String>),
 }
 
 impl Error {}

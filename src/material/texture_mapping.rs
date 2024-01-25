@@ -9,9 +9,9 @@ use crate::{
         shader::Define,
         state::FrameState,
         texture::{
-            TextureDataType, TextureDescriptor2D, TextureFormat, TextureInternalFormat,
-            TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-            TexturePixelStorage, TextureUnit, TextureWrapMethod,
+            MemoryPolicy, TextureDataType, TextureDescriptor2D, TextureFormat,
+            TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
+            TextureParameter, TexturePixelStorage, TextureSource, TextureUnit, TextureWrapMethod,
         },
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
@@ -33,18 +33,24 @@ impl TextureMaterial {
             transparency,
             diffuse_texture: TextureLoader::from_url(url, move |image| {
                 notifier_cloned.notify(&mut ());
-                UniformValue::Image {
-                    descriptor: TextureDescriptor2D::texture_2d_with_html_image_element(
-                        image,
-                        TextureDataType::UNSIGNED_BYTE,
-                        TextureInternalFormat::SRGB8_ALPHA8,
-                        TextureFormat::RGBA,
+                UniformValue::Texture2D {
+                    descriptor: TextureDescriptor2D::new(
+                        TextureSource::FromHtmlImageElement {
+                            image,
+                            format: TextureFormat::RGBA,
+                            data_type: TextureDataType::UNSIGNED_BYTE,
+                            pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+                            size: None,
+                        },
                         0,
-                        vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+                        TextureInternalFormat::SRGB8_ALPHA8,
                         true,
+                        MemoryPolicy::default(),
                     ),
                     params: vec![
-                        TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
+                        TextureParameter::MIN_FILTER(
+                            TextureMinificationFilter::LINEAR_MIPMAP_LINEAR,
+                        ),
                         TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
                         TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
                         TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),

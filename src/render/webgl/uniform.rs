@@ -45,7 +45,7 @@ pub enum UniformValue {
         data: [f32; 16],
         transpose: bool,
     },
-    Image {
+    Texture2D {
         descriptor: TextureDescriptor2D,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
