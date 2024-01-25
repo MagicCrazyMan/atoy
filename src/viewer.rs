@@ -201,9 +201,8 @@ impl Viewer {
     where
         C: Camera + 'static,
     {
-        let mut render = WebGL2Render::new(scene.canvas().clone(), None)?;
-        let standard_pipeline =
-            Rc::new(RefCell::new(StandardPipeline::new(render.hdr_supported())));
+        let render = WebGL2Render::new(scene.canvas().clone(), None)?;
+        let standard_pipeline = Rc::new(RefCell::new(StandardPipeline::new()));
         let render = Rc::new(RefCell::new(render));
         let scene = Rc::new(RefCell::new(scene));
         let camera = Rc::new(RefCell::new(camera));
@@ -382,12 +381,19 @@ impl Viewer {
     }
 
     pub fn set_pipeline_shading(&mut self, shading: StandardPipelineShading) {
-        if shading == StandardPipelineShading::Picking {
+        if let StandardPipelineShading::Picking = shading {
             warn!("manually setting pipeline shading to picking is not allowed");
             return;
+        } else if let StandardPipelineShading::DeferredShading = shading {
+            if self.hdr_supported() {
+                self.standard_pipeline_mut().set_pipeline_shading(shading);
+            } else {
+                warn!("deferred shading if not supported, fallback to forward shading");
+                self.standard_pipeline_mut().set_pipeline_shading(StandardPipelineShading::ForwardShading);
+            }
+        } else {
+            self.standard_pipeline_mut().set_pipeline_shading(shading);
         }
-
-        self.standard_pipeline_mut().set_pipeline_shading(shading);
     }
 
     pub fn clear_color(&self) -> Vec4<f32> {
@@ -426,8 +432,9 @@ impl Viewer {
         self.standard_pipeline_mut().set_multisamples(samples);
     }
 
-    pub fn hdr_supported(&mut self) -> bool {
-        self.render_mut().hdr_supported()
+    pub fn hdr_supported(&self) -> bool {
+        self.standard_pipeline()
+            .color_buffer_float_supported(self.render().gl())
     }
 
     pub fn hdr_enabled(&self) -> bool {

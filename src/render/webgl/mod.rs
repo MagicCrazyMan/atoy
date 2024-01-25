@@ -87,8 +87,6 @@ pub struct WebGL2Render {
     buffer_store: BufferStore,
     texture_store: TextureStore,
 
-    hdr_supported: Option<bool>,
-
     pre_render_notifier: Notifier<RenderEvent>,
     post_render_notifier: Notifier<RenderEvent>,
 }
@@ -123,8 +121,6 @@ impl WebGL2Render {
             gl,
             canvas,
 
-            hdr_supported: None,
-
             pre_render_notifier: Notifier::new(),
             post_render_notifier: Notifier::new(),
         })
@@ -138,20 +134,6 @@ impl WebGL2Render {
     /// Returns [`WebGl2RenderingContext`].
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
-    }
-
-    pub fn hdr_supported(&mut self) -> bool {
-        if let Some(hdr_supported) = self.hdr_supported {
-            return hdr_supported;
-        }
-
-        let supported = self
-            .gl
-            .get_extension("EXT_color_buffer_float")
-            .map(|extension| extension.is_some())
-            .unwrap_or(false);
-        self.hdr_supported = Some(supported);
-        supported
     }
 
     pub fn pre_render(&mut self) -> &mut Notifier<RenderEvent> {

@@ -913,7 +913,7 @@ impl BufferStore {
 
             runtime.binding_attribute = true;
             (*self.lru).cache(runtime.lru_node);
-            self.free();
+            self.free(target);
 
             Ok(runtime.buffer.clone())
         }
@@ -929,7 +929,7 @@ impl BufferStore {
     }
 
     /// Frees memory if used memory exceeds the maximum available memory.
-    fn free(&mut self) {
+    fn free(&mut self, target: BufferTarget) {
         // removes buffer from the least recently used until memory usage lower than limitation
         unsafe {
             if *self.used_memory <= self.available_memory {
@@ -976,17 +976,13 @@ impl BufferStore {
                     MemoryPolicy::Default => {
                         // default, gets buffer data back from WebGlBuffer
                         let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
-                        self.gl.bind_buffer(
-                            WebGl2RenderingContext::ARRAY_BUFFER,
-                            Some(&runtime.buffer),
-                        );
+                        self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
                         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-                            WebGl2RenderingContext::ARRAY_BUFFER,
+                            target.gl_enum(),
                             0,
                             &data,
                         );
-                        self.gl
-                            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+                        self.gl.bind_buffer(target.gl_enum(), None);
                         self.gl.delete_buffer(Some(&runtime.buffer));
 
                         descriptor.queue.insert(

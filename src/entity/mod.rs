@@ -244,6 +244,7 @@ pub struct Entity {
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
 }
+
 struct EntityDirtyNotifiee {
     group: *mut Group,
     dirty: *mut bool,
@@ -749,7 +750,7 @@ impl Drop for Container {
             let mut entities = Box::from_raw(self.entities);
             let mut groups = Box::from_raw(self.groups);
             for (_, entity) in entities.drain(..) {
-                drop(Box::from_raw(entity));
+                drop(Box::from_raw(entity).to_options());
             }
             for (_, group) in groups.drain(..) {
                 drop(Box::from_raw(group));
