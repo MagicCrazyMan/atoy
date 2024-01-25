@@ -883,22 +883,14 @@ impl BufferStore {
                     source.buffer_sub_data(&self.gl, target, dst_byte_offset);
                 }
 
-                #[cfg(debug_assertions)]
-                {
-                    assert_eq!(
-                        self.gl
-                            .get_buffer_parameter(
-                                target.gl_enum(),
-                                WebGl2RenderingContext::BUFFER_SIZE
-                            )
-                            .as_f64()
-                            .map(|size| size as usize)
-                            .unwrap(),
-                        new_bytes_length
-                    );
-                }
-                runtime.bytes_length = new_bytes_length;
+                let new_bytes_length = self
+                    .gl
+                    .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
+                    .as_f64()
+                    .map(|size| size as usize)
+                    .unwrap();
                 (*self.used_memory) = (*self.used_memory) - old_bytes_length + new_bytes_length;
+                runtime.bytes_length = new_bytes_length;
 
                 debug!(
                     target: "BufferStore",
@@ -999,7 +991,7 @@ impl BufferStore {
                             "free buffer (default) {}. freed memory {}, used {}",
                             id,
                             format_bytes_length(runtime.bytes_length),
-                            format_bytes_length(*self.used_memory )
+                            format_bytes_length(*self.used_memory)
                         );
                     }
                     MemoryPolicy::Restorable(restore) => {
@@ -1019,8 +1011,8 @@ impl BufferStore {
                             target: "BufferStore",
                             "free buffer (restorable) {}. freed memory {}, used {}",
                             id,
-                            format_bytes_length(runtime.bytes_length ),
-                            format_bytes_length(*self.used_memory )
+                            format_bytes_length(runtime.bytes_length),
+                            format_bytes_length(*self.used_memory)
                         );
                     }
                 }

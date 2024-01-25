@@ -268,6 +268,7 @@ impl ToGlEnum for TextureUnit {
             TextureUnit::TEXTURE29 => WebGl2RenderingContext::TEXTURE29,
             TextureUnit::TEXTURE30 => WebGl2RenderingContext::TEXTURE30,
             TextureUnit::TEXTURE31 => WebGl2RenderingContext::TEXTURE31,
+            TextureUnit::Custom(unit) => *unit,
         }
     }
 }
