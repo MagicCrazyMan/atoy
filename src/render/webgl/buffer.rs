@@ -8,6 +8,7 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use log::debug;
 use uuid::Uuid;
+use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{
         ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array,
@@ -700,6 +701,11 @@ impl BufferDescriptor {
                     // heavy job!
                     let bytes_length = runtime.bytes_length;
                     let data = Uint8Array::new_with_length(bytes_length as u32);
+                    let current_binding = runtime
+                        .gl
+                        .get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
+                        .and_then(|v| v.dyn_into::<WebGlBuffer>())
+                        .ok();
                     runtime
                         .gl
                         .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
@@ -712,7 +718,7 @@ impl BufferDescriptor {
                         );
                     runtime
                         .gl
-                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, current_binding.as_ref());
 
                     inner
                         .queue
@@ -789,6 +795,11 @@ impl Drop for BufferStore {
                     return;
                 };
                 let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
+                let current_binding = self
+                    .gl
+                    .get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
+                    .and_then(|v| v.dyn_into::<WebGlBuffer>())
+                    .ok();
                 self.gl
                     .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
                 self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
@@ -796,8 +807,10 @@ impl Drop for BufferStore {
                     0,
                     &data,
                 );
-                self.gl
-                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
+                self.gl.bind_buffer(
+                    WebGl2RenderingContext::ARRAY_BUFFER,
+                    current_binding.as_ref(),
+                );
                 self.gl.delete_buffer(Some(&runtime.buffer));
 
                 descriptor.queue.insert(
@@ -891,6 +904,12 @@ impl BufferStore {
                     runtime
                 }
                 None => {
+                    debug!(
+                        target: "BufferStore",
+                        "create new buffer for {}",
+                        name.as_deref().unwrap_or("unnamed"),
+                    );
+
                     let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                     let id = self.next();
                     (*self.descriptors).insert(id, Rc::downgrade(&descriptor.0));

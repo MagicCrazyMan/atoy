@@ -34,15 +34,14 @@ impl TextureMaterial {
             diffuse_texture: TextureLoader::from_url(url, move |image| {
                 notifier_cloned.notify(&mut ());
                 UniformValue::Texture2D {
-                    descriptor: TextureDescriptor2D::new(
-                        TextureSource::FromHtmlImageElement {
+                    descriptor: TextureDescriptor2D::with_source(
+                        TextureSource::HtmlImageElement {
                             image,
                             format: TextureFormat::RGBA,
                             data_type: TextureDataType::UNSIGNED_BYTE,
                             pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-                            size: None,
+                            custom_size: None,
                         },
-                        0,
                         TextureInternalFormat::SRGB8_ALPHA8,
                         true,
                         MemoryPolicy::default(),

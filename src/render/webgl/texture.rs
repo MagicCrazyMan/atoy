@@ -5,8 +5,10 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
+use log::debug;
 use uuid::Uuid;
+use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{Float32Array, Uint16Array, Uint32Array, Uint8Array},
     HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
@@ -116,6 +118,13 @@ pub enum TextureInternalFormat {
     DEPTH_COMPONENT16,
     DEPTH32F_STENCIL8,
     DEPTH24_STENCIL8,
+}
+
+impl TextureInternalFormat {
+    /// Estimates texture memory usage in bytes in WebGL runtime by texture size and whether mipmap enabled.
+    pub fn estimate_memory_size(&self, width: usize, height: usize, mipmap: bool) -> usize {
+        todo!()
+    }
 }
 
 /// Available texture data types mapped from [`WebGl2RenderingContext`].
@@ -473,7 +482,7 @@ pub enum TextureSource {
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromBinary {
+    Binary {
         width: usize,
         height: usize,
         data: Box<dyn AsRef<[u8]>>,
@@ -482,7 +491,7 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromUint8Array {
+    Uint8Array {
         width: usize,
         height: usize,
         data: Uint8Array,
@@ -490,7 +499,7 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromUint16Array {
+    Uint16Array {
         width: usize,
         height: usize,
         data: Uint16Array,
@@ -504,7 +513,7 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromUint32Array {
+    Uint32Array {
         width: usize,
         height: usize,
         data: Uint32Array,
@@ -516,7 +525,7 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromFloat32Array {
+    Float32Array {
         width: usize,
         height: usize,
         data: Float32Array,
@@ -524,41 +533,40 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
-    FromHtmlCanvasElement {
+    HtmlCanvasElement {
         canvas: HtmlCanvasElement,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        size: Option<(usize, usize)>,
+        custom_size: Option<(usize, usize)>,
     },
-    FromHtmlImageElement {
+    HtmlImageElement {
         image: HtmlImageElement,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        size: Option<(usize, usize)>,
+        custom_size: Option<(usize, usize)>,
     },
-    FromHtmlVideoElement {
+    HtmlVideoElement {
         video: HtmlVideoElement,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        size: Option<(usize, usize)>,
+        custom_size: Option<(usize, usize)>,
     },
-    FromImageData {
+    ImageData {
         data: ImageData,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        size: Option<(usize, usize)>,
+        custom_size: Option<(usize, usize)>,
     },
-    FromImageBitmap {
+    ImageBitmap {
         bitmap: ImageBitmap,
         format: TextureFormat,
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
-        size: Option<(usize, usize)>,
-        compressed: Option<TextureCompressedFormat>,
+        custom_size: Option<(usize, usize)>,
     },
 }
 
@@ -566,24 +574,38 @@ impl TextureSource {
     pub fn width(&self) -> usize {
         match self {
             TextureSource::Preallocate { width, .. }
-            | TextureSource::FromBinary { width, .. }
-            | TextureSource::FromUint8Array { width, .. }
-            | TextureSource::FromUint16Array { width, .. }
-            | TextureSource::FromUint32Array { width, .. }
-            | TextureSource::FromFloat32Array { width, .. } => *width,
-            TextureSource::FromHtmlCanvasElement { canvas, size, .. } => size
+            | TextureSource::Binary { width, .. }
+            | TextureSource::Uint8Array { width, .. }
+            | TextureSource::Uint16Array { width, .. }
+            | TextureSource::Uint32Array { width, .. }
+            | TextureSource::Float32Array { width, .. } => *width,
+            TextureSource::HtmlCanvasElement {
+                canvas,
+                custom_size,
+                ..
+            } => custom_size
                 .map(|(width, _)| width)
                 .unwrap_or(canvas.width() as usize),
-            TextureSource::FromHtmlImageElement { image, size, .. } => size
+            TextureSource::HtmlImageElement {
+                image, custom_size, ..
+            } => custom_size
                 .map(|(width, _)| width)
                 .unwrap_or(image.natural_width() as usize),
-            TextureSource::FromHtmlVideoElement { video, size, .. } => size
+            TextureSource::HtmlVideoElement {
+                video, custom_size, ..
+            } => custom_size
                 .map(|(width, _)| width)
                 .unwrap_or(video.video_width() as usize),
-            TextureSource::FromImageData { data, size, .. } => size
+            TextureSource::ImageData {
+                data, custom_size, ..
+            } => custom_size
                 .map(|(width, _)| width)
                 .unwrap_or(data.width() as usize),
-            TextureSource::FromImageBitmap { bitmap, size, .. } => size
+            TextureSource::ImageBitmap {
+                bitmap,
+                custom_size,
+                ..
+            } => custom_size
                 .map(|(width, _)| width)
                 .unwrap_or(bitmap.width() as usize),
         }
@@ -592,24 +614,38 @@ impl TextureSource {
     pub fn height(&self) -> usize {
         match self {
             TextureSource::Preallocate { height, .. }
-            | TextureSource::FromBinary { height, .. }
-            | TextureSource::FromUint8Array { height, .. }
-            | TextureSource::FromUint16Array { height, .. }
-            | TextureSource::FromUint32Array { height, .. }
-            | TextureSource::FromFloat32Array { height, .. } => *height,
-            TextureSource::FromHtmlCanvasElement { canvas, size, .. } => size
+            | TextureSource::Binary { height, .. }
+            | TextureSource::Uint8Array { height, .. }
+            | TextureSource::Uint16Array { height, .. }
+            | TextureSource::Uint32Array { height, .. }
+            | TextureSource::Float32Array { height, .. } => *height,
+            TextureSource::HtmlCanvasElement {
+                canvas,
+                custom_size,
+                ..
+            } => custom_size
                 .map(|(_, height)| height)
                 .unwrap_or(canvas.height() as usize),
-            TextureSource::FromHtmlImageElement { image, size, .. } => size
+            TextureSource::HtmlImageElement {
+                image, custom_size, ..
+            } => custom_size
                 .map(|(_, height)| height)
                 .unwrap_or(image.natural_height() as usize),
-            TextureSource::FromHtmlVideoElement { video, size, .. } => size
+            TextureSource::HtmlVideoElement {
+                video, custom_size, ..
+            } => custom_size
                 .map(|(_, height)| height)
                 .unwrap_or(video.video_height() as usize),
-            TextureSource::FromImageData { data, size, .. } => size
+            TextureSource::ImageData {
+                data, custom_size, ..
+            } => custom_size
                 .map(|(_, height)| height)
                 .unwrap_or(data.height() as usize),
-            TextureSource::FromImageBitmap { bitmap, size, .. } => size
+            TextureSource::ImageBitmap {
+                bitmap,
+                custom_size,
+                ..
+            } => custom_size
                 .map(|(_, height)| height)
                 .unwrap_or(bitmap.height() as usize),
         }
@@ -618,353 +654,288 @@ impl TextureSource {
     pub fn pixel_storages(&self) -> &[TexturePixelStorage] {
         match self {
             TextureSource::Preallocate { pixel_storages, .. }
-            | TextureSource::FromBinary { pixel_storages, .. }
-            | TextureSource::FromUint8Array { pixel_storages, .. }
-            | TextureSource::FromUint16Array { pixel_storages, .. }
-            | TextureSource::FromUint32Array { pixel_storages, .. }
-            | TextureSource::FromFloat32Array { pixel_storages, .. }
-            | TextureSource::FromHtmlCanvasElement { pixel_storages, .. }
-            | TextureSource::FromHtmlImageElement { pixel_storages, .. }
-            | TextureSource::FromHtmlVideoElement { pixel_storages, .. }
-            | TextureSource::FromImageData { pixel_storages, .. }
-            | TextureSource::FromImageBitmap { pixel_storages, .. } => &pixel_storages,
+            | TextureSource::Binary { pixel_storages, .. }
+            | TextureSource::Uint8Array { pixel_storages, .. }
+            | TextureSource::Uint16Array { pixel_storages, .. }
+            | TextureSource::Uint32Array { pixel_storages, .. }
+            | TextureSource::Float32Array { pixel_storages, .. }
+            | TextureSource::HtmlCanvasElement { pixel_storages, .. }
+            | TextureSource::HtmlImageElement { pixel_storages, .. }
+            | TextureSource::HtmlVideoElement { pixel_storages, .. }
+            | TextureSource::ImageData { pixel_storages, .. }
+            | TextureSource::ImageBitmap { pixel_storages, .. } => &pixel_storages,
         }
     }
 
-    fn tex_image(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        internal_format: TextureInternalFormat,
-        level: usize,
-    ) -> Result<(), Error> {
-        // setups pixel storage parameters
-        self.pixel_storages()
-            .iter()
-            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+    // Under WebGL2, we use `tex_storage` + `tex_sub_image` instead of `tex_image`.
+    // fn tex_image(
+    //     &self,
+    //     gl: &WebGl2RenderingContext,
+    //     target: TextureTarget,
+    //     internal_format: TextureInternalFormat,
+    //     level: usize,
+    // ) -> Result<(), Error> {
+    //     // setups pixel storage parameters
+    //     self.pixel_storages()
+    //         .iter()
+    //         .for_each(|param| gl.pixel_storei(param.key(), param.value()));
 
-        // buffers image data
-        let result = match self {
-            TextureSource::Preallocate {
-                width,
-                height,
-                format,
-                data_type,
-                ..
-            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                target.gl_enum(),
-                level as i32,
-                internal_format.gl_enum() as i32,
-                *width as i32,
-                *height as i32,
-                0,
-                format.gl_enum(),
-                data_type.gl_enum(),
-                None
-            ),
-            TextureSource::FromBinary {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                compressed,
-                compressed_src_length_override,
-                ..
-            } => match compressed {
-                Some(compressed) => match compressed_src_length_override {
-                    Some(src_length_override) => {
-                        gl.compressed_tex_image_2d_with_u8_array_and_u32_and_src_length_override(
-                            target.gl_enum(),
-                            level as i32,
-                            compressed.gl_enum() as u32,
-                            *width as i32,
-                            *height as i32,
-                            0,
-                            data.as_ref().as_ref(),
-                            *src_offset as u32,
-                            *src_length_override as u32,
-                        );
-                        Ok(())
-                    },
-                    None => {
-                        gl.compressed_tex_image_2d_with_u8_array_and_u32(
-                            target.gl_enum(),
-                            level as i32,
-                            compressed.gl_enum() as u32,
-                            *width as i32,
-                            *height as i32,
-                            0,
-                            data.as_ref().as_ref(),
-                            *src_offset as u32,
-                        );
-                        Ok(())
-                    },
-                },
-                None => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    data.as_ref().as_ref(),
-                    *src_offset  as u32
-                ),
-            } ,
-            TextureSource::FromUint8Array {
-                width,
-                height,
-                data,
-                format,
-                src_offset,
-                compressed,
-                compressed_src_length_override,
-                ..
-            } => match compressed {
-                Some(compressed) => match compressed_src_length_override {
-                    Some(src_length_override) => {
-                        gl.compressed_tex_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
-                            target.gl_enum(),
-                            level as i32,
-                            compressed.gl_enum() as u32,
-                            *width as i32,
-                            *height as i32,
-                            0,
-                            data,
-                            *src_offset as u32,
-                            *src_length_override as u32,
-                        );
-                        Ok(())
-                    },
-                    None => {
-                        gl.compressed_tex_image_2d_with_array_buffer_view_and_u32(
-                            target.gl_enum(),
-                            level as i32,
-                            compressed.gl_enum() as u32,
-                            *width as i32,
-                            *height as i32,
-                            0,
-                            data,
-                            *src_offset as u32,
-                        );
-                        Ok(())
-                    },
-                },
-                None => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    WebGl2RenderingContext::UNSIGNED_BYTE,
-                    data,
-                    *src_offset  as u32
-                ),
-            },
-            TextureSource::FromUint16Array {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                ..
-            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                target.gl_enum(),
-                level as i32,
-                internal_format.gl_enum() as i32,
-                *width as i32,
-                *height as i32,
-                0,
-                format.gl_enum(),
-                data_type.gl_enum(),
-                data,
-                *src_offset  as u32
-            ),
-            TextureSource::FromUint32Array {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                ..
-            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                target.gl_enum(),
-                level as i32,
-                internal_format.gl_enum() as i32,
-                *width as i32,
-                *height as i32,
-                0,
-                format.gl_enum(),
-                data_type.gl_enum(),
-                data,
-                *src_offset  as u32
-            ),
-            TextureSource::FromFloat32Array {
-                width,
-                height,
-                data,
-                format,
-                src_offset,
-                ..
-            } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
-                target.gl_enum(),
-                level as i32,
-                internal_format.gl_enum() as i32,
-                *width as i32,
-                *height as i32,
-                0,
-                format.gl_enum(),
-                WebGl2RenderingContext::FLOAT,
-                data,
-                *src_offset  as u32
-            ),
-            TextureSource::FromHtmlCanvasElement {
-                format,
-                data_type,
-                canvas,
-                size,
-                ..
-            } => match size {
-                Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_canvas_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    canvas,
-                ),
-                None => gl.tex_image_2d_with_u32_and_u32_and_html_canvas_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    canvas,
-                ),
-            },
-            TextureSource::FromHtmlImageElement {
-                format,
-                data_type,
-                image,
-                size,
-                ..
-            } => match size {
-                Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_image_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    image,
-                ),
-                None => gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    image,
-                ),
-            },
-            TextureSource::FromHtmlVideoElement {
-                video,
-                format,
-                data_type,
-                size ,
-                ..
-            } => match size {
-                Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_video_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    video,
-                ),
-                None => gl.tex_image_2d_with_u32_and_u32_and_html_video_element(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    video,
-                ),
-            },
-            TextureSource::FromImageData {
-                data,
-                format,
-                data_type,
-                size,
-                ..
-            } => match size {
-                Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_image_data(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    data,
-                ),
-                None => gl.tex_image_2d_with_u32_and_u32_and_image_data(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    data,
-                ),
-            },
-            TextureSource::FromImageBitmap {
-                bitmap,
-                format,
-                data_type,
-                size,
-                ..
-            } => match size {
-                Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_image_bitmap(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    *width as i32,
-                    *height as i32,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    bitmap,
-                ),
-                None => gl.tex_image_2d_with_u32_and_u32_and_image_bitmap(
-                    target.gl_enum(),
-                    level as i32,
-                    internal_format.gl_enum() as i32,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    bitmap,
-                ),
-            }
-        };
+    //     // buffers image data
+    //     let result = match self {
+    //         TextureSource::Preallocate {
+    //             width,
+    //             height,
+    //             format,
+    //             data_type,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             data_type.gl_enum(),
+    //             None
+    //         ),
+    //         TextureSource::FromBinary {
+    //             width,
+    //             height,
+    //             data,
+    //             format,
+    //             data_type,
+    //             src_offset,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             data_type.gl_enum(),
+    //             data.as_ref().as_ref(),
+    //             *src_offset  as u32
+    //         ),
+    //         TextureSource::FromUint8Array {
+    //             width,
+    //             height,
+    //             data,
+    //             format,
+    //             src_offset,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             WebGl2RenderingContext::UNSIGNED_BYTE,
+    //             data,
+    //             *src_offset  as u32
+    //         ),
+    //         TextureSource::FromUint16Array {
+    //             width,
+    //             height,
+    //             data,
+    //             format,
+    //             data_type,
+    //             src_offset,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             data_type.gl_enum(),
+    //             data,
+    //             *src_offset  as u32
+    //         ),
+    //         TextureSource::FromUint32Array {
+    //             width,
+    //             height,
+    //             data,
+    //             format,
+    //             data_type,
+    //             src_offset,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             data_type.gl_enum(),
+    //             data,
+    //             *src_offset  as u32
+    //         ),
+    //         TextureSource::FromFloat32Array {
+    //             width,
+    //             height,
+    //             data,
+    //             format,
+    //             src_offset,
+    //             ..
+    //         } => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_array_buffer_view_and_src_offset(
+    //             target.gl_enum(),
+    //             level as i32,
+    //             internal_format.gl_enum() as i32,
+    //             *width as i32,
+    //             *height as i32,
+    //             0,
+    //             format.gl_enum(),
+    //             WebGl2RenderingContext::FLOAT,
+    //             data,
+    //             *src_offset  as u32
+    //         ),
+    //         TextureSource::FromHtmlCanvasElement {
+    //             format,
+    //             data_type,
+    //             canvas,
+    //             custom_size,
+    //             ..
+    //         } => match custom_size {
+    //             Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_canvas_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 *width as i32,
+    //                 *height as i32,
+    //                 0,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 canvas,
+    //             ),
+    //             None => gl.tex_image_2d_with_u32_and_u32_and_html_canvas_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 canvas,
+    //             ),
+    //         },
+    //         TextureSource::FromHtmlImageElement {
+    //             format,
+    //             data_type,
+    //             image,
+    //             custom_size,
+    //             ..
+    //         } => match custom_size {
+    //             Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_image_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 *width as i32,
+    //                 *height as i32,
+    //                 0,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 image,
+    //             ),
+    //             None => gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 image,
+    //             ),
+    //         },
+    //         TextureSource::FromHtmlVideoElement {
+    //             video,
+    //             format,
+    //             data_type,
+    //             custom_size ,
+    //             ..
+    //         } => match custom_size {
+    //             Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_html_video_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 *width as i32,
+    //                 *height as i32,
+    //                 0,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 video,
+    //             ),
+    //             None => gl.tex_image_2d_with_u32_and_u32_and_html_video_element(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 video,
+    //             ),
+    //         },
+    //         TextureSource::FromImageData {
+    //             data,
+    //             format,
+    //             data_type,
+    //             custom_size,
+    //             ..
+    //         } => match custom_size {
+    //             Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_image_data(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 *width as i32,
+    //                 *height as i32,
+    //                 0,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 data,
+    //             ),
+    //             None => gl.tex_image_2d_with_u32_and_u32_and_image_data(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 data,
+    //             ),
+    //         },
+    //         TextureSource::FromImageBitmap {
+    //             bitmap,
+    //             format,
+    //             data_type,
+    //             custom_size,
+    //             ..
+    //         } => match custom_size {
+    //             Some((width, height)) => gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_image_bitmap(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 *width as i32,
+    //                 *height as i32,
+    //                 0,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 bitmap,
+    //             ),
+    //             None => gl.tex_image_2d_with_u32_and_u32_and_image_bitmap(
+    //                 target.gl_enum(),
+    //                 level as i32,
+    //                 internal_format.gl_enum() as i32,
+    //                 format.gl_enum(),
+    //                 data_type.gl_enum(),
+    //                 bitmap,
+    //             ),
+    //         }
+    //     };
 
-        result.map_err(|err| Error::TexImageFailure(err.as_string()))
-    }
+    //     result.map_err(|err| Error::TexImageFailure(err.as_string()))
+    // }
 
     fn tex_sub_image(
         &self,
@@ -998,7 +969,7 @@ impl TextureSource {
                 data_type.gl_enum(),
                 None
             ),
-            TextureSource::FromBinary {
+            TextureSource::Binary {
                 width,
                 height,
                 data,
@@ -1019,7 +990,7 @@ impl TextureSource {
                 *src_offset  as u32
             ),
 
-            TextureSource::FromUint8Array {
+            TextureSource::Uint8Array {
                 width,
                 height,
                 data,
@@ -1038,7 +1009,7 @@ impl TextureSource {
                 data,
                 *src_offset  as u32
             ),
-            TextureSource::FromUint16Array {
+            TextureSource::Uint16Array {
                 width,
                 height,
                 data,
@@ -1058,7 +1029,7 @@ impl TextureSource {
                 data,
                 *src_offset  as u32
             ),
-            TextureSource::FromUint32Array {
+            TextureSource::Uint32Array {
                 width,
                 height,
                 data,
@@ -1078,7 +1049,7 @@ impl TextureSource {
                 data,
                 *src_offset  as u32
             ),
-            TextureSource::FromFloat32Array {
+            TextureSource::Float32Array {
                 width,
                 height,
                 data,
@@ -1097,13 +1068,13 @@ impl TextureSource {
                 data,
                 *src_offset  as u32
             ),
-            TextureSource::FromHtmlCanvasElement {
+            TextureSource::HtmlCanvasElement {
                 format,
                 data_type,
                 canvas,
-                size,
+                custom_size,
                 ..
-            } => match size {
+            } => match custom_size {
                 Some((width, height)) => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element(
                     target.gl_enum(),
                     level as i32,
@@ -1127,13 +1098,13 @@ impl TextureSource {
                     canvas,
                 ),
             },
-            TextureSource::FromHtmlImageElement {
+            TextureSource::HtmlImageElement {
                 format,
                 data_type,
                 image,
-                size,
+                custom_size,
                 ..
-            } => match size {
+            } => match custom_size {
                 Some((width, height)) => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element(
                     target.gl_enum(),
                     level as i32,
@@ -1157,13 +1128,13 @@ impl TextureSource {
                     image,
                 ),
             },
-            TextureSource::FromHtmlVideoElement {
+            TextureSource::HtmlVideoElement {
                 video,
                 format,
                 data_type,
-                size ,
+                custom_size ,
                 ..
-            } => match size {
+            } => match custom_size {
                 Some((width, height)) => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_video_element(
                     target.gl_enum(),
                     level as i32,
@@ -1187,13 +1158,13 @@ impl TextureSource {
                     video,
                 ),
             },
-            TextureSource::FromImageData {
+            TextureSource::ImageData {
                 data,
                 format,
                 data_type,
-                size,
+                custom_size,
                 ..
-            } => match size {
+            } => match custom_size {
                 Some((width, height)) => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_data(
                     target.gl_enum(),
                     level as i32,
@@ -1217,13 +1188,13 @@ impl TextureSource {
                     data,
                 ),
             },
-            TextureSource::FromImageBitmap {
+            TextureSource::ImageBitmap {
                 bitmap,
                 format,
                 data_type,
-                size,
+                custom_size,
                 ..
-            } => match size {
+            } => match custom_size {
                 Some((width, height)) => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_bitmap(
                     target.gl_enum(),
                     level as i32,
@@ -1251,134 +1222,14 @@ impl TextureSource {
 
         result.map_err(|err| Error::TexImageFailure(err.as_string()))
     }
-
-    fn compressed_tex_image(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        compressed_format: TextureCompressedFormat,
-        level: usize,
-    ) {
-        // setups pixel storage parameters
-        self.pixel_storages()
-            .iter()
-            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
-
-        match self {
-            TextureSource::Preallocate {
-                width,
-                height,
-                format,
-                data_type,
-                pixel_storages,
-            } => gl.compressed_tex_image_2d_with_i32_and_i32(
-                target.gl_enum(),
-                level as i32,
-                compressed_format.gl_enum(),
-                *width as i32,
-                *height as i32,
-                0,
-                image_size,
-                offset,
-            ),
-            TextureSource::FromBinary {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                pixel_storages,
-            } => todo!(),
-            TextureSource::FromUint8Array {
-                width,
-                height,
-                data,
-                format,
-                src_offset,
-                pixel_storages,
-            } => todo!(),
-            TextureSource::FromUint16Array {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                pixel_storages,
-            } => todo!(),
-            TextureSource::FromUint32Array {
-                width,
-                height,
-                data,
-                format,
-                data_type,
-                src_offset,
-                pixel_storages,
-            } => todo!(),
-            TextureSource::FromFloat32Array {
-                width,
-                height,
-                data,
-                format,
-                src_offset,
-                pixel_storages,
-            } => todo!(),
-            TextureSource::FromHtmlCanvasElement {
-                canvas,
-                format,
-                data_type,
-                pixel_storages,
-                size,
-            } => todo!(),
-            TextureSource::FromHtmlImageElement {
-                image,
-                format,
-                data_type,
-                pixel_storages,
-                size,
-            } => todo!(),
-            TextureSource::FromHtmlVideoElement {
-                video,
-                format,
-                data_type,
-                pixel_storages,
-                size,
-            } => todo!(),
-            TextureSource::FromImageData {
-                data,
-                format,
-                data_type,
-                pixel_storages,
-                size,
-            } => todo!(),
-            TextureSource::FromImageBitmap {
-                bitmap,
-                format,
-                data_type,
-                pixel_storages,
-                size,
-                compressed,
-            } => todo!(),
-        }
-    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureWorkingFormat {
-    Uncompressed(TextureInternalFormat),
-    Compressed(TextureCompressedFormat),
-}
-
-struct Runtime {
+struct Runtime2D {
     id: usize,
     gl: WebGl2RenderingContext,
     store_id: Uuid,
     texture: WebGlTexture,
     lru_node: *mut LruNode<usize>,
-
-    width: usize,
-    height: usize,
     using: bool,
 
     used_memory: *mut usize,
@@ -1386,33 +1237,95 @@ struct Runtime {
     lru: *mut Lru<usize>,
 }
 
+impl Drop for Runtime2D {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.descriptors).remove(&self.id);
+            (*self.lru).remove(self.lru_node);
+            self.gl.delete_texture(Some(&self.texture));
+        }
+    }
+}
+
 struct TextureDescriptor2DInner {
     name: Option<Cow<'static, str>>,
-    working_format: TextureWorkingFormat,
-    memory_policy: MemoryPolicy,
+    max_width: usize,
+    max_height: usize,
+    internal_format: TextureInternalFormat,
     generate_mipmap: bool,
+    memory_policy: MemoryPolicy,
 
-    queue_size: Option<(usize, usize)>,
-    queue: Vec<(TextureSource, usize, Option<(usize, usize)>)>,
+    queue: Vec<(TextureSource, usize, usize, usize)>,
 
-    runtime: Option<Runtime>,
+    runtime: Option<Box<Runtime2D>>,
 }
 
 impl TextureDescriptor2DInner {
-    fn verify_size(&self, w: usize, h: usize) -> Result<(), Error> {
-        if let Some((width, height)) = self.queue_size.clone() {
-            if width > w || height > h {
-                return Err(Error::TexImageSizeOverflowed);
-            }
+    #[inline]
+    fn max_mipmap_level(&self) -> usize {
+        (self.max_width as f64)
+            .max(self.max_height as f64)
+            .log2()
+            .floor() as usize
+    }
+
+    #[inline]
+    fn width(&self, level: usize) -> Option<usize> {
+        let max_level = self.max_mipmap_level();
+        if level > max_level {
+            return None;
         }
-        if let Some((width, height)) = self
-            .runtime
-            .as_ref()
-            .map(|runtime| (runtime.width, runtime.height))
+
+        Some((self.max_width >> level).max(1))
+    }
+
+    #[inline]
+    fn height(&self, level: usize) -> Option<usize> {
+        let max_level = self.max_mipmap_level();
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.max_height >> level).max(1))
+    }
+
+    fn verify_size_tex_image(
+        &self,
+        level: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<(), Error> {
+        if self.width(level).map(|w| w != width).unwrap_or(true) {
+            return Err(Error::TexImageSizeMismatched);
+        }
+        if self.height(level).map(|h| h != height).unwrap_or(true) {
+            return Err(Error::TexImageSizeMismatched);
+        }
+
+        Ok(())
+    }
+
+    fn verify_size_tex_sub_image(
+        &self,
+        level: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) -> Result<(), Error> {
+        if self
+            .width(level)
+            .map(|w| width + x_offset > w)
+            .unwrap_or(true)
         {
-            if width > w || height > h {
-                return Err(Error::TexImageSizeOverflowed);
-            }
+            return Err(Error::TexImageSizeMismatched);
+        }
+        if self
+            .height(level)
+            .map(|h| height + y_offset > h)
+            .unwrap_or(true)
+        {
+            return Err(Error::TexImageSizeMismatched);
         }
 
         Ok(())
@@ -1424,39 +1337,65 @@ pub struct TextureDescriptor2D(Rc<RefCell<TextureDescriptor2DInner>>);
 
 impl TextureDescriptor2D {
     pub fn new(
-        source: TextureSource,
-        level: usize,
+        max_width: usize,
+        max_height: usize,
         internal_format: TextureInternalFormat,
         generate_mipmap: bool,
         memory_policy: MemoryPolicy,
     ) -> Self {
         Self(Rc::new(RefCell::new(TextureDescriptor2DInner {
             name: None,
-            working_format: TextureWorkingFormat::Uncompressed(internal_format),
-            memory_policy,
+            max_width,
+            max_height,
+            internal_format,
             generate_mipmap,
-            queue_size: Some((source.width(), source.height())),
-            queue: vec![(source, level, None)],
+            memory_policy,
+
+            queue: Vec::new(),
+
             runtime: None,
         })))
     }
 
-    pub fn new_compressed(
+    pub fn with_source(
         source: TextureSource,
-        level: usize,
-        compressed_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormat,
         generate_mipmap: bool,
         memory_policy: MemoryPolicy,
     ) -> Self {
         Self(Rc::new(RefCell::new(TextureDescriptor2DInner {
             name: None,
-            working_format: TextureWorkingFormat::Compressed(compressed_format),
-            memory_policy,
+            max_width: source.width(),
+            max_height: source.height(),
+            internal_format,
             generate_mipmap,
-            queue_size: Some((source.width(), source.height())),
-            queue: vec![(source, level, None)],
+            memory_policy,
+
+            queue: vec![(source, 0, 0, 0)],
+
             runtime: None,
         })))
+    }
+
+    #[inline]
+    pub fn max_mipmap_level(&self) -> usize {
+        self.0.borrow().max_mipmap_level()
+    }
+
+    pub fn max_width(&self) -> usize {
+        self.0.borrow().max_width
+    }
+
+    pub fn max_height(&self) -> usize {
+        self.0.borrow().max_height
+    }
+
+    pub fn width(&self, level: usize) -> Option<usize> {
+        self.0.borrow().width(level)
+    }
+
+    pub fn height(&self, level: usize) -> Option<usize> {
+        self.0.borrow().height(level)
     }
 
     /// Returns buffer descriptor name.
@@ -1482,17 +1421,18 @@ impl TextureDescriptor2D {
         self.0.borrow().generate_mipmap
     }
 
-    pub fn working_format(&self) -> TextureWorkingFormat {
-        self.0.borrow().working_format
+    pub fn internal_format(&self) -> TextureInternalFormat {
+        self.0.borrow().internal_format
     }
 
-    pub fn tex_image(&mut self, source: TextureSource, level: usize) {
+    pub fn tex_image(&mut self, source: TextureSource, level: usize) -> Result<(), Error> {
         let mut inner = self.0.borrow_mut();
-        let w = source.width();
-        let h = source.height();
-        inner.queue.clear();
-        inner.queue.push((source, level, None));
-        inner.queue_size = Some((w, h));
+        let width = source.width();
+        let height = source.height();
+        inner.verify_size_tex_image(level, width, height)?;
+
+        inner.queue.push((source, level, 0, 0));
+        Ok(())
     }
 
     pub fn tex_sub_image(
@@ -1503,13 +1443,11 @@ impl TextureDescriptor2D {
         y_offset: usize,
     ) -> Result<(), Error> {
         let mut inner = self.0.borrow_mut();
-        let w = source.width();
-        let h = source.height();
-        inner.verify_size(w, h)?;
+        let width = source.width();
+        let height = source.height();
+        inner.verify_size_tex_sub_image(level, width, height, x_offset, y_offset)?;
 
-        inner
-            .queue
-            .push((source, level, Some((x_offset, y_offset))));
+        inner.queue.push((source, level, x_offset, y_offset));
         Ok(())
     }
 }
@@ -1523,14 +1461,16 @@ pub struct TextureStore {
     descriptors_2d: *mut HashMap<usize, Weak<RefCell<TextureDescriptor2DInner>>>,
     lru: *mut Lru<usize>,
 
-    compression_s3tc_supported: *mut Option<bool>,
-    compression_s3tc_srgb_supported: *mut Option<bool>,
-    compression_etc_supported: *mut Option<bool>,
-    compression_pvrtc_supported: *mut Option<bool>,
-    compression_etc1_supported: *mut Option<bool>,
-    compression_astc_supported: *mut Option<bool>,
-    compression_bptc_supported: *mut Option<bool>,
-    compression_rgtc_supported: *mut Option<bool>,
+    max_texture_size: *mut Option<u32>,
+    max_texture_image_units: *mut Option<u32>,
+    compressed_s3tc_supported: *mut Option<bool>,
+    compressed_s3tc_srgb_supported: *mut Option<bool>,
+    compressed_etc_supported: *mut Option<bool>,
+    compressed_pvrtc_supported: *mut Option<bool>,
+    compressed_etc1_supported: *mut Option<bool>,
+    compressed_astc_supported: *mut Option<bool>,
+    compressed_bptc_supported: *mut Option<bool>,
+    compressed_rgtc_supported: *mut Option<bool>,
 }
 
 impl Drop for TextureStore {
@@ -1539,14 +1479,16 @@ impl Drop for TextureStore {
             drop(Box::from_raw(self.used_memory));
             drop(Box::from_raw(self.descriptors_2d));
             drop(Box::from_raw(self.lru));
-            drop(Box::from_raw(self.compression_s3tc_supported));
-            drop(Box::from_raw(self.compression_s3tc_srgb_supported));
-            drop(Box::from_raw(self.compression_etc_supported));
-            drop(Box::from_raw(self.compression_pvrtc_supported));
-            drop(Box::from_raw(self.compression_etc1_supported));
-            drop(Box::from_raw(self.compression_astc_supported));
-            drop(Box::from_raw(self.compression_bptc_supported));
-            drop(Box::from_raw(self.compression_rgtc_supported));
+            drop(Box::from_raw(self.max_texture_size));
+            drop(Box::from_raw(self.max_texture_image_units));
+            drop(Box::from_raw(self.compressed_s3tc_supported));
+            drop(Box::from_raw(self.compressed_s3tc_srgb_supported));
+            drop(Box::from_raw(self.compressed_etc_supported));
+            drop(Box::from_raw(self.compressed_pvrtc_supported));
+            drop(Box::from_raw(self.compressed_etc1_supported));
+            drop(Box::from_raw(self.compressed_astc_supported));
+            drop(Box::from_raw(self.compressed_bptc_supported));
+            drop(Box::from_raw(self.compressed_rgtc_supported));
         }
     }
 }
@@ -1562,14 +1504,16 @@ impl TextureStore {
             descriptors_2d: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
 
-            compression_s3tc_supported: Box::leak(Box::new(None)),
-            compression_s3tc_srgb_supported: Box::leak(Box::new(None)),
-            compression_etc_supported: Box::leak(Box::new(None)),
-            compression_pvrtc_supported: Box::leak(Box::new(None)),
-            compression_etc1_supported: Box::leak(Box::new(None)),
-            compression_astc_supported: Box::leak(Box::new(None)),
-            compression_bptc_supported: Box::leak(Box::new(None)),
-            compression_rgtc_supported: Box::leak(Box::new(None)),
+            max_texture_size: Box::leak(Box::new(None)),
+            max_texture_image_units: Box::leak(Box::new(None)),
+            compressed_s3tc_supported: Box::leak(Box::new(None)),
+            compressed_s3tc_srgb_supported: Box::leak(Box::new(None)),
+            compressed_etc_supported: Box::leak(Box::new(None)),
+            compressed_pvrtc_supported: Box::leak(Box::new(None)),
+            compressed_etc1_supported: Box::leak(Box::new(None)),
+            compressed_astc_supported: Box::leak(Box::new(None)),
+            compressed_bptc_supported: Box::leak(Box::new(None)),
+            compressed_rgtc_supported: Box::leak(Box::new(None)),
         }
     }
 
@@ -1585,95 +1529,171 @@ impl TextureStore {
         self.counter
     }
 
+    fn bound_parameters(&self) -> (u32, Option<WebGlTexture>) {
+        (
+            self.gl
+                .get_parameter(WebGl2RenderingContext::ACTIVE_TEXTURE)
+                .ok()
+                .and_then(|v| v.as_f64())
+                .map(|v| v as u32)
+                .unwrap(),
+            self.gl
+                .get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_2D)
+                .and_then(|v| v.dyn_into::<WebGlTexture>())
+                .ok(),
+        )
+    }
+
+    fn verify_texture_size(&self, width: usize, height: usize) -> Result<(), Error> {
+        let max = self.max_texture_size() as usize;
+        if width > max || height > max {
+            return Err(Error::TextureSizeOverflowed {
+                max: (max, max),
+                value: (width, height),
+            });
+        }
+
+        Ok(())
+    }
+
+    fn verify_texture_unit(&self, unit: TextureUnit) -> Result<(), Error> {
+        let unit = (unit.unit_index() + 1) as u32;
+        let max = self.max_texture_image_units();
+        if unit > max {
+            return Err(Error::TextureUnitOverflowed { max, value: unit });
+        }
+
+        Ok(())
+    }
+
     pub fn use_texture_2d(
         &mut self,
         descriptor: &TextureDescriptor2D,
         unit: TextureUnit,
     ) -> Result<WebGlTexture, Error> {
+        self.verify_texture_unit(unit)?;
+
         unsafe {
             let mut inner = descriptor.0.borrow_mut();
-            let TextureDescriptor2DInner {
-                name,
-                working_format: internal_format,
-                generate_mipmap,
-                queue_size,
-                queue,
-                runtime,
-                ..
-            } = &mut *inner;
 
-            let runtime = match runtime {
+            let texture = match inner.runtime.as_mut() {
                 Some(runtime) => {
                     if runtime.store_id != self.id {
                         panic!("share texture descriptor between texture store is not allowed");
                     }
-                    runtime
+
+                    runtime.using = true;
+                    (*self.lru).cache(runtime.lru_node);
+
+                    runtime.texture.clone()
                 }
                 None => {
+                    debug!(
+                        target: "TextureBuffer",
+                        "create new texture for {}",
+                        inner.name.as_deref().unwrap_or("unnamed"),
+                    );
+
                     let texture = self
                         .gl
                         .create_texture()
                         .ok_or(Error::CreateTextureFailure)?;
+                    self.gl.active_texture(unit.gl_enum());
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+                    self.gl.tex_storage_2d(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        (1 + inner.max_mipmap_level()) as i32,
+                        inner.internal_format.gl_enum(),
+                        inner.max_width as i32,
+                        inner.max_height as i32,
+                    );
+
                     let id = self.next();
+                    let lru_node = LruNode::new(id);
                     (*self.descriptors_2d).insert(id, Rc::downgrade(&descriptor.0));
-                    runtime.insert(Runtime {
+                    (*self.lru).cache(lru_node);
+                    inner.runtime = Some(Box::new(Runtime2D {
                         id,
                         gl: self.gl.clone(),
                         store_id: self.id,
                         texture: texture.clone(),
-                        lru_node: LruNode::new(id),
-
-                        width: 0,
-                        height: 0,
-                        using: false,
+                        lru_node,
+                        using: true,
 
                         used_memory: self.used_memory,
                         descriptors: self.descriptors_2d,
                         lru: self.lru,
-                    })
+                    }));
+                    texture
                 }
             };
 
-            if queue.len() != 0 {
+            if inner.queue.len() != 0 {
                 self.gl.active_texture(unit.gl_enum());
                 self.gl
-                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
-                for (source, level, offset) in queue.drain(..) {
-                    match offset {
-                        Some((x_offset, y_offset)) => source.tex_sub_image(
-                            &self.gl,
-                            TextureTarget::TEXTURE_2D,
-                            level,
-                            x_offset,
-                            y_offset,
-                        )?,
-                        None => source.tex_image(
-                            &self.gl,
-                            TextureTarget::TEXTURE_2D,
-                            *internal_format,
-                            level,
-                        )?,
-                    }
+                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
+                for (source, level, x_offset, y_offset) in inner.queue.drain(..) {
+                    self.verify_texture_size(source.width(), source.height())?;
+                    source.tex_sub_image(
+                        &self.gl,
+                        TextureTarget::TEXTURE_2D,
+                        level,
+                        x_offset,
+                        y_offset,
+                    )?;
                 }
-                if *generate_mipmap {
+                if inner.generate_mipmap {
                     self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
                 }
-                self.gl
-                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-
-                let (width, height) = queue_size.take().unwrap();
-                runtime.width = width;
-                runtime.height = height;
             }
 
-            runtime.using = true;
-            (*self.lru).cache(runtime.lru_node);
+            self.gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+
+            Ok(texture)
         }
-        todo!()
+    }
+
+    pub fn max_texture_size(&self) -> u32 {
+        unsafe {
+            if let Some(size) = *self.max_texture_size {
+                return size;
+            }
+
+            let size = self
+                .gl
+                .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE)
+                .ok()
+                .and_then(|v| v.as_f64())
+                .map(|v| v as u32)
+                .unwrap();
+            *self.max_texture_size = Some(size);
+            size
+        }
+    }
+
+    pub fn max_texture_image_units(&self) -> u32 {
+        unsafe {
+            if let Some(size) = *self.max_texture_image_units {
+                return size;
+            }
+
+            let size = self
+                .gl
+                .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_IMAGE_UNITS)
+                .ok()
+                .and_then(|v| v.as_f64())
+                .map(|v| v as u32)
+                .unwrap();
+            *self.max_texture_image_units = Some(size);
+            size
+        }
     }
 }
 
-macro_rules! compressions_supported {
+macro_rules! compressed_supported {
     ($(($func:ident, $field:ident, $($extensions:tt),+))+) => {
         impl TextureStore {
             $(
@@ -1697,13 +1717,13 @@ macro_rules! compressions_supported {
     };
 }
 
-compressions_supported! {
-    (compression_s3tc_supported, compression_s3tc_supported, "WEBGL_compressed_texture_s3tc", "MOZ_WEBGL_compressed_texture_s3tc", "WEBKIT_WEBGL_compressed_texture_s3tc")
-    (compression_s3tc_srgb_supported, compression_s3tc_srgb_supported, "WEBGL_compressed_texture_s3tc_srgb")
-    (compression_etc_supported, compression_etc_supported, "WEBGL_compressed_texture_etc")
-    (compression_pvrtc_supported, compression_pvrtc_supported, "WEBGL_compressed_texture_pvrtc")
-    (compression_etc1_supported, compression_etc1_supported, "WEBGL_compressed_texture_etc1")
-    (compression_astc_supported, compression_astc_supported, "WEBGL_compressed_texture_astc")
-    (compression_bptc_supported, compression_bptc_supported, "EXT_texture_compression_bptc")
-    (compression_rgtc_supported, compression_rgtc_supported, "EXT_texture_compression_rgtc")
+compressed_supported! {
+    (compressed_s3tc_supported, compressed_s3tc_supported, "WEBGL_compressed_texture_s3tc", "MOZ_WEBGL_compressed_texture_s3tc", "WEBKIT_WEBGL_compressed_texture_s3tc")
+    (compressed_s3tc_srgb_supported, compressed_s3tc_srgb_supported, "WEBGL_compressed_texture_s3tc_srgb")
+    (compressed_etc_supported, compressed_etc_supported, "WEBGL_compressed_texture_etc")
+    (compressed_pvrtc_supported, compressed_pvrtc_supported, "WEBGL_compressed_texture_pvrtc")
+    (compressed_etc1_supported, compressed_etc1_supported, "WEBGL_compressed_texture_etc1")
+    (compressed_astc_supported, compressed_astc_supported, "WEBGL_compressed_texture_astc")
+    (compressed_bptc_supported, compressed_bptc_supported, "EXT_texture_compression_bptc")
+    (compressed_rgtc_supported, compressed_rgtc_supported, "EXT_texture_compression_rgtc")
 }
