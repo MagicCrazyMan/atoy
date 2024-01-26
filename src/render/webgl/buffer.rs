@@ -585,7 +585,7 @@ struct BufferDescriptorRuntime {
     id: usize,
     buffer: WebGlBuffer,
     bytes_length: usize,
-    binding_attribute: bool,
+    binding: bool,
     binding_ubos: HashSet<u32>,
     lru_node: *mut LruNode<usize>,
 
@@ -921,7 +921,7 @@ impl BufferStore {
                     runtime.insert(Box::new(BufferDescriptorRuntime {
                         id,
                         gl: self.gl.clone(),
-                        binding_attribute: false,
+                        binding: false,
                         buffer,
                         bytes_length: 0,
                         binding_ubos: HashSet::new(),
@@ -976,7 +976,7 @@ impl BufferStore {
                 self.gl.bind_buffer(target.gl_enum(), None);
             }
 
-            runtime.binding_attribute = true;
+            runtime.binding = true;
             (*self.lru).cache(runtime.lru_node);
             self.free(target);
 
@@ -990,7 +990,7 @@ impl BufferStore {
         let Some(runtime) = descriptor.runtime.as_mut() else {
             return;
         };
-        runtime.binding_attribute = false;
+        runtime.binding = false;
     }
 
     /// Frees memory if used memory exceeds the maximum available memory.
@@ -1022,7 +1022,7 @@ impl BufferStore {
                 let descriptor = descriptor.borrow();
                 let runtime = descriptor.runtime.as_ref().unwrap();
                 // skips if using
-                if runtime.binding_attribute || runtime.binding_ubos.len() != 0 {
+                if runtime.binding || runtime.binding_ubos.len() != 0 {
                     next_node = (*current_node).more_recently();
                     continue;
                 }
@@ -1175,7 +1175,7 @@ impl BufferStore {
                 self.gl
                     .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
             }
-            runtime.binding_attribute = runtime.binding_ubos.len() != 0;
+            runtime.binding = runtime.binding_ubos.len() != 0;
         }
     }
 }

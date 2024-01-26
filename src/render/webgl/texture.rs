@@ -5,19 +5,21 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use log::debug;
 use uuid::Uuid;
-use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{Float32Array, Uint16Array, Uint32Array, Uint8Array},
     HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
-    WebGl2RenderingContext, WebGlTexture,
+    WebGl2RenderingContext, WebGlBuffer, WebGlTexture,
 };
 
 use crate::lru::{Lru, LruNode};
 
-use super::{abilities::Abilities, conversion::ToGlEnum, error::Error};
+use super::{
+    abilities::Abilities, conversion::ToGlEnum, error::Error,
+    utilities::pixel_unpack_buffer_binding,
+};
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -481,6 +483,15 @@ pub enum TextureSource {
         data_type: TextureDataType,
         pixel_storages: Vec<TexturePixelStorage>,
     },
+    PixelBufferObject {
+        width: usize,
+        height: usize,
+        buffer: WebGlBuffer,
+        format: TextureFormat,
+        data_type: TextureDataType,
+        pbo_offset: usize,
+        pixel_storages: Vec<TexturePixelStorage>,
+    },
     Binary {
         width: usize,
         height: usize,
@@ -605,6 +616,7 @@ impl TextureSource {
     pub fn width(&self) -> usize {
         match self {
             TextureSource::Preallocate { width, .. }
+            | TextureSource::PixelBufferObject { width, .. }
             | TextureSource::Binary { width, .. }
             | TextureSource::Uint8Array { width, .. }
             | TextureSource::Uint8ClampedArray { width, .. }
@@ -649,6 +661,7 @@ impl TextureSource {
     pub fn height(&self) -> usize {
         match self {
             TextureSource::Preallocate { height, .. }
+            | TextureSource::PixelBufferObject { height, .. }
             | TextureSource::Binary { height, .. }
             | TextureSource::Uint8Array { height, .. }
             | TextureSource::Uint8ClampedArray { height, .. }
@@ -693,6 +706,7 @@ impl TextureSource {
     pub fn pixel_storages(&self) -> &[TexturePixelStorage] {
         match self {
             TextureSource::Preallocate { pixel_storages, .. }
+            | TextureSource::PixelBufferObject { pixel_storages, .. }
             | TextureSource::Binary { pixel_storages, .. }
             | TextureSource::Uint8Array { pixel_storages, .. }
             | TextureSource::Uint8ClampedArray { pixel_storages, .. }
@@ -742,6 +756,31 @@ impl TextureSource {
                 data_type.gl_enum(),
                 None
             ),
+            TextureSource::PixelBufferObject {
+                width,
+                height,
+                buffer,
+                format,
+                data_type,
+                pbo_offset,
+                ..
+            } => {
+                let current_buffer = pixel_unpack_buffer_binding(gl);
+                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                let result = gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
+                    target.gl_enum(),
+                    level as i32,
+                    x_offset as i32,
+                    y_offset as i32,
+                    *width as i32,
+                    *height as i32,
+                    format.gl_enum(),
+                    data_type.gl_enum(),
+                    *pbo_offset as i32
+                );
+                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, current_buffer.as_ref());
+                result
+            },
             TextureSource::Binary {
                 width,
                 height,
@@ -1107,6 +1146,36 @@ impl TextureSource {
                 data_type.gl_enum(),
                 None,
             ),
+            TextureSource::PixelBufferObject {
+                width,
+                height,
+                buffer,
+                format,
+                data_type,
+                pbo_offset,
+                ..
+            } => {
+                let current_buffer = pixel_unpack_buffer_binding(gl);
+                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                let result = gl.tex_sub_image_3d_with_i32(
+                    target.gl_enum(),
+                    level as i32,
+                    x_offset as i32,
+                    y_offset as i32,
+                    z_offset as i32,
+                    *width as i32,
+                    *height as i32,
+                    depth as i32,
+                    format.gl_enum(),
+                    data_type.gl_enum(),
+                    *pbo_offset as i32,
+                );
+                gl.bind_buffer(
+                    WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+                    current_buffer.as_ref(),
+                );
+                result
+            }
             TextureSource::Binary {
                 width,
                 height,
@@ -1611,6 +1680,31 @@ impl TextureLayout for Texture3D {
     }
 }
 
+pub type Texture2DArray = Texture3D;
+
+pub struct TextureCubeMap {
+    width: usize,
+    height: usize,
+    positive_x: Vec<(TextureSource, usize, usize, usize)>,
+    negative_x: Vec<(TextureSource, usize, usize, usize)>,
+    positive_y: Vec<(TextureSource, usize, usize, usize)>,
+    negative_y: Vec<(TextureSource, usize, usize, usize)>,
+    positive_z: Vec<(TextureSource, usize, usize, usize)>,
+    negative_z: Vec<(TextureSource, usize, usize, usize)>,
+}
+
+impl TextureLayout for TextureCubeMap {
+    #[inline]
+    fn max_width(&self) -> usize {
+        self.width
+    }
+
+    #[inline]
+    fn max_height(&self) -> usize {
+        self.height
+    }
+}
+
 struct TextureDescriptorInner<Layout> {
     name: Option<Cow<'static, str>>,
     layout: Layout,
@@ -1849,7 +1943,105 @@ impl TextureDescriptor<Texture3D> {
     }
 }
 
-impl TextureDescriptor<Texture3D> {}
+impl TextureDescriptor<TextureCubeMap> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        depth: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: TextureCubeMap {
+                width,
+                height,
+                positive_x: Vec::new(),
+                negative_x: Vec::new(),
+                positive_y: Vec::new(),
+                negative_y: Vec::new(),
+                positive_z: Vec::new(),
+                negative_z: Vec::new(),
+            },
+            internal_format,
+            generate_mipmap,
+            memory_policy,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_sources(
+        positive_x: TextureSource,
+        negative_x: TextureSource,
+        positive_y: TextureSource,
+        negative_y: TextureSource,
+        positive_z: TextureSource,
+        negative_z: TextureSource,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy,
+    ) -> Result<Self, Error> {
+
+        Ok(Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: TextureCubeMap {
+                width: positive_x.width(),
+                height: positive_x.height(),
+                positive_x: vec![(positive_x, 0, 0, 0)],
+                negative_x: vec![(negative_x, 0, 0, 0)],
+                positive_y: vec![(positive_y, 0, 0, 0)],
+                negative_y: vec![(negative_y, 0, 0, 0)],
+                positive_z: vec![(positive_z, 0, 0, 0)],
+                negative_z: vec![(negative_z, 0, 0, 0)],
+            },
+            internal_format,
+            generate_mipmap,
+            memory_policy,
+
+            runtime: None,
+        }))))
+    }
+
+    pub fn tex_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.layout.verify_size_tex_image(level, width, height)?;
+
+        inner.layout.queue.push((source, level, depth, 0, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner
+            .layout
+            .verify_size_tex_sub_image(level, width, height, x_offset, y_offset)?;
+
+        inner
+            .layout
+            .queue
+            .push((source, level, depth, x_offset, y_offset, z_offset));
+        Ok(())
+    }
+}
 
 pub struct TextureStore {
     id: Uuid,
@@ -1859,31 +2051,8 @@ pub struct TextureStore {
     used_memory: *mut usize,
     descriptors_2d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2D>>>>,
     descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
+    descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
     lru: *mut Lru<Uuid>,
-}
-
-impl Drop for TextureStore {
-    fn drop(&mut self) {
-        unsafe {
-            for (_, descriptor) in (*self.descriptors_2d).iter() {
-                let Some(descriptor) = descriptor.upgrade() else {
-                    return;
-                };
-                let mut descriptor = descriptor.borrow_mut();
-                let Some(runtime) = descriptor.runtime.take() else {
-                    return;
-                };
-
-                self.gl.delete_texture(Some(&runtime.texture));
-                // store dropped, no need to update LRU anymore
-            }
-
-            drop(Box::from_raw(self.used_memory));
-            drop(Box::from_raw(self.descriptors_2d));
-            drop(Box::from_raw(self.descriptors_3d));
-            drop(Box::from_raw(self.lru));
-        }
-    }
 }
 
 impl TextureStore {
@@ -1896,12 +2065,13 @@ impl TextureStore {
             used_memory: Box::leak(Box::new(0)),
             descriptors_2d: Box::leak(Box::new(HashMap::new())),
             descriptors_3d: Box::leak(Box::new(HashMap::new())),
+            descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
         }
     }
 }
 
-macro_rules! use_textures {
+macro_rules! store_use_textures {
     ($(($layout:tt, $pname:expr, $target:expr, $descriptors:ident, $tex_func:ident, ($($tex_params:ident),+), $tex_storage_func:ident, ($($tex_storage_params:tt),+), $use_func: ident, $unuse_func:ident))+) => {
         impl TextureStore {
             $(
@@ -2009,7 +2179,7 @@ macro_rules! use_textures {
     };
 }
 
-use_textures! {
+store_use_textures! {
     (
         Texture2D,
         WebGl2RenderingContext::TEXTURE_2D,
@@ -2031,3 +2201,40 @@ use_textures! {
         unuse_texture_3d
     )
 }
+
+macro_rules! store_drop {
+    ($($d:ident)+) => {
+        impl Drop for TextureStore {
+            fn drop(&mut self) {
+                unsafe {
+                    $(
+                        for (_, descriptor) in (*self.$d).iter() {
+                            let Some(descriptor) = descriptor.upgrade() else {
+                                return;
+                            };
+                            let mut descriptor = descriptor.borrow_mut();
+                            let Some(runtime) = descriptor.runtime.take() else {
+                                return;
+                            };
+
+                            self.gl.delete_texture(Some(&runtime.texture));
+                            // store dropped, no need to update LRU anymore
+                        }
+                    )+
+
+                    drop(Box::from_raw(self.used_memory));
+                    drop(Box::from_raw(self.descriptors_2d));
+                    drop(Box::from_raw(self.descriptors_3d));
+                    drop(Box::from_raw(self.descriptors_cube_map));
+                    drop(Box::from_raw(self.lru));
+                }
+            }
+        }
+    };
+}
+
+store_drop!(
+    descriptors_2d
+    descriptors_3d
+    descriptors_cube_map
+);

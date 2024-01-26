@@ -494,7 +494,9 @@ impl FrameState {
                 self.gl
                     .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
             }
-            UniformValue::Texture2D { .. } | UniformValue::Texture3D { .. } => {
+            UniformValue::Texture2D { .. }
+            | UniformValue::Texture2DArray { .. }
+            | UniformValue::Texture3D { .. } => {
                 let (target, texture, unit, params) = match value {
                     UniformValue::Texture2D {
                         descriptor,
@@ -510,6 +512,11 @@ impl FrameState {
                         descriptor,
                         unit,
                         params,
+                    }
+                    | UniformValue::Texture2DArray {
+                        descriptor,
+                        params,
+                        unit,
                     } => (
                         WebGl2RenderingContext::TEXTURE_3D,
                         self.texture_store_mut().use_texture_3d(&descriptor, unit)?,
