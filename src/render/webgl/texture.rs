@@ -498,6 +498,22 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
+    Uint8ClampedArray {
+        width: usize,
+        height: usize,
+        data: Uint8Array,
+        format: TextureFormat,
+        src_offset: usize,
+        pixel_storages: Vec<TexturePixelStorage>,
+    },
+    Int8Array {
+        width: usize,
+        height: usize,
+        data: Uint8Array,
+        format: TextureFormat,
+        src_offset: usize,
+        pixel_storages: Vec<TexturePixelStorage>,
+    },
     Uint16Array {
         width: usize,
         height: usize,
@@ -512,6 +528,14 @@ pub enum TextureSource {
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
+    Int16Array {
+        width: usize,
+        height: usize,
+        data: Uint16Array,
+        format: TextureFormat,
+        src_offset: usize,
+        pixel_storages: Vec<TexturePixelStorage>,
+    },
     Uint32Array {
         width: usize,
         height: usize,
@@ -521,6 +545,14 @@ pub enum TextureSource {
         /// [`TextureDataType::UNSIGNED_INT_24_8`]
         /// are accepted.
         data_type: TextureDataType,
+        src_offset: usize,
+        pixel_storages: Vec<TexturePixelStorage>,
+    },
+    Int32Array {
+        width: usize,
+        height: usize,
+        data: Uint32Array,
+        format: TextureFormat,
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
     },
@@ -575,8 +607,12 @@ impl TextureSource {
             TextureSource::Preallocate { width, .. }
             | TextureSource::Binary { width, .. }
             | TextureSource::Uint8Array { width, .. }
+            | TextureSource::Uint8ClampedArray { width, .. }
+            | TextureSource::Int8Array { width, .. }
             | TextureSource::Uint16Array { width, .. }
+            | TextureSource::Int16Array { width, .. }
             | TextureSource::Uint32Array { width, .. }
+            | TextureSource::Int32Array { width, .. }
             | TextureSource::Float32Array { width, .. } => *width,
             TextureSource::HtmlCanvasElement {
                 canvas,
@@ -615,8 +651,12 @@ impl TextureSource {
             TextureSource::Preallocate { height, .. }
             | TextureSource::Binary { height, .. }
             | TextureSource::Uint8Array { height, .. }
+            | TextureSource::Uint8ClampedArray { height, .. }
+            | TextureSource::Int8Array { height, .. }
             | TextureSource::Uint16Array { height, .. }
+            | TextureSource::Int16Array { height, .. }
             | TextureSource::Uint32Array { height, .. }
+            | TextureSource::Int32Array { height, .. }
             | TextureSource::Float32Array { height, .. } => *height,
             TextureSource::HtmlCanvasElement {
                 canvas,
@@ -655,8 +695,12 @@ impl TextureSource {
             TextureSource::Preallocate { pixel_storages, .. }
             | TextureSource::Binary { pixel_storages, .. }
             | TextureSource::Uint8Array { pixel_storages, .. }
+            | TextureSource::Uint8ClampedArray { pixel_storages, .. }
+            | TextureSource::Int8Array { pixel_storages, .. }
             | TextureSource::Uint16Array { pixel_storages, .. }
+            | TextureSource::Int16Array { pixel_storages, .. }
             | TextureSource::Uint32Array { pixel_storages, .. }
+            | TextureSource::Int32Array { pixel_storages, .. }
             | TextureSource::Float32Array { pixel_storages, .. }
             | TextureSource::HtmlCanvasElement { pixel_storages, .. }
             | TextureSource::HtmlImageElement { pixel_storages, .. }
@@ -988,7 +1032,6 @@ impl TextureSource {
                 data.as_ref().as_ref(),
                 *src_offset  as u32
             ),
-
             TextureSource::Uint8Array {
                 width,
                 height,
@@ -1005,6 +1048,44 @@ impl TextureSource {
                 *height as i32,
                 format.gl_enum(),
                 WebGl2RenderingContext::UNSIGNED_BYTE,
+                data,
+                *src_offset  as u32
+            ),
+            TextureSource::Uint8ClampedArray {
+                width,
+                height,
+                data,
+                format,
+                src_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
+                target.gl_enum(),
+                level as i32,
+                x_offset as i32,
+                y_offset as i32,
+                *width as i32,
+                *height as i32,
+                format.gl_enum(),
+                WebGl2RenderingContext::UNSIGNED_BYTE,
+                data,
+                *src_offset  as u32
+            ),
+            TextureSource::Int8Array {
+                width,
+                height,
+                data,
+                format,
+                src_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
+                target.gl_enum(),
+                level as i32,
+                x_offset as i32,
+                y_offset as i32,
+                *width as i32,
+                *height as i32,
+                format.gl_enum(),
+                WebGl2RenderingContext::BYTE,
                 data,
                 *src_offset  as u32
             ),
@@ -1028,6 +1109,25 @@ impl TextureSource {
                 data,
                 *src_offset  as u32
             ),
+            TextureSource::Int16Array {
+                width,
+                height,
+                data,
+                format,
+                src_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
+                target.gl_enum(),
+                level as i32,
+                x_offset as i32,
+                y_offset as i32,
+                *width as i32,
+                *height as i32,
+                format.gl_enum(),
+                WebGl2RenderingContext::SHORT,
+                data,
+                *src_offset  as u32
+            ),
             TextureSource::Uint32Array {
                 width,
                 height,
@@ -1045,6 +1145,25 @@ impl TextureSource {
                 *height as i32,
                 format.gl_enum(),
                 data_type.gl_enum(),
+                data,
+                *src_offset  as u32
+            ),
+            TextureSource::Int32Array {
+                width,
+                height,
+                data,
+                format,
+                src_offset,
+                ..
+            } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
+                target.gl_enum(),
+                level as i32,
+                x_offset as i32,
+                y_offset as i32,
+                *width as i32,
+                *height as i32,
+                format.gl_enum(),
+                WebGl2RenderingContext::INT,
                 data,
                 *src_offset  as u32
             ),
