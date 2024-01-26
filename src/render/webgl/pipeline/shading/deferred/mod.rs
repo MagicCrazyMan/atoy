@@ -16,8 +16,8 @@ use crate::{
         buffer::BufferDescriptor,
         error::Error,
         framebuffer::{
-            AttachmentProvider, Framebuffer, FramebufferAttachment,
-            FramebufferBuilder, FramebufferTarget,
+            AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+            FramebufferTarget,
         },
         pipeline::{
             UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
@@ -26,7 +26,7 @@ use crate::{
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         shader::{Define, ShaderBuilder},
         state::FrameState,
-        texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
+        texture::{TextureInternalFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -45,11 +45,7 @@ impl StandardDeferredShading {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA8,
-                    TextureFormat::RGBA,
-                    TextureDataType::UNSIGNED_BYTE,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA8),
             ))
         })
     }

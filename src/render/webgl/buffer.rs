@@ -8,7 +8,6 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use log::debug;
 use uuid::Uuid;
-use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{
         ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array,
@@ -23,7 +22,7 @@ use crate::{
     utils::format_bytes_length,
 };
 
-use super::{conversion::ToGlEnum, error::Error};
+use super::{conversion::ToGlEnum, error::Error, utilities::array_buffer_binding};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -270,7 +269,9 @@ impl BufferSource {
                     panic!("recursive BufferSource::Function is not allowed");
                 }
                 if self.bytes_length() != source.bytes_length() {
-                    panic!("source returned from BufferSource::Function should have same bytes length");
+                    panic!(
+                        "source returned from BufferSource::Function should have same bytes length"
+                    );
                 }
                 source.buffer_data(gl, target, usage);
             }
@@ -325,7 +326,9 @@ impl BufferSource {
                     panic!("recursively BufferSource::Function is not allowed");
                 }
                 if self.bytes_length() != source.bytes_length() {
-                    panic!("source returned from BufferSource::Function should have same bytes length");
+                    panic!(
+                        "source returned from BufferSource::Function should have same bytes length"
+                    );
                 }
                 source.buffer_sub_data(gl, target, dst_byte_offset);
             }
@@ -705,13 +708,10 @@ impl BufferDescriptor {
             } else {
                 if let Some(runtime) = inner.runtime.as_deref_mut() {
                     // heavy job!
+                    let current_binding = array_buffer_binding(&runtime.gl);
+
                     let bytes_length = runtime.bytes_length;
                     let data = Uint8Array::new_with_length(bytes_length as u32);
-                    let current_binding = runtime
-                        .gl
-                        .get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
-                        .and_then(|v| v.dyn_into::<WebGlBuffer>())
-                        .ok();
                     runtime
                         .gl
                         .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
@@ -802,11 +802,7 @@ impl Drop for BufferStore {
                     return;
                 };
 
-                let current_binding = self
-                    .gl
-                    .get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
-                    .and_then(|v| v.dyn_into::<WebGlBuffer>())
-                    .ok();
+                let current_binding = array_buffer_binding(&self.gl);
 
                 let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
                 self.gl

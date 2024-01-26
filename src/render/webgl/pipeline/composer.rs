@@ -12,7 +12,7 @@ use crate::render::webgl::{
     program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
     shader::{Define, ShaderBuilder},
     state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
+    texture::{TextureInternalFormat, TextureUnit},
     uniform::UniformValue,
 };
 
@@ -78,11 +78,7 @@ impl StandardComposer {
     fn composed_framebuffer(&mut self, state: &mut FrameState) -> &mut Framebuffer {
         self.composed_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA8,
-                    TextureFormat::RGBA,
-                    TextureDataType::UNSIGNED_BYTE,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA8),
             ))
         })
     }

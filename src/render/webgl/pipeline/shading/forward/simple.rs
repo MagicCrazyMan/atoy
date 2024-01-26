@@ -13,7 +13,7 @@ use crate::render::webgl::{
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+    texture::TextureInternalFormat,
 };
 
 pub struct StandardSimpleShading {
@@ -31,8 +31,6 @@ impl StandardSimpleShading {
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA8,
-                        TextureFormat::RGBA,
-                        TextureDataType::UNSIGNED_BYTE,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,

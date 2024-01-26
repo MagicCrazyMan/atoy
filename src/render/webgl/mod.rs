@@ -28,6 +28,7 @@ pub mod state;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
+pub mod utilities;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]

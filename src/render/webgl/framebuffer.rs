@@ -13,6 +13,7 @@ use super::{
     error::Error,
     renderbuffer::RenderbufferInternalFormat,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+    utilities::{renderbuffer_binding, texture_binding_2d},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -288,8 +289,6 @@ impl ClearPolicy {
 pub enum AttachmentProvider {
     FromNewTexture {
         internal_format: TextureInternalFormat,
-        format: TextureFormat,
-        data_type: TextureDataType,
         clear_policy: Option<ClearPolicy>,
     },
     FromExistingTexture {
@@ -307,15 +306,9 @@ pub enum AttachmentProvider {
 }
 
 impl AttachmentProvider {
-    pub fn new_texture(
-        internal_format: TextureInternalFormat,
-        format: TextureFormat,
-        data_type: TextureDataType,
-    ) -> Self {
+    pub fn new_texture(internal_format: TextureInternalFormat) -> Self {
         Self::FromNewTexture {
             internal_format,
-            format,
-            data_type,
             clear_policy: None,
         }
     }
@@ -343,14 +336,10 @@ impl AttachmentProvider {
 
     pub fn new_texture_with_clear_policy(
         internal_format: TextureInternalFormat,
-        format: TextureFormat,
-        data_type: TextureDataType,
         clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNewTexture {
             internal_format,
-            format,
-            data_type,
             clear_policy: Some(clear_policy),
         }
     }
@@ -399,24 +388,19 @@ impl AttachmentProvider {
         let attach = match self {
             AttachmentProvider::FromNewTexture {
                 internal_format,
-                format,
-                data_type,
                 clear_policy,
             } => {
+                let current_texture = texture_binding_2d(gl);
+
                 let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-                gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                gl.tex_storage_2d(
                     WebGl2RenderingContext::TEXTURE_2D,
-                    0,
-                    internal_format.gl_enum() as i32,
+                    1,
+                    internal_format.gl_enum(),
                     width,
                     height,
-                    0,
-                    format.gl_enum(),
-                    data_type.gl_enum(),
-                    None,
-                )
-                .or_else(|err| Err(Error::TexImageFailure(err.as_string())))?;
+                );
                 gl.framebuffer_texture_2d(
                     target.gl_enum(),
                     attachment.gl_enum(),
@@ -424,6 +408,8 @@ impl AttachmentProvider {
                     Some(&texture),
                     0,
                 );
+
+                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, current_texture.as_ref());
 
                 Attach::Texture {
                     texture,
@@ -435,6 +421,8 @@ impl AttachmentProvider {
                 texture,
                 clear_policy,
             } => {
+                let current_texture = texture_binding_2d(gl);
+
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 gl.framebuffer_texture_2d(
                     target.gl_enum(),
@@ -443,6 +431,8 @@ impl AttachmentProvider {
                     Some(&texture),
                     0,
                 );
+
+                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, current_texture.as_ref());
 
                 Attach::Texture {
                     texture: texture.clone(),
@@ -454,6 +444,8 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
+                let current_renderbuffer = renderbuffer_binding(gl);
+
                 let renderbuffer = gl
                     .create_renderbuffer()
                     .ok_or(Error::CreateRenderbufferFailure)?;
@@ -480,6 +472,11 @@ impl AttachmentProvider {
                     Some(&renderbuffer),
                 );
 
+                gl.bind_renderbuffer(
+                    WebGl2RenderingContext::RENDERBUFFER,
+                    current_renderbuffer.as_ref(),
+                );
+
                 Attach::Renderbuffer {
                     renderbuffer,
                     clear_policy: *clear_policy,
@@ -490,6 +487,8 @@ impl AttachmentProvider {
                 renderbuffer,
                 clear_policy,
             } => {
+                let current_renderbuffer = renderbuffer_binding(gl);
+
                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
                 gl.framebuffer_renderbuffer(
                     target.gl_enum(),
@@ -497,6 +496,12 @@ impl AttachmentProvider {
                     WebGl2RenderingContext::RENDERBUFFER,
                     Some(renderbuffer),
                 );
+
+                gl.bind_renderbuffer(
+                    WebGl2RenderingContext::RENDERBUFFER,
+                    current_renderbuffer.as_ref(),
+                );
+
                 Attach::Renderbuffer {
                     renderbuffer: renderbuffer.clone(),
                     clear_policy: *clear_policy,

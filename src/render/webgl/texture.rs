@@ -1511,21 +1511,6 @@ impl TextureStore {
         self.counter
     }
 
-    fn bound_parameters(&self) -> (u32, Option<WebGlTexture>) {
-        (
-            self.gl
-                .get_parameter(WebGl2RenderingContext::ACTIVE_TEXTURE)
-                .ok()
-                .and_then(|v| v.as_f64())
-                .map(|v| v as u32)
-                .unwrap(),
-            self.gl
-                .get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_2D)
-                .and_then(|v| v.dyn_into::<WebGlTexture>())
-                .ok(),
-        )
-    }
-
     fn verify_texture_size(&self, width: usize, height: usize) -> Result<(), Error> {
         let max = self.abilities.max_texture_size();
         if width > max || height > max {

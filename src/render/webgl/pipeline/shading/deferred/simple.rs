@@ -12,7 +12,7 @@ use crate::render::webgl::{
         shading::{draw_translucent_entities, DrawState},
     },
     state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+    texture::TextureInternalFormat,
 };
 
 pub struct StandardDeferredTransparentShading {
@@ -34,8 +34,6 @@ impl StandardDeferredTransparentShading {
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA8,
-                        TextureFormat::RGBA,
-                        TextureDataType::UNSIGNED_BYTE,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::from_renderbuffer(
                         depth_stencil.clone(),

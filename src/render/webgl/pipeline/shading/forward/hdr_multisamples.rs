@@ -19,7 +19,7 @@ use crate::render::webgl::{
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat, TextureUnit},
+    texture::{TextureInternalFormat, TextureUnit},
     uniform::{UniformBlockValue, UniformValue},
 };
 
@@ -51,11 +51,7 @@ impl StandardMultisamplesHdrShading {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA8,
-                    TextureFormat::RGBA,
-                    TextureDataType::UNSIGNED_BYTE,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA8),
             ))
         })
     }
@@ -63,11 +59,7 @@ impl StandardMultisamplesHdrShading {
     fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA32F),
             ))
         })
     }
@@ -78,13 +70,9 @@ impl StandardMultisamplesHdrShading {
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
-                        TextureFormat::RGBA,
-                        TextureDataType::FLOAT,
                     ))
                     .with_color_attachment1(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
-                        TextureFormat::RGBA,
-                        TextureDataType::FLOAT,
                     )),
             )
         })
@@ -140,11 +128,7 @@ impl StandardMultisamplesHdrShading {
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA32F),
             ))
         })
     }
@@ -152,11 +136,7 @@ impl StandardMultisamplesHdrShading {
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA32F),
             ))
         })
     }
@@ -164,11 +144,7 @@ impl StandardMultisamplesHdrShading {
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(
-                    TextureInternalFormat::RGBA32F,
-                    TextureFormat::RGBA,
-                    TextureDataType::FLOAT,
-                ),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA32F),
             ))
         })
     }

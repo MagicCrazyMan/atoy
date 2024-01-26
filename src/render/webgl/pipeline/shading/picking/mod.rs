@@ -48,14 +48,10 @@ impl StandardPicking {
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_texture_with_clear_policy(
                         TextureInternalFormat::R32UI,
-                        TextureFormat::RED_INTEGER,
-                        TextureDataType::UNSIGNED_INT,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .with_color_attachment1(AttachmentProvider::new_texture_with_clear_policy(
                         TextureInternalFormat::RGBA32UI,
-                        TextureFormat::RGBA_INTEGER,
-                        TextureDataType::UNSIGNED_INT,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .with_depth_attachment(AttachmentProvider::new_renderbuffer(

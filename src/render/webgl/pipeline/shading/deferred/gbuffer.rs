@@ -13,7 +13,7 @@ use crate::render::webgl::{
     },
     renderbuffer::RenderbufferInternalFormat,
     state::FrameState,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+    texture::TextureInternalFormat,
 };
 
 pub struct StandardGBufferCollector {
@@ -37,20 +37,14 @@ impl StandardGBufferCollector {
                     // positions and specular shininess
                     .with_color_attachment0(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
-                        TextureFormat::RGBA,
-                        TextureDataType::FLOAT,
                     ))
                     // normals
                     .with_color_attachment1(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
-                        TextureFormat::RGBA,
-                        TextureDataType::FLOAT,
                     ))
                     // albedo
                     .with_color_attachment2(AttachmentProvider::new_texture(
                         TextureInternalFormat::RGBA32F,
-                        TextureFormat::RGBA,
-                        TextureDataType::FLOAT,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
