@@ -9,7 +9,7 @@ use crate::{
         shader::Define,
         state::FrameState,
         texture::{
-            MemoryPolicy, TextureDataType, TextureDescriptor2D, TextureFormat,
+            MemoryPolicy, Texture2D, TextureDataType, TextureDescriptor, TextureFormat,
             TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
             TextureParameter, TexturePixelStorage, TextureSource, TextureUnit, TextureWrapMethod,
         },
@@ -34,7 +34,7 @@ impl TextureMaterial {
             diffuse_texture: TextureLoader::from_url(url, move |image| {
                 notifier_cloned.notify(&mut ());
                 UniformValue::Texture2D {
-                    descriptor: TextureDescriptor2D::with_source(
+                    descriptor: TextureDescriptor::<Texture2D>::with_source(
                         TextureSource::HtmlImageElement {
                             image,
                             format: TextureFormat::RGBA,

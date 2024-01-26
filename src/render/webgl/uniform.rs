@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use super::{
     buffer::BufferDescriptor,
-    texture::{TextureDescriptor2D, TextureParameter, TextureUnit},
+    texture::{Texture2D, Texture3D, TextureDescriptor, TextureParameter, TextureUnit},
 };
 
 /// Available uniform values.
@@ -46,7 +46,12 @@ pub enum UniformValue {
         transpose: bool,
     },
     Texture2D {
-        descriptor: TextureDescriptor2D,
+        descriptor: TextureDescriptor<Texture2D>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    Texture3D {
+        descriptor: TextureDescriptor<Texture3D>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },

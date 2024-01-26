@@ -629,7 +629,7 @@ pub struct BufferDescriptor(Rc<RefCell<BufferDescriptorInner>>);
 impl BufferDescriptor {
     /// Constructs a new buffer descriptor with specified [`BufferSource`] and [`BufferUsage`].
     pub fn new(source: BufferSource, usage: BufferUsage) -> Self {
-        Self::with_memory_policy(source, usage, MemoryPolicy::Default)
+        Self::with_memory_policy(source, usage, MemoryPolicy::ReadBack)
     }
 
     /// Constructs a new buffer descriptor with specified [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
@@ -748,26 +748,26 @@ impl BufferDescriptor {
 
 /// Memory freeing policies.
 pub enum MemoryPolicy {
-    Default,
-    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
     Unfree,
+    ReadBack,
+    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
 }
 
 impl Default for MemoryPolicy {
     fn default() -> Self {
-        Self::Default
+        Self::ReadBack
     }
 }
 
 impl MemoryPolicy {
-    /// Constructs a default memory policy.
-    pub fn default() -> Self {
-        Self::Default
-    }
-
-    /// Constructs a unfreeable memory policy.
+    /// Constructs a unfree-able memory policy.
     pub fn unfree() -> Self {
         Self::Unfree
+    }
+
+    /// Constructs a read back memory policy.
+    pub fn read_back() -> Self {
+        Self::ReadBack
     }
 
     /// Constructs a restorable memory policy.
@@ -1038,7 +1038,7 @@ impl BufferStore {
                 let runtime = descriptor.runtime.take().unwrap();
                 match &descriptor.memory_policy {
                     MemoryPolicy::Unfree => unreachable!(),
-                    MemoryPolicy::Default => {
+                    MemoryPolicy::ReadBack => {
                         // default, gets buffer data back from WebGlBuffer
                         let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
                         self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));

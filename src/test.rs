@@ -39,9 +39,8 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::{
-    TextureDataType, TextureDescriptor2D, TextureFormat, TextureMagnificationFilter,
-    TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureUnit,
-    TextureWrapMethod,
+    TextureDataType, TextureFormat, TextureMagnificationFilter, TextureMinificationFilter,
+    TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
