@@ -22,7 +22,7 @@ use super::{
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
-    texture::{TextureParameter, TextureStore, TextureTarget, TextureUnit},
+    texture::{TextureParameter, TextureStore, TextureUnit},
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 

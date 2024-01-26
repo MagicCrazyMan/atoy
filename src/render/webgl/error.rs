@@ -23,7 +23,7 @@ pub enum Error {
     NoSuchUniform(String),
     UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
-    TexImageSizeMismatched,
+    TextureSizeMismatched,
     TextureSizeOverflowed {
         max: (usize, usize),
         value: (usize, usize),

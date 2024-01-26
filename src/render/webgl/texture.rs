@@ -463,14 +463,13 @@ pub enum TextureCompressedFormat {
 
 /// Memory freeing policies.
 pub enum MemoryPolicy {
-    Default,
-    Restorable(Rc<RefCell<dyn Fn() -> TextureSource>>),
     Unfree,
+    Restorable(Rc<RefCell<dyn Fn() -> TextureSource>>),
 }
 
 impl Default for MemoryPolicy {
     fn default() -> Self {
-        Self::Default
+        Self::Unfree
     }
 }
 
@@ -1296,10 +1295,10 @@ impl TextureDescriptor2DInner {
         height: usize,
     ) -> Result<(), Error> {
         if self.width(level).map(|w| w != width).unwrap_or(true) {
-            return Err(Error::TexImageSizeMismatched);
+            return Err(Error::TextureSizeMismatched);
         }
         if self.height(level).map(|h| h != height).unwrap_or(true) {
-            return Err(Error::TexImageSizeMismatched);
+            return Err(Error::TextureSizeMismatched);
         }
 
         Ok(())
@@ -1318,14 +1317,14 @@ impl TextureDescriptor2DInner {
             .map(|w| width + x_offset > w)
             .unwrap_or(true)
         {
-            return Err(Error::TexImageSizeMismatched);
+            return Err(Error::TextureSizeMismatched);
         }
         if self
             .height(level)
             .map(|h| height + y_offset > h)
             .unwrap_or(true)
         {
-            return Err(Error::TexImageSizeMismatched);
+            return Err(Error::TextureSizeMismatched);
         }
 
         Ok(())
@@ -1476,6 +1475,19 @@ pub struct TextureStore {
 impl Drop for TextureStore {
     fn drop(&mut self) {
         unsafe {
+            for (_, descriptor) in (*self.descriptors_2d).iter() {
+                let Some(descriptor) = descriptor.upgrade() else {
+                    return;
+                };
+                let mut descriptor = descriptor.borrow_mut();
+                let Some(runtime) = descriptor.runtime.take() else {
+                    return;
+                };
+
+                self.gl.delete_texture(Some(&runtime.texture));
+                // store dropped, no need to update LRU anymore
+            }
+
             drop(Box::from_raw(self.used_memory));
             drop(Box::from_raw(self.descriptors_2d));
             drop(Box::from_raw(self.lru));

@@ -264,10 +264,13 @@ impl BufferSource {
             BufferSource::Preallocate { bytes_length } => {
                 gl.buffer_data_with_i32(target.gl_enum(), *bytes_length as i32, usage.gl_enum())
             }
-            BufferSource::Function { callback: data, .. } => {
-                let source = data();
+            BufferSource::Function { callback, .. } => {
+                let source = callback();
                 if let BufferSource::Function { .. } = source {
                     panic!("recursive BufferSource::Function is not allowed");
+                }
+                if self.bytes_length() != source.bytes_length() {
+                    panic!("source returned from BufferSource::Function should have same bytes length");
                 }
                 source.buffer_data(gl, target, usage);
             }
@@ -320,6 +323,9 @@ impl BufferSource {
                 let source = callback();
                 if let BufferSource::Function { .. } = source {
                     panic!("recursively BufferSource::Function is not allowed");
+                }
+                if self.bytes_length() != source.bytes_length() {
+                    panic!("source returned from BufferSource::Function should have same bytes length");
                 }
                 source.buffer_sub_data(gl, target, dst_byte_offset);
             }
@@ -716,9 +722,10 @@ impl BufferDescriptor {
                             0,
                             &data,
                         );
-                    runtime
-                        .gl
-                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, current_binding.as_ref());
+                    runtime.gl.bind_buffer(
+                        WebGl2RenderingContext::ARRAY_BUFFER,
+                        current_binding.as_ref(),
+                    );
 
                     inner
                         .queue
@@ -794,12 +801,14 @@ impl Drop for BufferStore {
                 let Some(runtime) = descriptor.runtime.take() else {
                     return;
                 };
-                let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
+
                 let current_binding = self
                     .gl
                     .get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
                     .and_then(|v| v.dyn_into::<WebGlBuffer>())
                     .ok();
+
+                let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
                 self.gl
                     .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
                 self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
