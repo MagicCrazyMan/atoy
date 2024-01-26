@@ -3,6 +3,8 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebglDebugShaders, WebglLoseContext};
 
+use super::{error::Error, texture::TextureUnit};
+
 struct Inner {
     gl: WebGl2RenderingContext,
 
@@ -36,7 +38,7 @@ impl Abilities {
 
             max_texture_size: None,
             max_texture_image_units: None,
-            
+
             color_buffer_float: None,
             texture_filter_anisotropic: None,
             draw_buffers_indexed: None,
@@ -122,7 +124,7 @@ impl Abilities {
     }
 }
 
-macro_rules! bool_supported {
+macro_rules! extensions_supported {
     ($(($func:ident, $field:ident, $($extensions:tt),+))+) => {
         impl Abilities {
             $(
@@ -145,7 +147,7 @@ macro_rules! bool_supported {
     };
 }
 
-bool_supported! {
+extensions_supported! {
     (color_buffer_float_supported, color_buffer_float, "EXT_color_buffer_float")
     (texture_filter_anisotropic_supported, texture_filter_anisotropic, "EXT_texture_filter_anisotropic", "MOZ_EXT_texture_filter_anisotropic", "WEBKIT_EXT_texture_filter_anisotropic")
     (draw_buffers_indexed_supported, draw_buffers_indexed, "OES_draw_buffers_indexed")
@@ -159,4 +161,28 @@ bool_supported! {
     (compressed_astc_supported, compressed_astc, "WEBGL_compressed_texture_astc")
     (compressed_bptc_supported, compressed_bptc, "EXT_texture_compression_bptc")
     (compressed_rgtc_supported, compressed_rgtc, "EXT_texture_compression_rgtc")
+}
+
+impl Abilities {
+    pub fn verify_texture_size(&self, width: usize, height: usize) -> Result<(), Error> {
+        let max = self.max_texture_size();
+        if width > max || height > max {
+            return Err(Error::TextureSizeOverflowed {
+                max: (max, max),
+                value: (width, height),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub fn verify_texture_unit(&self, unit: TextureUnit) -> Result<(), Error> {
+        let unit = unit.unit_index() + 1;
+        let max = self.max_texture_image_units();
+        if unit > max {
+            return Err(Error::TextureUnitOverflowed { max, value: unit });
+        }
+
+        Ok(())
+    }
 }

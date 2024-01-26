@@ -1511,34 +1511,12 @@ impl TextureStore {
         self.counter
     }
 
-    fn verify_texture_size(&self, width: usize, height: usize) -> Result<(), Error> {
-        let max = self.abilities.max_texture_size();
-        if width > max || height > max {
-            return Err(Error::TextureSizeOverflowed {
-                max: (max, max),
-                value: (width, height),
-            });
-        }
-
-        Ok(())
-    }
-
-    fn verify_texture_unit(&self, unit: TextureUnit) -> Result<(), Error> {
-        let unit = unit.unit_index() + 1;
-        let max = self.abilities.max_texture_image_units();
-        if unit > max {
-            return Err(Error::TextureUnitOverflowed { max, value: unit });
-        }
-
-        Ok(())
-    }
-
     pub fn use_texture_2d(
         &mut self,
         descriptor: &TextureDescriptor2D,
         unit: TextureUnit,
     ) -> Result<WebGlTexture, Error> {
-        self.verify_texture_unit(unit)?;
+        self.abilities.verify_texture_unit(unit)?;
 
         unsafe {
             let mut inner = descriptor.0.borrow_mut();
@@ -1601,7 +1579,8 @@ impl TextureStore {
                 self.gl
                     .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 for (source, level, x_offset, y_offset) in inner.queue.drain(..) {
-                    self.verify_texture_size(source.width(), source.height())?;
+                    self.abilities
+                        .verify_texture_size(source.width(), source.height())?;
                     source.tex_sub_image(
                         &self.gl,
                         TextureTarget::TEXTURE_2D,
