@@ -17,7 +17,7 @@ use web_sys::{
 
 use crate::lru::{Lru, LruNode};
 
-use super::{conversion::ToGlEnum, error::Error};
+use super::{abilities::Abilities, conversion::ToGlEnum, error::Error};
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -187,7 +187,7 @@ pub enum TextureUnit {
 }
 
 impl TextureUnit {
-    pub fn unit_index(&self) -> i32 {
+    pub fn unit_index(&self) -> usize {
         match self {
             TextureUnit::TEXTURE0 => 0,
             TextureUnit::TEXTURE1 => 1,
@@ -1452,24 +1452,14 @@ impl TextureDescriptor2D {
 }
 
 pub struct TextureStore {
-    gl: WebGl2RenderingContext,
     id: Uuid,
+    gl: WebGl2RenderingContext,
+    abilities: Abilities,
     counter: usize,
     available_memory: usize,
     used_memory: *mut usize,
     descriptors_2d: *mut HashMap<usize, Weak<RefCell<TextureDescriptor2DInner>>>,
     lru: *mut Lru<usize>,
-
-    max_texture_size: *mut Option<u32>,
-    max_texture_image_units: *mut Option<u32>,
-    compressed_s3tc_supported: *mut Option<bool>,
-    compressed_s3tc_srgb_supported: *mut Option<bool>,
-    compressed_etc_supported: *mut Option<bool>,
-    compressed_pvrtc_supported: *mut Option<bool>,
-    compressed_etc1_supported: *mut Option<bool>,
-    compressed_astc_supported: *mut Option<bool>,
-    compressed_bptc_supported: *mut Option<bool>,
-    compressed_rgtc_supported: *mut Option<bool>,
 }
 
 impl Drop for TextureStore {
@@ -1491,41 +1481,21 @@ impl Drop for TextureStore {
             drop(Box::from_raw(self.used_memory));
             drop(Box::from_raw(self.descriptors_2d));
             drop(Box::from_raw(self.lru));
-            drop(Box::from_raw(self.max_texture_size));
-            drop(Box::from_raw(self.max_texture_image_units));
-            drop(Box::from_raw(self.compressed_s3tc_supported));
-            drop(Box::from_raw(self.compressed_s3tc_srgb_supported));
-            drop(Box::from_raw(self.compressed_etc_supported));
-            drop(Box::from_raw(self.compressed_pvrtc_supported));
-            drop(Box::from_raw(self.compressed_etc1_supported));
-            drop(Box::from_raw(self.compressed_astc_supported));
-            drop(Box::from_raw(self.compressed_bptc_supported));
-            drop(Box::from_raw(self.compressed_rgtc_supported));
         }
     }
 }
 
 impl TextureStore {
-    pub fn new(gl: WebGl2RenderingContext) -> Self {
+    pub fn new(gl: WebGl2RenderingContext, abilities: Abilities) -> Self {
         Self {
-            gl,
             id: Uuid::new_v4(),
+            gl,
+            abilities,
             counter: 0,
             available_memory: i32::MAX as usize,
             used_memory: Box::leak(Box::new(0)),
             descriptors_2d: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
-
-            max_texture_size: Box::leak(Box::new(None)),
-            max_texture_image_units: Box::leak(Box::new(None)),
-            compressed_s3tc_supported: Box::leak(Box::new(None)),
-            compressed_s3tc_srgb_supported: Box::leak(Box::new(None)),
-            compressed_etc_supported: Box::leak(Box::new(None)),
-            compressed_pvrtc_supported: Box::leak(Box::new(None)),
-            compressed_etc1_supported: Box::leak(Box::new(None)),
-            compressed_astc_supported: Box::leak(Box::new(None)),
-            compressed_bptc_supported: Box::leak(Box::new(None)),
-            compressed_rgtc_supported: Box::leak(Box::new(None)),
         }
     }
 
@@ -1557,7 +1527,7 @@ impl TextureStore {
     }
 
     fn verify_texture_size(&self, width: usize, height: usize) -> Result<(), Error> {
-        let max = self.max_texture_size() as usize;
+        let max = self.abilities.max_texture_size();
         if width > max || height > max {
             return Err(Error::TextureSizeOverflowed {
                 max: (max, max),
@@ -1569,8 +1539,8 @@ impl TextureStore {
     }
 
     fn verify_texture_unit(&self, unit: TextureUnit) -> Result<(), Error> {
-        let unit = (unit.unit_index() + 1) as u32;
-        let max = self.max_texture_image_units();
+        let unit = unit.unit_index() + 1;
+        let max = self.abilities.max_texture_image_units();
         if unit > max {
             return Err(Error::TextureUnitOverflowed { max, value: unit });
         }
@@ -1667,75 +1637,4 @@ impl TextureStore {
             Ok(texture)
         }
     }
-
-    pub fn max_texture_size(&self) -> u32 {
-        unsafe {
-            if let Some(size) = *self.max_texture_size {
-                return size;
-            }
-
-            let size = self
-                .gl
-                .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE)
-                .ok()
-                .and_then(|v| v.as_f64())
-                .map(|v| v as u32)
-                .unwrap();
-            *self.max_texture_size = Some(size);
-            size
-        }
-    }
-
-    pub fn max_texture_image_units(&self) -> u32 {
-        unsafe {
-            if let Some(size) = *self.max_texture_image_units {
-                return size;
-            }
-
-            let size = self
-                .gl
-                .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_IMAGE_UNITS)
-                .ok()
-                .and_then(|v| v.as_f64())
-                .map(|v| v as u32)
-                .unwrap();
-            *self.max_texture_image_units = Some(size);
-            size
-        }
-    }
-}
-
-macro_rules! compressed_supported {
-    ($(($func:ident, $field:ident, $($extensions:tt),+))+) => {
-        impl TextureStore {
-            $(
-                pub fn $func(&self) -> bool {
-                    unsafe {
-                        if let Some(supported) = *self.$field {
-                            return supported;
-                        }
-
-                        let supported = $(
-                            self.gl.get_extension($extensions)
-                            .map(|extension| extension.is_some())
-                            .unwrap_or(false)
-                        ) || +;
-                        *self.$field = Some(supported);
-                        supported
-                    }
-                }
-            )+
-        }
-    };
-}
-
-compressed_supported! {
-    (compressed_s3tc_supported, compressed_s3tc_supported, "WEBGL_compressed_texture_s3tc", "MOZ_WEBGL_compressed_texture_s3tc", "WEBKIT_WEBGL_compressed_texture_s3tc")
-    (compressed_s3tc_srgb_supported, compressed_s3tc_srgb_supported, "WEBGL_compressed_texture_s3tc_srgb")
-    (compressed_etc_supported, compressed_etc_supported, "WEBGL_compressed_texture_etc")
-    (compressed_pvrtc_supported, compressed_pvrtc_supported, "WEBGL_compressed_texture_pvrtc")
-    (compressed_etc1_supported, compressed_etc1_supported, "WEBGL_compressed_texture_etc1")
-    (compressed_astc_supported, compressed_astc_supported, "WEBGL_compressed_texture_astc")
-    (compressed_bptc_supported, compressed_bptc_supported, "EXT_texture_compression_bptc")
-    (compressed_rgtc_supported, compressed_rgtc_supported, "EXT_texture_compression_rgtc")
 }

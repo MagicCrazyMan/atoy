@@ -12,18 +12,10 @@ use web_sys::{
 use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial};
 
 use super::{
-    attribute::{AttributeBinding, AttributeValue},
-    buffer::{BufferDescriptor, BufferStore, BufferTarget},
-    conversion::ToGlEnum,
-    draw::Draw,
-    error::Error,
-    framebuffer::{
+    attribute::{AttributeBinding, AttributeValue}, buffer::{BufferDescriptor, BufferStore, BufferTarget}, conversion::ToGlEnum, draw::Draw, error::Error, abilities::Abilities, framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
-    },
-    program::{Program, ProgramStore},
-    texture::{TextureParameter, TextureStore, TextureUnit},
-    uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+    }, program::{Program, ProgramStore}, texture::{TextureParameter, TextureStore, TextureUnit}, uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue}
 };
 
 pub struct BoundAttribute {
@@ -40,6 +32,7 @@ pub struct FrameState {
     program_store: NonNull<ProgramStore>,
     buffer_store: NonNull<BufferStore>,
     texture_store: NonNull<TextureStore>,
+    abilities: NonNull<Abilities>,
 }
 
 impl FrameState {
@@ -52,6 +45,7 @@ impl FrameState {
         program_store: &mut ProgramStore,
         buffer_store: &mut BufferStore,
         texture_store: &mut TextureStore,
+        abilities: &mut Abilities,
     ) -> Self {
         unsafe {
             Self {
@@ -62,6 +56,7 @@ impl FrameState {
                 program_store: NonNull::new_unchecked(program_store),
                 buffer_store: NonNull::new_unchecked(buffer_store),
                 texture_store: NonNull::new_unchecked(texture_store),
+                abilities: NonNull::new_unchecked(abilities),
             }
         }
     }
@@ -118,6 +113,12 @@ impl FrameState {
     #[inline]
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
         unsafe { self.texture_store.as_mut() }
+    }
+
+    /// Returns the [`Abilities`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    #[inline]
+    pub fn abilities(&self) -> &Abilities {
+        unsafe { self.abilities.as_ref() }
     }
 
     /// Binds attribute values from a entity, geometry and material.
@@ -495,7 +496,7 @@ impl FrameState {
                 let texture = self.texture_store_mut().use_texture_2d(&descriptor, unit)?;
                 let texture = texture.clone();
 
-                self.gl.uniform1i(Some(location), unit.unit_index());
+                self.gl.uniform1i(Some(location), unit.unit_index() as i32);
                 self.gl
                     .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 params.iter().for_each(|param| match param {

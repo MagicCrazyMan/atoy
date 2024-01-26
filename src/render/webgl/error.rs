@@ -29,8 +29,8 @@ pub enum Error {
         value: (usize, usize),
     },
     TextureUnitOverflowed {
-        max: u32,
-        value: u32,
+        max: usize,
+        value: usize,
     },
     FramebufferUninitialized,
     FramebufferUnbound,

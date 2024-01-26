@@ -389,7 +389,8 @@ impl Viewer {
                 self.standard_pipeline_mut().set_pipeline_shading(shading);
             } else {
                 warn!("deferred shading if not supported, fallback to forward shading");
-                self.standard_pipeline_mut().set_pipeline_shading(StandardPipelineShading::ForwardShading);
+                self.standard_pipeline_mut()
+                    .set_pipeline_shading(StandardPipelineShading::ForwardShading);
             }
         } else {
             self.standard_pipeline_mut().set_pipeline_shading(shading);
@@ -433,8 +434,7 @@ impl Viewer {
     }
 
     pub fn hdr_supported(&self) -> bool {
-        self.standard_pipeline()
-            .color_buffer_float_supported(self.render().gl())
+        self.render().abilities().color_buffer_float_supported()
     }
 
     pub fn hdr_enabled(&self) -> bool {

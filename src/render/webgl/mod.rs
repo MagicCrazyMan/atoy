@@ -6,12 +6,13 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{camera::Camera, notify::Notifier, scene::Scene};
 
 use self::{
-    buffer::BufferStore, error::Error, program::ProgramStore, state::FrameState,
-    texture::TextureStore,
+    abilities::Abilities, buffer::BufferStore, error::Error, program::ProgramStore,
+    state::FrameState, texture::TextureStore,
 };
 
 use super::{Pipeline, Render};
 
+pub mod abilities;
 pub mod attribute;
 pub mod buffer;
 pub mod client_wait;
@@ -86,6 +87,7 @@ pub struct WebGL2Render {
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
+    abilities: Abilities,
 
     pre_render_notifier: Notifier<RenderEvent>,
     post_render_notifier: Notifier<RenderEvent>,
@@ -113,11 +115,13 @@ impl WebGL2Render {
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
             .ok_or(Error::WebGL2Unsupported)?;
+        let abilities = Abilities::new(gl.clone());
 
         Ok(Self {
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
-            texture_store: TextureStore::new(gl.clone()),
+            texture_store: TextureStore::new(gl.clone(), abilities.clone()),
+            abilities,
             gl,
             canvas,
 
@@ -134,6 +138,48 @@ impl WebGL2Render {
     /// Returns [`WebGl2RenderingContext`].
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
+    }
+
+    /// Returns the [`ProgramStore`].
+    #[inline]
+    pub fn program_store(&self) -> &ProgramStore {
+        &self.program_store
+    }
+
+    /// Returns the mutable [`ProgramStore`].
+    #[inline]
+    pub fn program_store_mut(&mut self) -> &mut ProgramStore {
+        &mut self.program_store
+    }
+
+    /// Returns the [`BufferStore`].
+    #[inline]
+    pub fn buffer_store(&self) -> &BufferStore {
+        &self.buffer_store
+    }
+
+    /// Returns the mutable [`BufferStore`].
+    #[inline]
+    pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
+        &mut self.buffer_store
+    }
+
+    /// Returns the [`TextureStore`].
+    #[inline]
+    pub fn texture_store(&self) -> &TextureStore {
+        &self.texture_store
+    }
+
+    /// Returns the mutable [`TextureStore`].
+    #[inline]
+    pub fn texture_store_mut(&mut self) -> &mut TextureStore {
+        &mut self.texture_store
+    }
+
+    /// Returns the [`Abilities`].
+    #[inline]
+    pub fn abilities(&self) -> &Abilities {
+        &self.abilities
     }
 
     pub fn pre_render(&mut self) -> &mut Notifier<RenderEvent> {
@@ -165,11 +211,14 @@ impl Render for WebGL2Render {
             &mut self.program_store,
             &mut self.buffer_store,
             &mut self.texture_store,
+            &mut self.abilities,
         );
 
-        self.pre_render_notifier.notify(&mut RenderEvent::new(&mut state));
+        self.pre_render_notifier
+            .notify(&mut RenderEvent::new(&mut state));
         pipeline.execute(&mut state, scene)?;
-        self.post_render_notifier.notify(&mut RenderEvent::new(&mut state));
+        self.post_render_notifier
+            .notify(&mut RenderEvent::new(&mut state));
 
         Ok(())
     }

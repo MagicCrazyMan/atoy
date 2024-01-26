@@ -7,7 +7,6 @@ pub mod shading;
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use web_sys::WebGl2RenderingContext;
 
 use crate::{
     entity::Entity,
@@ -258,22 +257,12 @@ pub struct StandardPipeline {
     lights_ubo: BufferDescriptor,
     gaussian_kernel_ubo: BufferDescriptor,
 
-    color_buffer_float_supported: *mut Option<bool>,
-
     enable_lighting: bool,
     multisamples: Option<i32>,
     enable_hdr: bool,
     hdr_tone_mapping_type: HdrToneMappingType,
     enable_bloom: bool,
     bloom_blur_epoch: usize,
-}
-
-impl Drop for StandardPipeline {
-    fn drop(&mut self) {
-        unsafe {
-            drop(Box::from_raw(self.color_buffer_float_supported));
-        }
-    }
 }
 
 impl StandardPipeline {
@@ -316,8 +305,6 @@ impl StandardPipeline {
                     )
                 }),
             ),
-
-            color_buffer_float_supported: Box::leak(Box::new(None)),
 
             enable_lighting: DEFAULT_LIGHTING_ENABLED,
             multisamples: Some(DEFAULT_MULTISAMPLES),
@@ -436,21 +423,6 @@ impl StandardPipeline {
     pub fn disable_lighting(&mut self) {
         self.enable_lighting = false;
         self.set_dirty();
-    }
-
-    pub fn color_buffer_float_supported(&self, gl: &WebGl2RenderingContext) -> bool {
-        unsafe {
-            if let Some(color_buffer_float_supported) = *self.color_buffer_float_supported {
-                return color_buffer_float_supported;
-            }
-
-            let supported = gl
-                .get_extension("EXT_color_buffer_float")
-                .map(|extension| extension.is_some())
-                .unwrap_or(false);
-            *self.color_buffer_float_supported = Some(supported);
-            supported
-        }
     }
 
     #[inline]
@@ -598,7 +570,7 @@ impl StandardPipeline {
         } else {
             None
         };
-        let hdr_supported = self.color_buffer_float_supported(state.gl());
+        let hdr_supported = state.abilities().color_buffer_float_supported();
         let hdr = hdr_supported && self.hdr_enabled();
         let bloom = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
@@ -746,7 +718,7 @@ impl Pipeline for StandardPipeline {
                             self.forward_shading(state, scene)
                         }
                         StandardPipelineShading::DeferredShading => {
-                            if self.color_buffer_float_supported(state.gl()) {
+                            if state.abilities().color_buffer_float_supported() {
                                 self.deferred_shading(state, scene)
                             } else {
                                 // fallback to forward shading if color buffer float not supported
