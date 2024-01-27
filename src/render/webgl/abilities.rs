@@ -9,6 +9,7 @@ struct Inner {
     gl: WebGl2RenderingContext,
 
     max_texture_size: Option<usize>,
+    max_cube_map_texture_size: Option<usize>,
     max_texture_image_units: Option<usize>,
 
     color_buffer_float: Option<bool>,
@@ -37,6 +38,7 @@ impl Abilities {
             gl,
 
             max_texture_size: None,
+            max_cube_map_texture_size: None,
             max_texture_image_units: None,
 
             color_buffer_float: None,
@@ -88,40 +90,38 @@ impl Abilities {
         inner.lose_context = Some(supported.clone());
         supported
     }
+}
 
-    pub fn max_texture_size(&self) -> usize {
-        let mut inner = self.0.borrow_mut();
-        if let Some(size) = inner.max_texture_size {
-            return size;
+macro_rules! usize_parameters {
+    ($(($func:ident, $field:ident, $pname:expr))+) => {
+        impl Abilities {
+            $(
+                pub fn $func(&self) -> usize {
+                    let mut inner = self.0.borrow_mut();
+                    if let Some(size) = inner.$field {
+                        return size;
+                    }
+
+                    let size = inner
+                        .gl
+                        .get_parameter($pname)
+                        .ok()
+                        .and_then(|v| v.as_f64())
+                        .map(|v| v as usize)
+                        .unwrap();
+                    inner.$field = Some(size);
+                    size
+                }
+            )+
         }
+    };
+}
 
-        let size = inner
-            .gl
-            .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_SIZE)
-            .ok()
-            .and_then(|v| v.as_f64())
-            .map(|v| v as usize)
-            .unwrap();
-        inner.max_texture_size = Some(size);
-        size
-    }
+usize_parameters! {
+    (max_texture_size, max_texture_size, WebGl2RenderingContext::MAX_TEXTURE_SIZE)
+    (max_texture_image_units, max_texture_image_units, WebGl2RenderingContext::MAX_TEXTURE_IMAGE_UNITS)
+    (max_cube_map_texture_size, max_cube_map_texture_size, WebGl2RenderingContext::MAX_CUBE_MAP_TEXTURE_SIZE)
 
-    pub fn max_texture_image_units(&self) -> usize {
-        let mut inner = self.0.borrow_mut();
-        if let Some(size) = inner.max_texture_image_units {
-            return size;
-        }
-
-        let size = inner
-            .gl
-            .get_parameter(WebGl2RenderingContext::MAX_TEXTURE_IMAGE_UNITS)
-            .ok()
-            .and_then(|v| v.as_f64())
-            .map(|v| v as usize)
-            .unwrap();
-        inner.max_texture_image_units = Some(size);
-        size
-    }
 }
 
 macro_rules! extensions_supported {

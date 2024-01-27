@@ -24,6 +24,8 @@ pub enum Error {
     UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
     TextureSizeMismatched,
+    TextureCubeMapWidthAndHeightNotEqual,
+    TextureCubeMapFacesSizeNotEqual,
     TextureSizeOverflowed {
         max: (usize, usize),
         value: (usize, usize),
