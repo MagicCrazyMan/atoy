@@ -978,9 +978,12 @@ impl BufferStore {
 
             runtime.binding = true;
             (*self.lru).cache(runtime.lru_node);
+            let buffer = runtime.buffer.clone();
+
+            drop(inner);
             self.free(target);
 
-            Ok(runtime.buffer.clone())
+            Ok(buffer)
         }
     }
 
