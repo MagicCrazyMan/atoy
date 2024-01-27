@@ -512,14 +512,20 @@ impl FrameState {
                         descriptor,
                         unit,
                         params,
-                    }
-                    | UniformValue::Texture2DArray {
+                    } => (
+                        WebGl2RenderingContext::TEXTURE_3D,
+                        self.texture_store_mut().use_texture_3d(&descriptor, unit)?,
+                        unit,
+                        params,
+                    ),
+                    UniformValue::Texture2DArray {
                         descriptor,
                         params,
                         unit,
                     } => (
-                        WebGl2RenderingContext::TEXTURE_3D,
-                        self.texture_store_mut().use_texture_3d(&descriptor, unit)?,
+                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+                        self.texture_store_mut()
+                            .use_texture_2d_array(&descriptor, unit)?,
                         unit,
                         params,
                     ),

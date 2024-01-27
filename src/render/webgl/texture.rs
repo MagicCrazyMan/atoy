@@ -7,6 +7,7 @@ use std::{
 
 use hashbrown::HashMap;
 use log::debug;
+use serde::de;
 use uuid::Uuid;
 use web_sys::{
     js_sys::{Float32Array, Uint16Array, Uint32Array, Uint8Array},
@@ -26,6 +27,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureTarget {
     TEXTURE_2D,
+    TEXTURE_CUBE_MAP,
     TEXTURE_CUBE_MAP_POSITIVE_X,
     TEXTURE_CUBE_MAP_POSITIVE_Y,
     TEXTURE_CUBE_MAP_POSITIVE_Z,
@@ -123,9 +125,127 @@ pub enum TextureInternalFormat {
 }
 
 impl TextureInternalFormat {
-    /// Estimates texture memory usage in bytes in WebGL runtime by texture size and whether mipmap enabled.
-    pub fn estimate_memory_size(&self, width: usize, height: usize, mipmap: bool) -> usize {
-        todo!()
+    pub fn texel_channels(&self) -> usize {
+        match self {
+            TextureInternalFormat::RGBA32I => 4,
+            TextureInternalFormat::RGBA32UI => 4,
+            TextureInternalFormat::RGBA16I => 4,
+            TextureInternalFormat::RGBA16UI => 4,
+            TextureInternalFormat::RGBA8 => 4,
+            TextureInternalFormat::RGBA8I => 4,
+            TextureInternalFormat::RGBA8UI => 4,
+            TextureInternalFormat::SRGB8_ALPHA8 => 4,
+            TextureInternalFormat::RGB10_A2 => 4,
+            TextureInternalFormat::RGB10_A2UI => 4,
+            TextureInternalFormat::RGBA4 => 4,
+            TextureInternalFormat::RGB5_A1 => 3,
+            TextureInternalFormat::RGB8 => 3,
+            TextureInternalFormat::RGB565 => 3,
+            TextureInternalFormat::RG32I => 2,
+            TextureInternalFormat::RG32UI => 2,
+            TextureInternalFormat::RG16I => 2,
+            TextureInternalFormat::RG16UI => 2,
+            TextureInternalFormat::RG8 => 2,
+            TextureInternalFormat::RG8I => 2,
+            TextureInternalFormat::RG8UI => 2,
+            TextureInternalFormat::R32I => 1,
+            TextureInternalFormat::R32UI => 1,
+            TextureInternalFormat::R16I => 1,
+            TextureInternalFormat::R16UI => 1,
+            TextureInternalFormat::R8 => 1,
+            TextureInternalFormat::R8I => 1,
+            TextureInternalFormat::R8UI => 1,
+            TextureInternalFormat::RGBA32F => 4,
+            TextureInternalFormat::RGBA16F => 4,
+            TextureInternalFormat::RGBA8_SNORM => 4,
+            TextureInternalFormat::RGB32F => 3,
+            TextureInternalFormat::RGB32I => 3,
+            TextureInternalFormat::RGB32UI => 3,
+            TextureInternalFormat::RGB16F => 3,
+            TextureInternalFormat::RGB16I => 3,
+            TextureInternalFormat::RGB16UI => 3,
+            TextureInternalFormat::RGB8_SNORM => 3,
+            TextureInternalFormat::RGB8I => 3,
+            TextureInternalFormat::RGB8UI => 3,
+            TextureInternalFormat::SRGB8 => 3,
+            TextureInternalFormat::R11F_G11F_B10F => 3,
+            TextureInternalFormat::RGB9_E5 => 3,
+            TextureInternalFormat::RG32F => 2,
+            TextureInternalFormat::RG16F => 2,
+            TextureInternalFormat::RG8_SNORM => 2,
+            TextureInternalFormat::R32F => 1,
+            TextureInternalFormat::R16F => 1,
+            TextureInternalFormat::R8_SNORM => 1,
+            TextureInternalFormat::DEPTH_COMPONENT32F => 1,
+            TextureInternalFormat::DEPTH_COMPONENT24 => 1,
+            TextureInternalFormat::DEPTH_COMPONENT16 => 1,
+            TextureInternalFormat::DEPTH32F_STENCIL8 => 1,
+            TextureInternalFormat::DEPTH24_STENCIL8 => 1,
+        }
+    }
+
+    pub fn texel_bits(&self) -> usize {
+        match self {
+            TextureInternalFormat::RGBA32I => 128,
+            TextureInternalFormat::RGBA32UI => 128,
+            TextureInternalFormat::RGBA16I => 64,
+            TextureInternalFormat::RGBA16UI => 64,
+            TextureInternalFormat::RGBA8 => 32,
+            TextureInternalFormat::RGBA8I => 32,
+            TextureInternalFormat::RGBA8UI => 32,
+            TextureInternalFormat::SRGB8_ALPHA8 => 32,
+            TextureInternalFormat::RGB10_A2 => 32, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGB10_A2UI => 32, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGBA4 => 16,
+            TextureInternalFormat::RGB5_A1 => 16, // 5 + 5 + 5 + 1 in bits
+            TextureInternalFormat::RGB8 => 24,
+            TextureInternalFormat::RGB565 => 16, // 5 + 6 + 5 in bits
+            TextureInternalFormat::RG32I => 64,
+            TextureInternalFormat::RG32UI => 64,
+            TextureInternalFormat::RG16I => 32,
+            TextureInternalFormat::RG16UI => 32,
+            TextureInternalFormat::RG8 => 16,
+            TextureInternalFormat::RG8I => 16,
+            TextureInternalFormat::RG8UI => 16,
+            TextureInternalFormat::R32I => 32,
+            TextureInternalFormat::R32UI => 32,
+            TextureInternalFormat::R16I => 16,
+            TextureInternalFormat::R16UI => 16,
+            TextureInternalFormat::R8 => 8,
+            TextureInternalFormat::R8I => 8,
+            TextureInternalFormat::R8UI => 8,
+            TextureInternalFormat::RGBA32F => 128,
+            TextureInternalFormat::RGBA16F => 64,
+            TextureInternalFormat::RGBA8_SNORM => 32,
+            TextureInternalFormat::RGB32F => 96,
+            TextureInternalFormat::RGB32I => 96,
+            TextureInternalFormat::RGB32UI => 96,
+            TextureInternalFormat::RGB16F => 48,
+            TextureInternalFormat::RGB16I => 48,
+            TextureInternalFormat::RGB16UI => 48,
+            TextureInternalFormat::RGB8_SNORM => 24,
+            TextureInternalFormat::RGB8I => 24,
+            TextureInternalFormat::RGB8UI => 24,
+            TextureInternalFormat::SRGB8 => 24,
+            TextureInternalFormat::R11F_G11F_B10F => 32, // 11 + 11 + 10 in bits
+            TextureInternalFormat::RGB9_E5 => 32,        // 9 + 9 + 9 + 5 in bits
+            TextureInternalFormat::RG32F => 64,
+            TextureInternalFormat::RG16F => 32,
+            TextureInternalFormat::RG8_SNORM => 16,
+            TextureInternalFormat::R32F => 32,
+            TextureInternalFormat::R16F => 16,
+            TextureInternalFormat::R8_SNORM => 8,
+            TextureInternalFormat::DEPTH_COMPONENT32F => 32,
+            TextureInternalFormat::DEPTH_COMPONENT24 => 24,
+            TextureInternalFormat::DEPTH_COMPONENT16 => 16,
+            TextureInternalFormat::DEPTH32F_STENCIL8 => 40, // 32 + 8 in bits
+            TextureInternalFormat::DEPTH24_STENCIL8 => 32,  // 24 + 8 in bits
+        }
+    }
+
+    /// Returns the number of bytes per texel consumed.
+    pub fn texel_bytes(&self) -> usize {
+        self.texel_bits() / 8
     }
 }
 
@@ -1544,16 +1664,17 @@ impl TextureSource {
     }
 }
 
-struct Runtime<Layout> {
+struct Runtime<T> {
     id: Uuid,
     gl: WebGl2RenderingContext,
     store_id: Uuid,
     texture: WebGlTexture,
+    memory: usize,
     lru_node: *mut LruNode<Uuid>,
     using: bool,
 
     used_memory: *mut usize,
-    descriptors: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Layout>>>>,
+    descriptors: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<T>>>>,
     lru: *mut Lru<Uuid>,
 }
 
@@ -1562,20 +1683,17 @@ impl<T> Drop for Runtime<T> {
         unsafe {
             (*self.descriptors).remove(&self.id);
             (*self.lru).remove(self.lru_node);
+            (*self.used_memory) -= self.memory;
             self.gl.delete_texture(Some(&self.texture));
         }
     }
 }
-
-trait TextureLayout {}
 
 pub struct Texture2D {
     width: usize,
     height: usize,
     queue: Vec<(TextureSource, usize, usize, usize)>,
 }
-
-impl TextureLayout for Texture2D {}
 
 pub struct Texture3D {
     width: usize,
@@ -1584,9 +1702,12 @@ pub struct Texture3D {
     queue: Vec<(TextureSource, usize, usize, usize, usize, usize)>,
 }
 
-impl TextureLayout for Texture3D {}
-
-pub type Texture2DArray = Texture3D;
+pub struct Texture2DArray {
+    width: usize,
+    height: usize,
+    array_length: usize,
+    queue: Vec<(TextureSource, usize, usize, usize, usize, usize)>,
+}
 
 pub struct TextureCubeMap {
     width: usize,
@@ -1599,20 +1720,22 @@ pub struct TextureCubeMap {
     negative_z: Vec<(TextureSource, usize, usize, usize)>,
 }
 
-impl TextureLayout for TextureCubeMap {}
-
-struct TextureDescriptorInner<Layout> {
+struct TextureDescriptorInner<T> {
     name: Option<Cow<'static, str>>,
-    layout: Layout,
+    layout: T,
     internal_format: TextureInternalFormat,
     generate_mipmap: bool,
     memory_policy: MemoryPolicy,
 
-    runtime: Option<Box<Runtime<Layout>>>,
+    runtime: Option<Box<Runtime<T>>>,
 }
 
 impl TextureDescriptorInner<Texture2D> {
     fn max_mipmap_level(&self) -> usize {
+        if !self.generate_mipmap {
+            return 0;
+        }
+
         (self.layout.width as f64)
             .max(self.layout.height as f64)
             .log2()
@@ -1635,6 +1758,30 @@ impl TextureDescriptorInner<Texture2D> {
         }
 
         Some((self.layout.height >> level).max(1))
+    }
+
+    fn used_memory(&self) -> usize {
+        // estimates used memory of all levels
+        let mut used_memory = 0;
+        let texel_bytes = self.internal_format.texel_bytes();
+        for level in 0..=self.max_mipmap_level() {
+            let width = self.width_of_level(level).unwrap();
+            let height = self.height_of_level(level).unwrap();
+            used_memory += width * height * texel_bytes;
+        }
+        used_memory
+    }
+
+    fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+        let texel_bytes = self.internal_format.texel_bytes();
+
+        Some(width * height * texel_bytes)
     }
 
     fn verify_size_tex_image(
@@ -1690,6 +1837,10 @@ impl TextureDescriptorInner<Texture2D> {
 
 impl TextureDescriptorInner<Texture3D> {
     fn max_mipmap_level(&self) -> usize {
+        if !self.generate_mipmap {
+            return 0;
+        }
+
         (self.layout.width as f64)
             .max(self.layout.height as f64)
             .log2()
@@ -1721,6 +1872,34 @@ impl TextureDescriptorInner<Texture3D> {
         }
 
         Some((self.layout.depth >> level).max(1))
+    }
+
+    fn used_memory(&self) -> usize {
+        // estimates used memory of all levels
+        let mut used_memory = 0;
+        let texel_bytes = self.internal_format.texel_bytes();
+        for level in 0..=self.max_mipmap_level() {
+            let width = self.width_of_level(level).unwrap();
+            let height = self.height_of_level(level).unwrap();
+            let depth = self.depth_of_level(level).unwrap();
+            used_memory += width * height * depth * texel_bytes;
+        }
+        used_memory
+    }
+
+    fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+        let Some(depth) = self.depth_of_level(level) else {
+            return None;
+        };
+        let texel_bytes = self.internal_format.texel_bytes();
+
+        Some(width * height * depth * texel_bytes)
     }
 
     fn verify_size_tex_image(
@@ -1791,8 +1970,12 @@ impl TextureDescriptorInner<Texture3D> {
     }
 }
 
-impl TextureDescriptorInner<TextureCubeMap> {
+impl TextureDescriptorInner<Texture2DArray> {
     fn max_mipmap_level(&self) -> usize {
+        if !self.generate_mipmap {
+            return 0;
+        }
+
         (self.layout.width as f64)
             .max(self.layout.height as f64)
             .log2()
@@ -1815,6 +1998,144 @@ impl TextureDescriptorInner<TextureCubeMap> {
         }
 
         Some((self.layout.height >> level).max(1))
+    }
+
+    fn used_memory(&self) -> usize {
+        // estimates used memory of all levels
+        let mut used_memory = 0;
+        let array_length = self.layout.array_length;
+        let texel_bytes = self.internal_format.texel_bytes();
+        for level in 0..=self.max_mipmap_level() {
+            let width = self.width_of_level(level).unwrap();
+            let height = self.height_of_level(level).unwrap();
+            used_memory += width * height * texel_bytes * array_length;
+        }
+        used_memory
+    }
+
+    fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+
+        Some(width * height * self.internal_format.texel_bytes() * self.layout.array_length)
+    }
+
+    fn verify_size_tex_image(
+        &self,
+        level: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        if self
+            .width_of_level(level)
+            .map(|w| w != width)
+            .unwrap_or(true)
+        {
+            return Err(Error::TextureSizeMismatched);
+        }
+        if self
+            .height_of_level(level)
+            .map(|h| h != height)
+            .unwrap_or(true)
+        {
+            return Err(Error::TextureSizeMismatched);
+        }
+        if depth > self.layout.array_length {
+            return Err(Error::TextureSizeMismatched);
+        }
+
+        Ok(())
+    }
+
+    fn verify_size_tex_sub_image(
+        &self,
+        level: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        if self
+            .width_of_level(level)
+            .map(|w| width + x_offset > w)
+            .unwrap_or(true)
+        {
+            return Err(Error::TextureSizeMismatched);
+        }
+        if self
+            .height_of_level(level)
+            .map(|h| height + y_offset > h)
+            .unwrap_or(true)
+        {
+            return Err(Error::TextureSizeMismatched);
+        }
+        if depth > self.layout.array_length {
+            return Err(Error::TextureSizeMismatched);
+        }
+
+        Ok(())
+    }
+}
+
+impl TextureDescriptorInner<TextureCubeMap> {
+    fn max_mipmap_level(&self) -> usize {
+        if !self.generate_mipmap {
+            return 0;
+        }
+
+        (self.layout.width as f64)
+            .max(self.layout.height as f64)
+            .log2()
+            .floor() as usize
+    }
+
+    fn width_of_level(&self, level: usize) -> Option<usize> {
+        let max_level = self.max_mipmap_level();
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.layout.width >> level).max(1))
+    }
+
+    fn height_of_level(&self, level: usize) -> Option<usize> {
+        let max_level = self.max_mipmap_level();
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.layout.height >> level).max(1))
+    }
+
+    fn used_memory(&self) -> usize {
+        // estimates used memory of all levels
+        let mut used_memory = 0;
+        let texel_bytes = self.internal_format.texel_bytes();
+        for level in 0..=self.max_mipmap_level() {
+            let width = self.width_of_level(level).unwrap();
+            let height = self.height_of_level(level).unwrap();
+            used_memory += width * height * texel_bytes;
+        }
+        used_memory
+    }
+
+    fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+        let texel_bytes = self.internal_format.texel_bytes();
+
+        Some(width * height * texel_bytes * 6)
     }
 
     fn verify_size_tex_image(
@@ -1874,7 +2195,7 @@ impl TextureDescriptorInner<TextureCubeMap> {
     }
 }
 
-pub struct TextureDescriptor<Layout>(Rc<RefCell<TextureDescriptorInner<Layout>>>);
+pub struct TextureDescriptor<T>(Rc<RefCell<TextureDescriptorInner<T>>>);
 
 impl<T> Clone for TextureDescriptor<T> {
     fn clone(&self) -> Self {
@@ -1973,6 +2294,14 @@ impl TextureDescriptor<Texture2D> {
 
     pub fn height_of_level(&self, level: usize) -> Option<usize> {
         self.0.borrow().height_of_level(level)
+    }
+
+    pub fn used_memory(&self) -> usize {
+        self.0.borrow().used_memory()
+    }
+
+    pub fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().used_memory_of_level(level)
     }
 
     pub fn tex_image(&mut self, source: TextureSource, level: usize) -> Result<(), Error> {
@@ -2078,6 +2407,14 @@ impl TextureDescriptor<Texture3D> {
         self.0.borrow().depth_of_level(level)
     }
 
+    pub fn used_memory(&self) -> usize {
+        self.0.borrow().used_memory()
+    }
+
+    pub fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().used_memory_of_level(level)
+    }
+
     pub fn tex_image(
         &mut self,
         source: TextureSource,
@@ -2112,6 +2449,139 @@ impl TextureDescriptor<Texture3D> {
             .layout
             .queue
             .push((source, level, depth, x_offset, y_offset, z_offset));
+        Ok(())
+    }
+}
+
+impl TextureDescriptor<Texture2DArray> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        array_length: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2DArray {
+                width,
+                height,
+                array_length,
+                queue: Vec::new(),
+            },
+            internal_format,
+            generate_mipmap,
+            memory_policy,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_source(
+        source: TextureSource,
+        source_array_index: usize,
+        array_length: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2DArray {
+                width: source.width(),
+                height: source.height(),
+                array_length,
+                queue: vec![(source, 0, source_array_index, 0, 0, 0)],
+            },
+            internal_format,
+            generate_mipmap,
+            memory_policy,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn width(&self) -> usize {
+        self.0.borrow().layout.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.0.borrow().layout.height
+    }
+
+    pub fn array_length(&self) -> usize {
+        self.0.borrow().layout.array_length
+    }
+
+    pub fn max_mipmap_level(&self) -> usize {
+        self.0.borrow().max_mipmap_level()
+    }
+
+    pub fn width_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().width_of_level(level)
+    }
+
+    pub fn height_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().height_of_level(level)
+    }
+
+    pub fn used_memory(&self) -> usize {
+        self.0.borrow().used_memory()
+    }
+
+    pub fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().used_memory_of_level(level)
+    }
+
+    pub fn tex_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        array_index: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_size_tex_image(level, width, height, array_index)?;
+
+        inner
+            .layout
+            .queue
+            .push((source, level, array_index, 0, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        array_index: usize,
+        x_offset: usize,
+        y_offset: usize,
+        array_index_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_size_tex_sub_image(
+            level,
+            width,
+            height,
+            array_index,
+            x_offset,
+            y_offset,
+            array_index_offset,
+        )?;
+
+        inner.layout.queue.push((
+            source,
+            level,
+            array_index,
+            x_offset,
+            y_offset,
+            array_index_offset,
+        ));
         Ok(())
     }
 }
@@ -2218,6 +2688,14 @@ impl TextureDescriptor<TextureCubeMap> {
     pub fn height_of_level(&self, level: usize) -> Option<usize> {
         self.0.borrow().height_of_level(level)
     }
+
+    pub fn used_memory(&self) -> usize {
+        self.0.borrow().used_memory()
+    }
+
+    pub fn used_memory_of_level(&self, level: usize) -> Option<usize> {
+        self.0.borrow().used_memory_of_level(level)
+    }
 }
 
 macro_rules! tex_cube_map {
@@ -2274,21 +2752,31 @@ pub struct TextureStore {
     abilities: Abilities,
     available_memory: usize,
     used_memory: *mut usize,
+    lru: *mut Lru<Uuid>,
     descriptors_2d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2D>>>>,
+    descriptors_2d_array: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DArray>>>>,
     descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
     descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
-    lru: *mut Lru<Uuid>,
 }
 
 impl TextureStore {
     pub fn new(gl: WebGl2RenderingContext, abilities: Abilities) -> Self {
+        Self::with_available_memory(gl, abilities, i32::MAX as usize)
+    }
+
+    pub fn with_available_memory(
+        gl: WebGl2RenderingContext,
+        abilities: Abilities,
+        available_memory: usize,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             gl,
             abilities,
-            available_memory: i32::MAX as usize,
+            available_memory,
             used_memory: Box::leak(Box::new(0)),
             descriptors_2d: Box::leak(Box::new(HashMap::new())),
+            descriptors_2d_array: Box::leak(Box::new(HashMap::new())),
             descriptors_3d: Box::leak(Box::new(HashMap::new())),
             descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
@@ -2354,13 +2842,16 @@ macro_rules! store_use_textures {
 
                                 let id = Uuid::new_v4();
                                 let lru_node = LruNode::new(id);
+                                let memory = inner.used_memory();
                                 (*self.$descriptors).insert(id, Rc::downgrade(&descriptor.0));
                                 (*self.lru).cache(lru_node);
+                                (*self.used_memory) += memory;
                                 inner.runtime = Some(Box::new(Runtime {
                                     id,
                                     gl: self.gl.clone(),
                                     store_id: self.id,
                                     texture: texture.clone(),
+                                    memory,
                                     lru_node,
                                     using: true,
 
@@ -2388,7 +2879,7 @@ macro_rules! store_use_textures {
                                 )?;
                             }
                         )+
-                        
+
                         if is_new && inner.generate_mipmap {
                             self.gl.generate_mipmap($target);
                         }
@@ -2439,11 +2930,11 @@ store_use_textures! {
     (
         Texture2DArray,
         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-        descriptors_3d,
+        descriptors_2d_array,
         tex_sub_image_3d,
-            (queue, TextureTarget::TEXTURE_2D_ARRAY, level, depth, x_offset, y_offset, z_offset),
+            (queue, TextureTarget::TEXTURE_2D_ARRAY, level, array_index, x_offset, y_offset, array_index_offset),
         tex_storage_3d,
-            (width, height, depth),
+            (width, height, array_length),
         use_texture_2d_array,
         unuse_texture_2d_array
     )
@@ -2496,6 +2987,7 @@ macro_rules! store_drop {
 
 store_drop!(
     descriptors_2d
+    descriptors_2d_array
     descriptors_3d
     descriptors_cube_map
 );
