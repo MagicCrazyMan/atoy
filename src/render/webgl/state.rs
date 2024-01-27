@@ -496,7 +496,8 @@ impl FrameState {
             }
             UniformValue::Texture2D { .. }
             | UniformValue::Texture2DArray { .. }
-            | UniformValue::Texture3D { .. } => {
+            | UniformValue::Texture3D { .. }
+            | UniformValue::TextureCubeMap { .. } => {
                 let (target, texture, unit, params) = match value {
                     UniformValue::Texture2D {
                         descriptor,
@@ -526,6 +527,17 @@ impl FrameState {
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         self.texture_store_mut()
                             .use_texture_2d_array(&descriptor, unit)?,
+                        unit,
+                        params,
+                    ),
+                    UniformValue::TextureCubeMap {
+                        descriptor,
+                        params,
+                        unit,
+                    } => (
+                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+                        self.texture_store_mut()
+                            .use_texture_cube_map(&descriptor, unit)?,
                         unit,
                         params,
                     ),

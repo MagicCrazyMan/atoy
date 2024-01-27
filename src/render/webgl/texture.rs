@@ -121,130 +121,297 @@ pub enum TextureInternalFormat {
     DEPTH_COMPONENT16,
     DEPTH32F_STENCIL8,
     DEPTH24_STENCIL8,
+    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    RGB_S3TC_DXT1,
+    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    RGBA_S3TC_DXT1,
+    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    RGBA_S3TC_DXT3,
+    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    RGBA_S3TC_DXT5,
+    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    SRGB_S3TC_DXT1,
+    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    SRGB_ALPHA_S3TC_DXT1,
+    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    SRGB_ALPHA_S3TC_DXT3,
+    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    SRGB_ALPHA_S3TC_DXT5,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    R11_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    SIGNED_R11_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    RG11_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    SIGNED_RG11_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    RGB8_ETC2,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    RGBA8_ETC2_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    SRGB8_ETC2,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    SRGB8_ALPHA8_ETC2_EAC,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    RGB8_PUNCHTHROUGH_ALPHA1_ETC2,
+    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    SRGB8_PUNCHTHROUGH_ALPHA1_ETC2,
+    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    RGB_PVRTC_2BPPV1_IMG,
+    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    RGBA_PVRTC_2BPPV1_IMG,
+    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    RGB_PVRTC_4BPPV1_IMG,
+    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    RGBA_PVRTC_4BPPV1_IMG,
+    /// Available when extension `WEBGL_compressed_texture_etc1` enabled.
+    RGB_ETC1_WEBGL,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_4x4,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_4x4,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_5x4,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_5x4,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_5x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_5x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_6x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_6x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_6x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_6x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_8x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_8x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_8x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_8x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_8x8,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_8x8,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_10x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_10x5,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_10x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_10x6,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_10x10,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_10x10,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_12x10,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_12x10,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    RGBA_ASTC_12x12,
+    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    SRGB8_ALPHA8_ASTC_12x12,
+    /// Available when extension `EXT_texture_compression_bptc` enabled.
+    RGBA_BPTC_UNORM,
+    /// Available when extension `EXT_texture_compression_bptc` enabled.
+    SRGB_ALPHA_BPTC_UNORM,
+    /// Available when extension `EXT_texture_compression_bptc` enabled.
+    RGB_BPTC_SIGNED_FLOAT,
+    /// Available when extension `EXT_texture_compression_bptc` enabled.
+    RGB_BPTC_UNSIGNED_FLOAT,
+    /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    RED_RGTC1,
+    /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    SIGNED_RED_RGTC1,
+    /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    RED_GREEN_RGTC2,
+    /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    SIGNED_RED_GREEN_RGTC2,
 }
 
 impl TextureInternalFormat {
-    pub fn texel_channels(&self) -> usize {
+    /// Calculates the bytes length of of a specified internal format in specified size.
+    /// `depth` is ignored if the format does not support [`WebGl2RenderingContext::TEXTURE_3D`].
+    pub fn bytes_length(&self, width: usize, height: usize, depth: usize) -> usize {
         match self {
-            TextureInternalFormat::RGBA32I => 4,
-            TextureInternalFormat::RGBA32UI => 4,
-            TextureInternalFormat::RGBA16I => 4,
-            TextureInternalFormat::RGBA16UI => 4,
-            TextureInternalFormat::RGBA8 => 4,
-            TextureInternalFormat::RGBA8I => 4,
-            TextureInternalFormat::RGBA8UI => 4,
-            TextureInternalFormat::SRGB8_ALPHA8 => 4,
-            TextureInternalFormat::RGB10_A2 => 4,
-            TextureInternalFormat::RGB10_A2UI => 4,
-            TextureInternalFormat::RGBA4 => 4,
-            TextureInternalFormat::RGB5_A1 => 3,
-            TextureInternalFormat::RGB8 => 3,
-            TextureInternalFormat::RGB565 => 3,
-            TextureInternalFormat::RG32I => 2,
-            TextureInternalFormat::RG32UI => 2,
-            TextureInternalFormat::RG16I => 2,
-            TextureInternalFormat::RG16UI => 2,
-            TextureInternalFormat::RG8 => 2,
-            TextureInternalFormat::RG8I => 2,
-            TextureInternalFormat::RG8UI => 2,
-            TextureInternalFormat::R32I => 1,
-            TextureInternalFormat::R32UI => 1,
-            TextureInternalFormat::R16I => 1,
-            TextureInternalFormat::R16UI => 1,
-            TextureInternalFormat::R8 => 1,
-            TextureInternalFormat::R8I => 1,
-            TextureInternalFormat::R8UI => 1,
-            TextureInternalFormat::RGBA32F => 4,
-            TextureInternalFormat::RGBA16F => 4,
-            TextureInternalFormat::RGBA8_SNORM => 4,
-            TextureInternalFormat::RGB32F => 3,
-            TextureInternalFormat::RGB32I => 3,
-            TextureInternalFormat::RGB32UI => 3,
-            TextureInternalFormat::RGB16F => 3,
-            TextureInternalFormat::RGB16I => 3,
-            TextureInternalFormat::RGB16UI => 3,
-            TextureInternalFormat::RGB8_SNORM => 3,
-            TextureInternalFormat::RGB8I => 3,
-            TextureInternalFormat::RGB8UI => 3,
-            TextureInternalFormat::SRGB8 => 3,
-            TextureInternalFormat::R11F_G11F_B10F => 3,
-            TextureInternalFormat::RGB9_E5 => 3,
-            TextureInternalFormat::RG32F => 2,
-            TextureInternalFormat::RG16F => 2,
-            TextureInternalFormat::RG8_SNORM => 2,
-            TextureInternalFormat::R32F => 1,
-            TextureInternalFormat::R16F => 1,
-            TextureInternalFormat::R8_SNORM => 1,
-            TextureInternalFormat::DEPTH_COMPONENT32F => 1,
-            TextureInternalFormat::DEPTH_COMPONENT24 => 1,
-            TextureInternalFormat::DEPTH_COMPONENT16 => 1,
-            TextureInternalFormat::DEPTH32F_STENCIL8 => 1,
-            TextureInternalFormat::DEPTH24_STENCIL8 => 1,
+            TextureInternalFormat::RGBA32I => width * height * depth * 16,
+            TextureInternalFormat::RGBA32UI => width * height * depth * 16,
+            TextureInternalFormat::RGBA16I => width * height * depth * 4,
+            TextureInternalFormat::RGBA16UI => width * height * depth * 4,
+            TextureInternalFormat::RGBA8 => width * height * depth * 4,
+            TextureInternalFormat::RGBA8I => width * height * depth * 4,
+            TextureInternalFormat::RGBA8UI => width * height * depth * 4,
+            TextureInternalFormat::SRGB8_ALPHA8 => width * height * depth * 4,
+            TextureInternalFormat::RGB10_A2 => width * height * depth * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGB10_A2UI => width * height * depth * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGBA4 => width * height * depth * 2,
+            TextureInternalFormat::RGB5_A1 => width * height * depth * 2, // 5 + 5 + 5 + 1 in bits
+            TextureInternalFormat::RGB8 => width * height * depth * 3,
+            TextureInternalFormat::RGB565 => width * height * depth * 2, // 5 + 6 + 5 in bits
+            TextureInternalFormat::RG32I => width * height * depth * 4,
+            TextureInternalFormat::RG32UI => width * height * depth * 4,
+            TextureInternalFormat::RG16I => width * height * depth * 4,
+            TextureInternalFormat::RG16UI => width * height * depth * 4,
+            TextureInternalFormat::RG8 => width * height * depth * 2,
+            TextureInternalFormat::RG8I => width * height * depth * 2,
+            TextureInternalFormat::RG8UI => width * height * depth * 2,
+            TextureInternalFormat::R32I => width * height * depth * 4,
+            TextureInternalFormat::R32UI => width * height * depth * 4,
+            TextureInternalFormat::R16I => width * height * depth * 2,
+            TextureInternalFormat::R16UI => width * height * depth * 2,
+            TextureInternalFormat::R8 => width * height * depth * 1,
+            TextureInternalFormat::R8I => width * height * depth * 1,
+            TextureInternalFormat::R8UI => width * height * depth * 1,
+            TextureInternalFormat::RGBA32F => width * height * depth * 16,
+            TextureInternalFormat::RGBA16F => width * height * depth * 4,
+            TextureInternalFormat::RGBA8_SNORM => width * height * depth * 4,
+            TextureInternalFormat::RGB32F => width * height * depth * 12,
+            TextureInternalFormat::RGB32I => width * height * depth * 12,
+            TextureInternalFormat::RGB32UI => width * height * depth * 12,
+            TextureInternalFormat::RGB16F => width * height * depth * 6,
+            TextureInternalFormat::RGB16I => width * height * depth * 6,
+            TextureInternalFormat::RGB16UI => width * height * depth * 6,
+            TextureInternalFormat::RGB8_SNORM => width * height * depth * 3,
+            TextureInternalFormat::RGB8I => width * height * depth * 3,
+            TextureInternalFormat::RGB8UI => width * height * depth * 3,
+            TextureInternalFormat::SRGB8 => width * height * depth * 3,
+            TextureInternalFormat::R11F_G11F_B10F => width * height * depth * 4, // 11 + 11 + 10 in bits
+            TextureInternalFormat::RGB9_E5 => width * height * depth * 4, // 9 + 9 + 9 + 5 in bits
+            TextureInternalFormat::RG32F => width * height * depth * 4,
+            TextureInternalFormat::RG16F => width * height * depth * 4,
+            TextureInternalFormat::RG8_SNORM => width * height * depth * 2,
+            TextureInternalFormat::R32F => width * height * depth * 4,
+            TextureInternalFormat::R16F => width * height * depth * 2,
+            TextureInternalFormat::R8_SNORM => width * height * depth * 1,
+            TextureInternalFormat::DEPTH_COMPONENT32F => width * height * depth * 4,
+            TextureInternalFormat::DEPTH_COMPONENT24 => width * height * depth * 3,
+            TextureInternalFormat::DEPTH_COMPONENT16 => width * height * depth * 2,
+            TextureInternalFormat::DEPTH32F_STENCIL8 => width * height * depth * 5, // 32 + 8 in bits
+            TextureInternalFormat::DEPTH24_STENCIL8 => width * height * depth * 4,
+            // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
+            TextureInternalFormat::RGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::RGBA_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::RGBA_S3TC_DXT3 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::RGBA_S3TC_DXT5 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            // for S3TC RGBA, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc_srgb/ for more details
+            TextureInternalFormat::SRGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::SRGB_ALPHA_S3TC_DXT1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureInternalFormat::SRGB_ALPHA_S3TC_DXT3 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::SRGB_ALPHA_S3TC_DXT5 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            // for ETC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/ for more details
+            TextureInternalFormat::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::SIGNED_R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SIGNED_RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::RGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::SRGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::RGBA8_ETC2_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ETC2_EAC => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureInternalFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            // for PVRTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_pvrtc/ for more details
+            TextureInternalFormat::RGB_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
+            TextureInternalFormat::RGBA_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
+            TextureInternalFormat::RGB_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
+            TextureInternalFormat::RGBA_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
+            // for ETC1, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc1/ for more details
+            TextureInternalFormat::RGB_ETC1_WEBGL => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            // for ASTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/ for more details
+            TextureInternalFormat::RGBA_ASTC_4x4 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_4x4 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_5x4 => ((width + 4) / 5) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_5x4 => {
+                ((width + 4) / 5) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_5x5 => ((width + 4) / 5) * ((height + 4) / 5) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_5x5 => {
+                ((width + 4) / 5) * ((height + 4) / 5) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_6x5 => ((width + 5) / 6) * ((height + 4) / 5) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_6x5 => {
+                ((width + 5) / 6) * ((height + 4) / 5) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_6x6 => ((width + 5) / 6) * ((height + 5) / 6) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_6x6 => {
+                ((width + 5) / 6) * ((height + 5) / 6) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_8x5 => ((width + 7) / 8) * ((height + 4) / 5) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x5 => {
+                ((width + 7) / 8) * ((height + 4) / 5) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_8x6 => ((width + 7) / 8) * ((height + 5) / 6) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x6 => {
+                ((width + 7) / 8) * ((height + 5) / 6) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_8x8 => ((width + 7) / 8) * ((height + 7) / 8) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x8 => {
+                ((width + 7) / 8) * ((height + 7) / 8) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_10x5 => ((width + 9) / 10) * ((height + 4) / 5) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x5 => {
+                ((width + 9) / 10) * ((height + 4) / 5) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_10x6 => ((width + 9) / 10) * ((height + 5) / 6) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x6 => {
+                ((width + 9) / 10) * ((height + 5) / 6) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_10x10 => ((width + 9) / 10) * ((height + 9) / 10) * 16,
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x10 => {
+                ((width + 9) / 10) * ((height + 9) / 10) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_12x10 => {
+                ((width + 11) / 12) * ((height + 9) / 10) * 16
+            }
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_12x10 => {
+                ((width + 11) / 12) * ((height + 9) / 10) * 16
+            }
+            TextureInternalFormat::RGBA_ASTC_12x12 => {
+                ((width + 11) / 12) * ((height + 11) / 12) * 16
+            }
+            TextureInternalFormat::SRGB8_ALPHA8_ASTC_12x12 => {
+                ((width + 11) / 12) * ((height + 11) / 12) * 16
+            }
+            // for BPTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_bptc/ for more details
+            TextureInternalFormat::RGBA_BPTC_UNORM => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SRGB_ALPHA_BPTC_UNORM => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::RGB_BPTC_SIGNED_FLOAT => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureInternalFormat::RGB_BPTC_UNSIGNED_FLOAT => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            // for RGTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_rgtc/ for more details
+            TextureInternalFormat::RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::SIGNED_RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureInternalFormat::RED_GREEN_RGTC2 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureInternalFormat::SIGNED_RED_GREEN_RGTC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
         }
-    }
-
-    pub fn texel_bits(&self) -> usize {
-        match self {
-            TextureInternalFormat::RGBA32I => 128,
-            TextureInternalFormat::RGBA32UI => 128,
-            TextureInternalFormat::RGBA16I => 64,
-            TextureInternalFormat::RGBA16UI => 64,
-            TextureInternalFormat::RGBA8 => 32,
-            TextureInternalFormat::RGBA8I => 32,
-            TextureInternalFormat::RGBA8UI => 32,
-            TextureInternalFormat::SRGB8_ALPHA8 => 32,
-            TextureInternalFormat::RGB10_A2 => 32, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGB10_A2UI => 32, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGBA4 => 16,
-            TextureInternalFormat::RGB5_A1 => 16, // 5 + 5 + 5 + 1 in bits
-            TextureInternalFormat::RGB8 => 24,
-            TextureInternalFormat::RGB565 => 16, // 5 + 6 + 5 in bits
-            TextureInternalFormat::RG32I => 64,
-            TextureInternalFormat::RG32UI => 64,
-            TextureInternalFormat::RG16I => 32,
-            TextureInternalFormat::RG16UI => 32,
-            TextureInternalFormat::RG8 => 16,
-            TextureInternalFormat::RG8I => 16,
-            TextureInternalFormat::RG8UI => 16,
-            TextureInternalFormat::R32I => 32,
-            TextureInternalFormat::R32UI => 32,
-            TextureInternalFormat::R16I => 16,
-            TextureInternalFormat::R16UI => 16,
-            TextureInternalFormat::R8 => 8,
-            TextureInternalFormat::R8I => 8,
-            TextureInternalFormat::R8UI => 8,
-            TextureInternalFormat::RGBA32F => 128,
-            TextureInternalFormat::RGBA16F => 64,
-            TextureInternalFormat::RGBA8_SNORM => 32,
-            TextureInternalFormat::RGB32F => 96,
-            TextureInternalFormat::RGB32I => 96,
-            TextureInternalFormat::RGB32UI => 96,
-            TextureInternalFormat::RGB16F => 48,
-            TextureInternalFormat::RGB16I => 48,
-            TextureInternalFormat::RGB16UI => 48,
-            TextureInternalFormat::RGB8_SNORM => 24,
-            TextureInternalFormat::RGB8I => 24,
-            TextureInternalFormat::RGB8UI => 24,
-            TextureInternalFormat::SRGB8 => 24,
-            TextureInternalFormat::R11F_G11F_B10F => 32, // 11 + 11 + 10 in bits
-            TextureInternalFormat::RGB9_E5 => 32,        // 9 + 9 + 9 + 5 in bits
-            TextureInternalFormat::RG32F => 64,
-            TextureInternalFormat::RG16F => 32,
-            TextureInternalFormat::RG8_SNORM => 16,
-            TextureInternalFormat::R32F => 32,
-            TextureInternalFormat::R16F => 16,
-            TextureInternalFormat::R8_SNORM => 8,
-            TextureInternalFormat::DEPTH_COMPONENT32F => 32,
-            TextureInternalFormat::DEPTH_COMPONENT24 => 24,
-            TextureInternalFormat::DEPTH_COMPONENT16 => 16,
-            TextureInternalFormat::DEPTH32F_STENCIL8 => 40, // 32 + 8 in bits
-            TextureInternalFormat::DEPTH24_STENCIL8 => 32,  // 24 + 8 in bits
-        }
-    }
-
-    /// Returns the number of bytes per texel consumed.
-    pub fn texel_bytes(&self) -> usize {
-        self.texel_bits() / 8
     }
 }
 
@@ -461,125 +628,6 @@ pub enum TextureParameter {
     MAX_LEVEL(i32),
     MAX_LOD(f32),
     MIN_LOD(f32),
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureCompressedFormat {
-    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
-    RGB_S3TC_DXT1,
-    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
-    RGBA_S3TC_DXT1,
-    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
-    RGBA_S3TC_DXT3,
-    /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
-    RGBA_S3TC_DXT5,
-    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
-    SRGB_S3TC_DXT1,
-    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
-    SRGB_ALPHA_S3TC_DXT1,
-    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
-    SRGB_ALPHA_S3TC_DXT3,
-    /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
-    SRGB_ALPHA_S3TC_DXT5,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    R11_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    SIGNED_R11_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    RG11_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    SIGNED_RG11_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    RGB8_ETC2,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    RGBA8_ETC2_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    SRGB8_ETC2,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    SRGB8_ALPHA8_ETC2_EAC,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    RGB8_PUNCHTHROUGH_ALPHA1_ETC2,
-    /// Available when extension `WEBGL_compressed_texture_etc` enabled.
-    SRGB8_PUNCHTHROUGH_ALPHA1_ETC2,
-    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
-    RGB_PVRTC_2BPPV1_IMG,
-    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
-    RGBA_PVRTC_2BPPV1_IMG,
-    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
-    RGB_PVRTC_4BPPV1_IMG,
-    /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
-    RGBA_PVRTC_4BPPV1_IMG,
-    /// Available when extension `WEBGL_compressed_texture_etc1` enabled.
-    RGB_ETC1_WEBGL,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_4x4,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_4x4,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_5x4,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_5x4,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_5x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_5x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_6x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_6x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_6x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_6x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_8x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_8x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_8x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_8x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_8x8,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_8x8,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_10x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_10x5,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_10x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_10x6,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_10x10,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_10x10,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_12x10,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_12x10,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    RGBA_ASTC_12x12,
-    /// Available when extension `WEBGL_compressed_texture_astc` enabled.
-    SRGB8_ALPHA8_ASTC_12x12,
-    /// Available when extension `EXT_texture_compression_bptc` enabled.
-    RGBA_BPTC_UNORM,
-    /// Available when extension `EXT_texture_compression_bptc` enabled.
-    SRGB_ALPHA_BPTC_UNORM,
-    /// Available when extension `EXT_texture_compression_bptc` enabled.
-    RGB_BPTC_SIGNED_FLOAT,
-    /// Available when extension `EXT_texture_compression_bptc` enabled.
-    RGB_BPTC_UNSIGNED_FLOAT,
-    /// Available when extension `EXT_texture_compression_rgtc` enabled.
-    RED_RGTC1,
-    /// Available when extension `EXT_texture_compression_rgtc` enabled.
-    SIGNED_RED_RGTC1,
-    /// Available when extension `EXT_texture_compression_rgtc` enabled.
-    RED_GREEN_RGTC2,
-    /// Available when extension `EXT_texture_compression_rgtc` enabled.
-    SIGNED_RED_GREEN_RGTC2,
 }
 
 pub struct Restorer {
@@ -1802,11 +1850,10 @@ impl TextureDescriptorInner<Texture2D> {
     fn bytes_length(&self) -> usize {
         // estimates used memory of all levels
         let mut used_memory = 0;
-        let texel_bytes = self.internal_format.texel_bytes();
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += width * height * texel_bytes;
+            used_memory += self.internal_format.bytes_length(width, height, 1);
         }
         used_memory
     }
@@ -1818,9 +1865,8 @@ impl TextureDescriptorInner<Texture2D> {
         let Some(height) = self.height_of_level(level) else {
             return None;
         };
-        let texel_bytes = self.internal_format.texel_bytes();
 
-        Some(width * height * texel_bytes)
+        Some(self.internal_format.bytes_length(width, height, 1))
     }
 
     fn verify_size_tex_image(
@@ -1916,12 +1962,11 @@ impl TextureDescriptorInner<Texture3D> {
     fn bytes_length(&self) -> usize {
         // estimates used memory of all levels
         let mut used_memory = 0;
-        let texel_bytes = self.internal_format.texel_bytes();
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             let depth = self.depth_of_level(level).unwrap();
-            used_memory += width * height * depth * texel_bytes;
+            used_memory += self.internal_format.bytes_length(width, height, depth);
         }
         used_memory
     }
@@ -1936,9 +1981,8 @@ impl TextureDescriptorInner<Texture3D> {
         let Some(depth) = self.depth_of_level(level) else {
             return None;
         };
-        let texel_bytes = self.internal_format.texel_bytes();
 
-        Some(width * height * depth * texel_bytes)
+        Some(self.internal_format.bytes_length(width, height, depth))
     }
 
     fn verify_size_tex_image(
@@ -2043,11 +2087,10 @@ impl TextureDescriptorInner<Texture2DArray> {
         // estimates used memory of all levels
         let mut used_memory = 0;
         let array_length = self.layout.array_length;
-        let texel_bytes = self.internal_format.texel_bytes();
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += width * height * texel_bytes * array_length;
+            used_memory += self.internal_format.bytes_length(width, height, 1) * array_length;
         }
         used_memory
     }
@@ -2060,7 +2103,7 @@ impl TextureDescriptorInner<Texture2DArray> {
             return None;
         };
 
-        Some(width * height * self.internal_format.texel_bytes() * self.layout.array_length)
+        Some(self.internal_format.bytes_length(width, height, 1) * self.layout.array_length)
     }
 
     fn verify_size_tex_image(
@@ -2156,11 +2199,10 @@ impl TextureDescriptorInner<TextureCubeMap> {
     fn bytes_length(&self) -> usize {
         // estimates used memory of all levels
         let mut used_memory = 0;
-        let texel_bytes = self.internal_format.texel_bytes();
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += width * height * texel_bytes;
+            used_memory += self.internal_format.bytes_length(width, height, 1) * 6;
         }
         used_memory
     }
@@ -2172,9 +2214,8 @@ impl TextureDescriptorInner<TextureCubeMap> {
         let Some(height) = self.height_of_level(level) else {
             return None;
         };
-        let texel_bytes = self.internal_format.texel_bytes();
 
-        Some(width * height * texel_bytes * 6)
+        Some(self.internal_format.bytes_length(width, height, 1) * 6)
     }
 
     fn verify_size_tex_image(
@@ -2971,6 +3012,7 @@ macro_rules! store_use_textures {
                                     inner.name.as_deref().unwrap_or("unnamed"),
                                 );
 
+                                self.abilities.verify_internal_format(inner.internal_format)?;
                                 let texture = self
                                     .gl
                                     .create_texture()

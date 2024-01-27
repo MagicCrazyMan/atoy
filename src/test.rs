@@ -601,7 +601,7 @@ pub fn test_cube(
         1.0,
     )));
     image.set_material(Some(TextureMaterial::new(
-        "./skybox/skybox_py.jpg",
+        "./sky.jpg",
         Transparency::Opaque,
     )));
     scene.entity_container_mut().add_entity(image);

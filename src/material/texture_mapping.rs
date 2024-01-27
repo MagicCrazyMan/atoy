@@ -21,7 +21,7 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
-    diffuse_texture: TextureLoader,
+    diffuse: TextureLoader,
     notifier: Notifier<()>,
 }
 
@@ -31,7 +31,7 @@ impl TextureMaterial {
         let mut notifier_cloned = notifier.clone();
         Self {
             transparency,
-            diffuse_texture: TextureLoader::from_url(url, move |image| {
+            diffuse: TextureLoader::from_url(url, move |image| {
                 notifier_cloned.notify(&mut ());
                 UniformValue::Texture2D {
                     descriptor: TextureDescriptor::<Texture2D>::with_source(
@@ -64,11 +64,11 @@ impl TextureMaterial {
 
 impl StandardMaterial for TextureMaterial {
     fn ready(&self) -> bool {
-        self.diffuse_texture.loaded()
+        self.diffuse.loaded()
     }
 
     fn prepare(&mut self, _: &mut FrameState) {
-        self.diffuse_texture.load();
+        self.diffuse.load();
     }
 
     fn transparency(&self) -> Transparency {
@@ -103,7 +103,7 @@ impl StandardMaterial for TextureMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<UniformValue> {
         match name {
-            "u_DiffuseTexture" => self.diffuse_texture.texture(),
+            "u_DiffuseTexture" => self.diffuse.texture(),
             "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
             "u_SpecularShininess" => Some(UniformValue::Float1(128.0)),
             _ => None,

@@ -23,6 +23,7 @@ pub enum Error {
     NoSuchUniform(String),
     UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
+    TextureInternalFormatUnsupported,
     TextureSizeMismatched,
     TextureCubeMapWidthAndHeightNotEqual,
     TextureCubeMapFacesSizeNotEqual,
