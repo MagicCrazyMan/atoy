@@ -3,7 +3,10 @@ use std::any::Any;
 use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
-    bounding::BoundingVolume, notify::Notifier, render::webgl::{
+    bounding::BoundingVolume,
+    notify::Notifier,
+    readonly::Readonly,
+    render::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -11,7 +14,8 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawElementType, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    }, utils::{slice_to_float32_array, slice_to_uint8_array}
+    },
+    utils::{slice_to_float32_array, slice_to_uint8_array},
 };
 
 use super::Geometry;
@@ -143,7 +147,7 @@ impl Geometry for IndexedCube {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
         None
     }
 

@@ -591,20 +591,20 @@ pub fn test_cube(
     // )));
     // scene.entity_collection_mut().add_entity(entity);
 
-    let mut image = EntityOptions::new();
-    image.set_geometry(Some(Rectangle::new(
-        Vec2::new(0.0, 0.0),
-        Placement::Center,
-        0.25,
-        0.25,
-        1.0,
-        1.0,
-    )));
-    image.set_material(Some(TextureMaterial::new(
-        "./sky.jpg",
-        Transparency::Opaque,
-    )));
-    scene.entity_container_mut().add_entity(image);
+    // let mut image = EntityOptions::new();
+    // image.set_geometry(Some(Rectangle::new(
+    //     Vec2::new(0.0, 0.0),
+    //     Placement::Center,
+    //     0.25,
+    //     0.25,
+    //     1.0,
+    //     1.0,
+    // )));
+    // image.set_material(Some(TextureMaterial::new(
+    //     "./sky.jpg",
+    //     Transparency::Opaque,
+    // )));
+    // scene.entity_container_mut().add_entity(image);
 
     let mut floor = EntityOptions::new();
     floor.set_geometry(Some(Rectangle::new(

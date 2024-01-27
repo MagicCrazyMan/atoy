@@ -5,6 +5,7 @@ use gl_matrix4rust::vec3::Vec3;
 use crate::{
     bounding::BoundingVolume,
     notify::Notifier,
+    readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -145,7 +146,7 @@ impl Geometry for Cube {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
         None
     }
 

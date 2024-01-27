@@ -9,7 +9,6 @@ use super::{
 };
 
 /// Available uniform values.
-#[derive(Clone)]
 pub enum UniformValue {
     Bool(bool),
     Float1(f32),

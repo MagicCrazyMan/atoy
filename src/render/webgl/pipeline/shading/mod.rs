@@ -173,7 +173,7 @@ fn prepare_program<'a, 'b, 'c>(
                 state.bind_uniform_value_by_variable_name(
                     program,
                     BLOOM_THRESHOLD_UNIFORM_NAME,
-                    UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
+                    &UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
                 )?;
             }
         }

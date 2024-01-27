@@ -198,7 +198,7 @@ impl StandardHdrShading {
                 state.bind_uniform_value_by_variable_name(
                     program,
                     HDR_EXPOSURE_UNIFORM_NAME,
-                    UniformValue::Float1(exposure),
+                    &UniformValue::Float1(exposure),
                 )?;
                 program
             }
@@ -206,7 +206,7 @@ impl StandardHdrShading {
         state.bind_uniform_value_by_variable_name(
             program,
             HDR_TEXTURE_UNIFORM_NAME,
-            UniformValue::Integer1(0),
+            &UniformValue::Integer1(0),
         )?;
 
         Ok(())
@@ -357,12 +357,12 @@ impl StandardHdrShading {
             state.bind_uniform_value_by_variable_name(
                 program,
                 BASE_TEXTURE_UNIFORM_NAME,
-                UniformValue::Integer1(0),
+                &UniformValue::Integer1(0),
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,
                 BLOOM_BLUR_TEXTURE_UNIFORM_NAME,
-                UniformValue::Integer1(1),
+                &UniformValue::Integer1(1),
             )?;
 
             (*hdr_bloom_blend_framebuffer).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;

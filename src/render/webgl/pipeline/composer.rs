@@ -112,7 +112,7 @@ impl StandardComposer {
         state.bind_uniform_value_by_variable_name(
             program,
             TEXTURE_UNIFORM_NAME,
-            UniformValue::Integer1(0),
+            &UniformValue::Integer1(0),
         )?;
 
         for texture in textures {
@@ -147,7 +147,7 @@ impl StandardComposer {
             state.bind_uniform_value_by_variable_name(
                 program,
                 GAMMA_UNIFORM_NAME,
-                UniformValue::Float1(self.gamma),
+                &UniformValue::Float1(self.gamma),
             )?;
             program
         } else {

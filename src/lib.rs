@@ -13,6 +13,7 @@ pub mod lru;
 pub mod material;
 pub mod notify;
 pub mod plane;
+pub mod readonly;
 pub mod render;
 pub mod scene;
 pub mod test;

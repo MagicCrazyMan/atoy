@@ -1,11 +1,14 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume, notify::Notifier, render::webgl::{
+    bounding::BoundingVolume,
+    notify::Notifier,
+    readonly::Readonly,
+    render::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 use super::Geometry;
@@ -42,7 +45,7 @@ impl RawGeometry {
             attributes,
             uniforms,
             uniform_blocks,
-            notifier: Notifier::new()
+            notifier: Notifier::new(),
         }
     }
 }
@@ -76,8 +79,8 @@ impl Geometry for RawGeometry {
         self.attributes.get(name).map(|v| v.clone())
     }
 
-    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
-        self.uniforms.get(name).map(|v| v.clone())
+    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+        self.uniforms.get(name).map(|v| Readonly::Borrowed(v))
     }
 
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {

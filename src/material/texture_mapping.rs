@@ -3,6 +3,7 @@ use std::{any::Any, borrow::Cow};
 use crate::{
     loader::texture::TextureLoader,
     notify::Notifier,
+    readonly::Readonly,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
@@ -101,11 +102,14 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
         match name {
-            "u_DiffuseTexture" => self.diffuse.texture(),
-            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
-            "u_SpecularShininess" => Some(UniformValue::Float1(128.0)),
+            "u_DiffuseTexture" => self
+                .diffuse
+                .texture()
+                .map(|texture| Readonly::Borrowed(texture)),
+            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(self.transparency.alpha()))),
+            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(128.0))),
             _ => None,
         }
     }

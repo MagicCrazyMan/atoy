@@ -101,7 +101,7 @@ impl StandardPicking {
         state.bind_uniform_value_by_variable_name(
             program,
             VIEW_PROJ_MATRIX_UNIFORM_NAME,
-            UniformValue::Matrix4 {
+            &UniformValue::Matrix4 {
                 data: state.camera().view_proj_matrix().gl_f32(),
                 transpose: false,
             },

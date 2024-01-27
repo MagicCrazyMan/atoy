@@ -4,6 +4,7 @@ use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
     notify::Notifier,
+    readonly::Readonly,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::ProgramSource,
@@ -92,11 +93,17 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
         match name {
-            "u_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
-            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
-            "u_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
+            "u_Color" => Some(Readonly::Owned(UniformValue::FloatVector3(
+                self.color.gl_f32(),
+            ))),
+            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
+                self.transparency.alpha(),
+            ))),
+            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(
+                self.specular_shininess,
+            ))),
             _ => None,
         }
     }

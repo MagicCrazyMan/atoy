@@ -9,7 +9,10 @@ use hashbrown::{hash_map::Entry, HashMap};
 use log::debug;
 use uuid::Uuid;
 use web_sys::{
-    js_sys::{Float32Array, Object, Uint16Array, Uint32Array, Uint8Array},
+    js_sys::{
+        Float32Array, Int16Array, Int32Array, Int8Array, Object, Uint16Array, Uint32Array,
+        Uint8Array, Uint8ClampedArray,
+    },
     HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
     WebGl2RenderingContext, WebGlBuffer, WebGlTexture,
 };
@@ -697,7 +700,7 @@ pub enum TextureSource {
     Uint8ClampedArray {
         width: usize,
         height: usize,
-        data: Uint8Array,
+        data: Uint8ClampedArray,
         format: TextureFormat,
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
@@ -705,7 +708,7 @@ pub enum TextureSource {
     Int8Array {
         width: usize,
         height: usize,
-        data: Uint8Array,
+        data: Int8Array,
         format: TextureFormat,
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
@@ -727,7 +730,7 @@ pub enum TextureSource {
     Int16Array {
         width: usize,
         height: usize,
-        data: Uint16Array,
+        data: Int16Array,
         format: TextureFormat,
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,
@@ -747,7 +750,7 @@ pub enum TextureSource {
     Int32Array {
         width: usize,
         height: usize,
-        data: Uint32Array,
+        data: Int32Array,
         format: TextureFormat,
         src_offset: usize,
         pixel_storages: Vec<TexturePixelStorage>,

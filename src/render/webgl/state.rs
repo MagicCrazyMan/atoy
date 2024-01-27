@@ -9,7 +9,10 @@ use web_sys::{
     WebGlUniformLocation,
 };
 
-use crate::{camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial};
+use crate::{
+    camera::Camera, entity::Entity, geometry::Geometry, material::StandardMaterial,
+    readonly::Readonly,
+};
 
 use super::{
     abilities::Abilities,
@@ -344,28 +347,35 @@ impl FrameState {
                         _ => unreachable!(),
                     };
 
-                    Some(UniformValue::Matrix4 {
+                    Some(Readonly::Owned(UniformValue::Matrix4 {
                         data,
                         transpose: false,
-                    })
+                    }))
                 }
-                UniformBinding::CameraPosition => Some(UniformValue::FloatVector3(
-                    self.camera().position().gl_f32(),
+                UniformBinding::CameraPosition => Some(Readonly::Owned(
+                    UniformValue::FloatVector3(self.camera().position().gl_f32()),
                 )),
-                UniformBinding::RenderTime => Some(UniformValue::Float1(self.timestamp() as f32)),
-                UniformBinding::CanvasSize => Some(UniformValue::UnsignedIntegerVector2([
-                    self.canvas.width(),
-                    self.canvas.height(),
-                ])),
-                UniformBinding::DrawingBufferSize => Some(UniformValue::IntegerVector2([
-                    self.gl.drawing_buffer_width(),
-                    self.gl.drawing_buffer_width(),
-                ])),
+                UniformBinding::RenderTime => Some(Readonly::Owned(UniformValue::Float1(
+                    self.timestamp() as f32,
+                ))),
+                UniformBinding::CanvasSize => {
+                    Some(Readonly::Owned(UniformValue::UnsignedIntegerVector2([
+                        self.canvas.width(),
+                        self.canvas.height(),
+                    ])))
+                }
+                UniformBinding::DrawingBufferSize => {
+                    Some(Readonly::Owned(UniformValue::IntegerVector2([
+                        self.gl.drawing_buffer_width(),
+                        self.gl.drawing_buffer_width(),
+                    ])))
+                }
                 UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
                 UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
-                UniformBinding::FromEntity(name) => {
-                    entity.uniform_values().get(name.as_ref()).cloned()
-                }
+                UniformBinding::FromEntity(name) => entity
+                    .uniform_values()
+                    .get(name.as_ref())
+                    .map(|v| Readonly::Borrowed(v)),
             };
             let Some(value) = value else {
                 warn!(
@@ -376,7 +386,7 @@ impl FrameState {
                 continue;
             };
 
-            if let Err(err) = self.bind_uniform_value(&location, value) {
+            if let Err(err) = self.bind_uniform_value(&location, value.as_ref()) {
                 warn!(
                     target: "BindUniforms",
                     "failed to bind uniform value {}",
@@ -421,78 +431,80 @@ impl FrameState {
     pub fn bind_uniform_value(
         &mut self,
         location: &WebGlUniformLocation,
-        value: UniformValue,
+        value: &UniformValue,
     ) -> Result<(), Error> {
         // let location = s
         match value {
             UniformValue::Bool(v) => {
-                if v {
+                if *v {
                     self.gl.uniform1i(Some(location), 1)
                 } else {
                     self.gl.uniform1i(Some(location), 0)
                 }
             }
-            UniformValue::UnsignedInteger1(x) => self.gl.uniform1ui(Some(location), x),
-            UniformValue::UnsignedInteger2(x, y) => self.gl.uniform2ui(Some(location), x, y),
-            UniformValue::UnsignedInteger3(x, y, z) => self.gl.uniform3ui(Some(location), x, y, z),
-            UniformValue::UnsignedInteger4(x, y, z, w) => {
-                self.gl.uniform4ui(Some(location), x, y, z, w)
+            UniformValue::UnsignedInteger1(x) => self.gl.uniform1ui(Some(location), *x),
+            UniformValue::UnsignedInteger2(x, y) => self.gl.uniform2ui(Some(location), *x, *y),
+            UniformValue::UnsignedInteger3(x, y, z) => {
+                self.gl.uniform3ui(Some(location), *x, *y, *z)
             }
-            UniformValue::Float1(x) => self.gl.uniform1f(Some(location), x),
-            UniformValue::Float2(x, y) => self.gl.uniform2f(Some(location), x, y),
-            UniformValue::Float3(x, y, z) => self.gl.uniform3f(Some(location), x, y, z),
-            UniformValue::Float4(x, y, z, w) => self.gl.uniform4f(Some(location), x, y, z, w),
-            UniformValue::Integer1(x) => self.gl.uniform1i(Some(location), x),
-            UniformValue::Integer2(x, y) => self.gl.uniform2i(Some(location), x, y),
-            UniformValue::Integer3(x, y, z) => self.gl.uniform3i(Some(location), x, y, z),
-            UniformValue::Integer4(x, y, z, w) => self.gl.uniform4i(Some(location), x, y, z, w),
+            UniformValue::UnsignedInteger4(x, y, z, w) => {
+                self.gl.uniform4ui(Some(location), *x, *y, *z, *w)
+            }
+            UniformValue::Float1(x) => self.gl.uniform1f(Some(location), *x),
+            UniformValue::Float2(x, y) => self.gl.uniform2f(Some(location), *x, *y),
+            UniformValue::Float3(x, y, z) => self.gl.uniform3f(Some(location), *x, *y, *z),
+            UniformValue::Float4(x, y, z, w) => self.gl.uniform4f(Some(location), *x, *y, *z, *w),
+            UniformValue::Integer1(x) => self.gl.uniform1i(Some(location), *x),
+            UniformValue::Integer2(x, y) => self.gl.uniform2i(Some(location), *x, *y),
+            UniformValue::Integer3(x, y, z) => self.gl.uniform3i(Some(location), *x, *y, *z),
+            UniformValue::Integer4(x, y, z, w) => self.gl.uniform4i(Some(location), *x, *y, *z, *w),
             UniformValue::FloatVector1(data) => {
-                self.gl.uniform1fv_with_f32_array(Some(location), &data)
+                self.gl.uniform1fv_with_f32_array(Some(location), data)
             }
             UniformValue::FloatVector2(data) => {
-                self.gl.uniform2fv_with_f32_array(Some(location), &data)
+                self.gl.uniform2fv_with_f32_array(Some(location), data)
             }
             UniformValue::FloatVector3(data) => {
-                self.gl.uniform3fv_with_f32_array(Some(location), &data)
+                self.gl.uniform3fv_with_f32_array(Some(location), data)
             }
             UniformValue::FloatVector4(data) => {
-                self.gl.uniform4fv_with_f32_array(Some(location), &data)
+                self.gl.uniform4fv_with_f32_array(Some(location), data)
             }
             UniformValue::IntegerVector1(data) => {
-                self.gl.uniform1iv_with_i32_array(Some(location), &data)
+                self.gl.uniform1iv_with_i32_array(Some(location), data)
             }
             UniformValue::IntegerVector2(data) => {
-                self.gl.uniform2iv_with_i32_array(Some(location), &data)
+                self.gl.uniform2iv_with_i32_array(Some(location), data)
             }
             UniformValue::IntegerVector3(data) => {
-                self.gl.uniform3iv_with_i32_array(Some(location), &data)
+                self.gl.uniform3iv_with_i32_array(Some(location), data)
             }
             UniformValue::IntegerVector4(data) => {
-                self.gl.uniform4iv_with_i32_array(Some(location), &data)
+                self.gl.uniform4iv_with_i32_array(Some(location), data)
             }
             UniformValue::UnsignedIntegerVector1(data) => {
-                self.gl.uniform1uiv_with_u32_array(Some(location), &data)
+                self.gl.uniform1uiv_with_u32_array(Some(location), data)
             }
             UniformValue::UnsignedIntegerVector2(data) => {
-                self.gl.uniform2uiv_with_u32_array(Some(location), &data)
+                self.gl.uniform2uiv_with_u32_array(Some(location), data)
             }
             UniformValue::UnsignedIntegerVector3(data) => {
-                self.gl.uniform3uiv_with_u32_array(Some(location), &data)
+                self.gl.uniform3uiv_with_u32_array(Some(location), data)
             }
             UniformValue::UnsignedIntegerVector4(data) => {
-                self.gl.uniform4uiv_with_u32_array(Some(location), &data)
+                self.gl.uniform4uiv_with_u32_array(Some(location), data)
             }
             UniformValue::Matrix2 { data, transpose } => {
                 self.gl
-                    .uniform_matrix2fv_with_f32_array(Some(location), transpose, &data)
+                    .uniform_matrix2fv_with_f32_array(Some(location), *transpose, data)
             }
             UniformValue::Matrix3 { data, transpose } => {
                 self.gl
-                    .uniform_matrix3fv_with_f32_array(Some(location), transpose, &data)
+                    .uniform_matrix3fv_with_f32_array(Some(location), *transpose, data)
             }
             UniformValue::Matrix4 { data, transpose } => {
                 self.gl
-                    .uniform_matrix4fv_with_f32_array(Some(location), transpose, &data)
+                    .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data)
             }
             UniformValue::Texture2D { .. }
             | UniformValue::Texture2DArray { .. }
@@ -505,7 +517,8 @@ impl FrameState {
                         params,
                     } => (
                         WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut().use_texture_2d(&descriptor, unit)?,
+                        self.texture_store_mut()
+                            .use_texture_2d(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -515,7 +528,8 @@ impl FrameState {
                         params,
                     } => (
                         WebGl2RenderingContext::TEXTURE_3D,
-                        self.texture_store_mut().use_texture_3d(&descriptor, unit)?,
+                        self.texture_store_mut()
+                            .use_texture_3d(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -526,7 +540,7 @@ impl FrameState {
                     } => (
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         self.texture_store_mut()
-                            .use_texture_2d_array(&descriptor, unit)?,
+                            .use_texture_2d_array(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -537,7 +551,7 @@ impl FrameState {
                     } => (
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         self.texture_store_mut()
-                            .use_texture_cube_map(&descriptor, unit)?,
+                            .use_texture_cube_map(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -587,7 +601,7 @@ impl FrameState {
         &mut self,
         program: &mut Program,
         variable_name: &str,
-        value: UniformValue,
+        value: &UniformValue,
     ) -> Result<(), Error> {
         let Some(location) = program.get_or_retrieve_uniform_location(variable_name) else {
             return Err(Error::NoSuchUniform(variable_name.to_string()));

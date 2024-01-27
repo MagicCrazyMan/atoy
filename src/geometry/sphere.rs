@@ -6,6 +6,7 @@ use web_sys::js_sys::Float32Array;
 use crate::{
     bounding::BoundingVolume,
     notify::Notifier,
+    readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -131,7 +132,7 @@ impl Geometry for Sphere {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
         None
     }
 

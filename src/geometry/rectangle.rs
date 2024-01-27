@@ -5,6 +5,7 @@ use gl_matrix4rust::vec2::Vec2;
 use crate::{
     bounding::BoundingVolume,
     notify::Notifier,
+    readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -151,7 +152,7 @@ impl Geometry for Rectangle {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<UniformValue> {
+    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
         None
     }
 
