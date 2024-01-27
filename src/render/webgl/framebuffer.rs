@@ -13,7 +13,7 @@ use super::{
     error::Error,
     renderbuffer::RenderbufferInternalFormat,
     texture::{TextureDataType, TextureFormat, TextureInternalFormat},
-    utilities::{renderbuffer_binding, texture_binding_2d},
+    utils::{renderbuffer_binding, texture_binding_2d},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].

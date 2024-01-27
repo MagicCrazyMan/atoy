@@ -21,7 +21,12 @@
 </template>
 
 <script setup lang="ts">
-import init, { LogLevel, init_with_log_level, test_cube, test_pick } from "atoy";
+import init, {
+  LogLevel,
+  init_with_log_level,
+  test_cube,
+  test_pick,
+} from "atoy";
 import { onMounted } from "vue";
 import SceneController from "./SceneController.vue";
 import { ref } from "vue";
@@ -49,8 +54,26 @@ const bloomBlurEpoch = ref(10);
 const renderTime = ref(0);
 const pickTime = ref(0);
 
+const loadFloorTexture = async () => {
+  const img = new Image();
+  img.src = "./wood.png";
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+  });
+  return img;
+};
+const loadFloorCompressedTexture = async (url: string) => {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return arrayBuffer;
+};
+
 onMounted(async () => {
   await init();
+  const floor_rgb = await loadFloorTexture();
+  const floor_dxt3 = await loadFloorCompressedTexture("/wood_dxt3.dds");
+  const floor_dxt5 = await loadFloorCompressedTexture("/wood_dxt5.dds");
   init_with_log_level(LogLevel.Info);
 
   // const viewer = test_cube(
@@ -75,7 +98,10 @@ onMounted(async () => {
     },
     (time: number) => {
       pickTime.value = time;
-    }
+    },
+    floor_rgb,
+    floor_dxt3,
+    floor_dxt5,
   );
 
   clearColor.value = (() => {
@@ -165,7 +191,10 @@ onMounted(async () => {
     }
   });
   watch(shadingType, (shadingType) => {
-    if (shadingType.type === "ForwardShading" || shadingType.type === "DeferredShading") {
+    if (
+      shadingType.type === "ForwardShading" ||
+      shadingType.type === "DeferredShading"
+    ) {
       viewer.set_pipeline_shading_wasm(shadingType);
     }
   });

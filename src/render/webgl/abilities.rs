@@ -5,7 +5,7 @@ use web_sys::{WebGl2RenderingContext, WebglDebugShaders, WebglLoseContext};
 
 use super::{
     error::Error,
-    texture::{TextureInternalFormat, TextureUnit},
+    texture::{TextureCompressedFormat, TextureInternalFormat, TextureUnit},
 };
 
 struct Inner {
@@ -207,112 +207,120 @@ impl Abilities {
                     Err(Error::TextureInternalFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RGB_S3TC_DXT1
-            | TextureInternalFormat::RGBA_S3TC_DXT1
-            | TextureInternalFormat::RGBA_S3TC_DXT3
-            | TextureInternalFormat::RGBA_S3TC_DXT5 => {
+            _ => Ok(()),
+        }
+    }
+
+    pub fn verify_compressed_format(
+        &self,
+        compressed_format: TextureCompressedFormat,
+    ) -> Result<(), Error> {
+        match compressed_format {
+            TextureCompressedFormat::RGB_S3TC_DXT1
+            | TextureCompressedFormat::RGBA_S3TC_DXT1
+            | TextureCompressedFormat::RGBA_S3TC_DXT3
+            | TextureCompressedFormat::RGBA_S3TC_DXT5 => {
                 if self.compressed_s3tc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::SRGB_S3TC_DXT1
-            | TextureInternalFormat::SRGB_ALPHA_S3TC_DXT1
-            | TextureInternalFormat::SRGB_ALPHA_S3TC_DXT3
-            | TextureInternalFormat::SRGB_ALPHA_S3TC_DXT5 => {
+            TextureCompressedFormat::SRGB_S3TC_DXT1
+            | TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1
+            | TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3
+            | TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5 => {
                 if self.compressed_s3tc_srgb_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::R11_EAC
-            | TextureInternalFormat::SIGNED_R11_EAC
-            | TextureInternalFormat::RG11_EAC
-            | TextureInternalFormat::SIGNED_RG11_EAC
-            | TextureInternalFormat::RGB8_ETC2
-            | TextureInternalFormat::RGBA8_ETC2_EAC
-            | TextureInternalFormat::SRGB8_ETC2
-            | TextureInternalFormat::SRGB8_ALPHA8_ETC2_EAC
-            | TextureInternalFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2
-            | TextureInternalFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureCompressedFormat::R11_EAC
+            | TextureCompressedFormat::SIGNED_R11_EAC
+            | TextureCompressedFormat::RG11_EAC
+            | TextureCompressedFormat::SIGNED_RG11_EAC
+            | TextureCompressedFormat::RGB8_ETC2
+            | TextureCompressedFormat::RGBA8_ETC2_EAC
+            | TextureCompressedFormat::SRGB8_ETC2
+            | TextureCompressedFormat::SRGB8_ALPHA8_ETC2_EAC
+            | TextureCompressedFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2
+            | TextureCompressedFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 if self.compressed_etc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RGB_PVRTC_2BPPV1_IMG
-            | TextureInternalFormat::RGBA_PVRTC_2BPPV1_IMG
-            | TextureInternalFormat::RGB_PVRTC_4BPPV1_IMG
-            | TextureInternalFormat::RGBA_PVRTC_4BPPV1_IMG => {
+            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG
+            | TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG
+            | TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG
+            | TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => {
                 if self.compressed_pvrtc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RGB_ETC1_WEBGL => {
+            TextureCompressedFormat::RGB_ETC1_WEBGL => {
                 if self.compressed_etc1_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RGBA_ASTC_4x4
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_4x4
-            | TextureInternalFormat::RGBA_ASTC_5x4
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_5x4
-            | TextureInternalFormat::RGBA_ASTC_5x5
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_5x5
-            | TextureInternalFormat::RGBA_ASTC_6x5
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_6x5
-            | TextureInternalFormat::RGBA_ASTC_6x6
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_6x6
-            | TextureInternalFormat::RGBA_ASTC_8x5
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x5
-            | TextureInternalFormat::RGBA_ASTC_8x6
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x6
-            | TextureInternalFormat::RGBA_ASTC_8x8
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_8x8
-            | TextureInternalFormat::RGBA_ASTC_10x5
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x5
-            | TextureInternalFormat::RGBA_ASTC_10x6
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x6
-            | TextureInternalFormat::RGBA_ASTC_10x10
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_10x10
-            | TextureInternalFormat::RGBA_ASTC_12x10
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_12x10
-            | TextureInternalFormat::RGBA_ASTC_12x12
-            | TextureInternalFormat::SRGB8_ALPHA8_ASTC_12x12 => {
+            TextureCompressedFormat::RGBA_ASTC_4x4
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_4x4
+            | TextureCompressedFormat::RGBA_ASTC_5x4
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x4
+            | TextureCompressedFormat::RGBA_ASTC_5x5
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x5
+            | TextureCompressedFormat::RGBA_ASTC_6x5
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x5
+            | TextureCompressedFormat::RGBA_ASTC_6x6
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x6
+            | TextureCompressedFormat::RGBA_ASTC_8x5
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x5
+            | TextureCompressedFormat::RGBA_ASTC_8x6
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x6
+            | TextureCompressedFormat::RGBA_ASTC_8x8
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x8
+            | TextureCompressedFormat::RGBA_ASTC_10x5
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x5
+            | TextureCompressedFormat::RGBA_ASTC_10x6
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x6
+            | TextureCompressedFormat::RGBA_ASTC_10x10
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x10
+            | TextureCompressedFormat::RGBA_ASTC_12x10
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x10
+            | TextureCompressedFormat::RGBA_ASTC_12x12
+            | TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x12 => {
                 if self.compressed_astc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RGBA_BPTC_UNORM
-            | TextureInternalFormat::SRGB_ALPHA_BPTC_UNORM
-            | TextureInternalFormat::RGB_BPTC_SIGNED_FLOAT
-            | TextureInternalFormat::RGB_BPTC_UNSIGNED_FLOAT => {
+            TextureCompressedFormat::RGBA_BPTC_UNORM
+            | TextureCompressedFormat::SRGB_ALPHA_BPTC_UNORM
+            | TextureCompressedFormat::RGB_BPTC_SIGNED_FLOAT
+            | TextureCompressedFormat::RGB_BPTC_UNSIGNED_FLOAT => {
                 if self.compressed_bptc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            TextureInternalFormat::RED_RGTC1
-            | TextureInternalFormat::SIGNED_RED_RGTC1
-            | TextureInternalFormat::RED_GREEN_RGTC2
-            | TextureInternalFormat::SIGNED_RED_GREEN_RGTC2 => {
+            TextureCompressedFormat::RED_RGTC1
+            | TextureCompressedFormat::SIGNED_RED_RGTC1
+            | TextureCompressedFormat::RED_GREEN_RGTC2
+            | TextureCompressedFormat::SIGNED_RED_GREEN_RGTC2 => {
                 if self.compressed_rgtc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::TextureCompressedFormatUnsupported)
                 }
             }
-            _ => Ok(()),
         }
     }
 }

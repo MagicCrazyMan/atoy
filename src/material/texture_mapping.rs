@@ -1,7 +1,6 @@
 use std::{any::Any, borrow::Cow};
 
 use crate::{
-    loader::texture::TextureLoader,
     notify::Notifier,
     readonly::Readonly,
     render::webgl::{
@@ -9,11 +8,6 @@ use crate::{
         program::ProgramSource,
         shader::Define,
         state::FrameState,
-        texture::{
-            MemoryPolicy, Texture2D, TextureDataType, TextureDescriptor, TextureFormat,
-            TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
-            TextureParameter, TexturePixelStorage, TextureSource, TextureUnit, TextureWrapMethod,
-        },
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
@@ -22,55 +16,26 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
-    diffuse: TextureLoader,
+    diffuse: UniformValue,
     notifier: Notifier<()>,
 }
 
 impl TextureMaterial {
-    pub fn new<S: Into<String>>(url: S, transparency: Transparency) -> Self {
-        let notifier = Notifier::new();
-        let mut notifier_cloned = notifier.clone();
+    pub fn new(diffuse: UniformValue, transparency: Transparency) -> Self {
         Self {
             transparency,
-            diffuse: TextureLoader::from_url(url, move |image| {
-                notifier_cloned.notify(&mut ());
-                UniformValue::Texture2D {
-                    descriptor: TextureDescriptor::<Texture2D>::with_source(
-                        TextureSource::HtmlImageElement {
-                            image,
-                            format: TextureFormat::RGBA,
-                            data_type: TextureDataType::UNSIGNED_BYTE,
-                            pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-                            custom_size: None,
-                        },
-                        TextureInternalFormat::SRGB8_ALPHA8,
-                        true,
-                        MemoryPolicy::default(),
-                    ),
-                    params: vec![
-                        TextureParameter::MIN_FILTER(
-                            TextureMinificationFilter::LINEAR_MIPMAP_LINEAR,
-                        ),
-                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                        TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                        TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-                    ],
-                    unit: TextureUnit::TEXTURE0,
-                }
-            }),
-            notifier,
+            diffuse,
+            notifier: Notifier::new(),
         }
     }
 }
 
 impl StandardMaterial for TextureMaterial {
     fn ready(&self) -> bool {
-        self.diffuse.loaded()
+        true
     }
 
-    fn prepare(&mut self, _: &mut FrameState) {
-        self.diffuse.load();
-    }
+    fn prepare(&mut self, _: &mut FrameState) {}
 
     fn transparency(&self) -> Transparency {
         self.transparency
@@ -104,11 +69,10 @@ impl StandardMaterial for TextureMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
         match name {
-            "u_DiffuseTexture" => self
-                .diffuse
-                .texture()
-                .map(|texture| Readonly::Borrowed(texture)),
-            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(self.transparency.alpha()))),
+            "u_DiffuseTexture" => Some(Readonly::Borrowed(&self.diffuse)),
+            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
+                self.transparency.alpha(),
+            ))),
             "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(128.0))),
             _ => None,
         }

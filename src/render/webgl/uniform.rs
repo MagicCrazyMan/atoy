@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use super::{
     buffer::BufferDescriptor,
     texture::{
-        Texture2D, Texture2DArray, Texture3D, TextureCubeMap, TextureDescriptor, TextureParameter,
-        TextureUnit,
+        Texture2D, Texture2DArray, Texture2DCompressed, Texture3D, TextureCubeMap,
+        TextureDescriptor, TextureParameter, TextureUnit,
     },
 };
 
@@ -64,6 +64,11 @@ pub enum UniformValue {
     },
     TextureCubeMap {
         descriptor: TextureDescriptor<TextureCubeMap>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    Texture2DCompressed {
+        descriptor: TextureDescriptor<Texture2DCompressed>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },

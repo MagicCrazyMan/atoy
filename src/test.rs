@@ -11,8 +11,8 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
-use web_sys::js_sys::{Date, Function, Uint8Array};
-use web_sys::MouseEvent;
+use web_sys::js_sys::{ArrayBuffer, Date, Function, Uint8Array};
+use web_sys::{HtmlImageElement, MouseEvent};
 
 use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
@@ -29,6 +29,7 @@ use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
+use crate::loader::dds::DirectDrawSurface;
 use crate::loader::texture::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
@@ -39,8 +40,10 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::{
-    TextureDataType, TextureFormat, TextureMagnificationFilter, TextureMinificationFilter,
-    TextureParameter, TexturePixelStorage, TextureUnit, TextureWrapMethod,
+    MemoryPolicy, Texture2D, Texture2DCompressed, TextureCompressedFormat, TextureDataType,
+    TextureDescriptor, TextureFormat, TextureInternalFormat, TextureMagnificationFilter,
+    TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureSource,
+    TextureSourceCompressed, TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -527,6 +530,9 @@ pub fn test_cube(
     height: f64,
     render_callback: &Function,
     pick_callback: &Function,
+    floor_rgb: HtmlImageElement,
+    floor_dxt3: ArrayBuffer,
+    floor_dxt5: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
         Vec3::new(0.0, 5.0, 2.0),
@@ -615,10 +621,81 @@ pub fn test_cube(
         200.0,
         200.0,
     )));
+    // floor.set_material(Some(TextureMaterial::new(
+    //     UniformValue::Texture2DCompressed {
+    //         descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
+    //             TextureSourceCompressed::Uint8Array {
+    //                 width: 1024,
+    //                 height: 1024,
+    //                 data: floor_dxt3,
+    //                 src_offset: 0,
+    //                 src_length_override: Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3.bytes_length(1024, 1024, 1)),
+    //                 pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+    //             },
+    //             TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3,
+    //             false,
+    //             MemoryPolicy::Unfree,
+    //         )?,
+    //         params: vec![
+    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
+    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+    //         ],
+    //         unit: TextureUnit::TEXTURE0,
+    //     },
+    //     Transparency::Opaque,
+    // )));
+    let dds = DirectDrawSurface::parse(floor_dxt3).unwrap();
     floor.set_material(Some(TextureMaterial::new(
-        "./wood.png",
+        UniformValue::Texture2DCompressed {
+            descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
+                TextureSourceCompressed::Uint8Array {
+                    width: 1024,
+                    height: 1024,
+                    data: dds.data,
+                    src_offset: 128,
+                    src_length_override: Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5.bytes_length(1024, 1024, 1)),
+                    pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+                },
+                TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5,
+                false,
+                MemoryPolicy::Unfree,
+            )?,
+            params: vec![
+                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
+                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+            ],
+            unit: TextureUnit::TEXTURE0,
+        },
         Transparency::Opaque,
     )));
+    // floor.set_material(Some(TextureMaterial::new(
+    //     UniformValue::Texture2D {
+    //         descriptor: TextureDescriptor::<Texture2D>::with_source(
+    //             TextureSource::HtmlImageElement {
+    //                 image: floor_rgb,
+    //                 format: TextureFormat::RGBA,
+    //                 data_type: TextureDataType::UNSIGNED_BYTE,
+    //                 pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+    //                 custom_size: None,
+    //             },
+    //             TextureInternalFormat::SRGB8_ALPHA8,
+    //             true,
+    //             MemoryPolicy::Unfree,
+    //         ),
+    //         params: vec![
+    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
+    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+    //         ],
+    //         unit: TextureUnit::TEXTURE0,
+    //     },
+    //     Transparency::Opaque,
+    // )));
     floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
         &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
         &Vec3::new(0.0, -0.6, 0.0),

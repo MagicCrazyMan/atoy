@@ -22,7 +22,7 @@ use crate::{
     utils::format_bytes_length,
 };
 
-use super::{conversion::ToGlEnum, error::Error, utilities::array_buffer_binding};
+use super::{conversion::ToGlEnum, error::Error, utils::array_buffer_binding};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]

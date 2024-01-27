@@ -28,6 +28,6 @@ impl From<crate::render::webgl::error::Error> for Error {
 
 impl Into<wasm_bindgen::JsValue> for Error {
     fn into(self) -> wasm_bindgen::JsValue {
-        todo!()
+        wasm_bindgen::JsValue::from_str(&self.to_string())
     }
 }
