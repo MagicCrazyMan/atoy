@@ -71,9 +71,6 @@ const loadFloorCompressedTexture = async (url: string) => {
 
 onMounted(async () => {
   await init();
-  const floor_rgb = await loadFloorTexture();
-  const floor_dxt3 = await loadFloorCompressedTexture("/wood_dxt3.dds");
-  const floor_dxt5 = await loadFloorCompressedTexture("/wood_dxt5.dds");
   init_with_log_level(LogLevel.Info);
 
   // const viewer = test_cube(
@@ -99,9 +96,8 @@ onMounted(async () => {
     (time: number) => {
       pickTime.value = time;
     },
-    floor_rgb,
-    floor_dxt3,
-    floor_dxt5,
+    await loadFloorTexture(),
+    await loadFloorCompressedTexture("/wood_dxt3.dds")
   );
 
   clearColor.value = (() => {

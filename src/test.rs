@@ -29,7 +29,7 @@ use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
-use crate::loader::dds::DirectDrawSurface;
+use crate::loader::dds::{DirectDrawSurface, DDS_DXT1, DDS_DXT3};
 use crate::loader::texture::TextureLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
@@ -49,7 +49,7 @@ use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
 use crate::render::Render;
 use crate::utils::slice_to_float32_array;
-use crate::viewer::{Viewer, ViewerWeak};
+use crate::viewer::{self, Viewer, ViewerWeak};
 use crate::{document, entity};
 use crate::{
     geometry::cube::Cube,
@@ -531,8 +531,7 @@ pub fn test_cube(
     render_callback: &Function,
     pick_callback: &Function,
     floor_rgb: HtmlImageElement,
-    floor_dxt3: ArrayBuffer,
-    floor_dxt5: ArrayBuffer,
+    floor_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
         Vec3::new(0.0, 5.0, 2.0),
@@ -621,44 +620,21 @@ pub fn test_cube(
         200.0,
         200.0,
     )));
-    // floor.set_material(Some(TextureMaterial::new(
-    //     UniformValue::Texture2DCompressed {
-    //         descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
-    //             TextureSourceCompressed::Uint8Array {
-    //                 width: 1024,
-    //                 height: 1024,
-    //                 data: floor_dxt3,
-    //                 src_offset: 0,
-    //                 src_length_override: Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3.bytes_length(1024, 1024, 1)),
-    //                 pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-    //             },
-    //             TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3,
-    //             false,
-    //             MemoryPolicy::Unfree,
-    //         )?,
-    //         params: vec![
-    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
-    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-    //         ],
-    //         unit: TextureUnit::TEXTURE0,
-    //     },
-    //     Transparency::Opaque,
-    // )));
-    let dds = DirectDrawSurface::parse(floor_dxt3).unwrap();
+
+    let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
+    let (internal_format, data) = dds.gl_compressed_format(true, true).unwrap();
     floor.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2DCompressed {
             descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
                 TextureSourceCompressed::Uint8Array {
-                    width: 1024,
-                    height: 1024,
-                    data: dds.data,
-                    src_offset: 128,
-                    src_length_override: Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5.bytes_length(1024, 1024, 1)),
+                    width: dds.header.width as usize,
+                    height: dds.header.height as usize,
+                    data,
+                    src_offset: 0,
+                    src_length_override: None,
                     pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
                 },
-                TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5,
+                internal_format,
                 false,
                 MemoryPolicy::Unfree,
             )?,

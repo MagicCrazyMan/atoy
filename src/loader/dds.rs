@@ -1,6 +1,28 @@
-use std::fmt::Display;
-
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
+
+use crate::render::webgl::texture::TextureCompressedFormat;
+
+pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
+pub const DDS_DXT1: u32 = 0x31545844;
+pub const DDS_DXT3: u32 = 0x33545844;
+pub const DDS_DXT5: u32 = 0x35545844;
+pub const DDS_DXT10: u32 = 0x30315844;
+pub const DDS_HEADER_SIZE: u32 = 124;
+pub const DDS_PIXELFORMAT_SIZE: u32 = 32;
+pub const DDS_HEADER_FLAG_DDSD_CAPS: u32 = 0x1;
+pub const DDS_HEADER_FLAG_DDSD_HEIGHT: u32 = 0x2;
+pub const DDS_HEADER_FLAG_DDSD_WIDTH: u32 = 0x4;
+pub const DDS_HEADER_FLAG_DDSD_PITCH: u32 = 0x8;
+pub const DDS_HEADER_FLAG_DDSD_PIXELFORMAT: u32 = 0x1000;
+pub const DDS_HEADER_FLAG_DDSD_MIPMAPCOUNT: u32 = 0x20000;
+pub const DDS_HEADER_FLAG_DDSD_LINEARSIZE: u32 = 0x80000;
+pub const DDS_HEADER_FLAG_DDSD_DEPTH: u32 = 0x800000;
+pub const DDS_PIXELFORMAT_FLAG_ALPHA_PIXELS: u32 = 0x1;
+pub const DDS_PIXELFORMAT_FLAG_ALPHA: u32 = 0x2;
+pub const DDS_PIXELFORMAT_FLAG_FOUR_CC: u32 = 0x4;
+pub const DDS_PIXELFORMAT_FLAG_RGB: u32 = 0x40;
+pub const DDS_PIXELFORMAT_FLAG_YUV: u32 = 0x200;
+pub const DDS_PIXELFORMAT_FLAG_LUMINANCE: u32 = 0x20000;
 
 pub struct Header {
     pub size: u32,
@@ -17,6 +39,40 @@ pub struct Header {
     pub caps3: u32,
     pub caps4: u32,
     pub reserved2: u32,
+}
+
+impl Header {
+    pub fn ddsd_caps(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_CAPS != 0
+    }
+
+    pub fn ddsd_height(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_HEIGHT != 0
+    }
+
+    pub fn ddsd_width(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_WIDTH != 0
+    }
+
+    pub fn ddsd_pitch(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_PITCH != 0
+    }
+
+    pub fn ddsd_pixel_format(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_PIXELFORMAT != 0
+    }
+
+    pub fn ddsd_mipmap_count(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_MIPMAPCOUNT != 0
+    }
+
+    pub fn ddsd_linear_size(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_LINEARSIZE != 0
+    }
+
+    pub fn ddsd_depth(&self) -> bool {
+        self.flags & DDS_HEADER_FLAG_DDSD_DEPTH != 0
+    }
 }
 
 pub struct HeaderDxt10 {
@@ -38,7 +94,31 @@ pub struct PixelFormat {
     pub a_bit_mask: u32,
 }
 
-pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
+impl PixelFormat {
+    pub fn ddpf_alpha_pixels(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_ALPHA_PIXELS != 0
+    }
+
+    pub fn ddpf_alpha(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_ALPHA != 0
+    }
+
+    pub fn ddpf_four_cc(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_FOUR_CC != 0
+    }
+
+    pub fn ddpf_rgb(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_RGB != 0
+    }
+
+    pub fn ddpf_yuv(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_YUV != 0
+    }
+
+    pub fn ddpf_luminance(&self) -> bool {
+        self.flags & DDS_PIXELFORMAT_FLAG_LUMINANCE != 0
+    }
+}
 
 /// DirectDraw Surface.
 pub struct DirectDrawSurface {
@@ -47,24 +127,87 @@ pub struct DirectDrawSurface {
     pub header: Header,
     pub header_dxt10: Option<HeaderDxt10>,
     pub data: Uint8Array,
+    pub raw: ArrayBuffer,
 }
 
 impl DirectDrawSurface {
     /// Parse a DirectDraw Surface file from raw data stored in [`ArrayBuffer`].
-    pub fn parse(raw: ArrayBuffer) -> Result<Self, Error> {
+    pub fn parse(raw: ArrayBuffer) -> Option<Self> {
+        // a dds file has at least 128 bytes
+        if raw.byte_length() < 128 {
+            return None;
+        }
+
         let data_view = DataView::new(&raw, 0, raw.byte_length() as usize);
 
         // parses magic number
         let magic_number = Self::parse_magic_number(&data_view);
         if magic_number != DDS_MAGIC_NUMBER {
-            return Err(Error::InvalidFile);
+            return None;
         }
 
         // parses header
         let header = Self::parse_header(&data_view);
-        log::info!("{:x}", header.flags);
+        if header.size != DDS_HEADER_SIZE
+            || header.pixel_format.size != DDS_PIXELFORMAT_SIZE
+            // those flags are required
+            || !header.ddsd_caps()
+            || !header.ddsd_height()
+            || !header.ddsd_width()
+            || !header.ddsd_pixel_format()
+            || !header.pixel_format.ddpf_four_cc()
+        {
+            return None;
+        }
 
-        todo!()
+        // parses header dxt10
+        let (header_dxt10, data) = if header.pixel_format.four_cc == DDS_DXT10 {
+            (
+                Some(Self::parse_header_dxt10(&data_view)),
+                Uint8Array::new_with_byte_offset(&raw, 148),
+            )
+        } else {
+            (None, Uint8Array::new_with_byte_offset(&raw, 128))
+        };
+
+        Some(Self {
+            magic_number,
+            header,
+            header_dxt10,
+            data,
+            raw,
+        })
+    }
+
+    pub fn gl_compressed_format(
+        &self,
+        dxt1_use_alpha: bool,
+        use_srgb: bool,
+    ) -> Option<(TextureCompressedFormat, Uint8Array)> {
+        let format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
+            (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
+            (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
+            (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
+            (DDS_DXT1, true, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1),
+            (DDS_DXT3, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT3),
+            (DDS_DXT3, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3),
+            (DDS_DXT5, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT5),
+            (DDS_DXT5, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5),
+            (_, _, _) => None,
+        };
+
+        match format {
+            Some(format) => {
+                let data = Uint8Array::new_with_byte_offset_and_length(
+                    &self.raw,
+                    128,
+                    format.bytes_length(self.header.width as usize, self.header.height as usize, 1)
+                        as u32,
+                );
+                Some((format, data))
+            }
+            None => None,
+        }
     }
 
     fn parse_magic_number(data_view: &DataView) -> u32 {
@@ -138,17 +281,20 @@ impl DirectDrawSurface {
             a_bit_mask,
         }
     }
-}
 
-#[derive(Debug)]
-pub enum Error {
-    InvalidFile,
-}
+    fn parse_header_dxt10(data_view: &DataView) -> HeaderDxt10 {
+        let dxgi_format = data_view.get_uint32_endian(128, true);
+        let resource_dimension = data_view.get_uint32_endian(132, true);
+        let misc_flag = data_view.get_uint32_endian(136, true);
+        let array_size = data_view.get_uint32_endian(140, true);
+        let misc_flags2 = data_view.get_uint32_endian(144, true);
 
-impl std::error::Error for Error {}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        HeaderDxt10 {
+            dxgi_format,
+            resource_dimension,
+            misc_flag,
+            array_size,
+            misc_flags2,
+        }
     }
 }

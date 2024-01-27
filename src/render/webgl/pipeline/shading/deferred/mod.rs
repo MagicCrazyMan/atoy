@@ -85,6 +85,16 @@ impl StandardDeferredShading {
                     binding: UBO_LIGHTS_BINDING,
                 },
             )?;
+            state.bind_uniform_value_by_variable_name(
+                program,
+                POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME,
+                &UniformValue::Integer1(0),
+            )?;
+            state.bind_uniform_value_by_variable_name(
+                program,
+                NORMALS_TEXTURE_UNIFORM_NAME,
+                &UniformValue::Integer1(1),
+            )?;
 
             program
         } else {
@@ -103,16 +113,6 @@ impl StandardDeferredShading {
             },
         )?;
 
-        state.bind_uniform_value_by_variable_name(
-            program,
-            POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME,
-            &UniformValue::Integer1(0),
-        )?;
-        state.bind_uniform_value_by_variable_name(
-            program,
-            NORMALS_TEXTURE_UNIFORM_NAME,
-            &UniformValue::Integer1(1),
-        )?;
         state.bind_uniform_value_by_variable_name(
             program,
             ALBEDO_TEXTURE_UNIFORM_NAME,
