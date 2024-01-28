@@ -1554,7 +1554,6 @@ macro_rules! texture_sources_compressed {
                 buffer: WebGlBuffer,
                 image_size: usize,
                 pbo_offset: usize,
-                pixel_storages: Vec<TexturePixelStorage>,
             },
             $(
                 $name {
@@ -1563,7 +1562,6 @@ macro_rules! texture_sources_compressed {
                     data: $data_view,
                     src_offset: usize,
                     src_length_override: Option<usize>,
-                    pixel_storages: Vec<TexturePixelStorage>,
                 },
             )+
         }
@@ -1606,22 +1604,6 @@ macro_rules! texture_sources_compressed {
                 }
             }
 
-            fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
-                match self {
-                    TextureSourceCompressed::PixelBufferObject { pixel_storages, .. }
-                    $(
-                        | TextureSourceCompressed::$name { pixel_storages, .. }
-                    )+
-                     => {
-                        // setups pixel storage parameters
-                        pixel_storages
-                            .iter()
-                            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
-                    }
-                    TextureSourceCompressed::Function { .. } => {}
-                };
-            }
-
             fn tex_sub_image_2d(
                 &self,
                 gl: &WebGl2RenderingContext,
@@ -1631,8 +1613,6 @@ macro_rules! texture_sources_compressed {
                 x_offset: usize,
                 y_offset: usize,
             ) -> Result<(), Error> {
-                self.pixel_storages(gl);
-
                 // buffers image sub data
                 match self {
                     TextureSourceCompressed::Function {
@@ -1734,8 +1714,6 @@ macro_rules! texture_sources_compressed {
                 y_offset: usize,
                 z_offset: usize,
             ) -> Result<(), Error> {
-                self.pixel_storages(gl);
-
                 // buffers image sub data
                 match self {
                     TextureSourceCompressed::Function {
