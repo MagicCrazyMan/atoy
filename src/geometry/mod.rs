@@ -7,11 +7,14 @@ pub mod sphere;
 use std::any::Any;
 
 use crate::{
-    bounding::BoundingVolume, notify::Notifier, readonly::Readonly, render::webgl::{
+    bounding::BoundingVolume,
+    notify::Notifier,
+    readonly::Readonly,
+    render::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 pub trait Geometry {
@@ -19,19 +22,19 @@ pub trait Geometry {
 
     fn cull_face(&self) -> Option<CullFace>;
 
-    fn bounding_volume(&self) -> Option<BoundingVolume>;
+    fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>>;
 
-    fn positions(&self) -> Option<AttributeValue>;
+    fn positions(&self) -> Option<Readonly<'_, AttributeValue>>;
 
-    fn normals(&self) -> Option<AttributeValue>;
+    fn normals(&self) -> Option<Readonly<'_, AttributeValue>>;
 
-    fn texture_coordinates(&self) -> Option<AttributeValue>;
+    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>>;
 
-    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
-    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue>;
+    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
     fn notifier(&mut self) -> &mut Notifier<()>;
 

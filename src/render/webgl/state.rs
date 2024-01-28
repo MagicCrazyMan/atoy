@@ -161,9 +161,10 @@ impl FrameState {
                 AttributeBinding::GeometryNormal => geometry.normals(),
                 AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
                 AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
-                AttributeBinding::FromEntity(name) => {
-                    entity.attribute_values().get(name.as_ref()).cloned()
-                }
+                AttributeBinding::FromEntity(name) => entity
+                    .attribute_values()
+                    .get(name.as_ref())
+                    .map(|v| Readonly::Borrowed(v)),
             };
             let Some(value) = value else {
                 warn!(
@@ -174,7 +175,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_attribute_value(location, value) {
+            match self.bind_attribute_value(location, value.as_ref()) {
                 Ok(ba) => bounds.extend(ba),
                 Err(err) => warn!(
                     target: "BindUniforms",
@@ -191,7 +192,7 @@ impl FrameState {
     pub fn bind_attribute_value(
         &mut self,
         location: u32,
-        value: AttributeValue,
+        value: &AttributeValue,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let mut bounds = Vec::new();
         match value {
@@ -204,23 +205,23 @@ impl FrameState {
                 bytes_stride,
                 bytes_offset,
             } => {
-                let buffer = self.buffer_store_mut().use_buffer(&descriptor, target)?;
+                let buffer = self.buffer_store_mut().use_buffer(&descriptor, *target)?;
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 self.gl.vertex_attrib_pointer_with_i32(
                     location,
-                    component_size as i32,
+                    *component_size as i32,
                     data_type.gl_enum(),
-                    normalized,
-                    bytes_stride as i32,
-                    bytes_offset as i32,
+                    *normalized,
+                    *bytes_stride as i32,
+                    *bytes_offset as i32,
                 );
                 self.gl.enable_vertex_attrib_array(location);
                 self.gl.bind_buffer(target.gl_enum(), None);
 
                 bounds.push(BoundAttribute {
                     location,
-                    descriptor,
+                    descriptor: descriptor.clone(),
                 });
             }
             AttributeValue::InstancedBuffer {
@@ -232,12 +233,12 @@ impl FrameState {
                 component_count_per_instance,
                 divisor,
             } => {
-                let buffer = self.buffer_store_mut().use_buffer(&descriptor, target)?;
+                let buffer = self.buffer_store_mut().use_buffer(&descriptor, *target)?;
 
                 self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-                let component_size = component_size as usize;
+                let component_size = *component_size as usize;
                 // binds each instance
-                for i in 0..component_count_per_instance {
+                for i in 0..*component_count_per_instance {
                     let offset_location = location + i as u32;
                     let stride =
                         data_type.bytes_length() * component_size * component_count_per_instance;
@@ -246,13 +247,13 @@ impl FrameState {
                         offset_location,
                         component_size as i32,
                         data_type.gl_enum(),
-                        normalized,
+                        *normalized,
                         stride as i32,
                         offset as i32,
                     );
                     self.gl.enable_vertex_attrib_array(offset_location);
                     self.gl
-                        .vertex_attrib_divisor(offset_location, divisor as u32);
+                        .vertex_attrib_divisor(offset_location, *divisor as u32);
 
                     bounds.push(BoundAttribute {
                         location: offset_location,
@@ -261,18 +262,22 @@ impl FrameState {
                 }
                 self.gl.bind_buffer(target.gl_enum(), None);
             }
-            AttributeValue::Vertex1f(x) => self.gl.vertex_attrib1f(location, x),
-            AttributeValue::Vertex2f(x, y) => self.gl.vertex_attrib2f(location, x, y),
-            AttributeValue::Vertex3f(x, y, z) => self.gl.vertex_attrib3f(location, x, y, z),
-            AttributeValue::Vertex4f(x, y, z, w) => self.gl.vertex_attrib4f(location, x, y, z, w),
-            AttributeValue::Vertex1fv(v) => self.gl.vertex_attrib1fv_with_f32_array(location, &v),
-            AttributeValue::Vertex2fv(v) => self.gl.vertex_attrib2fv_with_f32_array(location, &v),
-            AttributeValue::Vertex3fv(v) => self.gl.vertex_attrib3fv_with_f32_array(location, &v),
-            AttributeValue::Vertex4fv(v) => self.gl.vertex_attrib4fv_with_f32_array(location, &v),
-            AttributeValue::UnsignedInteger4(x, y, z, w) => {
-                self.gl.vertex_attrib_i4ui(location, x, y, z, w)
+            AttributeValue::Vertex1f(x) => self.gl.vertex_attrib1f(location, *x),
+            AttributeValue::Vertex2f(x, y) => self.gl.vertex_attrib2f(location, *x, *y),
+            AttributeValue::Vertex3f(x, y, z) => self.gl.vertex_attrib3f(location, *x, *y, *z),
+            AttributeValue::Vertex4f(x, y, z, w) => {
+                self.gl.vertex_attrib4f(location, *x, *y, *z, *w)
             }
-            AttributeValue::Integer4(x, y, z, w) => self.gl.vertex_attrib_i4i(location, x, y, z, w),
+            AttributeValue::Vertex1fv(v) => self.gl.vertex_attrib1fv_with_f32_array(location, v),
+            AttributeValue::Vertex2fv(v) => self.gl.vertex_attrib2fv_with_f32_array(location, v),
+            AttributeValue::Vertex3fv(v) => self.gl.vertex_attrib3fv_with_f32_array(location, v),
+            AttributeValue::Vertex4fv(v) => self.gl.vertex_attrib4fv_with_f32_array(location, v),
+            AttributeValue::UnsignedInteger4(x, y, z, w) => {
+                self.gl.vertex_attrib_i4ui(location, *x, *y, *z, *w)
+            }
+            AttributeValue::Integer4(x, y, z, w) => {
+                self.gl.vertex_attrib_i4i(location, *x, *y, *z, *w)
+            }
             AttributeValue::IntegerVector4(mut values) => self
                 .gl
                 .vertex_attrib_i4iv_with_i32_array(location, &mut values),
@@ -288,7 +293,7 @@ impl FrameState {
         &mut self,
         program: &mut Program,
         variable_name: &str,
-        value: AttributeValue,
+        value: &AttributeValue,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let Some(location) = program.get_or_retrieve_attribute_locations(variable_name) else {
             return Err(Error::NoSuchAttribute(variable_name.to_string()));
@@ -408,9 +413,10 @@ impl FrameState {
                 UniformBlockBinding::FromMaterial(name) => {
                     material.uniform_block_value(name.as_ref())
                 }
-                UniformBlockBinding::FromEntity(name) => {
-                    entity.uniform_blocks_values().get(name.as_ref()).cloned()
-                }
+                UniformBlockBinding::FromEntity(name) => entity
+                    .uniform_blocks_values()
+                    .get(name.as_ref())
+                    .map(|v| Readonly::Borrowed(v)),
             };
             let Some(value) = value else {
                 warn!(
@@ -421,7 +427,7 @@ impl FrameState {
                 continue;
             };
 
-            self.bind_uniform_block_value(program.program(), uniform_block_index, value)?;
+            self.bind_uniform_block_value(program.program(), uniform_block_index, value.as_ref())?;
         }
 
         Ok(())
@@ -626,7 +632,7 @@ impl FrameState {
         &mut self,
         program: &WebGlProgram,
         uniform_block_index: u32,
-        value: UniformBlockValue,
+        value: &UniformBlockValue,
     ) -> Result<(), Error> {
         let binding = match value {
             UniformBlockValue::BufferBase {
@@ -634,7 +640,7 @@ impl FrameState {
                 binding,
             } => {
                 self.buffer_store_mut()
-                    .bind_uniform_buffer_object(&descriptor, binding, None)?;
+                    .bind_uniform_buffer_object(&descriptor, *binding, None)?;
                 binding
             }
             UniformBlockValue::BufferRange {
@@ -645,15 +651,15 @@ impl FrameState {
             } => {
                 self.buffer_store_mut().bind_uniform_buffer_object(
                     &descriptor,
-                    binding,
-                    Some((offset, size)),
+                    *binding,
+                    Some((*offset, *size)),
                 )?;
                 binding
             }
         };
 
         self.gl
-            .uniform_block_binding(program, uniform_block_index, binding);
+            .uniform_block_binding(program, uniform_block_index, *binding);
         Ok(())
     }
 
@@ -662,7 +668,7 @@ impl FrameState {
         &mut self,
         program: &mut Program,
         uniform_block_name: &str,
-        value: UniformBlockValue,
+        value: &UniformBlockValue,
     ) -> Result<(), Error> {
         let uniform_block_index = program.get_or_retrieve_uniform_block_index(uniform_block_name);
         self.bind_uniform_block_value(program.program(), uniform_block_index, value)
@@ -676,24 +682,24 @@ impl FrameState {
             Draw::Elements {
                 mode,
                 count,
-                element_type,
                 offset,
                 indices,
+                indices_data_type,
             } => {
                 let buffer = self
                     .buffer_store_mut()
                     .use_buffer(&indices, BufferTarget::ELEMENT_ARRAY_BUFFER)?;
 
                 self.gl
-                    .bind_buffer(BufferTarget::ELEMENT_ARRAY_BUFFER.gl_enum(), Some(&buffer));
+                    .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&buffer));
                 self.gl.draw_elements_with_i32(
                     mode.gl_enum(),
                     *count,
-                    element_type.gl_enum(),
+                    indices_data_type.gl_enum(),
                     *offset,
                 );
                 self.gl
-                    .bind_buffer(BufferTarget::ELEMENT_ARRAY_BUFFER.gl_enum(), None);
+                    .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
                 self.buffer_store_mut().unuse_buffer(&indices);
             }
         }

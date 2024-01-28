@@ -344,7 +344,7 @@ impl Entity {
             });
             let bounding = geometry
                 .bounding_volume()
-                .map(|bounding| bounding.transform(self.compose_model_matrix))
+                .map(|bounding| bounding.as_ref().transform(self.compose_model_matrix))
                 .map(|bounding| CullingBoundingVolume::new(bounding));
             self.geometry = Some((geometry, bounding, notifying));
         }
@@ -579,9 +579,9 @@ impl Entity {
         };
 
         let compose_model_matrix = self.compose_model_matrix;
-        *bounding = geometry
-            .bounding_volume()
-            .map(|bounding| CullingBoundingVolume::new(bounding.transform(compose_model_matrix)));
+        *bounding = geometry.bounding_volume().map(|bounding| {
+            CullingBoundingVolume::new(bounding.as_ref().transform(compose_model_matrix))
+        });
     }
 }
 

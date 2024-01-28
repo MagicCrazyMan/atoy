@@ -75,7 +75,6 @@ pub enum UniformValue {
 }
 
 /// Available uniform block values.
-#[derive(Clone)]
 pub enum UniformBlockValue {
     BufferBase {
         descriptor: BufferDescriptor,

@@ -63,7 +63,7 @@ impl StandardMaterial for TextureMaterial {
         &[]
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
         None
     }
 
@@ -78,7 +78,7 @@ impl StandardMaterial for TextureMaterial {
         }
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
     }
 

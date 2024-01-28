@@ -22,7 +22,10 @@ use super::Geometry;
 pub struct Cube {
     size: f64,
     positions: BufferDescriptor,
-    normals_textures: BufferDescriptor,
+
+    positions_attribute: AttributeValue,
+    normals_attribute: AttributeValue,
+    textures_attribute: AttributeValue,
     bounding_volume: BoundingVolume,
     notifier: Notifier<()>,
 }
@@ -35,25 +38,58 @@ impl Cube {
 
     /// Constructs a cube with a specified size.
     pub fn with_size(size: f64) -> Cube {
+        let positions = if size == 1.0 {
+            buffer_descriptor_with_size_one()
+        } else {
+            BufferDescriptor::with_memory_policy(
+                BufferSource::from_function(
+                    move || BufferSource::from_binary(build_positions(size), 0, 108 * 4),
+                    108 * 4,
+                    0,
+                    108 * 4,
+                ),
+                BufferUsage::STATIC_DRAW,
+                MemoryPolicy::restorable(move || {
+                    BufferSource::from_binary(build_positions(size), 0, 108 * 4)
+                }),
+            )
+        };
+        let positions_attribute = AttributeValue::Buffer {
+            descriptor: positions.clone(),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        };
+
+        let normals_and_textures = normals_texture_coordinates_buffer_descriptor();
+        let normals_attribute = AttributeValue::Buffer {
+            descriptor: normals_and_textures.clone(),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        };
+        let textures_attribute = AttributeValue::Buffer {
+            descriptor: normals_and_textures,
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 108 * 4,
+        };
+
         Self {
             size,
-            positions: if size == 1.0 {
-                buffer_descriptor_with_size_one()
-            } else {
-                BufferDescriptor::with_memory_policy(
-                    BufferSource::from_function(
-                        move || BufferSource::from_binary(build_positions(size), 0, 108 * 4),
-                        108 * 4,
-                        0,
-                        108 * 4,
-                    ),
-                    BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(move || {
-                        BufferSource::from_binary(build_positions(size), 0, 108 * 4)
-                    }),
-                )
-            },
-            normals_textures: normals_texture_coordinates_buffer_descriptor(),
+            positions,
+            positions_attribute,
+            normals_attribute,
+            textures_attribute,
             bounding_volume: build_bounding_volume(size),
             notifier: Notifier::new(),
         }
@@ -76,6 +112,15 @@ impl Cube {
                     BufferSource::from_binary(build_positions(size), 0, 108 * 4)
                 }),
             );
+            self.positions_attribute = AttributeValue::Buffer {
+                descriptor: self.positions.clone(),
+                target: BufferTarget::ARRAY_BUFFER,
+                component_size: BufferComponentSize::Three,
+                data_type: BufferDataType::FLOAT,
+                normalized: false,
+                bytes_stride: 0,
+                bytes_offset: 0,
+            }
         } else {
             self.positions.buffer_sub_data(
                 BufferSource::from_binary(build_positions(size), 0, 108 * 4),
@@ -102,47 +147,23 @@ impl Geometry for Cube {
         Some(CullFace::BACK)
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
-        Some(self.bounding_volume)
+    fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>> {
+        Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Option<AttributeValue> {
-        Some(AttributeValue::Buffer {
-            descriptor: self.positions.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 0,
-        })
+    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.positions_attribute))
     }
 
-    fn normals(&self) -> Option<AttributeValue> {
-        Some(AttributeValue::Buffer {
-            descriptor: self.normals_textures.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 0,
-        })
+    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.normals_attribute))
     }
 
-    fn texture_coordinates(&self) -> Option<AttributeValue> {
-        Some(AttributeValue::Buffer {
-            descriptor: self.normals_textures.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Two,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 108 * 4,
-        })
+    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.textures_attribute))
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
         None
     }
 
@@ -150,7 +171,7 @@ impl Geometry for Cube {
         None
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
     }
 
@@ -167,7 +188,7 @@ impl Geometry for Cube {
     }
 }
 
-fn build_bounding_volume(size: f64) -> BoundingVolume {
+pub(super) fn build_bounding_volume(size: f64) -> BoundingVolume {
     let s = size / 2.0;
     BoundingVolume::BoundingSphere {
         center: Vec3::<f64>::new_zero(),

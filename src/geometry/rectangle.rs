@@ -132,23 +132,23 @@ impl Geometry for Rectangle {
         None
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
-        Some(self.bounding)
+    fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>> {
+        Some(Readonly::Borrowed(&self.bounding))
     }
 
-    fn positions(&self) -> Option<AttributeValue> {
-        Some(self.positions.clone())
+    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.positions))
     }
 
-    fn normals(&self) -> Option<AttributeValue> {
-        Some(self.normals.clone())
+    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.normals))
     }
 
-    fn texture_coordinates(&self) -> Option<AttributeValue> {
-        Some(self.texture_coordinates.clone())
+    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.texture_coordinates))
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
         None
     }
 
@@ -156,7 +156,7 @@ impl Geometry for Rectangle {
         None
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
     }
 

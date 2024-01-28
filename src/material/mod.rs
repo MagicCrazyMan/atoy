@@ -8,13 +8,16 @@ use crate::{
         directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
         point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
         spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
-    }, notify::Notifier, readonly::Readonly, render::webgl::{
+    },
+    notify::Notifier,
+    readonly::Readonly,
+    render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         shader::{Define, ShaderBuilder},
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 pub mod solid_color;
@@ -73,13 +76,13 @@ pub trait StandardMaterial: StandardMaterialSource {
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
 
     /// Returns an attribute value by an attribute variable name.
-    fn attribute_value(&self, name: &str) -> Option<AttributeValue>;
+    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
 
     /// Returns an uniform value by an uniform variable name.
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
     /// Returns an uniform block buffer binding value by an uniform block name.
-    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue>;
+    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
     fn notifier(&mut self) -> &mut Notifier<()>;
 

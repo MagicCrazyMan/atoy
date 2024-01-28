@@ -27,6 +27,7 @@ pub struct Sphere {
     num_positions: usize,
     positions: BufferDescriptor,
     normals: BufferDescriptor,
+    bounding_volume: BoundingVolume,
     notifier: Notifier<()>,
 }
 
@@ -53,6 +54,10 @@ impl Sphere {
                 BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::STATIC_DRAW,
             ),
+            bounding_volume: BoundingVolume::BoundingSphere {
+                center: Vec3::<f64>::new(0.0, 0.0, 0.0),
+                radius,
+            },
             notifier: Notifier::new(),
         }
     }
@@ -77,6 +82,10 @@ impl Sphere {
         );
         self.normals
             .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
+        self.bounding_volume =  BoundingVolume::BoundingSphere {
+            center: Vec3::<f64>::new(0.0, 0.0, 0.0),
+            radius,
+        };
     }
 }
 
@@ -93,15 +102,12 @@ impl Geometry for Sphere {
         Some(CullFace::BACK)
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
-        Some(BoundingVolume::BoundingSphere {
-            center: Vec3::<f64>::new(0.0, 0.0, 0.0),
-            radius: self.radius,
-        })
+    fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>> {
+        Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Option<AttributeValue> {
-        Some(AttributeValue::Buffer {
+    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Owned(AttributeValue::Buffer {
             descriptor: self.positions.clone(),
             target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
@@ -109,11 +115,11 @@ impl Geometry for Sphere {
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        })
+        }))
     }
 
-    fn normals(&self) -> Option<AttributeValue> {
-        Some(AttributeValue::Buffer {
+    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Owned(AttributeValue::Buffer {
             descriptor: self.normals.clone(),
             target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Four,
@@ -121,14 +127,14 @@ impl Geometry for Sphere {
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        })
+        }))
     }
 
-    fn texture_coordinates(&self) -> Option<AttributeValue> {
+    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
         None
     }
 
-    fn attribute_value(&self, _: &str) -> Option<AttributeValue> {
+    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
         None
     }
 
@@ -136,7 +142,7 @@ impl Geometry for Sphere {
         None
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue> {
+    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
     }
 

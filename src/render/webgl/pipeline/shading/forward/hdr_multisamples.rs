@@ -381,7 +381,7 @@ impl StandardMultisamplesHdrShading {
                         state.bind_uniform_block_value_by_block_name(
                             program,
                             UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
-                            UniformBlockValue::BufferBase {
+                            &UniformBlockValue::BufferBase {
                                 descriptor: gaussian_kernel_ubo.clone(),
                                 binding: UBO_GAUSSIAN_BLUR_BINDING,
                             },

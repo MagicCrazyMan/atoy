@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use super::buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget};
 
 /// Available attribute values.
-#[derive(Clone)]
 pub enum AttributeValue {
     Buffer {
         descriptor: BufferDescriptor,

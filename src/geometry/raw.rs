@@ -59,32 +59,34 @@ impl Geometry for RawGeometry {
         self.cull_face
     }
 
-    fn bounding_volume(&self) -> Option<BoundingVolume> {
+    fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>> {
         None
     }
 
-    fn positions(&self) -> Option<AttributeValue> {
-        self.positions.clone()
+    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
+        self.positions.as_ref().map(|v| Readonly::Borrowed(v))
     }
 
-    fn normals(&self) -> Option<AttributeValue> {
-        self.normals.clone()
+    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
+        self.normals.as_ref().map(|v| Readonly::Borrowed(v))
     }
 
-    fn texture_coordinates(&self) -> Option<AttributeValue> {
-        self.texture_coordinates.clone()
+    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
+        self.texture_coordinates
+            .as_ref()
+            .map(|v| Readonly::Borrowed(v))
     }
 
-    fn attribute_value(&self, name: &str) -> Option<AttributeValue> {
-        self.attributes.get(name).map(|v| v.clone())
+    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>> {
+        self.attributes.get(name).map(|v| Readonly::Borrowed(v))
     }
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
         self.uniforms.get(name).map(|v| Readonly::Borrowed(v))
     }
 
-    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue> {
-        self.uniform_blocks.get(name).map(|v| v.clone())
+    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+        self.uniform_blocks.get(name).map(|v| Readonly::Borrowed(v))
     }
 
     fn notifier(&mut self) -> &mut Notifier<()> {

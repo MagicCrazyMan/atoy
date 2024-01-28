@@ -19,9 +19,9 @@ pub enum Draw {
     Elements {
         mode: DrawMode,
         count: i32,
-        element_type: DrawElementType,
         offset: i32,
         indices: BufferDescriptor,
+        indices_data_type: DrawElementType,
     },
 }
 

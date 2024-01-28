@@ -80,7 +80,7 @@ impl StandardDeferredShading {
             state.bind_uniform_block_value_by_block_name(
                 program,
                 UBO_LIGHTS_BLOCK_NAME,
-                UniformBlockValue::BufferBase {
+                &UniformBlockValue::BufferBase {
                     descriptor: lights_ubo.clone(),
                     binding: UBO_LIGHTS_BINDING,
                 },
@@ -107,7 +107,7 @@ impl StandardDeferredShading {
         state.bind_uniform_block_value_by_block_name(
             program,
             UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-            UniformBlockValue::BufferBase {
+            &UniformBlockValue::BufferBase {
                 descriptor: universal_ubo.clone(),
                 binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
             },
