@@ -201,7 +201,7 @@ impl DirectDrawSurface {
                 let data = Uint8Array::new_with_byte_offset_and_length(
                     &self.raw,
                     128,
-                    format.bytes_length(self.header.width as usize, self.header.height as usize, 1)
+                    format.bytes_length(self.header.width as usize, self.header.height as usize)
                         as u32,
                 );
                 Some((format, data))

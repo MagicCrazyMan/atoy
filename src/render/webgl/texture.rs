@@ -11,8 +11,8 @@ use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{
-        Float32Array, Int16Array, Int32Array, Int8Array, Object, Uint16Array, Uint32Array,
-        Uint8Array, Uint8ClampedArray,
+        BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
+        Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
     },
     HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
     WebGl2RenderingContext, WebGlBuffer, WebGlTexture,
@@ -128,58 +128,57 @@ pub enum TextureInternalFormat {
 
 impl TextureInternalFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    /// `depth` is ignored if the format does not support [`WebGl2RenderingContext::TEXTURE_3D`].
-    pub fn bytes_length(&self, width: usize, height: usize, depth: usize) -> usize {
+    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
-            TextureInternalFormat::RGBA32I => width * height * depth * 16,
-            TextureInternalFormat::RGBA32UI => width * height * depth * 16,
-            TextureInternalFormat::RGBA16I => width * height * depth * 4,
-            TextureInternalFormat::RGBA16UI => width * height * depth * 4,
-            TextureInternalFormat::RGBA8 => width * height * depth * 4,
-            TextureInternalFormat::RGBA8I => width * height * depth * 4,
-            TextureInternalFormat::RGBA8UI => width * height * depth * 4,
-            TextureInternalFormat::SRGB8_ALPHA8 => width * height * depth * 4,
-            TextureInternalFormat::RGB10_A2 => width * height * depth * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGB10_A2UI => width * height * depth * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGBA4 => width * height * depth * 2,
-            TextureInternalFormat::RGB5_A1 => width * height * depth * 2, // 5 + 5 + 5 + 1 in bits
-            TextureInternalFormat::RGB8 => width * height * depth * 3,
-            TextureInternalFormat::RGB565 => width * height * depth * 2, // 5 + 6 + 5 in bits
-            TextureInternalFormat::RG32I => width * height * depth * 4,
-            TextureInternalFormat::RG32UI => width * height * depth * 4,
-            TextureInternalFormat::RG16I => width * height * depth * 4,
-            TextureInternalFormat::RG16UI => width * height * depth * 4,
-            TextureInternalFormat::RG8 => width * height * depth * 2,
-            TextureInternalFormat::RG8I => width * height * depth * 2,
-            TextureInternalFormat::RG8UI => width * height * depth * 2,
-            TextureInternalFormat::R32I => width * height * depth * 4,
-            TextureInternalFormat::R32UI => width * height * depth * 4,
-            TextureInternalFormat::R16I => width * height * depth * 2,
-            TextureInternalFormat::R16UI => width * height * depth * 2,
-            TextureInternalFormat::R8 => width * height * depth * 1,
-            TextureInternalFormat::R8I => width * height * depth * 1,
-            TextureInternalFormat::R8UI => width * height * depth * 1,
-            TextureInternalFormat::RGBA32F => width * height * depth * 16,
-            TextureInternalFormat::RGBA16F => width * height * depth * 4,
-            TextureInternalFormat::RGBA8_SNORM => width * height * depth * 4,
-            TextureInternalFormat::RGB32F => width * height * depth * 12,
-            TextureInternalFormat::RGB32I => width * height * depth * 12,
-            TextureInternalFormat::RGB32UI => width * height * depth * 12,
-            TextureInternalFormat::RGB16F => width * height * depth * 6,
-            TextureInternalFormat::RGB16I => width * height * depth * 6,
-            TextureInternalFormat::RGB16UI => width * height * depth * 6,
-            TextureInternalFormat::RGB8_SNORM => width * height * depth * 3,
-            TextureInternalFormat::RGB8I => width * height * depth * 3,
-            TextureInternalFormat::RGB8UI => width * height * depth * 3,
-            TextureInternalFormat::SRGB8 => width * height * depth * 3,
-            TextureInternalFormat::R11F_G11F_B10F => width * height * depth * 4, // 11 + 11 + 10 in bits
-            TextureInternalFormat::RGB9_E5 => width * height * depth * 4, // 9 + 9 + 9 + 5 in bits
-            TextureInternalFormat::RG32F => width * height * depth * 4,
-            TextureInternalFormat::RG16F => width * height * depth * 4,
-            TextureInternalFormat::RG8_SNORM => width * height * depth * 2,
-            TextureInternalFormat::R32F => width * height * depth * 4,
-            TextureInternalFormat::R16F => width * height * depth * 2,
-            TextureInternalFormat::R8_SNORM => width * height * depth * 1,
+            TextureInternalFormat::RGBA32I => width * height * 16,
+            TextureInternalFormat::RGBA32UI => width * height * 16,
+            TextureInternalFormat::RGBA16I => width * height * 4,
+            TextureInternalFormat::RGBA16UI => width * height * 4,
+            TextureInternalFormat::RGBA8 => width * height * 4,
+            TextureInternalFormat::RGBA8I => width * height * 4,
+            TextureInternalFormat::RGBA8UI => width * height * 4,
+            TextureInternalFormat::SRGB8_ALPHA8 => width * height * 4,
+            TextureInternalFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGBA4 => width * height * 2,
+            TextureInternalFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
+            TextureInternalFormat::RGB8 => width * height * 3,
+            TextureInternalFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
+            TextureInternalFormat::RG32I => width * height * 4,
+            TextureInternalFormat::RG32UI => width * height * 4,
+            TextureInternalFormat::RG16I => width * height * 4,
+            TextureInternalFormat::RG16UI => width * height * 4,
+            TextureInternalFormat::RG8 => width * height * 2,
+            TextureInternalFormat::RG8I => width * height * 2,
+            TextureInternalFormat::RG8UI => width * height * 2,
+            TextureInternalFormat::R32I => width * height * 4,
+            TextureInternalFormat::R32UI => width * height * 4,
+            TextureInternalFormat::R16I => width * height * 2,
+            TextureInternalFormat::R16UI => width * height * 2,
+            TextureInternalFormat::R8 => width * height * 1,
+            TextureInternalFormat::R8I => width * height * 1,
+            TextureInternalFormat::R8UI => width * height * 1,
+            TextureInternalFormat::RGBA32F => width * height * 16,
+            TextureInternalFormat::RGBA16F => width * height * 4,
+            TextureInternalFormat::RGBA8_SNORM => width * height * 4,
+            TextureInternalFormat::RGB32F => width * height * 12,
+            TextureInternalFormat::RGB32I => width * height * 12,
+            TextureInternalFormat::RGB32UI => width * height * 12,
+            TextureInternalFormat::RGB16F => width * height * 6,
+            TextureInternalFormat::RGB16I => width * height * 6,
+            TextureInternalFormat::RGB16UI => width * height * 6,
+            TextureInternalFormat::RGB8_SNORM => width * height * 3,
+            TextureInternalFormat::RGB8I => width * height * 3,
+            TextureInternalFormat::RGB8UI => width * height * 3,
+            TextureInternalFormat::SRGB8 => width * height * 3,
+            TextureInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
+            TextureInternalFormat::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
+            TextureInternalFormat::RG32F => width * height * 4,
+            TextureInternalFormat::RG16F => width * height * 4,
+            TextureInternalFormat::RG8_SNORM => width * height * 2,
+            TextureInternalFormat::R32F => width * height * 4,
+            TextureInternalFormat::R16F => width * height * 2,
+            TextureInternalFormat::R8_SNORM => width * height * 1,
             TextureInternalFormat::DEPTH_COMPONENT32F => width * height * 4,
             TextureInternalFormat::DEPTH_COMPONENT24 => width * height * 3,
             TextureInternalFormat::DEPTH_COMPONENT16 => width * height * 2,
@@ -311,7 +310,7 @@ pub enum TextureCompressedFormat {
 
 impl TextureCompressedFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    pub fn bytes_length(&self, width: usize, height: usize, depth: usize) -> usize {
+    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
             TextureCompressedFormat::RGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
@@ -1540,426 +1539,315 @@ impl TextureSource {
     }
 }
 
-pub enum TextureSourceCompressed {
-    Function {
-        width: usize,
-        height: usize,
-        bytes_length: usize,
-        callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-    },
-    PixelBufferObject {
-        width: usize,
-        height: usize,
-        buffer: WebGlBuffer,
-        image_size: usize,
-        pbo_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint8Array {
-        width: usize,
-        height: usize,
-        data: Uint8Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint8ClampedArray {
-        width: usize,
-        height: usize,
-        data: Uint8ClampedArray,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int8Array {
-        width: usize,
-        height: usize,
-        data: Int8Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint16Array {
-        width: usize,
-        height: usize,
-        data: Uint16Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int16Array {
-        width: usize,
-        height: usize,
-        data: Int16Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint32Array {
-        width: usize,
-        height: usize,
-        data: Uint32Array,
-        /// Only [`TextureDataType::UNSIGNED_INT`],
-        /// [`TextureDataType::UNSIGNED_INT_24_8`]
-        /// are accepted.
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int32Array {
-        width: usize,
-        height: usize,
-        data: Int32Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Float32Array {
-        width: usize,
-        height: usize,
-        data: Float32Array,
-        src_offset: usize,
-        src_length_override: Option<usize>,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-}
-
-macro_rules! texture_source_compressed_size {
-    ($self:ident, $dimension:ident) => {
-        match $self {
-            TextureSourceCompressed::Function { $dimension, .. }
-            | TextureSourceCompressed::PixelBufferObject { $dimension, .. }
-            | TextureSourceCompressed::Uint8Array { $dimension, .. }
-            | TextureSourceCompressed::Uint8ClampedArray { $dimension, .. }
-            | TextureSourceCompressed::Int8Array { $dimension, .. }
-            | TextureSourceCompressed::Uint16Array { $dimension, .. }
-            | TextureSourceCompressed::Int16Array { $dimension, .. }
-            | TextureSourceCompressed::Uint32Array { $dimension, .. }
-            | TextureSourceCompressed::Int32Array { $dimension, .. }
-            | TextureSourceCompressed::Float32Array { $dimension, .. } => *$dimension,
-        }
-    };
-}
-macro_rules! texture_source_compressed_data_views {
-    ($self:ident, $($name:ident),+) => {
-        match $self {
+macro_rules! texture_sources_compressed {
+    ($(($name:ident, $data_view:ident))+) => {
+        pub enum TextureSourceCompressed {
+            Function {
+                width: usize,
+                height: usize,
+                bytes_length: usize,
+                callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
+            },
+            PixelBufferObject {
+                width: usize,
+                height: usize,
+                buffer: WebGlBuffer,
+                image_size: usize,
+                pbo_offset: usize,
+                pixel_storages: Vec<TexturePixelStorage>,
+            },
             $(
-                TextureSourceCompressed::$name {
-                    width,
-                    height,
-                    data,
-                    src_offset,
-                    src_length_override,
-                    ..
-                } => (
-                    width,
-                    height,
-                    data as &Object,
-                    src_offset,
-                    src_length_override,
-                ),
+                $name {
+                    width: usize,
+                    height: usize,
+                    data: $data_view,
+                    src_offset: usize,
+                    src_length_override: Option<usize>,
+                    pixel_storages: Vec<TexturePixelStorage>,
+                },
             )+
-            _ => unreachable!(),
+        }
+
+        impl TextureSourceCompressed {
+            pub fn bytes_length(&self) -> usize {
+                match self {
+                    TextureSourceCompressed::Function { bytes_length, .. } => *bytes_length,
+                    TextureSourceCompressed::PixelBufferObject { image_size, .. } => *image_size,
+                    $(
+                        TextureSourceCompressed::$name {
+                            data,
+                            src_length_override,
+                            src_offset,
+                            ..
+                        } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
+                    )+
+                }
+            }
+
+            pub fn width(&self) -> usize {
+                match self {
+                    TextureSourceCompressed::Function { width, .. }
+                    | TextureSourceCompressed::PixelBufferObject { width, .. }
+                    $(
+                        | TextureSourceCompressed::$name { width, .. }
+                    )+
+                    => *width,
+                }
+            }
+
+            pub fn height(&self) -> usize {
+                match self {
+                    TextureSourceCompressed::Function { height, .. }
+                    | TextureSourceCompressed::PixelBufferObject { height, .. }
+                    $(
+                        | TextureSourceCompressed::$name { height, .. }
+                    )+
+                    => *height,
+                }
+            }
+
+            fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
+                match self {
+                    TextureSourceCompressed::PixelBufferObject { pixel_storages, .. }
+                    $(
+                        | TextureSourceCompressed::$name { pixel_storages, .. }
+                    )+
+                     => {
+                        // setups pixel storage parameters
+                        pixel_storages
+                            .iter()
+                            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+                    }
+                    TextureSourceCompressed::Function { .. } => {}
+                };
+            }
+
+            fn tex_sub_image_2d(
+                &self,
+                gl: &WebGl2RenderingContext,
+                target: TextureTarget,
+                format: TextureCompressedFormat,
+                level: usize,
+                x_offset: usize,
+                y_offset: usize,
+            ) -> Result<(), Error> {
+                self.pixel_storages(gl);
+
+                // buffers image sub data
+                match self {
+                    TextureSourceCompressed::Function {
+                        width,
+                        height,
+                        bytes_length,
+                        callback,
+                    } => {
+                        let source = callback.borrow_mut()();
+                        if let TextureSourceCompressed::Function { .. } = source {
+                            panic!("recursive TextureSource::Function is not allowed");
+                        }
+                        if *width != source.width() {
+                            panic!("source returned from TextureSource::Function should have same width");
+                        }
+                        if *height != source.height() {
+                            panic!("source returned from TextureSource::Function should have same height");
+                        }
+                        if *bytes_length != source.bytes_length() {
+                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        }
+                        source.tex_sub_image_2d(gl, target, format, level, x_offset, y_offset)?;
+                        Ok(())
+                    }
+                    TextureSourceCompressed::PixelBufferObject {
+                        width,
+                        height,
+                        buffer,
+                        image_size,
+                        pbo_offset,
+                        ..
+                    } => {
+                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                        gl.compressed_tex_sub_image_2d_with_i32_and_i32(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            *width as i32,
+                            *height as i32,
+                            format.gl_enum(),
+                            *image_size as i32,
+                            *pbo_offset as i32,
+                        );
+                        gl.bind_buffer(
+                            WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+                            current_buffer.as_ref(),
+                        );
+                        Ok(())
+                    }
+                    $(
+                        TextureSourceCompressed::$name { .. }
+                    ) | + => {
+                        let (width, height, data, src_offset, src_length_override) = match self {
+                            $(
+                                TextureSourceCompressed::$name {
+                                    width,
+                                    height,
+                                    data,
+                                    src_offset,
+                                    src_length_override,
+                                    ..
+                                } => (
+                                    width,
+                                    height,
+                                    data as &Object,
+                                    src_offset,
+                                    src_length_override,
+                                ),
+                            )+
+                            _ => unreachable!(),
+                        };
+                        gl.compressed_tex_sub_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            *width as i32,
+                            *height as i32,
+                            format.gl_enum(),
+                            data,
+                            *src_offset as u32,
+                            src_length_override.unwrap_or(0) as u32,
+                        );
+                        Ok(())
+                    }
+                }
+            }
+
+            fn tex_sub_image_3d(
+                &self,
+                gl: &WebGl2RenderingContext,
+                target: TextureTarget,
+                format: TextureCompressedFormat,
+                level: usize,
+                depth: usize,
+                x_offset: usize,
+                y_offset: usize,
+                z_offset: usize,
+            ) -> Result<(), Error> {
+                self.pixel_storages(gl);
+
+                // buffers image sub data
+                match self {
+                    TextureSourceCompressed::Function {
+                        width,
+                        height,
+                        bytes_length,
+                        callback,
+                    } => {
+                        let source = callback.borrow_mut()();
+                        if let TextureSourceCompressed::Function { .. } = source {
+                            panic!("recursive TextureSource::Function is not allowed");
+                        }
+                        if *width != source.width() {
+                            panic!("source returned from TextureSource::Function should have same width");
+                        }
+                        if *height != source.height() {
+                            panic!("source returned from TextureSource::Function should have same height");
+                        }
+                        if *bytes_length != source.bytes_length() {
+                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        }
+                        source.tex_sub_image_3d(
+                            gl, target, format, level, depth, x_offset, y_offset, z_offset,
+                        )?;
+                        Ok(())
+                    }
+                    TextureSourceCompressed::PixelBufferObject {
+                        width,
+                        height,
+                        buffer,
+                        image_size,
+                        pbo_offset,
+                        ..
+                    } => {
+                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                        gl.compressed_tex_sub_image_3d_with_i32_and_i32(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            z_offset as i32,
+                            *width as i32,
+                            *height as i32,
+                            depth as i32,
+                            format.gl_enum(),
+                            *image_size as i32,
+                            *pbo_offset as i32,
+                        );
+                        gl.bind_buffer(
+                            WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+                            current_buffer.as_ref(),
+                        );
+                        Ok(())
+                    }
+                    $(
+                        TextureSourceCompressed::$name { .. }
+                    ) | + => {
+                        let (width, height, data, src_offset, src_length_override) = match self {
+                            $(
+                                TextureSourceCompressed::$name {
+                                    width,
+                                    height,
+                                    data,
+                                    src_offset,
+                                    src_length_override,
+                                    ..
+                                } => (
+                                    width,
+                                    height,
+                                    data as &Object,
+                                    src_offset,
+                                    src_length_override,
+                                ),
+                            )+
+                            _ => unreachable!(),
+                        };
+                        gl.compressed_tex_sub_image_3d_with_array_buffer_view_and_u32_and_src_length_override(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            z_offset as i32,
+                            *width as i32,
+                            *height as i32,
+                            depth as i32,
+                            format.gl_enum(),
+                            data,
+                            *src_offset as u32,
+                            src_length_override.unwrap_or(0) as u32,
+                        );
+                        Ok(())
+                    }
+                }
+            }
         }
     };
 }
 
-impl TextureSourceCompressed {
-    pub fn bytes_length(&self) -> usize {
-        match self {
-            TextureSourceCompressed::Function { bytes_length, .. } => *bytes_length,
-            TextureSourceCompressed::PixelBufferObject { image_size, .. } => *image_size,
-            TextureSourceCompressed::Uint8Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Uint8ClampedArray {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Int8Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Uint16Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Int16Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Uint32Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Int32Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-            TextureSourceCompressed::Float32Array {
-                data,
-                src_length_override,
-                src_offset,
-                ..
-            } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-        }
-    }
-
-    pub fn width(&self) -> usize {
-        texture_source_compressed_size!(self, width)
-    }
-
-    pub fn height(&self) -> usize {
-        texture_source_compressed_size!(self, height)
-    }
-
-    fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
-        match self {
-            TextureSourceCompressed::PixelBufferObject { pixel_storages, .. }
-            | TextureSourceCompressed::Uint8Array { pixel_storages, .. }
-            | TextureSourceCompressed::Uint8ClampedArray { pixel_storages, .. }
-            | TextureSourceCompressed::Int8Array { pixel_storages, .. }
-            | TextureSourceCompressed::Uint16Array { pixel_storages, .. }
-            | TextureSourceCompressed::Int16Array { pixel_storages, .. }
-            | TextureSourceCompressed::Uint32Array { pixel_storages, .. }
-            | TextureSourceCompressed::Int32Array { pixel_storages, .. }
-            | TextureSourceCompressed::Float32Array { pixel_storages, .. } => {
-                // setups pixel storage parameters
-                pixel_storages
-                    .iter()
-                    .for_each(|param| gl.pixel_storei(param.key(), param.value()));
-            }
-            TextureSourceCompressed::Function { .. } => {}
-        };
-    }
-
-    fn tex_sub_image_2d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        format: TextureCompressedFormat,
-        level: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Result<(), Error> {
-        self.pixel_storages(gl);
-
-        // buffers image sub data
-        match self {
-            TextureSourceCompressed::Function {
-                width,
-                height,
-                bytes_length,
-                callback,
-            } => {
-                let source = callback.borrow_mut()();
-                if let TextureSourceCompressed::Function { .. } = source {
-                    panic!("recursive TextureSource::Function is not allowed");
-                }
-                if *width != source.width() {
-                    panic!("source returned from TextureSource::Function should have same width");
-                }
-                if *height != source.height() {
-                    panic!("source returned from TextureSource::Function should have same height");
-                }
-                if *bytes_length != source.bytes_length() {
-                    panic!("source returned from TextureSource::Function should have same bytes length");
-                }
-                source.tex_sub_image_2d(gl, target, format, level, x_offset, y_offset)?;
-                Ok(())
-            }
-            TextureSourceCompressed::PixelBufferObject {
-                width,
-                height,
-                buffer,
-                image_size,
-                pbo_offset,
-                ..
-            } => {
-                let current_buffer = pixel_unpack_buffer_binding(gl);
-                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-                gl.compressed_tex_sub_image_2d_with_i32_and_i32(
-                    target.gl_enum(),
-                    level as i32,
-                    x_offset as i32,
-                    y_offset as i32,
-                    *width as i32,
-                    *height as i32,
-                    format.gl_enum(),
-                    *image_size as i32,
-                    *pbo_offset as i32,
-                );
-                gl.bind_buffer(
-                    WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                    current_buffer.as_ref(),
-                );
-                Ok(())
-            }
-            TextureSourceCompressed::Uint8Array { .. }
-            | TextureSourceCompressed::Uint8ClampedArray { .. }
-            | TextureSourceCompressed::Int8Array { .. }
-            | TextureSourceCompressed::Uint16Array { .. }
-            | TextureSourceCompressed::Int16Array { .. }
-            | TextureSourceCompressed::Uint32Array { .. }
-            | TextureSourceCompressed::Int32Array { .. }
-            | TextureSourceCompressed::Float32Array { .. } => {
-                let (width, height, data, src_offset, src_length_override) = texture_source_compressed_data_views! {
-                    self,
-                    Uint8Array,
-                    Uint8ClampedArray,
-                    Int8Array,
-                    Uint16Array,
-                    Int16Array,
-                    Uint32Array,
-                    Int32Array,
-                    Float32Array
-                };
-                gl.compressed_tex_sub_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
-                    target.gl_enum(),
-                    level as i32,
-                    x_offset as i32,
-                    y_offset as i32,
-                    *width as i32,
-                    *height as i32,
-                    format.gl_enum(),
-                    data,
-                    *src_offset as u32,
-                    src_length_override.unwrap_or(0) as u32,
-                );
-                Ok(())
-            }
-        }
-    }
-
-    fn tex_sub_image_3d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        format: TextureCompressedFormat,
-        level: usize,
-        depth: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Result<(), Error> {
-        self.pixel_storages(gl);
-
-        // buffers image sub data
-        match self {
-            TextureSourceCompressed::Function {
-                width,
-                height,
-                bytes_length,
-                callback,
-            } => {
-                let source = callback.borrow_mut()();
-                if let TextureSourceCompressed::Function { .. } = source {
-                    panic!("recursive TextureSource::Function is not allowed");
-                }
-                if *width != source.width() {
-                    panic!("source returned from TextureSource::Function should have same width");
-                }
-                if *height != source.height() {
-                    panic!("source returned from TextureSource::Function should have same height");
-                }
-                if *bytes_length != source.bytes_length() {
-                    panic!("source returned from TextureSource::Function should have same bytes length");
-                }
-                source.tex_sub_image_3d(
-                    gl, target, format, level, depth, x_offset, y_offset, z_offset,
-                )?;
-                Ok(())
-            }
-            TextureSourceCompressed::PixelBufferObject {
-                width,
-                height,
-                buffer,
-                image_size,
-                pbo_offset,
-                ..
-            } => {
-                let current_buffer = pixel_unpack_buffer_binding(gl);
-                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-                gl.compressed_tex_sub_image_3d_with_i32_and_i32(
-                    target.gl_enum(),
-                    level as i32,
-                    x_offset as i32,
-                    y_offset as i32,
-                    z_offset as i32,
-                    *width as i32,
-                    *height as i32,
-                    depth as i32,
-                    format.gl_enum(),
-                    *image_size as i32,
-                    *pbo_offset as i32,
-                );
-                gl.bind_buffer(
-                    WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                    current_buffer.as_ref(),
-                );
-                Ok(())
-            }
-            TextureSourceCompressed::Uint8Array { .. }
-            | TextureSourceCompressed::Uint8ClampedArray { .. }
-            | TextureSourceCompressed::Int8Array { .. }
-            | TextureSourceCompressed::Uint16Array { .. }
-            | TextureSourceCompressed::Int16Array { .. }
-            | TextureSourceCompressed::Uint32Array { .. }
-            | TextureSourceCompressed::Int32Array { .. }
-            | TextureSourceCompressed::Float32Array { .. } => {
-                let (width, height, data, src_offset, src_length_override) = texture_source_compressed_data_views! {
-                    self,
-                    Uint8Array,
-                    Uint8ClampedArray,
-                    Int8Array,
-                    Uint16Array,
-                    Int16Array,
-                    Uint32Array,
-                    Int32Array,
-                    Float32Array
-                };
-                gl.compressed_tex_sub_image_3d_with_array_buffer_view_and_u32_and_src_length_override(
-                    target.gl_enum(),
-                    level as i32,
-                    x_offset as i32,
-                    y_offset as i32,
-                    z_offset as i32,
-                    *width as i32,
-                    *height as i32,
-                    depth as i32,
-                    format.gl_enum(),
-                    data,
-                    *src_offset as u32,
-                    src_length_override.unwrap_or(0) as u32,
-                );
-                Ok(())
-            }
-        }
-    }
-}
-
-pub struct Texture3D {
-    width: usize,
-    height: usize,
-    depth: usize,
-    internal_format: TextureInternalFormat,
-    memory_policy: MemoryPolicy<Restorer>,
-    queue: Vec<(TextureSource, usize, usize, usize, usize, usize)>,
+texture_sources_compressed! {
+    (Int8Array, Int8Array)
+    (Uint8Array, Uint8Array)
+    (Uint8ClampedArray, Uint8Array)
+    (Int16Array, Int16Array)
+    (Uint16Array, Uint16Array)
+    (Int32Array, Int32Array)
+    (Uint32Array, Uint32Array)
+    (Float32Array, Float32Array)
+    (Float64Array, Float64Array)
+    (BigInt64Array, BigInt64Array)
+    (BigUint64Array, BigUint64Array)
+    (DataView, DataView)
 }
 
 pub struct Texture2DArray {
@@ -2017,146 +1905,6 @@ struct TextureDescriptorInner<T> {
     runtime: Option<Box<Runtime<T>>>,
 }
 
-impl TextureDescriptorInner<Texture3D> {
-    fn max_mipmap_level(&self) -> usize {
-        if !self.generate_mipmap {
-            return 0;
-        }
-
-        (self.layout.width as f64)
-            .max(self.layout.height as f64)
-            .log2()
-            .floor() as usize
-    }
-
-    fn width_of_level(&self, level: usize) -> Option<usize> {
-        let max_level = self.max_mipmap_level();
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.layout.width >> level).max(1))
-    }
-
-    fn height_of_level(&self, level: usize) -> Option<usize> {
-        let max_level = self.max_mipmap_level();
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.layout.height >> level).max(1))
-    }
-
-    fn depth_of_level(&self, level: usize) -> Option<usize> {
-        let max_level = self.max_mipmap_level();
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.layout.depth >> level).max(1))
-    }
-
-    fn bytes_length(&self) -> usize {
-        // estimates used memory of all levels
-        let mut used_memory = 0;
-        for level in 0..=self.max_mipmap_level() {
-            let width = self.width_of_level(level).unwrap();
-            let height = self.height_of_level(level).unwrap();
-            let depth = self.depth_of_level(level).unwrap();
-            used_memory += self
-                .layout
-                .internal_format
-                .bytes_length(width, height, depth);
-        }
-        used_memory
-    }
-
-    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
-        let Some(width) = self.width_of_level(level) else {
-            return None;
-        };
-        let Some(height) = self.height_of_level(level) else {
-            return None;
-        };
-        let Some(depth) = self.depth_of_level(level) else {
-            return None;
-        };
-
-        Some(
-            self.layout
-                .internal_format
-                .bytes_length(width, height, depth),
-        )
-    }
-
-    fn verify_size_tex_image(
-        &self,
-        level: usize,
-        width: usize,
-        height: usize,
-        depth: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| w != width)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| h != height)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .depth_of_level(level)
-            .map(|d| d != depth)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-
-        Ok(())
-    }
-
-    fn verify_size_tex_sub_image(
-        &self,
-        level: usize,
-        width: usize,
-        height: usize,
-        depth: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| width + x_offset > w)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| height + y_offset > h)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .depth_of_level(level)
-            .map(|d| depth + z_offset > d)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-
-        Ok(())
-    }
-}
-
 impl TextureDescriptorInner<Texture2DArray> {
     fn max_mipmap_level(&self) -> usize {
         if !self.generate_mipmap {
@@ -2194,8 +1942,7 @@ impl TextureDescriptorInner<Texture2DArray> {
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory +=
-                self.layout.internal_format.bytes_length(width, height, 1) * array_length;
+            used_memory += self.layout.internal_format.bytes_length(width, height) * array_length;
         }
         used_memory
     }
@@ -2208,10 +1955,10 @@ impl TextureDescriptorInner<Texture2DArray> {
             return None;
         };
 
-        Some(self.layout.internal_format.bytes_length(width, height, 1) * self.layout.array_length)
+        Some(self.layout.internal_format.bytes_length(width, height) * self.layout.array_length)
     }
 
-    fn verify_size_tex_image(
+    fn verify_tex_image_level_size(
         &self,
         level: usize,
         width: usize,
@@ -2239,7 +1986,7 @@ impl TextureDescriptorInner<Texture2DArray> {
         Ok(())
     }
 
-    fn verify_size_tex_sub_image(
+    fn verify_tex_sub_image_level_size(
         &self,
         level: usize,
         width: usize,
@@ -2307,7 +2054,7 @@ impl TextureDescriptorInner<TextureCubeMap> {
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += self.layout.internal_format.bytes_length(width, height, 1) * 6;
+            used_memory += self.layout.internal_format.bytes_length(width, height) * 6;
         }
         used_memory
     }
@@ -2320,10 +2067,10 @@ impl TextureDescriptorInner<TextureCubeMap> {
             return None;
         };
 
-        Some(self.layout.internal_format.bytes_length(width, height, 1) * 6)
+        Some(self.layout.internal_format.bytes_length(width, height) * 6)
     }
 
-    fn verify_size_tex_image(
+    fn verify_tex_image_level_size(
         &self,
         level: usize,
         width: usize,
@@ -2350,7 +2097,7 @@ impl TextureDescriptorInner<TextureCubeMap> {
         Ok(())
     }
 
-    fn verify_size_tex_sub_image(
+    fn verify_tex_sub_image_level_size(
         &self,
         level: usize,
         width: usize,
@@ -2456,7 +2203,7 @@ macro_rules! texture_2d {
                     for level in 0..=self.max_mipmap_level() {
                         let width = self.width_of_level(level).unwrap();
                         let height = self.height_of_level(level).unwrap();
-                        used_memory += self.layout.internal_format.bytes_length(width, height, 1);
+                        used_memory += self.layout.internal_format.bytes_length(width, height);
                     }
                     used_memory
                 }
@@ -2469,7 +2216,57 @@ macro_rules! texture_2d {
                         return None;
                     };
 
-                    Some(self.layout.internal_format.bytes_length(width, height, 1))
+                    Some(self.layout.internal_format.bytes_length(width, height))
+                }
+
+                fn verify_tex_image_level_size(
+                    &self,
+                    level: usize,
+                    width: usize,
+                    height: usize,
+                ) -> Result<(), Error> {
+                    if self
+                        .width_of_level(level)
+                        .map(|w| w != width)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .height_of_level(level)
+                        .map(|h| h != height)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+
+                    Ok(())
+                }
+
+                fn verify_tex_sub_image_level_size(
+                    &self,
+                    level: usize,
+                    width: usize,
+                    height: usize,
+                    x_offset: usize,
+                    y_offset: usize,
+                ) -> Result<(), Error> {
+                    if self
+                        .width_of_level(level)
+                        .map(|w| width + x_offset > w)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .height_of_level(level)
+                        .map(|h| height + y_offset > h)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+
+                    Ok(())
                 }
             }
 
@@ -2520,56 +2317,6 @@ texture_2d! {
 }
 
 impl TextureDescriptorInner<Texture2D> {
-    fn verify_size_tex_image(
-        &self,
-        level: usize,
-        width: usize,
-        height: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| w != width)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| h != height)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-
-        Ok(())
-    }
-
-    fn verify_size_tex_sub_image(
-        &self,
-        level: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| width + x_offset > w)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| height + y_offset > h)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-
-        Ok(())
-    }
-
     fn tex(&mut self, gl: &WebGl2RenderingContext, abilities: &Abilities) -> Result<(), Error> {
         if self.layout.queue.is_empty() {
             return Ok(());
@@ -2582,6 +2329,405 @@ impl TextureDescriptorInner<Texture2D> {
 
         Ok(())
     }
+}
+
+impl TextureDescriptorInner<Texture2DCompressed> {
+    fn verify_compressed_size(
+        &self,
+        source: &TextureSourceCompressed,
+        width: usize,
+        height: usize,
+    ) -> Result<(), Error> {
+        if self.layout.internal_format.bytes_length(width, height) != source.bytes_length() {
+            return Err(Error::TextureCompressedImageSizeMismatched);
+        }
+
+        Ok(())
+    }
+
+    fn tex(&mut self, gl: &WebGl2RenderingContext, abilities: &Abilities) -> Result<(), Error> {
+        if self.layout.queue.is_empty() {
+            return Ok(());
+        }
+
+        for (source, level, x_offset, y_offset) in self.layout.queue.drain(..) {
+            abilities.verify_texture_size(source.width(), source.height())?;
+            source.tex_sub_image_2d(
+                gl,
+                TextureTarget::TEXTURE_2D,
+                self.layout.internal_format,
+                level,
+                x_offset,
+                y_offset,
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+impl TextureDescriptor<Texture2D> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<Restorer>,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2D {
+                width,
+                height,
+                memory_policy,
+                internal_format,
+                queue: Vec::new(),
+            },
+            generate_mipmap,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_source(
+        source: TextureSource,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<Restorer>,
+    ) -> Result<Self, Error> {
+        let width = source.width();
+        let height = source.height();
+
+        Ok(Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2D {
+                width,
+                height,
+                internal_format,
+                memory_policy,
+                queue: vec![(source, 0, 0, 0)],
+            },
+            generate_mipmap,
+
+            runtime: None,
+        }))))
+    }
+
+    pub fn tex_image(&mut self, source: TextureSource, level: usize) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_image_level_size(level, width, height)?;
+
+        inner.layout.queue.push((source, level, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_sub_image_level_size(level, width, height, x_offset, y_offset)?;
+
+        inner.layout.queue.push((source, level, x_offset, y_offset));
+        Ok(())
+    }
+}
+
+impl TextureDescriptor<Texture2DCompressed> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        internal_format: TextureCompressedFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<RestorerCompressed>,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2DCompressed {
+                width,
+                height,
+                memory_policy,
+                internal_format,
+                queue: Vec::new(),
+            },
+            generate_mipmap,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_source(
+        source: TextureSourceCompressed,
+        internal_format: TextureCompressedFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<RestorerCompressed>,
+    ) -> Result<Self, Error> {
+        let width = source.width();
+        let height = source.height();
+        if internal_format.bytes_length(width, height) != source.bytes_length() {
+            return Err(Error::TextureCompressedImageSizeMismatched);
+        }
+
+        Ok(Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture2DCompressed {
+                width,
+                height,
+                internal_format,
+                memory_policy,
+                queue: vec![(source, 0, 0, 0)],
+            },
+            generate_mipmap,
+
+            runtime: None,
+        }))))
+    }
+
+    pub fn tex_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_image_level_size(level, width, height)?;
+        inner.verify_compressed_size(&source, width, height)?;
+
+        inner.layout.queue.push((source, level, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_sub_image_level_size(level, width, height, x_offset, y_offset)?;
+        inner.verify_compressed_size(&source, width, height)?;
+
+        inner.layout.queue.push((source, level, x_offset, y_offset));
+        Ok(())
+    }
+}
+
+macro_rules! texture_3d {
+    ($(($name:ident, $f:ident, $r:ident, $s:ident))+) => {
+        $(
+            pub struct $name {
+                width: usize,
+                height: usize,
+                depth: usize,
+                internal_format: $f,
+                memory_policy: MemoryPolicy<$r>,
+                queue: Vec<($s, usize, usize, usize, usize, usize)>,
+            }
+
+            impl TextureDescriptorInner<$name> {
+                fn max_mipmap_level(&self) -> usize {
+                    if !self.generate_mipmap {
+                        return 0;
+                    }
+
+                    (self.layout.width as f64)
+                        .max(self.layout.height as f64)
+                        .log2()
+                        .floor() as usize
+                }
+
+                fn width_of_level(&self, level: usize) -> Option<usize> {
+                    let max_level = self.max_mipmap_level();
+                    if level > max_level {
+                        return None;
+                    }
+
+                    Some((self.layout.width >> level).max(1))
+                }
+
+                fn height_of_level(&self, level: usize) -> Option<usize> {
+                    let max_level = self.max_mipmap_level();
+                    if level > max_level {
+                        return None;
+                    }
+
+                    Some((self.layout.height >> level).max(1))
+                }
+
+                fn depth_of_level(&self, level: usize) -> Option<usize> {
+                    let max_level = self.max_mipmap_level();
+                    if level > max_level {
+                        return None;
+                    }
+
+                    Some((self.layout.depth >> level).max(1))
+                }
+
+                fn bytes_length(&self) -> usize {
+                    // estimates used memory of all levels
+                    let mut used_memory = 0;
+                    for level in 0..=self.max_mipmap_level() {
+                        let width = self.width_of_level(level).unwrap();
+                        let height = self.height_of_level(level).unwrap();
+                        let depth = self.depth_of_level(level).unwrap();
+                        used_memory += self
+                            .layout
+                            .internal_format
+                            .bytes_length(width, height) * depth;
+                    }
+                    used_memory
+                }
+
+                fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+                    let Some(width) = self.width_of_level(level) else {
+                        return None;
+                    };
+                    let Some(height) = self.height_of_level(level) else {
+                        return None;
+                    };
+                    let Some(depth) = self.depth_of_level(level) else {
+                        return None;
+                    };
+
+                    Some(
+                        self.layout
+                            .internal_format
+                            .bytes_length(width, height) * depth,
+                    )
+                }
+
+                fn verify_tex_image_level_size(
+                    &self,
+                    level: usize,
+                    width: usize,
+                    height: usize,
+                    depth: usize,
+                ) -> Result<(), Error> {
+                    if self
+                        .width_of_level(level)
+                        .map(|w| w != width)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .height_of_level(level)
+                        .map(|h| h != height)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .depth_of_level(level)
+                        .map(|d| d != depth)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+
+                    Ok(())
+                }
+
+                fn verify_tex_sub_image_level_size(
+                    &self,
+                    level: usize,
+                    width: usize,
+                    height: usize,
+                    depth: usize,
+                    x_offset: usize,
+                    y_offset: usize,
+                    z_offset: usize,
+                ) -> Result<(), Error> {
+                    if self
+                        .width_of_level(level)
+                        .map(|w| width + x_offset > w)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .height_of_level(level)
+                        .map(|h| height + y_offset > h)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+                    if self
+                        .depth_of_level(level)
+                        .map(|d| depth + z_offset > d)
+                        .unwrap_or(true)
+                    {
+                        return Err(Error::TextureSizeMismatched);
+                    }
+
+                    Ok(())
+                }
+            }
+
+            impl TextureDescriptor<$name> {
+
+                pub fn internal_format(&self) -> $f {
+                    self.0.borrow().layout.internal_format
+                }
+
+                pub fn memory_policy(&self) -> Ref<MemoryPolicy<$r>> {
+                    Ref::map(self.0.borrow(), |inner| &inner.layout.memory_policy)
+                }
+
+                pub fn width(&self) -> usize {
+                    self.0.borrow().layout.width
+                }
+
+                pub fn height(&self) -> usize {
+                    self.0.borrow().layout.height
+                }
+
+                pub fn depth(&self) -> usize {
+                    self.0.borrow().layout.depth
+                }
+
+                pub fn max_mipmap_level(&self) -> usize {
+                    self.0.borrow().max_mipmap_level()
+                }
+
+                pub fn width_of_level(&self, level: usize) -> Option<usize> {
+                    self.0.borrow().width_of_level(level)
+                }
+
+                pub fn height_of_level(&self, level: usize) -> Option<usize> {
+                    self.0.borrow().height_of_level(level)
+                }
+
+                pub fn depth_of_level(&self, level: usize) -> Option<usize> {
+                    self.0.borrow().depth_of_level(level)
+                }
+
+                pub fn bytes_length(&self) -> usize {
+                    self.0.borrow().bytes_length()
+                }
+
+                pub fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+                    self.0.borrow().bytes_length_of_level(level)
+                }
+            }
+        )+
+    };
+}
+
+texture_3d! {
+    (Texture3D, TextureInternalFormat, Restorer, TextureSource)
+    (Texture3DCompressed, TextureCompressedFormat, RestorerCompressed, TextureSourceCompressed)
 }
 
 impl TextureDescriptorInner<Texture3D> {
@@ -2603,6 +2749,210 @@ impl TextureDescriptorInner<Texture3D> {
             )?;
         }
 
+        Ok(())
+    }
+}
+
+impl TextureDescriptorInner<Texture3DCompressed> {
+    fn tex(&mut self, gl: &WebGl2RenderingContext, abilities: &Abilities) -> Result<(), Error> {
+        if self.layout.queue.is_empty() {
+            return Ok(());
+        }
+
+        for (source, level, depth, x_offset, y_offset, z_offset) in self.layout.queue.drain(..) {
+            abilities.verify_texture_size(source.width(), source.height())?;
+            source.tex_sub_image_3d(
+                gl,
+                TextureTarget::TEXTURE_3D,
+                self.layout.internal_format,
+                level,
+                depth,
+                x_offset,
+                y_offset,
+                z_offset,
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
+impl TextureDescriptor<Texture3D> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        depth: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<Restorer>,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture3D {
+                width,
+                height,
+                depth,
+                internal_format,
+                memory_policy,
+                queue: Vec::new(),
+            },
+            generate_mipmap,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_source(
+        source: TextureSource,
+        depth: usize,
+        internal_format: TextureInternalFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<Restorer>,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture3D {
+                width: source.width(),
+                height: source.height(),
+                depth,
+                internal_format,
+                memory_policy,
+                queue: vec![(source, 0, 0, 0, 0, 0)],
+            },
+            generate_mipmap,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn tex_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_image_level_size(level, width, height, depth)?;
+
+        inner.layout.queue.push((source, level, depth, 0, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_sub_image_level_size(
+            level, width, height, depth, x_offset, y_offset, z_offset,
+        )?;
+
+        inner
+            .layout
+            .queue
+            .push((source, level, depth, x_offset, y_offset, z_offset));
+        Ok(())
+    }
+}
+
+impl TextureDescriptor<Texture3DCompressed> {
+    pub fn new(
+        width: usize,
+        height: usize,
+        depth: usize,
+        internal_format: TextureCompressedFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<RestorerCompressed>,
+    ) -> Self {
+        Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture3DCompressed {
+                width,
+                height,
+                depth,
+                internal_format,
+                memory_policy,
+                queue: Vec::new(),
+            },
+            generate_mipmap,
+
+            runtime: None,
+        })))
+    }
+
+    pub fn with_source(
+        source: TextureSourceCompressed,
+        depth: usize,
+        internal_format: TextureCompressedFormat,
+        generate_mipmap: bool,
+        memory_policy: MemoryPolicy<RestorerCompressed>,
+    ) -> Result<Self, Error> {
+        let width = source.width();
+        let height = source.height();
+        if internal_format.bytes_length(width, height) != source.bytes_length() {
+            return Err(Error::TextureCompressedImageSizeMismatched);
+        }
+
+        Ok(Self(Rc::new(RefCell::new(TextureDescriptorInner {
+            name: None,
+            layout: Texture3DCompressed {
+                width: source.width(),
+                height: source.height(),
+                depth,
+                internal_format,
+                memory_policy,
+                queue: vec![(source, 0, 0, 0, 0, 0)],
+            },
+            generate_mipmap,
+
+            runtime: None,
+        }))))
+    }
+
+    pub fn tex_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_image_level_size(level, width, height, depth)?;
+
+        inner.layout.queue.push((source, level, depth, 0, 0, 0));
+        Ok(())
+    }
+
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        let mut inner = self.0.borrow_mut();
+        let width = source.width();
+        let height = source.height();
+        inner.verify_tex_sub_image_level_size(
+            level, width, height, depth, x_offset, y_offset, z_offset,
+        )?;
+
+        inner
+            .layout
+            .queue
+            .push((source, level, depth, x_offset, y_offset, z_offset));
         Ok(())
     }
 }
@@ -2678,244 +3028,6 @@ impl TextureDescriptorInner<TextureCubeMap> {
             }
         }
 
-        Ok(())
-    }
-}
-
-impl TextureDescriptorInner<Texture2DCompressed> {
-    fn verify_size_tex_image(
-        &self,
-        source: &TextureSourceCompressed,
-        level: usize,
-        width: usize,
-        height: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| w != width)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| h != height)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self.layout.internal_format.bytes_length(width, height, 1) != source.bytes_length() {
-            return Err(Error::TextureCompressedImageSizeMismatched);
-        }
-
-        Ok(())
-    }
-
-    fn verify_size_tex_sub_image(
-        &self,
-        source: &TextureSourceCompressed,
-        level: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Result<(), Error> {
-        if self
-            .width_of_level(level)
-            .map(|w| width + x_offset > w)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self
-            .height_of_level(level)
-            .map(|h| height + y_offset > h)
-            .unwrap_or(true)
-        {
-            return Err(Error::TextureSizeMismatched);
-        }
-        if self.layout.internal_format.bytes_length(width, height, 1) != source.bytes_length() {
-            return Err(Error::TextureCompressedImageSizeMismatched);
-        }
-
-        Ok(())
-    }
-
-    fn tex(&mut self, gl: &WebGl2RenderingContext, abilities: &Abilities) -> Result<(), Error> {
-        if self.layout.queue.is_empty() {
-            return Ok(());
-        }
-
-        for (source, level, x_offset, y_offset) in self.layout.queue.drain(..) {
-            abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_2d(
-                gl,
-                TextureTarget::TEXTURE_2D,
-                self.layout.internal_format,
-                level,
-                x_offset,
-                y_offset,
-            )?;
-        }
-
-        Ok(())
-    }
-}
-
-impl TextureDescriptor<Texture2D> {
-    pub fn tex_image(&mut self, source: TextureSource, level: usize) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner.verify_size_tex_image(level, width, height)?;
-
-        inner.layout.queue.push((source, level, 0, 0));
-        Ok(())
-    }
-
-    pub fn tex_sub_image(
-        &mut self,
-        source: TextureSource,
-        level: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner.verify_size_tex_sub_image(level, width, height, x_offset, y_offset)?;
-
-        inner.layout.queue.push((source, level, x_offset, y_offset));
-        Ok(())
-    }
-}
-
-impl TextureDescriptor<Texture3D> {
-    pub fn new(
-        width: usize,
-        height: usize,
-        depth: usize,
-        internal_format: TextureInternalFormat,
-        generate_mipmap: bool,
-        memory_policy: MemoryPolicy<Restorer>,
-    ) -> Self {
-        Self(Rc::new(RefCell::new(TextureDescriptorInner {
-            name: None,
-            layout: Texture3D {
-                width,
-                height,
-                depth,
-                internal_format,
-                memory_policy,
-                queue: Vec::new(),
-            },
-            generate_mipmap,
-
-            runtime: None,
-        })))
-    }
-
-    pub fn with_source(
-        source: TextureSource,
-        depth: usize,
-        internal_format: TextureInternalFormat,
-        generate_mipmap: bool,
-        memory_policy: MemoryPolicy<Restorer>,
-    ) -> Self {
-        Self(Rc::new(RefCell::new(TextureDescriptorInner {
-            name: None,
-            layout: Texture3D {
-                width: source.width(),
-                height: source.height(),
-                depth,
-                internal_format,
-                memory_policy,
-                queue: vec![(source, 0, 0, 0, 0, 0)],
-            },
-            generate_mipmap,
-
-            runtime: None,
-        })))
-    }
-
-    pub fn internal_format(&self) -> TextureInternalFormat {
-        self.0.borrow().layout.internal_format
-    }
-
-    pub fn memory_policy(&self) -> Ref<MemoryPolicy<Restorer>> {
-        Ref::map(self.0.borrow(), |inner| &inner.layout.memory_policy)
-    }
-
-    pub fn width(&self) -> usize {
-        self.0.borrow().layout.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.0.borrow().layout.height
-    }
-
-    pub fn depth(&self) -> usize {
-        self.0.borrow().layout.depth
-    }
-
-    pub fn max_mipmap_level(&self) -> usize {
-        self.0.borrow().max_mipmap_level()
-    }
-
-    pub fn width_of_level(&self, level: usize) -> Option<usize> {
-        self.0.borrow().width_of_level(level)
-    }
-
-    pub fn height_of_level(&self, level: usize) -> Option<usize> {
-        self.0.borrow().height_of_level(level)
-    }
-
-    pub fn depth_of_level(&self, level: usize) -> Option<usize> {
-        self.0.borrow().depth_of_level(level)
-    }
-
-    pub fn bytes_length(&self) -> usize {
-        self.0.borrow().bytes_length()
-    }
-
-    pub fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
-        self.0.borrow().bytes_length_of_level(level)
-    }
-
-    pub fn tex_image(
-        &mut self,
-        source: TextureSource,
-        level: usize,
-        depth: usize,
-    ) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner.verify_size_tex_image(level, width, height, depth)?;
-
-        inner.layout.queue.push((source, level, depth, 0, 0, 0));
-        Ok(())
-    }
-
-    pub fn tex_sub_image(
-        &mut self,
-        source: TextureSource,
-        level: usize,
-        depth: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner
-            .verify_size_tex_sub_image(level, width, height, depth, x_offset, y_offset, z_offset)?;
-
-        inner
-            .layout
-            .queue
-            .push((source, level, depth, x_offset, y_offset, z_offset));
         Ok(())
     }
 }
@@ -3017,7 +3129,7 @@ impl TextureDescriptor<Texture2DArray> {
         let mut inner = self.0.borrow_mut();
         let width = source.width();
         let height = source.height();
-        inner.verify_size_tex_image(level, width, height, array_index)?;
+        inner.verify_tex_image_level_size(level, width, height, array_index)?;
 
         inner
             .layout
@@ -3038,7 +3150,7 @@ impl TextureDescriptor<Texture2DArray> {
         let mut inner = self.0.borrow_mut();
         let width = source.width();
         let height = source.height();
-        inner.verify_size_tex_sub_image(
+        inner.verify_tex_sub_image_level_size(
             level,
             width,
             height,
@@ -3180,87 +3292,6 @@ impl TextureDescriptor<TextureCubeMap> {
     }
 }
 
-impl TextureDescriptor<Texture2DCompressed> {
-    pub fn new(
-        width: usize,
-        height: usize,
-        internal_format: TextureCompressedFormat,
-        generate_mipmap: bool,
-        memory_policy: MemoryPolicy<RestorerCompressed>,
-    ) -> Self {
-        Self(Rc::new(RefCell::new(TextureDescriptorInner {
-            name: None,
-            layout: Texture2DCompressed {
-                width,
-                height,
-                memory_policy,
-                internal_format,
-                queue: Vec::new(),
-            },
-            generate_mipmap,
-
-            runtime: None,
-        })))
-    }
-
-    pub fn with_source(
-        source: TextureSourceCompressed,
-        internal_format: TextureCompressedFormat,
-        generate_mipmap: bool,
-        memory_policy: MemoryPolicy<RestorerCompressed>,
-    ) -> Result<Self, Error> {
-        let width = source.width();
-        let height = source.height();
-        if internal_format.bytes_length(width, height, 1) != source.bytes_length() {
-            return Err(Error::TextureCompressedImageSizeMismatched);
-        }
-
-        Ok(Self(Rc::new(RefCell::new(TextureDescriptorInner {
-            name: None,
-            layout: Texture2DCompressed {
-                width,
-                height,
-                internal_format,
-                memory_policy,
-                queue: vec![(source, 0, 0, 0)],
-            },
-            generate_mipmap,
-
-            runtime: None,
-        }))))
-    }
-
-    pub fn tex_image(
-        &mut self,
-        source: TextureSourceCompressed,
-        level: usize,
-    ) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner.verify_size_tex_image(&source, level, width, height)?;
-
-        inner.layout.queue.push((source, level, 0, 0));
-        Ok(())
-    }
-
-    pub fn tex_sub_image(
-        &mut self,
-        source: TextureSourceCompressed,
-        level: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Result<(), Error> {
-        let mut inner = self.0.borrow_mut();
-        let width = source.width();
-        let height = source.height();
-        inner.verify_size_tex_sub_image(&source, level, width, height, x_offset, y_offset)?;
-
-        inner.layout.queue.push((source, level, x_offset, y_offset));
-        Ok(())
-    }
-}
-
 macro_rules! tex_cube_map {
     ($(($tex_func:ident, $tex_sub_func:ident, $queue:ident))+) => {
         $(
@@ -3273,7 +3304,7 @@ macro_rules! tex_cube_map {
                     let mut inner = self.0.borrow_mut();
                     let width = source.width();
                     let height = source.height();
-                    inner.verify_size_tex_image(level, width, height)?;
+                    inner.verify_tex_image_level_size(level, width, height)?;
                     inner.layout.$queue.push((source, level, 0, 0));
                     Ok(())
                 }
@@ -3288,7 +3319,7 @@ macro_rules! tex_cube_map {
                     let mut inner = self.0.borrow_mut();
                     let width = source.width();
                     let height = source.height();
-                    inner.verify_size_tex_sub_image(level, width, height, x_offset, y_offset)?;
+                    inner.verify_tex_sub_image_level_size(level, width, height, x_offset, y_offset)?;
                     inner
                         .layout
                         .$queue
@@ -3321,6 +3352,8 @@ pub struct TextureStore {
         *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DCompressed>>>>,
     descriptors_2d_array: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DArray>>>>,
     descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
+    descriptors_3d_compressed:
+        *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3DCompressed>>>>,
     descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
 }
 
@@ -3344,6 +3377,7 @@ impl TextureStore {
             descriptors_2d_compressed: Box::leak(Box::new(HashMap::new())),
             descriptors_2d_array: Box::leak(Box::new(HashMap::new())),
             descriptors_3d: Box::leak(Box::new(HashMap::new())),
+            descriptors_3d_compressed: Box::leak(Box::new(HashMap::new())),
             descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
         }
@@ -3591,6 +3625,16 @@ store_use_textures! {
         unuse_texture_3d
     )
     (
+        Texture3DCompressed,
+        WebGl2RenderingContext::TEXTURE_3D,
+        descriptors_3d_compressed,
+        verify_compressed_format,
+        tex_storage_3d,
+            (width, height, depth),
+        use_texture_3d_compressed,
+        unuse_texture_3d_compressed
+    )
+    (
         Texture2DArray,
         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
         descriptors_2d_array,
@@ -3646,5 +3690,6 @@ store_drop!(
     descriptors_2d_compressed,
     descriptors_2d_array,
     descriptors_3d,
+    descriptors_3d_compressed,
     descriptors_cube_map
 );
