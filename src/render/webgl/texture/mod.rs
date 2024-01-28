@@ -1,3 +1,5 @@
+pub mod texture_2d;
+
 use std::{
     borrow::Cow,
     cell::{Ref, RefCell},
