@@ -6,6 +6,7 @@ use web_sys::{
 
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
+    client_wait::ClientWaitFlags,
     draw::{CullFace, DrawElementType, DrawMode},
     framebuffer::{
         BlitFlilter, BlitMask, FramebufferAttachment, FramebufferTarget, OperatableBuffer,
@@ -768,6 +769,15 @@ impl ToGlEnum for BlitFlilter {
         match self {
             BlitFlilter::NEAREST => WebGl2RenderingContext::NEAREST,
             BlitFlilter::LINEAR => WebGl2RenderingContext::LINEAR,
+        }
+    }
+}
+
+impl ToGlEnum for ClientWaitFlags {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            ClientWaitFlags::SYNC_FLUSH_COMMANDS_BIT => WebGl2RenderingContext::SYNC_FLUSH_COMMANDS_BIT,
         }
     }
 }

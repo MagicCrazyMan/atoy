@@ -33,6 +33,7 @@ wasm-bindgen-futures = "0.4.39"
 hashbrown = "0.14.3"
 indexmap = "2.1.0"
 smallvec = "1.13.1"
+js-sys = "0.3.67"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
