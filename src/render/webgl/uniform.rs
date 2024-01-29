@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use super::{
     buffer::BufferDescriptor,
     texture::{
-        texture_2d::Texture2D, texture_2d_compressed::Texture2DCompressed, TextureDescriptor,
+        texture2d::Texture2D, texture2d_compressed::Texture2DCompressed, TextureDescriptor,
         TextureParameter, TextureUnit,
     },
 };

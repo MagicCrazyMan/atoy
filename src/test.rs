@@ -39,8 +39,8 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::texture::texture_2d::{ConstructionPolicy, Texture2D};
-use crate::render::webgl::texture::texture_2d_compressed::{self, Texture2DCompressed};
+use crate::render::webgl::texture::texture2d::{ConstructionPolicy, Texture2D};
+use crate::render::webgl::texture::texture2d_compressed::{self, Texture2DCompressed};
 use crate::render::webgl::texture::{
     TextureCompressedFormat, TextureCompressedSource, TextureDataType, TextureDescriptor,
     TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,

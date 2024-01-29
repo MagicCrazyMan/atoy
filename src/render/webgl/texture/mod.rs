@@ -6,12 +6,11 @@
 //! You have to create a new texture if you want to allocate a new texture with different layout.
 //!
 
-pub mod texture_2d;
-pub mod texture_2d_compressed;
+pub mod texture2d;
+pub mod texture2d_compressed;
 
 use std::{
-    borrow::Cow,
-    cell::{Ref, RefCell},
+    cell::RefCell,
     fmt::Debug,
     rc::{Rc, Weak},
 };
@@ -19,7 +18,6 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap};
 use log::debug;
 use uuid::Uuid;
-use wasm_bindgen::JsCast;
 use web_sys::{
     js_sys::{
         BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
@@ -31,7 +29,7 @@ use web_sys::{
 
 use crate::lru::{Lru, LruNode};
 
-use self::{texture_2d::Texture2D, texture_2d_compressed::Texture2DCompressed};
+use self::{texture2d::Texture2D, texture2d_compressed::Texture2DCompressed};
 
 use super::{
     capabilities::Capabilities, conversion::ToGlEnum, error::Error,
@@ -1687,7 +1685,7 @@ where
     }
 }
 
-struct Runtime<T> {
+struct Runtime {
     id: Uuid,
     gl: WebGl2RenderingContext,
     store_id: Uuid,
@@ -1697,7 +1695,7 @@ struct Runtime<T> {
     using: bool,
 
     used_memory: *mut usize,
-    descriptors: *mut HashMap<Uuid, Weak<RefCell<T>>>,
+    textures: *mut HashMap<Uuid, TextureKind>,
     lru: *mut Lru<Uuid>,
 }
 
@@ -3184,6 +3182,15 @@ impl<T> Clone for TextureDescriptor<T> {
 //     (tex_image_negative_z, tex_sub_image_negative_z, negative_z)
 // }
 
+enum TextureKind {
+    Texture2D(Weak<RefCell<Texture2D>>),
+    Texture2DCompressed(Weak<RefCell<Texture2DCompressed>>),
+    // Texture2DArray,
+    // Texture3D,
+    // Texture3DCompressed,
+    // TextureCubeMap,
+}
+
 pub struct TextureStore {
     id: Uuid,
     gl: WebGl2RenderingContext,
@@ -3191,13 +3198,7 @@ pub struct TextureStore {
     available_memory: usize,
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
-    descriptors_2d: *mut HashMap<Uuid, Weak<RefCell<Texture2D>>>,
-    descriptors_2d_compressed: *mut HashMap<Uuid, Weak<RefCell<Texture2DCompressed>>>,
-    // descriptors_2d_array: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DArray>>>>,
-    // descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
-    // descriptors_3d_compressed:
-    //     *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3DCompressed>>>>,
-    // descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
+    textures: *mut HashMap<Uuid, TextureKind>,
 }
 
 impl TextureStore {
@@ -3216,12 +3217,7 @@ impl TextureStore {
             capabilities,
             available_memory,
             used_memory: Box::leak(Box::new(0)),
-            descriptors_2d: Box::leak(Box::new(HashMap::new())),
-            descriptors_2d_compressed: Box::leak(Box::new(HashMap::new())),
-            // descriptors_2d_array: Box::leak(Box::new(HashMap::new())),
-            // descriptors_3d: Box::leak(Box::new(HashMap::new())),
-            // descriptors_3d_compressed: Box::leak(Box::new(HashMap::new())),
-            // descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
+            textures: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
         }
     }
@@ -3238,48 +3234,59 @@ impl TextureStore {
                     break;
                 };
                 let id = (*current_node).data();
+                let Entry::Occupied(occupied) = (*self.textures).entry(*id) else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+                let mut kind = occupied.get();
 
-                macro_rules! free_descriptor {
-                    ($($descriptors:ident),+) => {
-                        $(
-                            if let Entry::Occupied(occupied) = (*self.$descriptors).entry(*id) {
-                                let t = occupied.get();
-                                let Some(t) = t.upgrade() else {
-                                    occupied.remove();
-                                    next_node = (*current_node).more_recently();
-                                    continue;
-                                };
+                macro_rules! free_texture {
+                    ($($kind:ident),+) => {
+                        let released = match &mut kind {
+                            $(
+                                TextureKind::$kind(texture) => {
+                                    let Some(texture) = texture.upgrade() else {
+                                        occupied.remove();
+                                        next_node = (*current_node).more_recently();
+                                        continue;
+                                    };
+                                    let mut texture = texture.borrow_mut();
+                                    let runtime = texture.runtime.as_deref_mut().unwrap();
 
-                                let mut t = t.borrow_mut();
-                                let runtime = t.runtime.as_ref().unwrap();
+                                    // skips if using
+                                    if runtime.using {
+                                        next_node = (*current_node).more_recently();
+                                        continue;
+                                    }
 
-                                // skips if using
-                                if runtime.using {
-                                    next_node = (*current_node).more_recently();
-                                    continue;
-                                }
-                                
-                                // let's texture takes free procedure itself.
-                                if t.free() {
-                                    let t = occupied.remove().upgrade().unwrap();
-                                    let mut t = t.borrow_mut();
-                                    let runtime = t.runtime.take().unwrap();
-                                    // reduces used memory
-                                    (*self.used_memory) -= runtime.bytes_length;
-                                    // removes LRU
-                                    (*self.lru).remove(runtime.lru_node);
-                                }
+                                    // let texture takes free procedure itself.
+                                    texture.free()
+                                },
+                            )+
+                        };
 
-                                next_node = (*current_node).more_recently();
-                                continue;
+                        if released {
+                            let kind = occupied.remove();
+                            let runtime = match kind {
+                                $(
+                                    TextureKind::$kind(texture) => {
+                                        let texture = texture.upgrade().unwrap();
+                                        let mut texture = texture.borrow_mut();
+                                        texture.runtime.take().unwrap()
+                                    },
+                                )+
                             };
-                        )+
+                            // reduces used memory
+                            (*self.used_memory) -= runtime.bytes_length;
+                            // removes LRU
+                            (*self.lru).remove(runtime.lru_node);
+                        }
                     };
                 }
-                free_descriptor!(
-                    descriptors_2d,
-                    descriptors_2d_compressed
-                );
+
+                free_texture!(Texture2D, Texture2DCompressed);
+
+                next_node = (*current_node).more_recently();
             }
         }
     }
@@ -3289,9 +3296,7 @@ macro_rules! store_use_textures {
     ($((
         $layout:tt,
         $target:expr,
-        $descriptors:ident,
-        $verify_func:ident,
-        $tex_storage_func:ident, ($($tex_storage_params:ident),+),
+        $kind:ident,
         $use_func: ident,
         $unuse_func:ident
     ))+) => {
@@ -3319,13 +3324,12 @@ macro_rules! store_use_textures {
                                 runtime.texture.clone()
                             }
                             None => {
-                                // self.abilities.$verify_func(inner.layout.internal_format)?;
                                 let texture = t.create_texture(&self.gl, &self.capabilities)?;
 
                                 let id = Uuid::new_v4();
                                 let lru_node = LruNode::new(id);
                                 let bytes_length = t.bytes_length();
-                                (*self.$descriptors).insert(id, Rc::downgrade(&descriptor.0));
+                                (*self.textures).insert(id, TextureKind::$kind(Rc::downgrade(&descriptor.0)));
                                 (*self.lru).cache(lru_node);
                                 (*self.used_memory) += bytes_length;
                                 t.runtime = Some(Box::new(Runtime {
@@ -3338,7 +3342,7 @@ macro_rules! store_use_textures {
                                     using: true,
 
                                     used_memory: self.used_memory,
-                                    descriptors: self.$descriptors,
+                                    textures: self.textures,
                                     lru: self.lru,
                                 }));
 
@@ -3376,19 +3380,14 @@ store_use_textures! {
     (
         Texture2D,
         WebGl2RenderingContext::TEXTURE_2D,
-        descriptors_2d,
-        verify_internal_format,
-        tex_storage_2d, (width, height),
+        Texture2D,
         use_texture_2d,
         unuse_texture_2d
     )
     (
         Texture2DCompressed,
         WebGl2RenderingContext::TEXTURE_2D,
-        descriptors_2d_compressed,
-        verify_compressed_format,
-        tex_storage_2d,
-            (width, height),
+        Texture2DCompressed,
         use_texture_2d_compressed,
         unuse_texture_2d_compressed
     )
@@ -3434,40 +3433,28 @@ store_use_textures! {
     // )
 }
 
-macro_rules! store_drop {
-    ($($d:ident,)+) => {
-        impl Drop for TextureStore {
-            fn drop(&mut self) {
-                unsafe {
-                    $(
-                        for (_, descriptor) in (*self.$d).iter() {
-                            let Some(descriptor) = descriptor.upgrade() else {
-                                return;
-                            };
-                            let mut descriptor = descriptor.borrow_mut();
-                            let Some(runtime) = descriptor.runtime.take() else {
-                                return;
-                            };
+impl Drop for TextureStore {
+    fn drop(&mut self) {
+        unsafe {
+            for (_, kind) in (*self.textures).iter_mut() {
+                let runtime = match kind {
+                    TextureKind::Texture2D(texture) => texture
+                        .upgrade()
+                        .and_then(|t| t.borrow_mut().runtime.take()),
+                    TextureKind::Texture2DCompressed(texture) => texture
+                        .upgrade()
+                        .and_then(|t| t.borrow_mut().runtime.take()),
+                };
+                let Some(runtime) = runtime else {
+                    continue;
+                };
 
-                            self.gl.delete_texture(Some(&runtime.texture));
-                            // store dropped, no need to update LRU anymore
-                        }
-                        drop(Box::from_raw(self.$d));
-                    )+
-
-                    drop(Box::from_raw(self.used_memory));
-                    drop(Box::from_raw(self.lru));
-                }
+                self.gl.delete_texture(Some(&runtime.texture));
+                // store dropped, no need to update LRU anymore
             }
+            drop(Box::from_raw(self.textures));
+            drop(Box::from_raw(self.used_memory));
+            drop(Box::from_raw(self.lru));
         }
-    };
+    }
 }
-
-store_drop!(
-    descriptors_2d,
-    descriptors_2d_compressed,
-    // descriptors_2d_array,
-    // descriptors_3d,
-    // descriptors_3d_compressed,
-    // descriptors_cube_map
-);

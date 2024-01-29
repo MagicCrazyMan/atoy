@@ -1,7 +1,7 @@
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
-    texture_2d_compressed::{ConstructionPolicy, MemoryPolicy, Texture2DCompressed},
+    texture2d_compressed::{ConstructionPolicy, MemoryPolicy, Texture2DCompressed},
     TextureCompressedFormat, TextureCompressedSource, TextureDescriptor, TextureUpload,
 };
 
