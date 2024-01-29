@@ -233,7 +233,7 @@ impl DirectDrawSurface {
                             offset as u32,
                             bytes_length as u32,
                         );
-                        uploads.push(TextureUpload::new(
+                        uploads.push(TextureUpload::new_2d(
                             TextureCompressedSource::Uint8Array {
                                 width,
                                 height,

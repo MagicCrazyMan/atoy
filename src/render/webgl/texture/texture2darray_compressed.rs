@@ -17,23 +17,27 @@ pub enum ConstructionPolicy {
     /// Simple texture creation procedure.
     ///
     /// Under this policy, the size of the base texture source uses as the size of texture in level 0.
-    /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
+    /// And for a 2d array texture, a array length value in level 0 is also required.
+    ///
+    /// The max level of the texture is applied as `floor(log2(max(width, height, array_length, 1)))`.
     Simple {
         internal_format: TextureCompressedFormat,
+        array_length: usize,
         base: TextureCompressedSource,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
     /// - Required `internal_format` defines the internal format.
-    /// - Required `width` and `height` defines the size of texture in level 0.
+    /// - Required `width`, `height` and `array_length` defines the size of texture in level 0.
     /// - Optional `max_level` defines the max mipmap level following rules:
-    ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, 1)))`.
+    ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, array_length, 1)))`.
     ///     - If `max_level` is `0`, no mipmaps are allowed.
-    ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, 1))))`.
+    ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, array_length, 1))))`.
     Preallocate {
         internal_format: TextureCompressedFormat,
         width: usize,
         height: usize,
+        array_length: usize,
         max_level: Option<usize>,
     },
     /// Creates a texture with existing [`TextureUpload`] for each level.
@@ -44,6 +48,7 @@ pub enum ConstructionPolicy {
         internal_format: TextureCompressedFormat,
         width: usize,
         height: usize,
+        array_length: usize,
         max_level: Option<usize>,
         uploads: Vec<TextureUpload<TextureCompressedSource>>,
     },
@@ -60,12 +65,13 @@ pub enum MemoryPolicy {
     Restorable(Box<dyn Fn() -> Restore>),
 }
 
-/// A WebGL 2d texture in compressed internal format workload.
+/// A WebGL 2d array texture in compressed internal format workload.
 ///
 /// No automatic mipmaps generation available for a compressed format.
-pub struct Texture2DCompressed {
+pub struct Texture2DArrayCompressed {
     width: usize,
     height: usize,
+    array_length: usize,
     max_level: Option<usize>,
     internal_format: TextureCompressedFormat,
     memory_policy: MemoryPolicy,
@@ -74,7 +80,7 @@ pub struct Texture2DCompressed {
     pub(super) runtime: Option<Box<Runtime>>,
 }
 
-impl Drop for Texture2DCompressed {
+impl Drop for Texture2DArrayCompressed {
     fn drop(&mut self) {
         unsafe {
             if let Some(runtime) = self.runtime.take() {
@@ -87,7 +93,7 @@ impl Drop for Texture2DCompressed {
     }
 }
 
-impl Texture2DCompressed {
+impl Texture2DArrayCompressed {
     /// Returns texture base width in level 0.
     pub fn width(&self) -> usize {
         self.width
@@ -96,6 +102,11 @@ impl Texture2DCompressed {
     /// Returns texture base height in level 0.
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    /// Returns texture base array_length in level 0.
+    pub fn array_length(&self) -> usize {
+        self.array_length
     }
 
     /// Returns [`TextureCompressedFormat`].
@@ -154,7 +165,7 @@ impl Texture2DCompressed {
         for level in 0..=self.max_level().unwrap_or(0) {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += self.internal_format.bytes_length(width, height);
+            used_memory += self.internal_format.bytes_length(width, height) * self.array_length;
         }
         used_memory
     }
@@ -168,7 +179,7 @@ impl Texture2DCompressed {
             return None;
         };
 
-        Some(self.internal_format.bytes_length(width, height))
+        Some(self.internal_format.bytes_length(width, height) * self.array_length)
     }
 
     /// Uploads a new texture source cover a whole level of this texture.
@@ -176,10 +187,11 @@ impl Texture2DCompressed {
         &mut self,
         source: TextureCompressedSource,
         level: usize,
+        array_length: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_2d(
-                source, level, None, None, None, None,
+            .push(TextureUpload::<TextureCompressedSource>::with_params_3d(
+                source, level, array_length, None, None, None, None, None,
             ));
         Ok(())
     }
@@ -189,24 +201,28 @@ impl Texture2DCompressed {
         &mut self,
         source: TextureCompressedSource,
         level: usize,
+        array_length: usize,
         width: usize,
         height: usize,
         x_offset: usize,
         y_offset: usize,
+        z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_2d(
+            .push(TextureUpload::<TextureCompressedSource>::with_params_3d(
                 source,
                 level,
+                array_length,
                 Some(width),
                 Some(height),
                 Some(x_offset),
                 Some(y_offset),
+                Some(z_offset),
             ));
         Ok(())
     }
 
-    /// Creates [`WebGlTexture`] for texture 2d.
+    /// Creates [`WebGlTexture`] for 2d array texture.
     pub(super) fn create_texture(
         &self,
         gl: &WebGl2RenderingContext,
@@ -215,21 +231,22 @@ impl Texture2DCompressed {
         capabilities.verify_compressed_format(self.internal_format)?;
 
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-        let bound = utils::texture_binding_2d(gl);
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-        gl.tex_storage_2d(
-            WebGl2RenderingContext::TEXTURE_2D,
+        let bound = utils::texture_binding_2d_array(gl);
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&texture));
+        gl.tex_storage_3d(
+            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
             (self.max_level.unwrap_or(0) + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
+            self.array_length as i32,
         );
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
         Ok(texture)
     }
 
     /// Uploads data in `subs` to WebGL.
-    /// In this stage, [`Texture2DCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    /// In this stage, [`Texture2DArrayCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.uploads.is_empty() {
             return Ok(());
@@ -237,37 +254,40 @@ impl Texture2DCompressed {
 
         let runtime = self.runtime.as_deref().unwrap();
 
-        let bound = utils::texture_binding_2d(&runtime.gl);
+        let bound = utils::texture_binding_2d_array(&runtime.gl);
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&runtime.texture));
 
         // then uploading all regular sources
         for TextureUpload {
             source,
             level,
+            depth: array_length,
             width,
             height,
             x_offset,
             y_offset,
-            ..
+            z_offset,
         } in self.uploads.drain(..)
         {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_2d(
+            source.tex_sub_image_3d(
                 &runtime.gl,
-                TextureTarget::TEXTURE_2D,
+                TextureTarget::TEXTURE_2D_ARRAY,
                 level,
+                array_length,
                 width,
                 height,
                 x_offset,
                 y_offset,
+                z_offset,
             )?;
         }
 
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
 
         Ok(())
     }
@@ -285,38 +305,42 @@ impl Texture2DCompressed {
     }
 }
 
-impl TextureDescriptor<Texture2DCompressed> {
-    /// Constructs a new texture descriptor with [`Texture2DCompressed`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
+impl TextureDescriptor<Texture2DArrayCompressed> {
+    /// Constructs a new texture descriptor with [`Texture2DArrayCompressed`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
     pub fn new(construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
         let texture = match construction_policy {
             ConstructionPolicy::Simple {
                 internal_format,
+                array_length,
                 base,
             } => {
                 let width = base.width();
                 let height = base.height();
-                Texture2DCompressed {
+                Texture2DArrayCompressed {
                     width,
                     height,
+                    array_length,
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    uploads: vec![TextureUpload::<TextureCompressedSource>::new_2d(base, 0)],
+                    uploads: vec![TextureUpload::<TextureCompressedSource>::new_3d(base, 0, 0)],
                     runtime: None,
                 }
             }
             _ => {
-                let (internal_format, width, height, max_level) = match construction_policy {
+                let (internal_format, width, height, array_length, max_level) = match construction_policy {
                     ConstructionPolicy::Preallocate {
                         internal_format,
                         width,
                         height,
+                        array_length,
                         max_level,
                     }
                     | ConstructionPolicy::Full {
                         internal_format,
                         width,
                         height,
+                        array_length,
                         max_level,
                         ..
                     } => {
@@ -330,7 +354,7 @@ impl TextureDescriptor<Texture2DCompressed> {
                             }
                             None => Some(max_available_mipmap_level(width, height)),
                         };
-                        (internal_format, width, height, max_level)
+                        (internal_format, width, height, array_length, max_level)
                     }
                     _ => unreachable!(),
                 };
@@ -340,9 +364,10 @@ impl TextureDescriptor<Texture2DCompressed> {
                     _ => unreachable!(),
                 };
 
-                Texture2DCompressed {
+                Texture2DArrayCompressed {
                     width,
                     height,
+                    array_length,
                     max_level,
                     internal_format,
                     memory_policy,
@@ -355,13 +380,13 @@ impl TextureDescriptor<Texture2DCompressed> {
         Self(Rc::new(RefCell::new(texture)))
     }
 
-    /// Returns [`Texture2DCompressed`] associated with this descriptor.
-    pub fn texture(&self) -> Ref<'_, Texture2DCompressed> {
+    /// Returns [`Texture2DArrayCompressed`] associated with this descriptor.
+    pub fn texture(&self) -> Ref<'_, Texture2DArrayCompressed> {
         self.0.borrow()
     }
 
-    /// Returns mutable [`Texture2DCompressed`] associated with this descriptor.
-    pub fn texture_mut(&self) -> RefMut<'_, Texture2DCompressed> {
+    /// Returns mutable [`Texture2DArrayCompressed`] associated with this descriptor.
+    pub fn texture_mut(&self) -> RefMut<'_, Texture2DArrayCompressed> {
         self.0.borrow_mut()
     }
 }

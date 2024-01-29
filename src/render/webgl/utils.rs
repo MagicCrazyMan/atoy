@@ -31,6 +31,18 @@ pub fn texture_binding_2d(gl: &WebGl2RenderingContext) -> Option<WebGlTexture> {
         .cast_into_unchecked::<WebGlTexture>()
 }
 
+pub fn texture_binding_3d(gl: &WebGl2RenderingContext) -> Option<WebGlTexture> {
+    gl.get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_3D)
+        .unwrap()
+        .cast_into_unchecked::<WebGlTexture>()
+}
+
+pub fn texture_binding_2d_array(gl: &WebGl2RenderingContext) -> Option<WebGlTexture> {
+    gl.get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_2D_ARRAY)
+        .unwrap()
+        .cast_into_unchecked::<WebGlTexture>()
+}
+
 pub fn texture_binding_cube_map(gl: &WebGl2RenderingContext) -> Option<WebGlTexture> {
     gl.get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_CUBE_MAP)
         .unwrap()

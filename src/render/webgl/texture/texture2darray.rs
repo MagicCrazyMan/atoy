@@ -17,29 +17,33 @@ pub enum ConstructionPolicy {
     /// Simple texture creation procedure.
     ///
     /// Under this policy, the size of the base texture source uses as the size of texture in level 0.
-    /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
+    /// And for a 2d array texture, a array length in level 0 is also required.
+    ///
+    /// The max level of the texture is applied as `floor(log2(max(width, height, array_length, 1)))`.
     /// After the base texture source uploaded, mipmaps are automatically generated then.
     ///
-    /// [`TextureUpload`] upload by calling [`Texture2D::tex_image`] and [`Texture2D::tex_sub_image`]
+    /// [`TextureUpload`] upload by calling [`Texture2DArray::tex_image`] and [`Texture2DArray::tex_sub_image`]
     /// are uploaded after mipmap generated.
     Simple {
         internal_format: TextureInternalFormat,
+        array_length: usize,
         base: TextureUncompressedSource,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
     /// - Required `internal_format` defines the internal format.
-    /// - Required `width` and `height` defines the size of texture in level 0.
+    /// - Required `width`, `height` and `array_length` defines the size of texture in level 0.
     /// - Optional `max_level` defines the max mipmap level following rules:
-    ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, 1)))`.
+    ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, array_length, 1)))`.
     ///     - If `max_level` is `0`, no mipmaps are allowed.
-    ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, 1))))`.
+    ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, array_length, 1))))`.
     ///
     /// Developers could modify each mipmap level manually then.
     Preallocate {
         internal_format: TextureInternalFormat,
         width: usize,
         height: usize,
+        array_length: usize,
         max_level: Option<usize>,
     },
     /// Creates a texture with existing [`TextureUpload`] for each level.
@@ -50,6 +54,7 @@ pub enum ConstructionPolicy {
         internal_format: TextureInternalFormat,
         width: usize,
         height: usize,
+        array_length: usize,
         max_level: Option<usize>,
         uploads: Vec<TextureUpload<TextureUncompressedSource>>,
     },
@@ -57,7 +62,7 @@ pub enum ConstructionPolicy {
     ///
     /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
     /// - Required `uploads` defines data for uploading in each level, leaves an empty vector if no data need to upload currently.
-    /// - Optional `max_level` defines the max mipmap level, takes `floor(log2(max(width, height, 1)))` if not provide.
+    /// - Optional `max_level` defines the max mipmap level, takes `floor(log2(max(width, height, array_length, 1)))` if not provide.
     /// - Optional `mipmap_source` defines the texture source in level 0 for generating mipmaps automatically.
     /// Skips automatic mipmaps generation if not provide.
     /// - Optional `mipmap_base_level` defines the base level for generating mipmaps.
@@ -66,11 +71,12 @@ pub enum ConstructionPolicy {
     /// *Automatic mipmaps generation is skips if compressed texture source is provided.*
     ///
     /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
-    /// before uploading data in `uploads` or lately upload by [`Texture2D::tex_image`] and [`Texture2D::tex_sub_image`].
+    /// before uploading data in `uploads` or lately upload by [`Texture2DArray::tex_image`] and [`Texture2DArray::tex_sub_image`].
     Full {
         internal_format: TextureInternalFormat,
         width: usize,
         height: usize,
+        array_length: usize,
         uploads: Vec<TextureUpload<TextureUncompressedSource>>,
         max_level: Option<usize>,
         mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
@@ -93,10 +99,14 @@ pub enum MemoryPolicy {
     Restorable(Box<dyn Fn() -> Restore>),
 }
 
-/// A WebGL 2d texture workload.
-pub struct Texture2D {
+/// A WebGL 2d array texture workload.
+/// 
+/// Different from [`WebGl2RenderingContext::TEXTURE_2D_ARRAY`],
+/// a depth value in [`WebGl2RenderingContext::TEXTURE_2D_ARRAY`] refers to the length of array, not a dimensional value.
+pub struct Texture2DArray {
     width: usize,
     height: usize,
+    array_length: usize,
     /// Max mipmap level clamped to max available level already if mipmap enabled.
     max_level: Option<usize>,
     internal_format: TextureInternalFormat,
@@ -111,7 +121,7 @@ pub struct Texture2D {
     pub(super) runtime: Option<Box<Runtime>>,
 }
 
-impl Drop for Texture2D {
+impl Drop for Texture2DArray {
     fn drop(&mut self) {
         unsafe {
             if let Some(runtime) = self.runtime.take() {
@@ -124,7 +134,7 @@ impl Drop for Texture2D {
     }
 }
 
-impl Texture2D {
+impl Texture2DArray {
     /// Returns texture base width in level 0.
     pub fn width(&self) -> usize {
         self.width
@@ -133,6 +143,11 @@ impl Texture2D {
     /// Returns texture base height in level 0.
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    /// Returns texture base depth in level 0.
+    pub fn array_length(&self) -> usize {
+        self.array_length
     }
 
     /// Returns [`TextureInternalFormat`].
@@ -191,7 +206,7 @@ impl Texture2D {
         for level in 0..=self.max_level().unwrap_or(0) {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += self.internal_format.bytes_length(width, height);
+            used_memory += self.internal_format.bytes_length(width, height) *self. array_length;
         }
         used_memory
     }
@@ -205,7 +220,7 @@ impl Texture2D {
             return None;
         };
 
-        Some(self.internal_format.bytes_length(width, height))
+        Some(self.internal_format.bytes_length(width, height) * self.array_length)
     }
 
     /// Uploads a new texture source cover a whole level of this texture.
@@ -213,10 +228,11 @@ impl Texture2D {
         &mut self,
         source: TextureUncompressedSource,
         level: usize,
+        array_length: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_2d(
-                source, level, None, None, None, None,
+            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
+                source, level, array_length, None, None, None, None, None,
             ));
         Ok(())
     }
@@ -226,24 +242,28 @@ impl Texture2D {
         &mut self,
         source: TextureUncompressedSource,
         level: usize,
+        array_length: usize,
         width: usize,
         height: usize,
         x_offset: usize,
         y_offset: usize,
+        z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_2d(
+            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
                 source,
                 level,
+                array_length,
                 Some(width),
                 Some(height),
                 Some(x_offset),
                 Some(y_offset),
+                Some(z_offset),
             ));
         Ok(())
     }
 
-    /// Creates [`WebGlTexture`] for texture 2d.
+    /// Creates [`WebGlTexture`] for texture 2d array.
     pub(super) fn create_texture(
         &self,
         gl: &WebGl2RenderingContext,
@@ -252,21 +272,22 @@ impl Texture2D {
         capabilities.verify_internal_format(self.internal_format)?;
 
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-        let bound = utils::texture_binding_2d(gl);
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-        gl.tex_storage_2d(
-            WebGl2RenderingContext::TEXTURE_2D,
+        let bound = utils::texture_binding_2d_array(gl);
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&texture));
+        gl.tex_storage_3d(
+            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
             (self.max_level.unwrap_or(0) + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
+            self.array_length as i32,
         );
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
         Ok(texture)
     }
 
     /// Uploads data in `subs` to WebGL.
-    /// In this stage, [`Texture2D::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    /// In this stage, [`Texture2DArray::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.mipmap_base.is_none() && self.uploads.is_empty() {
             return Ok(());
@@ -274,18 +295,18 @@ impl Texture2D {
 
         let runtime = self.runtime.as_deref().unwrap();
 
-        let bound = utils::texture_binding_2d(&runtime.gl);
+        let bound = utils::texture_binding_2d_array(&runtime.gl);
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&runtime.texture));
 
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
         if let Some((mipmap_base, base_level, max_level)) = self.mipmap_base.take() {
             let bound_base_level = match base_level {
                 Some(base_level) => {
-                    let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_2D);
+                    let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
                     runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_2D,
+                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
                         base_level as i32,
                     );
@@ -295,9 +316,9 @@ impl Texture2D {
             };
             let bound_max_level = match max_level {
                 Some(max_level) => {
-                    let bound = utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_2D);
+                    let bound = utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
                     runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_2D,
+                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
                         max_level as i32,
                     );
@@ -306,10 +327,12 @@ impl Texture2D {
                 None => None,
             };
 
-            mipmap_base.source.tex_sub_image_2d(
+            mipmap_base.source.tex_sub_image_3d(
                 &runtime.gl,
-                TextureTarget::TEXTURE_2D,
+                TextureTarget::TEXTURE_2D_ARRAY,
                 0,
+                0,
+                None,
                 None,
                 None,
                 None,
@@ -317,18 +340,18 @@ impl Texture2D {
             )?;
             runtime
                 .gl
-                .generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
+                .generate_mipmap(WebGl2RenderingContext::TEXTURE_2D_ARRAY);
 
             if let Some(bound_base_level) = bound_base_level {
                 runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_2D,
+                    WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                     WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
                     bound_base_level as i32,
                 );
             }
             if let Some(bound_max_level) = bound_max_level {
                 runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_2D,
+                    WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                     WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
                     bound_max_level as i32,
                 );
@@ -339,28 +362,31 @@ impl Texture2D {
         for TextureUpload {
             source,
             level,
+            depth: array_length,
             width,
             height,
             x_offset,
             y_offset,
-            ..
+            z_offset,
         } in self.uploads.drain(..)
         {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_2d(
+            source.tex_sub_image_3d(
                 &runtime.gl,
-                TextureTarget::TEXTURE_2D,
+                TextureTarget::TEXTURE_2D_ARRAY,
                 level,
+                array_length,
                 width,
                 height,
                 x_offset,
                 y_offset,
+                z_offset,
             )?;
         }
 
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
 
         Ok(())
     }
@@ -387,39 +413,43 @@ impl Texture2D {
     }
 }
 
-impl TextureDescriptor<Texture2D> {
-    /// Constructs a new texture descriptor with [`Texture2D`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
+impl TextureDescriptor<Texture2DArray> {
+    /// Constructs a new texture descriptor with [`Texture2DArray`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
     pub fn new(mut construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
         let texture = match construction_policy {
             ConstructionPolicy::Simple {
                 internal_format,
+                array_length,
                 base,
             } => {
                 let width = base.width();
                 let height = base.height();
-                Texture2D {
+                Texture2DArray {
                     width,
                     height,
+                    array_length,
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    mipmap_base: Some((TextureUpload::new_2d(base, 0), None, None)),
+                    mipmap_base: Some((TextureUpload::new_3d(base, 0, 0), None, None)),
                     uploads: Vec::new(),
                     runtime: None,
                 }
             }
             _ => {
-                let (internal_format, width, height, max_level) = match construction_policy {
+                let (internal_format, width, height, array_length, max_level) = match construction_policy {
                     ConstructionPolicy::Preallocate {
                         internal_format,
                         width,
                         height,
+                        array_length,
                         max_level,
                     }
                     | ConstructionPolicy::WithSources {
                         internal_format,
                         width,
                         height,
+                        array_length,
                         max_level,
                         ..
                     }
@@ -427,6 +457,7 @@ impl TextureDescriptor<Texture2D> {
                         internal_format,
                         width,
                         height,
+                        array_length,
                         max_level,
                         ..
                     } => {
@@ -440,14 +471,13 @@ impl TextureDescriptor<Texture2D> {
                             }
                             None => Some(max_available_mipmap_level(width, height)),
                         };
-                        (internal_format, width, height, max_level)
+                        (internal_format, width, height, array_length, max_level)
                     }
                     _ => unreachable!(),
                 };
                 let mipmap_base = match construction_policy {
-                    ConstructionPolicy::Preallocate { .. } | ConstructionPolicy::WithSources { .. } => {
-                        None
-                    }
+                    ConstructionPolicy::Preallocate { .. }
+                    | ConstructionPolicy::WithSources { .. } => None,
                     ConstructionPolicy::Full {
                         mipmap_base_level,
                         mipmap_max_level,
@@ -468,9 +498,10 @@ impl TextureDescriptor<Texture2D> {
                     _ => unreachable!(),
                 };
 
-                Texture2D {
+                Texture2DArray {
                     width,
                     height,
+                    array_length,
                     max_level,
                     internal_format,
                     memory_policy,
@@ -484,13 +515,13 @@ impl TextureDescriptor<Texture2D> {
         Self(Rc::new(RefCell::new(texture)))
     }
 
-    /// Returns [`Texture2D`] associated with this descriptor.
-    pub fn texture(&self) -> Ref<'_, Texture2D> {
+    /// Returns [`Texture2DArray`] associated with this descriptor.
+    pub fn texture(&self) -> Ref<'_, Texture2DArray> {
         self.0.borrow()
     }
 
-    /// Returns mutable [`Texture2D`] associated with this descriptor.
-    pub fn texture_mut(&self) -> RefMut<'_, Texture2D> {
+    /// Returns mutable [`Texture2DArray`] associated with this descriptor.
+    pub fn texture_mut(&self) -> RefMut<'_, Texture2DArray> {
         self.0.borrow_mut()
     }
 }
