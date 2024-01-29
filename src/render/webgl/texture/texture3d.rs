@@ -9,7 +9,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     max_available_mipmap_level, Runtime, TextureDescriptor, TextureInternalFormat, TextureSource,
-    TextureSourceUncompressed, TextureTarget, TextureUpload,
+    TextureSourceUncompressed, TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -67,8 +67,6 @@ pub enum ConstructionPolicy {
     /// Skips automatic mipmaps generation if not provide.
     /// - Optional `mipmap_base_level` defines the base level for generating mipmaps.
     /// - Optional `mipmap_max_level` defines the max level for generating mipmaps.
-    ///
-    /// *Automatic mipmaps generation is skips if compressed texture source is provided.*
     ///
     /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
     /// before uploading data in `uploads` or lately upload by [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`].
@@ -305,14 +303,17 @@ impl Texture3D {
 
     /// Uploads data to WebGL.
     /// In this stage, [`Texture3D::runtime`] is created already, it's safe to unwrap it and use fields inside.
-    pub(super) fn tex(&mut self) -> Result<(), Error> {
+    pub(super) fn tex(&mut self, unit: TextureUnit) -> Result<(), Error> {
         if self.mipmap_base.is_none() && self.uploads.is_empty() {
             return Ok(());
         }
 
         let runtime = self.runtime.as_deref().unwrap();
 
-        let bound = utils::texture_binding_3d(&runtime.gl);
+        let bound_texture = utils::texture_binding_3d(&runtime.gl);
+        let bound_unit = utils::active_texture_unit(&runtime.gl);
+
+        runtime.gl.active_texture(unit.gl_enum());
         runtime
             .gl
             .bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&runtime.texture));
@@ -371,9 +372,10 @@ impl Texture3D {
             upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_3D)?;
         }
 
+        runtime.gl.active_texture(bound_unit);
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_3D, bound.as_ref());
+            .bind_texture(WebGl2RenderingContext::TEXTURE_3D, bound_texture.as_ref());
 
         Ok(())
     }

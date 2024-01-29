@@ -26,13 +26,34 @@ use super::{
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
-    texture::{TextureParameter, TextureStore, TextureUnit},
+    texture::{
+        texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
+        texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
+        texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
+        texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed,
+        TextureDescriptor, TextureParameter, TextureStore, TextureUnit,
+    },
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
 pub struct BoundAttribute {
     location: u32,
     descriptor: BufferDescriptor,
+}
+
+enum TextureKind {
+    Texture2D(TextureDescriptor<Texture2D>),
+    Texture2DCompressed(TextureDescriptor<Texture2DCompressed>),
+    Texture2DArray(TextureDescriptor<Texture2DArray>),
+    Texture2DArrayCompressed(TextureDescriptor<Texture2DArrayCompressed>),
+    Texture3D(TextureDescriptor<Texture3D>),
+    Texture3DCompressed(TextureDescriptor<Texture3DCompressed>),
+    TextureCubeMap(TextureDescriptor<TextureCubeMap>),
+    TextureCubeMapCompressed(TextureDescriptor<TextureCubeMapCompressed>),
+}
+pub struct BoundUniform {
+    unit: TextureUnit,
+    kind: TextureKind,
 }
 
 pub struct FrameState {
@@ -301,7 +322,7 @@ impl FrameState {
         self.bind_attribute_value(location, value)
     }
 
-    /// Unbinds all attributes after draw calls.
+    /// Unbinds all attributes.
     ///
     /// If you bind buffer attributes ever,
     /// remember to unbind them by yourself or use this function.
@@ -323,7 +344,8 @@ impl FrameState {
         entity: &Entity,
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<BoundUniform>, Error> {
+        let mut bounds = Vec::new();
         // binds uniforms
         let uniform_bindings = material.uniform_bindings();
         for binding in uniform_bindings {
@@ -391,13 +413,20 @@ impl FrameState {
                 continue;
             };
 
-            if let Err(err) = self.bind_uniform_value(&location, value.as_ref()) {
-                warn!(
-                    target: "BindUniforms",
-                    "failed to bind uniform value {}",
-                    err
-                );
-            };
+            match self.bind_uniform_value(&location, value.as_ref()) {
+                Ok(bound) => {
+                    if let Some(bound) = bound {
+                        bounds.push(bound);
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        target: "BindUniforms",
+                        "failed to bind uniform value {}",
+                        err
+                    );
+                }
+            }
         }
 
         // binds uniform blocks
@@ -430,7 +459,7 @@ impl FrameState {
             self.bind_uniform_block_value(program.program(), uniform_block_index, value.as_ref())?;
         }
 
-        Ok(())
+        Ok(bounds)
     }
 
     /// Binds a [`UniformValue`] to a uniform.
@@ -438,79 +467,126 @@ impl FrameState {
         &mut self,
         location: &WebGlUniformLocation,
         value: &UniformValue,
-    ) -> Result<(), Error> {
-        // let location = s
-        match value {
+    ) -> Result<Option<BoundUniform>, Error> {
+        let bound = match value {
             UniformValue::Bool(v) => {
                 if *v {
-                    self.gl.uniform1i(Some(location), 1)
+                    self.gl.uniform1i(Some(location), 1);
                 } else {
-                    self.gl.uniform1i(Some(location), 0)
-                }
+                    self.gl.uniform1i(Some(location), 0);
+                };
+                None
             }
-            UniformValue::UnsignedInteger1(x) => self.gl.uniform1ui(Some(location), *x),
-            UniformValue::UnsignedInteger2(x, y) => self.gl.uniform2ui(Some(location), *x, *y),
+            UniformValue::UnsignedInteger1(x) => {
+                self.gl.uniform1ui(Some(location), *x);
+                None
+            }
+            UniformValue::UnsignedInteger2(x, y) => {
+                self.gl.uniform2ui(Some(location), *x, *y);
+                None
+            }
             UniformValue::UnsignedInteger3(x, y, z) => {
-                self.gl.uniform3ui(Some(location), *x, *y, *z)
+                self.gl.uniform3ui(Some(location), *x, *y, *z);
+                None
             }
             UniformValue::UnsignedInteger4(x, y, z, w) => {
-                self.gl.uniform4ui(Some(location), *x, *y, *z, *w)
+                self.gl.uniform4ui(Some(location), *x, *y, *z, *w);
+                None
             }
-            UniformValue::Float1(x) => self.gl.uniform1f(Some(location), *x),
-            UniformValue::Float2(x, y) => self.gl.uniform2f(Some(location), *x, *y),
-            UniformValue::Float3(x, y, z) => self.gl.uniform3f(Some(location), *x, *y, *z),
-            UniformValue::Float4(x, y, z, w) => self.gl.uniform4f(Some(location), *x, *y, *z, *w),
-            UniformValue::Integer1(x) => self.gl.uniform1i(Some(location), *x),
-            UniformValue::Integer2(x, y) => self.gl.uniform2i(Some(location), *x, *y),
-            UniformValue::Integer3(x, y, z) => self.gl.uniform3i(Some(location), *x, *y, *z),
-            UniformValue::Integer4(x, y, z, w) => self.gl.uniform4i(Some(location), *x, *y, *z, *w),
+            UniformValue::Float1(x) => {
+                self.gl.uniform1f(Some(location), *x);
+                None
+            }
+            UniformValue::Float2(x, y) => {
+                self.gl.uniform2f(Some(location), *x, *y);
+                None
+            }
+            UniformValue::Float3(x, y, z) => {
+                self.gl.uniform3f(Some(location), *x, *y, *z);
+                None
+            }
+            UniformValue::Float4(x, y, z, w) => {
+                self.gl.uniform4f(Some(location), *x, *y, *z, *w);
+                None
+            }
+            UniformValue::Integer1(x) => {
+                self.gl.uniform1i(Some(location), *x);
+                None
+            }
+            UniformValue::Integer2(x, y) => {
+                self.gl.uniform2i(Some(location), *x, *y);
+                None
+            }
+            UniformValue::Integer3(x, y, z) => {
+                self.gl.uniform3i(Some(location), *x, *y, *z);
+                None
+            }
+            UniformValue::Integer4(x, y, z, w) => {
+                self.gl.uniform4i(Some(location), *x, *y, *z, *w);
+                None
+            }
             UniformValue::FloatVector1(data) => {
-                self.gl.uniform1fv_with_f32_array(Some(location), data)
+                self.gl.uniform1fv_with_f32_array(Some(location), data);
+                None
             }
             UniformValue::FloatVector2(data) => {
-                self.gl.uniform2fv_with_f32_array(Some(location), data)
+                self.gl.uniform2fv_with_f32_array(Some(location), data);
+                None
             }
             UniformValue::FloatVector3(data) => {
-                self.gl.uniform3fv_with_f32_array(Some(location), data)
+                self.gl.uniform3fv_with_f32_array(Some(location), data);
+                None
             }
             UniformValue::FloatVector4(data) => {
-                self.gl.uniform4fv_with_f32_array(Some(location), data)
+                self.gl.uniform4fv_with_f32_array(Some(location), data);
+                None
             }
             UniformValue::IntegerVector1(data) => {
-                self.gl.uniform1iv_with_i32_array(Some(location), data)
+                self.gl.uniform1iv_with_i32_array(Some(location), data);
+                None
             }
             UniformValue::IntegerVector2(data) => {
-                self.gl.uniform2iv_with_i32_array(Some(location), data)
+                self.gl.uniform2iv_with_i32_array(Some(location), data);
+                None
             }
             UniformValue::IntegerVector3(data) => {
-                self.gl.uniform3iv_with_i32_array(Some(location), data)
+                self.gl.uniform3iv_with_i32_array(Some(location), data);
+                None
             }
             UniformValue::IntegerVector4(data) => {
-                self.gl.uniform4iv_with_i32_array(Some(location), data)
+                self.gl.uniform4iv_with_i32_array(Some(location), data);
+                None
             }
             UniformValue::UnsignedIntegerVector1(data) => {
-                self.gl.uniform1uiv_with_u32_array(Some(location), data)
+                self.gl.uniform1uiv_with_u32_array(Some(location), data);
+                None
             }
             UniformValue::UnsignedIntegerVector2(data) => {
-                self.gl.uniform2uiv_with_u32_array(Some(location), data)
+                self.gl.uniform2uiv_with_u32_array(Some(location), data);
+                None
             }
             UniformValue::UnsignedIntegerVector3(data) => {
-                self.gl.uniform3uiv_with_u32_array(Some(location), data)
+                self.gl.uniform3uiv_with_u32_array(Some(location), data);
+                None
             }
             UniformValue::UnsignedIntegerVector4(data) => {
-                self.gl.uniform4uiv_with_u32_array(Some(location), data)
+                self.gl.uniform4uiv_with_u32_array(Some(location), data);
+                None
             }
             UniformValue::Matrix2 { data, transpose } => {
                 self.gl
-                    .uniform_matrix2fv_with_f32_array(Some(location), *transpose, data)
+                    .uniform_matrix2fv_with_f32_array(Some(location), *transpose, data);
+                None
             }
             UniformValue::Matrix3 { data, transpose } => {
                 self.gl
-                    .uniform_matrix3fv_with_f32_array(Some(location), *transpose, data)
+                    .uniform_matrix3fv_with_f32_array(Some(location), *transpose, data);
+                None
             }
             UniformValue::Matrix4 { data, transpose } => {
                 self.gl
-                    .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data)
+                    .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data);
+                None
             }
             UniformValue::Texture2D { .. }
             | UniformValue::Texture2DCompressed { .. }
@@ -518,13 +594,15 @@ impl FrameState {
             | UniformValue::Texture3DCompressed { .. }
             | UniformValue::Texture2DArray { .. }
             | UniformValue::Texture2DArrayCompressed { .. }
-            | UniformValue::TextureCubeMap { .. } => {
-                let (target, texture, unit, params) = match value {
+            | UniformValue::TextureCubeMap { .. }
+            | UniformValue::TextureCubeMapCompressed { .. } => {
+                let (kind, target, texture, unit, params) = match value {
                     UniformValue::Texture2D {
                         descriptor,
                         unit,
                         params,
                     } => (
+                        TextureKind::Texture2D(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut().use_texture_2d(descriptor, *unit)?,
                         unit,
@@ -535,6 +613,7 @@ impl FrameState {
                         params,
                         unit,
                     } => (
+                        TextureKind::Texture2DCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut()
                             .use_texture_2d_compressed(&descriptor, *unit)?,
@@ -546,6 +625,7 @@ impl FrameState {
                         unit,
                         params,
                     } => (
+                        TextureKind::Texture3D(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_3D,
                         self.texture_store_mut()
                             .use_texture_3d(&descriptor, *unit)?,
@@ -557,6 +637,7 @@ impl FrameState {
                         unit,
                         params,
                     } => (
+                        TextureKind::Texture3DCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_3D,
                         self.texture_store_mut()
                             .use_texture_3d_compressed(&descriptor, *unit)?,
@@ -568,6 +649,7 @@ impl FrameState {
                         unit,
                         params,
                     } => (
+                        TextureKind::Texture2DArray(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         self.texture_store_mut()
                             .use_texture_2d_array(&descriptor, *unit)?,
@@ -579,6 +661,7 @@ impl FrameState {
                         unit,
                         params,
                     } => (
+                        TextureKind::Texture2DArrayCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         self.texture_store_mut()
                             .use_texture_2d_array_compressed(&descriptor, *unit)?,
@@ -590,9 +673,22 @@ impl FrameState {
                         params,
                         unit,
                     } => (
+                        TextureKind::TextureCubeMap(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_CUBE_MAP,
                         self.texture_store_mut()
                             .use_texture_cube_map(&descriptor, *unit)?,
+                        unit,
+                        params,
+                    ),
+                    UniformValue::TextureCubeMapCompressed {
+                        descriptor,
+                        params,
+                        unit,
+                    } => (
+                        TextureKind::TextureCubeMapCompressed(descriptor.clone()),
+                        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+                        self.texture_store_mut()
+                            .use_texture_cube_map_compressed(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -632,9 +728,57 @@ impl FrameState {
                         self.gl.tex_parameterf(target, param.gl_enum(), *v)
                     }
                 });
+
+                Some(BoundUniform { unit: *unit, kind })
             }
         };
-        Ok(())
+
+        Ok(bound)
+    }
+
+    /// Unbinds all uniforms.
+    ///
+    /// If you bind buffer uniforms ever,
+    /// remember to unbind them by yourself or use this function.
+    pub fn unbind_uniforms(&mut self, bounds: Vec<BoundUniform>) {
+        for BoundUniform {
+            unit,
+            kind: texture,
+        } in bounds
+        {
+            match texture {
+                TextureKind::Texture2D(descriptor) => {
+                    self.texture_store_mut().unuse_texture_2d(&descriptor, unit);
+                }
+                TextureKind::Texture2DCompressed(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_2d_compressed(&descriptor, unit);
+                }
+                TextureKind::Texture2DArray(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_2d_array(&descriptor, unit);
+                }
+                TextureKind::Texture2DArrayCompressed(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_2d_array_compressed(&descriptor, unit);
+                }
+                TextureKind::Texture3D(descriptor) => {
+                    self.texture_store_mut().unuse_texture_3d(&descriptor, unit);
+                }
+                TextureKind::Texture3DCompressed(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_3d_compressed(&descriptor, unit);
+                }
+                TextureKind::TextureCubeMap(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_cube_map(&descriptor, unit);
+                }
+                TextureKind::TextureCubeMapCompressed(descriptor) => {
+                    self.texture_store_mut()
+                        .unuse_texture_cube_map_compressed(&descriptor, unit);
+                }
+            }
+        }
     }
 
     /// Binds a [`UniformValue`] to a uniform by variable name.
@@ -643,7 +787,7 @@ impl FrameState {
         program: &mut Program,
         variable_name: &str,
         value: &UniformValue,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<BoundUniform>, Error> {
         let Some(location) = program.get_or_retrieve_uniform_location(variable_name) else {
             return Err(Error::NoSuchUniform(variable_name.to_string()));
         };

@@ -201,7 +201,7 @@ impl DirectDrawSurface {
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<(TextureDescriptor<Texture2DCompressed>, bool)> {
+    ) -> Option<TextureDescriptor<Texture2DCompressed>> {
         let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
@@ -216,7 +216,7 @@ impl DirectDrawSurface {
 
         match internal_format {
             Some(internal_format) => {
-                let (construction_policy, has_mipmap) = if self.header.ddsd_mipmap_count() {
+                let construction_policy = if self.header.ddsd_mipmap_count() {
                     // reads mipmaps
                     let base_width = self.header.width as usize;
                     let base_height = self.header.height as usize;
@@ -254,7 +254,7 @@ impl DirectDrawSurface {
                         max_level: Some(levels),
                         uploads,
                     };
-                    (construction_policy, true)
+                    construction_policy
                 } else {
                     let data = Uint8Array::new_with_byte_offset_and_length(
                         &self.raw,
@@ -274,14 +274,14 @@ impl DirectDrawSurface {
                             src_length_override: None,
                         },
                     };
-                    (construction_policy, false)
+                    construction_policy
                 };
 
                 let descriptor = TextureDescriptor::<Texture2DCompressed>::new(
                     construction_policy,
                     MemoryPolicy::Unfree,
                 );
-                Some((descriptor, has_mipmap))
+                Some(descriptor)
             }
             None => None,
         }

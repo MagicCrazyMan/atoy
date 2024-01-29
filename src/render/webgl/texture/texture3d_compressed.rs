@@ -9,7 +9,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUpload,
+    TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -263,14 +263,17 @@ impl Texture3DCompressed {
 
     /// Uploads data to WebGL.
     /// In this stage, [`Texture3DCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
-    pub(super) fn tex(&mut self) -> Result<(), Error> {
+    pub(super) fn tex(&mut self, unit: TextureUnit) -> Result<(), Error> {
         if self.uploads.is_empty() {
             return Ok(());
         }
 
         let runtime = self.runtime.as_deref().unwrap();
 
-        let bound = utils::texture_binding_3d(&runtime.gl);
+        let bound_texture = utils::texture_binding_3d(&runtime.gl);
+        let bound_unit = utils::active_texture_unit(&runtime.gl);
+
+        runtime.gl.active_texture(unit.gl_enum());
         runtime
             .gl
             .bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&runtime.texture));
@@ -281,9 +284,10 @@ impl Texture3DCompressed {
             upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_3D)?;
         }
 
+        runtime.gl.active_texture(bound_unit);
         runtime
             .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_3D, bound.as_ref());
+            .bind_texture(WebGl2RenderingContext::TEXTURE_3D, bound_texture.as_ref());
 
         Ok(())
     }
@@ -319,7 +323,7 @@ impl TextureDescriptor<Texture3DCompressed> {
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    uploads: vec![TextureUpload::<TextureSourceCompressed>::new_3d(base, 0, 0)],
+                    uploads: vec![TextureUpload::new_3d(base, 0, 0)],
                     runtime: None,
                 }
             }

@@ -534,7 +534,6 @@ pub fn test_cube(
     pick_callback: &Function,
     floor_rgb: HtmlImageElement,
     floor_dxt: ArrayBuffer,
-    floor_dxt_mipmaps: ArrayBuffer,
     sky_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
@@ -600,42 +599,34 @@ pub fn test_cube(
     // )));
     // scene.entity_collection_mut().add_entity(entity);
 
-    // let mut image = EntityOptions::new();
-    // let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
-    // let (internal_format, data) = dds.gl_compressed_format(true, true).unwrap();
-    // image.set_material(Some(TextureMaterial::new(
-    //     UniformValue::Texture2DCompressed {
-    //         descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
-    //             TextureSourceCompressed::Uint8Array {
-    //                 width: dds.header.width as usize,
-    //                 height: dds.header.height as usize,
-    //                 data,
-    //                 src_offset: 0,
-    //                 src_length_override: None,
-    //             },
-    //             internal_format,
-    //             false,
-    //             MemoryPolicy::Unfree,
-    //         )?,
-    //         params: vec![
-    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
-    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-    //         ],
-    //         unit: TextureUnit::TEXTURE0,
-    //     },
-    //     Transparency::Opaque,
-    // )));
-    // image.set_geometry(Some(Rectangle::new(
-    //     Vec2::new(0.0, 0.0),
-    //     Placement::Center,
-    //     0.25,
-    //     0.25,
-    //     1.0,
-    //     1.0,
-    // )));
-    // scene.entity_container_mut().add_entity(image);
+    let mut image = EntityOptions::new();
+    let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
+    image.set_material(Some(TextureMaterial::new(
+        UniformValue::Texture2DCompressed {
+            descriptor: dds.texture_descriptor(true, true).unwrap(),
+            params: vec![
+                TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
+                    TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
+                } else {
+                    TextureMinificationFilter::LINEAR
+                }),
+                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+            ],
+            unit: TextureUnit::TEXTURE0,
+        },
+        Transparency::Opaque,
+    )));
+    image.set_geometry(Some(Rectangle::new(
+        Vec2::new(0.0, 0.0),
+        Placement::Center,
+        0.25,
+        0.25,
+        1.0,
+        1.0,
+    )));
+    scene.entity_container_mut().add_entity(image);
 
     let mut floor = EntityOptions::new();
     // floor.set_material(Some(TextureMaterial::new(
@@ -659,13 +650,12 @@ pub fn test_cube(
     //     },
     //     Transparency::Opaque,
     // )));
-    let dds = DirectDrawSurface::parse(floor_dxt_mipmaps).unwrap();
-    let (descriptor, has_mipmap) = dds.texture_descriptor(true, true).unwrap();
+    let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
     floor.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2DCompressed {
-            descriptor,
+            descriptor: dds.texture_descriptor(true, true).unwrap(),
             params: vec![
-                TextureParameter::MIN_FILTER(if has_mipmap {
+                TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
                     TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
                 } else {
                     TextureMinificationFilter::LINEAR

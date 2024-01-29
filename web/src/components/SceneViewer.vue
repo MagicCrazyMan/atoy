@@ -97,7 +97,6 @@ onMounted(async () => {
       pickTime.value = time;
     },
     await loadFloorTexture(),
-    await loadFloorCompressedTexture("/wood_dxt3.dds"),
     await loadFloorCompressedTexture("/wood_dxt3_mipmaps.dds"),
     await loadFloorCompressedTexture("/sky_dxt3.dds")
   );

@@ -9,7 +9,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUpload,
+    TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -254,14 +254,17 @@ impl Texture2DArrayCompressed {
 
     /// Uploads data to WebGL.
     /// In this stage, [`Texture2DArrayCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
-    pub(super) fn tex(&mut self) -> Result<(), Error> {
+    pub(super) fn tex(&mut self, unit: TextureUnit) -> Result<(), Error> {
         if self.uploads.is_empty() {
             return Ok(());
         }
 
         let runtime = self.runtime.as_deref().unwrap();
 
-        let bound = utils::texture_binding_2d_array(&runtime.gl);
+        let bound_texture = utils::texture_binding_2d_array(&runtime.gl);
+        let bound_unit = utils::active_texture_unit(&runtime.gl);
+
+        runtime.gl.active_texture(unit.gl_enum());
         runtime.gl.bind_texture(
             WebGl2RenderingContext::TEXTURE_2D_ARRAY,
             Some(&runtime.texture),
@@ -273,9 +276,11 @@ impl Texture2DArrayCompressed {
             upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
         }
 
-        runtime
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
+        runtime.gl.active_texture(bound_unit);
+        runtime.gl.bind_texture(
+            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+            bound_texture.as_ref(),
+        );
 
         Ok(())
     }
@@ -311,7 +316,7 @@ impl TextureDescriptor<Texture2DArrayCompressed> {
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    uploads: vec![TextureUpload::<TextureSourceCompressed>::new_3d(base, 0, 0)],
+                    uploads: vec![TextureUpload::new_3d(base, 0, 0)],
                     runtime: None,
                 }
             }

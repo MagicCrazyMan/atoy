@@ -8,8 +8,8 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, TextureDescriptor, TextureInternalFormat, TextureSource,
-    TextureSourceUncompressed, TextureTarget, TextureUnit, TextureUpload,
+    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Cube map faces.
@@ -32,22 +32,18 @@ pub enum ConstructionPolicy {
     /// and size of each cube map face must be the same.
     ///
     /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
-    /// After the base texture source uploaded, mipmaps are automatically generated then.
-    ///
-    /// Image data upload by calling [`TextureCubeMap::tex_image`] and [`TextureCubeMap::tex_sub_image`]
-    /// are uploaded after mipmap generated.
     Simple {
-        internal_format: TextureInternalFormat,
-        positive_x: TextureSourceUncompressed,
-        negative_x: TextureSourceUncompressed,
-        positive_y: TextureSourceUncompressed,
-        negative_y: TextureSourceUncompressed,
-        positive_z: TextureSourceUncompressed,
-        negative_z: TextureSourceUncompressed,
+        internal_format: TextureCompressedFormat,
+        positive_x: TextureSourceCompressed,
+        negative_x: TextureSourceCompressed,
+        positive_y: TextureSourceCompressed,
+        negative_y: TextureSourceCompressed,
+        positive_z: TextureSourceCompressed,
+        negative_z: TextureSourceCompressed,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
-    /// - Required `internal_format` defines the internal format.
+    /// - Required `internal_format` defines the compressed format.
     /// - Required `width` and `height` defines the size of texture in level 0.
     /// - Optional `max_level` defines the max mipmap level following rules:
     ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, 1)))`.
@@ -56,27 +52,10 @@ pub enum ConstructionPolicy {
     ///
     /// Developers could modify each mipmap level manually then.
     Preallocate {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureCompressedFormat,
         width: usize,
         height: usize,
         max_level: Option<usize>,
-    },
-    /// Creates a texture with existing [`TextureUpload`] for each level and each cube map face.
-    ///
-    /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
-    /// - Required `positive_x`, `negative_x`, `positive_y`, `negative_y`, `positive_z` and `negative_z`
-    /// defines data for uploading in each level and each cube map face.
-    WithSources {
-        internal_format: TextureInternalFormat,
-        width: usize,
-        height: usize,
-        max_level: Option<usize>,
-        positive_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-        positive_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-        positive_z: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_z: Vec<TextureUpload<TextureSourceUncompressed>>,
     },
     /// Creates a texture by providing all customizable parameters.
     ///
@@ -84,45 +63,29 @@ pub enum ConstructionPolicy {
     /// - Required `positive_x`, `negative_x`, `positive_y`, `negative_y`, `positive_z` and `negative_z`
     /// defines data for uploading in each level and each cube map face, leaves empty vectors if no data need to upload currently.
     /// - Optional `max_level` defines the max mipmap level, takes `floor(log2(max(width, height, 1)))` if not provide.
-    /// - Optional `mipmap_source` defines the texture sources of each cube map face in level 0 for generating mipmaps automatically.
-    /// `positive_x`,`negative_x`, `positive_y`, `negative_y`, `positive_z` and `negative_z` index from `0` to `5` respectively.
-    /// Skips automatic mipmaps generation if not provide.
-    /// - Optional `mipmap_base_level` defines the base level for generating mipmaps.
-    /// - Optional `mipmap_max_level` defines the max level for generating mipmaps.
-    ///
-    /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
-    /// before uploading data in `uploads` or lately upload by [`TextureCubeMap::tex_image`] and [`TextureCubeMap::tex_sub_image`].
     Full {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureCompressedFormat,
         width: usize,
         height: usize,
         max_level: Option<usize>,
 
-        positive_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-        positive_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-        positive_z: Vec<TextureUpload<TextureSourceUncompressed>>,
-        negative_z: Vec<TextureUpload<TextureSourceUncompressed>>,
-
-        mipmap_source: Option<[TextureUpload<TextureSourceUncompressed>; 6]>,
-        mipmap_base_level: Option<usize>,
-        mipmap_max_level: Option<usize>,
+        positive_x: Vec<TextureUpload<TextureSourceCompressed>>,
+        negative_x: Vec<TextureUpload<TextureSourceCompressed>>,
+        positive_y: Vec<TextureUpload<TextureSourceCompressed>>,
+        negative_y: Vec<TextureUpload<TextureSourceCompressed>>,
+        positive_z: Vec<TextureUpload<TextureSourceCompressed>>,
+        negative_z: Vec<TextureUpload<TextureSourceCompressed>>,
     },
 }
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    positive_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-    negative_x: Vec<TextureUpload<TextureSourceUncompressed>>,
-    positive_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-    negative_y: Vec<TextureUpload<TextureSourceUncompressed>>,
-    positive_z: Vec<TextureUpload<TextureSourceUncompressed>>,
-    negative_z: Vec<TextureUpload<TextureSourceUncompressed>>,
-
-    mipmap_sources: Option<[TextureUpload<TextureSourceUncompressed>; 6]>,
-    mipmap_base_level: Option<usize>,
-    mipmap_max_level: Option<usize>,
+    positive_x: Vec<TextureUpload<TextureSourceCompressed>>,
+    negative_x: Vec<TextureUpload<TextureSourceCompressed>>,
+    positive_y: Vec<TextureUpload<TextureSourceCompressed>>,
+    negative_y: Vec<TextureUpload<TextureSourceCompressed>>,
+    positive_z: Vec<TextureUpload<TextureSourceCompressed>>,
+    negative_z: Vec<TextureUpload<TextureSourceCompressed>>,
 }
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -132,26 +95,19 @@ pub enum MemoryPolicy {
 }
 
 /// A WebGL cube map texture workload.
-pub struct TextureCubeMap {
+pub struct TextureCubeMapCompressed {
     width: usize,
     height: usize,
-    /// Max mipmap level clamped to max available level already if mipmap enabled.
     max_level: Option<usize>,
-    internal_format: TextureInternalFormat,
+    internal_format: TextureCompressedFormat,
     memory_policy: MemoryPolicy,
 
-    mipmap_base: Option<(
-        [TextureUpload<TextureSourceUncompressed>; 6],
-        Option<usize>,
-        Option<usize>,
-    )>,
-
-    faces: [Vec<TextureUpload<TextureSourceUncompressed>>; 6],
+    faces: [Vec<TextureUpload<TextureSourceCompressed>>; 6],
 
     pub(super) runtime: Option<Box<Runtime>>,
 }
 
-impl Drop for TextureCubeMap {
+impl Drop for TextureCubeMapCompressed {
     fn drop(&mut self) {
         unsafe {
             if let Some(runtime) = self.runtime.take() {
@@ -164,7 +120,7 @@ impl Drop for TextureCubeMap {
     }
 }
 
-impl TextureCubeMap {
+impl TextureCubeMapCompressed {
     /// Returns texture base width in level 0.
     pub fn width(&self) -> usize {
         self.width
@@ -175,8 +131,8 @@ impl TextureCubeMap {
         self.height
     }
 
-    /// Returns [`TextureInternalFormat`].
-    pub fn internal_format(&self) -> TextureInternalFormat {
+    /// Returns [`TextureCompressedFormat`].
+    pub fn internal_format(&self) -> TextureCompressedFormat {
         self.internal_format
     }
 
@@ -252,10 +208,10 @@ impl TextureCubeMap {
     pub fn tex_image(
         &mut self,
         face: CubeMapFace,
-        source: TextureSourceUncompressed,
+        source: TextureSourceCompressed,
         level: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params_2d(
+        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
             source, level, None, None, None, None,
         ));
         Ok(())
@@ -265,14 +221,14 @@ impl TextureCubeMap {
     pub fn tex_sub_image(
         &mut self,
         face: CubeMapFace,
-        source: TextureSourceUncompressed,
+        source: TextureSourceCompressed,
         level: usize,
         width: usize,
         height: usize,
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params_2d(
+        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
             source,
             level,
             Some(width),
@@ -289,7 +245,7 @@ impl TextureCubeMap {
         gl: &WebGl2RenderingContext,
         capabilities: &Capabilities,
     ) -> Result<WebGlTexture, Error> {
-        capabilities.verify_internal_format(self.internal_format)?;
+        capabilities.verify_compressed_format(self.internal_format)?;
 
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         let bound = utils::texture_binding_cube_map(gl);
@@ -306,11 +262,9 @@ impl TextureCubeMap {
     }
 
     /// Uploads data to WebGL.
-    /// In this stage, [`TextureCubeMap::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    /// In this stage, [`TextureCubeMapCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self, unit: TextureUnit) -> Result<(), Error> {
-        if self.mipmap_base.is_none()
-            && self.faces.iter().map(|face| face.len()).sum::<usize>() == 0
-        {
+        if self.faces.iter().map(|face| face.len()).sum::<usize>() == 0 {
             return Ok(());
         }
 
@@ -324,58 +278,6 @@ impl TextureCubeMap {
             WebGl2RenderingContext::TEXTURE_CUBE_MAP,
             Some(&runtime.texture),
         );
-
-        // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
-        if let Some((mipmap_sources, base_level, max_level)) = self.mipmap_base.take() {
-            let bound_base_level = match base_level {
-                Some(base_level) => {
-                    let bound =
-                        utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_CUBE_MAP);
-                    runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                        WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                        base_level as i32,
-                    );
-                    bound
-                }
-                None => None,
-            };
-            let bound_max_level = match max_level {
-                Some(max_level) => {
-                    let bound =
-                        utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_CUBE_MAP);
-                    runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                        WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                        max_level as i32,
-                    );
-                    bound
-                }
-                None => None,
-            };
-
-            for source in mipmap_sources {
-                source.tex_sub_image_2d(&runtime.gl, TextureTarget::TEXTURE_CUBE_MAP)?;
-            }
-            runtime
-                .gl
-                .generate_mipmap(WebGl2RenderingContext::TEXTURE_CUBE_MAP);
-
-            if let Some(bound_base_level) = bound_base_level {
-                runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                    bound_base_level as i32,
-                );
-            }
-            if let Some(bound_max_level) = bound_max_level {
-                runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                    bound_max_level as i32,
-                );
-            }
-        }
 
         // then uploading all regular sources
         for face in self.faces.iter_mut() {
@@ -406,10 +308,6 @@ impl TextureCubeMap {
                     negative_y,
                     positive_z,
                     negative_z,
-
-                    mipmap_sources,
-                    mipmap_base_level,
-                    mipmap_max_level,
                 } = restore.as_mut()();
                 self.faces[0].extend(positive_x);
                 self.faces[1].extend(negative_x);
@@ -417,18 +315,16 @@ impl TextureCubeMap {
                 self.faces[3].extend(negative_y);
                 self.faces[4].extend(positive_z);
                 self.faces[5].extend(negative_z);
-                if let Some(mipmap_sources) = mipmap_sources {
-                    self.mipmap_base = Some((mipmap_sources, mipmap_base_level, mipmap_max_level));
-                }
+
                 true
             }
         }
     }
 }
 
-impl TextureDescriptor<TextureCubeMap> {
-    /// Constructs a new texture descriptor with [`TextureCubeMap`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
-    pub fn new(mut construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
+impl TextureDescriptor<TextureCubeMapCompressed> {
+    /// Constructs a new texture descriptor with [`TextureCubeMapCompressed`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
+    pub fn new(construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
         let texture = match construction_policy {
             ConstructionPolicy::Simple {
                 internal_format,
@@ -441,33 +337,20 @@ impl TextureDescriptor<TextureCubeMap> {
             } => {
                 let width = positive_x.width();
                 let height = positive_x.height();
-                TextureCubeMap {
+                TextureCubeMapCompressed {
                     width,
                     height,
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
 
-                    mipmap_base: Some((
-                        [
-                            TextureUpload::new_2d(positive_x, 0),
-                            TextureUpload::new_2d(negative_x, 0),
-                            TextureUpload::new_2d(positive_y, 0),
-                            TextureUpload::new_2d(negative_y, 0),
-                            TextureUpload::new_2d(positive_z, 0),
-                            TextureUpload::new_2d(negative_z, 0),
-                        ],
-                        None,
-                        None,
-                    )),
-
                     faces: [
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
+                        vec![TextureUpload::new_2d(positive_x, 0)],
+                        vec![TextureUpload::new_2d(negative_x, 0)],
+                        vec![TextureUpload::new_2d(positive_y, 0)],
+                        vec![TextureUpload::new_2d(negative_y, 0)],
+                        vec![TextureUpload::new_2d(positive_z, 0)],
+                        vec![TextureUpload::new_2d(negative_z, 0)],
                     ],
 
                     runtime: None,
@@ -480,13 +363,6 @@ impl TextureDescriptor<TextureCubeMap> {
                         width,
                         height,
                         max_level,
-                    }
-                    | ConstructionPolicy::WithSources {
-                        internal_format,
-                        width,
-                        height,
-                        max_level,
-                        ..
                     }
                     | ConstructionPolicy::Full {
                         internal_format,
@@ -509,22 +385,6 @@ impl TextureDescriptor<TextureCubeMap> {
                     }
                     _ => unreachable!(),
                 };
-                let mipmap_base = match construction_policy {
-                    ConstructionPolicy::Preallocate { .. }
-                    | ConstructionPolicy::WithSources { .. } => None,
-                    ConstructionPolicy::Full {
-                        mipmap_base_level,
-                        mipmap_max_level,
-                        ref mut mipmap_source,
-                        ..
-                    } => match mipmap_source.take() {
-                        Some(mipmap_source) => {
-                            Some((mipmap_source, mipmap_base_level, mipmap_max_level))
-                        }
-                        None => None,
-                    },
-                    _ => unreachable!(),
-                };
                 let faces = match construction_policy {
                     ConstructionPolicy::Preallocate { .. } => [
                         Vec::new(),
@@ -534,16 +394,7 @@ impl TextureDescriptor<TextureCubeMap> {
                         Vec::new(),
                         Vec::new(),
                     ],
-                    ConstructionPolicy::WithSources {
-                        positive_x,
-                        negative_x,
-                        positive_y,
-                        negative_y,
-                        positive_z,
-                        negative_z,
-                        ..
-                    }
-                    | ConstructionPolicy::Full {
+                    ConstructionPolicy::Full {
                         positive_x,
                         negative_x,
                         positive_y,
@@ -557,13 +408,12 @@ impl TextureDescriptor<TextureCubeMap> {
                     _ => unreachable!(),
                 };
 
-                TextureCubeMap {
+                TextureCubeMapCompressed {
                     width,
                     height,
                     max_level,
                     internal_format,
                     memory_policy,
-                    mipmap_base,
                     faces,
                     runtime: None,
                 }
@@ -573,13 +423,13 @@ impl TextureDescriptor<TextureCubeMap> {
         Self(Rc::new(RefCell::new(texture)))
     }
 
-    /// Returns [`TextureCubeMap`] associated with this descriptor.
-    pub fn texture(&self) -> Ref<'_, TextureCubeMap> {
+    /// Returns [`TextureCubeMapCompressed`] associated with this descriptor.
+    pub fn texture(&self) -> Ref<'_, TextureCubeMapCompressed> {
         self.0.borrow()
     }
 
-    /// Returns mutable [`TextureCubeMap`] associated with this descriptor.
-    pub fn texture_mut(&self) -> RefMut<'_, TextureCubeMap> {
+    /// Returns mutable [`TextureCubeMapCompressed`] associated with this descriptor.
+    pub fn texture_mut(&self) -> RefMut<'_, TextureCubeMapCompressed> {
         self.0.borrow_mut()
     }
 }

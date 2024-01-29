@@ -13,6 +13,7 @@ pub mod texture2darray_compressed;
 pub mod texture3d;
 pub mod texture3d_compressed;
 pub mod texture_cubemap;
+pub mod texture_cubemap_compressed;
 
 use std::{
     cell::RefCell,
@@ -35,15 +36,12 @@ use web_sys::{
 use crate::lru::{Lru, LruNode};
 
 use self::{
-    texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
-    texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
-    texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
-    texture_cubemap::TextureCubeMap,
+    texture2d::Texture2D, texture2d_compressed::Texture2DCompressed, texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed, texture3d::Texture3D, texture3d_compressed::Texture3DCompressed, texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed
 };
 
 use super::{
     capabilities::Capabilities, conversion::ToGlEnum, error::Error,
-    utils::pixel_unpack_buffer_binding,
+    utils::{self, pixel_unpack_buffer_binding},
 };
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
@@ -1692,6 +1690,7 @@ enum TextureKind {
     Texture3D(Weak<RefCell<Texture3D>>),
     Texture3DCompressed(Weak<RefCell<Texture3DCompressed>>),
     TextureCubeMap(Weak<RefCell<TextureCubeMap>>),
+    TextureCubeMapCompressed(Weak<RefCell<TextureCubeMapCompressed>>),
 }
 
 pub struct TextureStore {
@@ -1741,8 +1740,6 @@ macro_rules! impl_texture_store {
                     descriptor: &TextureDescriptor<$texture>,
                     unit: TextureUnit,
                 ) -> Result<WebGlTexture, Error> {
-                    self.capabilities.verify_texture_unit(unit)?;
-
                     let texture = unsafe {
                         let mut t = descriptor.texture_mut();
 
@@ -1790,7 +1787,7 @@ macro_rules! impl_texture_store {
                             }
                         };
 
-                        t.tex()?;
+                        t.tex(unit)?;
                         texture
                     };
 
@@ -1798,10 +1795,18 @@ macro_rules! impl_texture_store {
                     Ok(texture)
                 }
 
-                pub fn $unuse_func(&mut self, descriptor: &TextureDescriptor<$texture>) {
+                pub fn $unuse_func(
+                    &mut self,
+                    descriptor: &TextureDescriptor<$texture>,
+                    unit: TextureUnit,
+                ) {
                     let mut inner = descriptor.0.borrow_mut();
 
                     if let Some(runtime) = inner.runtime.as_mut() {
+                        let bound = utils::active_texture_unit(&self.gl);
+                        self.gl.active_texture(unit.gl_enum());
+                        self.gl.bind_texture($target, None);
+                        self.gl.active_texture(bound);
                         runtime.using = false;
                     }
                 }
@@ -1943,9 +1948,16 @@ impl_texture_store! {
     )
     (
         TextureCubeMap,
-        TextureCubeMap::TEXTURE_CUBE_MAP,
+        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
         TextureCubeMap,
         use_texture_cube_map,
         unuse_texture_cube_map
+    )
+    (
+        TextureCubeMapCompressed,
+        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+        TextureCubeMapCompressed,
+        use_texture_cube_map_compressed,
+        unuse_texture_cube_map_compressed
     )
 }

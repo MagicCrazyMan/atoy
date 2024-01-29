@@ -6,7 +6,8 @@ use super::{
         texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
         texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
         texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
-        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureParameter, TextureUnit,
+        texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed,
+        TextureDescriptor, TextureParameter, TextureUnit,
     },
 };
 
@@ -81,6 +82,11 @@ pub enum UniformValue {
     },
     TextureCubeMap {
         descriptor: TextureDescriptor<TextureCubeMap>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    TextureCubeMapCompressed {
+        descriptor: TextureDescriptor<TextureCubeMapCompressed>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
