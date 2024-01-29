@@ -9,7 +9,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     max_available_mipmap_level, Runtime, TextureDescriptor, TextureInternalFormat, TextureSource,
-    TextureTarget, TextureUncompressedSource, TextureUpload,
+    TextureSourceUncompressed, TextureTarget, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -22,12 +22,12 @@ pub enum ConstructionPolicy {
     /// The max level of the texture is applied as `floor(log2(max(width, height, array_length, 1)))`.
     /// After the base texture source uploaded, mipmaps are automatically generated then.
     ///
-    /// [`TextureUpload`] upload by calling [`Texture2DArray::tex_image`] and [`Texture2DArray::tex_sub_image`]
+    /// Image data upload by calling [`Texture2DArray::tex_image`] and [`Texture2DArray::tex_sub_image`]
     /// are uploaded after mipmap generated.
     Simple {
         internal_format: TextureInternalFormat,
         array_length: usize,
-        base: TextureUncompressedSource,
+        base: TextureSourceUncompressed,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
@@ -56,7 +56,7 @@ pub enum ConstructionPolicy {
         height: usize,
         array_length: usize,
         max_level: Option<usize>,
-        uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
     },
     /// Creates a texture by providing all customizable parameters.
     ///
@@ -77,9 +77,9 @@ pub enum ConstructionPolicy {
         width: usize,
         height: usize,
         array_length: usize,
-        uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
         max_level: Option<usize>,
-        mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
+        mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
         mipmap_base_level: Option<usize>,
         mipmap_max_level: Option<usize>,
     },
@@ -87,8 +87,8 @@ pub enum ConstructionPolicy {
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    uploads: Vec<TextureUpload<TextureUncompressedSource>>,
-    mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
+    mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
     mipmap_base_level: Option<usize>,
     mipmap_max_level: Option<usize>,
 }
@@ -100,7 +100,7 @@ pub enum MemoryPolicy {
 }
 
 /// A WebGL 2d array texture workload.
-/// 
+///
 /// Different from [`WebGl2RenderingContext::TEXTURE_2D_ARRAY`],
 /// a depth value in [`WebGl2RenderingContext::TEXTURE_2D_ARRAY`] refers to the length of array, not a dimensional value.
 pub struct Texture2DArray {
@@ -112,11 +112,11 @@ pub struct Texture2DArray {
     internal_format: TextureInternalFormat,
     memory_policy: MemoryPolicy,
     mipmap_base: Option<(
-        TextureUpload<TextureUncompressedSource>,
+        TextureUpload<TextureSourceUncompressed>,
         Option<usize>,
         Option<usize>,
     )>,
-    uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
 
     pub(super) runtime: Option<Box<Runtime>>,
 }
@@ -206,7 +206,7 @@ impl Texture2DArray {
         for level in 0..=self.max_level().unwrap_or(0) {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += self.internal_format.bytes_length(width, height) *self. array_length;
+            used_memory += self.internal_format.bytes_length(width, height) * self.array_length;
         }
         used_memory
     }
@@ -226,13 +226,20 @@ impl Texture2DArray {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
-        source: TextureUncompressedSource,
+        source: TextureSourceUncompressed,
         level: usize,
         array_length: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
-                source, level, array_length, None, None, None, None, None,
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
+                source,
+                level,
+                array_length,
+                None,
+                None,
+                None,
+                None,
+                None,
             ));
         Ok(())
     }
@@ -240,7 +247,7 @@ impl Texture2DArray {
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureUncompressedSource,
+        source: TextureSourceUncompressed,
         level: usize,
         array_length: usize,
         width: usize,
@@ -250,7 +257,7 @@ impl Texture2DArray {
         z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
                 source,
                 level,
                 array_length,
@@ -286,7 +293,7 @@ impl Texture2DArray {
         Ok(texture)
     }
 
-    /// Uploads data in `subs` to WebGL.
+    /// Uploads data to WebGL.
     /// In this stage, [`Texture2DArray::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.mipmap_base.is_none() && self.uploads.is_empty() {
@@ -296,15 +303,17 @@ impl Texture2DArray {
         let runtime = self.runtime.as_deref().unwrap();
 
         let bound = utils::texture_binding_2d_array(&runtime.gl);
-        runtime
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&runtime.texture));
+        runtime.gl.bind_texture(
+            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+            Some(&runtime.texture),
+        );
 
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
-        if let Some((mipmap_base, base_level, max_level)) = self.mipmap_base.take() {
+        if let Some((source, base_level, max_level)) = self.mipmap_base.take() {
             let bound_base_level = match base_level {
                 Some(base_level) => {
-                    let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
+                    let bound =
+                        utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -316,7 +325,8 @@ impl Texture2DArray {
             };
             let bound_max_level = match max_level {
                 Some(max_level) => {
-                    let bound = utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
+                    let bound =
+                        utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -327,17 +337,7 @@ impl Texture2DArray {
                 None => None,
             };
 
-            mipmap_base.source.tex_sub_image_3d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_2D_ARRAY,
-                0,
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )?;
+            source.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
             runtime
                 .gl
                 .generate_mipmap(WebGl2RenderingContext::TEXTURE_2D_ARRAY);
@@ -359,29 +359,9 @@ impl Texture2DArray {
         }
 
         // then uploading all regular sources
-        for TextureUpload {
-            source,
-            level,
-            depth: array_length,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        } in self.uploads.drain(..)
-        {
+        for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_3d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_2D_ARRAY,
-                level,
-                array_length,
-                width,
-                height,
-                x_offset,
-                y_offset,
-                z_offset,
-            )?;
+            upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
         }
 
         runtime
@@ -437,44 +417,48 @@ impl TextureDescriptor<Texture2DArray> {
                 }
             }
             _ => {
-                let (internal_format, width, height, array_length, max_level) = match construction_policy {
-                    ConstructionPolicy::Preallocate {
-                        internal_format,
-                        width,
-                        height,
-                        array_length,
-                        max_level,
-                    }
-                    | ConstructionPolicy::WithSources {
-                        internal_format,
-                        width,
-                        height,
-                        array_length,
-                        max_level,
-                        ..
-                    }
-                    | ConstructionPolicy::Full {
-                        internal_format,
-                        width,
-                        height,
-                        array_length,
-                        max_level,
-                        ..
-                    } => {
-                        let max_level = match max_level {
-                            Some(max_level) => {
-                                if max_level == 0 {
-                                    None
-                                } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                let (internal_format, width, height, array_length, max_level) =
+                    match construction_policy {
+                        ConstructionPolicy::Preallocate {
+                            internal_format,
+                            width,
+                            height,
+                            array_length,
+                            max_level,
+                        }
+                        | ConstructionPolicy::WithSources {
+                            internal_format,
+                            width,
+                            height,
+                            array_length,
+                            max_level,
+                            ..
+                        }
+                        | ConstructionPolicy::Full {
+                            internal_format,
+                            width,
+                            height,
+                            array_length,
+                            max_level,
+                            ..
+                        } => {
+                            let max_level = match max_level {
+                                Some(max_level) => {
+                                    if max_level == 0 {
+                                        None
+                                    } else {
+                                        Some(
+                                            (max_level)
+                                                .min(max_available_mipmap_level(width, height)),
+                                        )
+                                    }
                                 }
-                            }
-                            None => Some(max_available_mipmap_level(width, height)),
-                        };
-                        (internal_format, width, height, array_length, max_level)
-                    }
-                    _ => unreachable!(),
-                };
+                                None => Some(max_available_mipmap_level(width, height)),
+                            };
+                            (internal_format, width, height, array_length, max_level)
+                        }
+                        _ => unreachable!(),
+                    };
                 let mipmap_base = match construction_policy {
                     ConstructionPolicy::Preallocate { .. }
                     | ConstructionPolicy::WithSources { .. } => None,

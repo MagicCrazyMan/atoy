@@ -42,9 +42,9 @@ use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::texture2d::{ConstructionPolicy, Texture2D};
 use crate::render::webgl::texture::texture2d_compressed::{self, Texture2DCompressed};
 use crate::render::webgl::texture::{
-    TextureCompressedFormat, TextureCompressedSource, TextureDataType, TextureDescriptor,
+    TextureCompressedFormat, TextureSourceCompressed, TextureDataType, TextureDescriptor,
     TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
-    TextureParameter, TexturePixelStorage, TextureUncompressedSource, TextureUnit, TextureUpload,
+    TextureParameter, TexturePixelStorage, TextureSourceUncompressed, TextureUnit, TextureUpload,
     TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
@@ -606,7 +606,7 @@ pub fn test_cube(
     // image.set_material(Some(TextureMaterial::new(
     //     UniformValue::Texture2DCompressed {
     //         descriptor: TextureDescriptor::<Texture2DCompressed>::with_source(
-    //             TextureCompressedSource::Uint8Array {
+    //             TextureSourceCompressed::Uint8Array {
     //                 width: dds.header.width as usize,
     //                 height: dds.header.height as usize,
     //                 data,
@@ -642,7 +642,7 @@ pub fn test_cube(
     //     UniformValue::Texture2D {
     //         descriptor: TextureDescriptor::<Texture2D>::new(texture_2d::ConstructPolicy::Simple {
     //             internal_format: TextureUncompressedInternalFormat::SRGB8_ALPHA8,
-    //             base: TextureUncompressedSource::HtmlImageElement {
+    //             base: TextureSourceUncompressed::HtmlImageElement {
     //                 data: floor_rgb,
     //                 format: TextureFormat::RGBA,
     //                 data_type: TextureDataType::UNSIGNED_BYTE,

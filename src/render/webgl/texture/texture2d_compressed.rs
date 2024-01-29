@@ -8,8 +8,8 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureCompressedSource,
-    TextureDescriptor, TextureSource, TextureTarget, TextureUpload,
+    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -20,7 +20,7 @@ pub enum ConstructionPolicy {
     /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
     Simple {
         internal_format: TextureCompressedFormat,
-        base: TextureCompressedSource,
+        base: TextureSourceCompressed,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
@@ -45,13 +45,13 @@ pub enum ConstructionPolicy {
         width: usize,
         height: usize,
         max_level: Option<usize>,
-        uploads: Vec<TextureUpload<TextureCompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceCompressed>>,
     },
 }
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    uploads: Vec<TextureUpload<TextureCompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 }
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -69,7 +69,7 @@ pub struct Texture2DCompressed {
     max_level: Option<usize>,
     internal_format: TextureCompressedFormat,
     memory_policy: MemoryPolicy,
-    uploads: Vec<TextureUpload<TextureCompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 
     pub(super) runtime: Option<Box<Runtime>>,
 }
@@ -174,11 +174,11 @@ impl Texture2DCompressed {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
-        source: TextureCompressedSource,
+        source: TextureSourceCompressed,
         level: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_2d(
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
                 source, level, None, None, None, None,
             ));
         Ok(())
@@ -187,7 +187,7 @@ impl Texture2DCompressed {
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureCompressedSource,
+        source: TextureSourceCompressed,
         level: usize,
         width: usize,
         height: usize,
@@ -195,7 +195,7 @@ impl Texture2DCompressed {
         y_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_2d(
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
                 source,
                 level,
                 Some(width),
@@ -228,7 +228,7 @@ impl Texture2DCompressed {
         Ok(texture)
     }
 
-    /// Uploads data in `subs` to WebGL.
+    /// Uploads data to WebGL.
     /// In this stage, [`Texture2DCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.uploads.is_empty() {
@@ -243,26 +243,9 @@ impl Texture2DCompressed {
             .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
 
         // then uploading all regular sources
-        for TextureUpload {
-            source,
-            level,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            ..
-        } in self.uploads.drain(..)
-        {
+        for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_2d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_2D,
-                level,
-                width,
-                height,
-                x_offset,
-                y_offset,
-            )?;
+            upload.tex_sub_image_2d(&runtime.gl, TextureTarget::TEXTURE_2D)?;
         }
 
         runtime
@@ -301,7 +284,7 @@ impl TextureDescriptor<Texture2DCompressed> {
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    uploads: vec![TextureUpload::<TextureCompressedSource>::new_2d(base, 0)],
+                    uploads: vec![TextureUpload::<TextureSourceCompressed>::new_2d(base, 0)],
                     runtime: None,
                 }
             }

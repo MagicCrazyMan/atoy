@@ -8,8 +8,8 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureCompressedSource,
-    TextureDescriptor, TextureSource, TextureTarget, TextureUpload,
+    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -23,7 +23,7 @@ pub enum ConstructionPolicy {
     Simple {
         internal_format: TextureCompressedFormat,
         array_length: usize,
-        base: TextureCompressedSource,
+        base: TextureSourceCompressed,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
@@ -50,13 +50,13 @@ pub enum ConstructionPolicy {
         height: usize,
         array_length: usize,
         max_level: Option<usize>,
-        uploads: Vec<TextureUpload<TextureCompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceCompressed>>,
     },
 }
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    uploads: Vec<TextureUpload<TextureCompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 }
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -75,7 +75,7 @@ pub struct Texture2DArrayCompressed {
     max_level: Option<usize>,
     internal_format: TextureCompressedFormat,
     memory_policy: MemoryPolicy,
-    uploads: Vec<TextureUpload<TextureCompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 
     pub(super) runtime: Option<Box<Runtime>>,
 }
@@ -185,13 +185,20 @@ impl Texture2DArrayCompressed {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
-        source: TextureCompressedSource,
+        source: TextureSourceCompressed,
         level: usize,
         array_length: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_3d(
-                source, level, array_length, None, None, None, None, None,
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_3d(
+                source,
+                level,
+                array_length,
+                None,
+                None,
+                None,
+                None,
+                None,
             ));
         Ok(())
     }
@@ -199,7 +206,7 @@ impl Texture2DArrayCompressed {
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureCompressedSource,
+        source: TextureSourceCompressed,
         level: usize,
         array_length: usize,
         width: usize,
@@ -209,7 +216,7 @@ impl Texture2DArrayCompressed {
         z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureCompressedSource>::with_params_3d(
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_3d(
                 source,
                 level,
                 array_length,
@@ -245,7 +252,7 @@ impl Texture2DArrayCompressed {
         Ok(texture)
     }
 
-    /// Uploads data in `subs` to WebGL.
+    /// Uploads data to WebGL.
     /// In this stage, [`Texture2DArrayCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.uploads.is_empty() {
@@ -255,34 +262,15 @@ impl Texture2DArrayCompressed {
         let runtime = self.runtime.as_deref().unwrap();
 
         let bound = utils::texture_binding_2d_array(&runtime.gl);
-        runtime
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&runtime.texture));
+        runtime.gl.bind_texture(
+            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+            Some(&runtime.texture),
+        );
 
         // then uploading all regular sources
-        for TextureUpload {
-            source,
-            level,
-            depth: array_length,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        } in self.uploads.drain(..)
-        {
+        for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_3d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_2D_ARRAY,
-                level,
-                array_length,
-                width,
-                height,
-                x_offset,
-                y_offset,
-                z_offset,
-            )?;
+            upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
         }
 
         runtime
@@ -323,41 +311,45 @@ impl TextureDescriptor<Texture2DArrayCompressed> {
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
                     memory_policy,
-                    uploads: vec![TextureUpload::<TextureCompressedSource>::new_3d(base, 0, 0)],
+                    uploads: vec![TextureUpload::<TextureSourceCompressed>::new_3d(base, 0, 0)],
                     runtime: None,
                 }
             }
             _ => {
-                let (internal_format, width, height, array_length, max_level) = match construction_policy {
-                    ConstructionPolicy::Preallocate {
-                        internal_format,
-                        width,
-                        height,
-                        array_length,
-                        max_level,
-                    }
-                    | ConstructionPolicy::Full {
-                        internal_format,
-                        width,
-                        height,
-                        array_length,
-                        max_level,
-                        ..
-                    } => {
-                        let max_level = match max_level {
-                            Some(max_level) => {
-                                if max_level == 0 {
-                                    None
-                                } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                let (internal_format, width, height, array_length, max_level) =
+                    match construction_policy {
+                        ConstructionPolicy::Preallocate {
+                            internal_format,
+                            width,
+                            height,
+                            array_length,
+                            max_level,
+                        }
+                        | ConstructionPolicy::Full {
+                            internal_format,
+                            width,
+                            height,
+                            array_length,
+                            max_level,
+                            ..
+                        } => {
+                            let max_level = match max_level {
+                                Some(max_level) => {
+                                    if max_level == 0 {
+                                        None
+                                    } else {
+                                        Some(
+                                            (max_level)
+                                                .min(max_available_mipmap_level(width, height)),
+                                        )
+                                    }
                                 }
-                            }
-                            None => Some(max_available_mipmap_level(width, height)),
-                        };
-                        (internal_format, width, height, array_length, max_level)
-                    }
-                    _ => unreachable!(),
-                };
+                                None => Some(max_available_mipmap_level(width, height)),
+                            };
+                            (internal_format, width, height, array_length, max_level)
+                        }
+                        _ => unreachable!(),
+                    };
                 let uploads = match construction_policy {
                     ConstructionPolicy::Preallocate { .. } => Vec::new(),
                     ConstructionPolicy::Full { uploads, .. } => uploads,

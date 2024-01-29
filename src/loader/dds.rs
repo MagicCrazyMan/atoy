@@ -2,7 +2,7 @@ use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
     texture2d_compressed::{ConstructionPolicy, MemoryPolicy, Texture2DCompressed},
-    TextureCompressedFormat, TextureCompressedSource, TextureDescriptor, TextureUpload,
+    TextureCompressedFormat, TextureSourceCompressed, TextureDescriptor, TextureUpload,
 };
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
@@ -234,7 +234,7 @@ impl DirectDrawSurface {
                             bytes_length as u32,
                         );
                         uploads.push(TextureUpload::new_2d(
-                            TextureCompressedSource::Uint8Array {
+                            TextureSourceCompressed::Uint8Array {
                                 width,
                                 height,
                                 compressed_format: internal_format,
@@ -265,7 +265,7 @@ impl DirectDrawSurface {
                     );
                     let construction_policy = ConstructionPolicy::Simple {
                         internal_format,
-                        base: TextureCompressedSource::Uint8Array {
+                        base: TextureSourceCompressed::Uint8Array {
                             width: self.header.width as usize,
                             height: self.header.height as usize,
                             compressed_format: internal_format,

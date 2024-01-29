@@ -3,8 +3,10 @@ use std::borrow::Cow;
 use super::{
     buffer::BufferDescriptor,
     texture::{
-        texture2d::Texture2D, texture2d_compressed::Texture2DCompressed, TextureDescriptor,
-        TextureParameter, TextureUnit,
+        texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
+        texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
+        texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
+        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureParameter, TextureUnit,
     },
 };
 
@@ -57,21 +59,31 @@ pub enum UniformValue {
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
-    // Texture2DArray {
-    //     descriptor: TextureDescriptor<Texture2DArray>,
-    //     params: Vec<TextureParameter>,
-    //     unit: TextureUnit,
-    // },
-    // Texture3D {
-    //     descriptor: TextureDescriptor<Texture3D>,
-    //     params: Vec<TextureParameter>,
-    //     unit: TextureUnit,
-    // },
-    // TextureCubeMap {
-    //     descriptor: TextureDescriptor<TextureCubeMap>,
-    //     params: Vec<TextureParameter>,
-    //     unit: TextureUnit,
-    // },
+    Texture3D {
+        descriptor: TextureDescriptor<Texture3D>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    Texture3DCompressed {
+        descriptor: TextureDescriptor<Texture3DCompressed>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    Texture2DArray {
+        descriptor: TextureDescriptor<Texture2DArray>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    Texture2DArrayCompressed {
+        descriptor: TextureDescriptor<Texture2DArrayCompressed>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
+    TextureCubeMap {
+        descriptor: TextureDescriptor<TextureCubeMap>,
+        params: Vec<TextureParameter>,
+        unit: TextureUnit,
+    },
 }
 
 /// Available uniform block values.

@@ -9,7 +9,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     max_available_mipmap_level, Runtime, TextureDescriptor, TextureInternalFormat, TextureSource,
-    TextureTarget, TextureUncompressedSource, TextureUpload,
+    TextureSourceUncompressed, TextureTarget, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -22,12 +22,12 @@ pub enum ConstructionPolicy {
     /// The max level of the texture is applied as `floor(log2(max(width, height, depth, 1)))`.
     /// After the base texture source uploaded, mipmaps are automatically generated then.
     ///
-    /// [`TextureUpload`] upload by calling [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`]
+    /// Image data upload by calling [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`]
     /// are uploaded after mipmap generated.
     Simple {
         internal_format: TextureInternalFormat,
         depth: usize,
-        base: TextureUncompressedSource,
+        base: TextureSourceUncompressed,
     },
     /// Preallocates a texture only without uploading any image data.
     ///
@@ -56,7 +56,7 @@ pub enum ConstructionPolicy {
         height: usize,
         depth: usize,
         max_level: Option<usize>,
-        uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
     },
     /// Creates a texture by providing all customizable parameters.
     ///
@@ -77,9 +77,9 @@ pub enum ConstructionPolicy {
         width: usize,
         height: usize,
         depth: usize,
-        uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
         max_level: Option<usize>,
-        mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
+        mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
         mipmap_base_level: Option<usize>,
         mipmap_max_level: Option<usize>,
     },
@@ -87,8 +87,8 @@ pub enum ConstructionPolicy {
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    uploads: Vec<TextureUpload<TextureUncompressedSource>>,
-    mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
+    mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
     mipmap_base_level: Option<usize>,
     mipmap_max_level: Option<usize>,
 }
@@ -109,11 +109,11 @@ pub struct Texture3D {
     internal_format: TextureInternalFormat,
     memory_policy: MemoryPolicy,
     mipmap_base: Option<(
-        TextureUpload<TextureUncompressedSource>,
+        TextureUpload<TextureSourceUncompressed>,
         Option<usize>,
         Option<usize>,
     )>,
-    uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
 
     pub(super) runtime: Option<Box<Runtime>>,
 }
@@ -243,12 +243,12 @@ impl Texture3D {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
-        source: TextureUncompressedSource,
+        source: TextureSourceUncompressed,
         level: usize,
         depth: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
                 source, level, depth, None, None, None, None, None,
             ));
         Ok(())
@@ -257,7 +257,7 @@ impl Texture3D {
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureUncompressedSource,
+        source: TextureSourceUncompressed,
         level: usize,
         depth: usize,
         width: usize,
@@ -267,7 +267,7 @@ impl Texture3D {
         z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureUncompressedSource>::with_params_3d(
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
                 source,
                 level,
                 depth,
@@ -303,7 +303,7 @@ impl Texture3D {
         Ok(texture)
     }
 
-    /// Uploads data in `subs` to WebGL.
+    /// Uploads data to WebGL.
     /// In this stage, [`Texture3D::runtime`] is created already, it's safe to unwrap it and use fields inside.
     pub(super) fn tex(&mut self) -> Result<(), Error> {
         if self.mipmap_base.is_none() && self.uploads.is_empty() {
@@ -318,7 +318,7 @@ impl Texture3D {
             .bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&runtime.texture));
 
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
-        if let Some((mipmap_base, base_level, max_level)) = self.mipmap_base.take() {
+        if let Some((source, base_level, max_level)) = self.mipmap_base.take() {
             let bound_base_level = match base_level {
                 Some(base_level) => {
                     let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_3D);
@@ -344,17 +344,7 @@ impl Texture3D {
                 None => None,
             };
 
-            mipmap_base.source.tex_sub_image_3d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_3D,
-                0,
-                0,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )?;
+            source.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_3D)?;
             runtime
                 .gl
                 .generate_mipmap(WebGl2RenderingContext::TEXTURE_3D);
@@ -376,29 +366,9 @@ impl Texture3D {
         }
 
         // then uploading all regular sources
-        for TextureUpload {
-            source,
-            level,
-            depth,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        } in self.uploads.drain(..)
-        {
+        for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            source.tex_sub_image_3d(
-                &runtime.gl,
-                TextureTarget::TEXTURE_3D,
-                level,
-                depth,
-                width,
-                height,
-                x_offset,
-                y_offset,
-                z_offset,
-            )?;
+            upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_3D)?;
         }
 
         runtime
