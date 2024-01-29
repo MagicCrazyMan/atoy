@@ -3,6 +3,8 @@ use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
 };
 
+use super::{conversion::ToGlEnum, texture::TextureTarget};
+
 pub fn array_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlBuffer> {
     gl.get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
         .unwrap()
@@ -33,6 +35,18 @@ pub fn texture_binding_cube_map(gl: &WebGl2RenderingContext) -> Option<WebGlText
     gl.get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_CUBE_MAP)
         .unwrap()
         .cast_into_unchecked::<WebGlTexture>()
+}
+
+pub fn texture_base_level(gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<usize> {
+    gl.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_BASE_LEVEL)
+        .as_f64()
+        .map(|v| v as usize)
+}
+
+pub fn texture_max_level(gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<usize> {
+    gl.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_MAX_LEVEL)
+        .as_f64()
+        .map(|v| v as usize)
 }
 
 pub fn renderbuffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlRenderbuffer> {

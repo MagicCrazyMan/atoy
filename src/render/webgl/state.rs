@@ -513,10 +513,11 @@ impl FrameState {
                     .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data)
             }
             UniformValue::Texture2D { .. }
-            | UniformValue::Texture2DArray { .. }
-            | UniformValue::Texture3D { .. }
-            | UniformValue::TextureCubeMap { .. }
-            | UniformValue::Texture2DCompressed { .. } => {
+            // | UniformValue::Texture2DArray { .. }
+            // | UniformValue::Texture3D { .. }
+            // | UniformValue::TextureCubeMap { .. }
+            // | UniformValue::Texture2DCompressed { .. } 
+            => {
                 let (target, texture, unit, params) = match value {
                     UniformValue::Texture2D {
                         descriptor,
@@ -525,54 +526,54 @@ impl FrameState {
                     } => (
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut()
-                            .use_texture_2d(&descriptor, *unit)?,
+                            .use_texture_2d(descriptor, *unit)?,
                         unit,
                         params,
                     ),
-                    UniformValue::Texture3D {
-                        descriptor,
-                        unit,
-                        params,
-                    } => (
-                        WebGl2RenderingContext::TEXTURE_3D,
-                        self.texture_store_mut()
-                            .use_texture_3d(&descriptor, *unit)?,
-                        unit,
-                        params,
-                    ),
-                    UniformValue::Texture2DArray {
-                        descriptor,
-                        params,
-                        unit,
-                    } => (
-                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                        self.texture_store_mut()
-                            .use_texture_2d_array(&descriptor, *unit)?,
-                        unit,
-                        params,
-                    ),
-                    UniformValue::TextureCubeMap {
-                        descriptor,
-                        params,
-                        unit,
-                    } => (
-                        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                        self.texture_store_mut()
-                            .use_texture_cube_map(&descriptor, *unit)?,
-                        unit,
-                        params,
-                    ),
-                    UniformValue::Texture2DCompressed {
-                        descriptor,
-                        params,
-                        unit,
-                    } => (
-                        WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut()
-                            .use_texture_2d_compressed(&descriptor, *unit)?,
-                        unit,
-                        params,
-                    ),
+                    // UniformValue::Texture3D {
+                    //     descriptor,
+                    //     unit,
+                    //     params,
+                    // } => (
+                    //     WebGl2RenderingContext::TEXTURE_3D,
+                    //     self.texture_store_mut()
+                    //         .use_texture_3d(&descriptor, *unit)?,
+                    //     unit,
+                    //     params,
+                    // ),
+                    // UniformValue::Texture2DArray {
+                    //     descriptor,
+                    //     params,
+                    //     unit,
+                    // } => (
+                    //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+                    //     self.texture_store_mut()
+                    //         .use_texture_2d_array(&descriptor, *unit)?,
+                    //     unit,
+                    //     params,
+                    // ),
+                    // UniformValue::TextureCubeMap {
+                    //     descriptor,
+                    //     params,
+                    //     unit,
+                    // } => (
+                    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+                    //     self.texture_store_mut()
+                    //         .use_texture_cube_map(&descriptor, *unit)?,
+                    //     unit,
+                    //     params,
+                    // ),
+                    // UniformValue::Texture2DCompressed {
+                    //     descriptor,
+                    //     params,
+                    //     unit,
+                    // } => (
+                    //     WebGl2RenderingContext::TEXTURE_2D,
+                    //     self.texture_store_mut()
+                    //         .use_texture_2d_compressed(&descriptor, *unit)?,
+                    //     unit,
+                    //     params,
+                    // ),
                     _ => unreachable!(),
                 };
 

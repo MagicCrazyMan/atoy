@@ -1,6 +1,6 @@
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
-use crate::render::webgl::texture::TextureCompressedFormat;
+use crate::render::webgl::texture::TextureCompressedInternalFormat;
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
 pub const DDS_DXT1: u32 = 0x31545844;
@@ -183,16 +183,16 @@ impl DirectDrawSurface {
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<(TextureCompressedFormat, Uint8Array)> {
+    ) -> Option<(TextureCompressedInternalFormat, Uint8Array)> {
         let format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
-            (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
-            (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
-            (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
-            (DDS_DXT1, true, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1),
-            (DDS_DXT3, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT3),
-            (DDS_DXT3, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3),
-            (DDS_DXT5, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT5),
-            (DDS_DXT5, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5),
+            (DDS_DXT1, false, false) => Some(TextureCompressedInternalFormat::RGB_S3TC_DXT1),
+            (DDS_DXT1, true, false) => Some(TextureCompressedInternalFormat::RGBA_S3TC_DXT1),
+            (DDS_DXT1, false, true) => Some(TextureCompressedInternalFormat::SRGB_S3TC_DXT1),
+            (DDS_DXT1, true, true) => Some(TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT1),
+            (DDS_DXT3, _, false) => Some(TextureCompressedInternalFormat::RGBA_S3TC_DXT3),
+            (DDS_DXT3, _, true) => Some(TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT3),
+            (DDS_DXT5, _, false) => Some(TextureCompressedInternalFormat::RGBA_S3TC_DXT5),
+            (DDS_DXT5, _, true) => Some(TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT5),
             (_, _, _) => None,
         };
 

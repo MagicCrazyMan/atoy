@@ -1,7 +1,14 @@
+//! Texture is created in Immutable Storage using `texStorage2D`
+//! and then image data are uploaded by `texSubImage2D`.
+//! Once the texture is created, the memory layout is no more alterable,
+//! meaning that `texImage2D` and `texStorage2D` are no longer work.
+//! But developer could still modify image data using `texSubImage2D`.
+//! You have to create a new texture if you want to allocate a new texture with different layout.
+//!
+
 pub mod texture_2d;
 
 use std::{
-    arch::x86_64,
     borrow::Cow,
     cell::{Ref, RefCell},
     fmt::Debug,
@@ -23,11 +30,10 @@ use web_sys::{
 
 use crate::lru::{Lru, LruNode};
 
+use self::texture_2d::Texture2D;
+
 use super::{
-    abilities::Abilities,
-    conversion::ToGlEnum,
-    error::Error,
-    utils::{self, pixel_unpack_buffer_binding},
+    abilities::Abilities, conversion::ToGlEnum, error::Error, utils::pixel_unpack_buffer_binding,
 };
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
@@ -65,10 +71,10 @@ pub enum TextureFormat {
     DEPTH_STENCIL,
 }
 
-/// Available texture internal formats mapped from [`WebGl2RenderingContext`].
+/// Available texture uncompressed internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureInternalFormat {
+pub enum TextureUncompressedInternalFormat {
     RGBA32I,
     RGBA32UI,
     RGBA16I,
@@ -132,72 +138,72 @@ pub enum TextureInternalFormat {
     DEPTH24_STENCIL8,
 }
 
-impl TextureInternalFormat {
+impl TextureUncompressedInternalFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
-            TextureInternalFormat::RGBA32I => width * height * 16,
-            TextureInternalFormat::RGBA32UI => width * height * 16,
-            TextureInternalFormat::RGBA16I => width * height * 4,
-            TextureInternalFormat::RGBA16UI => width * height * 4,
-            TextureInternalFormat::RGBA8 => width * height * 4,
-            TextureInternalFormat::RGBA8I => width * height * 4,
-            TextureInternalFormat::RGBA8UI => width * height * 4,
-            TextureInternalFormat::SRGB8_ALPHA8 => width * height * 4,
-            TextureInternalFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGBA4 => width * height * 2,
-            TextureInternalFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
-            TextureInternalFormat::RGB8 => width * height * 3,
-            TextureInternalFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
-            TextureInternalFormat::RG32I => width * height * 4,
-            TextureInternalFormat::RG32UI => width * height * 4,
-            TextureInternalFormat::RG16I => width * height * 4,
-            TextureInternalFormat::RG16UI => width * height * 4,
-            TextureInternalFormat::RG8 => width * height * 2,
-            TextureInternalFormat::RG8I => width * height * 2,
-            TextureInternalFormat::RG8UI => width * height * 2,
-            TextureInternalFormat::R32I => width * height * 4,
-            TextureInternalFormat::R32UI => width * height * 4,
-            TextureInternalFormat::R16I => width * height * 2,
-            TextureInternalFormat::R16UI => width * height * 2,
-            TextureInternalFormat::R8 => width * height * 1,
-            TextureInternalFormat::R8I => width * height * 1,
-            TextureInternalFormat::R8UI => width * height * 1,
-            TextureInternalFormat::RGBA32F => width * height * 16,
-            TextureInternalFormat::RGBA16F => width * height * 4,
-            TextureInternalFormat::RGBA8_SNORM => width * height * 4,
-            TextureInternalFormat::RGB32F => width * height * 12,
-            TextureInternalFormat::RGB32I => width * height * 12,
-            TextureInternalFormat::RGB32UI => width * height * 12,
-            TextureInternalFormat::RGB16F => width * height * 6,
-            TextureInternalFormat::RGB16I => width * height * 6,
-            TextureInternalFormat::RGB16UI => width * height * 6,
-            TextureInternalFormat::RGB8_SNORM => width * height * 3,
-            TextureInternalFormat::RGB8I => width * height * 3,
-            TextureInternalFormat::RGB8UI => width * height * 3,
-            TextureInternalFormat::SRGB8 => width * height * 3,
-            TextureInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
-            TextureInternalFormat::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
-            TextureInternalFormat::RG32F => width * height * 4,
-            TextureInternalFormat::RG16F => width * height * 4,
-            TextureInternalFormat::RG8_SNORM => width * height * 2,
-            TextureInternalFormat::R32F => width * height * 4,
-            TextureInternalFormat::R16F => width * height * 2,
-            TextureInternalFormat::R8_SNORM => width * height * 1,
-            TextureInternalFormat::DEPTH_COMPONENT32F => width * height * 4,
-            TextureInternalFormat::DEPTH_COMPONENT24 => width * height * 3,
-            TextureInternalFormat::DEPTH_COMPONENT16 => width * height * 2,
-            TextureInternalFormat::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
-            TextureInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA32I => width * height * 16,
+            TextureUncompressedInternalFormat::RGBA32UI => width * height * 16,
+            TextureUncompressedInternalFormat::RGBA16I => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA16UI => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA8 => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA8I => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA8UI => width * height * 4,
+            TextureUncompressedInternalFormat::SRGB8_ALPHA8 => width * height * 4,
+            TextureUncompressedInternalFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureUncompressedInternalFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureUncompressedInternalFormat::RGBA4 => width * height * 2,
+            TextureUncompressedInternalFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
+            TextureUncompressedInternalFormat::RGB8 => width * height * 3,
+            TextureUncompressedInternalFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
+            TextureUncompressedInternalFormat::RG32I => width * height * 4,
+            TextureUncompressedInternalFormat::RG32UI => width * height * 4,
+            TextureUncompressedInternalFormat::RG16I => width * height * 4,
+            TextureUncompressedInternalFormat::RG16UI => width * height * 4,
+            TextureUncompressedInternalFormat::RG8 => width * height * 2,
+            TextureUncompressedInternalFormat::RG8I => width * height * 2,
+            TextureUncompressedInternalFormat::RG8UI => width * height * 2,
+            TextureUncompressedInternalFormat::R32I => width * height * 4,
+            TextureUncompressedInternalFormat::R32UI => width * height * 4,
+            TextureUncompressedInternalFormat::R16I => width * height * 2,
+            TextureUncompressedInternalFormat::R16UI => width * height * 2,
+            TextureUncompressedInternalFormat::R8 => width * height * 1,
+            TextureUncompressedInternalFormat::R8I => width * height * 1,
+            TextureUncompressedInternalFormat::R8UI => width * height * 1,
+            TextureUncompressedInternalFormat::RGBA32F => width * height * 16,
+            TextureUncompressedInternalFormat::RGBA16F => width * height * 4,
+            TextureUncompressedInternalFormat::RGBA8_SNORM => width * height * 4,
+            TextureUncompressedInternalFormat::RGB32F => width * height * 12,
+            TextureUncompressedInternalFormat::RGB32I => width * height * 12,
+            TextureUncompressedInternalFormat::RGB32UI => width * height * 12,
+            TextureUncompressedInternalFormat::RGB16F => width * height * 6,
+            TextureUncompressedInternalFormat::RGB16I => width * height * 6,
+            TextureUncompressedInternalFormat::RGB16UI => width * height * 6,
+            TextureUncompressedInternalFormat::RGB8_SNORM => width * height * 3,
+            TextureUncompressedInternalFormat::RGB8I => width * height * 3,
+            TextureUncompressedInternalFormat::RGB8UI => width * height * 3,
+            TextureUncompressedInternalFormat::SRGB8 => width * height * 3,
+            TextureUncompressedInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
+            TextureUncompressedInternalFormat::RGB9_E5 => width * height * 4, // 9 + 9 + 9 + 5 in bits
+            TextureUncompressedInternalFormat::RG32F => width * height * 4,
+            TextureUncompressedInternalFormat::RG16F => width * height * 4,
+            TextureUncompressedInternalFormat::RG8_SNORM => width * height * 2,
+            TextureUncompressedInternalFormat::R32F => width * height * 4,
+            TextureUncompressedInternalFormat::R16F => width * height * 2,
+            TextureUncompressedInternalFormat::R8_SNORM => width * height * 1,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT32F => width * height * 4,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT24 => width * height * 3,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT16 => width * height * 2,
+            TextureUncompressedInternalFormat::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
+            TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
         }
     }
 }
 
-/// Available texture internal formats mapped from [`WebGl2RenderingContext`].
+/// Available texture compressed internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureCompressedFormat {
+pub enum TextureCompressedInternalFormat {
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
     RGB_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
@@ -314,125 +320,185 @@ pub enum TextureCompressedFormat {
     SIGNED_RED_GREEN_RGTC2,
 }
 
-impl TextureCompressedFormat {
+impl TextureCompressedInternalFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
-            TextureCompressedFormat::RGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::RGBA_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::RGBA_S3TC_DXT3 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::RGBA_S3TC_DXT5 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            // for S3TC RGBA, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc_srgb/ for more details
-            TextureCompressedFormat::SRGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1 => {
+            TextureCompressedInternalFormat::RGB_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3 => {
+            TextureCompressedInternalFormat::RGBA_S3TC_DXT1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::RGBA_S3TC_DXT3 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5 => {
+            TextureCompressedInternalFormat::RGBA_S3TC_DXT5 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            // for S3TC RGBA, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc_srgb/ for more details
+            TextureCompressedInternalFormat::SRGB_S3TC_DXT1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT3 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::SRGB_ALPHA_S3TC_DXT5 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for ETC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/ for more details
-            TextureCompressedFormat::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::SIGNED_R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SIGNED_RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::RGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::SRGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::RGBA8_ETC2_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ETC2_EAC => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
-            TextureCompressedFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureCompressedInternalFormat::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedInternalFormat::SIGNED_R11_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureCompressedFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureCompressedInternalFormat::RG11_EAC => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::SIGNED_RG11_EAC => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::RGB8_ETC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::SRGB8_ETC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::RGBA8_ETC2_EAC => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ETC2_EAC => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
             // for PVRTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_pvrtc/ for more details
-            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
-            TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
-            TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
-            TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
+            TextureCompressedInternalFormat::RGB_PVRTC_2BPPV1_IMG => {
+                width.max(16) * height.max(8) / 4
+            }
+            TextureCompressedInternalFormat::RGBA_PVRTC_2BPPV1_IMG => {
+                width.max(16) * height.max(8) / 4
+            }
+            TextureCompressedInternalFormat::RGB_PVRTC_4BPPV1_IMG => {
+                width.max(8) * height.max(8) / 2
+            }
+            TextureCompressedInternalFormat::RGBA_PVRTC_4BPPV1_IMG => {
+                width.max(8) * height.max(8) / 2
+            }
             // for ETC1, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc1/ for more details
-            TextureCompressedFormat::RGB_ETC1_WEBGL => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedInternalFormat::RGB_ETC1_WEBGL => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
             // for ASTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/ for more details
-            TextureCompressedFormat::RGBA_ASTC_4x4 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_4x4 => {
+            TextureCompressedInternalFormat::RGBA_ASTC_4x4 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_5x4 => ((width + 4) / 5) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x4 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_4x4 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_5x4 => {
                 ((width + 4) / 5) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_5x5 => ((width + 4) / 5) * ((height + 4) / 5) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x5 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_5x4 => {
+                ((width + 4) / 5) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_5x5 => {
                 ((width + 4) / 5) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_6x5 => ((width + 5) / 6) * ((height + 4) / 5) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x5 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_5x5 => {
+                ((width + 4) / 5) * ((height + 4) / 5) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_6x5 => {
                 ((width + 5) / 6) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_6x6 => ((width + 5) / 6) * ((height + 5) / 6) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x6 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_6x5 => {
+                ((width + 5) / 6) * ((height + 4) / 5) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_6x6 => {
                 ((width + 5) / 6) * ((height + 5) / 6) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x5 => ((width + 7) / 8) * ((height + 4) / 5) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x5 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_6x6 => {
+                ((width + 5) / 6) * ((height + 5) / 6) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_8x5 => {
                 ((width + 7) / 8) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x6 => ((width + 7) / 8) * ((height + 5) / 6) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x6 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_8x5 => {
+                ((width + 7) / 8) * ((height + 4) / 5) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_8x6 => {
                 ((width + 7) / 8) * ((height + 5) / 6) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x8 => ((width + 7) / 8) * ((height + 7) / 8) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x8 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_8x6 => {
+                ((width + 7) / 8) * ((height + 5) / 6) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_8x8 => {
                 ((width + 7) / 8) * ((height + 7) / 8) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_10x5 => ((width + 9) / 10) * ((height + 4) / 5) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x5 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_8x8 => {
+                ((width + 7) / 8) * ((height + 7) / 8) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_10x5 => {
                 ((width + 9) / 10) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_10x6 => ((width + 9) / 10) * ((height + 5) / 6) * 16,
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x6 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_10x5 => {
+                ((width + 9) / 10) * ((height + 4) / 5) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_10x6 => {
                 ((width + 9) / 10) * ((height + 5) / 6) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_10x10 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_10x6 => {
+                ((width + 9) / 10) * ((height + 5) / 6) * 16
+            }
+            TextureCompressedInternalFormat::RGBA_ASTC_10x10 => {
                 ((width + 9) / 10) * ((height + 9) / 10) * 16
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x10 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_10x10 => {
                 ((width + 9) / 10) * ((height + 9) / 10) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_12x10 => {
+            TextureCompressedInternalFormat::RGBA_ASTC_12x10 => {
                 ((width + 11) / 12) * ((height + 9) / 10) * 16
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x10 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_12x10 => {
                 ((width + 11) / 12) * ((height + 9) / 10) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_12x12 => {
+            TextureCompressedInternalFormat::RGBA_ASTC_12x12 => {
                 ((width + 11) / 12) * ((height + 11) / 12) * 16
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x12 => {
+            TextureCompressedInternalFormat::SRGB8_ALPHA8_ASTC_12x12 => {
                 ((width + 11) / 12) * ((height + 11) / 12) * 16
             }
             // for BPTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_bptc/ for more details
-            TextureCompressedFormat::RGBA_BPTC_UNORM => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SRGB_ALPHA_BPTC_UNORM => {
+            TextureCompressedInternalFormat::RGBA_BPTC_UNORM => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGB_BPTC_SIGNED_FLOAT => {
+            TextureCompressedInternalFormat::SRGB_ALPHA_BPTC_UNORM => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGB_BPTC_UNSIGNED_FLOAT => {
+            TextureCompressedInternalFormat::RGB_BPTC_SIGNED_FLOAT => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::RGB_BPTC_UNSIGNED_FLOAT => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for RGTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_rgtc/ for more details
-            TextureCompressedFormat::RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::SIGNED_RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::RED_GREEN_RGTC2 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
-            TextureCompressedFormat::SIGNED_RED_GREEN_RGTC2 => {
+            TextureCompressedInternalFormat::RED_RGTC1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::SIGNED_RED_RGTC1 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 8
+            }
+            TextureCompressedInternalFormat::RED_GREEN_RGTC2 => {
+                ((width + 3) / 4) * ((height + 3) / 4) * 16
+            }
+            TextureCompressedInternalFormat::SIGNED_RED_GREEN_RGTC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
         }
@@ -646,337 +712,926 @@ pub enum TextureParameter {
     WRAP_S(TextureWrapMethod),
     WRAP_T(TextureWrapMethod),
     WRAP_R(TextureWrapMethod),
-    BASE_LEVEL(i32),
     COMPARE_FUNC(TextureCompareFunction),
     COMPARE_MODE(TextureCompareMode),
+    BASE_LEVEL(i32),
     MAX_LEVEL(i32),
     MAX_LOD(f32),
     MIN_LOD(f32),
 }
 
-/// Calculates max mipmap level for a specified size in Rounding Down mode.
-pub fn max_mipmap_level(width: usize, height: usize) -> usize {
+/// Calculates max available mipmap level for a specified size in Rounding Down mode.
+pub fn max_available_mipmap_level(width: usize, height: usize) -> usize {
     (width as f64).max(height as f64).max(1.0).log2().floor() as usize
 }
 
-/// Creates [`WebGlTexture`] for texture 2d.
-pub fn create_texture_2d(
-    gl: &WebGl2RenderingContext,
-    width: usize,
-    height: usize,
-    levels: usize,
-    internal_format: TextureInternalFormat,
-    is_cube_map: bool,
-) -> Result<WebGlTexture, Error> {
-    let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-    let (target, bound) = if is_cube_map {
+macro_rules! texture_sources_uncompressed {
+    ($(
         (
-            WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-            utils::texture_binding_cube_map(gl),
-        )
-    } else {
+            $(($html_name:ident, $html_type:ident, $html_width:ident, $html_height:ident, $tex_func:ident))+
+        ),
         (
-            WebGl2RenderingContext::TEXTURE_2D,
-            utils::texture_binding_2d(gl),
+            $(($buffer_name:ident, $buffer_type:ident, $buffer_targe:expr))+
         )
+    )+) => {
+        /// Uncompressed data source for uploading data to [`WebGlTexture`].
+        ///
+        /// Width and height in a texture source must be the exactly size of the image, not the size to be uploaded to the texture.
+        ///
+        /// Provides custom [`TexturePixelStorage`]s to tell WebGL how to unpack the data.
+        /// For image data from Web API, some pixel storages configurations are ignored,
+        /// checks https://registry.khronos.org/webgl/specs/latest/2.0/#5.35 for more details.
+        pub enum TextureUncompressedSource {
+            Function {
+                width: usize,
+                height: usize,
+                callback: Rc<RefCell<dyn Fn() -> TextureUncompressedSource>>,
+            },
+            PixelBufferObject {
+                width: usize,
+                height: usize,
+                buffer: WebGlBuffer,
+                format: TextureFormat,
+                data_type: TextureDataType,
+                pbo_offset: usize,
+                pixel_storages: Vec<TexturePixelStorage>,
+            },
+            Binary {
+                width: usize,
+                height: usize,
+                data: Box<dyn AsRef<[u8]>>,
+                format: TextureFormat,
+                data_type: TextureDataType,
+                src_offset: usize,
+                pixel_storages: Vec<TexturePixelStorage>,
+            },
+            $(
+                $(
+                    $html_name {
+                        data: $html_type,
+                        format: TextureFormat,
+                        data_type: TextureDataType,
+                        pixel_storages: Vec<TexturePixelStorage>,
+
+                    },
+                )+
+            )+
+            Uint16Array {
+                width: usize,
+                height: usize,
+                data: Uint16Array,
+                format: TextureFormat,
+                /// Only [`TextureDataType::UNSIGNED_SHORT`],
+                /// [`TextureDataType::UNSIGNED_SHORT_5_6_5`],
+                /// [`TextureDataType::UNSIGNED_SHORT_4_4_4_4`],
+                /// [`TextureDataType::UNSIGNED_SHORT_5_5_5_1`],
+                /// [`TextureDataType::HALF_FLOAT`] are accepted.
+                data_type: TextureDataType,
+                src_offset: usize,
+                pixel_storages: Vec<TexturePixelStorage>,
+            },
+            Uint32Array {
+                width: usize,
+                height: usize,
+                data: Uint32Array,
+                format: TextureFormat,
+                /// Only [`TextureDataType::UNSIGNED_INT`],
+                /// [`TextureDataType::UNSIGNED_INT_24_8`]
+                /// are accepted.
+                data_type: TextureDataType,
+                src_offset: usize,
+                pixel_storages: Vec<TexturePixelStorage>,
+            },
+            $(
+
+                $(
+                    $buffer_name {
+                        width: usize,
+                        height: usize,
+                        data: $buffer_type,
+                        format: TextureFormat,
+                        src_offset: usize,
+                        pixel_storages: Vec<TexturePixelStorage>,
+                    },
+                )+
+            )+
+        }
+
+        impl TextureUncompressedSource {
+            fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
+                match self {
+                    TextureUncompressedSource::PixelBufferObject { pixel_storages, .. }
+                    | TextureUncompressedSource::Binary { pixel_storages, .. }
+                    | TextureUncompressedSource::Uint16Array { pixel_storages, .. }
+                    | TextureUncompressedSource::Uint32Array { pixel_storages, .. }
+                    $(
+                        $(
+                            | TextureUncompressedSource::$html_name { pixel_storages, .. }
+                        )+
+                        $(
+                            | TextureUncompressedSource::$buffer_name { pixel_storages, .. }
+                        )+
+                    )+
+                    => {
+                        // setups pixel storage parameters
+                        pixel_storages
+                            .iter()
+                            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+                    }
+                    TextureUncompressedSource::Function { .. } => {}
+                };
+            }
+        }
+
+        impl TextureSource for TextureUncompressedSource {
+            /// Returns the width of the texture source.
+            fn width(&self) -> usize {
+                match self {
+                    TextureUncompressedSource::Function { width, .. } => *width,
+                    TextureUncompressedSource::PixelBufferObject { width, .. } => *width,
+                    TextureUncompressedSource::Binary { width, .. } => *width,
+                    TextureUncompressedSource::Uint16Array { width, .. } => *width,
+                    TextureUncompressedSource::Uint32Array { width, .. } => *width,
+                    $(
+                        $(
+                            TextureUncompressedSource::$html_name { data, .. } => data.$html_width() as usize,
+                        )+
+                        $(
+                            TextureUncompressedSource::$buffer_name { width, .. } => *width,
+                        )+
+                    )+
+                }
+            }
+
+            /// Returns the height of the texture source.
+            fn height(&self) -> usize {
+                match self {
+                    TextureUncompressedSource::Function { height, .. } => *height,
+                    TextureUncompressedSource::PixelBufferObject { height, .. } => *height,
+                    TextureUncompressedSource::Binary { height, .. } => *height,
+                    TextureUncompressedSource::Uint16Array { height, .. } => *height,
+                    TextureUncompressedSource::Uint32Array { height, .. } => *height,
+                    $(
+                        $(
+                            TextureUncompressedSource::$html_name { data, .. } => data.$html_height() as usize,
+                        )+
+                        $(
+                            TextureUncompressedSource::$buffer_name { height, .. } => *height,
+                        )+
+                    )+
+                }
+            }
+
+            /// Uploads texture source to WebGL.
+            fn tex_sub_image_2d(
+                &self,
+                gl: &WebGl2RenderingContext,
+                target: TextureTarget,
+                level: usize,
+                width: Option<usize>,
+                height: Option<usize>,
+                x_offset: Option<usize>,
+                y_offset: Option<usize>,
+            ) -> Result<(), Error> {
+                self.pixel_storages(gl);
+                let width = width.unwrap_or_else(|| self.width());
+                let height = height.unwrap_or_else(|| self.height());
+                let x_offset = x_offset.unwrap_or(0);
+                let y_offset = y_offset.unwrap_or(0);
+
+                // buffers image sub data
+                let result = match self {
+                    TextureUncompressedSource::Function {
+                        callback,
+                        ..
+                    } => {
+                        let source = callback.borrow_mut()();
+                        if let TextureUncompressedSource::Function { .. } = source {
+                            panic!("recursive TextureSource::Function is not allowed");
+                        }
+                        if self.width() != source.width() {
+                            panic!("source returned from TextureSource::Function should have same width");
+                        }
+                        if self.height() != source.height() {
+                            panic!("source returned from TextureSource::Function should have same height");
+                        }
+                        source.tex_sub_image_2d(
+                            gl,
+                            target,
+                            level,
+                            Some(width),
+                            Some(height),
+                            Some(x_offset),
+                            Some(y_offset),
+                        )?;
+                        Ok(())
+                    }
+                    TextureUncompressedSource::PixelBufferObject {
+                        buffer,
+                        format,
+                        data_type,
+                        pbo_offset,
+                        ..
+                    } => {
+                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                        let result = gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            width as i32,
+                            height as i32,
+                            format.gl_enum(),
+                            data_type.gl_enum(),
+                            *pbo_offset as i32,
+                        );
+                        gl.bind_buffer(
+                            WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+                            current_buffer.as_ref(),
+                        );
+                        result
+                    }
+                    TextureUncompressedSource::Binary {
+                        data,
+                        format,
+                        data_type,
+                        src_offset,
+                        ..
+                    } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_u8_array_and_src_offset(
+                        target.gl_enum(),
+                        level as i32,
+                        x_offset as i32,
+                        y_offset as i32,
+                        width as i32,
+                        height as i32,
+                        format.gl_enum(),
+                        data_type.gl_enum(),
+                        data.as_ref().as_ref(),
+                        *src_offset as u32,
+                    ),
+                    $(
+                        $(
+                            TextureUncompressedSource::$html_name {
+                                format,
+                                data_type,
+                                data,
+                                ..
+                            } => gl.$tex_func(
+                                target.gl_enum(),
+                                level as i32,
+                                x_offset as i32,
+                                y_offset as i32,
+                                width as i32,
+                                height as i32,
+                                format.gl_enum(),
+                                data_type.gl_enum(),
+                                data,
+                            ),
+                        )+
+                    )+
+                    TextureUncompressedSource::Uint16Array { .. }
+                    | TextureUncompressedSource::Uint32Array { .. }
+                    $(
+                        $(
+                            | TextureUncompressedSource::$buffer_name { .. }
+                        )+
+                    )+
+                    => {
+                        let (data, format, data_type, src_offset) = match self {
+                            TextureUncompressedSource::Uint16Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            TextureUncompressedSource::Uint32Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            $(
+                                $(
+                                    TextureUncompressedSource::$buffer_name { data, format, src_offset, .. } => (data as &Object, format, $buffer_targe, src_offset),
+                                )+
+
+                            )+
+                            _ => unreachable!(),
+                        };
+                        gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            width as i32,
+                            height as i32,
+                            format.gl_enum(),
+                            data_type,
+                            data,
+                            *src_offset  as u32
+                        )
+                    }
+                };
+
+                result.map_err(|err| Error::TexImageFailure(err.as_string()))
+            }
+
+            // fn tex_sub_image_3d(
+            //     &self,
+            //     gl: &WebGl2RenderingContext,
+            //     target: TextureTarget,
+            //     level: usize,
+            //     width: Option<usize>,
+            //     height: Option<usize>,
+            //     depth: Option<usize>,
+            //     x_offset: Option<usize>,
+            //     y_offset: Option<usize>,
+            //     z_offset: Option<usize>,
+            // ) -> Result<(), Error> {
+            //     self.pixel_storages(gl);
+            //     let width = width.unwrap_or_else(|| self.width());
+            //     let height = height.unwrap_or_else(|| self.height());
+            //     let x_offset = x_offset.unwrap_or(0);
+            //     let y_offset = y_offset.unwrap_or(0);
+            //     let z_offset = z_offset.unwrap_or(0);
+            //     // buffers image sub data
+            //     let result = match self {
+            //         TextureSource::Function {
+            //             width,
+            //             height,
+            //             callback,
+            //         } => {
+            //             let source = callback.borrow_mut()();
+            //             if let TextureSource::Function { .. } = source {
+            //                 panic!("recursive TextureSource::Function is not allowed");
+            //             }
+            //             if *width != source.width() {
+            //                 panic!("source returned from TextureSource::Function should have same width
+            //             }
+            //             if *height != source.height() {
+            //                 panic!("source returned from TextureSource::Function should have same heigh
+            //             }
+            //             source.tex_sub_image_3d(gl, target, level, depth, x_offset, y_offset, z_offset)
+            //             Ok(())
+            //         }
+            //         TextureSource::PixelBufferObject {
+            //             buffer,
+            //             format,
+            //             data_type,
+            //             pbo_offset,
+            //             ..
+            //         } => {
+            //             let current_buffer = pixel_unpack_buffer_binding(gl);
+            //             gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+            //             let result = gl.tex_sub_image_3d_with_i32(
+            //                 target.gl_enum(),
+            //                 level as i32,
+            //                 x_offset as i32,
+            //                 y_offset as i32,
+            //                 z_offset as i32,
+            //                 width as i32,
+            //                 height as i32,
+            //                 depth as i32,
+            //                 format.gl_enum(),
+            //                 data_type.gl_enum(),
+            //                 *pbo_offset as i32,
+            //             );
+            //             gl.bind_buffer(
+            //                 WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+            //                 current_buffer.as_ref(),
+            //             );
+            //             result
+            //         }
+            //         TextureSource::Binary {
+            //             data,
+            //             format,
+            //             data_type,
+            //             src_offset,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             width as i32,
+            //             height as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             Some(data.as_ref().as_ref()),
+            //             *src_offset as u32,
+            //         ),
+            //         TextureSource::Uint8Array { .. }
+            //         | TextureSource::Uint8ClampedArray { .. }
+            //         | TextureSource::Int8Array { .. }
+            //         | TextureSource::Uint16Array { .. }
+            //         | TextureSource::Int16Array { .. }
+            //         | TextureSource::Uint32Array { .. }
+            //         | TextureSource::Int32Array { .. }
+            //         | TextureSource::Float32Array { .. } => {
+            //             let (width, height, data, format, data_type, src_offset) = texture_source_data_
+            //                 self,
+            //                 (Uint8Array, WebGl2RenderingContext::UNSIGNED_BYTE)
+            //                 (Uint8ClampedArray, WebGl2RenderingContext::UNSIGNED_BYTE)
+            //                 (Int8Array, WebGl2RenderingContext::BYTE)
+            //                 (Int16Array, WebGl2RenderingContext::SHORT)
+            //                 (Int32Array, WebGl2RenderingContext::INT)
+            //                 (Float32Array, WebGl2RenderingContext::FLOAT)
+            //             };
+            //             gl.tex_sub_image_3d_with_opt_array_buffer_view_and_src_offset(
+            //                 target.gl_enum(),
+            //                 level as i32,
+            //                 x_offset as i32,
+            //                 y_offset as i32,
+            //                 z_offset as i32,
+            //                 *width as i32,
+            //                 *height as i32,
+            //                 depth as i32,
+            //                 format.gl_enum(),
+            //                 data_type,
+            //                 Some(data),
+            //                 *src_offset as u32,
+            //             )
+            //         }
+            //         TextureSource::HtmlCanvasElement {
+            //             format,
+            //             data_type,
+            //             canvas,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_html_canvas_element(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             canvas.width() as i32,
+            //             canvas.height() as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             canvas,
+            //         ),
+            //         TextureSource::HtmlImageElement {
+            //             format,
+            //             data_type,
+            //             image,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_html_image_element(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             image.natural_width() as i32,
+            //             image.natural_height() as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             image,
+            //         ),
+            //         TextureSource::HtmlVideoElement {
+            //             video,
+            //             format,
+            //             data_type,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_html_video_element(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             video.video_width() as i32,
+            //             video.video_height() as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             video,
+            //         ),
+            //         TextureSource::ImageData {
+            //             data,
+            //             format,
+            //             data_type,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_image_data(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             data.width() as i32,
+            //             data.height() as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             data,
+            //         ),
+            //         TextureSource::ImageBitmap {
+            //             bitmap,
+            //             format,
+            //             data_type,
+            //             ..
+            //         } => gl.tex_sub_image_3d_with_image_bitmap(
+            //             target.gl_enum(),
+            //             level as i32,
+            //             x_offset as i32,
+            //             y_offset as i32,
+            //             z_offset as i32,
+            //             bitmap.width() as i32,
+            //             bitmap.height() as i32,
+            //             depth as i32,
+            //             format.gl_enum(),
+            //             data_type.gl_enum(),
+            //             bitmap,
+            //         ),
+            //     };
+            //     result.map_err(|err| Error::TexImageFailure(err.as_string()))
+            // }
+        }
+    }
+}
+
+texture_sources_uncompressed! {
+    (
+        (HtmlCanvasElement, HtmlCanvasElement, width, height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element)
+        (HtmlImageElement, HtmlImageElement, natural_width, natural_height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element)
+        (HtmlVideoElement, HtmlVideoElement, video_width, video_height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_video_element)
+        (ImageData, ImageData, width, height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_data)
+        (ImageBitmap, ImageBitmap, width, height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_bitmap)
+    ),
+    (
+        (Int8Array, Int8Array, WebGl2RenderingContext::BYTE)
+        (Uint8Array, Uint8Array, WebGl2RenderingContext::UNSIGNED_BYTE)
+        (Uint8ClampedArray, Uint8ClampedArray, WebGl2RenderingContext::UNSIGNED_BYTE)
+        (Int16Array, Int16Array, WebGl2RenderingContext::SHORT)
+        (Int32Array, Int32Array, WebGl2RenderingContext::INT)
+        (Float32Array, Float32Array, WebGl2RenderingContext::FLOAT)
+    )
+}
+
+macro_rules! texture_sources_compressed {
+    ($(($name:ident, $data_view:ident))+) => {
+        /// Compressed data source for uploading data to [`WebGlTexture`].
+        ///
+        /// Width and height in a texture source must be the exactly size of the image, not the size to be uploaded to the texture.
+        ///
+        /// [`TexturePixelStorage`]s are not available on compressed format.
+        pub enum TextureCompressedSource {
+            Function {
+                width: usize,
+                height: usize,
+                compressed_format: TextureCompressedInternalFormat,
+                bytes_length: usize,
+                callback: Rc<RefCell<dyn Fn() -> TextureCompressedSource>>,
+            },
+            PixelBufferObject {
+                width: usize,
+                height: usize,
+                compressed_format: TextureCompressedInternalFormat,
+                buffer: WebGlBuffer,
+                image_size: usize,
+                pbo_offset: usize,
+            },
+            $(
+                $name {
+                    width: usize,
+                    height: usize,
+                    compressed_format: TextureCompressedInternalFormat,
+                    data: $data_view,
+                    src_offset: usize,
+                    src_length_override: Option<usize>,
+                },
+            )+
+        }
+
+        impl TextureCompressedSource {
+            /// Returns the compressed format of the texture source.
+            pub fn compressed_format(&self) -> TextureCompressedInternalFormat {
+                match self {
+                    TextureCompressedSource::Function { compressed_format, .. } => *compressed_format,
+                    TextureCompressedSource::PixelBufferObject { compressed_format, .. } => *compressed_format,
+                    $(
+                        TextureCompressedSource::$name {
+                            compressed_format,
+                            ..
+                        } => *compressed_format,
+                    )+
+                }
+            }
+
+            fn bytes_length(&self) -> usize {
+                match self {
+                    TextureCompressedSource::Function { bytes_length, .. } => *bytes_length,
+                    TextureCompressedSource::PixelBufferObject { image_size, .. } => *image_size,
+                    $(
+                        TextureCompressedSource::$name {
+                            data,
+                            src_length_override,
+                            src_offset,
+                            ..
+                        } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
+                    )+
+                }
+            }
+
+            // fn tex_sub_image_3d(
+            //     &self,
+            //     gl: &WebGl2RenderingContext,
+            //     target: TextureTarget,
+            //     format: TextureCompressedInternalFormat,
+            //     level: usize,
+            //     depth: usize,
+            //     x_offset: usize,
+            //     y_offset: usize,
+            //     z_offset: usize,
+            // ) -> Result<(), Error> {
+            //     // buffers image sub data
+            //     match self {
+            //         TextureCompressedSource::Function {
+            //             width,
+            //             height,
+            //             bytes_length,
+            //             callback,
+            //         } => {
+            //             let source = callback.borrow_mut()();
+            //             if let TextureCompressedSource::Function { .. } = source {
+            //                 panic!("recursive TextureSource::Function is not allowed");
+            //             }
+            //             if *width != source.width() {
+            //                 panic!("source returned from TextureSource::Function should have same width");
+            //             }
+            //             if *height != source.height() {
+            //                 panic!("source returned from TextureSource::Function should have same height");
+            //             }
+            //             if *bytes_length != source.bytes_length() {
+            //                 panic!("source returned from TextureSource::Function should have same bytes length");
+            //             }
+            //             source.tex_sub_image_3d(
+            //                 gl, target, format, level, depth, x_offset, y_offset, z_offset,
+            //             )?;
+            //             Ok(())
+            //         }
+            //         TextureCompressedSource::PixelBufferObject {
+            //             width,
+            //             height,
+            //             buffer,
+            //             image_size,
+            //             pbo_offset,
+            //             ..
+            //         } => {
+            //             let current_buffer = pixel_unpack_buffer_binding(gl);
+            //             gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+            //             gl.compressed_tex_sub_image_3d_with_i32_and_i32(
+            //                 target.gl_enum(),
+            //                 level as i32,
+            //                 x_offset as i32,
+            //                 y_offset as i32,
+            //                 z_offset as i32,
+            //                 *width as i32,
+            //                 *height as i32,
+            //                 depth as i32,
+            //                 format.gl_enum(),
+            //                 *image_size as i32,
+            //                 *pbo_offset as i32,
+            //             );
+            //             gl.bind_buffer(
+            //                 WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+            //                 current_buffer.as_ref(),
+            //             );
+            //             Ok(())
+            //         }
+            //         $(
+            //             TextureCompressedSource::$name { .. }
+            //         ) | + => {
+            //             let (width, height, data, src_offset, src_length_override) = match self {
+            //                 $(
+            //                     TextureCompressedSource::$name {
+            //                         width,
+            //                         height,
+            //                         data,
+            //                         src_offset,
+            //                         src_length_override,
+            //                         ..
+            //                     } => (
+            //                         width,
+            //                         height,
+            //                         data as &Object,
+            //                         src_offset,
+            //                         src_length_override,
+            //                     ),
+            //                 )+
+            //                 _ => unreachable!(),
+            //             };
+            //             gl.compressed_tex_sub_image_3d_with_array_buffer_view_and_u32_and_src_length_override(
+            //                 target.gl_enum(),
+            //                 level as i32,
+            //                 x_offset as i32,
+            //                 y_offset as i32,
+            //                 z_offset as i32,
+            //                 *width as i32,
+            //                 *height as i32,
+            //                 depth as i32,
+            //                 format.gl_enum(),
+            //                 data,
+            //                 *src_offset as u32,
+            //                 src_length_override.unwrap_or(0) as u32,
+            //             );
+            //             Ok(())
+            //         }
+            //     }
+            // }
+        }
+
+        impl TextureSource for TextureCompressedSource {
+            /// Returns the width of the texture source.
+            fn width(&self) -> usize {
+                match self {
+                    TextureCompressedSource::Function { width, .. }
+                    | TextureCompressedSource::PixelBufferObject { width, .. }
+                    $(
+                        | TextureCompressedSource::$name { width, .. }
+                    )+
+                    => *width,
+                }
+            }
+
+            /// Returns the height of the texture source.
+            fn height(&self) -> usize {
+                match self {
+                    TextureCompressedSource::Function { height, .. }
+                    | TextureCompressedSource::PixelBufferObject { height, .. }
+                    $(
+                        | TextureCompressedSource::$name { height, .. }
+                    )+
+                    => *height,
+                }
+            }
+
+            /// Uploads texture source to WebGL.
+            fn tex_sub_image_2d(
+                &self,
+                gl: &WebGl2RenderingContext,
+                target: TextureTarget,
+                level: usize,
+                width: Option<usize>,
+                height: Option<usize>,
+                x_offset: Option<usize>,
+                y_offset: Option<usize>,
+            ) -> Result<(), Error> {
+                let width = width.unwrap_or_else(|| self.width());
+                let height = height.unwrap_or_else(|| self.height());
+                let x_offset = x_offset.unwrap_or(0);
+                let y_offset = y_offset.unwrap_or(0);
+
+                // buffers image sub data
+                match self {
+                    TextureCompressedSource::Function {
+                        callback,
+                        ..
+                    } => {
+                        let source = callback.borrow_mut()();
+                        if let TextureCompressedSource::Function { .. } = source {
+                            panic!("recursive TextureSource::Function is not allowed");
+                        }
+                        if self.width() != source.width() {
+                            panic!("source returned from TextureSource::Function should have same width");
+                        }
+                        if self.height() != source.height() {
+                            panic!("source returned from TextureSource::Function should have same height");
+                        }
+                        if self.bytes_length() != source.bytes_length() {
+                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        }
+                        if self.compressed_format() != source.compressed_format() {
+                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        }
+                        source.tex_sub_image_2d(
+                            gl,
+                            target,
+                            level,
+                            Some(width),
+                            Some(height),
+                            Some(x_offset),
+                            Some(y_offset),
+                        )?;
+                        Ok(())
+                    }
+                    TextureCompressedSource::PixelBufferObject {
+                        compressed_format,
+                        buffer,
+                        image_size,
+                        pbo_offset,
+                        ..
+                    } => {
+                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
+                        gl.compressed_tex_sub_image_2d_with_i32_and_i32(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            width as i32,
+                            height as i32,
+                            compressed_format.gl_enum(),
+                            *image_size as i32,
+                            *pbo_offset as i32,
+                        );
+                        gl.bind_buffer(
+                            WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
+                            current_buffer.as_ref(),
+                        );
+                        Ok(())
+                    }
+                    $(
+                        TextureCompressedSource::$name { .. }
+                    ) | + => {
+                        let (width, height, compressed_format, data, src_offset, src_length_override) = match self {
+                            $(
+                                TextureCompressedSource::$name {
+                                    compressed_format,
+                                    data,
+                                    src_offset,
+                                    src_length_override,
+                                    ..
+                                } => (
+                                    width,
+                                    height,
+                                    compressed_format,
+                                    data as &Object,
+                                    src_offset,
+                                    src_length_override,
+                                ),
+                            )+
+                            _ => unreachable!(),
+                        };
+                        gl.compressed_tex_sub_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
+                            target.gl_enum(),
+                            level as i32,
+                            x_offset as i32,
+                            y_offset as i32,
+                            width as i32,
+                            height as i32,
+                            compressed_format.gl_enum(),
+                            data,
+                            *src_offset as u32,
+                            src_length_override.unwrap_or(0) as u32,
+                        );
+                        Ok(())
+                    }
+                }
+            }
+
+        }
     };
-    gl.bind_texture(target, Some(&texture));
-    gl.tex_storage_2d(
-        target,
-        levels as i32,
-        internal_format as u32,
-        width as i32,
-        height as i32,
-    );
-    gl.bind_texture(target, bound.as_ref());
-    Ok(texture)
 }
 
-// pub struct Restorer {
-//     callback: Rc<RefCell<dyn Fn() -> TextureSource>>,
-// }
-
-// pub struct RestorerCompressed {
-//     callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-// }
-
-// pub struct CubeMapRestorer {
-//     positive_x: Rc<RefCell<dyn Fn() -> TextureSource>>,
-//     negative_x: Rc<RefCell<dyn Fn() -> TextureSource>>,
-//     positive_y: Rc<RefCell<dyn Fn() -> TextureSource>>,
-//     negative_y: Rc<RefCell<dyn Fn() -> TextureSource>>,
-//     positive_z: Rc<RefCell<dyn Fn() -> TextureSource>>,
-//     negative_z: Rc<RefCell<dyn Fn() -> TextureSource>>,
-// }
-
-// pub struct CubeMapRestorerCompressed {
-//     positive_x: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//     negative_x: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//     positive_y: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//     negative_y: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//     positive_z: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//     negative_z: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-// }
-
-// /// Memory freeing policies.
-// pub enum MemoryPolicy<R> {
-//     Unfree,
-//     Restorable(R),
-// }
-
-// impl<R> Default for MemoryPolicy<R> {
-//     fn default() -> Self {
-//         Self::Unfree
-//     }
-// }
-
-pub enum TextureSource {
-    Function {
-        width: usize,
-        height: usize,
-        callback: Rc<RefCell<dyn Fn() -> TextureSource>>,
-    },
-    PixelBufferObject {
-        width: usize,
-        height: usize,
-        buffer: WebGlBuffer,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pbo_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Binary {
-        width: usize,
-        height: usize,
-        data: Box<dyn AsRef<[u8]>>,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint8Array {
-        width: usize,
-        height: usize,
-        data: Uint8Array,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint8ClampedArray {
-        width: usize,
-        height: usize,
-        data: Uint8ClampedArray,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int8Array {
-        width: usize,
-        height: usize,
-        data: Int8Array,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint16Array {
-        width: usize,
-        height: usize,
-        data: Uint16Array,
-        format: TextureFormat,
-        /// Only [`TextureDataType::UNSIGNED_SHORT`],
-        /// [`TextureDataType::UNSIGNED_SHORT_5_6_5`],
-        /// [`TextureDataType::UNSIGNED_SHORT_4_4_4_4`],
-        /// [`TextureDataType::UNSIGNED_SHORT_5_5_5_1`],
-        /// [`TextureDataType::HALF_FLOAT`] are accepted.
-        data_type: TextureDataType,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int16Array {
-        width: usize,
-        height: usize,
-        data: Int16Array,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Uint32Array {
-        width: usize,
-        height: usize,
-        data: Uint32Array,
-        format: TextureFormat,
-        /// Only [`TextureDataType::UNSIGNED_INT`],
-        /// [`TextureDataType::UNSIGNED_INT_24_8`]
-        /// are accepted.
-        data_type: TextureDataType,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Int32Array {
-        width: usize,
-        height: usize,
-        data: Int32Array,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    Float32Array {
-        width: usize,
-        height: usize,
-        data: Float32Array,
-        format: TextureFormat,
-        src_offset: usize,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    HtmlCanvasElement {
-        canvas: HtmlCanvasElement,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    HtmlImageElement {
-        image: HtmlImageElement,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    HtmlVideoElement {
-        video: HtmlVideoElement,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    ImageData {
-        data: ImageData,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
-    ImageBitmap {
-        bitmap: ImageBitmap,
-        format: TextureFormat,
-        data_type: TextureDataType,
-        pixel_storages: Vec<TexturePixelStorage>,
-    },
+texture_sources_compressed! {
+    (Int8Array, Int8Array)
+    (Uint8Array, Uint8Array)
+    (Uint8ClampedArray, Uint8Array)
+    (Int16Array, Int16Array)
+    (Uint16Array, Uint16Array)
+    (Int32Array, Int32Array)
+    (Uint32Array, Uint32Array)
+    (Float32Array, Float32Array)
+    (Float64Array, Float64Array)
+    (BigInt64Array, BigInt64Array)
+    (BigUint64Array, BigUint64Array)
+    (DataView, DataView)
 }
 
-// macro_rules! texture_source_data_views {
-//     ($self:ident, $(($name:ident, $data_type:expr))+) => {
-//         match $self {
-//             $(
-//                 TextureSource::$name {
-//                     data,
-//                     format,
-//                     src_offset,
-//                     ..
-//                 } => (
-//                     data as &Object,
-//                     format,
-//                     $data_type,
-//                     src_offset,
-//                 ),
-//             )+
-//             TextureSource::Uint16Array {
-//                 data,
-//                 format,
-//                 data_type,
-//                 src_offset,
-//                 ..
-//             } => (
-//                 data as &Object,
-//                 format,
-//                 data_type.gl_enum(),
-//                 src_offset,
-//             ),
-//             TextureSource::Uint32Array {
-//                 data,
-//                 format,
-//                 data_type,
-//                 src_offset,
-//                 ..
-//             } => (
-//                 data as &Object,
-//                 format,
-//                 data_type.gl_enum(),
-//                 src_offset,
-//             ),
-//             _ => unreachable!(),
-//         }
-//     };
-// }
+trait TextureSource {
+    /// Returns the width of the texture source.
+    fn width(&self) -> usize;
 
-// macro_rules! texture_source_size {
-//     ($self:ident, $dimension:ident, $custom_size:expr, $canvas_size:ident, $image_size:ident, $video_size:ident, $image_data_size:ident) => {
-//         match $self {
-//             TextureSource::Function { $dimension, .. }
-//             | TextureSource::PixelBufferObject { $dimension, .. }
-//             | TextureSource::Binary { $dimension, .. }
-//             | TextureSource::Uint8Array { $dimension, .. }
-//             | TextureSource::Uint8ClampedArray { $dimension, .. }
-//             | TextureSource::Int8Array { $dimension, .. }
-//             | TextureSource::Uint16Array { $dimension, .. }
-//             | TextureSource::Int16Array { $dimension, .. }
-//             | TextureSource::Uint32Array { $dimension, .. }
-//             | TextureSource::Int32Array { $dimension, .. }
-//             | TextureSource::Float32Array { $dimension, .. } => *$dimension,
-//             TextureSource::HtmlCanvasElement { canvas, .. } => canvas.$canvas_size() as usize,
-//             TextureSource::HtmlImageElement { image, .. } => image.$image_size() as usize,
-//             TextureSource::HtmlVideoElement { video, .. } => video.$video_size() as usize,
-//             TextureSource::ImageData { data, .. } => data.$image_data_size() as usize,
-//             TextureSource::ImageBitmap { bitmap, .. } => bitmap.$image_data_size() as usize,
-//         }
-//     };
+    /// Returns the height of the texture source.
+    fn height(&self) -> usize;
+
+    /// Uploads texture source to WebGL.
+    fn tex_sub_image_2d(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: TextureTarget,
+        level: usize,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+    ) -> Result<(), Error>;
+}
+
+// /// Union enum combining [`TextureUncompressedSource`] and [`TextureCompressedSource`] together.
+// pub enum TextureSource {
+//     Uncompressed(TextureUncompressedSource),
+//     Compressed(TextureCompressedSource),
 // }
 
 // impl TextureSource {
+//     /// Returns the width of the texture source.
 //     pub fn width(&self) -> usize {
-//         texture_source_size! {
-//             self,
-//             width,
-//             |(width, _)| width,
-//             width,
-//             natural_width,
-//             video_width,
-//             width
-//         }
-//     }
-
-//     pub fn height(&self) -> usize {
-//         texture_source_size! {
-//             self,
-//             height,
-//             |(_, height)| height,
-//             height,
-//             natural_height,
-//             video_height,
-//             height
-//         }
-//     }
-
-//     fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
 //         match self {
-//             TextureSource::PixelBufferObject { pixel_storages, .. }
-//             | TextureSource::Binary { pixel_storages, .. }
-//             | TextureSource::Uint8Array { pixel_storages, .. }
-//             | TextureSource::Uint8ClampedArray { pixel_storages, .. }
-//             | TextureSource::Int8Array { pixel_storages, .. }
-//             | TextureSource::Uint16Array { pixel_storages, .. }
-//             | TextureSource::Int16Array { pixel_storages, .. }
-//             | TextureSource::Uint32Array { pixel_storages, .. }
-//             | TextureSource::Int32Array { pixel_storages, .. }
-//             | TextureSource::Float32Array { pixel_storages, .. }
-//             | TextureSource::HtmlCanvasElement { pixel_storages, .. }
-//             | TextureSource::HtmlImageElement { pixel_storages, .. }
-//             | TextureSource::HtmlVideoElement { pixel_storages, .. }
-//             | TextureSource::ImageData { pixel_storages, .. }
-//             | TextureSource::ImageBitmap { pixel_storages, .. } => {
-//                 // setups pixel storage parameters
-//                 pixel_storages
-//                     .iter()
-//                     .for_each(|param| gl.pixel_storei(param.key(), param.value()));
-//             }
-//             TextureSource::Function { .. } => {}
-//         };
+//             TextureSource::Uncompressed(t) => t.width(),
+//             TextureSource::Compressed(t) => t.width(),
+//         }
+//     }
+
+//     /// Returns the height of the texture source.
+//     pub fn height(&self) -> usize {
+//         match self {
+//             TextureSource::Uncompressed(t) => t.height(),
+//             TextureSource::Compressed(t) => t.height(),
+//         }
 //     }
 
 //     fn tex_sub_image_2d(
@@ -989,699 +1644,105 @@ pub enum TextureSource {
 //         x_offset: Option<usize>,
 //         y_offset: Option<usize>,
 //     ) -> Result<(), Error> {
-//         self.pixel_storages(gl);
-//         let width = width.unwrap_or_else(|| self.width());
-//         let height = height.unwrap_or_else(|| self.height());
-//         let x_offset = x_offset.unwrap_or(0);
-//         let y_offset = y_offset.unwrap_or(0);
-
-//         // buffers image sub data
-//         let result = match self {
-//             TextureSource::Function { callback, .. } => {
-//                 let source = callback.borrow_mut()();
-//                 if let TextureSource::Function { .. } = source {
-//                     panic!("recursive TextureSource::Function is not allowed");
-//                 }
-//                 if self.width() != source.width() {
-//                     panic!("source returned from TextureSource::Function should have same width");
-//                 }
-//                 if self.height() != source.height() {
-//                     panic!("source returned from TextureSource::Function should have same height");
-//                 }
-//                 source.tex_sub_image_2d(
-//                     gl,
-//                     target,
-//                     level,
-//                     Some(width),
-//                     Some(height),
-//                     Some(x_offset),
-//                     Some(y_offset),
-//                 )?;
-//                 Ok(())
+//         match self {
+//             TextureSource::Uncompressed(t) => {
+//                 t.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
 //             }
-//             TextureSource::PixelBufferObject {
-//                 buffer,
-//                 format,
-//                 data_type,
-//                 pbo_offset,
-//                 ..
-//             } => {
-//                 let current_buffer = pixel_unpack_buffer_binding(gl);
-//                 gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-//                 let result = gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
-//                     target.gl_enum(),
-//                     level as i32,
-//                     x_offset as i32,
-//                     y_offset as i32,
-//                     width as i32,
-//                     height as i32,
-//                     format.gl_enum(),
-//                     data_type.gl_enum(),
-//                     *pbo_offset as i32,
-//                 );
-//                 gl.bind_buffer(
-//                     WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-//                     current_buffer.as_ref(),
-//                 );
-//                 result
+//             TextureSource::Compressed(t) => {
+//                 t.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
 //             }
-//             TextureSource::Binary {
-//                 data,
-//                 format,
-//                 data_type,
-//                 src_offset,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_u8_array_and_src_offset(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 data.as_ref().as_ref(),
-//                 *src_offset as u32,
-//             ),
-//             TextureSource::Uint8Array { .. }
-//             | TextureSource::Uint8ClampedArray { .. }
-//             | TextureSource::Int8Array { .. }
-//             | TextureSource::Uint16Array { .. }
-//             | TextureSource::Int16Array { .. }
-//             | TextureSource::Uint32Array { .. }
-//             | TextureSource::Int32Array { .. }
-//             | TextureSource::Float32Array { .. } => {
-//                 let (data, format, data_type, src_offset) = texture_source_data_views! {
-//                     self,
-//                     (Uint8Array, WebGl2RenderingContext::UNSIGNED_BYTE)
-//                     (Uint8ClampedArray, WebGl2RenderingContext::UNSIGNED_BYTE)
-//                     (Int8Array, WebGl2RenderingContext::BYTE)
-//                     (Int16Array, WebGl2RenderingContext::SHORT)
-//                     (Int32Array, WebGl2RenderingContext::INT)
-//                     (Float32Array, WebGl2RenderingContext::FLOAT)
-//                 };
-//                 gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
-//                     target.gl_enum(),
-//                     level as i32,
-//                     x_offset as i32,
-//                     y_offset as i32,
-//                     width as i32,
-//                     height as i32,
-//                     format.gl_enum(),
-//                     data_type,
-//                     data,
-//                     *src_offset  as u32
-//                 )
-//             }
-//             TextureSource::HtmlCanvasElement {
-//                 format,
-//                 data_type,
-//                 canvas,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 canvas,
-//             ),
-//             TextureSource::HtmlImageElement {
-//                 format,
-//                 data_type,
-//                 image,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 image,
-//             ),
-//             TextureSource::HtmlVideoElement {
-//                 video,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_video_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 video,
-//             ),
-//             TextureSource::ImageData {
-//                 data,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_data(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 data,
-//             ),
-//             TextureSource::ImageBitmap {
-//                 bitmap,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_bitmap(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 bitmap,
-//             ),
-//         };
-
-//         result.map_err(|err| Error::TexImageFailure(err.as_string()))
-//     }
-
-//     fn tex_sub_image_3d(
-//         &self,
-//         gl: &WebGl2RenderingContext,
-//         target: TextureTarget,
-//         level: usize,
-//         width: Option<usize>,
-//         height: Option<usize>,
-//         depth: Option<usize>,
-//         x_offset: Option<usize>,
-//         y_offset: Option<usize>,
-//         z_offset: Option<usize>,
-//     ) -> Result<(), Error> {
-//         self.pixel_storages(gl);
-//         let width = width.unwrap_or_else(|| self.width());
-//         let height = height.unwrap_or_else(|| self.height());
-//         let x_offset = x_offset.unwrap_or(0);
-//         let y_offset = y_offset.unwrap_or(0);
-//         let z_offset = z_offset.unwrap_or(0);
-
-//         // buffers image sub data
-//         let result = match self {
-//             TextureSource::Function {
-//                 width,
-//                 height,
-//                 callback,
-//             } => {
-//                 let source = callback.borrow_mut()();
-//                 if let TextureSource::Function { .. } = source {
-//                     panic!("recursive TextureSource::Function is not allowed");
-//                 }
-//                 if *width != source.width() {
-//                     panic!("source returned from TextureSource::Function should have same width");
-//                 }
-//                 if *height != source.height() {
-//                     panic!("source returned from TextureSource::Function should have same height");
-//                 }
-//                 source.tex_sub_image_3d(gl, target, level, depth, x_offset, y_offset, z_offset)?;
-//                 Ok(())
-//             }
-//             TextureSource::PixelBufferObject {
-//                 buffer,
-//                 format,
-//                 data_type,
-//                 pbo_offset,
-//                 ..
-//             } => {
-//                 let current_buffer = pixel_unpack_buffer_binding(gl);
-//                 gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-//                 let result = gl.tex_sub_image_3d_with_i32(
-//                     target.gl_enum(),
-//                     level as i32,
-//                     x_offset as i32,
-//                     y_offset as i32,
-//                     z_offset as i32,
-//                     width as i32,
-//                     height as i32,
-//                     depth as i32,
-//                     format.gl_enum(),
-//                     data_type.gl_enum(),
-//                     *pbo_offset as i32,
-//                 );
-//                 gl.bind_buffer(
-//                     WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-//                     current_buffer.as_ref(),
-//                 );
-//                 result
-//             }
-//             TextureSource::Binary {
-//                 data,
-//                 format,
-//                 data_type,
-//                 src_offset,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 width as i32,
-//                 height as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 Some(data.as_ref().as_ref()),
-//                 *src_offset as u32,
-//             ),
-//             TextureSource::Uint8Array { .. }
-//             | TextureSource::Uint8ClampedArray { .. }
-//             | TextureSource::Int8Array { .. }
-//             | TextureSource::Uint16Array { .. }
-//             | TextureSource::Int16Array { .. }
-//             | TextureSource::Uint32Array { .. }
-//             | TextureSource::Int32Array { .. }
-//             | TextureSource::Float32Array { .. } => {
-//                 let (width, height, data, format, data_type, src_offset) = texture_source_data_views! {
-//                     self,
-//                     (Uint8Array, WebGl2RenderingContext::UNSIGNED_BYTE)
-//                     (Uint8ClampedArray, WebGl2RenderingContext::UNSIGNED_BYTE)
-//                     (Int8Array, WebGl2RenderingContext::BYTE)
-//                     (Int16Array, WebGl2RenderingContext::SHORT)
-//                     (Int32Array, WebGl2RenderingContext::INT)
-//                     (Float32Array, WebGl2RenderingContext::FLOAT)
-//                 };
-//                 gl.tex_sub_image_3d_with_opt_array_buffer_view_and_src_offset(
-//                     target.gl_enum(),
-//                     level as i32,
-//                     x_offset as i32,
-//                     y_offset as i32,
-//                     z_offset as i32,
-//                     *width as i32,
-//                     *height as i32,
-//                     depth as i32,
-//                     format.gl_enum(),
-//                     data_type,
-//                     Some(data),
-//                     *src_offset as u32,
-//                 )
-//             }
-//             TextureSource::HtmlCanvasElement {
-//                 format,
-//                 data_type,
-//                 canvas,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_html_canvas_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 canvas.width() as i32,
-//                 canvas.height() as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 canvas,
-//             ),
-//             TextureSource::HtmlImageElement {
-//                 format,
-//                 data_type,
-//                 image,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_html_image_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 image.natural_width() as i32,
-//                 image.natural_height() as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 image,
-//             ),
-//             TextureSource::HtmlVideoElement {
-//                 video,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_html_video_element(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 video.video_width() as i32,
-//                 video.video_height() as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 video,
-//             ),
-//             TextureSource::ImageData {
-//                 data,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_image_data(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 data.width() as i32,
-//                 data.height() as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 data,
-//             ),
-//             TextureSource::ImageBitmap {
-//                 bitmap,
-//                 format,
-//                 data_type,
-//                 ..
-//             } => gl.tex_sub_image_3d_with_image_bitmap(
-//                 target.gl_enum(),
-//                 level as i32,
-//                 x_offset as i32,
-//                 y_offset as i32,
-//                 z_offset as i32,
-//                 bitmap.width() as i32,
-//                 bitmap.height() as i32,
-//                 depth as i32,
-//                 format.gl_enum(),
-//                 data_type.gl_enum(),
-//                 bitmap,
-//             ),
-//         };
-
-//         result.map_err(|err| Error::TexImageFailure(err.as_string()))
+//         }
 //     }
 // }
 
-// macro_rules! texture_sources_compressed {
-//     ($(($name:ident, $data_view:ident))+) => {
-//         pub enum TextureSourceCompressed {
-//             Function {
-//                 width: usize,
-//                 height: usize,
-//                 bytes_length: usize,
-//                 callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
-//             },
-//             PixelBufferObject {
-//                 width: usize,
-//                 height: usize,
-//                 buffer: WebGlBuffer,
-//                 image_size: usize,
-//                 pbo_offset: usize,
-//             },
-//             $(
-//                 $name {
-//                     width: usize,
-//                     height: usize,
-//                     data: $data_view,
-//                     src_offset: usize,
-//                     src_length_override: Option<usize>,
-//                 },
-//             )+
-//         }
+/// Configurations specify a [`TextureSource`] to upload and
+/// a target sub-rectangle in a mipmap level to replace with in the texture.
+pub struct TextureUpload<T> {
+    source: T,
+    level: usize,
+    width: Option<usize>,
+    height: Option<usize>,
+    x_offset: Option<usize>,
+    y_offset: Option<usize>,
+}
 
-//         impl TextureSourceCompressed {
-//             pub fn bytes_length(&self) -> usize {
-//                 match self {
-//                     TextureSourceCompressed::Function { bytes_length, .. } => *bytes_length,
-//                     TextureSourceCompressed::PixelBufferObject { image_size, .. } => *image_size,
-//                     $(
-//                         TextureSourceCompressed::$name {
-//                             data,
-//                             src_length_override,
-//                             src_offset,
-//                             ..
-//                         } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-//                     )+
-//                 }
-//             }
+impl<T> TextureUpload<T>
+where
+    T: TextureSource,
+{
+    /// Constructs a new source by source and mipmap level.
+    pub fn new(source: T, level: usize) -> Self {
+        Self::with_params(source, level, None, None, None, None)
+    }
 
-//             pub fn width(&self) -> usize {
-//                 match self {
-//                     TextureSourceCompressed::Function { width, .. }
-//                     | TextureSourceCompressed::PixelBufferObject { width, .. }
-//                     $(
-//                         | TextureSourceCompressed::$name { width, .. }
-//                     )+
-//                     => *width,
-//                 }
-//             }
+    /// Constructs a new source by specifying all parameters.
+    pub fn with_params(
+        source: T,
+        level: usize,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source,
+            level,
+            width,
+            height,
+            x_offset,
+            y_offset,
+        }
+    }
 
-//             pub fn height(&self) -> usize {
-//                 match self {
-//                     TextureSourceCompressed::Function { height, .. }
-//                     | TextureSourceCompressed::PixelBufferObject { height, .. }
-//                     $(
-//                         | TextureSourceCompressed::$name { height, .. }
-//                     )+
-//                     => *height,
-//                 }
-//             }
+    /// Returns [`TextureSource`].
+    pub fn source(&self) -> &T {
+        &self.source
+    }
 
-//             fn tex_sub_image_2d(
-//                 &self,
-//                 gl: &WebGl2RenderingContext,
-//                 target: TextureTarget,
-//                 format: TextureCompressedFormat,
-//                 level: usize,
-//                 x_offset: usize,
-//                 y_offset: usize,
-//             ) -> Result<(), Error> {
-//                 // buffers image sub data
-//                 match self {
-//                     TextureSourceCompressed::Function {
-//                         width,
-//                         height,
-//                         bytes_length,
-//                         callback,
-//                     } => {
-//                         let source = callback.borrow_mut()();
-//                         if let TextureSourceCompressed::Function { .. } = source {
-//                             panic!("recursive TextureSource::Function is not allowed");
-//                         }
-//                         if *width != source.width() {
-//                             panic!("source returned from TextureSource::Function should have same width");
-//                         }
-//                         if *height != source.height() {
-//                             panic!("source returned from TextureSource::Function should have same height");
-//                         }
-//                         if *bytes_length != source.bytes_length() {
-//                             panic!("source returned from TextureSource::Function should have same bytes length");
-//                         }
-//                         source.tex_sub_image_2d(gl, target, format, level, x_offset, y_offset)?;
-//                         Ok(())
-//                     }
-//                     TextureSourceCompressed::PixelBufferObject {
-//                         width,
-//                         height,
-//                         buffer,
-//                         image_size,
-//                         pbo_offset,
-//                         ..
-//                     } => {
-//                         let current_buffer = pixel_unpack_buffer_binding(gl);
-//                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-//                         gl.compressed_tex_sub_image_2d_with_i32_and_i32(
-//                             target.gl_enum(),
-//                             level as i32,
-//                             x_offset as i32,
-//                             y_offset as i32,
-//                             *width as i32,
-//                             *height as i32,
-//                             format.gl_enum(),
-//                             *image_size as i32,
-//                             *pbo_offset as i32,
-//                         );
-//                         gl.bind_buffer(
-//                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-//                             current_buffer.as_ref(),
-//                         );
-//                         Ok(())
-//                     }
-//                     $(
-//                         TextureSourceCompressed::$name { .. }
-//                     ) | + => {
-//                         let (width, height, data, src_offset, src_length_override) = match self {
-//                             $(
-//                                 TextureSourceCompressed::$name {
-//                                     width,
-//                                     height,
-//                                     data,
-//                                     src_offset,
-//                                     src_length_override,
-//                                     ..
-//                                 } => (
-//                                     width,
-//                                     height,
-//                                     data as &Object,
-//                                     src_offset,
-//                                     src_length_override,
-//                                 ),
-//                             )+
-//                             _ => unreachable!(),
-//                         };
-//                         gl.compressed_tex_sub_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
-//                             target.gl_enum(),
-//                             level as i32,
-//                             x_offset as i32,
-//                             y_offset as i32,
-//                             *width as i32,
-//                             *height as i32,
-//                             format.gl_enum(),
-//                             data,
-//                             *src_offset as u32,
-//                             src_length_override.unwrap_or(0) as u32,
-//                         );
-//                         Ok(())
-//                     }
-//                 }
-//             }
+    /// Returns mipmap level to upload to.
+    pub fn level(&self) -> usize {
+        self.level
+    }
 
-//             fn tex_sub_image_3d(
-//                 &self,
-//                 gl: &WebGl2RenderingContext,
-//                 target: TextureTarget,
-//                 format: TextureCompressedFormat,
-//                 level: usize,
-//                 depth: usize,
-//                 x_offset: usize,
-//                 y_offset: usize,
-//                 z_offset: usize,
-//             ) -> Result<(), Error> {
-//                 // buffers image sub data
-//                 match self {
-//                     TextureSourceCompressed::Function {
-//                         width,
-//                         height,
-//                         bytes_length,
-//                         callback,
-//                     } => {
-//                         let source = callback.borrow_mut()();
-//                         if let TextureSourceCompressed::Function { .. } = source {
-//                             panic!("recursive TextureSource::Function is not allowed");
-//                         }
-//                         if *width != source.width() {
-//                             panic!("source returned from TextureSource::Function should have same width");
-//                         }
-//                         if *height != source.height() {
-//                             panic!("source returned from TextureSource::Function should have same height");
-//                         }
-//                         if *bytes_length != source.bytes_length() {
-//                             panic!("source returned from TextureSource::Function should have same bytes length");
-//                         }
-//                         source.tex_sub_image_3d(
-//                             gl, target, format, level, depth, x_offset, y_offset, z_offset,
-//                         )?;
-//                         Ok(())
-//                     }
-//                     TextureSourceCompressed::PixelBufferObject {
-//                         width,
-//                         height,
-//                         buffer,
-//                         image_size,
-//                         pbo_offset,
-//                         ..
-//                     } => {
-//                         let current_buffer = pixel_unpack_buffer_binding(gl);
-//                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
-//                         gl.compressed_tex_sub_image_3d_with_i32_and_i32(
-//                             target.gl_enum(),
-//                             level as i32,
-//                             x_offset as i32,
-//                             y_offset as i32,
-//                             z_offset as i32,
-//                             *width as i32,
-//                             *height as i32,
-//                             depth as i32,
-//                             format.gl_enum(),
-//                             *image_size as i32,
-//                             *pbo_offset as i32,
-//                         );
-//                         gl.bind_buffer(
-//                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-//                             current_buffer.as_ref(),
-//                         );
-//                         Ok(())
-//                     }
-//                     $(
-//                         TextureSourceCompressed::$name { .. }
-//                     ) | + => {
-//                         let (width, height, data, src_offset, src_length_override) = match self {
-//                             $(
-//                                 TextureSourceCompressed::$name {
-//                                     width,
-//                                     height,
-//                                     data,
-//                                     src_offset,
-//                                     src_length_override,
-//                                     ..
-//                                 } => (
-//                                     width,
-//                                     height,
-//                                     data as &Object,
-//                                     src_offset,
-//                                     src_length_override,
-//                                 ),
-//                             )+
-//                             _ => unreachable!(),
-//                         };
-//                         gl.compressed_tex_sub_image_3d_with_array_buffer_view_and_u32_and_src_length_override(
-//                             target.gl_enum(),
-//                             level as i32,
-//                             x_offset as i32,
-//                             y_offset as i32,
-//                             z_offset as i32,
-//                             *width as i32,
-//                             *height as i32,
-//                             depth as i32,
-//                             format.gl_enum(),
-//                             data,
-//                             *src_offset as u32,
-//                             src_length_override.unwrap_or(0) as u32,
-//                         );
-//                         Ok(())
-//                     }
-//                 }
-//             }
-//         }
-//     };
-// }
+    /// Returns sub-rectangle width to replace with in texture.
+    /// If not specified, the whole width of the texture source will be used.
+    pub fn width(&self) -> usize {
+        self.width.unwrap_or_else(|| self.source.width())
+    }
 
-// texture_sources_compressed! {
-//     (Int8Array, Int8Array)
-//     (Uint8Array, Uint8Array)
-//     (Uint8ClampedArray, Uint8Array)
-//     (Int16Array, Int16Array)
-//     (Uint16Array, Uint16Array)
-//     (Int32Array, Int32Array)
-//     (Uint32Array, Uint32Array)
-//     (Float32Array, Float32Array)
-//     (Float64Array, Float64Array)
-//     (BigInt64Array, BigInt64Array)
-//     (BigUint64Array, BigUint64Array)
-//     (DataView, DataView)
-// }
+    /// Returns sub-rectangle height to replace with in texture.
+    /// If not specified, the whole height of the texture source will be used.
+    pub fn height(&self) -> usize {
+        self.height.unwrap_or_else(|| self.source.height())
+    }
 
+    /// Returns sub-rectangle x offset. No offset applied if not specified.
+    pub fn x_offset(&self) -> usize {
+        self.x_offset.unwrap_or(0)
+    }
+
+    /// Returns sub-rectangle y offset. No offset applied if not specified.
+    pub fn y_offset(&self) -> usize {
+        self.y_offset.unwrap_or(0)
+    }
+
+    /// Uploads texture source to WebGL.
+    pub fn tex_sub_image_2d(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: TextureTarget,
+    ) -> Result<(), Error> {
+        self.source.tex_sub_image_2d(
+            gl,
+            target,
+            self.level,
+            self.width,
+            self.height,
+            self.x_offset,
+            self.y_offset,
+        )
+    }
+}
 
 struct Runtime<T> {
     id: Uuid,
@@ -1693,7 +1754,7 @@ struct Runtime<T> {
     using: bool,
 
     used_memory: *mut usize,
-    descriptors: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptor<T>>>>,
+    descriptors: *mut HashMap<Uuid, Weak<RefCell<T>>>,
     lru: *mut Lru<Uuid>,
 }
 
@@ -1733,17 +1794,6 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //     used_memory: *mut usize,
 //     descriptors: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<T>>>>,
 //     lru: *mut Lru<Uuid>,
-// }
-
-// impl<T> Drop for Runtime<T> {
-//     fn drop(&mut self) {
-//         unsafe {
-//             (*self.descriptors).remove(&self.id);
-//             (*self.lru).remove(self.lru_node);
-//             (*self.used_memory) -= self.bytes_length;
-//             self.gl.delete_texture(Some(&self.texture));
-//         }
-//     }
 // }
 
 // struct TextureDescriptorInner<T> {
@@ -2164,7 +2214,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 // texture_2d! {
 //     (Texture2D, TextureInternalFormat, Restorer, TextureSource)
-//     (Texture2DCompressed, TextureCompressedFormat, RestorerCompressed, TextureSourceCompressed)
+//     (Texture2DCompressed, TextureCompressedInternalFormat, RestorerCompressed, TextureCompressedSource)
 // }
 
 // impl TextureDescriptorInner<Texture2D> {
@@ -2185,7 +2235,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 // impl TextureDescriptorInner<Texture2DCompressed> {
 //     fn verify_compressed_size(
 //         &self,
-//         source: &TextureSourceCompressed,
+//         source: &TextureCompressedSource,
 //         width: usize,
 //         height: usize,
 //     ) -> Result<(), Error> {
@@ -2295,7 +2345,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //     pub fn new(
 //         width: usize,
 //         height: usize,
-//         internal_format: TextureCompressedFormat,
+//         internal_format: TextureCompressedInternalFormat,
 //         generate_mipmap: bool,
 //         memory_policy: MemoryPolicy<RestorerCompressed>,
 //     ) -> Self {
@@ -2315,8 +2365,8 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //     }
 
 //     pub fn with_source(
-//         source: TextureSourceCompressed,
-//         internal_format: TextureCompressedFormat,
+//         source: TextureCompressedSource,
+//         internal_format: TextureCompressedInternalFormat,
 //         generate_mipmap: bool,
 //         memory_policy: MemoryPolicy<RestorerCompressed>,
 //     ) -> Result<Self, Error> {
@@ -2343,7 +2393,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 //     pub fn tex_image(
 //         &mut self,
-//         source: TextureSourceCompressed,
+//         source: TextureCompressedSource,
 //         level: usize,
 //     ) -> Result<(), Error> {
 //         let mut inner = self.0.borrow_mut();
@@ -2358,7 +2408,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 //     pub fn tex_sub_image(
 //         &mut self,
-//         source: TextureSourceCompressed,
+//         source: TextureCompressedSource,
 //         level: usize,
 //         x_offset: usize,
 //         y_offset: usize,
@@ -2578,7 +2628,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 // texture_3d! {
 //     (Texture3D, TextureInternalFormat, Restorer, TextureSource)
-//     (Texture3DCompressed, TextureCompressedFormat, RestorerCompressed, TextureSourceCompressed)
+//     (Texture3DCompressed, TextureCompressedInternalFormat, RestorerCompressed, TextureCompressedSource)
 // }
 
 // impl TextureDescriptorInner<Texture3D> {
@@ -2720,7 +2770,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //         width: usize,
 //         height: usize,
 //         depth: usize,
-//         internal_format: TextureCompressedFormat,
+//         internal_format: TextureCompressedInternalFormat,
 //         generate_mipmap: bool,
 //         memory_policy: MemoryPolicy<RestorerCompressed>,
 //     ) -> Self {
@@ -2741,9 +2791,9 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //     }
 
 //     pub fn with_source(
-//         source: TextureSourceCompressed,
+//         source: TextureCompressedSource,
 //         depth: usize,
-//         internal_format: TextureCompressedFormat,
+//         internal_format: TextureCompressedInternalFormat,
 //         generate_mipmap: bool,
 //         memory_policy: MemoryPolicy<RestorerCompressed>,
 //     ) -> Result<Self, Error> {
@@ -2771,7 +2821,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 //     pub fn tex_image(
 //         &mut self,
-//         source: TextureSourceCompressed,
+//         source: TextureCompressedSource,
 //         level: usize,
 //         depth: usize,
 //     ) -> Result<(), Error> {
@@ -2786,7 +2836,7 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
 //     pub fn tex_sub_image(
 //         &mut self,
-//         source: TextureSourceCompressed,
+//         source: TextureCompressedSource,
 //         level: usize,
 //         depth: usize,
 //         x_offset: usize,
@@ -3191,356 +3241,330 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 //     (tex_image_negative_z, tex_sub_image_negative_z, negative_z)
 // }
 
-// pub struct TextureStore {
-//     id: Uuid,
-//     gl: WebGl2RenderingContext,
-//     abilities: Abilities,
-//     available_memory: usize,
-//     used_memory: *mut usize,
-//     lru: *mut Lru<Uuid>,
-//     descriptors_2d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2D>>>>,
-//     descriptors_2d_compressed:
-//         *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DCompressed>>>>,
-//     descriptors_2d_array: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DArray>>>>,
-//     descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
-//     descriptors_3d_compressed:
-//         *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3DCompressed>>>>,
-//     descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
-// }
+pub struct TextureStore {
+    id: Uuid,
+    gl: WebGl2RenderingContext,
+    abilities: Abilities,
+    available_memory: usize,
+    used_memory: *mut usize,
+    lru: *mut Lru<Uuid>,
+    descriptors_2d: *mut HashMap<Uuid, Weak<RefCell<Texture2D>>>,
+    // descriptors_2d_compressed:
+    //     *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DCompressed>>>>,
+    // descriptors_2d_array: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture2DArray>>>>,
+    // descriptors_3d: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3D>>>>,
+    // descriptors_3d_compressed:
+    //     *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<Texture3DCompressed>>>>,
+    // descriptors_cube_map: *mut HashMap<Uuid, Weak<RefCell<TextureDescriptorInner<TextureCubeMap>>>>,
+}
 
-// impl TextureStore {
-//     pub fn new(gl: WebGl2RenderingContext, abilities: Abilities) -> Self {
-//         Self::with_available_memory(gl, abilities, i32::MAX as usize)
-//     }
+impl TextureStore {
+    pub fn new(gl: WebGl2RenderingContext, abilities: Abilities) -> Self {
+        Self::with_available_memory(gl, abilities, i32::MAX as usize)
+    }
 
-//     pub fn with_available_memory(
-//         gl: WebGl2RenderingContext,
-//         abilities: Abilities,
-//         available_memory: usize,
-//     ) -> Self {
-//         Self {
-//             id: Uuid::new_v4(),
-//             gl,
-//             abilities,
-//             available_memory,
-//             used_memory: Box::leak(Box::new(0)),
-//             descriptors_2d: Box::leak(Box::new(HashMap::new())),
-//             descriptors_2d_compressed: Box::leak(Box::new(HashMap::new())),
-//             descriptors_2d_array: Box::leak(Box::new(HashMap::new())),
-//             descriptors_3d: Box::leak(Box::new(HashMap::new())),
-//             descriptors_3d_compressed: Box::leak(Box::new(HashMap::new())),
-//             descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
-//             lru: Box::leak(Box::new(Lru::new())),
-//         }
-//     }
+    pub fn with_available_memory(
+        gl: WebGl2RenderingContext,
+        abilities: Abilities,
+        available_memory: usize,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            gl,
+            abilities,
+            available_memory,
+            used_memory: Box::leak(Box::new(0)),
+            descriptors_2d: Box::leak(Box::new(HashMap::new())),
+            // descriptors_2d_compressed: Box::leak(Box::new(HashMap::new())),
+            // descriptors_2d_array: Box::leak(Box::new(HashMap::new())),
+            // descriptors_3d: Box::leak(Box::new(HashMap::new())),
+            // descriptors_3d_compressed: Box::leak(Box::new(HashMap::new())),
+            // descriptors_cube_map: Box::leak(Box::new(HashMap::new())),
+            lru: Box::leak(Box::new(Lru::new())),
+        }
+    }
 
-//     fn free(&mut self) {
-//         unsafe {
-//             if *self.used_memory <= self.available_memory {
-//                 return;
-//             }
+    // fn free(&mut self) {
+    //     unsafe {
+    //         if *self.used_memory <= self.available_memory {
+    //             return;
+    //         }
 
-//             let mut next_node = (*self.lru).least_recently();
-//             while *self.used_memory > self.available_memory {
-//                 let Some(current_node) = next_node.take() else {
-//                     break;
-//                 };
-//                 let id = (*current_node).data();
+    //         let mut next_node = (*self.lru).least_recently();
+    //         while *self.used_memory > self.available_memory {
+    //             let Some(current_node) = next_node.take() else {
+    //                 break;
+    //             };
+    //             let id = (*current_node).data();
 
-//                 macro_rules! free_descriptor {
-//                     ($((
-//                         $descriptors:ident,
-//                         $(($restore:ident, $tex_queue:ident, $source:ident, $($tex_params:expr),+)),+
-//                     )),+) => {
-//                         $(
-//                             if let Entry::Occupied(occupied) = (*self.$descriptors).entry(*id) {
-//                                 let descriptor = occupied.get();
-//                                 let Some(descriptor) = descriptor.upgrade() else {
-//                                     occupied.remove();
-//                                     next_node = (*current_node).more_recently();
-//                                     continue;
-//                                 };
+    //             macro_rules! free_descriptor {
+    //                 ($((
+    //                     $descriptors:ident,
+    //                     $(($restore:ident, $tex_queue:ident, $source:ident, $($tex_params:expr),+)),+
+    //                 )),+) => {
+    //                     $(
+    //                         if let Entry::Occupied(occupied) = (*self.$descriptors).entry(*id) {
+    //                             let descriptor = occupied.get();
+    //                             let Some(descriptor) = descriptor.upgrade() else {
+    //                                 occupied.remove();
+    //                                 next_node = (*current_node).more_recently();
+    //                                 continue;
+    //                             };
 
-//                                 let descriptor = descriptor.borrow();
-//                                 let runtime = descriptor.runtime.as_ref().unwrap();
+    //                             let descriptor = descriptor.borrow();
+    //                             let runtime = descriptor.runtime.as_ref().unwrap();
 
-//                                 // skips if using
-//                                 if runtime.using {
-//                                     next_node = (*current_node).more_recently();
-//                                     continue;
-//                                 }
-//                                 // skips if unfree
-//                                 if let MemoryPolicy::Unfree = &descriptor.layout.memory_policy {
-//                                     next_node = (*current_node).more_recently();
-//                                     continue;
-//                                 }
+    //                             // skips if using
+    //                             if runtime.using {
+    //                                 next_node = (*current_node).more_recently();
+    //                                 continue;
+    //                             }
+    //                             // skips if unfree
+    //                             if let MemoryPolicy::Unfree = &descriptor.layout.memory_policy {
+    //                                 next_node = (*current_node).more_recently();
+    //                                 continue;
+    //                             }
 
-//                                 // free
-//                                 let descriptor = occupied.remove().upgrade().unwrap();
-//                                 let mut descriptor = descriptor.borrow_mut();
-//                                 let runtime = descriptor.runtime.take().unwrap();
-//                                 match &descriptor.layout.memory_policy {
-//                                     MemoryPolicy::Unfree => unreachable!(),
-//                                     MemoryPolicy::Restorable(restorer) => {
-//                                         self.gl.delete_texture(Some(&runtime.texture));
-//                                         let width = descriptor.layout.width;
-//                                         let height = descriptor.layout.height;
+    //                             // free
+    //                             let descriptor = occupied.remove().upgrade().unwrap();
+    //                             let mut descriptor = descriptor.borrow_mut();
+    //                             let runtime = descriptor.runtime.take().unwrap();
+    //                             match &descriptor.layout.memory_policy {
+    //                                 MemoryPolicy::Unfree => unreachable!(),
+    //                                 MemoryPolicy::Restorable(restorer) => {
+    //                                     self.gl.delete_texture(Some(&runtime.texture));
+    //                                     let width = descriptor.layout.width;
+    //                                     let height = descriptor.layout.height;
 
-//                                         $(
-//                                             let $source = TextureSource::Function {
-//                                                 width,
-//                                                 height,
-//                                                 callback: Rc::clone(&restorer.$restore),
-//                                             };
-//                                         )+
+    //                                     $(
+    //                                         let $source = TextureSource::Function {
+    //                                             width,
+    //                                             height,
+    //                                             callback: Rc::clone(&restorer.$restore),
+    //                                         };
+    //                                     )+
 
-//                                         $(
-//                                             descriptor.layout.$tex_queue.push(($source, $($tex_params),+));
-//                                         )+
-//                                     }
-//                                 }
-//                                 // reduces used memory
-//                                 (*self.used_memory) -= runtime.bytes_length;
-//                                 // removes LRU
-//                                 (*self.lru).remove(runtime.lru_node);
+    //                                     $(
+    //                                         descriptor.layout.$tex_queue.push(($source, $($tex_params),+));
+    //                                     )+
+    //                                 }
+    //                             }
+    //                             // reduces used memory
+    //                             (*self.used_memory) -= runtime.bytes_length;
+    //                             // removes LRU
+    //                             (*self.lru).remove(runtime.lru_node);
 
-//                                 next_node = (*current_node).more_recently();
-//                                 continue;
-//                             };
-//                         )+
-//                     };
-//                 }
-//                 free_descriptor!(
-//                     (descriptors_2d, (callback, queue, source, 0, 0, 0)),
-//                     (
-//                         descriptors_2d_array,
-//                         (callback, queue, source, 0, 0, 0, 0, 0)
-//                     ),
-//                     (descriptors_3d, (callback, queue, source, 0, 0, 0, 0, 0)),
-//                     (
-//                         descriptors_cube_map,
-//                         (positive_x, positive_x, source_px, 0, 0, 0),
-//                         (negative_x, negative_x, source_nx, 0, 0, 0),
-//                         (positive_y, positive_y, source_py, 0, 0, 0),
-//                         (negative_y, negative_y, source_ny, 0, 0, 0),
-//                         (positive_z, positive_z, source_pz, 0, 0, 0),
-//                         (negative_z, negative_z, source_nz, 0, 0, 0)
-//                     )
-//                 );
-//             }
-//         }
-//     }
-// }
+    //                             next_node = (*current_node).more_recently();
+    //                             continue;
+    //                         };
+    //                     )+
+    //                 };
+    //             }
+    //             free_descriptor!(
+    //                 (descriptors_2d, (callback, queue, source, 0, 0, 0)),
+    //                 (
+    //                     descriptors_2d_array,
+    //                     (callback, queue, source, 0, 0, 0, 0, 0)
+    //                 ),
+    //                 (descriptors_3d, (callback, queue, source, 0, 0, 0, 0, 0)),
+    //                 (
+    //                     descriptors_cube_map,
+    //                     (positive_x, positive_x, source_px, 0, 0, 0),
+    //                     (negative_x, negative_x, source_nx, 0, 0, 0),
+    //                     (positive_y, positive_y, source_py, 0, 0, 0),
+    //                     (negative_y, negative_y, source_ny, 0, 0, 0),
+    //                     (positive_z, positive_z, source_pz, 0, 0, 0),
+    //                     (negative_z, negative_z, source_nz, 0, 0, 0)
+    //                 )
+    //             );
+    //         }
+    //     }
+    // }
+}
 
-// macro_rules! store_use_textures {
-//     ($((
-//         $layout:tt,
-//         $target:expr,
-//         $descriptors:ident,
-//         $verify_func:ident,
-//         $tex_storage_func:ident, ($($tex_storage_params:ident),+),
-//         $use_func: ident,
-//         $unuse_func:ident
-//     ))+) => {
-//         impl TextureStore {
-//             $(
-//                 pub fn $use_func(
-//                     &mut self,
-//                     descriptor: &TextureDescriptor<$layout>,
-//                     unit: TextureUnit,
-//                 ) -> Result<WebGlTexture, Error> {
-//                     self.abilities.verify_texture_unit(unit)?;
+macro_rules! store_use_textures {
+    ($((
+        $layout:tt,
+        $target:expr,
+        $descriptors:ident,
+        $verify_func:ident,
+        $tex_storage_func:ident, ($($tex_storage_params:ident),+),
+        $use_func: ident,
+        $unuse_func:ident
+    ))+) => {
+        impl TextureStore {
+            $(
+                pub fn $use_func(
+                    &mut self,
+                    descriptor: &TextureDescriptor<$layout>,
+                    unit: TextureUnit,
+                ) -> Result<WebGlTexture, Error> {
+                    self.abilities.verify_texture_unit(unit)?;
 
-//                     unsafe {
-//                         let mut inner = descriptor.0.borrow_mut();
+                    unsafe {
+                        let mut t = descriptor.texture_mut();
 
-//                         let (texture, is_new) = match inner.runtime.as_mut() {
-//                             Some(runtime) => {
-//                                 if runtime.store_id != self.id {
-//                                     panic!("share texture descriptor between texture store is not allowed");
-//                                 }
+                        let texture = match t.runtime.as_mut() {
+                            Some(runtime) => {
+                                if runtime.store_id != self.id {
+                                    panic!("share texture descriptor between texture store is not allowed");
+                                }
 
-//                                 runtime.using = true;
-//                                 (*self.lru).cache(runtime.lru_node);
+                                runtime.using = true;
+                                (*self.lru).cache(runtime.lru_node);
 
-//                                 (runtime.texture.clone(), false)
-//                             }
-//                             None => {
-//                                 debug!(
-//                                     target: "TextureBuffer",
-//                                     "create new texture for {}",
-//                                     inner.name.as_deref().unwrap_or("unnamed"),
-//                                 );
+                                runtime.texture.clone()
+                            }
+                            None => {
+                                // self.abilities.$verify_func(inner.layout.internal_format)?;
+                                let texture = t.create_texture(&self.gl)?;
 
-//                                 self.abilities.$verify_func(inner.layout.internal_format)?;
-//                                 let texture = self
-//                                     .gl
-//                                     .create_texture()
-//                                     .ok_or(Error::CreateTextureFailure)?;
-//                                 self.gl.active_texture(unit.gl_enum());
-//                                 self.gl
-//                                     .bind_texture($target, Some(&texture));
-//                                 self.gl.$tex_storage_func(
-//                                     $target,
-//                                     (1 + inner.max_mipmap_level()) as i32,
-//                                     inner.layout.internal_format.gl_enum(),
-//                                     $(
-//                                         inner.layout.$tex_storage_params as i32
-//                                     ),+
-//                                 );
+                                let id = Uuid::new_v4();
+                                let lru_node = LruNode::new(id);
+                                let bytes_length = t.bytes_length();
+                                (*self.$descriptors).insert(id, Rc::downgrade(&descriptor.0));
+                                (*self.lru).cache(lru_node);
+                                (*self.used_memory) += bytes_length;
+                                t.runtime = Some(Box::new(Runtime {
+                                    id,
+                                    gl: self.gl.clone(),
+                                    store_id: self.id,
+                                    texture: texture.clone(),
+                                    bytes_length,
+                                    lru_node,
+                                    using: true,
 
-//                                 let id = Uuid::new_v4();
-//                                 let lru_node = LruNode::new(id);
-//                                 let bytes_length = inner.bytes_length();
-//                                 (*self.$descriptors).insert(id, Rc::downgrade(&descriptor.0));
-//                                 (*self.lru).cache(lru_node);
-//                                 (*self.used_memory) += bytes_length;
-//                                 inner.runtime = Some(Box::new(Runtime {
-//                                     id,
-//                                     gl: self.gl.clone(),
-//                                     store_id: self.id,
-//                                     texture: texture.clone(),
-//                                     bytes_length,
-//                                     lru_node,
-//                                     using: true,
+                                    used_memory: self.used_memory,
+                                    descriptors: self.$descriptors,
+                                    lru: self.lru,
+                                }));
 
-//                                     used_memory: self.used_memory,
-//                                     descriptors: self.$descriptors,
-//                                     lru: self.lru,
-//                                 }));
-//                                 (texture, true)
-//                             }
-//                         };
+                                debug!(
+                                    target: "TextureBuffer",
+                                    "create new texture for {}",
+                                    id,
+                                );
 
-//                         self.gl.active_texture(unit.gl_enum());
-//                         self.gl
-//                             .bind_texture($target, Some(&texture));
+                                texture
+                            }
+                        };
 
-//                         inner.tex(&self.gl, &self.abilities)?;
+                        t.tex()?;
 
-//                         if is_new && inner.generate_mipmap {
-//                             self.gl.generate_mipmap($target);
-//                         }
+                        // drop(inner);
+                        // self.free();
 
-//                         self.gl
-//                             .bind_texture($target, None);
-//                         self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+                        Ok(texture)
+                    }
+                }
 
-//                         drop(inner);
-//                         self.free();
+                pub fn $unuse_func(&mut self, descriptor: &TextureDescriptor<$layout>) {
+                    let mut inner = descriptor.0.borrow_mut();
 
-//                         Ok(texture)
-//                     }
-//                 }
+                    if let Some(runtime) = inner.runtime.as_mut() {
+                        runtime.using = false;
+                    }
+                }
+            )+
+        }
+    };
+}
 
-//                 pub fn $unuse_func(&mut self, descriptor: &TextureDescriptor<$layout>) {
-//                     let mut inner = descriptor.0.borrow_mut();
+store_use_textures! {
+    (
+        Texture2D,
+        WebGl2RenderingContext::TEXTURE_2D,
+        descriptors_2d,
+        verify_internal_format,
+        tex_storage_2d, (width, height),
+        use_texture_2d,
+        unuse_texture_2d
+    )
+    // (
+    //     Texture2DCompressed,
+    //     WebGl2RenderingContext::TEXTURE_2D,
+    //     descriptors_2d_compressed,
+    //     verify_compressed_format,
+    //     tex_storage_2d,
+    //         (width, height),
+    //     use_texture_2d_compressed,
+    //     unuse_texture_2d_compressed
+    // )
+    // (
+    //     Texture3D,
+    //     WebGl2RenderingContext::TEXTURE_3D,
+    //     descriptors_3d,
+    //     verify_internal_format,
+    //     tex_storage_3d,
+    //         (width, height, depth),
+    //     use_texture_3d,
+    //     unuse_texture_3d
+    // )
+    // (
+    //     Texture3DCompressed,
+    //     WebGl2RenderingContext::TEXTURE_3D,
+    //     descriptors_3d_compressed,
+    //     verify_compressed_format,
+    //     tex_storage_3d,
+    //         (width, height, depth),
+    //     use_texture_3d_compressed,
+    //     unuse_texture_3d_compressed
+    // )
+    // (
+    //     Texture2DArray,
+    //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+    //     descriptors_2d_array,
+    //     verify_internal_format,
+    //     tex_storage_3d,
+    //         (width, height, array_length),
+    //     use_texture_2d_array,
+    //     unuse_texture_2d_array
+    // )
+    // (
+    //     TextureCubeMap,
+    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+    //     descriptors_cube_map,
+    //     verify_internal_format,
+    //     tex_storage_2d,
+    //         (width, height),
+    //     use_texture_cube_map,
+    //     unuse_texture_cube_map
+    // )
+}
 
-//                     if let Some(runtime) = inner.runtime.as_mut() {
-//                         runtime.using = false;
-//                     }
-//                 }
-//             )+
-//         }
-//     };
-// }
+macro_rules! store_drop {
+    ($($d:ident),+) => {
+        impl Drop for TextureStore {
+            fn drop(&mut self) {
+                unsafe {
+                    $(
+                        for (_, descriptor) in (*self.$d).iter() {
+                            let Some(descriptor) = descriptor.upgrade() else {
+                                return;
+                            };
+                            let mut descriptor = descriptor.borrow_mut();
+                            let Some(runtime) = descriptor.runtime.take() else {
+                                return;
+                            };
 
-// store_use_textures! {
-//     (
-//         Texture2D,
-//         WebGl2RenderingContext::TEXTURE_2D,
-//         descriptors_2d,
-//         verify_internal_format,
-//         tex_storage_2d, (width, height),
-//         use_texture_2d,
-//         unuse_texture_2d
-//     )
-//     (
-//         Texture2DCompressed,
-//         WebGl2RenderingContext::TEXTURE_2D,
-//         descriptors_2d_compressed,
-//         verify_compressed_format,
-//         tex_storage_2d,
-//             (width, height),
-//         use_texture_2d_compressed,
-//         unuse_texture_2d_compressed
-//     )
-//     (
-//         Texture3D,
-//         WebGl2RenderingContext::TEXTURE_3D,
-//         descriptors_3d,
-//         verify_internal_format,
-//         tex_storage_3d,
-//             (width, height, depth),
-//         use_texture_3d,
-//         unuse_texture_3d
-//     )
-//     (
-//         Texture3DCompressed,
-//         WebGl2RenderingContext::TEXTURE_3D,
-//         descriptors_3d_compressed,
-//         verify_compressed_format,
-//         tex_storage_3d,
-//             (width, height, depth),
-//         use_texture_3d_compressed,
-//         unuse_texture_3d_compressed
-//     )
-//     (
-//         Texture2DArray,
-//         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-//         descriptors_2d_array,
-//         verify_internal_format,
-//         tex_storage_3d,
-//             (width, height, array_length),
-//         use_texture_2d_array,
-//         unuse_texture_2d_array
-//     )
-//     (
-//         TextureCubeMap,
-//         WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-//         descriptors_cube_map,
-//         verify_internal_format,
-//         tex_storage_2d,
-//             (width, height),
-//         use_texture_cube_map,
-//         unuse_texture_cube_map
-//     )
-// }
+                            self.gl.delete_texture(Some(&runtime.texture));
+                            // store dropped, no need to update LRU anymore
+                        }
+                        drop(Box::from_raw(self.$d));
+                    )+
 
-// macro_rules! store_drop {
-//     ($($d:ident),+) => {
-//         impl Drop for TextureStore {
-//             fn drop(&mut self) {
-//                 unsafe {
-//                     $(
-//                         for (_, descriptor) in (*self.$d).iter() {
-//                             let Some(descriptor) = descriptor.upgrade() else {
-//                                 return;
-//                             };
-//                             let mut descriptor = descriptor.borrow_mut();
-//                             let Some(runtime) = descriptor.runtime.take() else {
-//                                 return;
-//                             };
+                    drop(Box::from_raw(self.used_memory));
+                    drop(Box::from_raw(self.lru));
+                }
+            }
+        }
+    };
+}
 
-//                             self.gl.delete_texture(Some(&runtime.texture));
-//                             // store dropped, no need to update LRU anymore
-//                         }
-//                         drop(Box::from_raw(self.$d));
-//                     )+
-
-//                     drop(Box::from_raw(self.used_memory));
-//                     drop(Box::from_raw(self.lru));
-//                 }
-//             }
-//         }
-//     };
-// }
-
-// store_drop!(
-//     descriptors_2d,
-//     descriptors_2d_compressed,
-//     descriptors_2d_array,
-//     descriptors_3d,
-//     descriptors_3d_compressed,
-//     descriptors_cube_map
-// );
+store_drop!(
+    descriptors_2d // descriptors_2d_compressed,
+                   // descriptors_2d_array,
+                   // descriptors_3d,
+                   // descriptors_3d_compressed,
+                   // descriptors_cube_map
+);
