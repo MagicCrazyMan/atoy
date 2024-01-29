@@ -1703,6 +1703,12 @@ struct Runtime<T> {
 
 pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 
+impl<T> Clone for TextureDescriptor<T> {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
 // pub struct Texture2DArray {
 //     width: usize,
 //     height: usize,
@@ -1972,12 +1978,6 @@ pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
 // pub struct A<T>(Rc<RefCell<T>>);
 
 // pub struct TextureDescriptor<T>(Rc<RefCell<TextureDescriptorInner<T>>>);
-
-// impl<T> Clone for TextureDescriptor<T> {
-//     fn clone(&self) -> Self {
-//         Self(Rc::clone(&self.0))
-//     }
-// }
 
 // impl<T> TextureDescriptor<T> {
 //     /// Returns buffer descriptor name.
@@ -3226,102 +3226,63 @@ impl TextureStore {
         }
     }
 
-    // fn free(&mut self) {
-    //     unsafe {
-    //         if *self.used_memory <= self.available_memory {
-    //             return;
-    //         }
+    fn free(&mut self) {
+        unsafe {
+            if *self.used_memory <= self.available_memory {
+                return;
+            }
 
-    //         let mut next_node = (*self.lru).least_recently();
-    //         while *self.used_memory > self.available_memory {
-    //             let Some(current_node) = next_node.take() else {
-    //                 break;
-    //             };
-    //             let id = (*current_node).data();
+            let mut next_node = (*self.lru).least_recently();
+            while *self.used_memory > self.available_memory {
+                let Some(current_node) = next_node.take() else {
+                    break;
+                };
+                let id = (*current_node).data();
 
-    //             macro_rules! free_descriptor {
-    //                 ($((
-    //                     $descriptors:ident,
-    //                     $(($restore:ident, $tex_queue:ident, $source:ident, $($tex_params:expr),+)),+
-    //                 )),+) => {
-    //                     $(
-    //                         if let Entry::Occupied(occupied) = (*self.$descriptors).entry(*id) {
-    //                             let descriptor = occupied.get();
-    //                             let Some(descriptor) = descriptor.upgrade() else {
-    //                                 occupied.remove();
-    //                                 next_node = (*current_node).more_recently();
-    //                                 continue;
-    //                             };
+                macro_rules! free_descriptor {
+                    ($($descriptors:ident),+) => {
+                        $(
+                            if let Entry::Occupied(occupied) = (*self.$descriptors).entry(*id) {
+                                let t = occupied.get();
+                                let Some(t) = t.upgrade() else {
+                                    occupied.remove();
+                                    next_node = (*current_node).more_recently();
+                                    continue;
+                                };
 
-    //                             let descriptor = descriptor.borrow();
-    //                             let runtime = descriptor.runtime.as_ref().unwrap();
+                                let mut t = t.borrow_mut();
+                                let runtime = t.runtime.as_ref().unwrap();
 
-    //                             // skips if using
-    //                             if runtime.using {
-    //                                 next_node = (*current_node).more_recently();
-    //                                 continue;
-    //                             }
-    //                             // skips if unfree
-    //                             if let MemoryPolicy::Unfree = &descriptor.layout.memory_policy {
-    //                                 next_node = (*current_node).more_recently();
-    //                                 continue;
-    //                             }
+                                // skips if using
+                                if runtime.using {
+                                    next_node = (*current_node).more_recently();
+                                    continue;
+                                }
+                                
+                                // let's texture takes free procedure itself.
+                                if t.free() {
+                                    let t = occupied.remove().upgrade().unwrap();
+                                    let mut t = t.borrow_mut();
+                                    let runtime = t.runtime.take().unwrap();
+                                    // reduces used memory
+                                    (*self.used_memory) -= runtime.bytes_length;
+                                    // removes LRU
+                                    (*self.lru).remove(runtime.lru_node);
+                                }
 
-    //                             // free
-    //                             let descriptor = occupied.remove().upgrade().unwrap();
-    //                             let mut descriptor = descriptor.borrow_mut();
-    //                             let runtime = descriptor.runtime.take().unwrap();
-    //                             match &descriptor.layout.memory_policy {
-    //                                 MemoryPolicy::Unfree => unreachable!(),
-    //                                 MemoryPolicy::Restorable(restorer) => {
-    //                                     self.gl.delete_texture(Some(&runtime.texture));
-    //                                     let width = descriptor.layout.width;
-    //                                     let height = descriptor.layout.height;
-
-    //                                     $(
-    //                                         let $source = TextureSource::Function {
-    //                                             width,
-    //                                             height,
-    //                                             callback: Rc::clone(&restorer.$restore),
-    //                                         };
-    //                                     )+
-
-    //                                     $(
-    //                                         descriptor.layout.$tex_queue.push(($source, $($tex_params),+));
-    //                                     )+
-    //                                 }
-    //                             }
-    //                             // reduces used memory
-    //                             (*self.used_memory) -= runtime.bytes_length;
-    //                             // removes LRU
-    //                             (*self.lru).remove(runtime.lru_node);
-
-    //                             next_node = (*current_node).more_recently();
-    //                             continue;
-    //                         };
-    //                     )+
-    //                 };
-    //             }
-    //             free_descriptor!(
-    //                 (descriptors_2d, (callback, queue, source, 0, 0, 0)),
-    //                 (
-    //                     descriptors_2d_array,
-    //                     (callback, queue, source, 0, 0, 0, 0, 0)
-    //                 ),
-    //                 (descriptors_3d, (callback, queue, source, 0, 0, 0, 0, 0)),
-    //                 (
-    //                     descriptors_cube_map,
-    //                     (positive_x, positive_x, source_px, 0, 0, 0),
-    //                     (negative_x, negative_x, source_nx, 0, 0, 0),
-    //                     (positive_y, positive_y, source_py, 0, 0, 0),
-    //                     (negative_y, negative_y, source_ny, 0, 0, 0),
-    //                     (positive_z, positive_z, source_pz, 0, 0, 0),
-    //                     (negative_z, negative_z, source_nz, 0, 0, 0)
-    //                 )
-    //             );
-    //         }
-    //     }
-    // }
+                                next_node = (*current_node).more_recently();
+                                continue;
+                            };
+                        )+
+                    };
+                }
+                free_descriptor!(
+                    descriptors_2d,
+                    descriptors_2d_compressed
+                );
+            }
+        }
+    }
 }
 
 macro_rules! store_use_textures {
@@ -3343,7 +3304,7 @@ macro_rules! store_use_textures {
                 ) -> Result<WebGlTexture, Error> {
                     self.capabilities.verify_texture_unit(unit)?;
 
-                    unsafe {
+                    let texture = unsafe {
                         let mut t = descriptor.texture_mut();
 
                         let texture = match t.runtime.as_mut() {
@@ -3392,12 +3353,11 @@ macro_rules! store_use_textures {
                         };
 
                         t.tex()?;
+                        texture
+                    };
 
-                        // drop(inner);
-                        // self.free();
-
-                        Ok(texture)
-                    }
+                    self.free();
+                    Ok(texture)
                 }
 
                 pub fn $unuse_func(&mut self, descriptor: &TextureDescriptor<$layout>) {

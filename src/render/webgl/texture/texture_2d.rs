@@ -13,7 +13,7 @@ use super::{
 };
 
 /// Construction policies telling texture store how to create a texture.
-pub enum ConstructPolicy {
+pub enum ConstructionPolicy {
     /// Simple texture creation procedure.
     ///
     /// Under this policy, texture store may takes the size of the base texture source as the size of texture in level 0.
@@ -79,6 +79,20 @@ pub enum ConstructPolicy {
     },
 }
 
+/// A container provides content for restoring a texture.
+pub struct Restore {
+    uploads: Vec<TextureUpload<TextureUncompressedSource>>,
+    mipmap_source: Option<TextureUpload<TextureUncompressedSource>>,
+    mipmap_base_level: Option<usize>,
+    mipmap_max_level: Option<usize>,
+}
+
+/// Memory policies controlling how to manage memory of a texture.
+pub enum MemoryPolicy {
+    Unfree,
+    Restorable(Box<dyn Fn() -> Restore>),
+}
+
 /// A WebGL 2d texture workload.
 pub struct Texture2D {
     width: usize,
@@ -86,7 +100,7 @@ pub struct Texture2D {
     /// Max mipmap level clamped to max available level already if mipmap enabled.
     max_level: Option<usize>,
     internal_format: TextureInternalFormat,
-    // memory_policy: MemoryPolicy,
+    memory_policy: MemoryPolicy,
     mipmap_base: Option<(
         TextureUpload<TextureUncompressedSource>,
         Option<usize>,
@@ -124,6 +138,11 @@ impl Texture2D {
     /// Returns [`TextureInternalFormat`].
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
+    }
+
+    /// Returns [`MemoryPolicy`].
+    pub fn memory_policy(&self) -> &MemoryPolicy {
+        &self.memory_policy
     }
 
     /// Returns max mipmap level.
@@ -342,12 +361,33 @@ impl Texture2D {
 
         Ok(())
     }
+
+    /// Applies memory free behavior.
+    /// Returns `true` if this texture is released.
+    pub(super) fn free(&mut self) -> bool {
+        match &mut self.memory_policy {
+            MemoryPolicy::Unfree => false,
+            MemoryPolicy::Restorable(restore) => {
+                let Restore {
+                    uploads,
+                    mipmap_source,
+                    mipmap_base_level,
+                    mipmap_max_level,
+                } = restore.as_mut()();
+                self.uploads.extend(uploads);
+                if let Some(mipmap_source) = mipmap_source {
+                    self.mipmap_base = Some((mipmap_source, mipmap_base_level, mipmap_max_level));
+                }
+                true
+            }
+        }
+    }
 }
 
 impl TextureDescriptor<Texture2D> {
-    pub fn new(mut construction_policy: ConstructPolicy) -> Self {
+    pub fn new(mut construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
         let texture = match construction_policy {
-            ConstructPolicy::Simple {
+            ConstructionPolicy::Simple {
                 internal_format,
                 base,
             } => {
@@ -358,6 +398,7 @@ impl TextureDescriptor<Texture2D> {
                     height,
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
+                    memory_policy,
                     mipmap_base: Some((TextureUpload::new(base, 0), None, None)),
                     uploads: Vec::new(),
                     runtime: None,
@@ -365,20 +406,20 @@ impl TextureDescriptor<Texture2D> {
             }
             _ => {
                 let (internal_format, width, height, max_level) = match construction_policy {
-                    ConstructPolicy::Preallocate {
+                    ConstructionPolicy::Preallocate {
                         internal_format,
                         width,
                         height,
                         max_level,
                     }
-                    | ConstructPolicy::WithSources {
+                    | ConstructionPolicy::WithSources {
                         internal_format,
                         width,
                         height,
                         max_level,
                         ..
                     }
-                    | ConstructPolicy::Full {
+                    | ConstructionPolicy::Full {
                         internal_format,
                         width,
                         height,
@@ -400,10 +441,10 @@ impl TextureDescriptor<Texture2D> {
                     _ => unreachable!(),
                 };
                 let mipmap_base = match construction_policy {
-                    ConstructPolicy::Preallocate { .. } | ConstructPolicy::WithSources { .. } => {
+                    ConstructionPolicy::Preallocate { .. } | ConstructionPolicy::WithSources { .. } => {
                         None
                     }
-                    ConstructPolicy::Full {
+                    ConstructionPolicy::Full {
                         mipmap_base_level,
                         mipmap_max_level,
                         ref mut mipmap_source,
@@ -417,9 +458,9 @@ impl TextureDescriptor<Texture2D> {
                     _ => unreachable!(),
                 };
                 let uploads = match construction_policy {
-                    ConstructPolicy::Preallocate { .. } => Vec::new(),
-                    ConstructPolicy::WithSources { uploads, .. }
-                    | ConstructPolicy::Full { uploads, .. } => uploads,
+                    ConstructionPolicy::Preallocate { .. } => Vec::new(),
+                    ConstructionPolicy::WithSources { uploads, .. }
+                    | ConstructionPolicy::Full { uploads, .. } => uploads,
                     _ => unreachable!(),
                 };
 
@@ -428,6 +469,7 @@ impl TextureDescriptor<Texture2D> {
                     height,
                     max_level,
                     internal_format,
+                    memory_policy,
                     mipmap_base,
                     uploads,
                     runtime: None,

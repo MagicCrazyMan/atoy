@@ -39,13 +39,13 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::texture::texture_2d::{ConstructPolicy, Texture2D};
+use crate::render::webgl::texture::texture_2d::{ConstructionPolicy, Texture2D};
 use crate::render::webgl::texture::texture_2d_compressed::{self, Texture2DCompressed};
 use crate::render::webgl::texture::{
     TextureCompressedFormat, TextureCompressedSource, TextureDataType, TextureDescriptor,
-    TextureFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-    TexturePixelStorage, TextureInternalFormat, TextureUncompressedSource, TextureUnit,
-    TextureUpload, TextureWrapMethod,
+    TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
+    TextureParameter, TexturePixelStorage, TextureUncompressedSource, TextureUnit, TextureUpload,
+    TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -534,6 +534,7 @@ pub fn test_cube(
     pick_callback: &Function,
     floor_rgb: HtmlImageElement,
     floor_dxt: ArrayBuffer,
+    floor_dxt_mipmaps: ArrayBuffer,
     sky_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
@@ -658,23 +659,17 @@ pub fn test_cube(
     //     },
     //     Transparency::Opaque,
     // )));
-    let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
-    let (compressed_format, data) = dds.gl_compressed_format(true, true).unwrap();
+    let dds = DirectDrawSurface::parse(floor_dxt_mipmaps).unwrap();
+    let (descriptor, has_mipmap) = dds.texture_descriptor(true, true).unwrap();
     floor.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2DCompressed {
-            descriptor: TextureDescriptor::<Texture2DCompressed>::new(texture_2d_compressed::ConstructPolicy::Simple {
-                internal_format: compressed_format,
-                base: TextureCompressedSource::Uint8Array {
-                    width: dds.header.width as usize,
-                    height: dds.header.height as usize,
-                    compressed_format,
-                    data,
-                    src_offset: 0,
-                    src_length_override: None,
-                },
-            }),
+            descriptor,
             params: vec![
-                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
+                TextureParameter::MIN_FILTER(if has_mipmap {
+                    TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
+                } else {
+                    TextureMinificationFilter::LINEAR
+                }),
                 TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
                 TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
                 TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),

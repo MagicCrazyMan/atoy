@@ -13,7 +13,7 @@ use super::{
 };
 
 /// Construction policies telling texture store how to create a texture.
-pub enum ConstructPolicy {
+pub enum ConstructionPolicy {
     /// Simple texture creation procedure.
     ///
     /// Under this policy, texture store may takes the size of the base texture source as the size of texture in level 0.
@@ -49,6 +49,17 @@ pub enum ConstructPolicy {
     },
 }
 
+/// A container provides content for restoring a texture.
+pub struct Restore {
+    uploads: Vec<TextureUpload<TextureCompressedSource>>,
+}
+
+/// Memory policies controlling how to manage memory of a texture.
+pub enum MemoryPolicy {
+    Unfree,
+    Restorable(Box<dyn Fn() -> Restore>),
+}
+
 /// A WebGL 2d texture in compressed internal format workload.
 ///
 /// No automatic mipmaps generation available for a compressed format.
@@ -57,7 +68,7 @@ pub struct Texture2DCompressed {
     height: usize,
     max_level: Option<usize>,
     internal_format: TextureCompressedFormat,
-    // memory_policy: MemoryPolicy,
+    memory_policy: MemoryPolicy,
     uploads: Vec<TextureUpload<TextureCompressedSource>>,
 
     pub(super) runtime: Option<Box<Runtime<Texture2DCompressed>>>,
@@ -90,6 +101,11 @@ impl Texture2DCompressed {
     /// Returns [`TextureCompressedFormat`].
     pub fn internal_format(&self) -> TextureCompressedFormat {
         self.internal_format
+    }
+
+    /// Returns [`MemoryPolicy`].
+    pub fn memory_policy(&self) -> &MemoryPolicy {
+        &self.memory_policy
     }
 
     /// Returns max mipmap level.
@@ -254,12 +270,24 @@ impl Texture2DCompressed {
 
         Ok(())
     }
+
+    /// Applies memory free behavior.
+    pub(super) fn free(&mut self) -> bool {
+        match &mut self.memory_policy {
+            MemoryPolicy::Unfree => false,
+            MemoryPolicy::Restorable(restore) => {
+                let restore = restore.as_mut()();
+                self.uploads = restore.uploads;
+                true
+            },
+        }
+    }
 }
 
 impl TextureDescriptor<Texture2DCompressed> {
-    pub fn new(construction_policy: ConstructPolicy) -> Self {
+    pub fn new(construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
         let texture = match construction_policy {
-            ConstructPolicy::Simple {
+            ConstructionPolicy::Simple {
                 internal_format,
                 base,
             } => {
@@ -270,19 +298,20 @@ impl TextureDescriptor<Texture2DCompressed> {
                     height,
                     max_level: Some(max_available_mipmap_level(width, height)),
                     internal_format,
+                    memory_policy,
                     uploads: vec![TextureUpload::<TextureCompressedSource>::new(base, 0)],
                     runtime: None,
                 }
             }
             _ => {
                 let (internal_format, width, height, max_level) = match construction_policy {
-                    ConstructPolicy::Preallocate {
+                    ConstructionPolicy::Preallocate {
                         internal_format,
                         width,
                         height,
                         max_level,
                     }
-                    | ConstructPolicy::Full {
+                    | ConstructionPolicy::Full {
                         internal_format,
                         width,
                         height,
@@ -304,8 +333,8 @@ impl TextureDescriptor<Texture2DCompressed> {
                     _ => unreachable!(),
                 };
                 let uploads = match construction_policy {
-                    ConstructPolicy::Preallocate { .. } => Vec::new(),
-                    ConstructPolicy::Full { uploads, .. } => uploads,
+                    ConstructionPolicy::Preallocate { .. } => Vec::new(),
+                    ConstructionPolicy::Full { uploads, .. } => uploads,
                     _ => unreachable!(),
                 };
 
@@ -314,6 +343,7 @@ impl TextureDescriptor<Texture2DCompressed> {
                     height,
                     max_level,
                     internal_format,
+                    memory_policy,
                     uploads,
                     runtime: None,
                 }

@@ -1,6 +1,9 @@
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
-use crate::render::webgl::texture::TextureCompressedFormat;
+use crate::render::webgl::texture::{
+    texture_2d_compressed::{ConstructionPolicy, MemoryPolicy, Texture2DCompressed},
+    TextureCompressedFormat, TextureCompressedSource, TextureDescriptor, TextureUpload,
+};
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
 pub const DDS_DXT1: u32 = 0x31545844;
@@ -42,34 +45,42 @@ pub struct Header {
 }
 
 impl Header {
+    /// Returns `true` if `DDSD_CAPS` flag is available.
     pub fn ddsd_caps(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_CAPS != 0
     }
 
+    /// Returns `true` if `DDSD_HEIGHT` flag is available.
     pub fn ddsd_height(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_HEIGHT != 0
     }
 
+    /// Returns `true` if `DDSD_WIDTH` flag is available.
     pub fn ddsd_width(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_WIDTH != 0
     }
 
+    /// Returns `true` if `DDSD_PITCH` flag is available.
     pub fn ddsd_pitch(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_PITCH != 0
     }
 
+    /// Returns `true` if `DDSD_PIXELFORMAT` flag is available.
     pub fn ddsd_pixel_format(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_PIXELFORMAT != 0
     }
 
+    /// Returns `true` if `DDSD_MIPMAPCOUNT` flag is available.
     pub fn ddsd_mipmap_count(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_MIPMAPCOUNT != 0
     }
 
+    /// Returns `true` if `DDSD_LINEARSIZE` flag is available.
     pub fn ddsd_linear_size(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_LINEARSIZE != 0
     }
 
+    /// Returns `true` if `DDSD_DEPTH` flag is available.
     pub fn ddsd_depth(&self) -> bool {
         self.flags & DDS_HEADER_FLAG_DDSD_DEPTH != 0
     }
@@ -95,26 +106,32 @@ pub struct PixelFormat {
 }
 
 impl PixelFormat {
+    /// Returns `true` if `DDPF_ALPHAPIXELS` flag is available.
     pub fn ddpf_alpha_pixels(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_ALPHA_PIXELS != 0
     }
 
+    /// Returns `true` if `DDPF_ALPHA` flag is available.
     pub fn ddpf_alpha(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_ALPHA != 0
     }
 
+    /// Returns `true` if `DDPF_FOURCC` flag is available.
     pub fn ddpf_four_cc(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_FOUR_CC != 0
     }
 
+    /// Returns `true` if `DDPF_RGB` flag is available.
     pub fn ddpf_rgb(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_RGB != 0
     }
 
+    /// Returns `true` if `DDPF_YUV` flag is available.
     pub fn ddpf_yuv(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_YUV != 0
     }
 
+    /// Returns `true` if `DDPF_LUMINANCE` flag is available.
     pub fn ddpf_luminance(&self) -> bool {
         self.flags & DDS_PIXELFORMAT_FLAG_LUMINANCE != 0
     }
@@ -122,7 +139,6 @@ impl PixelFormat {
 
 /// DirectDraw Surface.
 pub struct DirectDrawSurface {
-    /// File magic number, always equals `DDS ` aka (0x20534444).
     pub magic_number: u32,
     pub header: Header,
     pub header_dxt10: Option<HeaderDxt10>,
@@ -179,12 +195,14 @@ impl DirectDrawSurface {
         })
     }
 
-    pub fn gl_compressed_format(
+    /// Tries to create a [`TextureDescriptor<Texture2DCompressed>`] from this DirectDraw Surface.
+    /// Returns `None` if unable to create a valid descriptor.
+    pub fn texture_descriptor(
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<(TextureCompressedFormat, Uint8Array)> {
-        let format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
+    ) -> Option<(TextureDescriptor<Texture2DCompressed>, bool)> {
+        let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
             (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
@@ -196,15 +214,74 @@ impl DirectDrawSurface {
             (_, _, _) => None,
         };
 
-        match format {
-            Some(format) => {
-                let data = Uint8Array::new_with_byte_offset_and_length(
-                    &self.raw,
-                    128,
-                    format.bytes_length(self.header.width as usize, self.header.height as usize)
-                        as u32,
+        match internal_format {
+            Some(internal_format) => {
+                let (construction_policy, has_mipmap) = if self.header.ddsd_mipmap_count() {
+                    // reads mipmaps
+                    let base_width = self.header.width as usize;
+                    let base_height = self.header.height as usize;
+                    let levels = self.header.mipmap_count as usize;
+                    let mut uploads = Vec::with_capacity(levels);
+                    let mut offset = 128usize;
+                    for level in 0..levels {
+                        let width = (base_width >> level).max(1);
+                        let height = (base_height >> level).max(1);
+                        let bytes_length =
+                            internal_format.bytes_length(width as usize, height as usize);
+                        let data = Uint8Array::new_with_byte_offset_and_length(
+                            &self.raw,
+                            offset as u32,
+                            bytes_length as u32,
+                        );
+                        uploads.push(TextureUpload::new(
+                            TextureCompressedSource::Uint8Array {
+                                width,
+                                height,
+                                compressed_format: internal_format,
+                                data,
+                                src_offset: 0,
+                                src_length_override: None,
+                            },
+                            level,
+                        ));
+                        offset += bytes_length;
+                    }
+
+                    let construction_policy =ConstructionPolicy::Full {
+                        internal_format,
+                        width: base_width,
+                        height: base_height,
+                        max_level: Some(levels),
+                        uploads,
+                    };
+                    (construction_policy, true)
+                } else {
+                    let data = Uint8Array::new_with_byte_offset_and_length(
+                        &self.raw,
+                        128,
+                        internal_format
+                            .bytes_length(self.header.width as usize, self.header.height as usize)
+                            as u32,
+                    );
+                    let construction_policy = ConstructionPolicy::Simple {
+                        internal_format,
+                        base: TextureCompressedSource::Uint8Array {
+                            width: self.header.width as usize,
+                            height: self.header.height as usize,
+                            compressed_format: internal_format,
+                            data,
+                            src_offset: 0,
+                            src_length_override: None,
+                        },
+                    };
+                    (construction_policy, false)
+                };
+
+                let descriptor = TextureDescriptor::<Texture2DCompressed>::new(
+                    construction_policy,
+                    MemoryPolicy::Unfree,
                 );
-                Some((format, data))
+                Some((descriptor, has_mipmap))
             }
             None => None,
         }
