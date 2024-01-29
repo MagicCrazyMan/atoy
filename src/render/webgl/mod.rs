@@ -6,15 +6,15 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{camera::Camera, notify::Notifier, scene::Scene};
 
 use self::{
-    abilities::Abilities, buffer::BufferStore, error::Error, program::ProgramStore,
+    buffer::BufferStore, capabilities::Capabilities, error::Error, program::ProgramStore,
     state::FrameState, texture::TextureStore,
 };
 
 use super::{Pipeline, Render};
 
-pub mod abilities;
 pub mod attribute;
 pub mod buffer;
+pub mod capabilities;
 pub mod client_wait;
 pub mod conversion;
 pub mod draw;
@@ -88,7 +88,7 @@ pub struct WebGL2Render {
     program_store: ProgramStore,
     buffer_store: BufferStore,
     texture_store: TextureStore,
-    abilities: Abilities,
+    capabilities: Capabilities,
 
     pre_render_notifier: Notifier<RenderEvent>,
     post_render_notifier: Notifier<RenderEvent>,
@@ -116,13 +116,13 @@ impl WebGL2Render {
             .and_then(|context| context)
             .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
             .ok_or(Error::WebGL2Unsupported)?;
-        let abilities = Abilities::new(gl.clone());
+        let capabilities = Capabilities::new(gl.clone());
 
         Ok(Self {
             program_store: ProgramStore::new(gl.clone()),
             buffer_store: BufferStore::new(gl.clone()),
-            texture_store: TextureStore::new(gl.clone(), abilities.clone()),
-            abilities,
+            texture_store: TextureStore::new(gl.clone(), capabilities.clone()),
+            capabilities,
             gl,
             canvas,
 
@@ -177,10 +177,10 @@ impl WebGL2Render {
         &mut self.texture_store
     }
 
-    /// Returns the [`Abilities`].
+    /// Returns the [`Capabilities`].
     #[inline]
-    pub fn abilities(&self) -> &Abilities {
-        &self.abilities
+    pub fn capabilities(&self) -> &Capabilities {
+        &self.capabilities
     }
 
     pub fn pre_render(&mut self) -> &mut Notifier<RenderEvent> {
@@ -212,7 +212,7 @@ impl Render for WebGL2Render {
             &mut self.program_store,
             &mut self.buffer_store,
             &mut self.texture_store,
-            &mut self.abilities,
+            &mut self.capabilities,
         );
 
         self.pre_render_notifier

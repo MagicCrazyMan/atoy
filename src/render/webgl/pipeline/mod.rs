@@ -570,7 +570,7 @@ impl StandardPipeline {
         } else {
             None
         };
-        let hdr_supported = state.abilities().color_buffer_float_supported();
+        let hdr_supported = state.capabilities().color_buffer_float_supported();
         let hdr = hdr_supported && self.hdr_enabled();
         let bloom = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
@@ -718,7 +718,7 @@ impl Pipeline for StandardPipeline {
                             self.forward_shading(state, scene)
                         }
                         StandardPipelineShading::DeferredShading => {
-                            if state.abilities().color_buffer_float_supported() {
+                            if state.capabilities().color_buffer_float_supported() {
                                 self.deferred_shading(state, scene)
                             } else {
                                 // fallback to forward shading if color buffer float not supported

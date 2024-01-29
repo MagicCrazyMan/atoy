@@ -40,10 +40,11 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::texture_2d::{ConstructPolicy, Texture2D};
+use crate::render::webgl::texture::texture_2d_compressed::{self, Texture2DCompressed};
 use crate::render::webgl::texture::{
-    TextureCompressedInternalFormat, TextureCompressedSource, TextureDataType, TextureDescriptor,
+    TextureCompressedFormat, TextureCompressedSource, TextureDataType, TextureDescriptor,
     TextureFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-    TexturePixelStorage, TextureUncompressedInternalFormat, TextureUncompressedSource, TextureUnit,
+    TexturePixelStorage, TextureInternalFormat, TextureUncompressedSource, TextureUnit,
     TextureUpload, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
@@ -636,46 +637,19 @@ pub fn test_cube(
     // scene.entity_container_mut().add_entity(image);
 
     let mut floor = EntityOptions::new();
-    floor.set_material(Some(TextureMaterial::new(
-        UniformValue::Texture2D {
-            descriptor: TextureDescriptor::<Texture2D>::new(ConstructPolicy::Simple {
-                internal_format: TextureUncompressedInternalFormat::SRGB8_ALPHA8,
-                base: TextureUncompressedSource::HtmlImageElement {
-                    data: floor_rgb,
-                    format: TextureFormat::RGBA,
-                    data_type: TextureDataType::UNSIGNED_BYTE,
-                    pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-                },
-            }),
-            params: vec![
-                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
-                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-            ],
-            unit: TextureUnit::TEXTURE0,
-        },
-        Transparency::Opaque,
-    )));
-    // let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
-    // let (compressed_format, data) = dds.gl_compressed_format(true, true).unwrap();
     // floor.set_material(Some(TextureMaterial::new(
     //     UniformValue::Texture2D {
-    //         descriptor: TextureDescriptor::<Texture2D>::new(
-    //             ConstructPolicy::Simple {
-    //                 base: TextureSource::Compressed(TextureCompressedSource::Uint8Array {
-    //                     width: dds.header.width as usize,
-    //                     height: dds.header.height as usize,
-    //                     compressed_format,
-    //                     data,
-    //                     src_offset: 0,
-    //                     src_length_override: None,
-    //                 }),
+    //         descriptor: TextureDescriptor::<Texture2D>::new(texture_2d::ConstructPolicy::Simple {
+    //             internal_format: TextureUncompressedInternalFormat::SRGB8_ALPHA8,
+    //             base: TextureUncompressedSource::HtmlImageElement {
+    //                 data: floor_rgb,
+    //                 format: TextureFormat::RGBA,
+    //                 data_type: TextureDataType::UNSIGNED_BYTE,
+    //                 pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
     //             },
-    //             TextureInternalFormat::Compressed(compressed_format),
-    //         ),
+    //         }),
     //         params: vec![
-    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
+    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
     //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
     //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
     //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
@@ -684,6 +658,31 @@ pub fn test_cube(
     //     },
     //     Transparency::Opaque,
     // )));
+    let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
+    let (compressed_format, data) = dds.gl_compressed_format(true, true).unwrap();
+    floor.set_material(Some(TextureMaterial::new(
+        UniformValue::Texture2DCompressed {
+            descriptor: TextureDescriptor::<Texture2DCompressed>::new(texture_2d_compressed::ConstructPolicy::Simple {
+                internal_format: compressed_format,
+                base: TextureCompressedSource::Uint8Array {
+                    width: dds.header.width as usize,
+                    height: dds.header.height as usize,
+                    compressed_format,
+                    data,
+                    src_offset: 0,
+                    src_length_override: None,
+                },
+            }),
+            params: vec![
+                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR),
+                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+            ],
+            unit: TextureUnit::TEXTURE0,
+        },
+        Transparency::Opaque,
+    )));
     floor.set_geometry(Some(Rectangle::new(
         Vec2::new(0.0, 0.0),
         Placement::Center,

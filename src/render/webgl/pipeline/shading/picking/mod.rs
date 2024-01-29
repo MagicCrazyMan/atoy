@@ -18,7 +18,7 @@ use crate::{
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
-        texture::{TextureDataType, TextureFormat, TextureUncompressedInternalFormat},
+        texture::{TextureDataType, TextureFormat, TextureInternalFormat},
         uniform::UniformValue,
     },
 };
@@ -47,11 +47,11 @@ impl StandardPicking {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .with_color_attachment0(AttachmentProvider::new_texture_with_clear_policy(
-                        TextureUncompressedInternalFormat::R32UI,
+                        TextureInternalFormat::R32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .with_color_attachment1(AttachmentProvider::new_texture_with_clear_policy(
-                        TextureUncompressedInternalFormat::RGBA32UI,
+                        TextureInternalFormat::RGBA32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .with_depth_attachment(AttachmentProvider::new_renderbuffer(

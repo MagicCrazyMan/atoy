@@ -434,7 +434,7 @@ impl Viewer {
     }
 
     pub fn hdr_supported(&self) -> bool {
-        self.render().abilities().color_buffer_float_supported()
+        self.render().capabilities().color_buffer_float_supported()
     }
 
     pub fn hdr_enabled(&self) -> bool {

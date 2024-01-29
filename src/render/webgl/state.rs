@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    abilities::Abilities,
+    capabilities::Capabilities,
     attribute::{AttributeBinding, AttributeValue},
     buffer::{BufferDescriptor, BufferStore, BufferTarget},
     conversion::ToGlEnum,
@@ -44,7 +44,7 @@ pub struct FrameState {
     program_store: NonNull<ProgramStore>,
     buffer_store: NonNull<BufferStore>,
     texture_store: NonNull<TextureStore>,
-    abilities: NonNull<Abilities>,
+    capabilities: NonNull<Capabilities>,
 }
 
 impl FrameState {
@@ -57,7 +57,7 @@ impl FrameState {
         program_store: &mut ProgramStore,
         buffer_store: &mut BufferStore,
         texture_store: &mut TextureStore,
-        abilities: &mut Abilities,
+        capabilities: &mut Capabilities,
     ) -> Self {
         unsafe {
             Self {
@@ -68,7 +68,7 @@ impl FrameState {
                 program_store: NonNull::new_unchecked(program_store),
                 buffer_store: NonNull::new_unchecked(buffer_store),
                 texture_store: NonNull::new_unchecked(texture_store),
-                abilities: NonNull::new_unchecked(abilities),
+                capabilities: NonNull::new_unchecked(capabilities),
             }
         }
     }
@@ -127,10 +127,10 @@ impl FrameState {
         unsafe { self.texture_store.as_mut() }
     }
 
-    /// Returns the [`Abilities`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
+    /// Returns the [`Capabilities`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
     #[inline]
-    pub fn abilities(&self) -> &Abilities {
-        unsafe { self.abilities.as_ref() }
+    pub fn capabilities(&self) -> &Capabilities {
+        unsafe { self.capabilities.as_ref() }
     }
 
     /// Binds attribute values from a entity, geometry and material.
@@ -513,10 +513,10 @@ impl FrameState {
                     .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data)
             }
             UniformValue::Texture2D { .. }
+            | UniformValue::Texture2DCompressed { .. } 
             // | UniformValue::Texture2DArray { .. }
             // | UniformValue::Texture3D { .. }
             // | UniformValue::TextureCubeMap { .. }
-            // | UniformValue::Texture2DCompressed { .. } 
             => {
                 let (target, texture, unit, params) = match value {
                     UniformValue::Texture2D {
@@ -527,6 +527,17 @@ impl FrameState {
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut()
                             .use_texture_2d(descriptor, *unit)?,
+                        unit,
+                        params,
+                    ),
+                    UniformValue::Texture2DCompressed {
+                        descriptor,
+                        params,
+                        unit,
+                    } => (
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        self.texture_store_mut()
+                            .use_texture_2d_compressed(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -560,17 +571,6 @@ impl FrameState {
                     //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
                     //     self.texture_store_mut()
                     //         .use_texture_cube_map(&descriptor, *unit)?,
-                    //     unit,
-                    //     params,
-                    // ),
-                    // UniformValue::Texture2DCompressed {
-                    //     descriptor,
-                    //     params,
-                    //     unit,
-                    // } => (
-                    //     WebGl2RenderingContext::TEXTURE_2D,
-                    //     self.texture_store_mut()
-                    //         .use_texture_2d_compressed(&descriptor, *unit)?,
                     //     unit,
                     //     params,
                     // ),
