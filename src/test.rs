@@ -611,6 +611,12 @@ pub fn test_cube(
                     TextureInternalFormat::SRGB8_ALPHA8,
                 )
                 .generate_mipmap()
+                .set_texture_parameters([
+                    TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
+                    TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                    TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                    TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+                ])
                 .set_memory_policy(texture2d::MemoryPolicy::Restorable(Box::new(
                     move |builder| {
                         builder
@@ -627,12 +633,6 @@ pub fn test_cube(
                 )))
                 .build(),
             ),
-            params: vec![
-                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
-                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-            ],
             unit: TextureUnit::TEXTURE0,
         },
         Transparency::Opaque,
@@ -690,17 +690,23 @@ pub fn test_cube(
     let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
     floor.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2DCompressed {
-            descriptor: dds.texture_descriptor(true, true).unwrap(),
-            params: vec![
-                TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
-                    TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
-                } else {
-                    TextureMinificationFilter::LINEAR
-                }),
-                TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-            ],
+            descriptor: dds
+                .texture_descriptor(
+                    true,
+                    true,
+                    false,
+                    [
+                        TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
+                            TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
+                        } else {
+                            TextureMinificationFilter::LINEAR
+                        }),
+                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                        TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                        TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+                    ],
+                )
+                .unwrap(),
             unit: TextureUnit::TEXTURE0,
         },
         Transparency::Opaque,

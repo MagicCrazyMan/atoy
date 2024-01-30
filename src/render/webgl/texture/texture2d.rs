@@ -5,9 +5,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    Runtime, Texture, TextureDescriptor, TextureItem, TextureNativeFormat,
-    TextureCompressedFormat, TextureInternalFormat, TexturePlanar,
-    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
+    NativeFormat, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
+    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -25,6 +25,7 @@ pub struct Texture2D<F> {
     max_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
+    tex_params: Vec<TextureParameter>,
 
     mipmap_base: Option<(UploadItem, Option<usize>, Option<usize>)>,
 
@@ -36,7 +37,7 @@ pub struct Texture2D<F> {
 #[allow(private_bounds)]
 impl<F> Texture2D<F>
 where
-    F: TextureNativeFormat,
+    F: NativeFormat,
 {
     /// Returns [`TextureInternalFormat`].
     pub fn internal_format(&self) -> F {
@@ -117,10 +118,14 @@ impl Texture2D<TextureCompressedFormat> {
 
 impl<F> Texture for Texture2D<F>
 where
-    F: TextureNativeFormat,
+    F: NativeFormat,
 {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_2D
+    }
+
+    fn texture_parameters(&self) -> &[TextureParameter] {
+        &self.tex_params
     }
 
     fn max_available_mipmap_level(&self) -> usize {
@@ -155,7 +160,7 @@ where
 
 impl<F> TexturePlanar for Texture2D<F>
 where
-    F: TextureNativeFormat,
+    F: NativeFormat,
 {
     fn width(&self) -> usize {
         self.width
@@ -168,7 +173,7 @@ where
 
 impl<F> TextureItem for Texture2D<F>
 where
-    F: TextureNativeFormat,
+    F: NativeFormat,
 {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
@@ -191,7 +196,7 @@ where
         Ok(())
     }
 
-    fn create(&self, gl: &WebGl2RenderingContext, _: TextureUnit) -> Result<WebGlTexture, Error> {
+    fn create_texture(&self, gl: &WebGl2RenderingContext, _: TextureUnit) -> Result<WebGlTexture, Error> {
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         let bound = utils::texture_binding_2d(gl);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -314,6 +319,7 @@ pub struct Builder<F> {
     height: usize,
     max_level: usize,
     memory_policy: MemoryPolicy<F>,
+    tex_params: Vec<TextureParameter>,
 
     base_source: Option<UploadItem>,
     uploads: Vec<UploadItem>,
@@ -326,7 +332,7 @@ pub struct Builder<F> {
 #[allow(private_bounds)]
 impl<F> Builder<F>
 where
-    F: TextureNativeFormat,
+    F: NativeFormat,
 {
     /// Initializes a new builder with specified width, height and internal format.
     pub fn new(width: usize, height: usize, internal_format: F) -> Self {
@@ -336,6 +342,7 @@ where
             height,
             max_level: <Texture2D<F> as TexturePlanar>::max_available_mipmap_level(width, height),
             memory_policy: MemoryPolicy::Unfree,
+            tex_params: Vec::new(),
 
             base_source: None,
             uploads: Vec::new(),
@@ -346,8 +353,18 @@ where
         }
     }
 
+    /// Sets max mipmap level. Max mipmap level is clamped to [`Texture2D::max_available_mipmap_level`].
     pub fn set_max_level(mut self, max_level: usize) -> Self {
         self.max_level = self.max_level.min(max_level);
+        self
+    }
+
+    /// Sets [`TextureParameter`]s.
+    pub fn set_texture_parameters<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = TextureParameter>,
+    {
+        self.tex_params = params.into_iter().collect();
         self
     }
 
@@ -380,6 +397,7 @@ where
             max_level: self.max_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
+            tex_params: self.tex_params,
             mipmap_base,
             uploads,
             runtime: None,
@@ -399,8 +417,12 @@ impl Builder<TextureInternalFormat> {
             internal_format,
             width,
             height,
-            max_level: <Texture2D<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(width, height),
+            max_level:
+                <Texture2D<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
+                    width, height,
+                ),
             memory_policy: MemoryPolicy::Unfree,
+            tex_params: Vec::new(),
 
             base_source: Some(UploadItem::new_uncompressed(base_source)),
             uploads: Vec::new(),
@@ -502,8 +524,12 @@ impl Builder<TextureCompressedFormat> {
             internal_format,
             width,
             height,
-            max_level: <Texture2D<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(width, height),
+            max_level:
+                <Texture2D<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(
+                    width, height,
+                ),
             memory_policy: MemoryPolicy::Unfree,
+            tex_params: Vec::new(),
 
             base_source: Some(UploadItem::new_compressed(base_source)),
             uploads: Vec::new(),

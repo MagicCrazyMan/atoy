@@ -2,7 +2,7 @@ use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
     texture2d::{Builder, Texture2D},
-    TextureDescriptor, TextureCompressedFormat, TextureSourceCompressed,
+    TextureCompressedFormat, TextureDescriptor, TextureParameter, TextureSourceCompressed,
 };
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
@@ -195,13 +195,18 @@ impl DirectDrawSurface {
         })
     }
 
-    /// Tries to create a [`TextureDescriptor<Texture2DCompressed>`] from this DirectDraw Surface.
+    /// Tries to create a [`TextureDescriptor`] from this DirectDraw Surface.
     /// Returns `None` if unable to create a valid descriptor.
-    pub fn texture_descriptor(
+    pub fn texture_descriptor<I>(
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<TextureDescriptor<Texture2D<TextureCompressedFormat>>> {
+        read_mipmaps: bool,
+        tex_params: I,
+    ) -> Option<TextureDescriptor<Texture2D<TextureCompressedFormat>>>
+    where
+        I: IntoIterator<Item = TextureParameter>,
+    {
         let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
@@ -219,8 +224,9 @@ impl DirectDrawSurface {
                 let base_width = self.header.width as usize;
                 let base_height = self.header.height as usize;
                 let mut builder = Builder::new(base_width, base_height, internal_format);
+                builder = builder.set_texture_parameters(tex_params);
 
-                if self.header.ddsd_mipmap_count() {
+                if read_mipmaps && self.header.ddsd_mipmap_count() {
                     // reads mipmaps
                     let levels = self.header.mipmap_count as usize;
                     let mut offset = 128usize;

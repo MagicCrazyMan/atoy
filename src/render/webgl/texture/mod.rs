@@ -30,7 +30,7 @@ use web_sys::{
         Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
     },
     HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
-    WebGl2RenderingContext, WebGlBuffer, WebGlTexture,
+    WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
 use crate::lru::{Lru, LruNode};
@@ -288,7 +288,7 @@ impl TextureInternalFormat {
             TextureInternalFormat::RGB8UI => width * height * 3,
             TextureInternalFormat::SRGB8 => width * height * 3,
             TextureInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
-            TextureInternalFormat::RGB9_E5 => width * height * 4, // 9 + 9 + 9 + 5 in bits
+            TextureInternalFormat::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
             TextureInternalFormat::RG32F => width * height * 4,
             TextureInternalFormat::RG16F => width * height * 4,
             TextureInternalFormat::RG8_SNORM => width * height * 2,
@@ -429,22 +429,12 @@ impl TextureCompressedFormat {
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
-            TextureCompressedFormat::RGB_S3TC_DXT1 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::RGBA_S3TC_DXT1 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::RGBA_S3TC_DXT3 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
-            TextureCompressedFormat::RGBA_S3TC_DXT5 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::RGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::RGBA_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::RGBA_S3TC_DXT3 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureCompressedFormat::RGBA_S3TC_DXT5 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
             // for S3TC RGBA, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc_srgb/ for more details
-            TextureCompressedFormat::SRGB_S3TC_DXT1 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
+            TextureCompressedFormat::SRGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
             TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
@@ -456,24 +446,12 @@ impl TextureCompressedFormat {
             }
             // for ETC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/ for more details
             TextureCompressedFormat::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureCompressedFormat::SIGNED_R11_EAC => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::RG11_EAC => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
-            TextureCompressedFormat::SIGNED_RG11_EAC => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
-            TextureCompressedFormat::RGB8_ETC2 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::SRGB8_ETC2 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::RGBA8_ETC2_EAC => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::SIGNED_R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureCompressedFormat::SIGNED_RG11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
+            TextureCompressedFormat::RGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::SRGB8_ETC2 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::RGBA8_ETC2_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ETC2_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
@@ -484,80 +462,50 @@ impl TextureCompressedFormat {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
             // for PVRTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_pvrtc/ for more details
-            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG => {
-                width.max(16) * height.max(8) / 4
-            }
-            TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG => {
-                width.max(16) * height.max(8) / 4
-            }
-            TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG => {
-                width.max(8) * height.max(8) / 2
-            }
-            TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => {
-                width.max(8) * height.max(8) / 2
-            }
+            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
+            TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG => width.max(16) * height.max(8) / 4,
+            TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
+            TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => width.max(8) * height.max(8) / 2,
             // for ETC1, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc1/ for more details
-            TextureCompressedFormat::RGB_ETC1_WEBGL => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
+            TextureCompressedFormat::RGB_ETC1_WEBGL => ((width + 3) / 4) * ((height + 3) / 4) * 8,
             // for ASTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/ for more details
-            TextureCompressedFormat::RGBA_ASTC_4x4 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_4x4 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_4x4 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_5x4 => {
-                ((width + 4) / 5) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_5x4 => ((width + 4) / 5) * ((height + 3) / 4) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x4 => {
                 ((width + 4) / 5) * ((height + 3) / 4) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_5x5 => {
-                ((width + 4) / 5) * ((height + 4) / 5) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_5x5 => ((width + 4) / 5) * ((height + 4) / 5) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x5 => {
                 ((width + 4) / 5) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_6x5 => {
-                ((width + 5) / 6) * ((height + 4) / 5) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_6x5 => ((width + 5) / 6) * ((height + 4) / 5) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x5 => {
                 ((width + 5) / 6) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_6x6 => {
-                ((width + 5) / 6) * ((height + 5) / 6) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_6x6 => ((width + 5) / 6) * ((height + 5) / 6) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x6 => {
                 ((width + 5) / 6) * ((height + 5) / 6) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x5 => {
-                ((width + 7) / 8) * ((height + 4) / 5) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_8x5 => ((width + 7) / 8) * ((height + 4) / 5) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x5 => {
                 ((width + 7) / 8) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x6 => {
-                ((width + 7) / 8) * ((height + 5) / 6) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_8x6 => ((width + 7) / 8) * ((height + 5) / 6) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x6 => {
                 ((width + 7) / 8) * ((height + 5) / 6) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_8x8 => {
-                ((width + 7) / 8) * ((height + 7) / 8) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_8x8 => ((width + 7) / 8) * ((height + 7) / 8) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x8 => {
                 ((width + 7) / 8) * ((height + 7) / 8) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_10x5 => {
-                ((width + 9) / 10) * ((height + 4) / 5) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_10x5 => ((width + 9) / 10) * ((height + 4) / 5) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x5 => {
                 ((width + 9) / 10) * ((height + 4) / 5) * 16
             }
-            TextureCompressedFormat::RGBA_ASTC_10x6 => {
-                ((width + 9) / 10) * ((height + 5) / 6) * 16
-            }
+            TextureCompressedFormat::RGBA_ASTC_10x6 => ((width + 9) / 10) * ((height + 5) / 6) * 16,
             TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x6 => {
                 ((width + 9) / 10) * ((height + 5) / 6) * 16
             }
@@ -580,9 +528,7 @@ impl TextureCompressedFormat {
                 ((width + 11) / 12) * ((height + 11) / 12) * 16
             }
             // for BPTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_bptc/ for more details
-            TextureCompressedFormat::RGBA_BPTC_UNORM => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::RGBA_BPTC_UNORM => ((width + 3) / 4) * ((height + 3) / 4) * 16,
             TextureCompressedFormat::SRGB_ALPHA_BPTC_UNORM => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
@@ -593,15 +539,9 @@ impl TextureCompressedFormat {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for RGTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_rgtc/ for more details
-            TextureCompressedFormat::RED_RGTC1 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::SIGNED_RED_RGTC1 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 8
-            }
-            TextureCompressedFormat::RED_GREEN_RGTC2 => {
-                ((width + 3) / 4) * ((height + 3) / 4) * 16
-            }
+            TextureCompressedFormat::RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::SIGNED_RED_RGTC1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::RED_GREEN_RGTC2 => ((width + 3) / 4) * ((height + 3) / 4) * 16,
             TextureCompressedFormat::SIGNED_RED_GREEN_RGTC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
@@ -726,13 +666,15 @@ pub enum TextureParameter {
     MIN_LOD(f32),
 }
 
-trait TextureNativeFormat: ToGlEnum + Copy {
+/// WebGL native formats of a texture, including [`TextureInternalFormat`] and [`TextureCompressedFormat`].
+/// Different native formats have different memory layout in GPU.
+trait NativeFormat: ToGlEnum + Copy {
     fn bytes_length(&self, width: usize, height: usize) -> usize;
 
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error>;
 }
 
-impl TextureNativeFormat for TextureInternalFormat {
+impl NativeFormat for TextureInternalFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -743,7 +685,7 @@ impl TextureNativeFormat for TextureInternalFormat {
     }
 }
 
-impl TextureNativeFormat for TextureCompressedFormat {
+impl NativeFormat for TextureCompressedFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -1568,6 +1510,9 @@ pub trait Texture {
     /// Returns [`TextureTarget`].
     fn target(&self) -> TextureTarget;
 
+    /// Returns a list of [`TextureParameter`]s.
+    fn texture_parameters(&self) -> &[TextureParameter];
+
     /// Calculates max available mipmap level under a specified size in Rounding Down mode.
     fn max_available_mipmap_level(&self) -> usize;
 
@@ -1674,8 +1619,46 @@ trait TextureItem: Texture {
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error>;
 
     /// Creates ans returns a [`WebGlTexture`].
-    fn create(&self, gl: &WebGl2RenderingContext, unit: TextureUnit)
-        -> Result<WebGlTexture, Error>;
+    fn create_texture(
+        &self,
+        gl: &WebGl2RenderingContext,
+        unit: TextureUnit,
+    ) -> Result<WebGlTexture, Error>;
+
+    /// Creates a [`WebGlSampler`] by texture parameters from [`Texture::texture_parameters`].
+    fn create_sampler(&self, gl: &WebGl2RenderingContext) -> Result<WebGlSampler, Error> {
+        let sampler = gl
+            .create_sampler()
+            .ok_or_else(|| Error::CreateSamplerFailure)?;
+        self.texture_parameters()
+            .into_iter()
+            .for_each(|param| match param {
+                TextureParameter::MAG_FILTER(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
+                }
+                TextureParameter::MIN_FILTER(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
+                }
+                TextureParameter::WRAP_S(v)
+                | TextureParameter::WRAP_T(v)
+                | TextureParameter::WRAP_R(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
+                }
+                TextureParameter::COMPARE_FUNC(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
+                }
+                TextureParameter::COMPARE_MODE(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
+                }
+                TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => {
+                    gl.sampler_parameteri(&sampler, param.gl_enum(), *v)
+                }
+                TextureParameter::MAX_LOD(v) | TextureParameter::MIN_LOD(v) => {
+                    gl.sampler_parameterf(&sampler, param.gl_enum(), *v)
+                }
+            });
+        Ok(sampler)
+    }
 
     /// Uploads data to [`WebGlTexture`].
     /// In this stage, [`Texture::runtime`] is created already, it's safe to unwrap it and use fields inside.
@@ -1879,6 +1862,7 @@ struct Runtime {
     gl: WebGl2RenderingContext,
     store_id: Uuid,
     texture: WebGlTexture,
+    sampler: WebGlSampler,
     bytes_length: usize,
     lru_node: *mut LruNode<Uuid>,
     using: bool,
@@ -1894,6 +1878,7 @@ impl Drop for Runtime {
             (*self.textures).remove(&self.id);
             (*self.lru).remove(self.lru_node);
             (*self.used_memory) -= self.bytes_length;
+            self.gl.delete_sampler(Some(&self.sampler));
             self.gl.delete_texture(Some(&self.texture));
         }
     }
@@ -2004,14 +1989,14 @@ impl TextureStore {
         &mut self,
         descriptor: &TextureDescriptor<T>,
         unit: TextureUnit,
-    ) -> Result<WebGlTexture, Error>
+    ) -> Result<(WebGlTexture, WebGlSampler), Error>
     where
         T: TextureItem + 'static,
     {
-        let texture = unsafe {
+        let (texture, sampler) = unsafe {
             let mut t = descriptor.texture_mut();
 
-            let texture = match t.runtime_mut() {
+            let (texture, sampler) = match t.runtime_mut() {
                 Some(runtime) => {
                     if runtime.store_id != self.id {
                         panic!("share texture descriptor between texture store is not allowed");
@@ -2020,11 +2005,12 @@ impl TextureStore {
                     runtime.using = true;
                     (*self.lru).cache(runtime.lru_node);
 
-                    runtime.texture.clone()
+                    (runtime.texture.clone(), runtime.sampler.clone())
                 }
                 None => {
                     t.validate(&self.capabilities)?;
-                    let texture = t.create(&self.gl, unit)?;
+                    let texture = t.create_texture(&self.gl, unit)?;
+                    let sampler = t.create_sampler(&self.gl)?;
 
                     let id = Uuid::new_v4();
                     let lru_node = LruNode::new(id);
@@ -2040,6 +2026,7 @@ impl TextureStore {
                         gl: self.gl.clone(),
                         store_id: self.id,
                         texture: texture.clone(),
+                        sampler: sampler.clone(),
                         bytes_length,
                         lru_node,
                         using: true,
@@ -2055,16 +2042,16 @@ impl TextureStore {
                         id,
                     );
 
-                    texture
+                    (texture, sampler)
                 }
             };
 
             t.upload(unit)?;
-            texture
+            (texture, sampler)
         };
 
         self.free();
-        Ok(texture)
+        Ok((texture, sampler))
     }
 
     #[allow(private_bounds)]
@@ -2078,6 +2065,7 @@ impl TextureStore {
             let bound = utils::active_texture_unit(&self.gl);
             self.gl.active_texture(unit.gl_enum());
             self.gl.bind_texture(target, None);
+            self.gl.bind_sampler(unit.unit_index() as u32, None);
             self.gl.active_texture(bound);
             runtime.using = false;
         }

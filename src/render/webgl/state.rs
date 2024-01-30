@@ -27,8 +27,8 @@ use super::{
     },
     program::{Program, ProgramStore},
     texture::{
-        texture2d::Texture2D, TextureDescriptor, TextureCompressedFormat,
-        TextureInternalFormat, TextureParameter, TextureStore, TextureUnit,
+        texture2d::Texture2D, TextureCompressedFormat, TextureDescriptor, TextureInternalFormat,
+        TextureStore, TextureUnit,
     },
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
@@ -593,94 +593,72 @@ impl FrameState {
             | UniformValue::Texture2DArrayCompressed { .. }
             | UniformValue::TextureCubeMap { .. }
             | UniformValue::TextureCubeMapCompressed { .. } => {
-                let (kind, target, texture, unit, params) = match value {
-                    UniformValue::Texture2D {
-                        descriptor,
-                        unit,
-                        params,
-                    } => (
+                let (kind, target, (texture, sampler), unit) = match value {
+                    UniformValue::Texture2D { descriptor, unit } => (
                         TextureKind::Texture2D(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut().use_texture(descriptor, *unit)?,
                         unit,
-                        params,
                     ),
-                    UniformValue::Texture2DCompressed {
-                        descriptor,
-                        params,
-                        unit,
-                    } => (
+                    UniformValue::Texture2DCompressed { descriptor, unit } => (
                         TextureKind::Texture2DCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
                         self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
-                        params,
                     ),
                     // UniformValue::Texture3D {
                     //     descriptor,
                     //     unit,
-                    //     params,
                     // } => (
                     //     TextureKind::Texture3D(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_3D,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     // UniformValue::Texture3DCompressed {
                     //     descriptor,
                     //     unit,
-                    //     params,
                     // } => (
                     //     TextureKind::Texture3DCompressed(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_3D,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     // UniformValue::Texture2DArray {
                     //     descriptor,
                     //     unit,
-                    //     params,
                     // } => (
                     //     TextureKind::Texture2DArray(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     // UniformValue::Texture2DArrayCompressed {
                     //     descriptor,
                     //     unit,
-                    //     params,
                     // } => (
                     //     TextureKind::Texture2DArrayCompressed(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     // UniformValue::TextureCubeMap {
                     //     descriptor,
-                    //     params,
                     //     unit,
                     // } => (
                     //     TextureKind::TextureCubeMap(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     // UniformValue::TextureCubeMapCompressed {
                     //     descriptor,
-                    //     params,
                     //     unit,
                     // } => (
                     //     TextureKind::TextureCubeMapCompressed(descriptor.clone()),
                     //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
                     //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
                     //     unit,
-                    //     params,
                     // ),
                     _ => unreachable!(),
                 };
@@ -688,36 +666,7 @@ impl FrameState {
                 self.gl.uniform1i(Some(location), unit.unit_index() as i32);
                 self.gl.active_texture(unit.gl_enum());
                 self.gl.bind_texture(target, Some(&texture));
-                params.iter().for_each(|param| match param {
-                    TextureParameter::MAG_FILTER(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::MIN_FILTER(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::WRAP_S(v)
-                    | TextureParameter::WRAP_T(v)
-                    | TextureParameter::WRAP_R(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::COMPARE_FUNC(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::COMPARE_MODE(v) => {
-                        self.gl
-                            .tex_parameteri(target, param.gl_enum(), v.gl_enum() as i32)
-                    }
-                    TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => {
-                        self.gl.tex_parameteri(target, param.gl_enum(), *v)
-                    }
-                    TextureParameter::MAX_LOD(v) | TextureParameter::MIN_LOD(v) => {
-                        self.gl.tex_parameterf(target, param.gl_enum(), *v)
-                    }
-                });
+                self.gl.bind_sampler(unit.unit_index() as u32, Some(&sampler));
 
                 Some(BoundUniform { unit: *unit, kind })
             }
@@ -742,25 +691,24 @@ impl FrameState {
                 }
                 TextureKind::Texture2DCompressed(descriptor) => {
                     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                }
-                // TextureKind::Texture2DArray(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
-                // TextureKind::Texture2DArrayCompressed(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
-                // TextureKind::Texture3D(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
-                // TextureKind::Texture3DCompressed(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
-                // TextureKind::TextureCubeMap(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
-                // TextureKind::TextureCubeMapCompressed(descriptor) => {
-                //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                // }
+                } // TextureKind::Texture2DArray(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
+                  // TextureKind::Texture2DArrayCompressed(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
+                  // TextureKind::Texture3D(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
+                  // TextureKind::Texture3DCompressed(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
+                  // TextureKind::TextureCubeMap(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
+                  // TextureKind::TextureCubeMapCompressed(descriptor) => {
+                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
+                  // }
             }
         }
     }

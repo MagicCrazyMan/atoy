@@ -11,6 +11,7 @@ pub enum Error {
     CreateFramebufferFailure,
     CreateRenderbufferFailure,
     CreateTextureFailure,
+    CreateSamplerFailure,
     CreateVertexShaderFailure,
     CreateFragmentShaderFailure,
     CreateFenceSyncFailure,
