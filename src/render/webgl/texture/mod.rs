@@ -16,7 +16,7 @@ pub mod texture_cubemap;
 pub mod texture_cubemap_compressed;
 
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell, RefMut},
     fmt::Debug,
     rc::{Rc, Weak},
 };
@@ -36,11 +36,16 @@ use web_sys::{
 use crate::lru::{Lru, LruNode};
 
 use self::{
-    texture2d::Texture2D, texture2d_compressed::Texture2DCompressed, texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed, texture3d::Texture3D, texture3d_compressed::Texture3DCompressed, texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed
+    texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
+    texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
+    texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
+    texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed,
 };
 
 use super::{
-    capabilities::Capabilities, conversion::ToGlEnum, error::Error,
+    capabilities::Capabilities,
+    conversion::ToGlEnum,
+    error::Error,
     utils::{self, pixel_unpack_buffer_binding},
 };
 
@@ -1179,7 +1184,7 @@ macro_rules! texture_sources_compressed {
 
         impl TextureSourceCompressed {
             /// Returns the compressed format of the texture source.
-            pub fn compressed_format(&self) -> TextureCompressedFormat {
+            fn compressed_format(&self) -> TextureCompressedFormat {
                 match self {
                     TextureSourceCompressed::Function { compressed_format, .. } => *compressed_format,
                     TextureSourceCompressed::PixelBufferObject { compressed_format, .. } => *compressed_format,
@@ -1660,6 +1665,42 @@ where
     }
 }
 
+trait Texture {
+    /// Returns [`TextureTarget`].
+    fn target(&self) -> TextureTarget;
+
+    /// Returns bytes length of the whole texture in all levels.
+    fn bytes_length(&self) -> usize;
+
+    /// Returns [`Runtime`].
+    fn runtime(&self) -> Option<&Runtime>;
+
+    /// Returns mutable [`Runtime`].
+    fn runtime_mut(&mut self) -> Option<&mut Runtime>;
+
+    /// Sets [`Runtime`].
+    fn set_runtime(&mut self, runtime: Runtime);
+
+    /// Removes [`Runtime`].
+    fn remove_runtime(&mut self) -> Option<Runtime>;
+
+    /// Validates.
+    fn validate(&self, capabilities: &Capabilities) -> Result<(), Error>;
+
+    /// Creates ans returns a [`WebGlTexture`].
+    fn create(&self, gl: &WebGl2RenderingContext, unit: TextureUnit)
+        -> Result<WebGlTexture, Error>;
+
+    /// Uploads data to [`WebGlTexture`].
+    /// In this stage, [`Texture::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    fn upload(&mut self, unit: TextureUnit) -> Result<(), Error>;
+
+    /// Applies memory free behavior.
+    /// Returns `true` if this texture is released.
+    /// In this stage, [`Texture::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    fn free(&mut self) -> bool;
+}
+
 struct Runtime {
     id: Uuid,
     gl: WebGl2RenderingContext,
@@ -1670,7 +1711,7 @@ struct Runtime {
     using: bool,
 
     used_memory: *mut usize,
-    textures: *mut HashMap<Uuid, TextureKind>,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn Texture>>>,
     lru: *mut Lru<Uuid>,
 }
 
@@ -1682,15 +1723,16 @@ impl<T> Clone for TextureDescriptor<T> {
     }
 }
 
-enum TextureKind {
-    Texture2D(Weak<RefCell<Texture2D>>),
-    Texture2DCompressed(Weak<RefCell<Texture2DCompressed>>),
-    Texture2DArray(Weak<RefCell<Texture2DArray>>),
-    Texture2DArrayCompressed(Weak<RefCell<Texture2DArrayCompressed>>),
-    Texture3D(Weak<RefCell<Texture3D>>),
-    Texture3DCompressed(Weak<RefCell<Texture3DCompressed>>),
-    TextureCubeMap(Weak<RefCell<TextureCubeMap>>),
-    TextureCubeMapCompressed(Weak<RefCell<TextureCubeMapCompressed>>),
+impl<T> TextureDescriptor<T> {
+    /// Returns [`Texture`] associated with this descriptor.
+    pub fn texture(&self) -> Ref<'_, T> {
+        self.0.borrow()
+    }
+
+    /// Returns mutable [`Texture`] associated with this descriptor.
+    pub fn texture_mut(&self) -> RefMut<'_, T> {
+        self.0.borrow_mut()
+    }
 }
 
 pub struct TextureStore {
@@ -1700,7 +1742,7 @@ pub struct TextureStore {
     available_memory: usize,
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
-    textures: *mut HashMap<Uuid, TextureKind>,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn Texture>>>,
 }
 
 impl TextureStore {
@@ -1723,241 +1765,150 @@ impl TextureStore {
             lru: Box::leak(Box::new(Lru::new())),
         }
     }
-}
 
-macro_rules! impl_texture_store {
-    ($((
-        $texture:tt,
-        $target:expr,
-        $kind:ident,
-        $use_func: ident,
-        $unuse_func:ident
-    ))+) => {
-        impl TextureStore {
-            $(
-                pub fn $use_func(
-                    &mut self,
-                    descriptor: &TextureDescriptor<$texture>,
-                    unit: TextureUnit,
-                ) -> Result<WebGlTexture, Error> {
-                    let texture = unsafe {
-                        let mut t = descriptor.texture_mut();
-
-                        let texture = match t.runtime.as_mut() {
-                            Some(runtime) => {
-                                if runtime.store_id != self.id {
-                                    panic!("share texture descriptor between texture store is not allowed");
-                                }
-
-                                runtime.using = true;
-                                (*self.lru).cache(runtime.lru_node);
-
-                                runtime.texture.clone()
-                            }
-                            None => {
-                                let texture = t.create_texture(&self.gl, &self.capabilities)?;
-
-                                let id = Uuid::new_v4();
-                                let lru_node = LruNode::new(id);
-                                let bytes_length = t.bytes_length();
-                                (*self.textures).insert(id, TextureKind::$kind(Rc::downgrade(&descriptor.0)));
-                                (*self.lru).cache(lru_node);
-                                (*self.used_memory) += bytes_length;
-                                t.runtime = Some(Box::new(Runtime {
-                                    id,
-                                    gl: self.gl.clone(),
-                                    store_id: self.id,
-                                    texture: texture.clone(),
-                                    bytes_length,
-                                    lru_node,
-                                    using: true,
-
-                                    used_memory: self.used_memory,
-                                    textures: self.textures,
-                                    lru: self.lru,
-                                }));
-
-                                debug!(
-                                    target: "TextureBuffer",
-                                    "create new texture for {}",
-                                    id,
-                                );
-
-                                texture
-                            }
-                        };
-
-                        t.tex(unit)?;
-                        texture
-                    };
-
-                    self.free();
-                    Ok(texture)
+    fn free(&mut self) {
+        unsafe {
+            if *self.used_memory <= self.available_memory {
+                return;
+            }
+            let mut next_node = (*self.lru).least_recently();
+            while *self.used_memory > self.available_memory {
+                let Some(current_node) = next_node.take() else {
+                    break;
+                };
+                let id = (*current_node).data();
+                let Entry::Occupied(occupied) = (*self.textures).entry(*id) else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+                let t = occupied.get();
+                let Some(t) = t.upgrade() else {
+                    occupied.remove();
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+                let mut t = t.borrow_mut();
+                let runtime = t.runtime().unwrap();
+                // skips if using
+                if runtime.using {
+                    next_node = (*current_node).more_recently();
+                    continue;
                 }
-
-                pub fn $unuse_func(
-                    &mut self,
-                    descriptor: &TextureDescriptor<$texture>,
-                    unit: TextureUnit,
-                ) {
-                    let mut inner = descriptor.0.borrow_mut();
-
-                    if let Some(runtime) = inner.runtime.as_mut() {
-                        let bound = utils::active_texture_unit(&self.gl);
-                        self.gl.active_texture(unit.gl_enum());
-                        self.gl.bind_texture($target, None);
-                        self.gl.active_texture(bound);
-                        runtime.using = false;
-                    }
+                // let texture takes free procedure itself.
+                if t.free() {
+                    let t = occupied.remove();
+                    let t = t.upgrade().unwrap();
+                    let mut t = t.borrow_mut();
+                    let runtime = t.remove_runtime().unwrap();
+                    // reduces used memory
+                    (*self.used_memory) -= runtime.bytes_length;
+                    // removes LRU
+                    (*self.lru).remove(runtime.lru_node);
                 }
-            )+
-
-            fn free(&mut self) {
-                unsafe {
-                    if *self.used_memory <= self.available_memory {
-                        return;
-                    }
-
-                    let mut next_node = (*self.lru).least_recently();
-                    while *self.used_memory > self.available_memory {
-                        let Some(current_node) = next_node.take() else {
-                            break;
-                        };
-                        let id = (*current_node).data();
-                        let Entry::Occupied(occupied) = (*self.textures).entry(*id) else {
-                            next_node = (*current_node).more_recently();
-                            continue;
-                        };
-                        let mut kind = occupied.get();
-
-                        let released = match &mut kind {
-                            $(
-                                TextureKind::$kind(texture) => {
-                                    let Some(texture) = texture.upgrade() else {
-                                        occupied.remove();
-                                        next_node = (*current_node).more_recently();
-                                        continue;
-                                    };
-                                    let mut texture = texture.borrow_mut();
-                                    let runtime = texture.runtime.as_deref_mut().unwrap();
-
-                                    // skips if using
-                                    if runtime.using {
-                                        next_node = (*current_node).more_recently();
-                                        continue;
-                                    }
-
-                                    // let texture takes free procedure itself.
-                                    texture.free()
-                                },
-                            )+
-                        };
-
-                        if released {
-                            let kind = occupied.remove();
-                            let runtime = match kind {
-                                $(
-                                    TextureKind::$kind(texture) => {
-                                        let texture = texture.upgrade().unwrap();
-                                        let mut texture = texture.borrow_mut();
-                                        texture.runtime.take().unwrap()
-                                    },
-                                )+
-                            };
-                            // reduces used memory
-                            (*self.used_memory) -= runtime.bytes_length;
-                            // removes LRU
-                            (*self.lru).remove(runtime.lru_node);
-                        }
-
-                        next_node = (*current_node).more_recently();
-                    }
-                }
+                next_node = (*current_node).more_recently();
             }
         }
+    }
 
-        impl Drop for TextureStore {
-            fn drop(&mut self) {
-                unsafe {
-                    for (_, kind) in (*self.textures).iter_mut() {
-                        let runtime = match kind {
-                            $(
-                                TextureKind::$kind(texture) => texture
-                                .upgrade()
-                                .and_then(|t| t.borrow_mut().runtime.take()),
-                            )+
-                        };
-                        let Some(runtime) = runtime else {
-                            continue;
-                        };
+    #[allow(private_bounds)]
+    pub fn use_texture<T>(
+        &mut self,
+        descriptor: &TextureDescriptor<T>,
+        unit: TextureUnit,
+    ) -> Result<WebGlTexture, Error>
+    where
+        T: Texture + 'static,
+    {
+        let texture = unsafe {
+            let mut t = descriptor.texture_mut();
 
-                        self.gl.delete_texture(Some(&runtime.texture));
-                        // store dropped, no need to update LRU anymore
+            let texture = match t.runtime_mut() {
+                Some(runtime) => {
+                    if runtime.store_id != self.id {
+                        panic!("share texture descriptor between texture store is not allowed");
                     }
-                    drop(Box::from_raw(self.textures));
-                    drop(Box::from_raw(self.used_memory));
-                    drop(Box::from_raw(self.lru));
+
+                    runtime.using = true;
+                    (*self.lru).cache(runtime.lru_node);
+
+                    runtime.texture.clone()
                 }
-            }
+                None => {
+                    t.validate(&self.capabilities)?;
+                    let texture = t.create(&self.gl, unit)?;
+
+                    let id = Uuid::new_v4();
+                    let lru_node = LruNode::new(id);
+                    let bytes_length = t.bytes_length();
+                    (*self.textures).insert(
+                        id,
+                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn Texture>>,
+                    );
+                    (*self.lru).cache(lru_node);
+                    (*self.used_memory) += bytes_length;
+                    t.set_runtime(Runtime {
+                        id,
+                        gl: self.gl.clone(),
+                        store_id: self.id,
+                        texture: texture.clone(),
+                        bytes_length,
+                        lru_node,
+                        using: true,
+
+                        used_memory: self.used_memory,
+                        textures: self.textures,
+                        lru: self.lru,
+                    });
+
+                    debug!(
+                        target: "TextureBuffer",
+                        "create new texture for {}",
+                        id,
+                    );
+
+                    texture
+                }
+            };
+
+            t.upload(unit)?;
+            texture
+        };
+
+        self.free();
+        Ok(texture)
+    }
+
+    #[allow(private_bounds)]
+    pub fn unuse_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
+    where
+        T: Texture + 'static,
+    {
+        let mut t = descriptor.texture_mut();
+        let target = t.target().gl_enum();
+        if let Some(runtime) = t.runtime_mut() {
+            let bound = utils::active_texture_unit(&self.gl);
+            self.gl.active_texture(unit.gl_enum());
+            self.gl.bind_texture(target, None);
+            self.gl.active_texture(bound);
+            runtime.using = false;
         }
-    };
+    }
 }
 
-impl_texture_store! {
-    (
-        Texture2D,
-        WebGl2RenderingContext::TEXTURE_2D,
-        Texture2D,
-        use_texture_2d,
-        unuse_texture_2d
-    )
-    (
-        Texture2DCompressed,
-        WebGl2RenderingContext::TEXTURE_2D,
-        Texture2DCompressed,
-        use_texture_2d_compressed,
-        unuse_texture_2d_compressed
-    )
-    (
-        Texture3D,
-        WebGl2RenderingContext::TEXTURE_3D,
-        Texture3D,
-        use_texture_3d,
-        unuse_texture_3d
-    )
-    (
-        Texture3DCompressed,
-        WebGl2RenderingContext::TEXTURE_3D,
-        Texture3DCompressed,
-        use_texture_3d_compressed,
-        unuse_texture_3d_compressed
-    )
-    (
-        Texture2DArray,
-        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-        Texture2DArray,
-        use_texture_2d_array,
-        unuse_texture_2d_array
-    )
-    (
-        Texture2DArrayCompressed,
-        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-        Texture2DArrayCompressed,
-        use_texture_2d_array_compressed,
-        unuse_texture_2d_array_compressed
-    )
-    (
-        TextureCubeMap,
-        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-        TextureCubeMap,
-        use_texture_cube_map,
-        unuse_texture_cube_map
-    )
-    (
-        TextureCubeMapCompressed,
-        WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-        TextureCubeMapCompressed,
-        use_texture_cube_map_compressed,
-        unuse_texture_cube_map_compressed
-    )
+impl Drop for TextureStore {
+    fn drop(&mut self) {
+        unsafe {
+            for (_, t) in (*self.textures).iter_mut() {
+                let runtime = t.upgrade().and_then(|t| t.borrow_mut().remove_runtime());
+                let Some(runtime) = runtime else {
+                    continue;
+                };
+                self.gl.delete_texture(Some(&runtime.texture));
+                // store dropped, no need to update LRU anymore
+            }
+            drop(Box::from_raw(self.textures));
+            drop(Box::from_raw(self.used_memory));
+            drop(Box::from_raw(self.lru));
+        }
+    }
 }

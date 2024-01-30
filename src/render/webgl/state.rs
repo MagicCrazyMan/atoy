@@ -604,7 +604,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture2D(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut().use_texture_2d(descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -615,8 +615,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture2DCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut()
-                            .use_texture_2d_compressed(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -627,8 +626,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture3D(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_3D,
-                        self.texture_store_mut()
-                            .use_texture_3d(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -639,8 +637,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture3DCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_3D,
-                        self.texture_store_mut()
-                            .use_texture_3d_compressed(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -651,8 +648,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture2DArray(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                        self.texture_store_mut()
-                            .use_texture_2d_array(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -663,8 +659,7 @@ impl FrameState {
                     } => (
                         TextureKind::Texture2DArrayCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                        self.texture_store_mut()
-                            .use_texture_2d_array_compressed(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -675,8 +670,7 @@ impl FrameState {
                     } => (
                         TextureKind::TextureCubeMap(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                        self.texture_store_mut()
-                            .use_texture_cube_map(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -687,8 +681,7 @@ impl FrameState {
                     } => (
                         TextureKind::TextureCubeMapCompressed(descriptor.clone()),
                         WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                        self.texture_store_mut()
-                            .use_texture_cube_map_compressed(&descriptor, *unit)?,
+                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
                         unit,
                         params,
                     ),
@@ -748,34 +741,28 @@ impl FrameState {
         {
             match texture {
                 TextureKind::Texture2D(descriptor) => {
-                    self.texture_store_mut().unuse_texture_2d(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::Texture2DCompressed(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_2d_compressed(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::Texture2DArray(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_2d_array(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::Texture2DArrayCompressed(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_2d_array_compressed(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::Texture3D(descriptor) => {
-                    self.texture_store_mut().unuse_texture_3d(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::Texture3DCompressed(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_3d_compressed(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::TextureCubeMap(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_cube_map(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
                 TextureKind::TextureCubeMapCompressed(descriptor) => {
-                    self.texture_store_mut()
-                        .unuse_texture_cube_map_compressed(&descriptor, unit);
+                    self.texture_store_mut().unuse_texture(&descriptor, unit);
                 }
             }
         }

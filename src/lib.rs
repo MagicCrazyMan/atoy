@@ -95,3 +95,26 @@ fn init_logger(level: log::LevelFilter) {
         INITIALIZED = true;
     }
 }
+
+trait C {
+
+}
+
+struct B;
+
+impl C for B {
+    
+}
+
+struct A(std::rc::Rc<std::cell::RefCell<B>>);
+
+struct D {
+    a: Vec<std::rc::Weak<std::cell::RefCell<dyn C>>>
+}
+
+impl D {
+    fn add(&mut self, a: A) {
+        let b = std::rc::Rc::downgrade(&a.0) as std::rc::Weak<std::cell::RefCell<dyn C>>;
+        self.a.push(b);
+    }
+}

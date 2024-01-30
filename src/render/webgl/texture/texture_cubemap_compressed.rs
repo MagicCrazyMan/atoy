@@ -8,8 +8,8 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, TextureCompressedFormat, TextureDescriptor, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
+    max_available_mipmap_level, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Cube map faces.
@@ -180,18 +180,6 @@ impl TextureCubeMapCompressed {
         Some((self.height >> level).max(1))
     }
 
-    /// Returns bytes length the whole texture in all levels.
-    pub fn bytes_length(&self) -> usize {
-        // estimates used memory of all levels
-        let mut used_memory = 0;
-        for level in 0..=self.max_level().unwrap_or(0) {
-            let width = self.width_of_level(level).unwrap();
-            let height = self.height_of_level(level).unwrap();
-            used_memory += self.internal_format.bytes_length(width, height) * 6;
-        }
-        used_memory
-    }
-
     /// Returns bytes length of a mipmap level.
     pub fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
         let Some(width) = self.width_of_level(level) else {
@@ -238,15 +226,49 @@ impl TextureCubeMapCompressed {
         ));
         Ok(())
     }
+}
 
-    /// Creates [`WebGlTexture`] for texture cube map.
-    pub(super) fn create_texture(
+impl Texture for TextureCubeMapCompressed {
+    fn target(&self) -> TextureTarget {
+        TextureTarget::TEXTURE_CUBE_MAP
+    }
+
+    fn bytes_length(&self) -> usize {
+        let mut used_memory = 0;
+        for level in 0..=self.max_level().unwrap_or(0) {
+            let width = self.width_of_level(level).unwrap();
+            let height = self.height_of_level(level).unwrap();
+            used_memory += self.internal_format.bytes_length(width, height) * 6;
+        }
+        used_memory
+    }
+
+    fn runtime(&self) -> Option<&Runtime> {
+        self.runtime.as_deref()
+    }
+
+    fn runtime_mut(&mut self) -> Option<&mut Runtime> {
+        self.runtime.as_deref_mut()
+    }
+
+    fn set_runtime(&mut self, runtime: Runtime) {
+        self.runtime = Some(Box::new(runtime));
+    }
+
+    fn remove_runtime(&mut self) -> Option<Runtime> {
+        self.runtime.take().map(|runtime| *runtime)
+    }
+
+    fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        capabilities.verify_compressed_format(self.internal_format)?;
+        Ok(())
+    }
+
+    fn create(
         &self,
         gl: &WebGl2RenderingContext,
-        capabilities: &Capabilities,
+        unit: TextureUnit,
     ) -> Result<WebGlTexture, Error> {
-        capabilities.verify_compressed_format(self.internal_format)?;
-
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         let bound = utils::texture_binding_cube_map(gl);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, Some(&texture));
@@ -261,9 +283,7 @@ impl TextureCubeMapCompressed {
         Ok(texture)
     }
 
-    /// Uploads data to WebGL.
-    /// In this stage, [`TextureCubeMapCompressed::runtime`] is created already, it's safe to unwrap it and use fields inside.
-    pub(super) fn tex(&mut self, unit: TextureUnit) -> Result<(), Error> {
+    fn upload(&mut self, unit: TextureUnit) -> Result<(), Error> {
         if self.faces.iter().map(|face| face.len()).sum::<usize>() == 0 {
             return Ok(());
         }
@@ -288,16 +308,15 @@ impl TextureCubeMapCompressed {
         }
 
         runtime.gl.active_texture(bound_unit);
-        runtime
-            .gl
-            .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, bound_texture.as_ref());
+        runtime.gl.bind_texture(
+            WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+            bound_texture.as_ref(),
+        );
 
         Ok(())
     }
 
-    /// Applies memory free behavior.
-    /// Returns `true` if this texture is released.
-    pub(super) fn free(&mut self) -> bool {
+    fn free(&mut self) -> bool {
         match &mut self.memory_policy {
             MemoryPolicy::Unfree => false,
             MemoryPolicy::Restorable(restore) => {
@@ -421,15 +440,5 @@ impl TextureDescriptor<TextureCubeMapCompressed> {
         };
 
         Self(Rc::new(RefCell::new(texture)))
-    }
-
-    /// Returns [`TextureCubeMapCompressed`] associated with this descriptor.
-    pub fn texture(&self) -> Ref<'_, TextureCubeMapCompressed> {
-        self.0.borrow()
-    }
-
-    /// Returns mutable [`TextureCubeMapCompressed`] associated with this descriptor.
-    pub fn texture_mut(&self) -> RefMut<'_, TextureCubeMapCompressed> {
-        self.0.borrow_mut()
     }
 }
