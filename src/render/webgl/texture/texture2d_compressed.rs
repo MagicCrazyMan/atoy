@@ -8,9 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
-    TextureInner, TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget,
-    TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDescriptor, TextureInner, TextureInternalFormatCompressed,
+    TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit,
+    TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -20,7 +20,7 @@ pub enum ConstructionPolicy {
     /// Under this policy, the size of the base texture source uses as the size of texture in level 0.
     /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
     Simple {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         base: TextureSourceCompressed,
     },
     /// Preallocates a texture only without uploading any image data.
@@ -32,7 +32,7 @@ pub enum ConstructionPolicy {
     ///     - If `max_level` is `0`, no mipmaps are allowed.
     ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, 1))))`.
     Preallocate {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -42,7 +42,7 @@ pub enum ConstructionPolicy {
     /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
     /// - Required `uploads` defines texture source for uploading in each level.
     Full {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -68,7 +68,7 @@ pub struct Texture2DCompressed {
     width: usize,
     height: usize,
     max_level: Option<usize>,
-    internal_format: TextureCompressedFormat,
+    internal_format: TextureInternalFormatCompressed,
     memory_policy: MemoryPolicy,
     uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 
@@ -89,8 +89,8 @@ impl Drop for Texture2DCompressed {
 }
 
 impl Texture2DCompressed {
-    /// Returns [`TextureCompressedFormat`].
-    pub fn internal_format(&self) -> TextureCompressedFormat {
+    /// Returns [`TextureInternalFormatCompressed`].
+    pub fn internal_format(&self) -> TextureInternalFormatCompressed {
         self.internal_format
     }
 
@@ -138,6 +138,10 @@ impl Texture2DCompressed {
 impl Texture for Texture2DCompressed {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_2D
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
     fn max_level(&self) -> Option<usize> {
@@ -271,7 +275,11 @@ impl TextureDescriptor<Texture2DCompressed> {
                 Texture2DCompressed {
                     width,
                     height,
-                    max_level: Some(max_available_mipmap_level(width, height)),
+                    max_level: Some(
+                        <Texture2DCompressed as TexturePlanar>::max_available_mipmap_level(
+                            width, height,
+                        ),
+                    ),
                     internal_format,
                     memory_policy,
                     uploads: vec![TextureUpload::new_2d(base, 0)],
@@ -298,10 +306,14 @@ impl TextureDescriptor<Texture2DCompressed> {
                                 if max_level == 0 {
                                     None
                                 } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                                    Some((max_level).min(<Texture2DCompressed as TexturePlanar>::max_available_mipmap_level(width, height)))
                                 }
                             }
-                            None => Some(max_available_mipmap_level(width, height)),
+                            None => Some(
+                                <Texture2DCompressed as TexturePlanar>::max_available_mipmap_level(
+                                    width, height,
+                                ),
+                            ),
                         };
                         (internal_format, width, height, max_level)
                     }

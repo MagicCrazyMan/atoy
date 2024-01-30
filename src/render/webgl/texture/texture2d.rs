@@ -8,9 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureDescriptor, TextureInner,
-    TextureInternalFormat, TexturePlanar, TextureSource, TextureSourceUncompressed, TextureTarget,
-    TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDescriptor, TextureInner, TextureInternalFormatUncompressed,
+    TexturePlanar, TextureSource, TextureSourceUncompressed, TextureTarget, TextureUnit,
+    TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -24,7 +24,7 @@ pub enum ConstructionPolicy {
     /// Image data upload by calling [`Texture2D::tex_image`] and [`Texture2D::tex_sub_image`]
     /// are uploaded after mipmap generated.
     Simple {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         base: TextureSourceUncompressed,
     },
     /// Preallocates a texture only without uploading any image data.
@@ -38,7 +38,7 @@ pub enum ConstructionPolicy {
     ///
     /// Developers could modify each mipmap level manually then.
     Preallocate {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -48,7 +48,7 @@ pub enum ConstructionPolicy {
     /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
     /// - Required `uploads` defines texture source for uploading in each level.
     WithSources {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -67,7 +67,7 @@ pub enum ConstructionPolicy {
     /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
     /// before uploading data in `uploads` or lately upload by [`Texture2D::tex_image`] and [`Texture2D::tex_sub_image`].
     Full {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
@@ -98,13 +98,15 @@ pub struct Texture2D {
     height: usize,
     /// Max mipmap level clamped to max available level already if mipmap enabled.
     max_level: Option<usize>,
-    internal_format: TextureInternalFormat,
+    internal_format: TextureInternalFormatUncompressed,
     memory_policy: MemoryPolicy,
+
     mipmap_base: Option<(
         TextureUpload<TextureSourceUncompressed>,
         Option<usize>,
         Option<usize>,
     )>,
+
     uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
 
     runtime: Option<Box<Runtime>>,
@@ -124,8 +126,8 @@ impl Drop for Texture2D {
 }
 
 impl Texture2D {
-    /// Returns [`TextureInternalFormat`].
-    pub fn internal_format(&self) -> TextureInternalFormat {
+    /// Returns [`TextureInternalFormatUncompressed`].
+    pub fn internal_format(&self) -> TextureInternalFormatUncompressed {
         self.internal_format
     }
 
@@ -173,6 +175,10 @@ impl Texture2D {
 impl Texture for Texture2D {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_2D
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
     fn max_level(&self) -> Option<usize> {
@@ -362,7 +368,9 @@ impl TextureDescriptor<Texture2D> {
                 Texture2D {
                     width,
                     height,
-                    max_level: Some(max_available_mipmap_level(width, height)),
+                    max_level: Some(<Texture2D as TexturePlanar>::max_available_mipmap_level(
+                        width, height,
+                    )),
                     internal_format,
                     memory_policy,
                     mipmap_base: Some((TextureUpload::new_2d(base, 0), None, None)),
@@ -397,10 +405,16 @@ impl TextureDescriptor<Texture2D> {
                                 if max_level == 0 {
                                     None
                                 } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                                    Some((max_level).min(
+                                        <Texture2D as TexturePlanar>::max_available_mipmap_level(
+                                            width, height,
+                                        ),
+                                    ))
                                 }
                             }
-                            None => Some(max_available_mipmap_level(width, height)),
+                            None => Some(<Texture2D as TexturePlanar>::max_available_mipmap_level(
+                                width, height,
+                            )),
                         };
                         (internal_format, width, height, max_level)
                     }

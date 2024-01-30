@@ -8,9 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
-    TextureInner, TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget,
-    TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDescriptor, TextureInner, TextureInternalFormatCompressed,
+    TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit,
+    TextureUpload,
 };
 
 /// Cube map faces.
@@ -34,7 +34,7 @@ pub enum ConstructionPolicy {
     ///
     /// The max level of the texture is applied as `floor(log2(max(width, height, 1)))`.
     Simple {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         positive_x: TextureSourceCompressed,
         negative_x: TextureSourceCompressed,
         positive_y: TextureSourceCompressed,
@@ -53,7 +53,7 @@ pub enum ConstructionPolicy {
     ///
     /// Developers could modify each mipmap level manually then.
     Preallocate {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -65,7 +65,7 @@ pub enum ConstructionPolicy {
     /// defines data for uploading in each level and each cube map face, leaves empty vectors if no data need to upload currently.
     /// - Optional `max_level` defines the max mipmap level, takes `floor(log2(max(width, height, 1)))` if not provide.
     Full {
-        internal_format: TextureCompressedFormat,
+        internal_format: TextureInternalFormatCompressed,
         width: usize,
         height: usize,
         max_level: Option<usize>,
@@ -100,7 +100,7 @@ pub struct TextureCubeMapCompressed {
     width: usize,
     height: usize,
     max_level: Option<usize>,
-    internal_format: TextureCompressedFormat,
+    internal_format: TextureInternalFormatCompressed,
     memory_policy: MemoryPolicy,
 
     faces: [Vec<TextureUpload<TextureSourceCompressed>>; 6],
@@ -122,8 +122,8 @@ impl Drop for TextureCubeMapCompressed {
 }
 
 impl TextureCubeMapCompressed {
-    /// Returns [`TextureCompressedFormat`].
-    pub fn internal_format(&self) -> TextureCompressedFormat {
+    /// Returns [`TextureInternalFormatCompressed`].
+    pub fn internal_format(&self) -> TextureInternalFormatCompressed {
         self.internal_format
     }
 
@@ -171,6 +171,10 @@ impl TextureCubeMapCompressed {
 impl Texture for TextureCubeMapCompressed {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_CUBE_MAP
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
     fn max_level(&self) -> Option<usize> {
@@ -326,7 +330,11 @@ impl TextureDescriptor<TextureCubeMapCompressed> {
                 TextureCubeMapCompressed {
                     width,
                     height,
-                    max_level: Some(max_available_mipmap_level(width, height)),
+                    max_level: Some(
+                        <TextureCubeMapCompressed as TexturePlanar>::max_available_mipmap_level(
+                            width, height,
+                        ),
+                    ),
                     internal_format,
                     memory_policy,
 
@@ -362,10 +370,12 @@ impl TextureDescriptor<TextureCubeMapCompressed> {
                                 if max_level == 0 {
                                     None
                                 } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                                    Some((max_level).min(
+                                        <TextureCubeMapCompressed as TexturePlanar>::max_available_mipmap_level(width, height),
+                                    ))
                                 }
                             }
-                            None => Some(max_available_mipmap_level(width, height)),
+                            None => Some(<TextureCubeMapCompressed as TexturePlanar>::max_available_mipmap_level(width, height)),
                         };
                         (internal_format, width, height, max_level)
                     }

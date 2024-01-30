@@ -14,10 +14,10 @@ use super::{
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{
-        TextureCompareFunction, TextureCompareMode, TextureCompressedFormat, TextureDataType,
+        TextureCompareFunction, TextureCompareMode, TextureInternalFormatCompressed, TextureDataType,
         TextureFormat, TextureMagnificationFilter,
         TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureTarget,
-        TextureInternalFormat, TextureUnit, TextureUnpackColorSpaceConversion,
+        TextureInternalFormatUncompressed, TextureUnit, TextureUnpackColorSpaceConversion,
         TextureWrapMethod,
     },
 };
@@ -149,72 +149,72 @@ impl ToGlEnum for TextureTarget {
     }
 }
 
-impl ToGlEnum for TextureInternalFormat {
+impl ToGlEnum for TextureInternalFormatUncompressed {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureInternalFormat::RGBA32I => WebGl2RenderingContext::RGBA32I,
-            TextureInternalFormat::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
-            TextureInternalFormat::RGBA16I => WebGl2RenderingContext::RGBA16I,
-            TextureInternalFormat::RGBA16UI => WebGl2RenderingContext::RGBA16UI,
-            TextureInternalFormat::RGBA8 => WebGl2RenderingContext::RGBA8,
-            TextureInternalFormat::RGBA8I => WebGl2RenderingContext::RGBA8I,
-            TextureInternalFormat::RGBA8UI => WebGl2RenderingContext::RGBA8UI,
-            TextureInternalFormat::SRGB8_ALPHA8 => WebGl2RenderingContext::SRGB8_ALPHA8,
-            TextureInternalFormat::RGB10_A2 => WebGl2RenderingContext::RGB10_A2,
-            TextureInternalFormat::RGB10_A2UI => WebGl2RenderingContext::RGB10_A2UI,
-            TextureInternalFormat::RGBA4 => WebGl2RenderingContext::RGBA4,
-            TextureInternalFormat::RGB5_A1 => WebGl2RenderingContext::RGB5_A1,
-            TextureInternalFormat::RGB8 => WebGl2RenderingContext::RGB8,
-            TextureInternalFormat::RGB565 => WebGl2RenderingContext::RGB565,
-            TextureInternalFormat::RG32I => WebGl2RenderingContext::RG32I,
-            TextureInternalFormat::RG32UI => WebGl2RenderingContext::RG32UI,
-            TextureInternalFormat::RG16I => WebGl2RenderingContext::RG16I,
-            TextureInternalFormat::RG16UI => WebGl2RenderingContext::RG16UI,
-            TextureInternalFormat::RG8 => WebGl2RenderingContext::RG8,
-            TextureInternalFormat::RG8I => WebGl2RenderingContext::RG8I,
-            TextureInternalFormat::RG8UI => WebGl2RenderingContext::RG8UI,
-            TextureInternalFormat::R32I => WebGl2RenderingContext::R32I,
-            TextureInternalFormat::R32UI => WebGl2RenderingContext::R32UI,
-            TextureInternalFormat::R16I => WebGl2RenderingContext::R16I,
-            TextureInternalFormat::R16UI => WebGl2RenderingContext::R16UI,
-            TextureInternalFormat::R8 => WebGl2RenderingContext::R8,
-            TextureInternalFormat::R8I => WebGl2RenderingContext::R8I,
-            TextureInternalFormat::R8UI => WebGl2RenderingContext::R8UI,
-            TextureInternalFormat::RGBA32F => WebGl2RenderingContext::RGBA32F,
-            TextureInternalFormat::RGBA16F => WebGl2RenderingContext::RGBA16F,
-            TextureInternalFormat::RGBA8_SNORM => WebGl2RenderingContext::RGBA8_SNORM,
-            TextureInternalFormat::RGB32F => WebGl2RenderingContext::RGB32F,
-            TextureInternalFormat::RGB32I => WebGl2RenderingContext::RGB32I,
-            TextureInternalFormat::RGB32UI => WebGl2RenderingContext::RGB32UI,
-            TextureInternalFormat::RGB16F => WebGl2RenderingContext::RGB16F,
-            TextureInternalFormat::RGB16I => WebGl2RenderingContext::RGB16I,
-            TextureInternalFormat::RGB16UI => WebGl2RenderingContext::RGB16UI,
-            TextureInternalFormat::RGB8_SNORM => WebGl2RenderingContext::RGB8_SNORM,
-            TextureInternalFormat::RGB8I => WebGl2RenderingContext::RGB8I,
-            TextureInternalFormat::RGB8UI => WebGl2RenderingContext::RGB8UI,
-            TextureInternalFormat::SRGB8 => WebGl2RenderingContext::SRGB8,
-            TextureInternalFormat::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
-            TextureInternalFormat::RGB9_E5 => WebGl2RenderingContext::RGB9_E5,
-            TextureInternalFormat::RG32F => WebGl2RenderingContext::RG32F,
-            TextureInternalFormat::RG16F => WebGl2RenderingContext::RG16F,
-            TextureInternalFormat::RG8_SNORM => WebGl2RenderingContext::RG8_SNORM,
-            TextureInternalFormat::R32F => WebGl2RenderingContext::R32F,
-            TextureInternalFormat::R16F => WebGl2RenderingContext::R16F,
-            TextureInternalFormat::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
-            TextureInternalFormat::DEPTH_COMPONENT32F => {
+            TextureInternalFormatUncompressed::RGBA32I => WebGl2RenderingContext::RGBA32I,
+            TextureInternalFormatUncompressed::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
+            TextureInternalFormatUncompressed::RGBA16I => WebGl2RenderingContext::RGBA16I,
+            TextureInternalFormatUncompressed::RGBA16UI => WebGl2RenderingContext::RGBA16UI,
+            TextureInternalFormatUncompressed::RGBA8 => WebGl2RenderingContext::RGBA8,
+            TextureInternalFormatUncompressed::RGBA8I => WebGl2RenderingContext::RGBA8I,
+            TextureInternalFormatUncompressed::RGBA8UI => WebGl2RenderingContext::RGBA8UI,
+            TextureInternalFormatUncompressed::SRGB8_ALPHA8 => WebGl2RenderingContext::SRGB8_ALPHA8,
+            TextureInternalFormatUncompressed::RGB10_A2 => WebGl2RenderingContext::RGB10_A2,
+            TextureInternalFormatUncompressed::RGB10_A2UI => WebGl2RenderingContext::RGB10_A2UI,
+            TextureInternalFormatUncompressed::RGBA4 => WebGl2RenderingContext::RGBA4,
+            TextureInternalFormatUncompressed::RGB5_A1 => WebGl2RenderingContext::RGB5_A1,
+            TextureInternalFormatUncompressed::RGB8 => WebGl2RenderingContext::RGB8,
+            TextureInternalFormatUncompressed::RGB565 => WebGl2RenderingContext::RGB565,
+            TextureInternalFormatUncompressed::RG32I => WebGl2RenderingContext::RG32I,
+            TextureInternalFormatUncompressed::RG32UI => WebGl2RenderingContext::RG32UI,
+            TextureInternalFormatUncompressed::RG16I => WebGl2RenderingContext::RG16I,
+            TextureInternalFormatUncompressed::RG16UI => WebGl2RenderingContext::RG16UI,
+            TextureInternalFormatUncompressed::RG8 => WebGl2RenderingContext::RG8,
+            TextureInternalFormatUncompressed::RG8I => WebGl2RenderingContext::RG8I,
+            TextureInternalFormatUncompressed::RG8UI => WebGl2RenderingContext::RG8UI,
+            TextureInternalFormatUncompressed::R32I => WebGl2RenderingContext::R32I,
+            TextureInternalFormatUncompressed::R32UI => WebGl2RenderingContext::R32UI,
+            TextureInternalFormatUncompressed::R16I => WebGl2RenderingContext::R16I,
+            TextureInternalFormatUncompressed::R16UI => WebGl2RenderingContext::R16UI,
+            TextureInternalFormatUncompressed::R8 => WebGl2RenderingContext::R8,
+            TextureInternalFormatUncompressed::R8I => WebGl2RenderingContext::R8I,
+            TextureInternalFormatUncompressed::R8UI => WebGl2RenderingContext::R8UI,
+            TextureInternalFormatUncompressed::RGBA32F => WebGl2RenderingContext::RGBA32F,
+            TextureInternalFormatUncompressed::RGBA16F => WebGl2RenderingContext::RGBA16F,
+            TextureInternalFormatUncompressed::RGBA8_SNORM => WebGl2RenderingContext::RGBA8_SNORM,
+            TextureInternalFormatUncompressed::RGB32F => WebGl2RenderingContext::RGB32F,
+            TextureInternalFormatUncompressed::RGB32I => WebGl2RenderingContext::RGB32I,
+            TextureInternalFormatUncompressed::RGB32UI => WebGl2RenderingContext::RGB32UI,
+            TextureInternalFormatUncompressed::RGB16F => WebGl2RenderingContext::RGB16F,
+            TextureInternalFormatUncompressed::RGB16I => WebGl2RenderingContext::RGB16I,
+            TextureInternalFormatUncompressed::RGB16UI => WebGl2RenderingContext::RGB16UI,
+            TextureInternalFormatUncompressed::RGB8_SNORM => WebGl2RenderingContext::RGB8_SNORM,
+            TextureInternalFormatUncompressed::RGB8I => WebGl2RenderingContext::RGB8I,
+            TextureInternalFormatUncompressed::RGB8UI => WebGl2RenderingContext::RGB8UI,
+            TextureInternalFormatUncompressed::SRGB8 => WebGl2RenderingContext::SRGB8,
+            TextureInternalFormatUncompressed::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
+            TextureInternalFormatUncompressed::RGB9_E5 => WebGl2RenderingContext::RGB9_E5,
+            TextureInternalFormatUncompressed::RG32F => WebGl2RenderingContext::RG32F,
+            TextureInternalFormatUncompressed::RG16F => WebGl2RenderingContext::RG16F,
+            TextureInternalFormatUncompressed::RG8_SNORM => WebGl2RenderingContext::RG8_SNORM,
+            TextureInternalFormatUncompressed::R32F => WebGl2RenderingContext::R32F,
+            TextureInternalFormatUncompressed::R16F => WebGl2RenderingContext::R16F,
+            TextureInternalFormatUncompressed::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
+            TextureInternalFormatUncompressed::DEPTH_COMPONENT32F => {
                 WebGl2RenderingContext::DEPTH_COMPONENT32F
             }
-            TextureInternalFormat::DEPTH_COMPONENT24 => {
+            TextureInternalFormatUncompressed::DEPTH_COMPONENT24 => {
                 WebGl2RenderingContext::DEPTH_COMPONENT24
             }
-            TextureInternalFormat::DEPTH_COMPONENT16 => {
+            TextureInternalFormatUncompressed::DEPTH_COMPONENT16 => {
                 WebGl2RenderingContext::DEPTH_COMPONENT16
             }
-            TextureInternalFormat::DEPTH32F_STENCIL8 => {
+            TextureInternalFormatUncompressed::DEPTH32F_STENCIL8 => {
                 WebGl2RenderingContext::DEPTH32F_STENCIL8
             }
-            TextureInternalFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
+            TextureInternalFormatUncompressed::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
         }
     }
 }
@@ -228,156 +228,156 @@ impl ToGlEnum for TextureInternalFormat {
 //     }
 // }
 
-impl ToGlEnum for TextureCompressedFormat {
+impl ToGlEnum for TextureInternalFormatCompressed {
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureCompressedFormat::RGB_S3TC_DXT1 => {
+            TextureInternalFormatCompressed::RGB_S3TC_DXT1 => {
                 WebglCompressedTextureS3tc::COMPRESSED_RGB_S3TC_DXT1_EXT
             }
-            TextureCompressedFormat::RGBA_S3TC_DXT1 => {
+            TextureInternalFormatCompressed::RGBA_S3TC_DXT1 => {
                 WebglCompressedTextureS3tc::COMPRESSED_RGBA_S3TC_DXT1_EXT
             }
-            TextureCompressedFormat::RGBA_S3TC_DXT3 => {
+            TextureInternalFormatCompressed::RGBA_S3TC_DXT3 => {
                 WebglCompressedTextureS3tc::COMPRESSED_RGBA_S3TC_DXT3_EXT
             }
-            TextureCompressedFormat::RGBA_S3TC_DXT5 => {
+            TextureInternalFormatCompressed::RGBA_S3TC_DXT5 => {
                 WebglCompressedTextureS3tc::COMPRESSED_RGBA_S3TC_DXT5_EXT
             }
-            TextureCompressedFormat::SRGB_S3TC_DXT1 => {
+            TextureInternalFormatCompressed::SRGB_S3TC_DXT1 => {
                 WebglCompressedTextureS3tcSrgb::COMPRESSED_SRGB_S3TC_DXT1_EXT
             }
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1 => {
+            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT1 => {
                 WebglCompressedTextureS3tcSrgb::COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT
             }
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3 => {
+            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT3 => {
                 WebglCompressedTextureS3tcSrgb::COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT
             }
-            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5 => {
+            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT5 => {
                 WebglCompressedTextureS3tcSrgb::COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT
             }
-            TextureCompressedFormat::R11_EAC => WebglCompressedTextureEtc::COMPRESSED_R11_EAC,
-            TextureCompressedFormat::SIGNED_R11_EAC => {
+            TextureInternalFormatCompressed::R11_EAC => WebglCompressedTextureEtc::COMPRESSED_R11_EAC,
+            TextureInternalFormatCompressed::SIGNED_R11_EAC => {
                 WebglCompressedTextureEtc::COMPRESSED_SIGNED_R11_EAC
             }
-            TextureCompressedFormat::RG11_EAC => WebglCompressedTextureEtc::COMPRESSED_RG11_EAC,
-            TextureCompressedFormat::SIGNED_RG11_EAC => {
+            TextureInternalFormatCompressed::RG11_EAC => WebglCompressedTextureEtc::COMPRESSED_RG11_EAC,
+            TextureInternalFormatCompressed::SIGNED_RG11_EAC => {
                 WebglCompressedTextureEtc::COMPRESSED_SIGNED_RG11_EAC
             }
-            TextureCompressedFormat::RGB8_ETC2 => WebglCompressedTextureEtc::COMPRESSED_RGB8_ETC2,
-            TextureCompressedFormat::RGBA8_ETC2_EAC => {
+            TextureInternalFormatCompressed::RGB8_ETC2 => WebglCompressedTextureEtc::COMPRESSED_RGB8_ETC2,
+            TextureInternalFormatCompressed::RGBA8_ETC2_EAC => {
                 WebglCompressedTextureEtc::COMPRESSED_RGBA8_ETC2_EAC
             }
-            TextureCompressedFormat::SRGB8_ETC2 => WebglCompressedTextureEtc::COMPRESSED_SRGB8_ETC2,
-            TextureCompressedFormat::SRGB8_ALPHA8_ETC2_EAC => {
+            TextureInternalFormatCompressed::SRGB8_ETC2 => WebglCompressedTextureEtc::COMPRESSED_SRGB8_ETC2,
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ETC2_EAC => {
                 WebglCompressedTextureEtc::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
             }
-            TextureCompressedFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureInternalFormatCompressed::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 WebglCompressedTextureEtc::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2
             }
-            TextureCompressedFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureInternalFormatCompressed::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 WebglCompressedTextureEtc::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2
             }
-            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG => {
+            TextureInternalFormatCompressed::RGB_PVRTC_2BPPV1_IMG => {
                 WebglCompressedTexturePvrtc::COMPRESSED_RGB_PVRTC_2BPPV1_IMG
             }
-            TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG => {
+            TextureInternalFormatCompressed::RGBA_PVRTC_2BPPV1_IMG => {
                 WebglCompressedTexturePvrtc::COMPRESSED_RGBA_PVRTC_2BPPV1_IMG
             }
-            TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG => {
+            TextureInternalFormatCompressed::RGB_PVRTC_4BPPV1_IMG => {
                 WebglCompressedTexturePvrtc::COMPRESSED_RGB_PVRTC_4BPPV1_IMG
             }
-            TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => {
+            TextureInternalFormatCompressed::RGBA_PVRTC_4BPPV1_IMG => {
                 WebglCompressedTexturePvrtc::COMPRESSED_RGBA_PVRTC_4BPPV1_IMG
             }
-            TextureCompressedFormat::RGB_ETC1_WEBGL => {
+            TextureInternalFormatCompressed::RGB_ETC1_WEBGL => {
                 WebglCompressedTextureEtc1::COMPRESSED_RGB_ETC1_WEBGL
             }
-            TextureCompressedFormat::RGBA_ASTC_4x4 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_4x4 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_4X4_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_4x4 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_4x4 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_4X4_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_5x4 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_5x4 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_5X4_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x4 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_5x4 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_5X4_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_5x5 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_5x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_5X5_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x5 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_5x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_5X5_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_6x5 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_6x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_6X5_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x5 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_6x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_6X5_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_6x6 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_6x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_6X6_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x6 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_6x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_6X6_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_8x5 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_8x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_8X5_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x5 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_8X5_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_8x6 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_8x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_8X6_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x6 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_8X6_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_8x8 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_8x8 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_8X8_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x8 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x8 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_8X8_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_10x5 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_10x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_10X5_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x5 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x5 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_10X5_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_10x6 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_10x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_10X6_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x6 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x6 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_10X6_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_10x10 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_10x10 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_10X10_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x10 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x10 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_10X10_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_12x10 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_12x10 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_12X10_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x10 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_12x10 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_12X10_KHR
             }
-            TextureCompressedFormat::RGBA_ASTC_12x12 => {
+            TextureInternalFormatCompressed::RGBA_ASTC_12x12 => {
                 WebglCompressedTextureAstc::COMPRESSED_RGBA_ASTC_12X12_KHR
             }
-            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x12 => {
+            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_12x12 => {
                 WebglCompressedTextureAstc::COMPRESSED_SRGB8_ALPHA8_ASTC_12X12_KHR
             }
-            TextureCompressedFormat::RGBA_BPTC_UNORM => 36492,
-            TextureCompressedFormat::SRGB_ALPHA_BPTC_UNORM => 36493,
-            TextureCompressedFormat::RGB_BPTC_SIGNED_FLOAT => 36494,
-            TextureCompressedFormat::RGB_BPTC_UNSIGNED_FLOAT => 36495,
-            TextureCompressedFormat::RED_RGTC1 => 36283,
-            TextureCompressedFormat::SIGNED_RED_RGTC1 => 36284,
-            TextureCompressedFormat::RED_GREEN_RGTC2 => 36285,
-            TextureCompressedFormat::SIGNED_RED_GREEN_RGTC2 => 36286,
+            TextureInternalFormatCompressed::RGBA_BPTC_UNORM => 36492,
+            TextureInternalFormatCompressed::SRGB_ALPHA_BPTC_UNORM => 36493,
+            TextureInternalFormatCompressed::RGB_BPTC_SIGNED_FLOAT => 36494,
+            TextureInternalFormatCompressed::RGB_BPTC_UNSIGNED_FLOAT => 36495,
+            TextureInternalFormatCompressed::RED_RGTC1 => 36283,
+            TextureInternalFormatCompressed::SIGNED_RED_RGTC1 => 36284,
+            TextureInternalFormatCompressed::RED_GREEN_RGTC2 => 36285,
+            TextureInternalFormatCompressed::SIGNED_RED_GREEN_RGTC2 => 36286,
         }
     }
 }

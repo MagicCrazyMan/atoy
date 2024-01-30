@@ -8,9 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureDepth, TextureDescriptor, TextureInner,
-    TextureInternalFormat, TexturePlanar, TextureSource, TextureSourceUncompressed, TextureTarget,
-    TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDepth, TextureDescriptor, TextureInner,
+    TextureInternalFormatUncompressed, TexturePlanar, TextureSource, TextureSourceUncompressed,
+    TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -26,7 +26,7 @@ pub enum ConstructionPolicy {
     /// Image data upload by calling [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`]
     /// are uploaded after mipmap generated.
     Simple {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         depth: usize,
         base: TextureSourceUncompressed,
     },
@@ -41,7 +41,7 @@ pub enum ConstructionPolicy {
     ///
     /// Developers could modify each mipmap level manually then.
     Preallocate {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         depth: usize,
@@ -52,7 +52,7 @@ pub enum ConstructionPolicy {
     /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
     /// - Required `uploads` defines texture source for uploading in each level.
     WithSources {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         depth: usize,
@@ -72,7 +72,7 @@ pub enum ConstructionPolicy {
     /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
     /// before uploading data in `uploads` or lately upload by [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`].
     Full {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureInternalFormatUncompressed,
         width: usize,
         height: usize,
         depth: usize,
@@ -105,7 +105,7 @@ pub struct Texture3D {
     depth: usize,
     /// Max mipmap level clamped to max available level already if mipmap enabled.
     max_level: Option<usize>,
-    internal_format: TextureInternalFormat,
+    internal_format: TextureInternalFormatUncompressed,
     memory_policy: MemoryPolicy,
     mipmap_base: Option<(
         TextureUpload<TextureSourceUncompressed>,
@@ -131,8 +131,8 @@ impl Drop for Texture3D {
 }
 
 impl Texture3D {
-    /// Returns [`TextureInternalFormat`].
-    pub fn internal_format(&self) -> TextureInternalFormat {
+    /// Returns [`TextureInternalFormatUncompressed`].
+    pub fn internal_format(&self) -> TextureInternalFormatUncompressed {
         self.internal_format
     }
 
@@ -185,6 +185,10 @@ impl Texture3D {
 impl Texture for Texture3D {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_3D
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        <Self as TextureDepth>::max_available_mipmap_level(self.width, self.height, self.depth)
     }
 
     fn max_level(&self) -> Option<usize> {
@@ -387,7 +391,9 @@ impl TextureDescriptor<Texture3D> {
                     width,
                     height,
                     depth,
-                    max_level: Some(max_available_mipmap_level(width, height)),
+                    max_level: Some(<Texture3D as TextureDepth>::max_available_mipmap_level(
+                        width, height, depth,
+                    )),
                     internal_format,
                     memory_policy,
                     mipmap_base: Some((TextureUpload::new_3d(base, 0, 0), None, None)),
@@ -425,10 +431,16 @@ impl TextureDescriptor<Texture3D> {
                                 if max_level == 0 {
                                     None
                                 } else {
-                                    Some((max_level).min(max_available_mipmap_level(width, height)))
+                                    Some((max_level).min(
+                                        <Texture3D as TextureDepth>::max_available_mipmap_level(
+                                            width, height, depth,
+                                        ),
+                                    ))
                                 }
                             }
-                            None => Some(max_available_mipmap_level(width, height)),
+                            None => Some(<Texture3D as TextureDepth>::max_available_mipmap_level(
+                                width, height, depth,
+                            )),
                         };
                         (internal_format, width, height, depth, max_level)
                     }
