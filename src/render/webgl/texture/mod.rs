@@ -35,13 +35,6 @@ use web_sys::{
 
 use crate::lru::{Lru, LruNode};
 
-use self::{
-    texture2d::Texture2D, texture2d_compressed::Texture2DCompressed,
-    texture2darray::Texture2DArray, texture2darray_compressed::Texture2DArrayCompressed,
-    texture3d::Texture3D, texture3d_compressed::Texture3DCompressed,
-    texture_cubemap::TextureCubeMap, texture_cubemap_compressed::TextureCubeMapCompressed,
-};
-
 use super::{
     capabilities::Capabilities,
     conversion::ToGlEnum,
@@ -1665,13 +1658,89 @@ where
     }
 }
 
-trait Texture {
+pub trait Texture {
     /// Returns [`TextureTarget`].
     fn target(&self) -> TextureTarget;
+
+    /// Returns max mipmap level.
+    /// Returning `None` means mipmap is disabled,
+    /// while returning `0` means texture size reaches the maximum level already, but not disabled.
+    fn max_level(&self) -> Option<usize>;
 
     /// Returns bytes length of the whole texture in all levels.
     fn bytes_length(&self) -> usize;
 
+    /// Returns bytes length of a mipmap level.
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize>;
+}
+
+pub trait TexturePlanar: Texture {
+    /// Returns texture base width in level 0.
+    fn width(&self) -> usize;
+
+    /// Returns texture base height in level 0.
+    fn height(&self) -> usize;
+
+    /// Returns width of a mipmap level.
+    /// Returns texture base width in level 0.
+    fn width_of_level(&self, level: usize) -> Option<usize> {
+        if level == 0 {
+            return Some(self.width());
+        }
+        let Some(max_level) = self.max_level() else {
+            return None;
+        };
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.width() >> level).max(1))
+    }
+
+    /// Returns height of a mipmap level.
+    /// Returns texture base height in level 0.
+    fn height_of_level(&self, level: usize) -> Option<usize> {
+        if level == 0 {
+            return Some(self.height());
+        }
+        let Some(max_level) = self.max_level() else {
+            return None;
+        };
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.height() >> level).max(1))
+    }
+}
+
+pub trait TextureDepth: Texture {
+    /// Returns texture base depth in level 0.
+    fn depth(&self) -> usize;
+
+    /// Returns depth of a mipmap level.
+    /// Returns texture base depth in level 0.
+    fn depth_of_level(&self, level: usize) -> Option<usize> {
+        if level == 0 {
+            return Some(self.depth());
+        }
+        let Some(max_level) = self.max_level() else {
+            return None;
+        };
+        if level > max_level {
+            return None;
+        }
+
+        Some((self.depth() >> level).max(1))
+    }
+}
+
+pub trait TextureArray: Texture {
+    /// Returns the number of array of this texture.
+    fn array_length(&self) -> usize;
+}
+
+trait TextureInner: Texture {
     /// Returns [`Runtime`].
     fn runtime(&self) -> Option<&Runtime>;
 
@@ -1711,19 +1780,27 @@ struct Runtime {
     using: bool,
 
     used_memory: *mut usize,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn Texture>>>,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
     lru: *mut Lru<Uuid>,
 }
 
-pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
+pub struct TextureDescriptor<T>(Rc<RefCell<T>>)
+where
+    T: Texture;
 
-impl<T> Clone for TextureDescriptor<T> {
+impl<T> Clone for TextureDescriptor<T>
+where
+    T: Texture,
+{
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
     }
 }
 
-impl<T> TextureDescriptor<T> {
+impl<T> TextureDescriptor<T>
+where
+    T: Texture,
+{
     /// Returns [`Texture`] associated with this descriptor.
     pub fn texture(&self) -> Ref<'_, T> {
         self.0.borrow()
@@ -1742,7 +1819,7 @@ pub struct TextureStore {
     available_memory: usize,
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn Texture>>>,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
 }
 
 impl TextureStore {
@@ -1796,10 +1873,8 @@ impl TextureStore {
                 }
                 // let texture takes free procedure itself.
                 if t.free() {
-                    let t = occupied.remove();
-                    let t = t.upgrade().unwrap();
-                    let mut t = t.borrow_mut();
-                    let runtime = t.remove_runtime().unwrap();
+                    let t = occupied.remove().upgrade().unwrap();
+                    let runtime = t.borrow_mut().remove_runtime().unwrap();
                     // reduces used memory
                     (*self.used_memory) -= runtime.bytes_length;
                     // removes LRU
@@ -1817,7 +1892,7 @@ impl TextureStore {
         unit: TextureUnit,
     ) -> Result<WebGlTexture, Error>
     where
-        T: Texture + 'static,
+        T: TextureInner + 'static,
     {
         let texture = unsafe {
             let mut t = descriptor.texture_mut();
@@ -1842,7 +1917,7 @@ impl TextureStore {
                     let bytes_length = t.bytes_length();
                     (*self.textures).insert(
                         id,
-                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn Texture>>,
+                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureInner>>,
                     );
                     (*self.lru).cache(lru_node);
                     (*self.used_memory) += bytes_length;
@@ -1881,7 +1956,7 @@ impl TextureStore {
     #[allow(private_bounds)]
     pub fn unuse_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
     where
-        T: Texture + 'static,
+        T: TextureInner + 'static,
     {
         let mut t = descriptor.texture_mut();
         let target = t.target().gl_enum();

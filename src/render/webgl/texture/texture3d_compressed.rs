@@ -8,8 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
-    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, TextureUpload,
+    max_available_mipmap_level, Runtime, Texture, TextureCompressedFormat, TextureDepth,
+    TextureDescriptor, TextureInner, TexturePlanar, TextureSource, TextureSourceCompressed,
+    TextureTarget, TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -77,7 +78,7 @@ pub struct Texture3DCompressed {
     memory_policy: MemoryPolicy,
     uploads: Vec<TextureUpload<TextureSourceCompressed>>,
 
-    pub(super) runtime: Option<Box<Runtime>>,
+    runtime: Option<Box<Runtime>>,
 }
 
 impl Drop for Texture3DCompressed {
@@ -94,21 +95,6 @@ impl Drop for Texture3DCompressed {
 }
 
 impl Texture3DCompressed {
-    /// Returns texture base width in level 0.
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    /// Returns texture base height in level 0.
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
-    /// Returns texture base depth in level 0.
-    pub fn depth(&self) -> usize {
-        self.depth
-    }
-
     /// Returns [`TextureCompressedFormat`].
     pub fn internal_format(&self) -> TextureCompressedFormat {
         self.internal_format
@@ -117,73 +103,6 @@ impl Texture3DCompressed {
     /// Returns [`MemoryPolicy`].
     pub fn memory_policy(&self) -> &MemoryPolicy {
         &self.memory_policy
-    }
-
-    /// Returns max mipmap level.
-    /// Returning `None` means mipmap is disabled,
-    /// while returning `0` means texture size reaches the maximum level already, but not disabled.
-    pub fn max_level(&self) -> Option<usize> {
-        self.max_level
-    }
-
-    /// Returns width of a mipmap level.
-    /// Returns texture base width in level 0.
-    pub fn width_of_level(&self, level: usize) -> Option<usize> {
-        if level == 0 {
-            return Some(self.width);
-        }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.width >> level).max(1))
-    }
-
-    /// Returns height of a mipmap level.
-    /// Returns texture base height in level 0.
-    pub fn height_of_level(&self, level: usize) -> Option<usize> {
-        if level == 0 {
-            return Some(self.height);
-        }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.height >> level).max(1))
-    }
-
-    /// Returns depth of a mipmap level.
-    /// Returns texture base height in level 0.
-    pub fn depth_of_level(&self, level: usize) -> Option<usize> {
-        if level == 0 {
-            return Some(self.height);
-        }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.depth >> level).max(1))
-    }
-
-    /// Returns bytes length of a mipmap level.
-    pub fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
-        let Some(width) = self.width_of_level(level) else {
-            return None;
-        };
-        let Some(height) = self.height_of_level(level) else {
-            return None;
-        };
-
-        Some(self.internal_format.bytes_length(width, height))
     }
 
     /// Uploads a new texture source cover a whole level of this texture.
@@ -232,6 +151,10 @@ impl Texture for Texture3DCompressed {
         TextureTarget::TEXTURE_3D
     }
 
+    fn max_level(&self) -> Option<usize> {
+        self.max_level
+    }
+
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
         for level in 0..=self.max_level().unwrap_or(0) {
@@ -242,6 +165,35 @@ impl Texture for Texture3DCompressed {
         used_memory
     }
 
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+
+        Some(self.internal_format.bytes_length(width, height))
+    }
+}
+
+impl TexturePlanar for Texture3DCompressed {
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl TextureDepth for Texture3DCompressed {
+    fn depth(&self) -> usize {
+        self.depth
+    }
+}
+
+impl TextureInner for Texture3DCompressed {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
     }

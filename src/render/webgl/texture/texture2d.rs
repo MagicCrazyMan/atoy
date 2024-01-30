@@ -8,8 +8,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    max_available_mipmap_level, Runtime, Texture, TextureDescriptor, TextureInternalFormat,
-    TextureSource, TextureSourceUncompressed, TextureTarget, TextureUnit, TextureUpload,
+    max_available_mipmap_level, Runtime, Texture, TextureDescriptor, TextureInner,
+    TextureInternalFormat, TexturePlanar, TextureSource, TextureSourceUncompressed, TextureTarget,
+    TextureUnit, TextureUpload,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -106,7 +107,7 @@ pub struct Texture2D {
     )>,
     uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
 
-    pub(super) runtime: Option<Box<Runtime>>,
+    runtime: Option<Box<Runtime>>,
 }
 
 impl Drop for Texture2D {
@@ -123,16 +124,6 @@ impl Drop for Texture2D {
 }
 
 impl Texture2D {
-    /// Returns texture base width in level 0.
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    /// Returns texture base height in level 0.
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
     /// Returns [`TextureInternalFormat`].
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
@@ -141,57 +132,6 @@ impl Texture2D {
     /// Returns [`MemoryPolicy`].
     pub fn memory_policy(&self) -> &MemoryPolicy {
         &self.memory_policy
-    }
-
-    /// Returns max mipmap level.
-    /// Returning `None` means mipmap is disabled,
-    /// while returning `0` means texture size reaches the maximum level already, but not disabled.
-    pub fn max_level(&self) -> Option<usize> {
-        self.max_level
-    }
-
-    /// Returns width of a mipmap level.
-    /// Returns texture base width in level 0.
-    pub fn width_of_level(&self, level: usize) -> Option<usize> {
-        if level == 0 {
-            return Some(self.width);
-        }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.width >> level).max(1))
-    }
-
-    /// Returns height of a mipmap level.
-    /// Returns texture base height in level 0.
-    pub fn height_of_level(&self, level: usize) -> Option<usize> {
-        if level == 0 {
-            return Some(self.height);
-        }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
-            return None;
-        }
-
-        Some((self.height >> level).max(1))
-    }
-
-    /// Returns bytes length of a mipmap level.
-    pub fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
-        let Some(width) = self.width_of_level(level) else {
-            return None;
-        };
-        let Some(height) = self.height_of_level(level) else {
-            return None;
-        };
-
-        Some(self.internal_format.bytes_length(width, height))
     }
 
     /// Uploads a new texture source cover a whole level of this texture.
@@ -235,6 +175,10 @@ impl Texture for Texture2D {
         TextureTarget::TEXTURE_2D
     }
 
+    fn max_level(&self) -> Option<usize> {
+        self.max_level
+    }
+
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
         for level in 0..=self.max_level().unwrap_or(0) {
@@ -245,6 +189,29 @@ impl Texture for Texture2D {
         used_memory
     }
 
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+        let Some(width) = self.width_of_level(level) else {
+            return None;
+        };
+        let Some(height) = self.height_of_level(level) else {
+            return None;
+        };
+
+        Some(self.internal_format.bytes_length(width, height))
+    }
+}
+
+impl TexturePlanar for Texture2D {
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl TextureInner for Texture2D {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
     }
