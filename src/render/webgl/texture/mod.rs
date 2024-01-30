@@ -58,6 +58,82 @@ pub enum TextureTarget {
     TEXTURE_3D,
 }
 
+/// Available texture units mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureUnit {
+    TEXTURE0,
+    TEXTURE1,
+    TEXTURE2,
+    TEXTURE3,
+    TEXTURE4,
+    TEXTURE5,
+    TEXTURE6,
+    TEXTURE7,
+    TEXTURE8,
+    TEXTURE9,
+    TEXTURE10,
+    TEXTURE11,
+    TEXTURE12,
+    TEXTURE13,
+    TEXTURE14,
+    TEXTURE15,
+    TEXTURE16,
+    TEXTURE17,
+    TEXTURE18,
+    TEXTURE19,
+    TEXTURE20,
+    TEXTURE21,
+    TEXTURE22,
+    TEXTURE23,
+    TEXTURE24,
+    TEXTURE25,
+    TEXTURE26,
+    TEXTURE27,
+    TEXTURE28,
+    TEXTURE29,
+    TEXTURE30,
+    TEXTURE31,
+}
+
+impl TextureUnit {
+    pub fn unit_index(&self) -> usize {
+        match self {
+            TextureUnit::TEXTURE0 => 0,
+            TextureUnit::TEXTURE1 => 1,
+            TextureUnit::TEXTURE2 => 2,
+            TextureUnit::TEXTURE3 => 3,
+            TextureUnit::TEXTURE4 => 4,
+            TextureUnit::TEXTURE5 => 5,
+            TextureUnit::TEXTURE6 => 6,
+            TextureUnit::TEXTURE7 => 7,
+            TextureUnit::TEXTURE8 => 8,
+            TextureUnit::TEXTURE9 => 9,
+            TextureUnit::TEXTURE10 => 10,
+            TextureUnit::TEXTURE11 => 11,
+            TextureUnit::TEXTURE12 => 12,
+            TextureUnit::TEXTURE13 => 13,
+            TextureUnit::TEXTURE14 => 14,
+            TextureUnit::TEXTURE15 => 15,
+            TextureUnit::TEXTURE16 => 16,
+            TextureUnit::TEXTURE17 => 17,
+            TextureUnit::TEXTURE18 => 18,
+            TextureUnit::TEXTURE19 => 19,
+            TextureUnit::TEXTURE20 => 20,
+            TextureUnit::TEXTURE21 => 21,
+            TextureUnit::TEXTURE22 => 22,
+            TextureUnit::TEXTURE23 => 23,
+            TextureUnit::TEXTURE24 => 24,
+            TextureUnit::TEXTURE25 => 25,
+            TextureUnit::TEXTURE26 => 26,
+            TextureUnit::TEXTURE27 => 27,
+            TextureUnit::TEXTURE28 => 28,
+            TextureUnit::TEXTURE29 => 29,
+            TextureUnit::TEXTURE30 => 30,
+            TextureUnit::TEXTURE31 => 31,
+        }
+    }
+}
+
 /// Available texture formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,10 +153,32 @@ pub enum TextureFormat {
     DEPTH_STENCIL,
 }
 
+/// Available texture data types mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureDataType {
+    FLOAT,
+    HALF_FLOAT,
+    BYTE,
+    SHORT,
+    INT,
+    UNSIGNED_BYTE,
+    UNSIGNED_SHORT,
+    UNSIGNED_INT,
+    UNSIGNED_SHORT_5_6_5,
+    UNSIGNED_SHORT_4_4_4_4,
+    UNSIGNED_SHORT_5_5_5_1,
+    UNSIGNED_INT_2_10_10_10_REV,
+    UNSIGNED_INT_10F_11F_11F_REV,
+    UNSIGNED_INT_5_9_9_9_REV,
+    UNSIGNED_INT_24_8,
+    FLOAT_32_UNSIGNED_INT_24_8_REV,
+}
+
 /// Available texture uncompressed internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureInternalFormatUncompressed {
+pub enum TextureInternalFormat {
     RGBA32I,
     RGBA32UI,
     RGBA16I,
@@ -144,64 +242,64 @@ pub enum TextureInternalFormatUncompressed {
     DEPTH24_STENCIL8,
 }
 
-impl TextureInternalFormatUncompressed {
+impl TextureInternalFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
-            TextureInternalFormatUncompressed::RGBA32I => width * height * 16,
-            TextureInternalFormatUncompressed::RGBA32UI => width * height * 16,
-            TextureInternalFormatUncompressed::RGBA16I => width * height * 4,
-            TextureInternalFormatUncompressed::RGBA16UI => width * height * 4,
-            TextureInternalFormatUncompressed::RGBA8 => width * height * 4,
-            TextureInternalFormatUncompressed::RGBA8I => width * height * 4,
-            TextureInternalFormatUncompressed::RGBA8UI => width * height * 4,
-            TextureInternalFormatUncompressed::SRGB8_ALPHA8 => width * height * 4,
-            TextureInternalFormatUncompressed::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormatUncompressed::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormatUncompressed::RGBA4 => width * height * 2,
-            TextureInternalFormatUncompressed::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
-            TextureInternalFormatUncompressed::RGB8 => width * height * 3,
-            TextureInternalFormatUncompressed::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
-            TextureInternalFormatUncompressed::RG32I => width * height * 4,
-            TextureInternalFormatUncompressed::RG32UI => width * height * 4,
-            TextureInternalFormatUncompressed::RG16I => width * height * 4,
-            TextureInternalFormatUncompressed::RG16UI => width * height * 4,
-            TextureInternalFormatUncompressed::RG8 => width * height * 2,
-            TextureInternalFormatUncompressed::RG8I => width * height * 2,
-            TextureInternalFormatUncompressed::RG8UI => width * height * 2,
-            TextureInternalFormatUncompressed::R32I => width * height * 4,
-            TextureInternalFormatUncompressed::R32UI => width * height * 4,
-            TextureInternalFormatUncompressed::R16I => width * height * 2,
-            TextureInternalFormatUncompressed::R16UI => width * height * 2,
-            TextureInternalFormatUncompressed::R8 => width * height * 1,
-            TextureInternalFormatUncompressed::R8I => width * height * 1,
-            TextureInternalFormatUncompressed::R8UI => width * height * 1,
-            TextureInternalFormatUncompressed::RGBA32F => width * height * 16,
-            TextureInternalFormatUncompressed::RGBA16F => width * height * 4,
-            TextureInternalFormatUncompressed::RGBA8_SNORM => width * height * 4,
-            TextureInternalFormatUncompressed::RGB32F => width * height * 12,
-            TextureInternalFormatUncompressed::RGB32I => width * height * 12,
-            TextureInternalFormatUncompressed::RGB32UI => width * height * 12,
-            TextureInternalFormatUncompressed::RGB16F => width * height * 6,
-            TextureInternalFormatUncompressed::RGB16I => width * height * 6,
-            TextureInternalFormatUncompressed::RGB16UI => width * height * 6,
-            TextureInternalFormatUncompressed::RGB8_SNORM => width * height * 3,
-            TextureInternalFormatUncompressed::RGB8I => width * height * 3,
-            TextureInternalFormatUncompressed::RGB8UI => width * height * 3,
-            TextureInternalFormatUncompressed::SRGB8 => width * height * 3,
-            TextureInternalFormatUncompressed::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
-            TextureInternalFormatUncompressed::RGB9_E5 => width * height * 4, // 9 + 9 + 9 + 5 in bits
-            TextureInternalFormatUncompressed::RG32F => width * height * 4,
-            TextureInternalFormatUncompressed::RG16F => width * height * 4,
-            TextureInternalFormatUncompressed::RG8_SNORM => width * height * 2,
-            TextureInternalFormatUncompressed::R32F => width * height * 4,
-            TextureInternalFormatUncompressed::R16F => width * height * 2,
-            TextureInternalFormatUncompressed::R8_SNORM => width * height * 1,
-            TextureInternalFormatUncompressed::DEPTH_COMPONENT32F => width * height * 4,
-            TextureInternalFormatUncompressed::DEPTH_COMPONENT24 => width * height * 3,
-            TextureInternalFormatUncompressed::DEPTH_COMPONENT16 => width * height * 2,
-            TextureInternalFormatUncompressed::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
-            TextureInternalFormatUncompressed::DEPTH24_STENCIL8 => width * height * 4,
+            TextureInternalFormat::RGBA32I => width * height * 16,
+            TextureInternalFormat::RGBA32UI => width * height * 16,
+            TextureInternalFormat::RGBA16I => width * height * 4,
+            TextureInternalFormat::RGBA16UI => width * height * 4,
+            TextureInternalFormat::RGBA8 => width * height * 4,
+            TextureInternalFormat::RGBA8I => width * height * 4,
+            TextureInternalFormat::RGBA8UI => width * height * 4,
+            TextureInternalFormat::SRGB8_ALPHA8 => width * height * 4,
+            TextureInternalFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureInternalFormat::RGBA4 => width * height * 2,
+            TextureInternalFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
+            TextureInternalFormat::RGB8 => width * height * 3,
+            TextureInternalFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
+            TextureInternalFormat::RG32I => width * height * 4,
+            TextureInternalFormat::RG32UI => width * height * 4,
+            TextureInternalFormat::RG16I => width * height * 4,
+            TextureInternalFormat::RG16UI => width * height * 4,
+            TextureInternalFormat::RG8 => width * height * 2,
+            TextureInternalFormat::RG8I => width * height * 2,
+            TextureInternalFormat::RG8UI => width * height * 2,
+            TextureInternalFormat::R32I => width * height * 4,
+            TextureInternalFormat::R32UI => width * height * 4,
+            TextureInternalFormat::R16I => width * height * 2,
+            TextureInternalFormat::R16UI => width * height * 2,
+            TextureInternalFormat::R8 => width * height * 1,
+            TextureInternalFormat::R8I => width * height * 1,
+            TextureInternalFormat::R8UI => width * height * 1,
+            TextureInternalFormat::RGBA32F => width * height * 16,
+            TextureInternalFormat::RGBA16F => width * height * 4,
+            TextureInternalFormat::RGBA8_SNORM => width * height * 4,
+            TextureInternalFormat::RGB32F => width * height * 12,
+            TextureInternalFormat::RGB32I => width * height * 12,
+            TextureInternalFormat::RGB32UI => width * height * 12,
+            TextureInternalFormat::RGB16F => width * height * 6,
+            TextureInternalFormat::RGB16I => width * height * 6,
+            TextureInternalFormat::RGB16UI => width * height * 6,
+            TextureInternalFormat::RGB8_SNORM => width * height * 3,
+            TextureInternalFormat::RGB8I => width * height * 3,
+            TextureInternalFormat::RGB8UI => width * height * 3,
+            TextureInternalFormat::SRGB8 => width * height * 3,
+            TextureInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
+            TextureInternalFormat::RGB9_E5 => width * height * 4, // 9 + 9 + 9 + 5 in bits
+            TextureInternalFormat::RG32F => width * height * 4,
+            TextureInternalFormat::RG16F => width * height * 4,
+            TextureInternalFormat::RG8_SNORM => width * height * 2,
+            TextureInternalFormat::R32F => width * height * 4,
+            TextureInternalFormat::R16F => width * height * 2,
+            TextureInternalFormat::R8_SNORM => width * height * 1,
+            TextureInternalFormat::DEPTH_COMPONENT32F => width * height * 4,
+            TextureInternalFormat::DEPTH_COMPONENT24 => width * height * 3,
+            TextureInternalFormat::DEPTH_COMPONENT16 => width * height * 2,
+            TextureInternalFormat::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
+            TextureInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
         }
     }
 }
@@ -209,7 +307,7 @@ impl TextureInternalFormatUncompressed {
 /// Available texture compressed formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureInternalFormatCompressed {
+pub enum TextureCompressedFormat {
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
     RGB_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
@@ -326,285 +424,187 @@ pub enum TextureInternalFormatCompressed {
     SIGNED_RED_GREEN_RGTC2,
 }
 
-impl TextureInternalFormatCompressed {
+impl TextureCompressedFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
-            TextureInternalFormatCompressed::RGB_S3TC_DXT1 => {
+            TextureCompressedFormat::RGB_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::RGBA_S3TC_DXT1 => {
+            TextureCompressedFormat::RGBA_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::RGBA_S3TC_DXT3 => {
+            TextureCompressedFormat::RGBA_S3TC_DXT3 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGBA_S3TC_DXT5 => {
+            TextureCompressedFormat::RGBA_S3TC_DXT5 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for S3TC RGBA, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc_srgb/ for more details
-            TextureInternalFormatCompressed::SRGB_S3TC_DXT1 => {
+            TextureCompressedFormat::SRGB_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT1 => {
+            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT3 => {
+            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT5 => {
+            TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for ETC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/ for more details
-            TextureInternalFormatCompressed::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
-            TextureInternalFormatCompressed::SIGNED_R11_EAC => {
+            TextureCompressedFormat::R11_EAC => ((width + 3) / 4) * ((height + 3) / 4) * 8,
+            TextureCompressedFormat::SIGNED_R11_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::RG11_EAC => {
+            TextureCompressedFormat::RG11_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SIGNED_RG11_EAC => {
+            TextureCompressedFormat::SIGNED_RG11_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGB8_ETC2 => {
+            TextureCompressedFormat::RGB8_ETC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::SRGB8_ETC2 => {
+            TextureCompressedFormat::SRGB8_ETC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::RGBA8_ETC2_EAC => {
+            TextureCompressedFormat::RGBA8_ETC2_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ETC2_EAC => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ETC2_EAC => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureCompressedFormat::RGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
+            TextureCompressedFormat::SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
             // for PVRTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_pvrtc/ for more details
-            TextureInternalFormatCompressed::RGB_PVRTC_2BPPV1_IMG => {
+            TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG => {
                 width.max(16) * height.max(8) / 4
             }
-            TextureInternalFormatCompressed::RGBA_PVRTC_2BPPV1_IMG => {
+            TextureCompressedFormat::RGBA_PVRTC_2BPPV1_IMG => {
                 width.max(16) * height.max(8) / 4
             }
-            TextureInternalFormatCompressed::RGB_PVRTC_4BPPV1_IMG => {
+            TextureCompressedFormat::RGB_PVRTC_4BPPV1_IMG => {
                 width.max(8) * height.max(8) / 2
             }
-            TextureInternalFormatCompressed::RGBA_PVRTC_4BPPV1_IMG => {
+            TextureCompressedFormat::RGBA_PVRTC_4BPPV1_IMG => {
                 width.max(8) * height.max(8) / 2
             }
             // for ETC1, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc1/ for more details
-            TextureInternalFormatCompressed::RGB_ETC1_WEBGL => {
+            TextureCompressedFormat::RGB_ETC1_WEBGL => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
             // for ASTC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/ for more details
-            TextureInternalFormatCompressed::RGBA_ASTC_4x4 => {
+            TextureCompressedFormat::RGBA_ASTC_4x4 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_4x4 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_4x4 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_5x4 => {
+            TextureCompressedFormat::RGBA_ASTC_5x4 => {
                 ((width + 4) / 5) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_5x4 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x4 => {
                 ((width + 4) / 5) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_5x5 => {
+            TextureCompressedFormat::RGBA_ASTC_5x5 => {
                 ((width + 4) / 5) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_5x5 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_5x5 => {
                 ((width + 4) / 5) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_6x5 => {
+            TextureCompressedFormat::RGBA_ASTC_6x5 => {
                 ((width + 5) / 6) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_6x5 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x5 => {
                 ((width + 5) / 6) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_6x6 => {
+            TextureCompressedFormat::RGBA_ASTC_6x6 => {
                 ((width + 5) / 6) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_6x6 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_6x6 => {
                 ((width + 5) / 6) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_8x5 => {
+            TextureCompressedFormat::RGBA_ASTC_8x5 => {
                 ((width + 7) / 8) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x5 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x5 => {
                 ((width + 7) / 8) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_8x6 => {
+            TextureCompressedFormat::RGBA_ASTC_8x6 => {
                 ((width + 7) / 8) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x6 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x6 => {
                 ((width + 7) / 8) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_8x8 => {
+            TextureCompressedFormat::RGBA_ASTC_8x8 => {
                 ((width + 7) / 8) * ((height + 7) / 8) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_8x8 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_8x8 => {
                 ((width + 7) / 8) * ((height + 7) / 8) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_10x5 => {
+            TextureCompressedFormat::RGBA_ASTC_10x5 => {
                 ((width + 9) / 10) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x5 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x5 => {
                 ((width + 9) / 10) * ((height + 4) / 5) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_10x6 => {
+            TextureCompressedFormat::RGBA_ASTC_10x6 => {
                 ((width + 9) / 10) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x6 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x6 => {
                 ((width + 9) / 10) * ((height + 5) / 6) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_10x10 => {
+            TextureCompressedFormat::RGBA_ASTC_10x10 => {
                 ((width + 9) / 10) * ((height + 9) / 10) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_10x10 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_10x10 => {
                 ((width + 9) / 10) * ((height + 9) / 10) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_12x10 => {
+            TextureCompressedFormat::RGBA_ASTC_12x10 => {
                 ((width + 11) / 12) * ((height + 9) / 10) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_12x10 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x10 => {
                 ((width + 11) / 12) * ((height + 9) / 10) * 16
             }
-            TextureInternalFormatCompressed::RGBA_ASTC_12x12 => {
+            TextureCompressedFormat::RGBA_ASTC_12x12 => {
                 ((width + 11) / 12) * ((height + 11) / 12) * 16
             }
-            TextureInternalFormatCompressed::SRGB8_ALPHA8_ASTC_12x12 => {
+            TextureCompressedFormat::SRGB8_ALPHA8_ASTC_12x12 => {
                 ((width + 11) / 12) * ((height + 11) / 12) * 16
             }
             // for BPTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_bptc/ for more details
-            TextureInternalFormatCompressed::RGBA_BPTC_UNORM => {
+            TextureCompressedFormat::RGBA_BPTC_UNORM => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SRGB_ALPHA_BPTC_UNORM => {
+            TextureCompressedFormat::SRGB_ALPHA_BPTC_UNORM => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGB_BPTC_SIGNED_FLOAT => {
+            TextureCompressedFormat::RGB_BPTC_SIGNED_FLOAT => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::RGB_BPTC_UNSIGNED_FLOAT => {
+            TextureCompressedFormat::RGB_BPTC_UNSIGNED_FLOAT => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
             // for RGTC, checks https://registry.khronos.org/webgl/extensions/EXT_texture_compression_rgtc/ for more details
-            TextureInternalFormatCompressed::RED_RGTC1 => {
+            TextureCompressedFormat::RED_RGTC1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::SIGNED_RED_RGTC1 => {
+            TextureCompressedFormat::SIGNED_RED_RGTC1 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 8
             }
-            TextureInternalFormatCompressed::RED_GREEN_RGTC2 => {
+            TextureCompressedFormat::RED_GREEN_RGTC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-            TextureInternalFormatCompressed::SIGNED_RED_GREEN_RGTC2 => {
+            TextureCompressedFormat::SIGNED_RED_GREEN_RGTC2 => {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
-        }
-    }
-}
-
-/// Available texture data types mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureDataType {
-    FLOAT,
-    HALF_FLOAT,
-    BYTE,
-    SHORT,
-    INT,
-    UNSIGNED_BYTE,
-    UNSIGNED_SHORT,
-    UNSIGNED_INT,
-    UNSIGNED_SHORT_5_6_5,
-    UNSIGNED_SHORT_4_4_4_4,
-    UNSIGNED_SHORT_5_5_5_1,
-    UNSIGNED_INT_2_10_10_10_REV,
-    UNSIGNED_INT_10F_11F_11F_REV,
-    UNSIGNED_INT_5_9_9_9_REV,
-    UNSIGNED_INT_24_8,
-    FLOAT_32_UNSIGNED_INT_24_8_REV,
-}
-
-/// Available texture units mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureUnit {
-    TEXTURE0,
-    TEXTURE1,
-    TEXTURE2,
-    TEXTURE3,
-    TEXTURE4,
-    TEXTURE5,
-    TEXTURE6,
-    TEXTURE7,
-    TEXTURE8,
-    TEXTURE9,
-    TEXTURE10,
-    TEXTURE11,
-    TEXTURE12,
-    TEXTURE13,
-    TEXTURE14,
-    TEXTURE15,
-    TEXTURE16,
-    TEXTURE17,
-    TEXTURE18,
-    TEXTURE19,
-    TEXTURE20,
-    TEXTURE21,
-    TEXTURE22,
-    TEXTURE23,
-    TEXTURE24,
-    TEXTURE25,
-    TEXTURE26,
-    TEXTURE27,
-    TEXTURE28,
-    TEXTURE29,
-    TEXTURE30,
-    TEXTURE31,
-}
-
-impl TextureUnit {
-    pub fn unit_index(&self) -> usize {
-        match self {
-            TextureUnit::TEXTURE0 => 0,
-            TextureUnit::TEXTURE1 => 1,
-            TextureUnit::TEXTURE2 => 2,
-            TextureUnit::TEXTURE3 => 3,
-            TextureUnit::TEXTURE4 => 4,
-            TextureUnit::TEXTURE5 => 5,
-            TextureUnit::TEXTURE6 => 6,
-            TextureUnit::TEXTURE7 => 7,
-            TextureUnit::TEXTURE8 => 8,
-            TextureUnit::TEXTURE9 => 9,
-            TextureUnit::TEXTURE10 => 10,
-            TextureUnit::TEXTURE11 => 11,
-            TextureUnit::TEXTURE12 => 12,
-            TextureUnit::TEXTURE13 => 13,
-            TextureUnit::TEXTURE14 => 14,
-            TextureUnit::TEXTURE15 => 15,
-            TextureUnit::TEXTURE16 => 16,
-            TextureUnit::TEXTURE17 => 17,
-            TextureUnit::TEXTURE18 => 18,
-            TextureUnit::TEXTURE19 => 19,
-            TextureUnit::TEXTURE20 => 20,
-            TextureUnit::TEXTURE21 => 21,
-            TextureUnit::TEXTURE22 => 22,
-            TextureUnit::TEXTURE23 => 23,
-            TextureUnit::TEXTURE24 => 24,
-            TextureUnit::TEXTURE25 => 25,
-            TextureUnit::TEXTURE26 => 26,
-            TextureUnit::TEXTURE27 => 27,
-            TextureUnit::TEXTURE28 => 28,
-            TextureUnit::TEXTURE29 => 29,
-            TextureUnit::TEXTURE30 => 30,
-            TextureUnit::TEXTURE31 => 31,
         }
     }
 }
@@ -726,29 +726,13 @@ pub enum TextureParameter {
     MIN_LOD(f32),
 }
 
-// /// Available texture internal formats, including [`TextureInternalFormatUncompressed`] and [`TextureInternalFormatCompressed`].
-// pub enum TextureInternalFormat {
-//     Uncompressed(TextureInternalFormatUncompressed),
-//     Compressed(TextureInternalFormatCompressed),
-// }
-
-// impl TextureInternalFormat {
-//     /// Calculates the bytes length of of a specified internal format in specified size.
-//     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
-//         match self {
-//             TextureInternalFormat::Uncompressed(format) => format.bytes_length(width, height),
-//             TextureInternalFormat::Compressed(format) => format.bytes_length(width, height),
-//         }
-//     }
-// }
-
-trait TextureInternalFormat: ToGlEnum + Copy {
+trait TextureNativeFormat: ToGlEnum + Copy {
     fn bytes_length(&self, width: usize, height: usize) -> usize;
 
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error>;
 }
 
-impl TextureInternalFormat for TextureInternalFormatUncompressed {
+impl TextureNativeFormat for TextureInternalFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -759,7 +743,7 @@ impl TextureInternalFormat for TextureInternalFormatUncompressed {
     }
 }
 
-impl TextureInternalFormat for TextureInternalFormatCompressed {
+impl TextureNativeFormat for TextureCompressedFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -770,7 +754,7 @@ impl TextureInternalFormat for TextureInternalFormatCompressed {
     }
 }
 
-macro_rules! texture_sources_uncompressed {
+macro_rules! texture_sources {
     ($(
         (
             $(($html_name:ident, $html_type:ident, $html_width:ident, $html_height:ident, $tex_2d_func:ident, $tex_3d_func:ident))+
@@ -786,11 +770,11 @@ macro_rules! texture_sources_uncompressed {
         /// Provides custom [`TexturePixelStorage`]s to tell WebGL how to unpack the data.
         /// For image data from Web API, some pixel storages configurations are ignored,
         /// checks https://registry.khronos.org/webgl/specs/latest/2.0/#5.35 for more details.
-        pub enum TextureSourceUncompressed {
+        pub enum TextureSource {
             Function {
                 width: usize,
                 height: usize,
-                callback: Rc<RefCell<dyn Fn() -> TextureSourceUncompressed>>,
+                callback: Rc<RefCell<dyn Fn() -> TextureSource>>,
             },
             PixelBufferObject {
                 width: usize,
@@ -862,19 +846,19 @@ macro_rules! texture_sources_uncompressed {
             )+
         }
 
-        impl TextureSourceUncompressed {
+        impl TextureSource {
             fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
                 match self {
-                    TextureSourceUncompressed::PixelBufferObject { pixel_storages, .. }
-                    | TextureSourceUncompressed::Binary { pixel_storages, .. }
-                    | TextureSourceUncompressed::Uint16Array { pixel_storages, .. }
-                    | TextureSourceUncompressed::Uint32Array { pixel_storages, .. }
+                    TextureSource::PixelBufferObject { pixel_storages, .. }
+                    | TextureSource::Binary { pixel_storages, .. }
+                    | TextureSource::Uint16Array { pixel_storages, .. }
+                    | TextureSource::Uint32Array { pixel_storages, .. }
                     $(
                         $(
-                            | TextureSourceUncompressed::$html_name { pixel_storages, .. }
+                            | TextureSource::$html_name { pixel_storages, .. }
                         )+
                         $(
-                            | TextureSourceUncompressed::$buffer_name { pixel_storages, .. }
+                            | TextureSource::$buffer_name { pixel_storages, .. }
                         )+
                     )+
                     => {
@@ -883,24 +867,24 @@ macro_rules! texture_sources_uncompressed {
                             .iter()
                             .for_each(|param| gl.pixel_storei(param.key(), param.value()));
                     }
-                    TextureSourceUncompressed::Function { .. } => {}
+                    TextureSource::Function { .. } => {}
                 };
             }
 
             /// Returns the width of the texture source.
             fn width(&self) -> usize {
                 match self {
-                    TextureSourceUncompressed::Function { width, .. } => *width,
-                    TextureSourceUncompressed::PixelBufferObject { width, .. } => *width,
-                    TextureSourceUncompressed::Binary { width, .. } => *width,
-                    TextureSourceUncompressed::Uint16Array { width, .. } => *width,
-                    TextureSourceUncompressed::Uint32Array { width, .. } => *width,
+                    TextureSource::Function { width, .. } => *width,
+                    TextureSource::PixelBufferObject { width, .. } => *width,
+                    TextureSource::Binary { width, .. } => *width,
+                    TextureSource::Uint16Array { width, .. } => *width,
+                    TextureSource::Uint32Array { width, .. } => *width,
                     $(
                         $(
-                            TextureSourceUncompressed::$html_name { data, .. } => data.$html_width() as usize,
+                            TextureSource::$html_name { data, .. } => data.$html_width() as usize,
                         )+
                         $(
-                            TextureSourceUncompressed::$buffer_name { width, .. } => *width,
+                            TextureSource::$buffer_name { width, .. } => *width,
                         )+
                     )+
                 }
@@ -909,17 +893,17 @@ macro_rules! texture_sources_uncompressed {
             /// Returns the height of the texture source.
             fn height(&self) -> usize {
                 match self {
-                    TextureSourceUncompressed::Function { height, .. } => *height,
-                    TextureSourceUncompressed::PixelBufferObject { height, .. } => *height,
-                    TextureSourceUncompressed::Binary { height, .. } => *height,
-                    TextureSourceUncompressed::Uint16Array { height, .. } => *height,
-                    TextureSourceUncompressed::Uint32Array { height, .. } => *height,
+                    TextureSource::Function { height, .. } => *height,
+                    TextureSource::PixelBufferObject { height, .. } => *height,
+                    TextureSource::Binary { height, .. } => *height,
+                    TextureSource::Uint16Array { height, .. } => *height,
+                    TextureSource::Uint32Array { height, .. } => *height,
                     $(
                         $(
-                            TextureSourceUncompressed::$html_name { data, .. } => data.$html_height() as usize,
+                            TextureSource::$html_name { data, .. } => data.$html_height() as usize,
                         )+
                         $(
-                            TextureSourceUncompressed::$buffer_name { height, .. } => *height,
+                            TextureSource::$buffer_name { height, .. } => *height,
                         )+
                     )+
                 }
@@ -943,12 +927,12 @@ macro_rules! texture_sources_uncompressed {
 
                 // buffers image sub data
                 let result = match self {
-                    TextureSourceUncompressed::Function {
+                    TextureSource::Function {
                         callback,
                         ..
                     } => {
                         let source = callback.borrow_mut()();
-                        if let TextureSourceUncompressed::Function { .. } = source {
+                        if let TextureSource::Function { .. } = source {
                             panic!("recursive TextureSource::Function is not allowed");
                         }
                         if self.width() != source.width() {
@@ -968,7 +952,7 @@ macro_rules! texture_sources_uncompressed {
                         )?;
                         Ok(())
                     }
-                    TextureSourceUncompressed::PixelBufferObject {
+                    TextureSource::PixelBufferObject {
                         buffer,
                         format,
                         data_type,
@@ -994,7 +978,7 @@ macro_rules! texture_sources_uncompressed {
                         );
                         result
                     }
-                    TextureSourceUncompressed::Binary {
+                    TextureSource::Binary {
                         data,
                         format,
                         data_type,
@@ -1014,7 +998,7 @@ macro_rules! texture_sources_uncompressed {
                     ),
                     $(
                         $(
-                            TextureSourceUncompressed::$html_name {
+                            TextureSource::$html_name {
                                 format,
                                 data_type,
                                 data,
@@ -1032,20 +1016,20 @@ macro_rules! texture_sources_uncompressed {
                             ),
                         )+
                     )+
-                    TextureSourceUncompressed::Uint16Array { .. }
-                    | TextureSourceUncompressed::Uint32Array { .. }
+                    TextureSource::Uint16Array { .. }
+                    | TextureSource::Uint32Array { .. }
                     $(
                         $(
-                            | TextureSourceUncompressed::$buffer_name { .. }
+                            | TextureSource::$buffer_name { .. }
                         )+
                     )+
                     => {
                         let (data, format, data_type, src_offset) = match self {
-                            TextureSourceUncompressed::Uint16Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
-                            TextureSourceUncompressed::Uint32Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            TextureSource::Uint16Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            TextureSource::Uint32Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
                             $(
                                 $(
-                                    TextureSourceUncompressed::$buffer_name { data, format, src_offset, .. } => (data as &Object, format, $buffer_targe, src_offset),
+                                    TextureSource::$buffer_name { data, format, src_offset, .. } => (data as &Object, format, $buffer_targe, src_offset),
                                 )+
 
                             )+
@@ -1090,12 +1074,12 @@ macro_rules! texture_sources_uncompressed {
 
                 // buffers image sub data
                 let result = match self {
-                    TextureSourceUncompressed::Function {
+                    TextureSource::Function {
                         callback,
                         ..
                     } => {
                         let source = callback.borrow_mut()();
-                        if let TextureSourceUncompressed::Function { .. } = source {
+                        if let TextureSource::Function { .. } = source {
                             panic!("recursive TextureSource::Function is not allowed");
                         }
                         if self.width() != source.width() {
@@ -1107,7 +1091,7 @@ macro_rules! texture_sources_uncompressed {
                         source.tex_sub_image_3d(gl, target, level, depth, Some(width), Some(height), Some(x_offset), Some(y_offset), Some(z_offset))?;
                         Ok(())
                     }
-                    TextureSourceUncompressed::PixelBufferObject {
+                    TextureSource::PixelBufferObject {
                         buffer,
                         format,
                         data_type,
@@ -1135,7 +1119,7 @@ macro_rules! texture_sources_uncompressed {
                         );
                         result
                     }
-                    TextureSourceUncompressed::Binary {
+                    TextureSource::Binary {
                         data,
                         format,
                         data_type,
@@ -1157,7 +1141,7 @@ macro_rules! texture_sources_uncompressed {
                     ),
                     $(
                         $(
-                            TextureSourceUncompressed::$html_name {
+                            TextureSource::$html_name {
                                 format,
                                 data_type,
                                 data,
@@ -1177,20 +1161,20 @@ macro_rules! texture_sources_uncompressed {
                             ),
                         )+
                     )+
-                    TextureSourceUncompressed::Uint16Array { .. }
-                    | TextureSourceUncompressed::Uint32Array { .. }
+                    TextureSource::Uint16Array { .. }
+                    | TextureSource::Uint32Array { .. }
                     $(
                         $(
-                            | TextureSourceUncompressed::$buffer_name { .. }
+                            | TextureSource::$buffer_name { .. }
                         )+
                     )+
                     => {
                         let (data, format, data_type, src_offset) = match self {
-                            TextureSourceUncompressed::Uint16Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
-                            TextureSourceUncompressed::Uint32Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            TextureSource::Uint16Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
+                            TextureSource::Uint32Array { data, format, data_type, src_offset, .. } => (data as &Object, format, data_type.gl_enum(), src_offset),
                             $(
                                 $(
-                                    TextureSourceUncompressed::$buffer_name { data, format, src_offset, .. } => (data as &Object, format, $buffer_targe, src_offset),
+                                    TextureSource::$buffer_name { data, format, src_offset, .. } => (data as &Object, format, $buffer_targe, src_offset),
                                 )+
 
                             )+
@@ -1219,7 +1203,7 @@ macro_rules! texture_sources_uncompressed {
     }
 }
 
-texture_sources_uncompressed! {
+texture_sources! {
     (
         (HtmlCanvasElement, HtmlCanvasElement, width, height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element, tex_sub_image_3d_with_html_canvas_element)
         (HtmlImageElement, HtmlImageElement, natural_width, natural_height, tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element, tex_sub_image_3d_with_html_image_element)
@@ -1248,14 +1232,14 @@ macro_rules! texture_sources_compressed {
             Function {
                 width: usize,
                 height: usize,
-                compressed_format: TextureInternalFormatCompressed,
+                compressed_format: TextureCompressedFormat,
                 bytes_length: usize,
                 callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
             },
             PixelBufferObject {
                 width: usize,
                 height: usize,
-                compressed_format: TextureInternalFormatCompressed,
+                compressed_format: TextureCompressedFormat,
                 buffer: WebGlBuffer,
                 image_size: usize,
                 pbo_offset: usize,
@@ -1264,7 +1248,7 @@ macro_rules! texture_sources_compressed {
                 $name {
                     width: usize,
                     height: usize,
-                    compressed_format: TextureInternalFormatCompressed,
+                    compressed_format: TextureCompressedFormat,
                     data: $data_view,
                     src_offset: usize,
                     src_length_override: Option<usize>,
@@ -1274,7 +1258,7 @@ macro_rules! texture_sources_compressed {
 
         impl TextureSourceCompressed {
             /// Returns the compressed format of the texture source.
-            fn compressed_format(&self) -> TextureInternalFormatCompressed {
+            fn compressed_format(&self) -> TextureCompressedFormat {
                 match self {
                     TextureSourceCompressed::Function { compressed_format, .. } => *compressed_format,
                     TextureSourceCompressed::PixelBufferObject { compressed_format, .. } => *compressed_format,
@@ -1579,215 +1563,6 @@ texture_sources_compressed! {
     (DataView, DataView)
 }
 
-/// Available texture sources, including [`TextureSourceUncompressed`] and [`TextureSourceCompressed`].
-enum TextureSource {
-    Uncompressed(TextureSourceUncompressed),
-    Compressed(TextureSourceCompressed),
-}
-
-impl TextureSource {
-    /// Uploads data to 2d or cube map texture source to WebGL.
-    fn tex_sub_image_2d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        level: usize,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-    ) -> Result<(), Error> {
-        match self {
-            TextureSource::Uncompressed(source) => {
-                source.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
-            }
-            TextureSource::Compressed(source) => {
-                source.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
-            }
-        }
-    }
-
-    /// Uploads data to 3d or 2d array map texture source to WebGL.
-    fn tex_sub_image_3d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-        level: usize,
-        depth: usize,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-        z_offset: Option<usize>,
-    ) -> Result<(), Error> {
-        match self {
-            TextureSource::Uncompressed(source) => source.tex_sub_image_3d(
-                gl, target, level, depth, width, height, x_offset, y_offset, z_offset,
-            ),
-            TextureSource::Compressed(source) => source.tex_sub_image_3d(
-                gl, target, level, depth, width, height, x_offset, y_offset, z_offset,
-            ),
-        }
-    }
-}
-
-/// Configurations specify a [`TextureSource`] to upload and
-/// a target sub-rectangle in a mipmap level to replace with in the texture.
-///
-/// Parameters are optional, default values of unspecified parameters as below:
-/// - `level`: 0
-/// - `depth`: 0
-/// - `width`: width of the texture source
-/// - `height`: height of the texture source
-/// - `x_offset`: 0
-/// - `y_offset`: 0
-/// - `z_offset`: 0
-struct TextureUpload {
-    source: TextureSource,
-    level: Option<usize>,
-    depth: Option<usize>,
-    width: Option<usize>,
-    height: Option<usize>,
-    x_offset: Option<usize>,
-    y_offset: Option<usize>,
-    z_offset: Option<usize>,
-}
-
-impl TextureUpload {
-    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
-    fn with_params(
-        source: TextureSource,
-        level: Option<usize>,
-        depth: Option<usize>,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-        z_offset: Option<usize>,
-    ) -> Self {
-        Self {
-            source,
-            level,
-            depth,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        }
-    }
-
-    /// Constructs a new upload data to upload to texture with a specified [`TextureSourceUncompressed`].
-    fn new_uncompressed(source: TextureSourceUncompressed) -> Self {
-        Self::with_params(
-            TextureSource::Uncompressed(source),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-    }
-
-    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceUncompressed`].
-    fn with_params_uncompressed(
-        source: TextureSourceUncompressed,
-        level: Option<usize>,
-        depth: Option<usize>,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-        z_offset: Option<usize>,
-    ) -> Self {
-        Self {
-            source: TextureSource::Uncompressed(source),
-            level,
-            depth,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        }
-    }
-
-    /// Constructs a new upload data to upload to texture with a specified [`TextureSourceCompressed`].
-    fn new_compressed(source: TextureSourceCompressed) -> Self {
-        Self::with_params(
-            TextureSource::Compressed(source),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-    }
-
-    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceCompressed`].
-    fn with_params_compressed(
-        source: TextureSourceCompressed,
-        level: Option<usize>,
-        depth: Option<usize>,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-        z_offset: Option<usize>,
-    ) -> Self {
-        Self {
-            source: TextureSource::Compressed(source),
-            level,
-            depth,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
-        }
-    }
-
-    /// Uploads texture source to WebGL.
-    fn tex_sub_image_2d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-    ) -> Result<(), Error> {
-        self.source.tex_sub_image_2d(
-            gl,
-            target,
-            self.level.unwrap_or(0),
-            self.width,
-            self.height,
-            self.x_offset,
-            self.y_offset,
-        )
-    }
-
-    /// Uploads texture source to WebGL.
-    fn tex_sub_image_3d(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: TextureTarget,
-    ) -> Result<(), Error> {
-        self.source.tex_sub_image_3d(
-            gl,
-            target,
-            self.level.unwrap_or(0),
-            self.depth.unwrap_or(0),
-            self.width,
-            self.height,
-            self.x_offset,
-            self.y_offset,
-            self.z_offset,
-        )
-    }
-}
-
 /// Abstract texture trait for creating a [`WebGlTexture`] using [`TextureSource`].
 pub trait Texture {
     /// Returns [`TextureTarget`].
@@ -1881,33 +1656,8 @@ pub trait TextureArray: Texture {
     fn array_length(&self) -> usize;
 }
 
-struct Runtime {
-    id: Uuid,
-    gl: WebGl2RenderingContext,
-    store_id: Uuid,
-    texture: WebGlTexture,
-    bytes_length: usize,
-    lru_node: *mut LruNode<Uuid>,
-    using: bool,
-
-    used_memory: *mut usize,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
-    lru: *mut Lru<Uuid>,
-}
-
-impl Drop for Runtime {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.textures).remove(&self.id);
-            (*self.lru).remove(self.lru_node);
-            (*self.used_memory) -= self.bytes_length;
-            self.gl.delete_texture(Some(&self.texture));
-        }
-    }
-}
-
 /// Private abstract texture trait for internal use.
-trait TextureInner: Texture {
+trait TextureItem: Texture {
     /// Returns [`Runtime`].
     fn runtime(&self) -> Option<&Runtime>;
 
@@ -1937,22 +1687,221 @@ trait TextureInner: Texture {
     fn free(&mut self) -> bool;
 }
 
-// pub trait TextureBuilder<T>
-// where
-//     T: TextureInner,
-// {
-//     fn build(self) -> T;
-// }
+/// Available texture sources for uploading, including [`TextureSource`] and [`TextureSourceCompressed`].
+enum UploadSource {
+    Uncompressed(TextureSource),
+    Compressed(TextureSourceCompressed),
+}
 
-#[allow(private_bounds)]
-pub struct TextureDescriptor<T>(Rc<RefCell<T>>)
-where
-    T: TextureInner;
+/// Configurations specify a [`TextureSource`] to upload and
+/// a target sub-rectangle in a mipmap level to replace with in the texture.
+///
+/// Parameters are optional, default values of unspecified parameters as below:
+/// - `level`: 0
+/// - `depth`: 0
+/// - `width`: width of the texture source
+/// - `height`: height of the texture source
+/// - `x_offset`: 0
+/// - `y_offset`: 0
+/// - `z_offset`: 0
+struct UploadItem {
+    source: UploadSource,
+    level: Option<usize>,
+    depth: Option<usize>,
+    width: Option<usize>,
+    height: Option<usize>,
+    x_offset: Option<usize>,
+    y_offset: Option<usize>,
+    z_offset: Option<usize>,
+}
 
-impl<T> Clone for TextureDescriptor<T>
-where
-    T: TextureInner,
-{
+impl UploadItem {
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
+    fn with_params(
+        source: UploadSource,
+        level: Option<usize>,
+        depth: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source,
+            level,
+            depth,
+            width,
+            height,
+            x_offset,
+            y_offset,
+            z_offset,
+        }
+    }
+
+    /// Constructs a new upload data to upload to texture with a specified [`TextureSource`].
+    fn new_uncompressed(source: TextureSource) -> Self {
+        Self::with_params(
+            UploadSource::Uncompressed(source),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
+    fn with_params_uncompressed(
+        source: TextureSource,
+        level: Option<usize>,
+        depth: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source: UploadSource::Uncompressed(source),
+            level,
+            depth,
+            width,
+            height,
+            x_offset,
+            y_offset,
+            z_offset,
+        }
+    }
+
+    /// Constructs a new upload data to upload to texture with a specified [`TextureSourceCompressed`].
+    fn new_compressed(source: TextureSourceCompressed) -> Self {
+        Self::with_params(
+            UploadSource::Compressed(source),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceCompressed`].
+    fn with_params_compressed(
+        source: TextureSourceCompressed,
+        level: Option<usize>,
+        depth: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source: UploadSource::Compressed(source),
+            level,
+            depth,
+            width,
+            height,
+            x_offset,
+            y_offset,
+            z_offset,
+        }
+    }
+
+    /// Uploads texture source to WebGL.
+    fn tex_sub_image_2d(
+        self,
+        gl: &WebGl2RenderingContext,
+        target: TextureTarget,
+    ) -> Result<(), Error> {
+        match self.source {
+            UploadSource::Uncompressed(source) => source.tex_sub_image_2d(
+                gl,
+                target,
+                self.level.unwrap_or(0),
+                self.width,
+                self.height,
+                self.x_offset,
+                self.y_offset,
+            ),
+            UploadSource::Compressed(source) => source.tex_sub_image_2d(
+                gl,
+                target,
+                self.level.unwrap_or(0),
+                self.width,
+                self.height,
+                self.x_offset,
+                self.y_offset,
+            ),
+        }
+    }
+
+    /// Uploads texture source to WebGL.
+    fn tex_sub_image_3d(
+        self,
+        gl: &WebGl2RenderingContext,
+        target: TextureTarget,
+    ) -> Result<(), Error> {
+        match self.source {
+            UploadSource::Uncompressed(source) => source.tex_sub_image_3d(
+                gl,
+                target,
+                self.level.unwrap_or(0),
+                self.depth.unwrap_or(0),
+                self.width,
+                self.height,
+                self.x_offset,
+                self.y_offset,
+                self.z_offset,
+            ),
+            UploadSource::Compressed(source) => source.tex_sub_image_3d(
+                gl,
+                target,
+                self.level.unwrap_or(0),
+                self.depth.unwrap_or(0),
+                self.width,
+                self.height,
+                self.x_offset,
+                self.y_offset,
+                self.z_offset,
+            ),
+        }
+    }
+}
+
+struct Runtime {
+    id: Uuid,
+    gl: WebGl2RenderingContext,
+    store_id: Uuid,
+    texture: WebGlTexture,
+    bytes_length: usize,
+    lru_node: *mut LruNode<Uuid>,
+    using: bool,
+
+    used_memory: *mut usize,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
+    lru: *mut Lru<Uuid>,
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.textures).remove(&self.id);
+            (*self.lru).remove(self.lru_node);
+            (*self.used_memory) -= self.bytes_length;
+            self.gl.delete_texture(Some(&self.texture));
+        }
+    }
+}
+
+pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
+
+impl<T> Clone for TextureDescriptor<T> {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
     }
@@ -1961,7 +1910,7 @@ where
 #[allow(private_bounds)]
 impl<T> TextureDescriptor<T>
 where
-    T: TextureInner,
+    T: TextureItem,
 {
     /// Returns [`Texture`] associated with this descriptor.
     pub fn texture(&self) -> Ref<'_, T> {
@@ -1981,7 +1930,7 @@ pub struct TextureStore {
     available_memory: usize,
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
 }
 
 impl TextureStore {
@@ -2057,7 +2006,7 @@ impl TextureStore {
         unit: TextureUnit,
     ) -> Result<WebGlTexture, Error>
     where
-        T: TextureInner + 'static,
+        T: TextureItem + 'static,
     {
         let texture = unsafe {
             let mut t = descriptor.texture_mut();
@@ -2082,7 +2031,7 @@ impl TextureStore {
                     let bytes_length = t.bytes_length();
                     (*self.textures).insert(
                         id,
-                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureInner>>,
+                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureItem>>,
                     );
                     (*self.lru).cache(lru_node);
                     (*self.used_memory) += bytes_length;
@@ -2121,7 +2070,7 @@ impl TextureStore {
     #[allow(private_bounds)]
     pub fn unuse_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
     where
-        T: TextureInner + 'static,
+        T: TextureItem + 'static,
     {
         let mut t = descriptor.texture_mut();
         let target = t.target().gl_enum();
@@ -2143,8 +2092,7 @@ impl Drop for TextureStore {
                 let Some(runtime) = runtime else {
                     continue;
                 };
-                self.gl.delete_texture(Some(&runtime.texture));
-                // store dropped, no need to update LRU anymore
+                drop(runtime);
             }
             drop(Box::from_raw(self.textures));
             drop(Box::from_raw(self.used_memory));

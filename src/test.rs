@@ -40,10 +40,9 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::{
-    texture2d, TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormatCompressed,
-    TextureInternalFormatUncompressed, TextureMagnificationFilter, TextureMinificationFilter,
-    TextureParameter, TexturePixelStorage, TextureSourceCompressed, TextureSourceUncompressed,
-    TextureUnit, TextureWrapMethod,
+    texture2d, TextureCompressedFormat, TextureDataType, TextureDescriptor, TextureFormat,
+    TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+    TexturePixelStorage, TextureSource, TextureSourceCompressed, TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -602,16 +601,30 @@ pub fn test_cube(
     image.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2D {
             descriptor: TextureDescriptor::new(
-                texture2d::Builder::<TextureInternalFormatUncompressed>::with_base_source(
-                    TextureSourceUncompressed::HtmlImageElement {
-                        data: sky_rgb,
+                texture2d::Builder::<TextureInternalFormat>::with_base_source(
+                    TextureSource::HtmlImageElement {
+                        data: sky_rgb.clone(),
                         format: TextureFormat::RGBA,
                         data_type: TextureDataType::UNSIGNED_BYTE,
                         pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
                     },
-                    TextureInternalFormatUncompressed::SRGB8_ALPHA8,
+                    TextureInternalFormat::SRGB8_ALPHA8,
                 )
                 .generate_mipmap()
+                .set_memory_policy(texture2d::MemoryPolicy::Restorable(Box::new(
+                    move |builder| {
+                        builder
+                            .set_base_source(TextureSource::HtmlImageElement {
+                                data: sky_rgb.clone(),
+                                format: TextureFormat::RGBA,
+                                data_type: TextureDataType::UNSIGNED_BYTE,
+                                pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(
+                                    true,
+                                )],
+                            })
+                            .generate_mipmap()
+                    },
+                )))
                 .build(),
             ),
             params: vec![
@@ -657,7 +670,7 @@ pub fn test_cube(
     //     UniformValue::Texture2D {
     //         descriptor: TextureDescriptor::<Texture2D>::new(texture_2d::ConstructPolicy::Simple {
     //             internal_format: TextureUncompressedInternalFormat::SRGB8_ALPHA8,
-    //             base: TextureSourceUncompressed::HtmlImageElement {
+    //             base: TextureSource::HtmlImageElement {
     //                 data: floor_rgb,
     //                 format: TextureFormat::RGBA,
     //                 data_type: TextureDataType::UNSIGNED_BYTE,

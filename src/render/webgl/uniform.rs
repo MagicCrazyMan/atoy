@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use super::{
     buffer::BufferDescriptor,
-    texture::{texture2d::Texture2D, TextureDescriptor, TextureInternalFormatCompressed, TextureInternalFormatUncompressed, TextureParameter, TextureUnit},
+    texture::{texture2d::Texture2D, TextureDescriptor, TextureCompressedFormat, TextureInternalFormat, TextureParameter, TextureUnit},
 };
 
 /// Available uniform values.
@@ -45,42 +45,42 @@ pub enum UniformValue {
         transpose: bool,
     },
     Texture2D {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     Texture2DCompressed {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatCompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureCompressedFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     Texture3D {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     Texture3DCompressed {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     Texture2DArray {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     Texture2DArrayCompressed {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     TextureCubeMap {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },
     TextureCubeMapCompressed {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>,
+        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
         params: Vec<TextureParameter>,
         unit: TextureUnit,
     },

@@ -5,36 +5,30 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    Runtime, Texture, TextureDescriptor, TextureInner, TextureInternalFormat,
-    TextureInternalFormatCompressed, TextureInternalFormatUncompressed, TexturePlanar,
-    TextureSourceCompressed, TextureSourceUncompressed, TextureTarget, TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDescriptor, TextureItem, TextureNativeFormat,
+    TextureCompressedFormat, TextureInternalFormat, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
 #[allow(private_bounds)]
-pub enum MemoryPolicy<F>
-where
-    F: TextureInternalFormat,
-{
+pub enum MemoryPolicy<F> {
     Unfree,
     Restorable(Box<dyn Fn(Builder<F>) -> Builder<F>>),
 }
 
 /// A WebGL 2d texture workload.
 #[allow(private_bounds)]
-pub struct Texture2D<F>
-where
-    F: TextureInternalFormat,
-{
+pub struct Texture2D<F> {
     width: usize,
     height: usize,
     max_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
 
-    mipmap_base: Option<(TextureUpload, Option<usize>, Option<usize>)>,
+    mipmap_base: Option<(UploadItem, Option<usize>, Option<usize>)>,
 
-    uploads: Vec<TextureUpload>,
+    uploads: Vec<UploadItem>,
 
     runtime: Option<Box<Runtime>>,
 }
@@ -42,7 +36,7 @@ where
 #[allow(private_bounds)]
 impl<F> Texture2D<F>
 where
-    F: TextureInternalFormat,
+    F: TextureNativeFormat,
 {
     /// Returns [`TextureInternalFormat`].
     pub fn internal_format(&self) -> F {
@@ -55,10 +49,10 @@ where
     }
 }
 
-impl Texture2D<TextureInternalFormatUncompressed> {
+impl Texture2D<TextureInternalFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
-    pub fn tex_image(&mut self, source: TextureSourceUncompressed) -> Result<(), Error> {
-        self.uploads.push(TextureUpload::with_params_uncompressed(
+    pub fn tex_image(&mut self, source: TextureSource) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params_uncompressed(
             source, None, None, None, None, None, None, None,
         ));
         Ok(())
@@ -67,14 +61,14 @@ impl Texture2D<TextureInternalFormatUncompressed> {
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureSourceUncompressed,
+        source: TextureSource,
         level: usize,
         width: usize,
         height: usize,
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(TextureUpload::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params_uncompressed(
             source,
             Some(level),
             None,
@@ -88,10 +82,10 @@ impl Texture2D<TextureInternalFormatUncompressed> {
     }
 }
 
-impl Texture2D<TextureInternalFormatCompressed> {
+impl Texture2D<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(&mut self, source: TextureSourceCompressed) -> Result<(), Error> {
-        self.uploads.push(TextureUpload::with_params_compressed(
+        self.uploads.push(UploadItem::with_params_compressed(
             source, None, None, None, None, None, None, None,
         ));
         Ok(())
@@ -107,7 +101,7 @@ impl Texture2D<TextureInternalFormatCompressed> {
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(TextureUpload::with_params_compressed(
+        self.uploads.push(UploadItem::with_params_compressed(
             source,
             Some(level),
             None,
@@ -123,7 +117,7 @@ impl Texture2D<TextureInternalFormatCompressed> {
 
 impl<F> Texture for Texture2D<F>
 where
-    F: TextureInternalFormat,
+    F: TextureNativeFormat,
 {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_2D
@@ -161,7 +155,7 @@ where
 
 impl<F> TexturePlanar for Texture2D<F>
 where
-    F: TextureInternalFormat,
+    F: TextureNativeFormat,
 {
     fn width(&self) -> usize {
         self.width
@@ -172,9 +166,9 @@ where
     }
 }
 
-impl<F> TextureInner for Texture2D<F>
+impl<F> TextureItem for Texture2D<F>
 where
-    F: TextureInternalFormat,
+    F: TextureNativeFormat,
 {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
@@ -305,10 +299,7 @@ where
 }
 
 #[allow(private_bounds)]
-impl<F> TextureDescriptor<Texture2D<F>>
-where
-    F: TextureInternalFormat,
-{
+impl<F> TextureDescriptor<Texture2D<F>> {
     /// Constructs a new texture descriptor with [`Texture2D`].
     pub fn new(texture: Texture2D<F>) -> Self {
         Self(Rc::new(RefCell::new(texture)))
@@ -317,18 +308,15 @@ where
 
 /// A builder to build a [`Texture2D`].
 #[allow(private_bounds)]
-pub struct Builder<F>
-where
-    F: TextureInternalFormat,
-{
+pub struct Builder<F> {
     internal_format: F,
     width: usize,
     height: usize,
     max_level: usize,
     memory_policy: MemoryPolicy<F>,
 
-    base_source: Option<TextureUpload>,
-    uploads: Vec<TextureUpload>,
+    base_source: Option<UploadItem>,
+    uploads: Vec<UploadItem>,
 
     mipmap: bool,
     mipmap_base_level: Option<usize>,
@@ -338,7 +326,7 @@ where
 #[allow(private_bounds)]
 impl<F> Builder<F>
 where
-    F: TextureInternalFormat,
+    F: TextureNativeFormat,
 {
     /// Initializes a new builder with specified width, height and internal format.
     pub fn new(width: usize, height: usize, internal_format: F) -> Self {
@@ -399,11 +387,11 @@ where
     }
 }
 
-impl Builder<TextureInternalFormatUncompressed> {
+impl Builder<TextureInternalFormat> {
     /// Initializes a new builder from an existing [`TextureUpload`] and internal format.
     pub fn with_base_source(
-        base_source: TextureSourceUncompressed,
-        internal_format: TextureInternalFormatUncompressed,
+        base_source: TextureSource,
+        internal_format: TextureInternalFormat,
     ) -> Self {
         let width = base_source.width();
         let height = base_source.height();
@@ -411,10 +399,10 @@ impl Builder<TextureInternalFormatUncompressed> {
             internal_format,
             width,
             height,
-            max_level: <Texture2D<TextureInternalFormatUncompressed> as TexturePlanar>::max_available_mipmap_level(width, height),
+            max_level: <Texture2D<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(width, height),
             memory_policy: MemoryPolicy::Unfree,
 
-            base_source: Some(TextureUpload::new_uncompressed(base_source)),
+            base_source: Some(UploadItem::new_uncompressed(base_source)),
             uploads: Vec::new(),
 
             mipmap: false,
@@ -424,8 +412,8 @@ impl Builder<TextureInternalFormatUncompressed> {
     }
 
     /// Sets the source in level 0.
-    pub fn set_base_source(mut self, base: TextureSourceUncompressed) -> Self {
-        self.base_source = Some(TextureUpload::new_uncompressed(base));
+    pub fn set_base_source(mut self, base: TextureSource) -> Self {
+        self.base_source = Some(UploadItem::new_uncompressed(base));
         self
     }
 
@@ -464,8 +452,8 @@ impl Builder<TextureInternalFormatUncompressed> {
     }
 
     /// Uploads a new source to texture.
-    pub fn tex_image(mut self, source: TextureSourceUncompressed, level: usize) -> Self {
-        self.uploads.push(TextureUpload::with_params_uncompressed(
+    pub fn tex_image(mut self, source: TextureSource, level: usize) -> Self {
+        self.uploads.push(UploadItem::with_params_uncompressed(
             source,
             Some(level),
             None,
@@ -481,14 +469,14 @@ impl Builder<TextureInternalFormatUncompressed> {
     /// Uploads a new source for a sub-rectangle of the texture.
     pub fn tex_sub_image(
         mut self,
-        source: TextureSourceUncompressed,
+        source: TextureSource,
         level: usize,
         width: usize,
         height: usize,
         x_offset: usize,
         y_offset: usize,
     ) -> Self {
-        self.uploads.push(TextureUpload::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params_uncompressed(
             source,
             Some(level),
             None,
@@ -502,11 +490,11 @@ impl Builder<TextureInternalFormatUncompressed> {
     }
 }
 
-impl Builder<TextureInternalFormatCompressed> {
+impl Builder<TextureCompressedFormat> {
     /// Initializes a new builder from an existing [`TextureUpload`] and internal format.
     pub fn with_base_source(
         base_source: TextureSourceCompressed,
-        internal_format: TextureInternalFormatCompressed,
+        internal_format: TextureCompressedFormat,
     ) -> Self {
         let width = base_source.width();
         let height = base_source.height();
@@ -514,10 +502,10 @@ impl Builder<TextureInternalFormatCompressed> {
             internal_format,
             width,
             height,
-            max_level: <Texture2D<TextureInternalFormatCompressed> as TexturePlanar>::max_available_mipmap_level(width, height),
+            max_level: <Texture2D<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(width, height),
             memory_policy: MemoryPolicy::Unfree,
 
-            base_source: Some(TextureUpload::new_compressed(base_source)),
+            base_source: Some(UploadItem::new_compressed(base_source)),
             uploads: Vec::new(),
 
             mipmap: false,
@@ -528,13 +516,13 @@ impl Builder<TextureInternalFormatCompressed> {
 
     /// Sets the source in level 0.
     pub fn set_base_source(mut self, base_source: TextureSourceCompressed) -> Self {
-        self.base_source = Some(TextureUpload::new_compressed(base_source));
+        self.base_source = Some(UploadItem::new_compressed(base_source));
         self
     }
 
     /// Uploads a new image to texture.
     pub fn tex_image(mut self, source: TextureSourceCompressed, level: usize) -> Self {
-        self.uploads.push(TextureUpload::with_params_compressed(
+        self.uploads.push(UploadItem::with_params_compressed(
             source,
             Some(level),
             None,
@@ -557,7 +545,7 @@ impl Builder<TextureInternalFormatCompressed> {
         x_offset: usize,
         y_offset: usize,
     ) -> Self {
-        self.uploads.push(TextureUpload::with_params_compressed(
+        self.uploads.push(UploadItem::with_params_compressed(
             source,
             Some(level),
             None,

@@ -2,7 +2,7 @@ use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
     texture2d::{Builder, Texture2D},
-    TextureDescriptor, TextureInternalFormatCompressed, TextureSourceCompressed,
+    TextureDescriptor, TextureCompressedFormat, TextureSourceCompressed,
 };
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
@@ -201,16 +201,16 @@ impl DirectDrawSurface {
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<TextureDescriptor<Texture2D<TextureInternalFormatCompressed>>> {
+    ) -> Option<TextureDescriptor<Texture2D<TextureCompressedFormat>>> {
         let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
-            (DDS_DXT1, false, false) => Some(TextureInternalFormatCompressed::RGB_S3TC_DXT1),
-            (DDS_DXT1, true, false) => Some(TextureInternalFormatCompressed::RGBA_S3TC_DXT1),
-            (DDS_DXT1, false, true) => Some(TextureInternalFormatCompressed::SRGB_S3TC_DXT1),
-            (DDS_DXT1, true, true) => Some(TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT1),
-            (DDS_DXT3, _, false) => Some(TextureInternalFormatCompressed::RGBA_S3TC_DXT3),
-            (DDS_DXT3, _, true) => Some(TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT3),
-            (DDS_DXT5, _, false) => Some(TextureInternalFormatCompressed::RGBA_S3TC_DXT5),
-            (DDS_DXT5, _, true) => Some(TextureInternalFormatCompressed::SRGB_ALPHA_S3TC_DXT5),
+            (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
+            (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
+            (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
+            (DDS_DXT1, true, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT1),
+            (DDS_DXT3, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT3),
+            (DDS_DXT3, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT3),
+            (DDS_DXT5, _, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT5),
+            (DDS_DXT5, _, true) => Some(TextureCompressedFormat::SRGB_ALPHA_S3TC_DXT5),
             (_, _, _) => None,
         };
 

@@ -27,8 +27,8 @@ use super::{
     },
     program::{Program, ProgramStore},
     texture::{
-        texture2d::Texture2D, TextureDescriptor, TextureInternalFormatCompressed,
-        TextureInternalFormatUncompressed, TextureParameter, TextureStore, TextureUnit,
+        texture2d::Texture2D, TextureDescriptor, TextureCompressedFormat,
+        TextureInternalFormat, TextureParameter, TextureStore, TextureUnit,
     },
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
@@ -39,8 +39,8 @@ pub struct BoundAttribute {
 }
 
 enum TextureKind {
-    Texture2D(TextureDescriptor<Texture2D<TextureInternalFormatUncompressed>>),
-    Texture2DCompressed(TextureDescriptor<Texture2D<TextureInternalFormatCompressed>>),
+    Texture2D(TextureDescriptor<Texture2D<TextureInternalFormat>>),
+    Texture2DCompressed(TextureDescriptor<Texture2D<TextureCompressedFormat>>),
     // Texture2DArray(TextureDescriptor<Texture2DArray>),
     // Texture2DArrayCompressed(TextureDescriptor<Texture2DArrayCompressed>),
     // Texture3D(TextureDescriptor<Texture3D>),

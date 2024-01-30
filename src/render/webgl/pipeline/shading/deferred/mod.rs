@@ -26,7 +26,7 @@ use crate::{
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
         shader::{Define, ShaderBuilder},
         state::FrameState,
-        texture::{TextureInternalFormatUncompressed, TextureUnit},
+        texture::{TextureInternalFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -45,7 +45,7 @@ impl StandardDeferredShading {
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
-                AttachmentProvider::new_texture(TextureInternalFormatUncompressed::RGBA8),
+                AttachmentProvider::new_texture(TextureInternalFormat::RGBA8),
             ))
         })
     }
