@@ -54,16 +54,16 @@ const bloomBlurEpoch = ref(10);
 const renderTime = ref(0);
 const pickTime = ref(0);
 
-const loadFloorTexture = async () => {
+const loadTexture = async (url: string) => {
   const img = new Image();
-  img.src = "./wood.png";
+  img.src = url;
   await new Promise((resolve, reject) => {
     img.onload = resolve;
     img.onerror = reject;
   });
   return img;
 };
-const loadFloorCompressedTexture = async (url: string) => {
+const loadCompressedTexture = async (url: string) => {
   const response = await fetch(url);
   const arrayBuffer = await response.arrayBuffer();
   return arrayBuffer;
@@ -96,9 +96,10 @@ onMounted(async () => {
     (time: number) => {
       pickTime.value = time;
     },
-    await loadFloorTexture(),
-    await loadFloorCompressedTexture("/wood_dxt3_mipmaps.dds"),
-    await loadFloorCompressedTexture("/sky_dxt3.dds")
+    await loadTexture("/wood.png"),
+    await loadCompressedTexture("/wood_dxt3_mipmaps.dds"),
+    await loadTexture("/sky.jpg"),
+    await loadCompressedTexture("/sky_dxt3.dds")
   );
 
   clearColor.value = (() => {

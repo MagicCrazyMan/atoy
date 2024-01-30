@@ -183,7 +183,7 @@ impl TextureCubeMap {
         source: TextureSourceUncompressed,
         level: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params_2d(
+        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params(
             source, level, None, None, None, None,
         ));
         Ok(())
@@ -200,7 +200,7 @@ impl TextureCubeMap {
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params_2d(
+        self.faces[face as usize].push(TextureUpload::<TextureSourceUncompressed>::with_params(
             source,
             level,
             Some(width),
@@ -444,12 +444,12 @@ impl TextureDescriptor<TextureCubeMap> {
 
                     mipmap_base: Some((
                         [
-                            TextureUpload::new_2d(positive_x, 0),
-                            TextureUpload::new_2d(negative_x, 0),
-                            TextureUpload::new_2d(positive_y, 0),
-                            TextureUpload::new_2d(negative_y, 0),
-                            TextureUpload::new_2d(positive_z, 0),
-                            TextureUpload::new_2d(negative_z, 0),
+                            TextureUpload::new(positive_x, 0),
+                            TextureUpload::new(negative_x, 0),
+                            TextureUpload::new(positive_y, 0),
+                            TextureUpload::new(negative_y, 0),
+                            TextureUpload::new(positive_z, 0),
+                            TextureUpload::new(negative_z, 0),
                         ],
                         None,
                         None,

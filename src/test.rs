@@ -39,13 +39,11 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::texture::texture2d::{ConstructionPolicy, Texture2D};
-use crate::render::webgl::texture::texture2d_compressed::{self, Texture2DCompressed};
 use crate::render::webgl::texture::{
-    TextureInternalFormatCompressed, TextureSourceCompressed, TextureDataType, TextureDescriptor,
-    TextureFormat, TextureInternalFormatUncompressed, TextureMagnificationFilter, TextureMinificationFilter,
-    TextureParameter, TexturePixelStorage, TextureSourceUncompressed, TextureUnit, TextureUpload,
-    TextureWrapMethod,
+    texture2d, TextureDataType, TextureDescriptor, TextureFormat, TextureInternalFormatCompressed,
+    TextureInternalFormatUncompressed, TextureMagnificationFilter, TextureMinificationFilter,
+    TextureParameter, TexturePixelStorage, TextureSourceCompressed, TextureSourceUncompressed,
+    TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -534,6 +532,7 @@ pub fn test_cube(
     pick_callback: &Function,
     floor_rgb: HtmlImageElement,
     floor_dxt: ArrayBuffer,
+    sky_rgb: HtmlImageElement,
     sky_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
@@ -600,16 +599,23 @@ pub fn test_cube(
     // scene.entity_collection_mut().add_entity(entity);
 
     let mut image = EntityOptions::new();
-    let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
     image.set_material(Some(TextureMaterial::new(
-        UniformValue::Texture2DCompressed {
-            descriptor: dds.texture_descriptor(true, true).unwrap(),
+        UniformValue::Texture2D {
+            descriptor: TextureDescriptor::new(
+                texture2d::Builder::<TextureInternalFormatUncompressed>::with_base_source(
+                    TextureSourceUncompressed::HtmlImageElement {
+                        data: sky_rgb,
+                        format: TextureFormat::RGBA,
+                        data_type: TextureDataType::UNSIGNED_BYTE,
+                        pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+                    },
+                    TextureInternalFormatUncompressed::SRGB8_ALPHA8,
+                )
+                .generate_mipmap()
+                .build(),
+            ),
             params: vec![
-                TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
-                    TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
-                } else {
-                    TextureMinificationFilter::LINEAR
-                }),
+                TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
                 TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
                 TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
                 TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
@@ -618,6 +624,24 @@ pub fn test_cube(
         },
         Transparency::Opaque,
     )));
+    // let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
+    // image.set_material(Some(TextureMaterial::new(
+    //     UniformValue::Texture2DCompressed {
+    //         descriptor: dds.texture_descriptor(true, true).unwrap(),
+    //         params: vec![
+    //             TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
+    //                 TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
+    //             } else {
+    //                 TextureMinificationFilter::LINEAR
+    //             }),
+    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+    //         ],
+    //         unit: TextureUnit::TEXTURE0,
+    //     },
+    //     Transparency::Opaque,
+    // )));
     image.set_geometry(Some(Rectangle::new(
         Vec2::new(0.0, 0.0),
         Placement::Center,

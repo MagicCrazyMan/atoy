@@ -113,7 +113,7 @@ impl Texture3DCompressed {
         depth: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureSourceCompressed>::with_params_3d(
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_uncompressed(
                 source, level, depth, None, None, None, None, None,
             ));
         Ok(())
@@ -132,7 +132,7 @@ impl Texture3DCompressed {
         z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureSourceCompressed>::with_params_3d(
+            .push(TextureUpload::<TextureSourceCompressed>::with_params_uncompressed(
                 source,
                 level,
                 depth,

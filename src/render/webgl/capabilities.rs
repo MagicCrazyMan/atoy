@@ -189,7 +189,7 @@ impl Capabilities {
         Ok(())
     }
 
-    pub fn verify_internal_format(
+    pub fn verify_internal_format_uncompressed(
         &self,
         internal_format: TextureInternalFormatUncompressed,
     ) -> Result<(), Error> {
@@ -211,7 +211,7 @@ impl Capabilities {
         }
     }
 
-    pub fn verify_compressed_format(
+    pub fn verify_internal_format_compressed(
         &self,
         compressed_format: TextureInternalFormatCompressed,
     ) -> Result<(), Error> {

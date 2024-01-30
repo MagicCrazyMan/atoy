@@ -152,7 +152,7 @@ impl Texture2DArray {
         array_length: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
                 source,
                 level,
                 array_length,
@@ -178,7 +178,7 @@ impl Texture2DArray {
         z_offset: usize,
     ) -> Result<(), Error> {
         self.uploads
-            .push(TextureUpload::<TextureSourceUncompressed>::with_params_3d(
+            .push(TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
                 source,
                 level,
                 array_length,

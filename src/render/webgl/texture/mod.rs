@@ -7,13 +7,13 @@
 //!
 
 pub mod texture2d;
-pub mod texture2d_compressed;
-pub mod texture2darray;
-pub mod texture2darray_compressed;
-pub mod texture3d;
-pub mod texture3d_compressed;
-pub mod texture_cubemap;
-pub mod texture_cubemap_compressed;
+// pub mod texture2d_compressed;
+// pub mod texture2darray;
+// pub mod texture2darray_compressed;
+// pub mod texture3d;
+// pub mod texture3d_compressed;
+// pub mod texture_cubemap;
+// pub mod texture_cubemap_compressed;
 
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -726,6 +726,50 @@ pub enum TextureParameter {
     MIN_LOD(f32),
 }
 
+// /// Available texture internal formats, including [`TextureInternalFormatUncompressed`] and [`TextureInternalFormatCompressed`].
+// pub enum TextureInternalFormat {
+//     Uncompressed(TextureInternalFormatUncompressed),
+//     Compressed(TextureInternalFormatCompressed),
+// }
+
+// impl TextureInternalFormat {
+//     /// Calculates the bytes length of of a specified internal format in specified size.
+//     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
+//         match self {
+//             TextureInternalFormat::Uncompressed(format) => format.bytes_length(width, height),
+//             TextureInternalFormat::Compressed(format) => format.bytes_length(width, height),
+//         }
+//     }
+// }
+
+trait TextureInternalFormat: ToGlEnum + Copy {
+    fn bytes_length(&self, width: usize, height: usize) -> usize;
+
+    fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error>;
+}
+
+impl TextureInternalFormat for TextureInternalFormatUncompressed {
+    fn bytes_length(&self, width: usize, height: usize) -> usize {
+        self.bytes_length(width, height)
+    }
+
+    fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        capabilities.verify_internal_format_uncompressed(*self)?;
+        Ok(())
+    }
+}
+
+impl TextureInternalFormat for TextureInternalFormatCompressed {
+    fn bytes_length(&self, width: usize, height: usize) -> usize {
+        self.bytes_length(width, height)
+    }
+
+    fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        capabilities.verify_internal_format_compressed(*self)?;
+        Ok(())
+    }
+}
+
 macro_rules! texture_sources_uncompressed {
     ($(
         (
@@ -842,9 +886,7 @@ macro_rules! texture_sources_uncompressed {
                     TextureSourceUncompressed::Function { .. } => {}
                 };
             }
-        }
 
-        impl TextureSource for TextureSourceUncompressed {
             /// Returns the width of the texture source.
             fn width(&self) -> usize {
                 match self {
@@ -1259,9 +1301,7 @@ macro_rules! texture_sources_compressed {
                     )+
                 }
             }
-        }
 
-        impl TextureSource for TextureSourceCompressed {
             /// Returns the width of the texture source.
             fn width(&self) -> usize {
                 match self {
@@ -1539,13 +1579,13 @@ texture_sources_compressed! {
     (DataView, DataView)
 }
 
-trait TextureSource {
-    /// Returns the width of the texture source.
-    fn width(&self) -> usize;
+/// Available texture sources, including [`TextureSourceUncompressed`] and [`TextureSourceCompressed`].
+enum TextureSource {
+    Uncompressed(TextureSourceUncompressed),
+    Compressed(TextureSourceCompressed),
+}
 
-    /// Returns the height of the texture source.
-    fn height(&self) -> usize;
-
+impl TextureSource {
     /// Uploads data to 2d or cube map texture source to WebGL.
     fn tex_sub_image_2d(
         &self,
@@ -1556,7 +1596,16 @@ trait TextureSource {
         height: Option<usize>,
         x_offset: Option<usize>,
         y_offset: Option<usize>,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error> {
+        match self {
+            TextureSource::Uncompressed(source) => {
+                source.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
+            }
+            TextureSource::Compressed(source) => {
+                source.tex_sub_image_2d(gl, target, level, width, height, x_offset, y_offset)
+            }
+        }
+    }
 
     /// Uploads data to 3d or 2d array map texture source to WebGL.
     fn tex_sub_image_3d(
@@ -1570,14 +1619,32 @@ trait TextureSource {
         x_offset: Option<usize>,
         y_offset: Option<usize>,
         z_offset: Option<usize>,
-    ) -> Result<(), Error>;
+    ) -> Result<(), Error> {
+        match self {
+            TextureSource::Uncompressed(source) => source.tex_sub_image_3d(
+                gl, target, level, depth, width, height, x_offset, y_offset, z_offset,
+            ),
+            TextureSource::Compressed(source) => source.tex_sub_image_3d(
+                gl, target, level, depth, width, height, x_offset, y_offset, z_offset,
+            ),
+        }
+    }
 }
 
 /// Configurations specify a [`TextureSource`] to upload and
 /// a target sub-rectangle in a mipmap level to replace with in the texture.
-pub struct TextureUpload<T> {
-    source: T,
-    level: usize,
+///
+/// Parameters are optional, default values of unspecified parameters as below:
+/// - `level`: 0
+/// - `depth`: 0
+/// - `width`: width of the texture source
+/// - `height`: height of the texture source
+/// - `x_offset`: 0
+/// - `y_offset`: 0
+/// - `z_offset`: 0
+struct TextureUpload {
+    source: TextureSource,
+    level: Option<usize>,
     depth: Option<usize>,
     width: Option<usize>,
     height: Option<usize>,
@@ -1586,46 +1653,12 @@ pub struct TextureUpload<T> {
     z_offset: Option<usize>,
 }
 
-#[allow(private_bounds)]
-impl<T> TextureUpload<T>
-where
-    T: TextureSource,
-{
-    /// Constructs a new upload texture data for 2d texture in mipmap level.
-    pub fn new_2d(source: T, level: usize) -> Self {
-        Self::with_params_2d(source, level, None, None, None, None)
-    }
-
-    /// Constructs a new upload texture data for 2d texture with custom parameters.
-    pub fn with_params_2d(
-        source: T,
-        level: usize,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-    ) -> Self {
-        Self {
-            source,
-            level,
-            depth: None,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset: None,
-        }
-    }
-    /// Constructs a new upload texture data for 3d texture in mipmap level.
-    pub fn new_3d(source: T, level: usize, depth: usize) -> Self {
-        Self::with_params_3d(source, level, depth, None, None, None, None, None)
-    }
-
-    /// Constructs a new upload texture data for 3d texture with custom parameters.
-    pub fn with_params_3d(
-        source: T,
-        level: usize,
-        depth: usize,
+impl TextureUpload {
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
+    fn with_params(
+        source: TextureSource,
+        level: Option<usize>,
+        depth: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
         x_offset: Option<usize>,
@@ -1635,7 +1668,7 @@ where
         Self {
             source,
             level,
-            depth: Some(depth),
+            depth,
             width,
             height,
             x_offset,
@@ -1644,50 +1677,82 @@ where
         }
     }
 
-    /// Returns [`TextureSource`].
-    pub fn source(&self) -> &T {
-        &self.source
+    /// Constructs a new upload data to upload to texture with a specified [`TextureSourceUncompressed`].
+    fn new_uncompressed(source: TextureSourceUncompressed) -> Self {
+        Self::with_params(
+            TextureSource::Uncompressed(source),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
-    /// Returns mipmap level to upload to.
-    pub fn level(&self) -> usize {
-        self.level
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceUncompressed`].
+    fn with_params_uncompressed(
+        source: TextureSourceUncompressed,
+        level: Option<usize>,
+        depth: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source: TextureSource::Uncompressed(source),
+            level,
+            depth,
+            width,
+            height,
+            x_offset,
+            y_offset,
+            z_offset,
+        }
     }
 
-    /// Returns sub-rectangle width to replace with in texture.
-    /// If not specified, the whole width of the texture source will be used.
-    pub fn width(&self) -> usize {
-        self.width.unwrap_or_else(|| self.source.width())
+    /// Constructs a new upload data to upload to texture with a specified [`TextureSourceCompressed`].
+    fn new_compressed(source: TextureSourceCompressed) -> Self {
+        Self::with_params(
+            TextureSource::Compressed(source),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
-    /// Returns sub-rectangle height to replace with in texture.
-    /// If not specified, the whole height of the texture source will be used.
-    pub fn height(&self) -> usize {
-        self.height.unwrap_or_else(|| self.source.height())
-    }
-
-    /// Returns sub-rectangle depth to replace with in texture.
-    pub fn depth(&self) -> Option<usize> {
-        self.depth
-    }
-
-    /// Returns sub-rectangle x offset.
-    pub fn x_offset(&self) -> Option<usize> {
-        self.x_offset
-    }
-
-    /// Returns sub-rectangle y offset.
-    pub fn y_offset(&self) -> Option<usize> {
-        self.y_offset
-    }
-
-    /// Returns sub-rectangle z offset.
-    pub fn z_offset(&self) -> Option<usize> {
-        self.z_offset
+    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceCompressed`].
+    fn with_params_compressed(
+        source: TextureSourceCompressed,
+        level: Option<usize>,
+        depth: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Self {
+        Self {
+            source: TextureSource::Compressed(source),
+            level,
+            depth,
+            width,
+            height,
+            x_offset,
+            y_offset,
+            z_offset,
+        }
     }
 
     /// Uploads texture source to WebGL.
-    pub fn tex_sub_image_2d(
+    fn tex_sub_image_2d(
         &self,
         gl: &WebGl2RenderingContext,
         target: TextureTarget,
@@ -1695,7 +1760,7 @@ where
         self.source.tex_sub_image_2d(
             gl,
             target,
-            self.level,
+            self.level.unwrap_or(0),
             self.width,
             self.height,
             self.x_offset,
@@ -1704,7 +1769,7 @@ where
     }
 
     /// Uploads texture source to WebGL.
-    pub fn tex_sub_image_3d(
+    fn tex_sub_image_3d(
         &self,
         gl: &WebGl2RenderingContext,
         target: TextureTarget,
@@ -1712,7 +1777,7 @@ where
         self.source.tex_sub_image_3d(
             gl,
             target,
-            self.level,
+            self.level.unwrap_or(0),
             self.depth.unwrap_or(0),
             self.width,
             self.height,
@@ -1732,9 +1797,7 @@ pub trait Texture {
     fn max_available_mipmap_level(&self) -> usize;
 
     /// Returns max mipmap level.
-    /// Returning `None` means mipmap is disabled,
-    /// while returning `0` means texture size reaches the maximum level already, but not disabled.
-    fn max_level(&self) -> Option<usize>;
+    fn max_level(&self) -> usize;
 
     /// Returns bytes length of the whole texture in all levels.
     fn bytes_length(&self) -> usize;
@@ -1762,10 +1825,7 @@ pub trait TexturePlanar: Texture {
         if level == 0 {
             return Some(self.width());
         }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
+        if level > self.max_level() {
             return None;
         }
 
@@ -1778,10 +1838,7 @@ pub trait TexturePlanar: Texture {
         if level == 0 {
             return Some(self.height());
         }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
+        if level > self.max_level() {
             return None;
         }
 
@@ -1810,10 +1867,7 @@ pub trait TextureDepth: Texture {
         if level == 0 {
             return Some(self.depth());
         }
-        let Some(max_level) = self.max_level() else {
-            return None;
-        };
-        if level > max_level {
+        if level > self.max_level() {
             return None;
         }
 
@@ -1825,6 +1879,31 @@ pub trait TextureDepth: Texture {
 pub trait TextureArray: Texture {
     /// Returns the number of array of this texture.
     fn array_length(&self) -> usize;
+}
+
+struct Runtime {
+    id: Uuid,
+    gl: WebGl2RenderingContext,
+    store_id: Uuid,
+    texture: WebGlTexture,
+    bytes_length: usize,
+    lru_node: *mut LruNode<Uuid>,
+    using: bool,
+
+    used_memory: *mut usize,
+    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
+    lru: *mut Lru<Uuid>,
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        unsafe {
+            (*self.textures).remove(&self.id);
+            (*self.lru).remove(self.lru_node);
+            (*self.used_memory) -= self.bytes_length;
+            self.gl.delete_texture(Some(&self.texture));
+        }
+    }
 }
 
 /// Private abstract texture trait for internal use.
@@ -1858,36 +1937,31 @@ trait TextureInner: Texture {
     fn free(&mut self) -> bool;
 }
 
-struct Runtime {
-    id: Uuid,
-    gl: WebGl2RenderingContext,
-    store_id: Uuid,
-    texture: WebGlTexture,
-    bytes_length: usize,
-    lru_node: *mut LruNode<Uuid>,
-    using: bool,
+// pub trait TextureBuilder<T>
+// where
+//     T: TextureInner,
+// {
+//     fn build(self) -> T;
+// }
 
-    used_memory: *mut usize,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureInner>>>,
-    lru: *mut Lru<Uuid>,
-}
-
+#[allow(private_bounds)]
 pub struct TextureDescriptor<T>(Rc<RefCell<T>>)
 where
-    T: Texture;
+    T: TextureInner;
 
 impl<T> Clone for TextureDescriptor<T>
 where
-    T: Texture,
+    T: TextureInner,
 {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0))
     }
 }
 
+#[allow(private_bounds)]
 impl<T> TextureDescriptor<T>
 where
-    T: Texture,
+    T: TextureInner,
 {
     /// Returns [`Texture`] associated with this descriptor.
     pub fn texture(&self) -> Ref<'_, T> {
@@ -1961,12 +2035,15 @@ impl TextureStore {
                 }
                 // let texture takes free procedure itself.
                 if t.free() {
-                    let t = occupied.remove().upgrade().unwrap();
-                    let runtime = t.borrow_mut().remove_runtime().unwrap();
-                    // reduces used memory
-                    (*self.used_memory) -= runtime.bytes_length;
-                    // removes LRU
-                    (*self.lru).remove(runtime.lru_node);
+                    let runtime = occupied
+                        .remove()
+                        .upgrade()
+                        .unwrap()
+                        .borrow_mut()
+                        .remove_runtime()
+                        .unwrap();
+                    drop(runtime);
+                    // do not cleanup here, Drop impl of Runtime will do it.
                 }
                 next_node = (*current_node).more_recently();
             }

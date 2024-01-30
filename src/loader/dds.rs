@@ -1,8 +1,8 @@
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
-    texture2d_compressed::{ConstructionPolicy, MemoryPolicy, Texture2DCompressed},
-    TextureInternalFormatCompressed, TextureSourceCompressed, TextureDescriptor, TextureUpload,
+    texture2d::{Builder, Texture2D},
+    TextureDescriptor, TextureInternalFormatCompressed, TextureSourceCompressed,
 };
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
@@ -201,7 +201,7 @@ impl DirectDrawSurface {
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
-    ) -> Option<TextureDescriptor<Texture2DCompressed>> {
+    ) -> Option<TextureDescriptor<Texture2D<TextureInternalFormatCompressed>>> {
         let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureInternalFormatCompressed::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureInternalFormatCompressed::RGBA_S3TC_DXT1),
@@ -216,12 +216,13 @@ impl DirectDrawSurface {
 
         match internal_format {
             Some(internal_format) => {
-                let construction_policy = if self.header.ddsd_mipmap_count() {
+                let base_width = self.header.width as usize;
+                let base_height = self.header.height as usize;
+                let mut builder = Builder::new(base_width, base_height, internal_format);
+
+                if self.header.ddsd_mipmap_count() {
                     // reads mipmaps
-                    let base_width = self.header.width as usize;
-                    let base_height = self.header.height as usize;
                     let levels = self.header.mipmap_count as usize;
-                    let mut uploads = Vec::with_capacity(levels);
                     let mut offset = 128usize;
                     for level in 0..levels {
                         let width = (base_width >> level).max(1);
@@ -233,7 +234,7 @@ impl DirectDrawSurface {
                             offset as u32,
                             bytes_length as u32,
                         );
-                        uploads.push(TextureUpload::new_2d(
+                        builder = builder.tex_image(
                             TextureSourceCompressed::Uint8Array {
                                 width,
                                 height,
@@ -243,18 +244,9 @@ impl DirectDrawSurface {
                                 src_length_override: None,
                             },
                             level,
-                        ));
+                        );
                         offset += bytes_length;
                     }
-
-                    let construction_policy =ConstructionPolicy::Full {
-                        internal_format,
-                        width: base_width,
-                        height: base_height,
-                        max_level: Some(levels),
-                        uploads,
-                    };
-                    construction_policy
                 } else {
                     let data = Uint8Array::new_with_byte_offset_and_length(
                         &self.raw,
@@ -263,25 +255,17 @@ impl DirectDrawSurface {
                             .bytes_length(self.header.width as usize, self.header.height as usize)
                             as u32,
                     );
-                    let construction_policy = ConstructionPolicy::Simple {
-                        internal_format,
-                        base: TextureSourceCompressed::Uint8Array {
-                            width: self.header.width as usize,
-                            height: self.header.height as usize,
-                            compressed_format: internal_format,
-                            data,
-                            src_offset: 0,
-                            src_length_override: None,
-                        },
-                    };
-                    construction_policy
+                    builder = builder.set_base_source(TextureSourceCompressed::Uint8Array {
+                        width: self.header.width as usize,
+                        height: self.header.height as usize,
+                        compressed_format: internal_format,
+                        data,
+                        src_offset: 0,
+                        src_length_override: None,
+                    });
                 };
 
-                let descriptor = TextureDescriptor::<Texture2DCompressed>::new(
-                    construction_policy,
-                    MemoryPolicy::Unfree,
-                );
-                Some(descriptor)
+                Some(TextureDescriptor::new(builder.build()))
             }
             None => None,
         }

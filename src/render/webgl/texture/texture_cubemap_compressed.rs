@@ -70,23 +70,23 @@ pub enum ConstructionPolicy {
         height: usize,
         max_level: Option<usize>,
 
-        positive_x: Vec<TextureUpload<TextureSourceCompressed>>,
-        negative_x: Vec<TextureUpload<TextureSourceCompressed>>,
-        positive_y: Vec<TextureUpload<TextureSourceCompressed>>,
-        negative_y: Vec<TextureUpload<TextureSourceCompressed>>,
-        positive_z: Vec<TextureUpload<TextureSourceCompressed>>,
-        negative_z: Vec<TextureUpload<TextureSourceCompressed>>,
+        positive_x: Vec<TextureUpload>,
+        negative_x: Vec<TextureUpload>,
+        positive_y: Vec<TextureUpload>,
+        negative_y: Vec<TextureUpload>,
+        positive_z: Vec<TextureUpload>,
+        negative_z: Vec<TextureUpload>,
     },
 }
 
 /// A container provides content for restoring a texture.
 pub struct Restore {
-    positive_x: Vec<TextureUpload<TextureSourceCompressed>>,
-    negative_x: Vec<TextureUpload<TextureSourceCompressed>>,
-    positive_y: Vec<TextureUpload<TextureSourceCompressed>>,
-    negative_y: Vec<TextureUpload<TextureSourceCompressed>>,
-    positive_z: Vec<TextureUpload<TextureSourceCompressed>>,
-    negative_z: Vec<TextureUpload<TextureSourceCompressed>>,
+    positive_x: Vec<TextureUpload>,
+    negative_x: Vec<TextureUpload>,
+    positive_y: Vec<TextureUpload>,
+    negative_y: Vec<TextureUpload>,
+    positive_z: Vec<TextureUpload>,
+    negative_z: Vec<TextureUpload>,
 }
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -103,7 +103,7 @@ pub struct TextureCubeMapCompressed {
     internal_format: TextureInternalFormatCompressed,
     memory_policy: MemoryPolicy,
 
-    faces: [Vec<TextureUpload<TextureSourceCompressed>>; 6],
+    faces: [Vec<TextureUpload>; 6],
 
     runtime: Option<Box<Runtime>>,
 }
@@ -139,8 +139,8 @@ impl TextureCubeMapCompressed {
         source: TextureSourceCompressed,
         level: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
-            source, level, None, None, None, None,
+        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params(
+            source, Some(level), None, None, None, None,
         ));
         Ok(())
     }
@@ -156,9 +156,9 @@ impl TextureCubeMapCompressed {
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params_2d(
+        self.faces[face as usize].push(TextureUpload::<TextureSourceCompressed>::with_params(
             source,
-            level,
+            Some(level),
             Some(width),
             Some(height),
             Some(x_offset),
@@ -339,12 +339,12 @@ impl TextureDescriptor<TextureCubeMapCompressed> {
                     memory_policy,
 
                     faces: [
-                        vec![TextureUpload::new_2d(positive_x, 0)],
-                        vec![TextureUpload::new_2d(negative_x, 0)],
-                        vec![TextureUpload::new_2d(positive_y, 0)],
-                        vec![TextureUpload::new_2d(negative_y, 0)],
-                        vec![TextureUpload::new_2d(positive_z, 0)],
-                        vec![TextureUpload::new_2d(negative_z, 0)],
+                        vec![TextureUpload::new(positive_x, 0)],
+                        vec![TextureUpload::new(negative_x, 0)],
+                        vec![TextureUpload::new(positive_y, 0)],
+                        vec![TextureUpload::new(negative_y, 0)],
+                        vec![TextureUpload::new(positive_z, 0)],
+                        vec![TextureUpload::new(negative_z, 0)],
                     ],
 
                     runtime: None,
