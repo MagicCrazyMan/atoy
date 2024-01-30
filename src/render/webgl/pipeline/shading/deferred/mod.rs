@@ -126,7 +126,7 @@ impl StandardDeferredShading {
             ),
             (normals_texture, TextureUnit::TEXTURE1),
             (albedo_texture, TextureUnit::TEXTURE2),
-        ]);
+        ])?;
 
         self.framebuffer(state).unbind();
 

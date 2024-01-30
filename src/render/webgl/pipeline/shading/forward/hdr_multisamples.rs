@@ -288,7 +288,7 @@ impl StandardMultisamplesHdrShading {
                 .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
-        )]);
+        )])?;
         self.framebuffer(state).unbind();
 
         Ok(())
@@ -310,7 +310,7 @@ impl StandardMultisamplesHdrShading {
                 .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
-        )]);
+        )])?;
         self.framebuffer(state).unbind();
 
         Ok(())
@@ -410,7 +410,7 @@ impl StandardMultisamplesHdrShading {
                 state.do_computation([(
                     from.texture(from_attachment).unwrap(),
                     TextureUnit::TEXTURE0,
-                )]);
+                )])?;
                 to.unbind();
             }
         }
@@ -469,7 +469,7 @@ impl StandardMultisamplesHdrShading {
             state.do_computation([
                 (&*hdr_base_texture, TextureUnit::TEXTURE0),
                 (&*hdr_bloom_blur_texture, TextureUnit::TEXTURE1),
-            ]);
+            ])?;
             (*hdr_bloom_blend_framebuffer).unbind();
         }
 

@@ -228,7 +228,7 @@ impl StandardHdrShading {
                 .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
-        )]);
+        )])?;
         self.framebuffer(state).unbind();
 
         Ok(())
@@ -250,7 +250,7 @@ impl StandardHdrShading {
                 .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
-        )]);
+        )])?;
         self.framebuffer(state).unbind();
 
         Ok(())
@@ -310,7 +310,7 @@ impl StandardHdrShading {
                 state.do_computation([(
                     from.texture(from_texture_index).unwrap(),
                     TextureUnit::TEXTURE0,
-                )]);
+                )])?;
                 to.unbind();
             }
         }
@@ -369,7 +369,7 @@ impl StandardHdrShading {
             state.do_computation([
                 (&*hdr_base_texture, TextureUnit::TEXTURE0),
                 (&*hdr_bloom_blur_texture, TextureUnit::TEXTURE1),
-            ]);
+            ])?;
             (*hdr_bloom_blend_framebuffer).unbind();
         }
 

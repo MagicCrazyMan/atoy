@@ -841,40 +841,18 @@ impl FrameState {
     }
 
     /// Applies computation using current binding framebuffer and program.
-    pub fn do_computation<'a, I>(&mut self, textures: I)
+    pub fn do_computation<'a, I>(&mut self, textures: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = (&'a WebGlTexture, TextureUnit)>,
     {
+        let sampler = self.capabilities().computation_sampler()?;
         let mut texture_units = Vec::new();
         for (texture, texture_unit) in textures {
             self.gl.active_texture(texture_unit.gl_enum());
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-                WebGl2RenderingContext::NEAREST as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                0,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_WRAP_S,
-                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_WRAP_T,
-                WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
-            );
+            self.gl
+                .bind_sampler(texture_unit.unit_index() as u32, Some(&sampler));
             texture_units.push(texture_unit);
         }
 
@@ -883,29 +861,12 @@ impl FrameState {
 
         for texture_unit in texture_units {
             self.gl.active_texture(texture_unit.gl_enum());
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-                WebGl2RenderingContext::LINEAR as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-                WebGl2RenderingContext::NEAREST_MIPMAP_LINEAR as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_WRAP_S,
-                WebGl2RenderingContext::REPEAT as i32,
-            );
-            self.gl.tex_parameteri(
-                WebGl2RenderingContext::TEXTURE_2D,
-                WebGl2RenderingContext::TEXTURE_WRAP_T,
-                WebGl2RenderingContext::REPEAT as i32,
-            );
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+            self.gl.bind_sampler(texture_unit.unit_index() as u32, None);
         }
+
+        Ok(())
     }
 
     /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].

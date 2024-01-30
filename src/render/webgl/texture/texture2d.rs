@@ -296,6 +296,7 @@ where
                 let builder = restore(builder);
                 let texture = builder.build();
                 self.mipmap_base = texture.mipmap_base;
+                self.tex_params = texture.tex_params;
                 self.uploads = texture.uploads;
                 true
             }

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use wasm_bindgen::JsCast;
-use web_sys::{WebGl2RenderingContext, WebglDebugShaders, WebglLoseContext};
+use web_sys::{WebGl2RenderingContext, WebGlSampler, WebglDebugShaders, WebglLoseContext};
 
 use super::{
     error::Error,
@@ -10,6 +10,7 @@ use super::{
 
 struct Inner {
     gl: WebGl2RenderingContext,
+    computation_sampler: Option<WebGlSampler>,
 
     max_texture_size: Option<usize>,
     max_cube_map_texture_size: Option<usize>,
@@ -39,6 +40,7 @@ impl Capabilities {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self(Rc::new(RefCell::new(Inner {
             gl,
+            computation_sampler: None,
 
             max_texture_size: None,
             max_cube_map_texture_size: None,
@@ -60,6 +62,42 @@ impl Capabilities {
             compressed_bptc: None,
             compressed_rgtc: None,
         })))
+    }
+
+    pub fn computation_sampler(&self) -> Result<WebGlSampler, Error> {
+        let mut inner = self.0.borrow_mut();
+        match inner.computation_sampler.as_mut() {
+            Some(sampler) => Ok(sampler.clone()),
+            None => {
+                let sampler = inner
+                    .gl
+                    .create_sampler()
+                    .ok_or(Error::CreateSamplerFailure)?;
+
+                inner.gl.sampler_parameteri(
+                    &sampler,
+                    WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+                    WebGl2RenderingContext::NEAREST as i32,
+                );
+                inner.gl.sampler_parameteri(
+                    &sampler,
+                    WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+                    WebGl2RenderingContext::NEAREST as i32,
+                );
+                inner.gl.sampler_parameteri(
+                    &sampler,
+                    WebGl2RenderingContext::TEXTURE_WRAP_S,
+                    WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+                );
+                inner.gl.sampler_parameteri(
+                    &sampler,
+                    WebGl2RenderingContext::TEXTURE_WRAP_T,
+                    WebGl2RenderingContext::CLAMP_TO_EDGE as i32,
+                );
+                inner.computation_sampler = Some(sampler.clone());
+                Ok(sampler)
+            }
+        }
     }
 
     pub fn debug_shaders_supported(&self) -> Option<WebglDebugShaders> {

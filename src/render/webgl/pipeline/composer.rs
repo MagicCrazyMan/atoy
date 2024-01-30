@@ -116,7 +116,7 @@ impl StandardComposer {
         )?;
 
         for texture in textures {
-            state.do_computation([(texture, TextureUnit::TEXTURE0)]);
+            state.do_computation([(texture, TextureUnit::TEXTURE0)])?;
         }
 
         state.gl().disable(WebGl2RenderingContext::BLEND);
@@ -161,7 +161,7 @@ impl StandardComposer {
                 .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
                 .unwrap(),
             TextureUnit::TEXTURE0,
-        )]);
+        )])?;
 
         Ok(())
     }

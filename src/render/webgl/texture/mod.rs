@@ -1618,14 +1618,14 @@ trait TextureItem: Texture {
     /// Validates.
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error>;
 
-    /// Creates ans returns a [`WebGlTexture`].
+    /// Creates and returns a [`WebGlTexture`].
     fn create_texture(
         &self,
         gl: &WebGl2RenderingContext,
         unit: TextureUnit,
     ) -> Result<WebGlTexture, Error>;
 
-    /// Creates a [`WebGlSampler`] by texture parameters from [`Texture::texture_parameters`].
+    /// Creates and returns a [`WebGlSampler`] by texture parameters from [`Texture::texture_parameters`].
     fn create_sampler(&self, gl: &WebGl2RenderingContext) -> Result<WebGlSampler, Error> {
         let sampler = gl
             .create_sampler()
