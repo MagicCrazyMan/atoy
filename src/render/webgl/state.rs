@@ -593,19 +593,15 @@ impl FrameState {
             | UniformValue::Texture2DArrayCompressed { .. }
             | UniformValue::TextureCubeMap { .. }
             | UniformValue::TextureCubeMapCompressed { .. } => {
-                let (kind, target, (texture, sampler), unit) = match value {
-                    UniformValue::Texture2D { descriptor, unit } => (
-                        TextureKind::Texture2D(descriptor.clone()),
-                        WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut().use_texture(descriptor, *unit)?,
-                        unit,
-                    ),
-                    UniformValue::Texture2DCompressed { descriptor, unit } => (
-                        TextureKind::Texture2DCompressed(descriptor.clone()),
-                        WebGl2RenderingContext::TEXTURE_2D,
-                        self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                        unit,
-                    ),
+                let (kind, unit) = match value {
+                    UniformValue::Texture2D { descriptor, unit } => {
+                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
+                        (TextureKind::Texture2D(descriptor.clone()), *unit)
+                    }
+                    UniformValue::Texture2DCompressed { descriptor, unit } => {
+                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
+                        (TextureKind::Texture2DCompressed(descriptor.clone()), *unit)
+                    }
                     // UniformValue::Texture3D {
                     //     descriptor,
                     //     unit,
@@ -664,11 +660,8 @@ impl FrameState {
                 };
 
                 self.gl.uniform1i(Some(location), unit.unit_index() as i32);
-                self.gl.active_texture(unit.gl_enum());
-                self.gl.bind_texture(target, Some(&texture));
-                self.gl.bind_sampler(unit.unit_index() as u32, Some(&sampler));
 
-                Some(BoundUniform { unit: *unit, kind })
+                Some(BoundUniform { unit, kind })
             }
         };
 
@@ -687,10 +680,10 @@ impl FrameState {
         {
             match texture {
                 TextureKind::Texture2D(descriptor) => {
-                    self.texture_store_mut().unuse_texture(&descriptor, unit);
+                    self.texture_store_mut().unbound_texture(&descriptor, unit);
                 }
                 TextureKind::Texture2DCompressed(descriptor) => {
-                    self.texture_store_mut().unuse_texture(&descriptor, unit);
+                    self.texture_store_mut().unbound_texture(&descriptor, unit);
                 } // TextureKind::Texture2DArray(descriptor) => {
                   //     self.texture_store_mut().unuse_texture(&descriptor, unit);
                   // }

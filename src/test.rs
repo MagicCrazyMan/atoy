@@ -694,7 +694,7 @@ pub fn test_cube(
                 .texture_descriptor(
                     true,
                     true,
-                    false,
+                    true,
                     [
                         TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
                             TextureMinificationFilter::LINEAR_MIPMAP_LINEAR

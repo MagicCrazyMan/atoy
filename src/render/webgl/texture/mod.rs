@@ -1661,7 +1661,8 @@ trait TextureItem: Texture {
     }
 
     /// Uploads data to [`WebGlTexture`].
-    /// In this stage, [`Texture::runtime`] is created already, it's safe to unwrap it and use fields inside.
+    /// In this stage, [`TextureItem::runtime`] is created and texture unit is bound already,
+    /// it's safe to unwrap it and use fields inside and no need to active texture unit again.
     fn upload(&mut self, unit: TextureUnit) -> Result<(), Error>;
 
     /// Applies memory free behavior.
@@ -1985,16 +1986,17 @@ impl TextureStore {
     }
 
     #[allow(private_bounds)]
-    pub fn use_texture<T>(
+    pub fn bind_texture<T>(
         &mut self,
         descriptor: &TextureDescriptor<T>,
         unit: TextureUnit,
-    ) -> Result<(WebGlTexture, WebGlSampler), Error>
+    ) -> Result<WebGlTexture, Error>
     where
         T: TextureItem + 'static,
     {
-        let (texture, sampler) = unsafe {
+        let (target, texture, sampler) = unsafe {
             let mut t = descriptor.texture_mut();
+            let target = t.target();
 
             let (texture, sampler) = match t.runtime_mut() {
                 Some(runtime) => {
@@ -2005,12 +2007,14 @@ impl TextureStore {
                     runtime.using = true;
                     (*self.lru).cache(runtime.lru_node);
 
+                    self.gl.active_texture(unit.gl_enum());
                     (runtime.texture.clone(), runtime.sampler.clone())
                 }
                 None => {
                     t.validate(&self.capabilities)?;
                     let texture = t.create_texture(&self.gl, unit)?;
                     let sampler = t.create_sampler(&self.gl)?;
+                    self.gl.active_texture(unit.gl_enum());
 
                     let id = Uuid::new_v4();
                     let lru_node = LruNode::new(id);
@@ -2047,15 +2051,19 @@ impl TextureStore {
             };
 
             t.upload(unit)?;
-            (texture, sampler)
+            (target, texture, sampler)
         };
 
+        self.gl.bind_texture(target.gl_enum(), Some(&texture));
+        self.gl
+            .bind_sampler(unit.unit_index() as u32, Some(&sampler));
+
         self.free();
-        Ok((texture, sampler))
+        Ok(texture)
     }
 
     #[allow(private_bounds)]
-    pub fn unuse_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
+    pub fn unbound_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
     where
         T: TextureItem + 'static,
     {
