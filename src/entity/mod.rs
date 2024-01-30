@@ -831,9 +831,9 @@ impl Container {
 
     pub fn remove_entity(&mut self, id: &Uuid) -> Option<EntityOptions> {
         unsafe {
-            let entity = (*self.entities).remove(id)?;
+            let entity = (*self.entities).swap_remove(id)?;
             let entity = Box::from_raw(entity);
-            (*entity.group).entities.remove(id);
+            (*entity.group).entities.swap_remove(id);
             self.set_dirty();
             Some(entity.to_options())
         }
@@ -936,7 +936,7 @@ impl Container {
 
     pub fn remove_group(&mut self, id: &Uuid) -> Option<GroupOptions> {
         unsafe {
-            let Some(group) = (*self.groups).remove(id) else {
+            let Some(group) = (*self.groups).swap_remove(id) else {
                 return None;
             };
 
@@ -945,10 +945,10 @@ impl Container {
             let mut groups = VecDeque::from_iter([(group, &mut out as *mut GroupOptions)]);
             while let Some((group, me)) = groups.pop_front() {
                 let group = Box::from_raw(group);
-                (*self.groups).remove(&group.id);
+                (*self.groups).swap_remove(&group.id);
 
                 for (entity_id, entity) in group.entities {
-                    (*self.entities).remove(&entity_id);
+                    (*self.entities).swap_remove(&entity_id);
                     (*me).entities.push(Box::from_raw(entity).to_options());
                 }
                 (*me).model_matrix = group.model_matrix;
@@ -970,7 +970,7 @@ impl Container {
 
     pub fn remove_group_flatten(&mut self, id: &Uuid) -> Option<Vec<EntityOptions>> {
         unsafe {
-            let Some(group) = (*self.groups).remove(id) else {
+            let Some(group) = (*self.groups).swap_remove(id) else {
                 return None;
             };
             let mut group = Box::from_raw(group);
@@ -979,7 +979,7 @@ impl Container {
                 GroupOwner::Group(super_group) => &mut *super_group,
             };
 
-            super_group.sub_groups.remove(id);
+            super_group.sub_groups.swap_remove(id);
 
             // iterates and removes subgroups
             let mut entities = group.entities.drain(..).collect::<VecDeque<_>>();
@@ -988,14 +988,14 @@ impl Container {
                 let group = Box::from_raw(group);
                 entities.extend(group.entities);
                 groups.extend(group.sub_groups);
-                (*self.groups).remove(&group_id);
+                (*self.groups).swap_remove(&group_id);
             }
 
             // removes entities
             let mut entity_options = Vec::new();
             for (entity_id, entity) in entities {
                 entity_options.push(Box::from_raw(entity).to_options());
-                (*self.entities).remove(&entity_id);
+                (*self.entities).swap_remove(&entity_id);
             }
 
             self.set_dirty();
@@ -1006,7 +1006,7 @@ impl Container {
 
     pub fn decompose_group(&mut self, id: &Uuid) {
         unsafe {
-            let Some(group) = (*self.groups).remove(id) else {
+            let Some(group) = (*self.groups).swap_remove(id) else {
                 return;
             };
             let mut group = Box::from_raw(group);
@@ -1017,7 +1017,7 @@ impl Container {
                 let group = Box::from_raw(group);
                 entities.extend(group.entities);
                 groups.extend(group.sub_groups);
-                (*self.groups).remove(&group_id);
+                (*self.groups).swap_remove(&group_id);
             }
 
             (*self.root_group).entities.extend(entities);
@@ -1062,7 +1062,7 @@ impl Container {
                 Ok(())
             } else {
                 let group = &mut *entity.group;
-                group.entities.remove(entity_id);
+                group.entities.swap_remove(entity_id);
                 (*self.root_group).entities.insert(*entity_id, entity);
                 entity.group = self.root_group;
                 self.set_dirty();
@@ -1083,7 +1083,7 @@ impl Container {
             let from_group = &mut *entity.group;
             let to_group = &mut **to_group;
 
-            from_group.entities.remove(entity_id);
+            from_group.entities.swap_remove(entity_id);
             to_group.entities.insert(*entity_id, entity);
             entity.group = to_group;
             self.set_dirty();
@@ -1107,7 +1107,7 @@ impl Container {
                 Ok(())
             } else {
                 let super_group = &mut *super_group;
-                super_group.sub_groups.remove(group_id);
+                super_group.sub_groups.swap_remove(group_id);
                 (*self.root_group).sub_groups.insert(*group_id, group);
                 group.owner = GroupOwner::Group(self.root_group);
                 self.set_dirty();
@@ -1135,7 +1135,7 @@ impl Container {
             };
             let to_group = &mut **to_group;
 
-            super_group.sub_groups.remove(group_id);
+            super_group.sub_groups.swap_remove(group_id);
             to_group.sub_groups.insert(*group_id, group);
             group.owner = GroupOwner::Group(to_group);
             self.set_dirty();
