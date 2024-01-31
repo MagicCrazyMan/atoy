@@ -111,7 +111,7 @@ impl PointLight {
         }
     }
 
-    /// Sets ubo of this point light to dirty. 
+    /// Sets ubo of this point light to dirty.
     pub fn set_ubo_dirty(&mut self) {
         self.ubo_dirty = true;
     }

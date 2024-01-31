@@ -5,156 +5,96 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    Runtime, Texture, TextureDepth, TextureDescriptor, TexturePlanar, TextureTarget, TextureUnit,
+    NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat, TextureDepth,
+    TextureDescriptor, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
 };
 
-/// Construction policies telling texture store how to create a texture.
-pub enum ConstructionPolicy {
-    /// Simple texture creation procedure.
-    ///
-    /// Under this policy, the size of the base texture source uses as the size of texture in level 0.
-    /// And for a 3d texture, a depth value in level 0 is also required.
-    ///
-    /// The max level of the texture is applied as `floor(log2(max(width, height, depth, 1)))`.
-    /// After the base texture source uploaded, mipmaps are automatically generated then.
-    ///
-    /// Image data upload by calling [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`]
-    /// are uploaded after mipmap generated.
-    Simple {
-        internal_format: TextureInternalFormatUncompressed,
-        depth: usize,
-        base: TextureSourceUncompressed,
-    },
-    /// Preallocates a texture only without uploading any image data.
-    ///
-    /// - Required `internal_format` defines the internal format.
-    /// - Required `width`, `height` and `depth` defines the size of texture in level 0.
-    /// - Optional `max_level` defines the max mipmap level following rules:
-    ///     - If `max_level` is `None`, mipmaps are available and the max mipmap level is `floor(log2(max(width, height, depth, 1)))`.
-    ///     - If `max_level` is `0`, no mipmaps are allowed.
-    ///     - If `max_level` is any other value, max mipmap level is `min(max_level, floor(log2(max(width, height, depth, 1))))`.
-    ///
-    /// Developers could modify each mipmap level manually then.
-    Preallocate {
-        internal_format: TextureInternalFormatUncompressed,
-        width: usize,
-        height: usize,
-        depth: usize,
-        max_level: Option<usize>,
-    },
-    /// Creates a texture with existing [`TextureUpload`] for each level.
-    ///
-    /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
-    /// - Required `uploads` defines texture source for uploading in each level.
-    WithSources {
-        internal_format: TextureInternalFormatUncompressed,
-        width: usize,
-        height: usize,
-        depth: usize,
-        max_level: Option<usize>,
-        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
-    },
-    /// Creates a texture by providing all customizable parameters.
-    ///
-    /// - Texture will first generate following the same procedure as [`ConstructionPolicy::Preallocate`].
-    /// - Required `uploads` defines data for uploading in each level, leaves an empty vector if no data need to upload currently.
-    /// - Optional `max_level` defines the max mipmap level, takes `floor(log2(max(width, height, depth, 1)))` if not provide.
-    /// - Optional `mipmap_source` defines the texture source in level 0 for generating mipmaps automatically.
-    /// Skips automatic mipmaps generation if not provide.
-    /// - Optional `mipmap_base_level` defines the base level for generating mipmaps.
-    /// - Optional `mipmap_max_level` defines the max level for generating mipmaps.
-    ///
-    /// If `mipmap_source` is specified, it will upload first and then generate mipmaps
-    /// before uploading data in `uploads` or lately upload by [`Texture3D::tex_image`] and [`Texture3D::tex_sub_image`].
-    Full {
-        internal_format: TextureInternalFormatUncompressed,
-        width: usize,
-        height: usize,
-        depth: usize,
-        uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
-        max_level: Option<usize>,
-        mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
-        mipmap_base_level: Option<usize>,
-        mipmap_max_level: Option<usize>,
-    },
-}
-
-/// A container provides content for restoring a texture.
-pub struct Restore {
-    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
-    mipmap_source: Option<TextureUpload<TextureSourceUncompressed>>,
-    mipmap_base_level: Option<usize>,
-    mipmap_max_level: Option<usize>,
-}
-
 /// Memory policies controlling how to manage memory of a texture.
-pub enum MemoryPolicy {
+pub enum MemoryPolicy<F> {
     Unfree,
-    Restorable(Box<dyn Fn() -> Restore>),
+    Restorable(Box<dyn Fn(Builder<F>) -> Builder<F>>),
 }
 
 /// A WebGL 3d texture workload.
-pub struct Texture3D {
+pub struct Texture3D<F> {
     width: usize,
     height: usize,
     depth: usize,
-    /// Max mipmap level clamped to max available level already if mipmap enabled.
-    max_level: Option<usize>,
-    internal_format: TextureInternalFormatUncompressed,
-    memory_policy: MemoryPolicy,
-    mipmap_base: Option<(
-        TextureUpload<TextureSourceUncompressed>,
-        Option<usize>,
-        Option<usize>,
-    )>,
-    uploads: Vec<TextureUpload<TextureSourceUncompressed>>,
+    max_level: usize,
+    internal_format: F,
+    memory_policy: MemoryPolicy<F>,
+    sampler_params: Vec<SamplerParameter>,
+    tex_params: Vec<TextureParameter>,
+
+    mipmap_base: Option<(UploadItem, Option<usize>, Option<usize>)>,
+
+    uploads: Vec<UploadItem>,
 
     runtime: Option<Box<Runtime>>,
 }
 
-impl Drop for Texture3D {
-    fn drop(&mut self) {
-        unsafe {
-            if let Some(runtime) = self.runtime.take() {
-                (*runtime.textures).remove(&runtime.id);
-                (*runtime.lru).remove(runtime.lru_node);
-                (*runtime.used_memory) -= runtime.bytes_length;
-                runtime.gl.delete_texture(Some(&runtime.texture));
-            }
-        }
-    }
-}
-
-impl Texture3D {
-    /// Returns [`TextureInternalFormatUncompressed`].
-    pub fn internal_format(&self) -> TextureInternalFormatUncompressed {
+#[allow(private_bounds)]
+impl<F> Texture3D<F>
+where
+    F: NativeFormat,
+{
+    /// Returns internal format.
+    pub fn internal_format(&self) -> F {
         self.internal_format
     }
 
     /// Returns [`MemoryPolicy`].
-    pub fn memory_policy(&self) -> &MemoryPolicy {
+    pub fn memory_policy(&self) -> &MemoryPolicy<F> {
         &self.memory_policy
     }
 
+    /// Sets sampler parameters.
+    pub fn set_sampler_parameters<I>(&mut self, params: I)
+    where
+        I: IntoIterator<Item = SamplerParameter>,
+    {
+        self.sampler_params = params.into_iter().collect();
+        if let Some(runtime) = self.runtime.as_deref_mut() {
+            let sampler = runtime.sampler.take();
+            runtime.gl.delete_sampler(sampler.as_ref());
+        }
+    }
+
+    /// Sets texture parameters.
+    pub fn set_texture_parameters<I>(&mut self, params: I)
+    where
+        I: IntoIterator<Item = TextureParameter>,
+    {
+        self.tex_params = params.into_iter().collect();
+    }
+}
+
+impl Texture3D<TextureInternalFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
-        source: TextureSourceUncompressed,
+        source: TextureSource,
         level: usize,
         depth: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(
-            TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
-                source, level, depth, None, None, None, None, None,
-            ),
-        );
+        self.uploads.push(UploadItem::with_params_uncompressed(
+            source,
+            Some(level),
+            Some(depth),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
         Ok(())
     }
 
     /// Uploads a sub data from a texture source to specified level of this texture.
     pub fn tex_sub_image(
         &mut self,
-        source: TextureSourceUncompressed,
+        source: TextureSource,
         level: usize,
         depth: usize,
         width: usize,
@@ -163,38 +103,94 @@ impl Texture3D {
         y_offset: usize,
         z_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(
-            TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
-                source,
-                level,
-                depth,
-                Some(width),
-                Some(height),
-                Some(x_offset),
-                Some(y_offset),
-                Some(z_offset),
-            ),
-        );
+        self.uploads.push(UploadItem::with_params_uncompressed(
+            source,
+            Some(level),
+            Some(depth),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
         Ok(())
     }
 }
 
-impl Texture for Texture3D {
+impl Texture3D<TextureCompressedFormat> {
+    /// Uploads a new texture source cover a whole level of this texture.
+    pub fn tex_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params_compressed(
+            source,
+            Some(level),
+            Some(depth),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        Ok(())
+    }
+
+    /// Uploads a sub data from a texture source to specified level of this texture.
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        depth: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params_compressed(
+            source,
+            Some(level),
+            Some(depth),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
+        Ok(())
+    }
+}
+
+impl<F> Texture for Texture3D<F>
+where
+    F: NativeFormat,
+{
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_3D
+    }
+
+    fn sampler_parameters(&self) -> &[SamplerParameter] {
+        &self.sampler_params
+    }
+
+    fn texture_parameters(&self) -> &[TextureParameter] {
+        &self.tex_params
     }
 
     fn max_available_mipmap_level(&self) -> usize {
         <Self as TextureDepth>::max_available_mipmap_level(self.width, self.height, self.depth)
     }
 
-    fn max_level(&self) -> Option<usize> {
+    fn max_level(&self) -> usize {
         self.max_level
     }
 
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
-        for level in 0..=self.max_level().unwrap_or(0) {
+        for level in 0..=self.max_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             let depth = self.depth_of_level(level).unwrap();
@@ -218,7 +214,10 @@ impl Texture for Texture3D {
     }
 }
 
-impl TexturePlanar for Texture3D {
+impl<F> TexturePlanar for Texture3D<F>
+where
+    F: NativeFormat,
+{
     fn width(&self) -> usize {
         self.width
     }
@@ -228,13 +227,19 @@ impl TexturePlanar for Texture3D {
     }
 }
 
-impl TextureDepth for Texture3D {
+impl<F> TextureDepth for Texture3D<F>
+where
+    F: NativeFormat,
+{
     fn depth(&self) -> usize {
         self.depth
     }
 }
 
-impl TextureInner for Texture3D {
+impl<F> TextureItem for Texture3D<F>
+where
+    F: NativeFormat,
+{
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
     }
@@ -252,21 +257,17 @@ impl TextureInner for Texture3D {
     }
 
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
-        capabilities.verify_internal_format(self.internal_format)?;
+        self.internal_format.capabilities(capabilities)?;
         Ok(())
     }
 
-    fn create(
-        &self,
-        gl: &WebGl2RenderingContext,
-        unit: TextureUnit,
-    ) -> Result<WebGlTexture, Error> {
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         let bound = utils::texture_binding_3d(gl);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&texture));
         gl.tex_storage_3d(
             WebGl2RenderingContext::TEXTURE_3D,
-            (self.max_level.unwrap_or(0) + 1) as i32,
+            (self.max_level + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
@@ -295,7 +296,8 @@ impl TextureInner for Texture3D {
         if let Some((source, base_level, max_level)) = self.mipmap_base.take() {
             let bound_base_level = match base_level {
                 Some(base_level) => {
-                    let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_3D);
+                    let bound =
+                        utils::texture_parameter_base_level(&runtime.gl, TextureTarget::TEXTURE_3D);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_3D,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -307,7 +309,8 @@ impl TextureInner for Texture3D {
             };
             let bound_max_level = match max_level {
                 Some(max_level) => {
-                    let bound = utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_3D);
+                    let bound =
+                        utils::texture_parameter_max_level(&runtime.gl, TextureTarget::TEXTURE_3D);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_3D,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -357,129 +360,326 @@ impl TextureInner for Texture3D {
         match &mut self.memory_policy {
             MemoryPolicy::Unfree => false,
             MemoryPolicy::Restorable(restore) => {
-                let Restore {
-                    uploads,
-                    mipmap_source,
-                    mipmap_base_level,
-                    mipmap_max_level,
-                } = restore.as_mut()();
-                self.uploads.extend(uploads);
-                if let Some(mipmap_source) = mipmap_source {
-                    self.mipmap_base = Some((mipmap_source, mipmap_base_level, mipmap_max_level));
-                }
+                let builder =
+                    Builder::new(self.width, self.height, self.depth, self.internal_format);
+                let builder = restore(builder);
+                let texture = builder.build();
+                self.mipmap_base = texture.mipmap_base;
+                self.sampler_params = texture.sampler_params;
+                self.tex_params = texture.tex_params;
+                self.uploads = texture.uploads;
                 true
             }
         }
     }
 }
 
-impl TextureDescriptor<Texture3D> {
-    /// Constructs a new texture descriptor with [`Texture3D`] from a [`ConstructionPolicy`] and [`MemoryPolicy`].
-    pub fn new(mut construction_policy: ConstructionPolicy, memory_policy: MemoryPolicy) -> Self {
-        let texture = match construction_policy {
-            ConstructionPolicy::Simple {
-                internal_format,
-                depth,
-                base,
-            } => {
-                let width = base.width();
-                let height = base.height();
-                Texture3D {
-                    width,
-                    height,
-                    depth,
-                    max_level: Some(<Texture3D as TextureDepth>::max_available_mipmap_level(
-                        width, height, depth,
-                    )),
-                    internal_format,
-                    memory_policy,
-                    mipmap_base: Some((TextureUpload::new_3d(base, 0, 0), None, None)),
-                    uploads: Vec::new(),
-                    runtime: None,
-                }
-            }
-            _ => {
-                let (internal_format, width, height, depth, max_level) = match construction_policy {
-                    ConstructionPolicy::Preallocate {
-                        internal_format,
-                        width,
-                        height,
-                        depth,
-                        max_level,
-                    }
-                    | ConstructionPolicy::WithSources {
-                        internal_format,
-                        width,
-                        height,
-                        depth,
-                        max_level,
-                        ..
-                    }
-                    | ConstructionPolicy::Full {
-                        internal_format,
-                        width,
-                        height,
-                        depth,
-                        max_level,
-                        ..
-                    } => {
-                        let max_level = match max_level {
-                            Some(max_level) => {
-                                if max_level == 0 {
-                                    None
-                                } else {
-                                    Some((max_level).min(
-                                        <Texture3D as TextureDepth>::max_available_mipmap_level(
-                                            width, height, depth,
-                                        ),
-                                    ))
-                                }
-                            }
-                            None => Some(<Texture3D as TextureDepth>::max_available_mipmap_level(
-                                width, height, depth,
-                            )),
-                        };
-                        (internal_format, width, height, depth, max_level)
-                    }
-                    _ => unreachable!(),
-                };
-                let mipmap_base = match construction_policy {
-                    ConstructionPolicy::Preallocate { .. }
-                    | ConstructionPolicy::WithSources { .. } => None,
-                    ConstructionPolicy::Full {
-                        mipmap_base_level,
-                        mipmap_max_level,
-                        ref mut mipmap_source,
-                        ..
-                    } => match mipmap_source.take() {
-                        Some(mipmap_source) => {
-                            Some((mipmap_source, mipmap_base_level, mipmap_max_level))
-                        }
-                        None => None,
-                    },
-                    _ => unreachable!(),
-                };
-                let uploads = match construction_policy {
-                    ConstructionPolicy::Preallocate { .. } => Vec::new(),
-                    ConstructionPolicy::WithSources { uploads, .. }
-                    | ConstructionPolicy::Full { uploads, .. } => uploads,
-                    _ => unreachable!(),
-                };
+impl<F> TextureDescriptor<Texture3D<F>> {
+    /// Constructs a new texture descriptor with [`Texture3D`].
+    pub fn new(texture: Texture3D<F>) -> Self {
+        Self(Rc::new(RefCell::new(texture)))
+    }
+}
 
-                Texture3D {
-                    width,
-                    height,
-                    depth,
-                    max_level,
-                    internal_format,
-                    memory_policy,
-                    mipmap_base,
-                    uploads,
-                    runtime: None,
+/// A builder to build a [`Texture3D`].
+pub struct Builder<F> {
+    internal_format: F,
+    width: usize,
+    height: usize,
+    depth: usize,
+    max_level: usize,
+    memory_policy: MemoryPolicy<F>,
+    sampler_params: Vec<SamplerParameter>,
+    tex_params: Vec<TextureParameter>,
+
+    base_source: Option<UploadItem>,
+    uploads: Vec<UploadItem>,
+
+    mipmap: bool,
+    mipmap_base_level: Option<usize>,
+    mipmap_max_level: Option<usize>,
+}
+
+#[allow(private_bounds)]
+impl<F> Builder<F>
+where
+    F: NativeFormat,
+{
+    /// Initializes a new builder with specified width, height and internal format.
+    pub fn new(width: usize, height: usize, depth: usize, internal_format: F) -> Self {
+        Self {
+            internal_format,
+            width,
+            height,
+            depth,
+            max_level:
+                <Texture3D<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
+                    width, height, depth,
+                ),
+            memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
+            tex_params: Vec::new(),
+
+            base_source: None,
+            uploads: Vec::new(),
+
+            mipmap: false,
+            mipmap_base_level: None,
+            mipmap_max_level: None,
+        }
+    }
+
+    /// Sets max mipmap level. Max mipmap level is clamped to [`Texture3D::max_available_mipmap_level`].
+    pub fn set_max_level(mut self, max_level: usize) -> Self {
+        self.max_level = self.max_level.min(max_level);
+        self
+    }
+
+    /// Sets [`SamplerParameter`]s.
+    pub fn set_sampler_parameters<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = SamplerParameter>,
+    {
+        self.sampler_params = params.into_iter().collect();
+        self
+    }
+
+    /// Sets [`TextureParameter`]s.
+    pub fn set_texture_parameters<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = TextureParameter>,
+    {
+        self.tex_params = params.into_iter().collect();
+        self
+    }
+
+    /// Sets memory policy. Default memory policy is [`MemoryPolicy::Unfree`].
+    pub fn set_memory_policy(mut self, memory_policy: MemoryPolicy<F>) -> Self {
+        self.memory_policy = memory_policy;
+        self
+    }
+
+    /// Builds a [`Texture3D`].
+    pub fn build(mut self) -> Texture3D<F> {
+        let (mipmap_base, uploads) = match self.base_source {
+            Some(base) => {
+                if !self.mipmap {
+                    self.uploads.insert(0, base);
+                    (None, self.uploads)
+                } else {
+                    (
+                        Some((base, self.mipmap_base_level, self.mipmap_max_level)),
+                        self.uploads,
+                    )
                 }
             }
+            None => (None, self.uploads),
         };
 
-        Self(Rc::new(RefCell::new(texture)))
+        Texture3D {
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            max_level: self.max_level,
+            internal_format: self.internal_format,
+            memory_policy: self.memory_policy,
+            sampler_params: self.sampler_params,
+            tex_params: self.tex_params,
+            mipmap_base,
+            uploads,
+            runtime: None,
+        }
+    }
+}
+
+impl Builder<TextureInternalFormat> {
+    /// Initializes a new builder from an existing [`TextureSource`] and [`TextureInternalFormat`].
+    /// Beside, a depth value for the third dimension is also required.
+    pub fn with_base_source(
+        depth: usize,
+        base_source: TextureSource,
+        internal_format: TextureInternalFormat,
+    ) -> Self {
+        let width = base_source.width();
+        let height = base_source.height();
+        Self {
+            internal_format,
+            width,
+            height,
+            depth,
+            max_level:
+                <Texture3D<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
+                    width, height, depth,
+                ),
+            memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
+            tex_params: Vec::new(),
+
+            base_source: Some(UploadItem::new_uncompressed(base_source)),
+            uploads: Vec::new(),
+
+            mipmap: false,
+            mipmap_base_level: None,
+            mipmap_max_level: None,
+        }
+    }
+
+    /// Sets the source in level 0.
+    pub fn set_base_source(mut self, base: TextureSource) -> Self {
+        self.base_source = Some(UploadItem::new_uncompressed(base));
+        self
+    }
+
+    /// Enable automatic mipmap generation.
+    /// Available only when internal format is one kind of [`TextureInternalFormat`](super::TextureInternalFormat)
+    /// and base source is set.
+    ///
+    /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
+    pub fn generate_mipmap(mut self) -> Self {
+        self.mipmap = true;
+        self
+    }
+
+    /// Sets automatic mipmap generation base level.
+    /// Available only when automatic mipmap generation enabled.
+    pub fn set_mipmap_base_level(mut self, base_level: usize) -> Self {
+        let mut mipmap_base_level = self.max_level.min(base_level);
+        if let Some(mipmap_max_level) = self.mipmap_max_level {
+            mipmap_base_level = mipmap_base_level.min(mipmap_max_level);
+        }
+
+        self.mipmap_base_level = Some(mipmap_base_level);
+        self
+    }
+
+    /// Sets automatic mipmap generation max level.
+    /// Available only when automatic mipmap generation enabled.
+    pub fn set_mipmap_max_level(mut self, max_level: usize) -> Self {
+        let mut mipmap_max_level = self.max_level.min(max_level);
+        if let Some(mipmap_base_level) = self.mipmap_base_level {
+            mipmap_max_level = mipmap_base_level.max(mipmap_max_level);
+        }
+
+        self.mipmap_max_level = Some(mipmap_max_level);
+        self
+    }
+
+    /// Uploads a new source to texture.
+    pub fn tex_image(mut self, source: TextureSource, level: usize) -> Self {
+        self.uploads.push(UploadItem::with_params_uncompressed(
+            source,
+            Some(level),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        self
+    }
+
+    /// Uploads a new source for a sub-rectangle of the texture.
+    pub fn tex_sub_image(
+        mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Self {
+        self.uploads.push(UploadItem::with_params_uncompressed(
+            source,
+            Some(level),
+            Some(depth),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
+        self
+    }
+}
+
+impl Builder<TextureCompressedFormat> {
+    /// Initializes a new builder from an existing [`TextureSourceCompressed`] and [`TextureCompressedFormat`].
+    /// Beside, a depth value for the third dimension is also required.
+    pub fn with_base_source(
+        depth: usize,
+        base_source: TextureSourceCompressed,
+        internal_format: TextureCompressedFormat,
+    ) -> Self {
+        let width = base_source.width();
+        let height = base_source.height();
+        Self {
+            internal_format,
+            width,
+            height,
+            depth,
+            max_level:
+                <Texture3D<TextureCompressedFormat> as TextureDepth>::max_available_mipmap_level(
+                    width, height, depth,
+                ),
+            memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
+            tex_params: Vec::new(),
+
+            base_source: Some(UploadItem::new_compressed(base_source)),
+            uploads: Vec::new(),
+
+            mipmap: false,
+            mipmap_base_level: None,
+            mipmap_max_level: None,
+        }
+    }
+
+    /// Sets the source in level 0.
+    pub fn set_base_source(mut self, base_source: TextureSourceCompressed) -> Self {
+        self.base_source = Some(UploadItem::new_compressed(base_source));
+        self
+    }
+
+    /// Uploads a new image to texture.
+    pub fn tex_image(mut self, source: TextureSourceCompressed, level: usize) -> Self {
+        self.uploads.push(UploadItem::with_params_compressed(
+            source,
+            Some(level),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        self
+    }
+
+    /// Uploads a new image for a sub-rectangle of the texture.
+    pub fn tex_sub_image(
+        mut self,
+        source: TextureSourceCompressed,
+        level: usize,
+        depth: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Self {
+        self.uploads.push(UploadItem::with_params_compressed(
+            source,
+            Some(level),
+            Some(depth),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
+        self
     }
 }

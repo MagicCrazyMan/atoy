@@ -225,11 +225,14 @@ impl AreaLight {
     /// Returns data in uniform buffer object alignment.
     pub fn ubo(&self) -> &[u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
-             std::mem::transmute::<&[f32; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH], &[u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH as usize]>(&self.ubo)
+            std::mem::transmute::<
+                &[f32; UBO_LIGHTS_AREA_LIGHT_F32_LENGTH],
+                &[u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH as usize],
+            >(&self.ubo)
         }
     }
 
-    /// Sets ubo of this area light to dirty. 
+    /// Sets ubo of this area light to dirty.
     pub fn set_ubo_dirty(&mut self) {
         self.ubo_dirty = true;
     }

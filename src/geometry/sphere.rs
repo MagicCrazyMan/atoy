@@ -82,7 +82,7 @@ impl Sphere {
         );
         self.normals
             .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
-        self.bounding_volume =  BoundingVolume::BoundingSphere {
+        self.bounding_volume = BoundingVolume::BoundingSphere {
             center: Vec3::<f64>::new(0.0, 0.0, 0.0),
             radius,
         };

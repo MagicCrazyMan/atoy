@@ -1,5 +1,7 @@
 use web_sys::{
-    ExtTextureFilterAnisotropic, WebGl2RenderingContext, WebglCompressedTextureAstc, WebglCompressedTextureEtc, WebglCompressedTextureEtc1, WebglCompressedTexturePvrtc, WebglCompressedTextureS3tc, WebglCompressedTextureS3tcSrgb
+    ExtTextureFilterAnisotropic, WebGl2RenderingContext, WebglCompressedTextureAstc,
+    WebglCompressedTextureEtc, WebglCompressedTextureEtc1, WebglCompressedTexturePvrtc,
+    WebglCompressedTextureS3tc, WebglCompressedTextureS3tcSrgb,
 };
 
 use super::{
@@ -581,7 +583,9 @@ impl ToGlEnum for TextureParameter {
         match self {
             TextureParameter::BASE_LEVEL(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
             TextureParameter::MAX_LEVEL(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
-            TextureParameter::MAX_ANISOTROPY_EXT(_) => ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
+            TextureParameter::MAX_ANISOTROPY_EXT(_) => {
+                ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT
+            }
         }
     }
 }

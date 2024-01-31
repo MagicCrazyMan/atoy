@@ -9,7 +9,7 @@ pub enum StencilFunction {
     GREATER,
     NOTEQUAL,
     GEQUAL,
-    ALWAYS
+    ALWAYS,
 }
 
 /// Available stencil operators mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
@@ -23,6 +23,5 @@ pub enum StencilOp {
     INCR_WRAP,
     DECR,
     DECR_WRAP,
-    INVERT
+    INVERT,
 }
-

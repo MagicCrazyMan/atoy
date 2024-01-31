@@ -375,7 +375,7 @@ mod tests {
                 .iter_least_to_most()
                 .map(|node| (*node).data().to_string())
                 .collect::<Vec<_>>();
-            assert_eq!(["D"] , *l2m);
+            assert_eq!(["D"], *l2m);
             let m2l = lru
                 .iter_most_to_least()
                 .map(|node| (*node).data().to_string())

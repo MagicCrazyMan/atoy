@@ -11,14 +11,12 @@ use super::{
 };
 
 /// Memory policies controlling how to manage memory of a texture.
-#[allow(private_bounds)]
 pub enum MemoryPolicy<F> {
     Unfree,
     Restorable(Box<dyn Fn(Builder<F>) -> Builder<F>>),
 }
 
 /// A WebGL 2d texture workload.
-#[allow(private_bounds)]
 pub struct Texture2D<F> {
     width: usize,
     height: usize,
@@ -40,7 +38,7 @@ impl<F> Texture2D<F>
 where
     F: NativeFormat,
 {
-    /// Returns [`TextureInternalFormat`].
+    /// Returns internal format.
     pub fn internal_format(&self) -> F {
         self.internal_format
     }
@@ -208,8 +206,8 @@ where
         self.runtime.as_deref_mut()
     }
 
-    fn set_runtime(&mut self, runtime: Runtime) -> &mut Runtime {
-        self.runtime.insert(Box::new(runtime))
+    fn set_runtime(&mut self, runtime: Runtime) {
+        self.runtime = Some(Box::new(runtime));
     }
 
     fn remove_runtime(&mut self) -> Option<Runtime> {
@@ -324,6 +322,7 @@ where
                 let texture = builder.build();
                 self.mipmap_base = texture.mipmap_base;
                 self.sampler_params = texture.sampler_params;
+                self.tex_params = texture.tex_params;
                 self.uploads = texture.uploads;
                 true
             }
@@ -331,7 +330,6 @@ where
     }
 }
 
-#[allow(private_bounds)]
 impl<F> TextureDescriptor<Texture2D<F>> {
     /// Constructs a new texture descriptor with [`Texture2D`].
     pub fn new(texture: Texture2D<F>) -> Self {
@@ -340,7 +338,6 @@ impl<F> TextureDescriptor<Texture2D<F>> {
 }
 
 /// A builder to build a [`Texture2D`].
-#[allow(private_bounds)]
 pub struct Builder<F> {
     internal_format: F,
     width: usize,
@@ -446,7 +443,7 @@ where
 }
 
 impl Builder<TextureInternalFormat> {
-    /// Initializes a new builder from an existing [`TextureUpload`] and internal format.
+    /// Initializes a new builder from an existing [`TextureSource`] and [`TextureInternalFormat`].
     pub fn with_base_source(
         base_source: TextureSource,
         internal_format: TextureInternalFormat,
@@ -481,10 +478,10 @@ impl Builder<TextureInternalFormat> {
     }
 
     /// Enable automatic mipmap generation.
-    /// Available only when internal format is one kind of [`TextureInternalFormatUncompressed`](super::TextureInternalFormatUncompressed)
+    /// Available only when internal format is one kind of [`TextureInternalFormat`](super::TextureInternalFormat)
     /// and base source is set.
     ///
-    /// Automatic Mipmaps Generation is never enable for [`TextureInternalFormatCompressed`](super::TextureInternalFormatCompressed).
+    /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
     pub fn generate_mipmap(mut self) -> Self {
         self.mipmap = true;
         self
@@ -554,7 +551,7 @@ impl Builder<TextureInternalFormat> {
 }
 
 impl Builder<TextureCompressedFormat> {
-    /// Initializes a new builder from an existing [`TextureUpload`] and internal format.
+    /// Initializes a new builder from an existing [`TextureSourceCompressed`] and [`TextureCompressedFormat`].
     pub fn with_base_source(
         base_source: TextureSourceCompressed,
         internal_format: TextureCompressedFormat,

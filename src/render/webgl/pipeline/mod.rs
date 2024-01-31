@@ -712,7 +712,6 @@ impl Pipeline for StandardPipeline {
 
                 // shading
                 {
-                    
                     match self.pipeline_shading {
                         StandardPipelineShading::ForwardShading => {
                             self.forward_shading(state, scene)

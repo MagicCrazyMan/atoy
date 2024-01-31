@@ -39,10 +39,12 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::texture::texture2d::Texture2D;
 use crate::render::webgl::texture::{
     texture2d, SamplerParameter, TextureCompressedFormat, TextureDataType, TextureDescriptor,
     TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
-    TexturePixelStorage, TextureSource, TextureSourceCompressed, TextureUnit, TextureWrapMethod,
+    TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed, TextureUnit,
+    TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -600,7 +602,7 @@ pub fn test_cube(
     let mut image = EntityOptions::new();
     image.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2D {
-            descriptor: TextureDescriptor::new(
+            descriptor: TextureDescriptor::<Texture2D<_>>::new(
                 texture2d::Builder::<TextureInternalFormat>::with_base_source(
                     TextureSource::HtmlImageElement {
                         data: sky_rgb.clone(),

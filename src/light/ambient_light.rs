@@ -58,11 +58,14 @@ impl AmbientLight {
     /// Returns data in uniform buffer object alignment.
     pub fn ubo(&self) -> &[u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH as usize] {
         unsafe {
-             std::mem::transmute::<&[f32; UBO_LIGHTS_AMBIENT_LIGHT_F32_LENGTH], &[u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH as usize]>(&self.ubo)
+            std::mem::transmute::<
+                &[f32; UBO_LIGHTS_AMBIENT_LIGHT_F32_LENGTH],
+                &[u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH as usize],
+            >(&self.ubo)
         }
     }
 
-    /// Sets ubo of this ambient light to dirty. 
+    /// Sets ubo of this ambient light to dirty.
     pub fn set_ubo_dirty(&mut self) {
         self.ubo_dirty = true;
     }

@@ -158,7 +158,7 @@ impl SpotLight {
         }
     }
 
-    /// Sets ubo of this spot light to dirty. 
+    /// Sets ubo of this spot light to dirty.
     pub fn set_ubo_dirty(&mut self) {
         self.ubo_dirty = true;
     }

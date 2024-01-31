@@ -1,2 +1,2 @@
-pub mod texture;
 pub mod dds;
+pub mod texture;

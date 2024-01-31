@@ -141,7 +141,8 @@ impl StandardPicking {
             state
                 .gl()
                 .uniform1ui(index_location.as_ref(), (index + 1) as u32);
-            let bound_attributes = state.bind_attribute_value(position_location, positions.as_ref())?;
+            let bound_attributes =
+                state.bind_attribute_value(position_location, positions.as_ref())?;
             state.draw(&geometry.draw())?;
             state.unbind_attributes(bound_attributes);
         }

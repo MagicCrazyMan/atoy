@@ -6,7 +6,7 @@ pub enum Error {
     AddEventCallbackFailure(&'static str, Option<String>),
     NoSuchEntity,
     NoSuchGroup,
-    WebGLRenderError(crate::render::webgl::error::Error)
+    WebGLRenderError(crate::render::webgl::error::Error),
 }
 
 impl Error {}

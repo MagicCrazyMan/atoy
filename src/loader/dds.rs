@@ -275,7 +275,7 @@ impl DirectDrawSurface {
                     });
                 };
 
-                Some(TextureDescriptor::new(builder.build()))
+                Some(TextureDescriptor::<Texture2D<_>>::new(builder.build()))
             }
             None => None,
         }

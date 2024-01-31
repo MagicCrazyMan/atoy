@@ -7,12 +7,9 @@
 //!
 
 pub mod texture2d;
-// pub mod texture2darray;
-// pub mod texture2darray_compressed;
-// pub mod texture3d;
-// pub mod texture3d_compressed;
-// pub mod texture_cubemap;
-// pub mod texture_cubemap_compressed;
+pub mod texture2darray;
+pub mod texture3d;
+pub mod texture_cubemap;
 
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -21,7 +18,6 @@ use std::{
 };
 
 use hashbrown::{hash_map::Entry, HashMap};
-use log::debug;
 use uuid::Uuid;
 use web_sys::{
     js_sys::{
@@ -32,13 +28,10 @@ use web_sys::{
     ImageBitmap, ImageData, WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
-use crate::{
-    loader::texture,
-    lru::{Lru, LruNode},
-};
+use crate::lru::{Lru, LruNode};
 
 use super::{
-    capabilities::{self, Capabilities, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC},
+    capabilities::{Capabilities, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC},
     conversion::ToGlEnum,
     error::Error,
     utils::{self, pixel_unpack_buffer_binding},
@@ -581,55 +574,55 @@ pub enum TexturePixelStorage {
 impl TexturePixelStorage {
     fn save(&self, gl: &WebGl2RenderingContext) -> Option<TexturePixelStorage> {
         match self {
-            TexturePixelStorage::PACK_ALIGNMENT(v) => {
+            TexturePixelStorage::PACK_ALIGNMENT(_) => {
                 utils::texture_pixel_storage_pack_alignment(gl)
                     .map(|v| TexturePixelStorage::PACK_ALIGNMENT(v))
             }
-            TexturePixelStorage::PACK_ROW_LENGTH(v) => {
+            TexturePixelStorage::PACK_ROW_LENGTH(_) => {
                 utils::texture_pixel_storage_pack_row_length(gl)
                     .map(|v| TexturePixelStorage::PACK_ROW_LENGTH(v))
             }
-            TexturePixelStorage::PACK_SKIP_PIXELS(v) => {
+            TexturePixelStorage::PACK_SKIP_PIXELS(_) => {
                 utils::texture_pixel_storage_pack_skip_pixels(gl)
                     .map(|v| TexturePixelStorage::PACK_SKIP_PIXELS(v))
             }
-            TexturePixelStorage::PACK_SKIP_ROWS(v) => {
+            TexturePixelStorage::PACK_SKIP_ROWS(_) => {
                 utils::texture_pixel_storage_pack_skip_rows(gl)
                     .map(|v| TexturePixelStorage::PACK_SKIP_ROWS(v))
             }
-            TexturePixelStorage::UNPACK_ALIGNMENT(v) => {
+            TexturePixelStorage::UNPACK_ALIGNMENT(_) => {
                 utils::texture_pixel_storage_unpack_alignment(gl)
                     .map(|v| TexturePixelStorage::UNPACK_ALIGNMENT(v))
             }
-            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v) => {
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(_) => {
                 utils::texture_pixel_storage_unpack_flip_y_webgl(gl)
                     .map(|v| TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v))
             }
-            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v) => {
+            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(_) => {
                 utils::texture_pixel_storage_unpack_premultiply_alpha_webgl(gl)
                     .map(|v| TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v))
             }
-            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v) => {
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(_) => {
                 utils::texture_pixel_storage_unpack_colorspace_conversion_webgl(gl)
                     .map(|v| TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v))
             }
-            TexturePixelStorage::UNPACK_ROW_LENGTH(v) => {
+            TexturePixelStorage::UNPACK_ROW_LENGTH(_) => {
                 utils::texture_pixel_storage_unpack_row_length(gl)
                     .map(|v| TexturePixelStorage::UNPACK_ROW_LENGTH(v))
             }
-            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v) => {
+            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(_) => {
                 utils::texture_pixel_storage_unpack_image_height(gl)
                     .map(|v| TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v))
             }
-            TexturePixelStorage::UNPACK_SKIP_PIXELS(v) => {
+            TexturePixelStorage::UNPACK_SKIP_PIXELS(_) => {
                 utils::texture_pixel_storage_unpack_skip_pixels(gl)
                     .map(|v| TexturePixelStorage::UNPACK_SKIP_PIXELS(v))
             }
-            TexturePixelStorage::UNPACK_SKIP_ROWS(v) => {
+            TexturePixelStorage::UNPACK_SKIP_ROWS(_) => {
                 utils::texture_pixel_storage_unpack_skip_rows(gl)
                     .map(|v| TexturePixelStorage::UNPACK_SKIP_ROWS(v))
             }
-            TexturePixelStorage::UNPACK_SKIP_IMAGES(v) => {
+            TexturePixelStorage::UNPACK_SKIP_IMAGES(_) => {
                 utils::texture_pixel_storage_unpack_skip_images(gl)
                     .map(|v| TexturePixelStorage::UNPACK_SKIP_IMAGES(v))
             }
@@ -1740,7 +1733,7 @@ trait TextureItem: Texture {
     fn runtime_mut(&mut self) -> Option<&mut Runtime>;
 
     /// Sets [`Runtime`].
-    fn set_runtime(&mut self, runtime: Runtime) -> &mut Runtime;
+    fn set_runtime(&mut self, runtime: Runtime);
 
     /// Removes [`Runtime`].
     fn remove_runtime(&mut self) -> Option<Runtime>;
