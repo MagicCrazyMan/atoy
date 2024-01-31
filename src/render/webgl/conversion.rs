@@ -17,7 +17,7 @@ use super::{
         SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
         TextureDataType, TextureFormat, TextureInternalFormat, TextureMagnificationFilter,
         TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureTarget,
-        TextureUnit, TextureUnpackColorSpaceConversion, TextureWrapMethod,
+        TextureUnit, TextureUnpackColorSpaceConversion, TextureUploadTarget, TextureWrapMethod,
     },
 };
 
@@ -124,26 +124,37 @@ impl ToGlEnum for TextureTarget {
         match self {
             TextureTarget::TEXTURE_2D => WebGl2RenderingContext::TEXTURE_2D,
             TextureTarget::TEXTURE_CUBE_MAP => WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-            TextureTarget::TEXTURE_CUBE_MAP_POSITIVE_X => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
-            }
-            TextureTarget::TEXTURE_CUBE_MAP_POSITIVE_Y => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
-            }
-            TextureTarget::TEXTURE_CUBE_MAP_POSITIVE_Z => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
-            }
-            TextureTarget::TEXTURE_CUBE_MAP_NEGATIVE_X => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
-            }
-            TextureTarget::TEXTURE_CUBE_MAP_NEGATIVE_Y => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
-            }
-            TextureTarget::TEXTURE_CUBE_MAP_NEGATIVE_Z => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
-            }
             TextureTarget::TEXTURE_2D_ARRAY => WebGl2RenderingContext::TEXTURE_2D_ARRAY,
             TextureTarget::TEXTURE_3D => WebGl2RenderingContext::TEXTURE_3D,
+        }
+    }
+}
+
+impl ToGlEnum for TextureUploadTarget {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            TextureUploadTarget::TEXTURE_2D => WebGl2RenderingContext::TEXTURE_2D,
+            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_X => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
+            }
+            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Y => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
+            }
+            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Z => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
+            }
+            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_X => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
+            }
+            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Y => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
+            }
+            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Z => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
+            }
+            TextureUploadTarget::TEXTURE_2D_ARRAY => WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+            TextureUploadTarget::TEXTURE_3D => WebGl2RenderingContext::TEXTURE_3D,
         }
     }
 }

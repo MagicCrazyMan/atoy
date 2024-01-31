@@ -7,7 +7,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 use super::{
     NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat, TextureDescriptor,
     TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
-    TextureSourceCompressed, TextureTarget, UploadItem,
+    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -272,14 +272,14 @@ where
 
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
         if let Some(source) = self.mipmap_base.take() {
-            source.tex_sub_image_2d(&gl, TextureTarget::TEXTURE_2D)?;
+            source.tex_sub_image_2d(&gl, TextureUploadTarget::TEXTURE_2D)?;
             gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
         }
 
         // then uploading all regular sources
         for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            upload.tex_sub_image_2d(&gl, TextureTarget::TEXTURE_2D)?;
+            upload.tex_sub_image_2d(&gl, TextureUploadTarget::TEXTURE_2D)?;
         }
 
         Ok(())

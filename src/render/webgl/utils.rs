@@ -29,6 +29,12 @@ pub fn texture_active_texture_unit(gl: &WebGl2RenderingContext) -> u32 {
         .unwrap()
 }
 
+pub fn texture_binding(gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<WebGlTexture> {
+    gl.get_parameter(target.gl_enum())
+        .unwrap()
+        .cast_into_unchecked::<WebGlTexture>()
+}
+
 pub fn texture_binding_2d(gl: &WebGl2RenderingContext) -> Option<WebGlTexture> {
     gl.get_parameter(WebGl2RenderingContext::TEXTURE_BINDING_2D)
         .unwrap()

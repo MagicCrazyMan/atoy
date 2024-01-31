@@ -7,7 +7,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 use super::{
     NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat,
     TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
-    TextureSourceCompressed, TextureTarget, UploadItem,
+    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Cube map faces.
@@ -311,17 +311,17 @@ where
 
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
         if let Some(sources) = self.mipmap_base.take() {
-            for source in sources {
-                source.tex_sub_image_2d(&gl, TextureTarget::TEXTURE_CUBE_MAP)?;
+            for (index, source) in sources.iter().enumerate() {
+                source.tex_sub_image_2d(&gl, TextureUploadTarget::from_index(index))?;
             }
             gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_CUBE_MAP);
         }
 
         // then uploading all regular sources
-        for face in self.faces.iter_mut() {
-            for source in face.drain(..) {
+        for (index, sources) in self.faces.iter_mut().enumerate() {
+            for source in sources.drain(..) {
                 // abilities.verify_texture_size(source.width(), source.height())?;
-                source.tex_sub_image_2d(&gl, TextureTarget::TEXTURE_CUBE_MAP)?;
+                source.tex_sub_image_2d(&gl, TextureUploadTarget::from_index(index))?;
             }
         }
 
@@ -693,5 +693,19 @@ impl Builder<TextureCompressedFormat> {
             None,
         ));
         self
+    }
+}
+
+impl TextureUploadTarget {
+    fn from_index(index: usize) -> Self {
+        match index {
+            0 => TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_X,
+            1 => TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_X,
+            2 => TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Y,
+            3 => TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            4 => TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Z,
+            5 => TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Z,
+            _ => unreachable!(),
+        }
     }
 }

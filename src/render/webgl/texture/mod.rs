@@ -18,7 +18,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use uuid::Uuid;
 use web_sys::{
     js_sys::{
@@ -44,11 +44,20 @@ use super::{
 pub enum TextureTarget {
     TEXTURE_2D,
     TEXTURE_CUBE_MAP,
+    TEXTURE_2D_ARRAY,
+    TEXTURE_3D,
+}
+
+/// Available texture upload targets for `texImage2d`, `texImage3d`, `texSubImage2d` and ``texSubImage3d`` mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureUploadTarget {
+    TEXTURE_2D,
     TEXTURE_CUBE_MAP_POSITIVE_X,
-    TEXTURE_CUBE_MAP_POSITIVE_Y,
-    TEXTURE_CUBE_MAP_POSITIVE_Z,
     TEXTURE_CUBE_MAP_NEGATIVE_X,
+    TEXTURE_CUBE_MAP_POSITIVE_Y,
     TEXTURE_CUBE_MAP_NEGATIVE_Y,
+    TEXTURE_CUBE_MAP_POSITIVE_Z,
     TEXTURE_CUBE_MAP_NEGATIVE_Z,
     TEXTURE_2D_ARRAY,
     TEXTURE_3D,
@@ -1032,7 +1041,7 @@ macro_rules! texture_sources {
             fn tex_sub_image_2d(
                 &self,
                 gl: &WebGl2RenderingContext,
-                target: TextureTarget,
+                target: TextureUploadTarget,
                 level: usize,
                 width: Option<usize>,
                 height: Option<usize>,
@@ -1180,7 +1189,7 @@ macro_rules! texture_sources {
             fn tex_sub_image_3d(
                 &self,
                 gl: &WebGl2RenderingContext,
-                target: TextureTarget,
+                target: TextureUploadTarget,
                 level: usize,
                 depth: usize,
                 width: Option<usize>,
@@ -1410,7 +1419,7 @@ macro_rules! texture_sources_compressed {
             fn tex_sub_image_2d(
                 &self,
                 gl: &WebGl2RenderingContext,
-                target: TextureTarget,
+                target: TextureUploadTarget,
                 level: usize,
                 width: Option<usize>,
                 height: Option<usize>,
@@ -1514,7 +1523,7 @@ macro_rules! texture_sources_compressed {
             fn tex_sub_image_3d(
                 &self,
                 gl: &WebGl2RenderingContext,
-                target: TextureTarget,
+                target: TextureUploadTarget,
                 level: usize,
                 depth: usize,
                 width: Option<usize>,
@@ -1906,11 +1915,11 @@ impl UploadItem {
 
     /// Uploads texture source to WebGL.
     fn tex_sub_image_2d(
-        self,
+        &self,
         gl: &WebGl2RenderingContext,
-        target: TextureTarget,
+        target: TextureUploadTarget,
     ) -> Result<(), Error> {
-        match self.source {
+        match &self.source {
             UploadSource::Uncompressed(source) => source.tex_sub_image_2d(
                 gl,
                 target,
@@ -1934,11 +1943,11 @@ impl UploadItem {
 
     /// Uploads texture source to WebGL.
     fn tex_sub_image_3d(
-        self,
+        &self,
         gl: &WebGl2RenderingContext,
-        target: TextureTarget,
+        target: TextureUploadTarget,
     ) -> Result<(), Error> {
-        match self.source {
+        match &self.source {
             UploadSource::Uncompressed(source) => source.tex_sub_image_3d(
                 gl,
                 target,
@@ -1970,10 +1979,11 @@ struct Runtime {
     gl: WebGl2RenderingContext,
     capabilities: Capabilities,
     store_id: Uuid,
+    target: TextureTarget,
     bytes_length: usize,
     texture: WebGlTexture,
     sampler: WebGlSampler,
-    using: bool,
+    using: HashSet<TextureUnit>,
     lru_node: *mut LruNode<Uuid>,
 
     used_memory: *mut usize,
@@ -1987,6 +1997,22 @@ impl Drop for Runtime {
             (*self.textures).remove(&self.id);
             (*self.lru).remove(self.lru_node);
             (*self.used_memory) -= self.bytes_length;
+
+            {
+                // unbinds
+                let unit = utils::texture_active_texture_unit(&self.gl);
+                for unit in self.using.drain() {
+                    self.gl.active_texture(unit.gl_enum());
+                    let texture = utils::texture_binding(&self.gl, self.target);
+                    if let Some(texture) = texture {
+                        if texture == self.texture {
+                            self.gl.bind_texture(self.target.gl_enum(), None);
+                        }
+                    }
+                }
+                self.gl.active_texture(unit);
+            }
+
             self.gl.delete_sampler(Some(&self.sampler));
             self.gl.delete_texture(Some(&self.texture));
         }
@@ -2074,7 +2100,7 @@ impl TextureStore {
                 let mut t = t.borrow_mut();
                 let runtime = t.runtime().unwrap();
                 // skips if using
-                if runtime.using {
+                if !runtime.using.is_empty() {
                     next_node = (*current_node).more_recently();
                     continue;
                 }
@@ -2106,6 +2132,7 @@ impl TextureStore {
     {
         unsafe {
             let mut t = descriptor.texture_mut();
+            let target = t.target();
 
             // creates runtime if not exists
             if t.runtime().is_none() {
@@ -2118,12 +2145,11 @@ impl TextureStore {
                     .create_sampler()
                     .ok_or_else(|| Error::CreateSamplerFailure)?;
 
-                self.gl
-                    .bind_texture(t.target().gl_enum(), Some(&texture));
+                self.gl.bind_texture(target.gl_enum(), Some(&texture));
 
                 // sets texture parameters
                 for p in t.texture_parameters() {
-                    p.tex_parameter(&self.gl, t.target(), &self.capabilities)?;
+                    p.tex_parameter(&self.gl, target, &self.capabilities)?;
                 }
 
                 // sets sampler parameters
@@ -2146,9 +2172,10 @@ impl TextureStore {
                     store_id: self.id,
                     texture: texture.clone(),
                     sampler,
+                    target,
                     bytes_length,
                     lru_node,
-                    using: true,
+                    using: HashSet::new(),
 
                     used_memory: self.used_memory,
                     textures: self.textures,
@@ -2161,7 +2188,6 @@ impl TextureStore {
                 return Err(Error::TextureSharingDisallowed);
             }
 
-            let target = t.target();
             let texture = t.runtime_unchecked().texture.clone();
             let bound_unit = utils::texture_active_texture_unit(&self.gl);
 
@@ -2182,6 +2208,7 @@ impl TextureStore {
 
             // updates status
             (*self.lru).cache(t.runtime_unchecked().lru_node);
+            t.runtime_mut_unchecked().using.insert(unit);
 
             // do memory free
             drop(t);
@@ -2208,7 +2235,7 @@ impl TextureStore {
             self.gl.bind_texture(target.gl_enum(), None);
             self.gl.bind_sampler(unit.unit_index() as u32, None);
             self.gl.active_texture(bound);
-            runtime.using = false;
+            runtime.using.remove(&unit);
         }
 
         Ok(())
