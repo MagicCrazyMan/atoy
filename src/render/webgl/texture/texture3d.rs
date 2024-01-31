@@ -1,5 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, iter::FromIterator, rc::Rc};
 
+use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
@@ -24,8 +25,8 @@ pub struct Texture3D<F> {
     max_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
-    sampler_params: Vec<SamplerParameter>,
-    tex_params: Vec<TextureParameter>,
+    sampler_params: HashMap<u32, SamplerParameter>,
+    tex_params: HashMap<u32, TextureParameter>,
 
     mipmap_base: Option<UploadItem>,
 
@@ -49,46 +50,32 @@ where
         &self.memory_policy
     }
 
-    /// Sets sampler parameters.
-    pub fn set_sampler_parameters(&mut self, param: SamplerParameter) {
+    /// Sets sampler parameter.
+    pub fn set_sampler_parameter(&mut self, param: SamplerParameter) {
         if let Some(runtime) = self.runtime.as_deref_mut() {
             param.sampler_parameter(&runtime.gl, &runtime.sampler);
         }
-        let index = self
-            .sampler_params
-            .iter()
-            .position(|p| p.gl_enum() == param.gl_enum());
-        if let Some(index) = index {
-            self.sampler_params.remove(index);
-        }
-        self.sampler_params.push(param);
+        self.sampler_params.insert(param.gl_enum(), param);
     }
 
-    /// Sets texture parameters.
-    pub fn set_texture_parameters(&mut self, param: TextureParameter) -> Result<(), Error> {
+    /// Sets texture parameter.
+    pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
-            let bound = utils::texture_binding_2d(&runtime.gl);
+            let bound = utils::texture_binding_3d(&runtime.gl);
             runtime
                 .gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
+                .bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&runtime.texture));
             param.tex_parameter(
                 &runtime.gl,
-                TextureTarget::TEXTURE_2D,
+                TextureTarget::TEXTURE_3D,
                 &runtime.capabilities,
             )?;
             runtime
                 .gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+                .bind_texture(WebGl2RenderingContext::TEXTURE_3D, bound.as_ref());
         }
 
-        let index = self
-            .tex_params
-            .iter()
-            .position(|p| p.gl_enum() == param.gl_enum());
-        if let Some(index) = index {
-            self.tex_params.remove(index);
-        }
-        self.tex_params.push(param);
+        self.tex_params.insert(param.gl_enum(), param);
 
         Ok(())
     }
@@ -196,11 +183,11 @@ where
         TextureTarget::TEXTURE_3D
     }
 
-    fn sampler_parameters(&self) -> &[SamplerParameter] {
+    fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
         &self.sampler_params
     }
 
-    fn texture_parameters(&self) -> &[TextureParameter] {
+    fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
         &self.tex_params
     }
 
@@ -360,8 +347,8 @@ pub struct Builder<F> {
     depth: usize,
     max_level: usize,
     memory_policy: MemoryPolicy<F>,
-    sampler_params: Vec<SamplerParameter>,
-    tex_params: Vec<TextureParameter>,
+    sampler_params: HashMap<u32, SamplerParameter>,
+    tex_params: HashMap<u32, TextureParameter>,
 
     base_source: Option<UploadItem>,
     uploads: Vec<UploadItem>,
@@ -386,8 +373,8 @@ where
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
-            sampler_params: Vec::new(),
-            tex_params: Vec::new(),
+            sampler_params: HashMap::new(),
+            tex_params: HashMap::new(),
 
             base_source: None,
             uploads: Vec::new(),
@@ -407,7 +394,7 @@ where
     where
         I: IntoIterator<Item = SamplerParameter>,
     {
-        self.sampler_params = params.into_iter().collect();
+        self.sampler_params = HashMap::from_iter(params.into_iter().map(|p| (p.gl_enum(), p)));
         self
     }
 
@@ -416,7 +403,7 @@ where
     where
         I: IntoIterator<Item = TextureParameter>,
     {
-        self.tex_params = params.into_iter().collect();
+        self.tex_params = HashMap::from_iter(params.into_iter().map(|p| (p.gl_enum(), p)));
         self
     }
 
@@ -476,8 +463,8 @@ impl Builder<TextureInternalFormat> {
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
-            sampler_params: Vec::new(),
-            tex_params: Vec::new(),
+            sampler_params: HashMap::new(),
+            tex_params: HashMap::new(),
 
             base_source: Some(UploadItem::new_uncompressed(base_source)),
             uploads: Vec::new(),
@@ -563,8 +550,8 @@ impl Builder<TextureCompressedFormat> {
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
-            sampler_params: Vec::new(),
-            tex_params: Vec::new(),
+            sampler_params: HashMap::new(),
+            tex_params: HashMap::new(),
 
             base_source: Some(UploadItem::new_compressed(base_source)),
             uploads: Vec::new(),

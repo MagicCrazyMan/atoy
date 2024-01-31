@@ -1657,10 +1657,10 @@ pub trait Texture {
     fn target(&self) -> TextureTarget;
 
     /// Returns a list of [`SamplerParameter`]s.
-    fn sampler_parameters(&self) -> &[SamplerParameter];
+    fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter>;
 
     /// Returns a list of [`TextureParameter`]s.
-    fn texture_parameters(&self) -> &[TextureParameter];
+    fn texture_parameters(&self) -> &HashMap<u32, TextureParameter>;
 
     /// Calculates max available mipmap level under a specified size in Rounding Down mode.
     fn max_available_mipmap_level(&self) -> usize;
@@ -2148,12 +2148,12 @@ impl TextureStore {
                 self.gl.bind_texture(target.gl_enum(), Some(&texture));
 
                 // sets texture parameters
-                for p in t.texture_parameters() {
+                for (_, p) in t.texture_parameters() {
                     p.tex_parameter(&self.gl, target, &self.capabilities)?;
                 }
 
                 // sets sampler parameters
-                for p in t.sampler_parameters() {
+                for (_, p) in t.sampler_parameters() {
                     p.sampler_parameter(&self.gl, &sampler);
                 }
 
