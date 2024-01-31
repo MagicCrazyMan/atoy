@@ -14,6 +14,7 @@ pub mod texture_cubemap;
 use std::{
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
+    hash::Hash,
     rc::{Rc, Weak},
 };
 
@@ -751,23 +752,10 @@ pub enum TextureParameter {
     BASE_LEVEL(i32),
     MAX_LEVEL(i32),
     /// Available when extension `EXT_texture_filter_anisotropic` enabled.
-    MAX_ANISOTROPY_EXT(f32),
+    MAX_ANISOTROPY(f32),
 }
 
 impl TextureParameter {
-    fn save(&self, gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<TextureParameter> {
-        match self {
-            TextureParameter::BASE_LEVEL(_) => utils::texture_parameter_base_level(&gl, target)
-                .map(|v| TextureParameter::BASE_LEVEL(v)),
-            TextureParameter::MAX_LEVEL(_) => utils::texture_parameter_max_level(&gl, target)
-                .map(|v| TextureParameter::MAX_LEVEL(v)),
-            TextureParameter::MAX_ANISOTROPY_EXT(_) => {
-                utils::texture_parameter_max_anisotropy(&gl, target)
-                    .map(|v| TextureParameter::MAX_ANISOTROPY_EXT(v))
-            }
-        }
-    }
-
     fn tex_parameter(
         &self,
         gl: &WebGl2RenderingContext,
@@ -789,7 +777,7 @@ impl TextureParameter {
                     *v,
                 );
             }
-            TextureParameter::MAX_ANISOTROPY_EXT(v) => {
+            TextureParameter::MAX_ANISOTROPY(v) => {
                 if !capabilities.texture_filter_anisotropic_supported() {
                     return Err(Error::ExtensionUnsupported(
                         EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC,
@@ -819,6 +807,35 @@ pub enum SamplerParameter {
     COMPARE_MODE(TextureCompareMode),
     MAX_LOD(f32),
     MIN_LOD(f32),
+}
+
+// impl Eq for SamplerParameter {}
+
+impl SamplerParameter {
+    fn sampler_parameter(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
+        match self {
+            SamplerParameter::MAG_FILTER(v) => {
+                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+            }
+            SamplerParameter::MIN_FILTER(v) => {
+                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+            }
+            SamplerParameter::WRAP_S(v)
+            | SamplerParameter::WRAP_T(v)
+            | SamplerParameter::WRAP_R(v) => {
+                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+            }
+            SamplerParameter::COMPARE_FUNC(v) => {
+                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+            }
+            SamplerParameter::COMPARE_MODE(v) => {
+                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+            }
+            SamplerParameter::MAX_LOD(v) | SamplerParameter::MIN_LOD(v) => {
+                gl.sampler_parameterf(&sampler, self.gl_enum(), *v)
+            }
+        }
+    }
 }
 
 /// WebGL native formats of a texture, including [`TextureInternalFormat`] and [`TextureCompressedFormat`].
@@ -1729,8 +1746,14 @@ trait TextureItem: Texture {
     /// Returns [`Runtime`].
     fn runtime(&self) -> Option<&Runtime>;
 
+    /// Returns [`Runtime`] without existence checking.
+    fn runtime_unchecked(&self) -> &Runtime;
+
     /// Returns mutable [`Runtime`].
     fn runtime_mut(&mut self) -> Option<&mut Runtime>;
+
+    /// Returns mutable [`Runtime`] without existence checking.
+    fn runtime_mut_unchecked(&mut self) -> &mut Runtime;
 
     /// Sets [`Runtime`].
     fn set_runtime(&mut self, runtime: Runtime);
@@ -1744,42 +1767,10 @@ trait TextureItem: Texture {
     /// Creates and returns a [`WebGlTexture`].
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error>;
 
-    /// Creates and returns a [`WebGlSampler`] by texture parameters from [`Texture::texture_parameters`].
-    fn create_sampler(&self, gl: &WebGl2RenderingContext) -> Result<WebGlSampler, Error> {
-        let sampler = gl
-            .create_sampler()
-            .ok_or_else(|| Error::CreateSamplerFailure)?;
-        self.sampler_parameters()
-            .into_iter()
-            .for_each(|param| match param {
-                SamplerParameter::MAG_FILTER(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
-                }
-                SamplerParameter::MIN_FILTER(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
-                }
-                SamplerParameter::WRAP_S(v)
-                | SamplerParameter::WRAP_T(v)
-                | SamplerParameter::WRAP_R(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
-                }
-                SamplerParameter::COMPARE_FUNC(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
-                }
-                SamplerParameter::COMPARE_MODE(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
-                }
-                SamplerParameter::MAX_LOD(v) | SamplerParameter::MIN_LOD(v) => {
-                    gl.sampler_parameterf(&sampler, param.gl_enum(), *v)
-                }
-            });
-        Ok(sampler)
-    }
-
     /// Uploads data to [`WebGlTexture`].
     /// In this stage, [`TextureItem::runtime`] is created and texture unit is bound already,
     /// it's safe to unwrap it and use fields inside and no need to active texture unit again.
-    fn upload(&mut self, unit: TextureUnit) -> Result<(), Error>;
+    fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error>;
 
     /// Applies memory free behavior.
     /// Returns `true` if this texture is released.
@@ -1977,10 +1968,11 @@ impl UploadItem {
 struct Runtime {
     id: Uuid,
     gl: WebGl2RenderingContext,
+    capabilities: Capabilities,
     store_id: Uuid,
     bytes_length: usize,
     texture: WebGlTexture,
-    sampler: Option<WebGlSampler>,
+    sampler: WebGlSampler,
     using: bool,
     lru_node: *mut LruNode<Uuid>,
 
@@ -1995,9 +1987,7 @@ impl Drop for Runtime {
             (*self.textures).remove(&self.id);
             (*self.lru).remove(self.lru_node);
             (*self.used_memory) -= self.bytes_length;
-            if let Some(sampler) = self.sampler.take() {
-                self.gl.delete_sampler(Some(&sampler));
-            }
+            self.gl.delete_sampler(Some(&self.sampler));
             self.gl.delete_texture(Some(&self.texture));
         }
     }
@@ -2032,7 +2022,7 @@ pub struct TextureStore {
     gl: WebGl2RenderingContext,
     capabilities: Capabilities,
     available_memory: usize,
-    tex_params_history: HashMap<(TextureUnit, TextureTarget), Vec<TextureParameter>>,
+
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
     textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
@@ -2053,7 +2043,7 @@ impl TextureStore {
             gl,
             capabilities,
             available_memory,
-            tex_params_history: HashMap::new(),
+
             used_memory: Box::leak(Box::new(0)),
             lru: Box::leak(Box::new(Lru::new())),
             textures: Box::leak(Box::new(HashMap::new())),
@@ -2120,7 +2110,26 @@ impl TextureStore {
             // creates runtime if not exists
             if t.runtime().is_none() {
                 t.validate(&self.capabilities)?;
+
+                // saves current binding texture
                 let texture = t.create_texture(&self.gl)?;
+                let sampler = self
+                    .gl
+                    .create_sampler()
+                    .ok_or_else(|| Error::CreateSamplerFailure)?;
+
+                self.gl
+                    .bind_texture(t.target().gl_enum(), Some(&texture));
+
+                // sets texture parameters
+                for p in t.texture_parameters() {
+                    p.tex_parameter(&self.gl, t.target(), &self.capabilities)?;
+                }
+
+                // sets sampler parameters
+                for p in t.sampler_parameters() {
+                    p.sampler_parameter(&self.gl, &sampler);
+                }
 
                 let id = Uuid::new_v4();
                 let lru_node = LruNode::new(id);
@@ -2133,9 +2142,10 @@ impl TextureStore {
                 t.set_runtime(Runtime {
                     id,
                     gl: self.gl.clone(),
+                    capabilities: self.capabilities.clone(),
                     store_id: self.id,
                     texture: texture.clone(),
-                    sampler: None,
+                    sampler,
                     bytes_length,
                     lru_node,
                     using: true,
@@ -2147,44 +2157,31 @@ impl TextureStore {
             }
 
             // checks sharing
-            if t.runtime().unwrap().store_id != self.id {
+            if t.runtime_unchecked().store_id != self.id {
                 return Err(Error::TextureSharingDisallowed);
             }
 
-            // creates sampler if not exists
-            if t.runtime().unwrap().sampler.is_none() {
-                let sampler = t.create_sampler(&self.gl)?;
-                t.runtime_mut().unwrap().sampler = Some(sampler);
-            }
-
             let target = t.target();
+            let texture = t.runtime_unchecked().texture.clone();
+            let bound_unit = utils::texture_active_texture_unit(&self.gl);
 
-            // saves current bindings texture parameters
-            let mut bounds = Vec::new();
-            for p in t.texture_parameters() {
-                if let Some(bound) = p.save(&self.gl, target) {
-                    bounds.push(bound);
-                }
-                p.tex_parameter(&self.gl, target, &self.capabilities)?;
-            }
-            self.tex_params_history.insert((unit, target), bounds);
-
-            // uploads data
-            t.upload(unit)?;
-
-            let runtime = t.runtime().unwrap();
-            let texture = runtime.texture.clone();
-
-            // updates status
-            (*self.lru).cache(runtime.lru_node);
-
-            // binds
+            // binds objects
+            self.gl.active_texture(unit.gl_enum());
             self.gl
-                .bind_texture(target.gl_enum(), Some(&runtime.texture));
+                .bind_texture(target.gl_enum(), Some(&t.runtime_unchecked().texture));
             self.gl.bind_sampler(
                 unit.unit_index() as u32,
-                Some(&runtime.sampler.as_ref().unwrap()),
+                Some(&t.runtime_unchecked().sampler.as_ref()),
             );
+
+            // uploads data
+            t.upload(&self.gl)?;
+
+            // restore unit
+            self.gl.active_texture(bound_unit);
+
+            // updates status
+            (*self.lru).cache(t.runtime_unchecked().lru_node);
 
             // do memory free
             drop(t);
@@ -2206,16 +2203,10 @@ impl TextureStore {
         let mut t = descriptor.texture_mut();
         let target = t.target();
         if let Some(runtime) = t.runtime_mut() {
-            let bound = utils::active_texture_unit(&self.gl);
+            let bound = utils::texture_active_texture_unit(&self.gl);
             self.gl.active_texture(unit.gl_enum());
             self.gl.bind_texture(target.gl_enum(), None);
             self.gl.bind_sampler(unit.unit_index() as u32, None);
-            // restores texture paramters
-            if let Some(restore) = self.tex_params_history.remove(&(unit, target)) {
-                for p in restore {
-                    p.tex_parameter(&self.gl, target, &self.capabilities)?;
-                }
-            }
             self.gl.active_texture(bound);
             runtime.using = false;
         }

@@ -43,8 +43,8 @@ use crate::render::webgl::texture::texture2d::Texture2D;
 use crate::render::webgl::texture::{
     texture2d, SamplerParameter, TextureCompressedFormat, TextureDataType, TextureDescriptor,
     TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
-    TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed, TextureUnit,
-    TextureWrapMethod,
+    TextureParameter, TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed,
+    TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
@@ -619,6 +619,7 @@ pub fn test_cube(
                     SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
                     SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
                 ])
+                .set_texture_parameters([TextureParameter::MAX_ANISOTROPY(16.0)])
                 .set_memory_policy(texture2d::MemoryPolicy::Restorable(Box::new(
                     move |builder| {
                         builder
@@ -707,7 +708,9 @@ pub fn test_cube(
                         SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
                         SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
                     ],
-                    [],
+                    [
+                        TextureParameter::MAX_ANISOTROPY(16.0),
+                    ],
                 )
                 .unwrap(),
             unit: TextureUnit::TEXTURE0,

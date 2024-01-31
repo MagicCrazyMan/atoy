@@ -583,7 +583,7 @@ impl ToGlEnum for TextureParameter {
         match self {
             TextureParameter::BASE_LEVEL(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
             TextureParameter::MAX_LEVEL(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
-            TextureParameter::MAX_ANISOTROPY_EXT(_) => {
+            TextureParameter::MAX_ANISOTROPY(_) => {
                 ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT
             }
         }

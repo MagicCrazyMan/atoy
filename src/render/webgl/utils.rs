@@ -21,7 +21,7 @@ pub fn pixel_unpack_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlB
         .cast_into_unchecked::<WebGlBuffer>()
 }
 
-pub fn active_texture_unit(gl: &WebGl2RenderingContext) -> u32 {
+pub fn texture_active_texture_unit(gl: &WebGl2RenderingContext) -> u32 {
     gl.get_parameter(WebGl2RenderingContext::ACTIVE_TEXTURE)
         .ok()
         .map(|v| v.as_f64().unwrap())

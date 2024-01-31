@@ -7,7 +7,7 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 use super::{
     NativeFormat, Runtime, SamplerParameter, Texture, TextureArray, TextureCompressedFormat,
     TextureDescriptor, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
-    TextureSource, TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
+    TextureSource, TextureSourceCompressed, TextureTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -30,7 +30,7 @@ pub struct Texture2DArray<F> {
     sampler_params: Vec<SamplerParameter>,
     tex_params: Vec<TextureParameter>,
 
-    mipmap_base: Option<(UploadItem, Option<usize>, Option<usize>)>,
+    mipmap_base: Option<UploadItem>,
 
     uploads: Vec<UploadItem>,
 
@@ -53,23 +53,47 @@ where
     }
 
     /// Sets sampler parameters.
-    pub fn set_sampler_parameters<I>(&mut self, params: I)
-    where
-        I: IntoIterator<Item = SamplerParameter>,
-    {
-        self.sampler_params = params.into_iter().collect();
+    pub fn set_sampler_parameters(&mut self, param: SamplerParameter) {
         if let Some(runtime) = self.runtime.as_deref_mut() {
-            let sampler = runtime.sampler.take();
-            runtime.gl.delete_sampler(sampler.as_ref());
+            param.sampler_parameter(&runtime.gl, &runtime.sampler);
         }
+        let index = self
+            .sampler_params
+            .iter()
+            .position(|p| p.gl_enum() == param.gl_enum());
+        if let Some(index) = index {
+            self.sampler_params.remove(index);
+        }
+        self.sampler_params.push(param);
     }
 
     /// Sets texture parameters.
-    pub fn set_texture_parameters<I>(&mut self, params: I)
-    where
-        I: IntoIterator<Item = TextureParameter>,
-    {
-        self.tex_params = params.into_iter().collect();
+    pub fn set_texture_parameters(&mut self, param: TextureParameter) -> Result<(), Error> {
+        if let Some(runtime) = self.runtime.as_deref_mut() {
+            let bound = utils::texture_binding_2d(&runtime.gl);
+            runtime
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
+            param.tex_parameter(
+                &runtime.gl,
+                TextureTarget::TEXTURE_2D,
+                &runtime.capabilities,
+            )?;
+            runtime
+                .gl
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, bound.as_ref());
+        }
+
+        let index = self
+            .tex_params
+            .iter()
+            .position(|p| p.gl_enum() == param.gl_enum());
+        if let Some(index) = index {
+            self.tex_params.remove(index);
+        }
+        self.tex_params.push(param);
+
+        Ok(())
     }
 }
 
@@ -243,8 +267,16 @@ where
         self.runtime.as_deref()
     }
 
+    fn runtime_unchecked(&self) -> &Runtime {
+        self.runtime.as_deref().unwrap()
+    }
+
     fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         self.runtime.as_deref_mut()
+    }
+
+    fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
+        self.runtime.as_deref_mut().unwrap()
     }
 
     fn set_runtime(&mut self, runtime: Runtime) {
@@ -262,7 +294,6 @@ where
 
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-        let bound = utils::texture_binding_2d_array(gl);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&texture));
         gl.tex_storage_3d(
             WebGl2RenderingContext::TEXTURE_2D_ARRAY,
@@ -272,91 +303,25 @@ where
             self.height as i32,
             self.array_length as i32,
         );
-        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, bound.as_ref());
         Ok(texture)
     }
 
-    fn upload(&mut self, unit: TextureUnit) -> Result<(), Error> {
+    fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         if self.mipmap_base.is_none() && self.uploads.is_empty() {
             return Ok(());
         }
 
-        let runtime = self.runtime.as_deref().unwrap();
-
-        let bound_texture = utils::texture_binding_2d_array(&runtime.gl);
-        let bound_unit = utils::active_texture_unit(&runtime.gl);
-
-        runtime.gl.active_texture(unit.gl_enum());
-        runtime.gl.bind_texture(
-            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-            Some(&runtime.texture),
-        );
-
         // uploads mipmap base source and generates mipmap first if automatic mipmap is enabled
-        if let Some((source, base_level, max_level)) = self.mipmap_base.take() {
-            let bound_base_level = match base_level {
-                Some(base_level) => {
-                    let bound = utils::texture_parameter_base_level(
-                        &runtime.gl,
-                        TextureTarget::TEXTURE_2D_ARRAY,
-                    );
-                    runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                        WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                        base_level as i32,
-                    );
-                    bound
-                }
-                None => None,
-            };
-            let bound_max_level = match max_level {
-                Some(max_level) => {
-                    let bound = utils::texture_parameter_max_level(
-                        &runtime.gl,
-                        TextureTarget::TEXTURE_2D_ARRAY,
-                    );
-                    runtime.gl.tex_parameteri(
-                        WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                        WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                        max_level as i32,
-                    );
-                    bound
-                }
-                None => None,
-            };
-
-            source.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
-            runtime
-                .gl
-                .generate_mipmap(WebGl2RenderingContext::TEXTURE_2D_ARRAY);
-
-            if let Some(bound_base_level) = bound_base_level {
-                runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                    WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                    bound_base_level as i32,
-                );
-            }
-            if let Some(bound_max_level) = bound_max_level {
-                runtime.gl.tex_parameteri(
-                    WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                    WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-                    bound_max_level as i32,
-                );
-            }
+        if let Some(source) = self.mipmap_base.take() {
+            source.tex_sub_image_3d(&gl, TextureTarget::TEXTURE_2D_ARRAY)?;
+            gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D_ARRAY);
         }
 
         // then uploading all regular sources
         for upload in self.uploads.drain(..) {
             // abilities.verify_texture_size(source.width(), source.height())?;
-            upload.tex_sub_image_3d(&runtime.gl, TextureTarget::TEXTURE_2D_ARRAY)?;
+            upload.tex_sub_image_3d(&gl, TextureTarget::TEXTURE_2D_ARRAY)?;
         }
-
-        runtime.gl.active_texture(bound_unit);
-        runtime.gl.bind_texture(
-            WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-            bound_texture.as_ref(),
-        );
 
         Ok(())
     }
@@ -405,8 +370,6 @@ pub struct Builder<F> {
     uploads: Vec<UploadItem>,
 
     mipmap: bool,
-    mipmap_base_level: Option<usize>,
-    mipmap_max_level: Option<usize>,
 }
 
 #[allow(private_bounds)]
@@ -432,8 +395,6 @@ where
             uploads: Vec::new(),
 
             mipmap: false,
-            mipmap_base_level: None,
-            mipmap_max_level: None,
         }
     }
 
@@ -475,10 +436,7 @@ where
                     self.uploads.insert(0, base);
                     (None, self.uploads)
                 } else {
-                    (
-                        Some((base, self.mipmap_base_level, self.mipmap_max_level)),
-                        self.uploads,
-                    )
+                    (Some(base), self.uploads)
                 }
             }
             None => (None, self.uploads),
@@ -527,8 +485,6 @@ impl Builder<TextureInternalFormat> {
             uploads: Vec::new(),
 
             mipmap: false,
-            mipmap_base_level: None,
-            mipmap_max_level: None,
         }
     }
 
@@ -545,30 +501,6 @@ impl Builder<TextureInternalFormat> {
     /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
     pub fn generate_mipmap(mut self) -> Self {
         self.mipmap = true;
-        self
-    }
-
-    /// Sets automatic mipmap generation base level.
-    /// Available only when automatic mipmap generation enabled.
-    pub fn set_mipmap_base_level(mut self, base_level: usize) -> Self {
-        let mut mipmap_base_level = self.max_level.min(base_level);
-        if let Some(mipmap_max_level) = self.mipmap_max_level {
-            mipmap_base_level = mipmap_base_level.min(mipmap_max_level);
-        }
-
-        self.mipmap_base_level = Some(mipmap_base_level);
-        self
-    }
-
-    /// Sets automatic mipmap generation max level.
-    /// Available only when automatic mipmap generation enabled.
-    pub fn set_mipmap_max_level(mut self, max_level: usize) -> Self {
-        let mut mipmap_max_level = self.max_level.min(max_level);
-        if let Some(mipmap_base_level) = self.mipmap_base_level {
-            mipmap_max_level = mipmap_base_level.max(mipmap_max_level);
-        }
-
-        self.mipmap_max_level = Some(mipmap_max_level);
         self
     }
 
@@ -640,8 +572,6 @@ impl Builder<TextureCompressedFormat> {
             uploads: Vec::new(),
 
             mipmap: false,
-            mipmap_base_level: None,
-            mipmap_max_level: None,
         }
     }
 

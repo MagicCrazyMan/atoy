@@ -580,7 +580,7 @@ impl_typed_array! {
     (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-struct BufferDescriptorRuntime {
+struct Runtime {
     gl: WebGl2RenderingContext,
     id: usize,
     buffer: WebGlBuffer,
@@ -596,7 +596,7 @@ struct BufferDescriptorRuntime {
     lru: *mut Lru<usize>,
 }
 
-impl Drop for BufferDescriptorRuntime {
+impl Drop for Runtime {
     fn drop(&mut self) {
         unsafe {
             (*self.used_memory) -= self.bytes_length;
@@ -618,7 +618,7 @@ struct BufferDescriptorInner {
     queue_bytes_length: usize,
     queue: Vec<(BufferSource, usize)>,
 
-    runtime: Option<Box<BufferDescriptorRuntime>>,
+    runtime: Option<Box<Runtime>>,
 }
 
 /// A key to share and control the [`WebGlBuffer`].
@@ -918,7 +918,7 @@ impl BufferStore {
                     let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                     let id = self.next();
                     (*self.descriptors).insert(id, Rc::downgrade(&descriptor.0));
-                    runtime.insert(Box::new(BufferDescriptorRuntime {
+                    runtime.insert(Box::new(Runtime {
                         id,
                         gl: self.gl.clone(),
                         binding: false,
@@ -1115,7 +1115,7 @@ impl BufferStore {
                 (true, None) => {
                     return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding))?;
                 }
-                (true, Some(BufferDescriptorRuntime { store_id, .. })) => {
+                (true, Some(Runtime { store_id, .. })) => {
                     if store_id != &self.id {
                         return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding));
                     } else {
