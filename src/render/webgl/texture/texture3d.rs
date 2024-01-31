@@ -1,16 +1,11 @@
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    Runtime, Texture, TextureDepth, TextureDescriptor, TextureInner,
-    TextureInternalFormatUncompressed, TexturePlanar, TextureSource, TextureSourceUncompressed,
-    TextureTarget, TextureUnit, TextureUpload,
+    Runtime, Texture, TextureDepth, TextureDescriptor, TexturePlanar, TextureTarget, TextureUnit,
 };
 
 /// Construction policies telling texture store how to create a texture.
@@ -148,10 +143,11 @@ impl Texture3D {
         level: usize,
         depth: usize,
     ) -> Result<(), Error> {
-        self.uploads
-            .push(TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
+        self.uploads.push(
+            TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
                 source, level, depth, None, None, None, None, None,
-            ));
+            ),
+        );
         Ok(())
     }
 
@@ -167,8 +163,8 @@ impl Texture3D {
         y_offset: usize,
         z_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads
-            .push(TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
+        self.uploads.push(
+            TextureUpload::<TextureSourceUncompressed>::with_params_uncompressed(
                 source,
                 level,
                 depth,
@@ -177,7 +173,8 @@ impl Texture3D {
                 Some(x_offset),
                 Some(y_offset),
                 Some(z_offset),
-            ));
+            ),
+        );
         Ok(())
     }
 }

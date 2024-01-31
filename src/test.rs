@@ -40,8 +40,8 @@ use crate::render::webgl::buffer::{
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::{
-    texture2d, TextureCompressedFormat, TextureDataType, TextureDescriptor, TextureFormat,
-    TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+    texture2d, SamplerParameter, TextureCompressedFormat, TextureDataType, TextureDescriptor,
+    TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
     TexturePixelStorage, TextureSource, TextureSourceCompressed, TextureUnit, TextureWrapMethod,
 };
 use crate::render::webgl::uniform::UniformValue;
@@ -611,11 +611,11 @@ pub fn test_cube(
                     TextureInternalFormat::SRGB8_ALPHA8,
                 )
                 .generate_mipmap()
-                .set_texture_parameters([
-                    TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
-                    TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                    TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                    TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+                .set_sampler_parameters([
+                    SamplerParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
+                    SamplerParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                    SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                    SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
                 ])
                 .set_memory_policy(texture2d::MemoryPolicy::Restorable(Box::new(
                     move |builder| {
@@ -696,15 +696,16 @@ pub fn test_cube(
                     true,
                     true,
                     [
-                        TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
+                        SamplerParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
                             TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
                         } else {
                             TextureMinificationFilter::LINEAR
                         }),
-                        TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                        TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                        TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
+                        SamplerParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
+                        SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
+                        SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
                     ],
+                    [],
                 )
                 .unwrap(),
             unit: TextureUnit::TEXTURE0,

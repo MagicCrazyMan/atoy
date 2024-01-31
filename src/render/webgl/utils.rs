@@ -1,9 +1,13 @@
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
-    WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+    ExtTextureFilterAnisotropic, WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer,
+    WebGlRenderbuffer, WebGlTexture,
 };
 
-use super::{conversion::ToGlEnum, texture::TextureTarget};
+use super::{
+    conversion::ToGlEnum,
+    texture::{TextureTarget, TextureUnpackColorSpaceConversion},
+};
 
 pub fn array_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlBuffer> {
     gl.get_parameter(WebGl2RenderingContext::ARRAY_BUFFER_BINDING)
@@ -49,16 +53,138 @@ pub fn texture_binding_cube_map(gl: &WebGl2RenderingContext) -> Option<WebGlText
         .cast_into_unchecked::<WebGlTexture>()
 }
 
-pub fn texture_base_level(gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<usize> {
-    gl.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_BASE_LEVEL)
-        .as_f64()
-        .map(|v| v as usize)
+pub fn texture_pixel_storage_pack_alignment(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::PACK_ALIGNMENT)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
 }
 
-pub fn texture_max_level(gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<usize> {
+pub fn texture_pixel_storage_pack_row_length(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::PACK_ROW_LENGTH)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_pack_skip_pixels(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::PACK_SKIP_PIXELS)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_pack_skip_rows(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::PACK_SKIP_ROWS)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_alignment(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_ALIGNMENT)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_flip_y_webgl(gl: &WebGl2RenderingContext) -> Option<bool> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+        .map(|v| v != 0)
+}
+
+pub fn texture_pixel_storage_unpack_premultiply_alpha_webgl(
+    gl: &WebGl2RenderingContext,
+) -> Option<bool> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+        .map(|v| v != 0)
+}
+
+pub fn texture_pixel_storage_unpack_colorspace_conversion_webgl(
+    gl: &WebGl2RenderingContext,
+) -> Option<TextureUnpackColorSpaceConversion> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as u32)
+        .map(|v| {
+            if v == WebGl2RenderingContext::BROWSER_DEFAULT_WEBGL {
+                TextureUnpackColorSpaceConversion::BROWSER_DEFAULT_WEBGL
+            } else {
+                TextureUnpackColorSpaceConversion::NONE
+            }
+        })
+}
+
+pub fn texture_pixel_storage_unpack_row_length(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_ROW_LENGTH)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_image_height(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_skip_pixels(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_SKIP_PIXELS)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_skip_rows(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_SKIP_ROWS)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_pixel_storage_unpack_skip_images(gl: &WebGl2RenderingContext) -> Option<i32> {
+    gl.get_parameter(WebGl2RenderingContext::UNPACK_SKIP_IMAGES)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .map(|v| v as i32)
+}
+
+pub fn texture_parameter_base_level(
+    gl: &WebGl2RenderingContext,
+    target: TextureTarget,
+) -> Option<i32> {
+    gl.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_BASE_LEVEL)
+        .as_f64()
+        .map(|v| v as i32)
+}
+
+pub fn texture_parameter_max_level(
+    gl: &WebGl2RenderingContext,
+    target: TextureTarget,
+) -> Option<i32> {
     gl.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_MAX_LEVEL)
         .as_f64()
-        .map(|v| v as usize)
+        .map(|v| v as i32)
+}
+
+pub fn texture_parameter_max_anisotropy(
+    gl: &WebGl2RenderingContext,
+    target: TextureTarget,
+) -> Option<f32> {
+    gl.get_tex_parameter(
+        target.gl_enum(),
+        ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
+    )
+    .as_f64()
+    .map(|v| v as f32)
 }
 
 pub fn renderbuffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlRenderbuffer> {

@@ -2,7 +2,8 @@ use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
 use crate::render::webgl::texture::{
     texture2d::{Builder, Texture2D},
-    TextureCompressedFormat, TextureDescriptor, TextureParameter, TextureSourceCompressed,
+    SamplerParameter, TextureCompressedFormat, TextureDescriptor, TextureParameter,
+    TextureSourceCompressed,
 };
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
@@ -197,17 +198,19 @@ impl DirectDrawSurface {
 
     /// Tries to create a [`TextureDescriptor`] from this DirectDraw Surface.
     /// Returns `None` if unable to create a valid descriptor.
-    pub fn texture_descriptor<I>(
+    pub fn texture_descriptor<SI, TI>(
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
         read_mipmaps: bool,
-        tex_params: I,
+        sampler_params: SI,
+        tex_params: TI,
     ) -> Option<TextureDescriptor<Texture2D<TextureCompressedFormat>>>
     where
-        I: IntoIterator<Item = TextureParameter>,
+        SI: IntoIterator<Item = SamplerParameter>,
+        TI: IntoIterator<Item = TextureParameter>,
     {
-        let internal_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
+        let compressed_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
             (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
@@ -219,12 +222,13 @@ impl DirectDrawSurface {
             (_, _, _) => None,
         };
 
-        match internal_format {
-            Some(internal_format) => {
+        match compressed_format {
+            Some(compressed_format) => {
                 let base_width = self.header.width as usize;
                 let base_height = self.header.height as usize;
-                let mut builder = Builder::new(base_width, base_height, internal_format);
-                builder = builder.set_texture_parameters(tex_params);
+                let mut builder = Builder::new(base_width, base_height, compressed_format)
+                    .set_sampler_parameters(sampler_params)
+                    .set_texture_parameters(tex_params);
 
                 if read_mipmaps && self.header.ddsd_mipmap_count() {
                     // reads mipmaps
@@ -234,7 +238,7 @@ impl DirectDrawSurface {
                         let width = (base_width >> level).max(1);
                         let height = (base_height >> level).max(1);
                         let bytes_length =
-                            internal_format.bytes_length(width as usize, height as usize);
+                            compressed_format.bytes_length(width as usize, height as usize);
                         let data = Uint8Array::new_with_byte_offset_and_length(
                             &self.raw,
                             offset as u32,
@@ -244,7 +248,7 @@ impl DirectDrawSurface {
                             TextureSourceCompressed::Uint8Array {
                                 width,
                                 height,
-                                compressed_format: internal_format,
+                                compressed_format,
                                 data,
                                 src_offset: 0,
                                 src_length_override: None,
@@ -257,14 +261,14 @@ impl DirectDrawSurface {
                     let data = Uint8Array::new_with_byte_offset_and_length(
                         &self.raw,
                         128,
-                        internal_format
+                        compressed_format
                             .bytes_length(self.header.width as usize, self.header.height as usize)
                             as u32,
                     );
                     builder = builder.set_base_source(TextureSourceCompressed::Uint8Array {
                         width: self.header.width as usize,
                         height: self.header.height as usize,
-                        compressed_format: internal_format,
+                        compressed_format,
                         data,
                         src_offset: 0,
                         src_length_override: None,

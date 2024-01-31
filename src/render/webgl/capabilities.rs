@@ -33,6 +33,31 @@ struct Inner {
     compressed_rgtc: Option<bool>,
 }
 
+pub const EXTENSION_WEBGL_DEBUG_SHADERS: &'static str = "WEBGL_debug_shaders";
+pub const EXTENSION_WEBGL_LOSE_CONTEXT: &'static str = "WEBGL_lose_context";
+pub const EXTENSION_EXT_COLOR_BUFFER_FLOAT: &'static str = "EXT_color_buffer_float";
+pub const EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC: &'static str = "EXT_texture_filter_anisotropic";
+pub const EXTENSION_MOZ_EXT_TEXTURE_FILTER_ANISOTROPIC: &'static str =
+    "MOZ_EXT_texture_filter_anisotropic";
+pub const EXTENSION_WEBKIT_EXT_TEXTURE_FILTER_ANISOTROPIC: &'static str =
+    "WEBKIT_EXT_texture_filter_anisotropic";
+pub const EXTENSION_OES_DRAW_BUFFERS_INDEXED: &'static str = "OES_draw_buffers_indexed";
+pub const EXTENSION_OES_TEXTURE_FLOAT_LINEAR: &'static str = "OES_texture_float_linear";
+pub const EXTENSION_WEBGL_DEBUG_RENDERER_INFO: &'static str = "WEBGL_debug_renderer_info";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str = "WEBGL_compressed_texture_s3tc";
+pub const EXTENSION_MOZ_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str =
+    "MOZ_WEBGL_compressed_texture_s3tc";
+pub const EXTENSION_WEBKIT_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str =
+    "MOZ_WEBGL_compressed_texture_s3tc";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC_SRGB: &'static str =
+    "WEBGL_compressed_texture_s3tc_srgb";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC: &'static str = "WEBGL_compressed_texture_etc";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_PVRTC: &'static str = "WEBGL_compressed_texture_pvrtc";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC1: &'static str = "WEBGL_compressed_texture_etc1";
+pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_ASTC: &'static str = "WEBGL_compressed_texture_astc";
+pub const EXTENSION_EXT_TEXTURE_COMPRESSION_BPTC: &'static str = "EXT_texture_compression_bptc";
+pub const EXTENSION_EXT_TEXTURE_COMPRESSION_RGTC: &'static str = "EXT_texture_compression_rgtc";
+
 #[derive(Clone)]
 pub struct Capabilities(Rc<RefCell<Inner>>);
 
@@ -108,7 +133,7 @@ impl Capabilities {
 
         let supported = inner
             .gl
-            .get_extension("WEBGL_debug_shaders")
+            .get_extension(EXTENSION_WEBGL_DEBUG_SHADERS)
             .ok()
             .and_then(|v| v)
             .and_then(|v| v.dyn_into::<WebglDebugShaders>().ok());
@@ -124,7 +149,7 @@ impl Capabilities {
 
         let supported = inner
             .gl
-            .get_extension("WEBGL_lose_context")
+            .get_extension(EXTENSION_WEBGL_LOSE_CONTEXT)
             .ok()
             .and_then(|v| v)
             .and_then(|v| v.dyn_into::<WebglLoseContext>().ok());
@@ -189,19 +214,19 @@ macro_rules! extensions_supported {
 }
 
 extensions_supported! {
-    (color_buffer_float_supported, color_buffer_float, "EXT_color_buffer_float")
-    (texture_filter_anisotropic_supported, texture_filter_anisotropic, "EXT_texture_filter_anisotropic", "MOZ_EXT_texture_filter_anisotropic", "WEBKIT_EXT_texture_filter_anisotropic")
-    (draw_buffers_indexed_supported, draw_buffers_indexed, "OES_draw_buffers_indexed")
-    (texture_float_linear_supported, texture_float_linear, "OES_texture_float_linear")
-    (debug_renderer_info_supported, debug_renderer_info, "WEBGL_debug_renderer_info")
-    (compressed_s3tc_supported, compressed_s3tc, "WEBGL_compressed_texture_s3tc", "MOZ_WEBGL_compressed_texture_s3tc", "WEBKIT_WEBGL_compressed_texture_s3tc")
-    (compressed_s3tc_srgb_supported, compressed_s3tc_srgb, "WEBGL_compressed_texture_s3tc_srgb")
-    (compressed_etc_supported, compressed_etc, "WEBGL_compressed_texture_etc")
-    (compressed_pvrtc_supported, compressed_pvrtc, "WEBGL_compressed_texture_pvrtc")
-    (compressed_etc1_supported, compressed_etc1, "WEBGL_compressed_texture_etc1")
-    (compressed_astc_supported, compressed_astc, "WEBGL_compressed_texture_astc")
-    (compressed_bptc_supported, compressed_bptc, "EXT_texture_compression_bptc")
-    (compressed_rgtc_supported, compressed_rgtc, "EXT_texture_compression_rgtc")
+    (color_buffer_float_supported, color_buffer_float, EXTENSION_EXT_COLOR_BUFFER_FLOAT)
+    (texture_filter_anisotropic_supported, texture_filter_anisotropic, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC, EXTENSION_MOZ_EXT_TEXTURE_FILTER_ANISOTROPIC, EXTENSION_WEBKIT_EXT_TEXTURE_FILTER_ANISOTROPIC)
+    (draw_buffers_indexed_supported, draw_buffers_indexed, EXTENSION_OES_DRAW_BUFFERS_INDEXED)
+    (texture_float_linear_supported, texture_float_linear, EXTENSION_OES_TEXTURE_FLOAT_LINEAR)
+    (debug_renderer_info_supported, debug_renderer_info, EXTENSION_WEBGL_DEBUG_RENDERER_INFO)
+    (compressed_s3tc_supported, compressed_s3tc, EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC, EXTENSION_MOZ_WEBGL_COMPRESSED_TEXTURE_S3TC, EXTENSION_WEBKIT_WEBGL_COMPRESSED_TEXTURE_S3TC)
+    (compressed_s3tc_srgb_supported, compressed_s3tc_srgb, EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC_SRGB)
+    (compressed_etc_supported, compressed_etc, EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC)
+    (compressed_pvrtc_supported, compressed_pvrtc, EXTENSION_WEBGL_COMPRESSED_TEXTURE_PVRTC)
+    (compressed_etc1_supported, compressed_etc1, EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC1)
+    (compressed_astc_supported, compressed_astc, EXTENSION_WEBGL_COMPRESSED_TEXTURE_ASTC)
+    (compressed_bptc_supported, compressed_bptc, EXTENSION_EXT_TEXTURE_COMPRESSION_BPTC)
+    (compressed_rgtc_supported, compressed_rgtc, EXTENSION_EXT_TEXTURE_COMPRESSION_RGTC)
 }
 
 impl Capabilities {
@@ -242,7 +267,9 @@ impl Capabilities {
                 if self.color_buffer_float_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureInternalFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_EXT_COLOR_BUFFER_FLOAT,
+                    ))
                 }
             }
             _ => Ok(()),
@@ -261,7 +288,9 @@ impl Capabilities {
                 if self.compressed_s3tc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC,
+                    ))
                 }
             }
             TextureCompressedFormat::SRGB_S3TC_DXT1
@@ -271,7 +300,9 @@ impl Capabilities {
                 if self.compressed_s3tc_srgb_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC_SRGB,
+                    ))
                 }
             }
             TextureCompressedFormat::R11_EAC
@@ -287,7 +318,9 @@ impl Capabilities {
                 if self.compressed_etc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC,
+                    ))
                 }
             }
             TextureCompressedFormat::RGB_PVRTC_2BPPV1_IMG
@@ -297,14 +330,18 @@ impl Capabilities {
                 if self.compressed_pvrtc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_PVRTC,
+                    ))
                 }
             }
             TextureCompressedFormat::RGB_ETC1_WEBGL => {
                 if self.compressed_etc1_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC1,
+                    ))
                 }
             }
             TextureCompressedFormat::RGBA_ASTC_4x4
@@ -336,7 +373,9 @@ impl Capabilities {
                 if self.compressed_astc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_WEBGL_COMPRESSED_TEXTURE_ASTC,
+                    ))
                 }
             }
             TextureCompressedFormat::RGBA_BPTC_UNORM
@@ -346,7 +385,9 @@ impl Capabilities {
                 if self.compressed_bptc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_EXT_TEXTURE_COMPRESSION_BPTC,
+                    ))
                 }
             }
             TextureCompressedFormat::RED_RGTC1
@@ -356,7 +397,9 @@ impl Capabilities {
                 if self.compressed_rgtc_supported() {
                     Ok(())
                 } else {
-                    Err(Error::TextureCompressedFormatUnsupported)
+                    Err(Error::ExtensionUnsupported(
+                        EXTENSION_EXT_TEXTURE_COMPRESSION_RGTC,
+                    ))
                 }
             }
         }

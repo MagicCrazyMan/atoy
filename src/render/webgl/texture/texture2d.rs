@@ -5,7 +5,7 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    NativeFormat, Runtime, Texture, TextureCompressedFormat, TextureDescriptor,
+    NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat, TextureDescriptor,
     TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
     TextureSourceCompressed, TextureTarget, TextureUnit, UploadItem,
 };
@@ -25,6 +25,7 @@ pub struct Texture2D<F> {
     max_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
+    sampler_params: Vec<SamplerParameter>,
     tex_params: Vec<TextureParameter>,
 
     mipmap_base: Option<(UploadItem, Option<usize>, Option<usize>)>,
@@ -47,6 +48,26 @@ where
     /// Returns [`MemoryPolicy`].
     pub fn memory_policy(&self) -> &MemoryPolicy<F> {
         &self.memory_policy
+    }
+
+    /// Sets sampler parameters.
+    pub fn set_sampler_parameters<I>(&mut self, params: I)
+    where
+        I: IntoIterator<Item = SamplerParameter>,
+    {
+        self.sampler_params = params.into_iter().collect();
+        if let Some(runtime) = self.runtime.as_deref_mut() {
+            let sampler = runtime.sampler.take();
+            runtime.gl.delete_sampler(sampler.as_ref());
+        }
+    }
+
+    /// Sets texture parameters.
+    pub fn set_texture_parameters<I>(&mut self, params: I)
+    where
+        I: IntoIterator<Item = TextureParameter>,
+    {
+        self.tex_params = params.into_iter().collect();
     }
 }
 
@@ -124,6 +145,10 @@ where
         TextureTarget::TEXTURE_2D
     }
 
+    fn sampler_parameters(&self) -> &[SamplerParameter] {
+        &self.sampler_params
+    }
+
     fn texture_parameters(&self) -> &[TextureParameter] {
         &self.tex_params
     }
@@ -183,8 +208,8 @@ where
         self.runtime.as_deref_mut()
     }
 
-    fn set_runtime(&mut self, runtime: Runtime) {
-        self.runtime = Some(Box::new(runtime));
+    fn set_runtime(&mut self, runtime: Runtime) -> &mut Runtime {
+        self.runtime.insert(Box::new(runtime))
     }
 
     fn remove_runtime(&mut self) -> Option<Runtime> {
@@ -196,7 +221,7 @@ where
         Ok(())
     }
 
-    fn create_texture(&self, gl: &WebGl2RenderingContext, _: TextureUnit) -> Result<WebGlTexture, Error> {
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         let bound = utils::texture_binding_2d(gl);
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -230,7 +255,8 @@ where
         if let Some((source, base_level, max_level)) = self.mipmap_base.take() {
             let bound_base_level = match base_level {
                 Some(base_level) => {
-                    let bound = utils::texture_base_level(&runtime.gl, TextureTarget::TEXTURE_2D);
+                    let bound =
+                        utils::texture_parameter_base_level(&runtime.gl, TextureTarget::TEXTURE_2D);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_2D,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -242,7 +268,8 @@ where
             };
             let bound_max_level = match max_level {
                 Some(max_level) => {
-                    let bound = utils::texture_max_level(&runtime.gl, TextureTarget::TEXTURE_2D);
+                    let bound =
+                        utils::texture_parameter_max_level(&runtime.gl, TextureTarget::TEXTURE_2D);
                     runtime.gl.tex_parameteri(
                         WebGl2RenderingContext::TEXTURE_2D,
                         WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
@@ -296,7 +323,7 @@ where
                 let builder = restore(builder);
                 let texture = builder.build();
                 self.mipmap_base = texture.mipmap_base;
-                self.tex_params = texture.tex_params;
+                self.sampler_params = texture.sampler_params;
                 self.uploads = texture.uploads;
                 true
             }
@@ -320,6 +347,7 @@ pub struct Builder<F> {
     height: usize,
     max_level: usize,
     memory_policy: MemoryPolicy<F>,
+    sampler_params: Vec<SamplerParameter>,
     tex_params: Vec<TextureParameter>,
 
     base_source: Option<UploadItem>,
@@ -343,6 +371,7 @@ where
             height,
             max_level: <Texture2D<F> as TexturePlanar>::max_available_mipmap_level(width, height),
             memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
             tex_params: Vec::new(),
 
             base_source: None,
@@ -357,6 +386,15 @@ where
     /// Sets max mipmap level. Max mipmap level is clamped to [`Texture2D::max_available_mipmap_level`].
     pub fn set_max_level(mut self, max_level: usize) -> Self {
         self.max_level = self.max_level.min(max_level);
+        self
+    }
+
+    /// Sets [`SamplerParameter`]s.
+    pub fn set_sampler_parameters<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = SamplerParameter>,
+    {
+        self.sampler_params = params.into_iter().collect();
         self
     }
 
@@ -398,6 +436,7 @@ where
             max_level: self.max_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
+            sampler_params: self.sampler_params,
             tex_params: self.tex_params,
             mipmap_base,
             uploads,
@@ -423,6 +462,7 @@ impl Builder<TextureInternalFormat> {
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
             tex_params: Vec::new(),
 
             base_source: Some(UploadItem::new_uncompressed(base_source)),
@@ -530,6 +570,7 @@ impl Builder<TextureCompressedFormat> {
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
+            sampler_params: Vec::new(),
             tex_params: Vec::new(),
 
             base_source: Some(UploadItem::new_compressed(base_source)),

@@ -7,7 +7,6 @@
 //!
 
 pub mod texture2d;
-// pub mod texture2d_compressed;
 // pub mod texture2darray;
 // pub mod texture2darray_compressed;
 // pub mod texture3d;
@@ -29,14 +28,17 @@ use web_sys::{
         BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
         Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
     },
-    HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
-    WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
+    ExtTextureFilterAnisotropic, HtmlCanvasElement, HtmlImageElement, HtmlVideoElement,
+    ImageBitmap, ImageData, WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
-use crate::lru::{Lru, LruNode};
+use crate::{
+    loader::texture,
+    lru::{Lru, LruNode},
+};
 
 use super::{
-    capabilities::Capabilities,
+    capabilities::{self, Capabilities, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC},
     conversion::ToGlEnum,
     error::Error,
     utils::{self, pixel_unpack_buffer_binding},
@@ -549,6 +551,7 @@ impl TextureCompressedFormat {
     }
 }
 
+/// Available texture unpack color space conversions for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureUnpackColorSpaceConversion {
@@ -556,17 +559,18 @@ pub enum TextureUnpackColorSpaceConversion {
     BROWSER_DEFAULT_WEBGL,
 }
 
+/// Available texture pixel storages for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TexturePixelStorage {
     PACK_ALIGNMENT(i32),
+    PACK_ROW_LENGTH(i32),
+    PACK_SKIP_PIXELS(i32),
+    PACK_SKIP_ROWS(i32),
     UNPACK_ALIGNMENT(i32),
     UNPACK_FLIP_Y_WEBGL(bool),
     UNPACK_PREMULTIPLY_ALPHA_WEBGL(bool),
     UNPACK_COLORSPACE_CONVERSION_WEBGL(TextureUnpackColorSpaceConversion),
-    PACK_ROW_LENGTH(i32),
-    PACK_SKIP_PIXELS(i32),
-    PACK_SKIP_ROWS(i32),
     UNPACK_ROW_LENGTH(i32),
     UNPACK_IMAGE_HEIGHT(i32),
     UNPACK_SKIP_PIXELS(i32),
@@ -575,35 +579,125 @@ pub enum TexturePixelStorage {
 }
 
 impl TexturePixelStorage {
-    pub fn key(&self) -> u32 {
-        self.gl_enum()
+    fn save(&self, gl: &WebGl2RenderingContext) -> Option<TexturePixelStorage> {
+        match self {
+            TexturePixelStorage::PACK_ALIGNMENT(v) => {
+                utils::texture_pixel_storage_pack_alignment(gl)
+                    .map(|v| TexturePixelStorage::PACK_ALIGNMENT(v))
+            }
+            TexturePixelStorage::PACK_ROW_LENGTH(v) => {
+                utils::texture_pixel_storage_pack_row_length(gl)
+                    .map(|v| TexturePixelStorage::PACK_ROW_LENGTH(v))
+            }
+            TexturePixelStorage::PACK_SKIP_PIXELS(v) => {
+                utils::texture_pixel_storage_pack_skip_pixels(gl)
+                    .map(|v| TexturePixelStorage::PACK_SKIP_PIXELS(v))
+            }
+            TexturePixelStorage::PACK_SKIP_ROWS(v) => {
+                utils::texture_pixel_storage_pack_skip_rows(gl)
+                    .map(|v| TexturePixelStorage::PACK_SKIP_ROWS(v))
+            }
+            TexturePixelStorage::UNPACK_ALIGNMENT(v) => {
+                utils::texture_pixel_storage_unpack_alignment(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_ALIGNMENT(v))
+            }
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v) => {
+                utils::texture_pixel_storage_unpack_flip_y_webgl(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v))
+            }
+            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v) => {
+                utils::texture_pixel_storage_unpack_premultiply_alpha_webgl(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v))
+            }
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v) => {
+                utils::texture_pixel_storage_unpack_colorspace_conversion_webgl(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v))
+            }
+            TexturePixelStorage::UNPACK_ROW_LENGTH(v) => {
+                utils::texture_pixel_storage_unpack_row_length(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_ROW_LENGTH(v))
+            }
+            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v) => {
+                utils::texture_pixel_storage_unpack_image_height(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v))
+            }
+            TexturePixelStorage::UNPACK_SKIP_PIXELS(v) => {
+                utils::texture_pixel_storage_unpack_skip_pixels(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_SKIP_PIXELS(v))
+            }
+            TexturePixelStorage::UNPACK_SKIP_ROWS(v) => {
+                utils::texture_pixel_storage_unpack_skip_rows(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_SKIP_ROWS(v))
+            }
+            TexturePixelStorage::UNPACK_SKIP_IMAGES(v) => {
+                utils::texture_pixel_storage_unpack_skip_images(gl)
+                    .map(|v| TexturePixelStorage::UNPACK_SKIP_IMAGES(v))
+            }
+        }
     }
 
-    pub fn value(&self) -> i32 {
+    fn pixel_store(&self, gl: &WebGl2RenderingContext) {
         match self {
-            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v)
-            | TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v) => {
-                if *v {
-                    1
-                } else {
-                    0
-                }
+            TexturePixelStorage::PACK_ALIGNMENT(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::PACK_ALIGNMENT, *v);
             }
-            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v) => v.gl_enum() as i32,
-            TexturePixelStorage::PACK_ALIGNMENT(v)
-            | TexturePixelStorage::UNPACK_ALIGNMENT(v)
-            | TexturePixelStorage::PACK_ROW_LENGTH(v)
-            | TexturePixelStorage::PACK_SKIP_PIXELS(v)
-            | TexturePixelStorage::PACK_SKIP_ROWS(v)
-            | TexturePixelStorage::UNPACK_ROW_LENGTH(v)
-            | TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v)
-            | TexturePixelStorage::UNPACK_SKIP_PIXELS(v)
-            | TexturePixelStorage::UNPACK_SKIP_ROWS(v)
-            | TexturePixelStorage::UNPACK_SKIP_IMAGES(v) => *v,
+            TexturePixelStorage::PACK_ROW_LENGTH(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::PACK_ROW_LENGTH, *v);
+            }
+            TexturePixelStorage::PACK_SKIP_PIXELS(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::PACK_SKIP_PIXELS, *v);
+            }
+            TexturePixelStorage::PACK_SKIP_ROWS(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::PACK_SKIP_ROWS, *v);
+            }
+            TexturePixelStorage::UNPACK_ALIGNMENT(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_ALIGNMENT, *v);
+            }
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v) => {
+                gl.pixel_storei(
+                    WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL,
+                    if *v { 1 } else { 0 },
+                );
+            }
+            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v) => {
+                gl.pixel_storei(
+                    WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL,
+                    if *v { 1 } else { 0 },
+                );
+            }
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v) => {
+                gl.pixel_storei(
+                    WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL,
+                    match v {
+                        TextureUnpackColorSpaceConversion::NONE => {
+                            WebGl2RenderingContext::NONE as i32
+                        }
+                        TextureUnpackColorSpaceConversion::BROWSER_DEFAULT_WEBGL => {
+                            WebGl2RenderingContext::BROWSER_DEFAULT_WEBGL as i32
+                        }
+                    },
+                );
+            }
+            TexturePixelStorage::UNPACK_ROW_LENGTH(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_ROW_LENGTH, *v);
+            }
+            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT, *v);
+            }
+            TexturePixelStorage::UNPACK_SKIP_PIXELS(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_PIXELS, *v);
+            }
+            TexturePixelStorage::UNPACK_SKIP_ROWS(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_ROWS, *v);
+            }
+            TexturePixelStorage::UNPACK_SKIP_IMAGES(v) => {
+                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_IMAGES, *v);
+            }
         }
     }
 }
 
+/// Available texture magnification filters for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureMagnificationFilter {
@@ -611,6 +705,7 @@ pub enum TextureMagnificationFilter {
     NEAREST,
 }
 
+/// Available texture minification filters for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureMinificationFilter {
@@ -622,6 +717,7 @@ pub enum TextureMinificationFilter {
     LINEAR_MIPMAP_LINEAR,
 }
 
+/// Available texture wrap methods for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureWrapMethod {
@@ -630,6 +726,7 @@ pub enum TextureWrapMethod {
     MIRRORED_REPEAT,
 }
 
+/// Available texture compare function for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCompareFunction {
@@ -643,6 +740,7 @@ pub enum TextureCompareFunction {
     NEVER,
 }
 
+/// Available texture compare modes for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCompareMode {
@@ -650,9 +748,75 @@ pub enum TextureCompareMode {
     COMPARE_REF_TO_TEXTURE,
 }
 
+/// Available texture parameters mapped from [`WebGl2RenderingContext`].
+///
+/// Different from WebGL1, WebGL2 separates sampling parameters to a new object called [`WebGlSampler`],
+/// those sampling parameters are no more included in this enum. Checks [`SamplerParameter`] for more details.
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TextureParameter {
+    BASE_LEVEL(i32),
+    MAX_LEVEL(i32),
+    /// Available when extension `EXT_texture_filter_anisotropic` enabled.
+    MAX_ANISOTROPY_EXT(f32),
+}
+
+impl TextureParameter {
+    fn save(&self, gl: &WebGl2RenderingContext, target: TextureTarget) -> Option<TextureParameter> {
+        match self {
+            TextureParameter::BASE_LEVEL(_) => utils::texture_parameter_base_level(&gl, target)
+                .map(|v| TextureParameter::BASE_LEVEL(v)),
+            TextureParameter::MAX_LEVEL(_) => utils::texture_parameter_max_level(&gl, target)
+                .map(|v| TextureParameter::MAX_LEVEL(v)),
+            TextureParameter::MAX_ANISOTROPY_EXT(_) => {
+                utils::texture_parameter_max_anisotropy(&gl, target)
+                    .map(|v| TextureParameter::MAX_ANISOTROPY_EXT(v))
+            }
+        }
+    }
+
+    fn tex_parameter(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: TextureTarget,
+        capabilities: &Capabilities,
+    ) -> Result<(), Error> {
+        match self {
+            TextureParameter::BASE_LEVEL(v) => {
+                gl.tex_parameteri(
+                    target.gl_enum(),
+                    WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
+                    *v,
+                );
+            }
+            TextureParameter::MAX_LEVEL(v) => {
+                gl.tex_parameteri(
+                    target.gl_enum(),
+                    WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
+                    *v,
+                );
+            }
+            TextureParameter::MAX_ANISOTROPY_EXT(v) => {
+                if !capabilities.texture_filter_anisotropic_supported() {
+                    return Err(Error::ExtensionUnsupported(
+                        EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC,
+                    ));
+                }
+                gl.tex_parameterf(
+                    target.gl_enum(),
+                    ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
+                    *v,
+                );
+            }
+        };
+        Ok(())
+    }
+}
+
+/// Available sampling parameters for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SamplerParameter {
     MAG_FILTER(TextureMagnificationFilter),
     MIN_FILTER(TextureMinificationFilter),
     WRAP_S(TextureWrapMethod),
@@ -660,8 +824,6 @@ pub enum TextureParameter {
     WRAP_R(TextureWrapMethod),
     COMPARE_FUNC(TextureCompareFunction),
     COMPARE_MODE(TextureCompareMode),
-    BASE_LEVEL(i32),
-    MAX_LEVEL(i32),
     MAX_LOD(f32),
     MIN_LOD(f32),
 }
@@ -789,7 +951,7 @@ macro_rules! texture_sources {
         }
 
         impl TextureSource {
-            fn pixel_storages(&self, gl: &WebGl2RenderingContext) {
+            fn pixel_storages(&self, gl: &WebGl2RenderingContext) -> Option<Vec<TexturePixelStorage>> {
                 match self {
                     TextureSource::PixelBufferObject { pixel_storages, .. }
                     | TextureSource::Binary { pixel_storages, .. }
@@ -804,13 +966,19 @@ macro_rules! texture_sources {
                         )+
                     )+
                     => {
-                        // setups pixel storage parameters
+                        let mut bounds = Vec::with_capacity(pixel_storages.len());
                         pixel_storages
                             .iter()
-                            .for_each(|param| gl.pixel_storei(param.key(), param.value()));
+                            .for_each(|p| {
+                                if let Some(bound) = p.save(gl) {
+                                    bounds.push(bound);
+                                }
+                                p.pixel_store(gl);
+                            });
+                        Some(bounds)
                     }
-                    TextureSource::Function { .. } => {}
-                };
+                    TextureSource::Function { .. } => None
+                }
             }
 
             /// Returns the width of the texture source.
@@ -861,7 +1029,9 @@ macro_rules! texture_sources {
                 x_offset: Option<usize>,
                 y_offset: Option<usize>,
             ) -> Result<(), Error> {
-                self.pixel_storages(gl);
+                // sets pixel storages and saves current binding states.
+                let bounds = self.pixel_storages(gl);
+
                 let width = width.unwrap_or_else(|| self.width());
                 let height = height.unwrap_or_else(|| self.height());
                 let x_offset = x_offset.unwrap_or(0);
@@ -875,13 +1045,10 @@ macro_rules! texture_sources {
                     } => {
                         let source = callback.borrow_mut()();
                         if let TextureSource::Function { .. } = source {
-                            panic!("recursive TextureSource::Function is not allowed");
+                            return Err(Error::TextureSourceFunctionRecursionDisallowed);
                         }
-                        if self.width() != source.width() {
-                            panic!("source returned from TextureSource::Function should have same width");
-                        }
-                        if self.height() != source.height() {
-                            panic!("source returned from TextureSource::Function should have same height");
+                        if self.width() != source.width() || self.height() != source.height() {
+                            return Err(Error::TextureSourceFunctionSizeMismatched);
                         }
                         source.tex_sub_image_2d(
                             gl,
@@ -992,6 +1159,11 @@ macro_rules! texture_sources {
                     }
                 };
 
+                // restores
+                if let Some(bounds) = bounds {
+                    bounds.into_iter().for_each(|p| p.pixel_store(gl));
+                }
+
                 result.map_err(|err| Error::TexImageFailure(err.as_string()))
             }
 
@@ -1007,7 +1179,9 @@ macro_rules! texture_sources {
                 y_offset: Option<usize>,
                 z_offset: Option<usize>,
             ) -> Result<(), Error> {
-                self.pixel_storages(gl);
+                // sets pixel storages and saves current binding states.
+                let bounds = self.pixel_storages(gl);
+
                 let width = width.unwrap_or_else(|| self.width());
                 let height = height.unwrap_or_else(|| self.height());
                 let x_offset = x_offset.unwrap_or(0);
@@ -1022,13 +1196,10 @@ macro_rules! texture_sources {
                     } => {
                         let source = callback.borrow_mut()();
                         if let TextureSource::Function { .. } = source {
-                            panic!("recursive TextureSource::Function is not allowed");
+                            return Err(Error::TextureSourceFunctionRecursionDisallowed);
                         }
-                        if self.width() != source.width() {
-                            panic!("source returned from TextureSource::Function should have same width");
-                        }
-                        if self.height() != source.height() {
-                            panic!("source returned from TextureSource::Function should have same height");
+                        if self.width() != source.width() || self.height() != source.height() {
+                            return Err(Error::TextureSourceFunctionSizeMismatched);
                         }
                         source.tex_sub_image_3d(gl, target, level, depth, Some(width), Some(height), Some(x_offset), Some(y_offset), Some(z_offset))?;
                         Ok(())
@@ -1139,6 +1310,11 @@ macro_rules! texture_sources {
                     }
                 };
 
+                // restores
+                if let Some(bounds) = bounds {
+                    bounds.into_iter().for_each(|p| p.pixel_store(gl));
+                }
+
                 result.map_err(|err| Error::TexImageFailure(err.as_string()))
             }
         }
@@ -1174,8 +1350,6 @@ macro_rules! texture_sources_compressed {
             Function {
                 width: usize,
                 height: usize,
-                compressed_format: TextureCompressedFormat,
-                bytes_length: usize,
                 callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
             },
             PixelBufferObject {
@@ -1199,35 +1373,6 @@ macro_rules! texture_sources_compressed {
         }
 
         impl TextureSourceCompressed {
-            /// Returns the compressed format of the texture source.
-            fn compressed_format(&self) -> TextureCompressedFormat {
-                match self {
-                    TextureSourceCompressed::Function { compressed_format, .. } => *compressed_format,
-                    TextureSourceCompressed::PixelBufferObject { compressed_format, .. } => *compressed_format,
-                    $(
-                        TextureSourceCompressed::$name {
-                            compressed_format,
-                            ..
-                        } => *compressed_format,
-                    )+
-                }
-            }
-
-            fn bytes_length(&self) -> usize {
-                match self {
-                    TextureSourceCompressed::Function { bytes_length, .. } => *bytes_length,
-                    TextureSourceCompressed::PixelBufferObject { image_size, .. } => *image_size,
-                    $(
-                        TextureSourceCompressed::$name {
-                            data,
-                            src_length_override,
-                            src_offset,
-                            ..
-                        } => src_length_override.unwrap_or(data.byte_length() as usize - *src_offset),
-                    )+
-                }
-            }
-
             /// Returns the width of the texture source.
             fn width(&self) -> usize {
                 match self {
@@ -1275,19 +1420,10 @@ macro_rules! texture_sources_compressed {
                     } => {
                         let source = callback.borrow_mut()();
                         if let TextureSourceCompressed::Function { .. } = source {
-                            panic!("recursive TextureSource::Function is not allowed");
+                            return Err(Error::TextureSourceFunctionRecursionDisallowed);
                         }
-                        if self.width() != source.width() {
-                            panic!("source returned from TextureSource::Function should have same width");
-                        }
-                        if self.height() != source.height() {
-                            panic!("source returned from TextureSource::Function should have same height");
-                        }
-                        if self.bytes_length() != source.bytes_length() {
-                            panic!("source returned from TextureSource::Function should have same bytes length");
-                        }
-                        if self.compressed_format() != source.compressed_format() {
-                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        if self.width() != source.width() || self.height() != source.height() {
+                            return Err(Error::TextureSourceFunctionSizeMismatched);
                         }
                         source.tex_sub_image_2d(
                             gl,
@@ -1391,19 +1527,10 @@ macro_rules! texture_sources_compressed {
                     } => {
                         let source = callback.borrow_mut()();
                         if let TextureSourceCompressed::Function { .. } = source {
-                            panic!("recursive TextureSource::Function is not allowed");
+                            return Err(Error::TextureSourceFunctionRecursionDisallowed);
                         }
-                        if self.width() != source.width() {
-                            panic!("source returned from TextureSource::Function should have same width");
-                        }
-                        if self.height() != source.height() {
-                            panic!("source returned from TextureSource::Function should have same height");
-                        }
-                        if self.bytes_length() != source.bytes_length() {
-                            panic!("source returned from TextureSource::Function should have same bytes length");
-                        }
-                        if self.compressed_format() != source.compressed_format() {
-                            panic!("source returned from TextureSource::Function should have same bytes length");
+                        if self.width() != source.width() || self.height() != source.height() {
+                            return Err(Error::TextureSourceFunctionSizeMismatched);
                         }
                         source.tex_sub_image_3d(
                             gl,
@@ -1510,6 +1637,9 @@ pub trait Texture {
     /// Returns [`TextureTarget`].
     fn target(&self) -> TextureTarget;
 
+    /// Returns a list of [`SamplerParameter`]s.
+    fn sampler_parameters(&self) -> &[SamplerParameter];
+
     /// Returns a list of [`TextureParameter`]s.
     fn texture_parameters(&self) -> &[TextureParameter];
 
@@ -1610,7 +1740,7 @@ trait TextureItem: Texture {
     fn runtime_mut(&mut self) -> Option<&mut Runtime>;
 
     /// Sets [`Runtime`].
-    fn set_runtime(&mut self, runtime: Runtime);
+    fn set_runtime(&mut self, runtime: Runtime) -> &mut Runtime;
 
     /// Removes [`Runtime`].
     fn remove_runtime(&mut self) -> Option<Runtime>;
@@ -1619,41 +1749,34 @@ trait TextureItem: Texture {
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error>;
 
     /// Creates and returns a [`WebGlTexture`].
-    fn create_texture(
-        &self,
-        gl: &WebGl2RenderingContext,
-        unit: TextureUnit,
-    ) -> Result<WebGlTexture, Error>;
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error>;
 
     /// Creates and returns a [`WebGlSampler`] by texture parameters from [`Texture::texture_parameters`].
     fn create_sampler(&self, gl: &WebGl2RenderingContext) -> Result<WebGlSampler, Error> {
         let sampler = gl
             .create_sampler()
             .ok_or_else(|| Error::CreateSamplerFailure)?;
-        self.texture_parameters()
+        self.sampler_parameters()
             .into_iter()
             .for_each(|param| match param {
-                TextureParameter::MAG_FILTER(v) => {
+                SamplerParameter::MAG_FILTER(v) => {
                     gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
                 }
-                TextureParameter::MIN_FILTER(v) => {
+                SamplerParameter::MIN_FILTER(v) => {
                     gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
                 }
-                TextureParameter::WRAP_S(v)
-                | TextureParameter::WRAP_T(v)
-                | TextureParameter::WRAP_R(v) => {
+                SamplerParameter::WRAP_S(v)
+                | SamplerParameter::WRAP_T(v)
+                | SamplerParameter::WRAP_R(v) => {
                     gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
                 }
-                TextureParameter::COMPARE_FUNC(v) => {
+                SamplerParameter::COMPARE_FUNC(v) => {
                     gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
                 }
-                TextureParameter::COMPARE_MODE(v) => {
+                SamplerParameter::COMPARE_MODE(v) => {
                     gl.sampler_parameteri(&sampler, param.gl_enum(), v.gl_enum() as i32)
                 }
-                TextureParameter::BASE_LEVEL(v) | TextureParameter::MAX_LEVEL(v) => {
-                    gl.sampler_parameteri(&sampler, param.gl_enum(), *v)
-                }
-                TextureParameter::MAX_LOD(v) | TextureParameter::MIN_LOD(v) => {
+                SamplerParameter::MAX_LOD(v) | SamplerParameter::MIN_LOD(v) => {
                     gl.sampler_parameterf(&sampler, param.gl_enum(), *v)
                 }
             });
@@ -1862,11 +1985,11 @@ struct Runtime {
     id: Uuid,
     gl: WebGl2RenderingContext,
     store_id: Uuid,
-    texture: WebGlTexture,
-    sampler: WebGlSampler,
     bytes_length: usize,
-    lru_node: *mut LruNode<Uuid>,
+    texture: WebGlTexture,
+    sampler: Option<WebGlSampler>,
     using: bool,
+    lru_node: *mut LruNode<Uuid>,
 
     used_memory: *mut usize,
     textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
@@ -1879,7 +2002,9 @@ impl Drop for Runtime {
             (*self.textures).remove(&self.id);
             (*self.lru).remove(self.lru_node);
             (*self.used_memory) -= self.bytes_length;
-            self.gl.delete_sampler(Some(&self.sampler));
+            if let Some(sampler) = self.sampler.take() {
+                self.gl.delete_sampler(Some(&sampler));
+            }
             self.gl.delete_texture(Some(&self.texture));
         }
     }
@@ -1914,6 +2039,7 @@ pub struct TextureStore {
     gl: WebGl2RenderingContext,
     capabilities: Capabilities,
     available_memory: usize,
+    tex_params_history: HashMap<(TextureUnit, TextureTarget), Vec<TextureParameter>>,
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
     textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
@@ -1934,9 +2060,10 @@ impl TextureStore {
             gl,
             capabilities,
             available_memory,
+            tex_params_history: HashMap::new(),
             used_memory: Box::leak(Box::new(0)),
-            textures: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
+            textures: Box::leak(Box::new(HashMap::new())),
         }
     }
 
@@ -1994,89 +2121,113 @@ impl TextureStore {
     where
         T: TextureItem + 'static,
     {
-        let (target, texture, sampler) = unsafe {
+        unsafe {
             let mut t = descriptor.texture_mut();
+
+            // creates runtime if not exists
+            if t.runtime().is_none() {
+                t.validate(&self.capabilities)?;
+                let texture = t.create_texture(&self.gl)?;
+
+                let id = Uuid::new_v4();
+                let lru_node = LruNode::new(id);
+                let bytes_length = t.bytes_length();
+                (*self.textures).insert(
+                    id,
+                    Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureItem>>,
+                );
+                (*self.used_memory) += bytes_length;
+                t.set_runtime(Runtime {
+                    id,
+                    gl: self.gl.clone(),
+                    store_id: self.id,
+                    texture: texture.clone(),
+                    sampler: None,
+                    bytes_length,
+                    lru_node,
+                    using: true,
+
+                    used_memory: self.used_memory,
+                    textures: self.textures,
+                    lru: self.lru,
+                });
+            }
+
+            // checks sharing
+            if t.runtime().unwrap().store_id != self.id {
+                return Err(Error::TextureSharingDisallowed);
+            }
+
+            // creates sampler if not exists
+            if t.runtime().unwrap().sampler.is_none() {
+                let sampler = t.create_sampler(&self.gl)?;
+                t.runtime_mut().unwrap().sampler = Some(sampler);
+            }
+
             let target = t.target();
 
-            let (texture, sampler) = match t.runtime_mut() {
-                Some(runtime) => {
-                    if runtime.store_id != self.id {
-                        panic!("share texture descriptor between texture store is not allowed");
-                    }
-
-                    runtime.using = true;
-                    (*self.lru).cache(runtime.lru_node);
-
-                    self.gl.active_texture(unit.gl_enum());
-                    (runtime.texture.clone(), runtime.sampler.clone())
+            // saves current bindings texture parameters
+            let mut bounds = Vec::new();
+            for p in t.texture_parameters() {
+                if let Some(bound) = p.save(&self.gl, target) {
+                    bounds.push(bound);
                 }
-                None => {
-                    t.validate(&self.capabilities)?;
-                    let texture = t.create_texture(&self.gl, unit)?;
-                    let sampler = t.create_sampler(&self.gl)?;
-                    self.gl.active_texture(unit.gl_enum());
+                p.tex_parameter(&self.gl, target, &self.capabilities)?;
+            }
+            self.tex_params_history.insert((unit, target), bounds);
 
-                    let id = Uuid::new_v4();
-                    let lru_node = LruNode::new(id);
-                    let bytes_length = t.bytes_length();
-                    (*self.textures).insert(
-                        id,
-                        Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureItem>>,
-                    );
-                    (*self.lru).cache(lru_node);
-                    (*self.used_memory) += bytes_length;
-                    t.set_runtime(Runtime {
-                        id,
-                        gl: self.gl.clone(),
-                        store_id: self.id,
-                        texture: texture.clone(),
-                        sampler: sampler.clone(),
-                        bytes_length,
-                        lru_node,
-                        using: true,
-
-                        used_memory: self.used_memory,
-                        textures: self.textures,
-                        lru: self.lru,
-                    });
-
-                    debug!(
-                        target: "TextureBuffer",
-                        "create new texture for {}",
-                        id,
-                    );
-
-                    (texture, sampler)
-                }
-            };
-
+            // uploads data
             t.upload(unit)?;
-            (target, texture, sampler)
-        };
 
-        self.gl.bind_texture(target.gl_enum(), Some(&texture));
-        self.gl
-            .bind_sampler(unit.unit_index() as u32, Some(&sampler));
+            let runtime = t.runtime().unwrap();
+            let texture = runtime.texture.clone();
 
-        self.free();
-        Ok(texture)
+            // updates status
+            (*self.lru).cache(runtime.lru_node);
+
+            // binds
+            self.gl
+                .bind_texture(target.gl_enum(), Some(&runtime.texture));
+            self.gl.bind_sampler(
+                unit.unit_index() as u32,
+                Some(&runtime.sampler.as_ref().unwrap()),
+            );
+
+            // do memory free
+            drop(t);
+            self.free();
+
+            Ok(texture)
+        }
     }
 
     #[allow(private_bounds)]
-    pub fn unbound_texture<T>(&mut self, descriptor: &TextureDescriptor<T>, unit: TextureUnit)
+    pub fn unbind_texture<T>(
+        &mut self,
+        descriptor: &TextureDescriptor<T>,
+        unit: TextureUnit,
+    ) -> Result<(), Error>
     where
         T: TextureItem + 'static,
     {
         let mut t = descriptor.texture_mut();
-        let target = t.target().gl_enum();
+        let target = t.target();
         if let Some(runtime) = t.runtime_mut() {
             let bound = utils::active_texture_unit(&self.gl);
             self.gl.active_texture(unit.gl_enum());
-            self.gl.bind_texture(target, None);
+            self.gl.bind_texture(target.gl_enum(), None);
             self.gl.bind_sampler(unit.unit_index() as u32, None);
+            // restores texture paramters
+            if let Some(restore) = self.tex_params_history.remove(&(unit, target)) {
+                for p in restore {
+                    p.tex_parameter(&self.gl, target, &self.capabilities)?;
+                }
+            }
             self.gl.active_texture(bound);
             runtime.using = false;
         }
+
+        Ok(())
     }
 }
 

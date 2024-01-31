@@ -235,7 +235,7 @@ fn draw_entity(
     let bound_uniforms =  state.bind_uniforms(program, &entity, geometry, material)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
-    state.unbind_uniforms(bound_uniforms);
+    state.unbind_uniforms(bound_uniforms)?;
 
     Ok(())
 }

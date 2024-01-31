@@ -1,7 +1,5 @@
 use web_sys::{
-    WebGl2RenderingContext, WebglCompressedTextureAstc, WebglCompressedTextureEtc,
-    WebglCompressedTextureEtc1, WebglCompressedTexturePvrtc, WebglCompressedTextureS3tc,
-    WebglCompressedTextureS3tcSrgb,
+    ExtTextureFilterAnisotropic, WebGl2RenderingContext, WebglCompressedTextureAstc, WebglCompressedTextureEtc, WebglCompressedTextureEtc1, WebglCompressedTexturePvrtc, WebglCompressedTextureS3tc, WebglCompressedTextureS3tcSrgb
 };
 
 use super::{
@@ -14,11 +12,10 @@ use super::{
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
     texture::{
-        TextureCompareFunction, TextureCompareMode, TextureCompressedFormat, TextureDataType,
-        TextureFormat, TextureMagnificationFilter,
+        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
+        TextureDataType, TextureFormat, TextureInternalFormat, TextureMagnificationFilter,
         TextureMinificationFilter, TextureParameter, TexturePixelStorage, TextureTarget,
-        TextureInternalFormat, TextureUnit, TextureUnpackColorSpaceConversion,
-        TextureWrapMethod,
+        TextureUnit, TextureUnpackColorSpaceConversion, TextureWrapMethod,
     },
 };
 
@@ -202,31 +199,14 @@ impl ToGlEnum for TextureInternalFormat {
             TextureInternalFormat::R32F => WebGl2RenderingContext::R32F,
             TextureInternalFormat::R16F => WebGl2RenderingContext::R16F,
             TextureInternalFormat::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
-            TextureInternalFormat::DEPTH_COMPONENT32F => {
-                WebGl2RenderingContext::DEPTH_COMPONENT32F
-            }
-            TextureInternalFormat::DEPTH_COMPONENT24 => {
-                WebGl2RenderingContext::DEPTH_COMPONENT24
-            }
-            TextureInternalFormat::DEPTH_COMPONENT16 => {
-                WebGl2RenderingContext::DEPTH_COMPONENT16
-            }
-            TextureInternalFormat::DEPTH32F_STENCIL8 => {
-                WebGl2RenderingContext::DEPTH32F_STENCIL8
-            }
+            TextureInternalFormat::DEPTH_COMPONENT32F => WebGl2RenderingContext::DEPTH_COMPONENT32F,
+            TextureInternalFormat::DEPTH_COMPONENT24 => WebGl2RenderingContext::DEPTH_COMPONENT24,
+            TextureInternalFormat::DEPTH_COMPONENT16 => WebGl2RenderingContext::DEPTH_COMPONENT16,
+            TextureInternalFormat::DEPTH32F_STENCIL8 => WebGl2RenderingContext::DEPTH32F_STENCIL8,
             TextureInternalFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
         }
     }
 }
-
-// impl ToGlEnum for TextureInternalFormat {
-//     fn gl_enum(&self) -> u32 {
-//         match self {
-//             TextureInternalFormat::Uncompressed(f) => f.gl_enum(),
-//             TextureInternalFormat::Compressed(f) => f.gl_enum(),
-//         }
-//     }
-// }
 
 impl ToGlEnum for TextureCompressedFormat {
     fn gl_enum(&self) -> u32 {
@@ -599,17 +579,26 @@ impl ToGlEnum for TextureParameter {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureParameter::MAG_FILTER(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
-            TextureParameter::MIN_FILTER(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
-            TextureParameter::WRAP_S(_) => WebGl2RenderingContext::TEXTURE_WRAP_S,
-            TextureParameter::WRAP_T(_) => WebGl2RenderingContext::TEXTURE_WRAP_T,
-            TextureParameter::WRAP_R(_) => WebGl2RenderingContext::TEXTURE_WRAP_R,
             TextureParameter::BASE_LEVEL(_) => WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
-            TextureParameter::COMPARE_FUNC(_) => WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
-            TextureParameter::COMPARE_MODE(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
             TextureParameter::MAX_LEVEL(_) => WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
-            TextureParameter::MAX_LOD(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
-            TextureParameter::MIN_LOD(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
+            TextureParameter::MAX_ANISOTROPY_EXT(_) => ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
+        }
+    }
+}
+
+impl ToGlEnum for SamplerParameter {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            SamplerParameter::MAG_FILTER(_) => WebGl2RenderingContext::TEXTURE_MAG_FILTER,
+            SamplerParameter::MIN_FILTER(_) => WebGl2RenderingContext::TEXTURE_MIN_FILTER,
+            SamplerParameter::WRAP_S(_) => WebGl2RenderingContext::TEXTURE_WRAP_S,
+            SamplerParameter::WRAP_T(_) => WebGl2RenderingContext::TEXTURE_WRAP_T,
+            SamplerParameter::WRAP_R(_) => WebGl2RenderingContext::TEXTURE_WRAP_R,
+            SamplerParameter::COMPARE_FUNC(_) => WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
+            SamplerParameter::COMPARE_MODE(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
+            SamplerParameter::MAX_LOD(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
+            SamplerParameter::MIN_LOD(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
         }
     }
 }

@@ -672,7 +672,7 @@ impl FrameState {
     ///
     /// If you bind buffer uniforms ever,
     /// remember to unbind them by yourself or use this function.
-    pub fn unbind_uniforms(&mut self, bounds: Vec<BoundUniform>) {
+    pub fn unbind_uniforms(&mut self, bounds: Vec<BoundUniform>) -> Result<(), Error> {
         for BoundUniform {
             unit,
             kind: texture,
@@ -680,10 +680,10 @@ impl FrameState {
         {
             match texture {
                 TextureKind::Texture2D(descriptor) => {
-                    self.texture_store_mut().unbound_texture(&descriptor, unit);
+                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
                 }
                 TextureKind::Texture2DCompressed(descriptor) => {
-                    self.texture_store_mut().unbound_texture(&descriptor, unit);
+                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
                 } // TextureKind::Texture2DArray(descriptor) => {
                   //     self.texture_store_mut().unuse_texture(&descriptor, unit);
                   // }
@@ -704,6 +704,8 @@ impl FrameState {
                   // }
             }
         }
+
+        Ok(())
     }
 
     /// Binds a [`UniformValue`] to a uniform by variable name.
