@@ -198,7 +198,7 @@ impl DirectDrawSurface {
 
     /// Tries to create a [`TextureDescriptor`] from this DirectDraw Surface.
     /// Returns `None` if unable to create a valid descriptor.
-    pub fn texture_descriptor<SI, TI>(
+    pub fn texture_descriptor_2d<SI, TI>(
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,

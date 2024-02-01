@@ -30,7 +30,7 @@ use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
 use crate::loader::dds::{DirectDrawSurface, DDS_DXT1, DDS_DXT3};
-use crate::loader::texture::TextureLoader;
+use crate::loader::image::ImageLoader;
 use crate::material::texture_mapping::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
 use crate::notify::Notifiee;
@@ -694,7 +694,7 @@ pub fn test_cube(
     floor.set_material(Some(TextureMaterial::new(
         UniformValue::Texture2DCompressed {
             descriptor: dds
-                .texture_descriptor(
+                .texture_descriptor_2d(
                     true,
                     true,
                     true,

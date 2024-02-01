@@ -1,9 +1,13 @@
+use wasm_bindgen::{JsCast, JsValue};
+
 #[derive(Debug, Clone)]
 pub enum Error {
     CreateCanvasFailure,
     CanvasResizeObserverFailure(Option<String>),
     MountElementFailure,
     AddEventCallbackFailure(&'static str, Option<String>),
+    RemoveEventCallbackFailure(&'static str, Option<String>),
+    PromiseAwaitFailure(Option<String>),
     NoSuchEntity,
     NoSuchGroup,
     WebGLRenderError(crate::render::webgl::error::Error),
@@ -29,5 +33,15 @@ impl From<crate::render::webgl::error::Error> for Error {
 impl Into<wasm_bindgen::JsValue> for Error {
     fn into(self) -> wasm_bindgen::JsValue {
         wasm_bindgen::JsValue::from_str(&self.to_string())
+    }
+}
+
+pub trait AsJsError {
+    fn as_error(&self) -> Option<&js_sys::Error>;
+}
+
+impl AsJsError for JsValue {
+    fn as_error(&self) -> Option<&js_sys::Error> {
+        self.dyn_ref::<js_sys::Error>()
     }
 }
