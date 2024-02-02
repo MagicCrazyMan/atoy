@@ -21,7 +21,7 @@ pub enum MemoryPolicy<F> {
 pub struct Texture2DBase<F> {
     width: usize,
     height: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
@@ -165,13 +165,13 @@ where
         <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
-    fn max_level(&self) -> usize {
-        self.max_level
+    fn max_mipmap_level(&self) -> usize {
+        self.max_mipmap_level
     }
 
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
-        for level in 0..=self.max_level() {
+        for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             used_memory += self.internal_format.bytes_length(width, height);
@@ -242,7 +242,7 @@ where
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
         gl.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_2D,
-            (self.max_level + 1) as i32,
+            (self.max_mipmap_level + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
@@ -292,7 +292,7 @@ pub struct Builder<F> {
     internal_format: F,
     width: usize,
     height: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
     tex_params: HashMap<u32, TextureParameter>,
@@ -314,7 +314,7 @@ where
             internal_format,
             width,
             height,
-            max_level: <Texture2DBase<F> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level: <Texture2DBase<F> as TexturePlanar>::max_available_mipmap_level(
                 width, height,
             ),
             memory_policy: MemoryPolicy::Unfree,
@@ -329,8 +329,10 @@ where
     }
 
     /// Sets max mipmap level. Max mipmap level is clamped to [`Texture2DBase::max_available_mipmap_level`].
-    pub fn set_max_level(mut self, max_level: usize) -> Self {
-        self.max_level = self.max_level.min(max_level);
+    ///
+    /// When calling `texStorage2D` or `texStorage3D`, levels params equals to `max_mipmap_level + 1`.
+    pub fn set_max_mipmap_level(mut self, max_mipmap_level: usize) -> Self {
+        self.max_mipmap_level = self.max_mipmap_level.min(max_mipmap_level);
         self
     }
 
@@ -375,7 +377,7 @@ where
         Texture2DBase {
             width: self.width,
             height: self.height,
-            max_level: self.max_level,
+            max_mipmap_level: self.max_mipmap_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
             sampler_params: self.sampler_params,
@@ -399,7 +401,7 @@ impl Builder<TextureInternalFormat> {
             internal_format,
             width,
             height,
-            max_level:
+            max_mipmap_level:
                 <Texture2DBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
@@ -481,7 +483,7 @@ impl Builder<TextureCompressedFormat> {
             internal_format,
             width,
             height,
-            max_level:
+            max_mipmap_level:
                 <Texture2DBase<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
@@ -541,6 +543,7 @@ impl Builder<TextureCompressedFormat> {
     }
 }
 
+/// A common texture 2d including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
 pub enum Texture2D {
     Uncompressed(Texture2DBase<TextureInternalFormat>),
     Compressed(Texture2DBase<TextureCompressedFormat>),
@@ -575,10 +578,10 @@ impl Texture for Texture2D {
         }
     }
 
-    fn max_level(&self) -> usize {
+    fn max_mipmap_level(&self) -> usize {
         match self {
-            Texture2D::Uncompressed(t) => t.max_level(),
-            Texture2D::Compressed(t) => t.max_level(),
+            Texture2D::Uncompressed(t) => t.max_mipmap_level(),
+            Texture2D::Compressed(t) => t.max_mipmap_level(),
         }
     }
 

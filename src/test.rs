@@ -29,7 +29,7 @@ use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
-use crate::loader::dds::{DirectDrawSurface, DDS_DXT1, DDS_DXT3};
+use crate::loader::dds::{DDSLoader, DirectDrawSurface, DDS_DXT1, DDS_DXT3};
 use crate::loader::texture::TextureLoader;
 use crate::material::texture::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
@@ -531,8 +531,6 @@ pub fn test_cube(
     height: f64,
     render_callback: &Function,
     pick_callback: &Function,
-    floor_rgb: HtmlImageElement,
-    floor_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
         Vec3::new(0.0, 5.0, 2.0),
@@ -598,7 +596,7 @@ pub fn test_cube(
     // scene.entity_collection_mut().add_entity(entity);
 
     let mut image = EntityOptions::new();
-    image.set_material(Some(TextureMaterial::new(
+    image.set_material(Some(TextureMaterial::from_loaders(
         TextureLoader::with_params(
             "/sky.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
@@ -636,30 +634,31 @@ pub fn test_cube(
     )));
     scene.entity_container_mut().add_entity(image);
 
-    // let mut floor = EntityOptions::new();
-    // floor.set_material(Some(TextureMaterial::new(
-    //     DirectDrawSurface::from_array_buffer(floor_dxt).unwrap(),
-    //     Transparency::Opaque,
-    // )));
-    // floor.set_geometry(Some(Rectangle::new(
-    //     Vec2::new(0.0, 0.0),
-    //     Placement::Center,
-    //     1000.0,
-    //     1000.0,
-    //     200.0,
-    //     200.0,
-    // )));
-    // floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
-    //     &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
-    //     &Vec3::new(0.0, -0.6, 0.0),
-    // ));
-    // scene.entity_container_mut().add_entity(floor);
+    let mut floor = EntityOptions::new();
+    floor.set_material(Some(TextureMaterial::from_loaders(
+        DDSLoader::new("/wood_dxt3_mipmaps.dds"),
+        Transparency::Opaque,
+    )));
+    floor.set_geometry(Some(Rectangle::new(
+        Vec2::new(0.0, 0.0),
+        Placement::Center,
+        1000.0,
+        1000.0,
+        200.0,
+        200.0,
+    )));
+    floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
+        &Vec3::new(0.0, -0.6, 0.0),
+    ));
+    scene.entity_container_mut().add_entity(floor);
 
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer
         .scene_mut()
         .canvas_handler()
         .click()
+        .borrow_mut()
         .register(ViewerPick {
             viewer: viewer.downgrade(),
             pick_callback: pick_callback.clone(),
@@ -1022,6 +1021,7 @@ pub fn test_pick(
         .scene_mut()
         .canvas_handler()
         .click()
+        .borrow_mut()
         .register(ViewerPick {
             viewer: viewer.downgrade(),
             pick_callback: pick_callback.clone(),

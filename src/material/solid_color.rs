@@ -1,4 +1,4 @@
-use std::{any::Any, borrow::Cow};
+use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 
@@ -22,7 +22,7 @@ pub struct SolidColorMaterial {
     color: Vec3<f32>,
     specular_shininess: f32,
     transparency: Transparency,
-    notifier: Notifier<()>,
+    notifier: Rc<RefCell<Notifier<()>>>,
 }
 
 impl SolidColorMaterial {
@@ -41,7 +41,7 @@ impl SolidColorMaterial {
             color,
             specular_shininess,
             transparency,
-            notifier: Notifier::new(),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }
 
@@ -112,8 +112,8 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
+    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>> {
+        &self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

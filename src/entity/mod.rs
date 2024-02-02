@@ -391,11 +391,14 @@ impl Entity {
     ) -> Option<Box<dyn StandardMaterial>> {
         let old = self.take_material();
 
-        if let Some(mut material) = material {
-            let notifying = material.notifier().register(EntityDirtyNotifiee {
-                group: self.group,
-                dirty: self.dirty,
-            });
+        if let Some(material) = material {
+            let notifying = material
+                .notifier()
+                .borrow_mut()
+                .register(EntityDirtyNotifiee {
+                    group: self.group,
+                    dirty: self.dirty,
+                });
             self.material = Some((material, notifying));
         }
 

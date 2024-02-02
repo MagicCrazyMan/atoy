@@ -670,22 +670,26 @@ impl Controller for UniversalCamera {
             .scene_mut()
             .canvas_handler()
             .canvas_resize()
+            .borrow_mut()
             .register(ControllerCanvasResize(Rc::clone(&self.inner)));
         let key_down = viewer
             .scene_mut()
             .canvas_handler()
             .key_down()
+            .borrow_mut()
             .register(ControllerKeyDown(pressed_keys));
         let key_up = viewer
             .scene_mut()
             .canvas_handler()
             .key_up()
+            .borrow_mut()
             .register(ControllerKeyUp(pressed_keys));
         let mouse_move =
             viewer
                 .scene_mut()
                 .canvas_handler()
                 .mouse_move()
+                .borrow_mut()
                 .register(ControllerMouseMove(
                     Rc::clone(&self.inner),
                     previous_mouse_event,
@@ -694,6 +698,7 @@ impl Controller for UniversalCamera {
             .scene_mut()
             .canvas_handler()
             .wheel()
+            .borrow_mut()
             .register(ControllerWheel(Rc::clone(&self.inner)));
         let pre_render = viewer
             .render_mut()

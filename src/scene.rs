@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -289,22 +291,58 @@ impl Scene {
 pub struct SceneCanvasHandler {
     canvas: HtmlCanvasElement,
     canvas_resize: (
-        Notifier<HtmlCanvasElement>,
+        Rc<RefCell<Notifier<HtmlCanvasElement>>>,
         ResizeObserver,
         Closure<dyn FnMut(Vec<ResizeObserverEntry>)>,
     ),
-    click: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    double_click: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_down: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_enter: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_leave: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_move: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_out: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_over: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_up: (Notifier<MouseEvent>, Closure<dyn FnMut(MouseEvent)>),
-    wheel: (Notifier<WheelEvent>, Closure<dyn FnMut(WheelEvent)>),
-    key_down: (Notifier<KeyboardEvent>, Closure<dyn FnMut(KeyboardEvent)>),
-    key_up: (Notifier<KeyboardEvent>, Closure<dyn FnMut(KeyboardEvent)>),
+    click: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    double_click: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_down: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_enter: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_leave: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_move: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_out: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_over: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_up: (
+        Rc<RefCell<Notifier<MouseEvent>>>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    wheel: (
+        Rc<RefCell<Notifier<WheelEvent>>>,
+        Closure<dyn FnMut(WheelEvent)>,
+    ),
+    key_down: (
+        Rc<RefCell<Notifier<KeyboardEvent>>>,
+        Closure<dyn FnMut(KeyboardEvent)>,
+    ),
+    key_up: (
+        Rc<RefCell<Notifier<KeyboardEvent>>>,
+        Closure<dyn FnMut(KeyboardEvent)>,
+    ),
 }
 
 impl Drop for SceneCanvasHandler {
@@ -372,8 +410,8 @@ impl Drop for SceneCanvasHandler {
 
 impl SceneCanvasHandler {
     pub fn new(canvas: HtmlCanvasElement) -> Result<Self, Error> {
-        let resize_observer_notifier = Notifier::new();
-        let resize_observer_notifier_cloned = resize_observer_notifier.clone();
+        let resize_observer_notifier = Rc::new(RefCell::new(Notifier::new()));
+        let resize_observer_notifier_cloned = Rc::clone(&resize_observer_notifier);
         let resize_observer_callback = Closure::new(move |entries: Vec<ResizeObserverEntry>| {
             // should have only one entry
             let Some(target) = entries.get(0).map(|entry| entry.target()) else {
@@ -387,134 +425,42 @@ impl SceneCanvasHandler {
             let height = canvas.client_height() as u32;
             canvas.set_width(width);
             canvas.set_height(height);
-            resize_observer_notifier_cloned.notify(&mut canvas);
+            resize_observer_notifier_cloned
+                .borrow_mut()
+                .notify(&mut canvas);
         });
         let resize_observer =
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref())
                 .or_else(|err| Err(Error::CanvasResizeObserverFailure(err.as_string())))?;
         resize_observer.observe(&canvas);
 
-        let click_notifier = Notifier::new();
-        let click_notifier_cloned = click_notifier.clone();
-        let click_callback = Closure::new(move |mut e| click_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback("click", click_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailure("click", err.as_string())))?;
+        macro_rules! io_events {
+            ($(($name:ident, $name_cloned:ident, $callback:ident, $event:expr))+) => {
+                $(
+                    let $name = Rc::new(RefCell::new(Notifier::new()));
+                    let $name_cloned = Rc::clone(&$name);
+                    let $callback = Closure::new(move |mut e| $name_cloned.borrow_mut().notify(&mut e));
+                    canvas
+                        .add_event_listener_with_callback($event, $callback.as_ref().unchecked_ref())
+                        .or_else(|err| Err(Error::AddEventCallbackFailure($event, err.as_string())))?;
+                )+
+            };
+        }
 
-        let double_click_notifier = Notifier::new();
-        let double_click_notifier_cloned = double_click_notifier.clone();
-        let double_click_callback =
-            Closure::new(move |mut e| double_click_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "dbclick",
-                double_click_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| Err(Error::AddEventCallbackFailure("dbclick", err.as_string())))?;
-
-        let mouse_down_notifier = Notifier::new();
-        let mouse_down_notifier_cloned = mouse_down_notifier.clone();
-        let mouse_down_callback =
-            Closure::new(move |mut e| mouse_down_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mousedown",
-                mouse_down_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| Err(Error::AddEventCallbackFailure("mousedown", err.as_string())))?;
-
-        let mouse_enter_notifier = Notifier::new();
-        let mouse_enter_notifier_cloned = mouse_enter_notifier.clone();
-        let mouse_enter_callback =
-            Closure::new(move |mut e| mouse_enter_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mouseenter",
-                mouse_enter_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| {
-                Err(Error::AddEventCallbackFailure(
-                    "mouseenter",
-                    err.as_string(),
-                ))
-            })?;
-
-        let mouse_leave_notifier = Notifier::new();
-        let mouse_leave_notifier_cloned = mouse_leave_notifier.clone();
-        let mouse_leave_callback =
-            Closure::new(move |mut e| mouse_leave_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mouseleave",
-                mouse_leave_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| {
-                Err(Error::AddEventCallbackFailure(
-                    "mouseleave",
-                    err.as_string(),
-                ))
-            })?;
-
-        let mouse_move_notifier = Notifier::new();
-        let mouse_move_notifier_cloned = mouse_move_notifier.clone();
-        let mouse_move_callback =
-            Closure::new(move |mut e| mouse_move_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mousemove",
-                mouse_move_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| Err(Error::AddEventCallbackFailure("mousemove", err.as_string())))?;
-
-        let mouse_out_notifier = Notifier::new();
-        let mouse_out_notifier_cloned = mouse_out_notifier.clone();
-        let mouse_out_callback =
-            Closure::new(move |mut e| mouse_out_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mouseout",
-                mouse_out_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseout", err.as_string())))?;
-
-        let mouse_over_notifier = Notifier::new();
-        let mouse_over_notifier_cloned = mouse_over_notifier.clone();
-        let mouse_over_callback =
-            Closure::new(move |mut e| mouse_over_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback(
-                "mouseover",
-                mouse_over_callback.as_ref().unchecked_ref(),
-            )
-            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseover", err.as_string())))?;
-
-        let mouse_up_notifier = Notifier::new();
-        let mouse_up_notifier_cloned = mouse_up_notifier.clone();
-        let mouse_up_callback = Closure::new(move |mut e| mouse_up_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback("mouseup", mouse_up_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailure("mouseup", err.as_string())))?;
-
-        let wheel_notifier = Notifier::new();
-        let wheel_notifier_cloned = wheel_notifier.clone();
-        let wheel_callback = Closure::new(move |mut e| wheel_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback("wheel", wheel_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailure("wheel", err.as_string())))?;
-
-        let key_down_notifier = Notifier::new();
-        let key_down_notifier_cloned = key_down_notifier.clone();
-        let key_down_callback = Closure::new(move |mut e| key_down_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback("keydown", key_down_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailure("keydown", err.as_string())))?;
-
-        let key_up_notifier = Notifier::new();
-        let key_up_notifier_cloned = key_up_notifier.clone();
-        let key_up_callback = Closure::new(move |mut e| key_up_notifier_cloned.notify(&mut e));
-        canvas
-            .add_event_listener_with_callback("keyup", key_up_callback.as_ref().unchecked_ref())
-            .or_else(|err| Err(Error::AddEventCallbackFailure("keyup", err.as_string())))?;
+        io_events! {
+            (click_notifier, click_notifier_cloned, click_callback, "click")
+            (double_click_notifier, double_click_notifier_cloned, double_click_callback, "dbclick")
+            (mouse_down_notifier, mouse_down_notifier_cloned, mouse_down_callback, "mousedown")
+            (mouse_enter_notifier, mouse_enter_notifier_cloned, mouse_enter_callback, "mouseenter")
+            (mouse_leave_notifier, mouse_leave_notifier_cloned, mouse_leave_callback, "mouseleave")
+            (mouse_move_notifier, mouse_move_notifier_cloned, mouse_move_callback, "mousemove")
+            (mouse_out_notifier, mouse_out_notifier_cloned, mouse_out_callback, "mouseout")
+            (mouse_over_notifier, mouse_over_notifier_cloned, mouse_over_callback, "mouseover")
+            (mouse_up_notifier, mouse_up_notifier_cloned, mouse_up_callback, "mouseup")
+            (wheel_notifier, wheel_notifier_cloned, wheel_callback, "wheel")
+            (key_down_notifier, key_down_notifier_cloned, key_down_callback, "keydown")
+            (key_up_notifier, key_up_notifier_cloned, key_up_callback, "keyup")
+        };
 
         Ok(Self {
             canvas,
@@ -538,55 +484,55 @@ impl SceneCanvasHandler {
         })
     }
 
-    pub fn canvas_resize(&mut self) -> &mut Notifier<HtmlCanvasElement> {
+    pub fn canvas_resize(&mut self) -> &Rc<RefCell<Notifier<HtmlCanvasElement>>> {
         &mut self.canvas_resize.0
     }
 
-    pub fn click(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn click(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.click.0
     }
 
-    pub fn double_click(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn double_click(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.double_click.0
     }
 
-    pub fn mouse_down(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_down(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_down.0
     }
 
-    pub fn mouse_enter(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_enter(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_enter.0
     }
 
-    pub fn mouse_leave(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_leave(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_leave.0
     }
 
-    pub fn mouse_move(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_move(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_move.0
     }
 
-    pub fn mouse_out(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_out(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_out.0
     }
 
-    pub fn mouse_over(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_over(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_over.0
     }
 
-    pub fn mouse_up(&mut self) -> &mut Notifier<MouseEvent> {
+    pub fn mouse_up(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
         &mut self.mouse_up.0
     }
 
-    pub fn wheel(&mut self) -> &mut Notifier<WheelEvent> {
+    pub fn wheel(&mut self) -> &Rc<RefCell<Notifier<WheelEvent>>> {
         &mut self.wheel.0
     }
 
-    pub fn key_down(&mut self) -> &mut Notifier<KeyboardEvent> {
+    pub fn key_down(&mut self) -> &Rc<RefCell<Notifier<KeyboardEvent>>> {
         &mut self.key_down.0
     }
 
-    pub fn key_up(&mut self) -> &mut Notifier<KeyboardEvent> {
+    pub fn key_up(&mut self) -> &Rc<RefCell<Notifier<KeyboardEvent>>> {
         &mut self.key_up.0
     }
 }

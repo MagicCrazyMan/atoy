@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display};
+use std::{borrow::Cow, cell::RefCell, fmt::Display, rc::Rc};
 
 use js_sys::{Function, Promise};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
@@ -41,11 +41,11 @@ impl Display for ImageCrossOrigin {
     }
 }
 
-/// An image loader loads image using [`HtmlImageElement`] from a given url.
+/// An texture loader loads texture using [`HtmlImageElement`] from a given url.
 pub struct TextureLoader {
     url: String,
     status: *mut LoaderStatus,
-    notifier: Notifier<LoaderStatus>,
+    notifier: Rc<RefCell<Notifier<LoaderStatus>>>,
     cross_origin: Option<ImageCrossOrigin>,
     image: *mut Option<HtmlImageElement>,
     error: *mut Option<Error>,
@@ -83,6 +83,8 @@ impl Drop for TextureLoader {
             }
 
             drop(Box::from_raw(self.status));
+            drop(Box::from_raw(self.image));
+            drop(Box::from_raw(self.error));
             drop(Box::from_raw(self.promise_callback));
             drop(Box::from_raw(self.promise_resolve));
             drop(Box::from_raw(self.promise_reject));
@@ -91,7 +93,7 @@ impl Drop for TextureLoader {
 }
 
 impl TextureLoader {
-    /// Constructs a new image loader with given url using [`HtmlImageElement`].
+    /// Constructs a new texture loader.
     pub fn new<S>(url: S) -> Self
     where
         S: Into<String>,
@@ -99,7 +101,7 @@ impl TextureLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Notifier::new(),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
             cross_origin: None,
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
@@ -118,7 +120,7 @@ impl TextureLoader {
         }
     }
 
-    /// Constructs a new image loader with given url using [`HtmlImageElement`].
+    /// Constructs a new texture loader with parameters.
     pub fn with_params<S, PI, SI, TI>(
         url: S,
         pixel_storages: PI,
@@ -135,7 +137,7 @@ impl TextureLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Notifier::new(),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
             cross_origin: None,
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
@@ -154,7 +156,11 @@ impl TextureLoader {
         }
     }
 
-    fn load_inner(&self, success: Option<Function>, failed: Option<Function>) -> Result<(), Error> {
+    fn load_inner(
+        &self,
+        success: Option<Function>,
+        failure: Option<Function>,
+    ) -> Result<(), Error> {
         unsafe {
             let image = HtmlImageElement::new().unwrap();
             image.set_src(&self.url);
@@ -168,7 +174,7 @@ impl TextureLoader {
             let promise_reject = self.promise_reject;
 
             let img = image.clone();
-            let notifier = self.notifier.clone();
+            let notifier = Rc::downgrade(&self.notifier);
             *self.load_callback = Some(Closure::new(move || {
                 *status = LoaderStatus::Loaded;
                 if let Err(err) = img.remove_event_listener_with_callback(
@@ -184,7 +190,9 @@ impl TextureLoader {
                     );
                 }
 
-                notifier.notify(&mut *status);
+                if let Some(notifier) = notifier.upgrade() {
+                    notifier.borrow_mut().notify(&mut *status);
+                };
 
                 if let Some(resolve) = &*promise_resolve {
                     resolve.call0(&JsValue::undefined()).unwrap();
@@ -214,7 +222,7 @@ impl TextureLoader {
                 })?;
 
             let img = image.clone();
-            let notifier = self.notifier.clone();
+            let notifier = Rc::downgrade(&self.notifier);
             *self.error_callback = Some(Closure::new(move |err: js_sys::Error| {
                 let msg = err.as_error().and_then(|e| e.message().as_string());
                 log::error!(
@@ -236,13 +244,15 @@ impl TextureLoader {
                     );
                 }
 
-                notifier.notify(&mut *status);
+                if let Some(notifier) = notifier.upgrade() {
+                    notifier.borrow_mut().notify(&mut *status);
+                };
 
                 if let Some(reject) = &*promise_reject {
                     reject.call0(&JsValue::undefined()).unwrap();
                 }
-                if let Some(failed) = &failed {
-                    failed.call0(&JsValue::undefined()).unwrap();
+                if let Some(failure) = &failure {
+                    failure.call0(&JsValue::undefined()).unwrap();
                 }
 
                 *load_callback = None;
@@ -268,7 +278,7 @@ impl TextureLoader {
 
             *self.status = LoaderStatus::Loading;
             *self.image = Some(image);
-            self.notifier.notify(&mut *self.status);
+            self.notifier.borrow_mut().notify(&mut *self.status);
         }
 
         Ok(())
@@ -282,15 +292,15 @@ impl TextureLoader {
                 if let Err(err) = self.load_inner(None, None) {
                     *self.status = LoaderStatus::Errored;
                     *self.error = Some(err);
-                    self.notifier.notify(&*self.status);
+                    self.notifier.borrow_mut().notify(&*self.status);
                 }
             }
         }
     }
 
-    /// Starts loading image and asynchronous awaiting.
+    /// Starts loading image and puts it into a [`Promise`].
     /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
-    pub async fn load_async(&self) -> Result<(), Error> {
+    pub fn load_promise(&self) -> Promise {
         unsafe {
             if LoaderStatus::Unload == *self.status {
                 let promise_resolve = self.promise_resolve;
@@ -300,32 +310,37 @@ impl TextureLoader {
                     *promise_reject = Some(reject);
                 }));
                 let promise = Promise::new((*self.promise_callback).as_deref_mut().unwrap());
-                self.load_inner(None, None)?;
+                if let Err(err) = self.load_inner(None, None) {
+                    *self.status = LoaderStatus::Errored;
+                    *self.error = Some(err);
+                    self.notifier.borrow_mut().notify(&*self.status);
+                    (*promise_reject)
+                        .as_ref()
+                        .unwrap()
+                        .call0(&JsValue::undefined())
+                        .unwrap();
+                }
 
-                wasm_bindgen_futures::JsFuture::from(promise)
-                    .await
-                    .or_else(|err| {
-                        Err(Error::PromiseAwaitFailure(
-                            err.as_error().and_then(|err| err.message().as_string()),
-                        ))
-                    })?;
+                promise
+            } else {
+                Promise::resolve(&JsValue::undefined())
             }
-
-            Ok(())
         }
     }
 
-    /// Starts loading image with callback.
-    /// This method does nothing if image is not in [`LoadingStatus::Unload`] status.
-    pub async fn load_callback(
-        &mut self,
-        success: Function,
-        failed: Function,
-    ) -> Result<(), Error> {
-        self.load_inner(Some(success), Some(failed))
+    /// Starts loading image and asynchronous awaiting.
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub async fn load_async(&self) -> Result<&HtmlImageElement, Error> {
+        unsafe {
+            let promise = self.load_promise();
+            match wasm_bindgen_futures::JsFuture::from(promise).await {
+                Ok(_) => Ok((*self.image).as_ref().unwrap()),
+                Err(_) => Err((*self.error).clone().unwrap()),
+            }
+        }
     }
 
-    /// Returns image if regardless whether successfully loaded or not.
+    /// Returns image regardless whether successfully loaded or not.
     pub fn image(&self) -> Option<&HtmlImageElement> {
         unsafe { (*self.image).as_ref() }
     }
@@ -383,7 +398,7 @@ impl Loader<Texture2D> for TextureLoader {
         }
     }
 
-    fn notifier(&self) -> &Notifier<LoaderStatus> {
+    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>> {
         &self.notifier
     }
 }

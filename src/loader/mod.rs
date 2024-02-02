@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::notify::Notifier;
 
 pub mod dds;
@@ -20,5 +22,5 @@ pub trait Loader<T> {
 
     fn loaded(&self) -> Result<T, Self::Error>;
 
-    fn notifier(&self) -> &Notifier<LoaderStatus>;
+    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>>;
 }

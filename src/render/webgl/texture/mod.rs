@@ -1666,7 +1666,7 @@ pub trait Texture {
     fn max_available_mipmap_level(&self) -> usize;
 
     /// Returns max mipmap level.
-    fn max_level(&self) -> usize;
+    fn max_mipmap_level(&self) -> usize;
 
     /// Returns bytes length of the whole texture in all levels.
     fn bytes_length(&self) -> usize;
@@ -1694,7 +1694,7 @@ pub trait TexturePlanar: Texture {
         if level == 0 {
             return Some(self.width());
         }
-        if level > self.max_level() {
+        if level > self.max_mipmap_level() {
             return None;
         }
 
@@ -1707,7 +1707,7 @@ pub trait TexturePlanar: Texture {
         if level == 0 {
             return Some(self.height());
         }
-        if level > self.max_level() {
+        if level > self.max_mipmap_level() {
             return None;
         }
 
@@ -1736,7 +1736,7 @@ pub trait TextureDepth: Texture {
         if level == 0 {
             return Some(self.depth());
         }
-        if level > self.max_level() {
+        if level > self.max_mipmap_level() {
             return None;
         }
 

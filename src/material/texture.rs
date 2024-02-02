@@ -29,11 +29,11 @@ pub struct TextureMaterial {
     albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Error = Error>>>,
     albedo: Rc<RefCell<Option<UniformValue>>>,
 
-    notifier: Notifier<()>,
+    notifier: Rc<RefCell<Notifier<()>>>,
 }
 
 impl TextureMaterial {
-    pub fn new<A>(albedo: A, transparency: Transparency) -> Self
+    pub fn from_loaders<A>(albedo: A, transparency: Transparency) -> Self
     where
         A: Loader<Texture2D, Error = Error> + 'static,
     {
@@ -42,27 +42,25 @@ impl TextureMaterial {
             albedo_loader: Rc::new(RefCell::new(albedo)),
             albedo: Rc::new(RefCell::new(None)),
 
-            notifier: Notifier::new(),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }
-}
 
-impl StandardMaterial for TextureMaterial {
-    fn ready(&self) -> bool {
-        self.albedo.borrow().is_some()
-    }
-
-    fn prepare(&mut self, _: &mut FrameState) {
+    fn prepare_albedo(&self) {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             struct UpdateAlbedo {
                 loader: Weak<RefCell<dyn Loader<Texture2D, Error = Error>>>,
                 albedo: Weak<RefCell<Option<UniformValue>>>,
-                notifier: Notifier<()>,
+                notifier: Weak<RefCell<Notifier<()>>>,
             }
 
             impl Notifiee<LoaderStatus> for UpdateAlbedo {
                 fn notify(&mut self, status: &LoaderStatus) {
+                    let Some(notifier) = self.notifier.upgrade() else {
+                        return;
+                    };
+
                     match status {
                         LoaderStatus::Unload => unreachable!(),
                         LoaderStatus::Loading => {}
@@ -78,7 +76,7 @@ impl StandardMaterial for TextureMaterial {
                                 descriptor: TextureDescriptor::new(texture),
                                 unit: TextureUnit::TEXTURE0,
                             });
-                            self.notifier.notify(&())
+                            notifier.borrow_mut().notify(&())
                         }
                         LoaderStatus::Errored => {
                             let Some(loader) = self.loader.upgrade() else {
@@ -93,12 +91,22 @@ impl StandardMaterial for TextureMaterial {
             }
 
             loader.load();
-            loader.notifier().register(UpdateAlbedo {
+            loader.notifier().borrow_mut().register(UpdateAlbedo {
                 loader: Rc::downgrade(&self.albedo_loader),
                 albedo: Rc::downgrade(&self.albedo),
-                notifier: self.notifier.clone(),
+                notifier: Rc::downgrade(&self.notifier),
             });
         }
+    }
+}
+
+impl StandardMaterial for TextureMaterial {
+    fn ready(&self) -> bool {
+        self.albedo.borrow().is_some()
+    }
+
+    fn prepare(&mut self, _: &mut FrameState) {
+        self.prepare_albedo();
     }
 
     fn transparency(&self) -> Transparency {
@@ -146,8 +154,8 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
+    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>> {
+        &self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

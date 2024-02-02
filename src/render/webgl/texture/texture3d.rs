@@ -18,11 +18,11 @@ pub enum MemoryPolicy<F> {
 }
 
 /// A WebGL 3d texture workload.
-pub struct Texture3D<F> {
+pub struct Texture3DBase<F> {
     width: usize,
     height: usize,
     depth: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
@@ -36,7 +36,7 @@ pub struct Texture3D<F> {
 }
 
 #[allow(private_bounds)]
-impl<F> Texture3D<F>
+impl<F> Texture3DBase<F>
 where
     F: NativeFormat,
 {
@@ -81,7 +81,7 @@ where
     }
 }
 
-impl Texture3D<TextureInternalFormat> {
+impl Texture3DBase<TextureInternalFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -128,7 +128,7 @@ impl Texture3D<TextureInternalFormat> {
     }
 }
 
-impl Texture3D<TextureCompressedFormat> {
+impl Texture3DBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -175,7 +175,7 @@ impl Texture3D<TextureCompressedFormat> {
     }
 }
 
-impl<F> Texture for Texture3D<F>
+impl<F> Texture for Texture3DBase<F>
 where
     F: NativeFormat,
 {
@@ -195,13 +195,13 @@ where
         <Self as TextureDepth>::max_available_mipmap_level(self.width, self.height, self.depth)
     }
 
-    fn max_level(&self) -> usize {
-        self.max_level
+    fn max_mipmap_level(&self) -> usize {
+        self.max_mipmap_level
     }
 
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
-        for level in 0..=self.max_level() {
+        for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             let depth = self.depth_of_level(level).unwrap();
@@ -225,7 +225,7 @@ where
     }
 }
 
-impl<F> TexturePlanar for Texture3D<F>
+impl<F> TexturePlanar for Texture3DBase<F>
 where
     F: NativeFormat,
 {
@@ -238,7 +238,7 @@ where
     }
 }
 
-impl<F> TextureDepth for Texture3D<F>
+impl<F> TextureDepth for Texture3DBase<F>
 where
     F: NativeFormat,
 {
@@ -247,7 +247,7 @@ where
     }
 }
 
-impl<F> TextureItem for Texture3D<F>
+impl<F> TextureItem for Texture3DBase<F>
 where
     F: NativeFormat,
 {
@@ -285,7 +285,7 @@ where
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&texture));
         gl.tex_storage_3d(
             WebGl2RenderingContext::TEXTURE_3D,
-            (self.max_level + 1) as i32,
+            (self.max_mipmap_level + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
@@ -338,7 +338,7 @@ pub struct Builder<F> {
     width: usize,
     height: usize,
     depth: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
     tex_params: HashMap<u32, TextureParameter>,
@@ -361,8 +361,8 @@ where
             width,
             height,
             depth,
-            max_level:
-                <Texture3D<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
+            max_mipmap_level:
+                <Texture3DBase<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -377,8 +377,8 @@ where
     }
 
     /// Sets max mipmap level. Max mipmap level is clamped to [`Texture3D::max_available_mipmap_level`].
-    pub fn set_max_level(mut self, max_level: usize) -> Self {
-        self.max_level = self.max_level.min(max_level);
+    pub fn set_max_mipmap_level(mut self, max_mipmap_level: usize) -> Self {
+        self.max_mipmap_level = self.max_mipmap_level.min(max_mipmap_level);
         self
     }
 
@@ -407,7 +407,7 @@ where
     }
 
     /// Builds a [`Texture3D`].
-    pub fn build(mut self) -> Texture3D<F> {
+    pub fn build(mut self) -> Texture3DBase<F> {
         let (mipmap_base, uploads) = match self.base_source {
             Some(base) => {
                 if !self.mipmap {
@@ -420,11 +420,11 @@ where
             None => (None, self.uploads),
         };
 
-        Texture3D {
+        Texture3DBase {
             width: self.width,
             height: self.height,
             depth: self.depth,
-            max_level: self.max_level,
+            max_mipmap_level: self.max_mipmap_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
             sampler_params: self.sampler_params,
@@ -451,8 +451,8 @@ impl Builder<TextureInternalFormat> {
             width,
             height,
             depth,
-            max_level:
-                <Texture3D<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
+            max_mipmap_level:
+                <Texture3DBase<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -538,8 +538,8 @@ impl Builder<TextureCompressedFormat> {
             width,
             height,
             depth,
-            max_level:
-                <Texture3D<TextureCompressedFormat> as TextureDepth>::max_available_mipmap_level(
+            max_mipmap_level:
+                <Texture3DBase<TextureCompressedFormat> as TextureDepth>::max_available_mipmap_level(
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -597,5 +597,134 @@ impl Builder<TextureCompressedFormat> {
             Some(z_offset),
         ));
         self
+    }
+}
+
+/// A common texture 3d including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+pub enum Texture3D {
+    Uncompressed(Texture3DBase<TextureInternalFormat>),
+    Compressed(Texture3DBase<TextureCompressedFormat>),
+}
+
+impl Texture for Texture3D {
+    fn target(&self) -> TextureTarget {
+        match self {
+            Texture3D::Uncompressed(t) => t.target(),
+            Texture3D::Compressed(t) => t.target(),
+        }
+    }
+
+    fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
+        match self {
+            Texture3D::Uncompressed(t) => t.sampler_parameters(),
+            Texture3D::Compressed(t) => t.sampler_parameters(),
+        }
+    }
+
+    fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
+        match self {
+            Texture3D::Uncompressed(t) => t.texture_parameters(),
+            Texture3D::Compressed(t) => t.texture_parameters(),
+        }
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        match self {
+            Texture3D::Uncompressed(t) => t.max_available_mipmap_level(),
+            Texture3D::Compressed(t) => t.max_available_mipmap_level(),
+        }
+    }
+
+    fn max_mipmap_level(&self) -> usize {
+        match self {
+            Texture3D::Uncompressed(t) => t.max_mipmap_level(),
+            Texture3D::Compressed(t) => t.max_mipmap_level(),
+        }
+    }
+
+    fn bytes_length(&self) -> usize {
+        match self {
+            Texture3D::Uncompressed(t) => t.bytes_length(),
+            Texture3D::Compressed(t) => t.bytes_length(),
+        }
+    }
+
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+        match self {
+            Texture3D::Uncompressed(t) => t.bytes_length_of_level(level),
+            Texture3D::Compressed(t) => t.bytes_length_of_level(level),
+        }
+    }
+}
+
+impl TextureItem for Texture3D {
+    fn runtime(&self) -> Option<&Runtime> {
+        match self {
+            Texture3D::Uncompressed(t) => t.runtime(),
+            Texture3D::Compressed(t) => t.runtime(),
+        }
+    }
+
+    fn runtime_unchecked(&self) -> &Runtime {
+        match self {
+            Texture3D::Uncompressed(t) => t.runtime_unchecked(),
+            Texture3D::Compressed(t) => t.runtime_unchecked(),
+        }
+    }
+
+    fn runtime_mut(&mut self) -> Option<&mut Runtime> {
+        match self {
+            Texture3D::Uncompressed(t) => t.runtime_mut(),
+            Texture3D::Compressed(t) => t.runtime_mut(),
+        }
+    }
+
+    fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
+        match self {
+            Texture3D::Uncompressed(t) => t.runtime_mut_unchecked(),
+            Texture3D::Compressed(t) => t.runtime_mut_unchecked(),
+        }
+    }
+
+    fn set_runtime(&mut self, runtime: Runtime) {
+        match self {
+            Texture3D::Uncompressed(t) => t.set_runtime(runtime),
+            Texture3D::Compressed(t) => t.set_runtime(runtime),
+        }
+    }
+
+    fn remove_runtime(&mut self) -> Option<Runtime> {
+        match self {
+            Texture3D::Uncompressed(t) => t.remove_runtime(),
+            Texture3D::Compressed(t) => t.remove_runtime(),
+        }
+    }
+
+    fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        match self {
+            Texture3D::Uncompressed(t) => t.validate(capabilities),
+            Texture3D::Compressed(t) => t.validate(capabilities),
+        }
+    }
+
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
+        match self {
+            Texture3D::Uncompressed(t) => t.create_texture(gl),
+            Texture3D::Compressed(t) => t.create_texture(gl),
+        }
+    }
+
+    fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        match self {
+            Texture3D::Uncompressed(t) => t.upload(gl),
+            Texture3D::Compressed(t) => t.upload(gl),
+        }
+    }
+
+    fn free(&mut self) -> bool {
+        match self {
+            Texture3D::Uncompressed(t) => t.free(),
+            Texture3D::Compressed(t) => t.free(),
+        }
     }
 }

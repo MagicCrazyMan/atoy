@@ -30,10 +30,10 @@ pub enum MemoryPolicy<F> {
 }
 
 /// A WebGL cube map texture workload.
-pub struct TextureCubeMap<F> {
+pub struct TextureCubeMapBase<F> {
     width: usize,
     height: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
@@ -47,7 +47,7 @@ pub struct TextureCubeMap<F> {
 }
 
 #[allow(private_bounds)]
-impl<F> TextureCubeMap<F>
+impl<F> TextureCubeMapBase<F>
 where
     F: NativeFormat,
 {
@@ -91,7 +91,7 @@ where
     }
 }
 
-impl TextureCubeMap<TextureInternalFormat> {
+impl TextureCubeMapBase<TextureInternalFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -137,7 +137,7 @@ impl TextureCubeMap<TextureInternalFormat> {
     }
 }
 
-impl TextureCubeMap<TextureCompressedFormat> {
+impl TextureCubeMapBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -183,7 +183,7 @@ impl TextureCubeMap<TextureCompressedFormat> {
     }
 }
 
-impl<F> Texture for TextureCubeMap<F>
+impl<F> Texture for TextureCubeMapBase<F>
 where
     F: NativeFormat,
 {
@@ -203,13 +203,13 @@ where
         <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
-    fn max_level(&self) -> usize {
-        self.max_level
+    fn max_mipmap_level(&self) -> usize {
+        self.max_mipmap_level
     }
 
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
-        for level in 0..=self.max_level() {
+        for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             used_memory += self.internal_format.bytes_length(width, height) * 6;
@@ -229,7 +229,7 @@ where
     }
 }
 
-impl<F> TexturePlanar for TextureCubeMap<F>
+impl<F> TexturePlanar for TextureCubeMapBase<F>
 where
     F: NativeFormat,
 {
@@ -242,7 +242,7 @@ where
     }
 }
 
-impl<F> TextureItem for TextureCubeMap<F>
+impl<F> TextureItem for TextureCubeMapBase<F>
 where
     F: NativeFormat,
 {
@@ -280,7 +280,7 @@ where
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, Some(&texture));
         gl.tex_storage_2d(
             WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-            (self.max_level + 1) as i32,
+            (self.max_mipmap_level + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
@@ -339,7 +339,7 @@ pub struct Builder<F> {
     internal_format: F,
     width: usize,
     height: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
     tex_params: HashMap<u32, TextureParameter>,
@@ -361,7 +361,7 @@ where
             internal_format,
             width,
             height,
-            max_level: <TextureCubeMap<F> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level: <TextureCubeMapBase<F> as TexturePlanar>::max_available_mipmap_level(
                 width, height,
             ),
             memory_policy: MemoryPolicy::Unfree,
@@ -383,8 +383,8 @@ where
     }
 
     /// Sets max mipmap level. Max mipmap level is clamped to [`TextureCubeMap::max_available_mipmap_level`].
-    pub fn set_max_level(mut self, max_level: usize) -> Self {
-        self.max_level = self.max_level.min(max_level);
+    pub fn set_max_mipmap_level(mut self, max_mipmap_level: usize) -> Self {
+        self.max_mipmap_level = self.max_mipmap_level.min(max_mipmap_level);
         self
     }
 
@@ -413,7 +413,7 @@ where
     }
 
     /// Builds a [`TextureCubeMap`].
-    pub fn build(mut self) -> TextureCubeMap<F> {
+    pub fn build(mut self) -> TextureCubeMapBase<F> {
         let (mipmap_base, faces) = match self.base_source {
             Some(mut bases) => {
                 if !self.mipmap {
@@ -438,10 +438,10 @@ where
             None => (None, self.faces),
         };
 
-        TextureCubeMap {
+        TextureCubeMapBase {
             width: self.width,
             height: self.height,
-            max_level: self.max_level,
+            max_mipmap_level: self.max_mipmap_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
             sampler_params: self.sampler_params,
@@ -470,8 +470,8 @@ impl Builder<TextureInternalFormat> {
             internal_format,
             width,
             height,
-            max_level:
-                <TextureCubeMap<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level:
+                <TextureCubeMapBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -587,8 +587,8 @@ impl Builder<TextureCompressedFormat> {
             internal_format,
             width,
             height,
-            max_level:
-                <TextureCubeMap<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level:
+                <TextureCubeMapBase<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -692,6 +692,135 @@ impl TextureUploadTarget {
             4 => TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Z,
             5 => TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Z,
             _ => unreachable!(),
+        }
+    }
+}
+
+/// A common texture cube map array including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+pub enum TextureCubeMap {
+    Uncompressed(TextureCubeMapBase<TextureInternalFormat>),
+    Compressed(TextureCubeMapBase<TextureCompressedFormat>),
+}
+
+impl Texture for TextureCubeMap {
+    fn target(&self) -> TextureTarget {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.target(),
+            TextureCubeMap::Compressed(t) => t.target(),
+        }
+    }
+
+    fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.sampler_parameters(),
+            TextureCubeMap::Compressed(t) => t.sampler_parameters(),
+        }
+    }
+
+    fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.texture_parameters(),
+            TextureCubeMap::Compressed(t) => t.texture_parameters(),
+        }
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.max_available_mipmap_level(),
+            TextureCubeMap::Compressed(t) => t.max_available_mipmap_level(),
+        }
+    }
+
+    fn max_mipmap_level(&self) -> usize {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.max_mipmap_level(),
+            TextureCubeMap::Compressed(t) => t.max_mipmap_level(),
+        }
+    }
+
+    fn bytes_length(&self) -> usize {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.bytes_length(),
+            TextureCubeMap::Compressed(t) => t.bytes_length(),
+        }
+    }
+
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.bytes_length_of_level(level),
+            TextureCubeMap::Compressed(t) => t.bytes_length_of_level(level),
+        }
+    }
+}
+
+impl TextureItem for TextureCubeMap {
+    fn runtime(&self) -> Option<&Runtime> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.runtime(),
+            TextureCubeMap::Compressed(t) => t.runtime(),
+        }
+    }
+
+    fn runtime_unchecked(&self) -> &Runtime {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.runtime_unchecked(),
+            TextureCubeMap::Compressed(t) => t.runtime_unchecked(),
+        }
+    }
+
+    fn runtime_mut(&mut self) -> Option<&mut Runtime> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.runtime_mut(),
+            TextureCubeMap::Compressed(t) => t.runtime_mut(),
+        }
+    }
+
+    fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.runtime_mut_unchecked(),
+            TextureCubeMap::Compressed(t) => t.runtime_mut_unchecked(),
+        }
+    }
+
+    fn set_runtime(&mut self, runtime: Runtime) {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.set_runtime(runtime),
+            TextureCubeMap::Compressed(t) => t.set_runtime(runtime),
+        }
+    }
+
+    fn remove_runtime(&mut self) -> Option<Runtime> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.remove_runtime(),
+            TextureCubeMap::Compressed(t) => t.remove_runtime(),
+        }
+    }
+
+    fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.validate(capabilities),
+            TextureCubeMap::Compressed(t) => t.validate(capabilities),
+        }
+    }
+
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.create_texture(gl),
+            TextureCubeMap::Compressed(t) => t.create_texture(gl),
+        }
+    }
+
+    fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.upload(gl),
+            TextureCubeMap::Compressed(t) => t.upload(gl),
+        }
+    }
+
+    fn free(&mut self) -> bool {
+        match self {
+            TextureCubeMap::Uncompressed(t) => t.free(),
+            TextureCubeMap::Compressed(t) => t.free(),
         }
     }
 }

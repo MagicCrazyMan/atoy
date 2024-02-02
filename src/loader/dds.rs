@@ -1,14 +1,24 @@
-use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
+use std::{cell::RefCell, rc::Rc};
+
+use js_sys::Promise;
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{
+    js_sys::{ArrayBuffer, DataView, Uint8Array},
+    Request, RequestInit, Response,
+};
 
 use crate::{
     error::Error,
+    notify::Notifier,
     render::webgl::texture::{
-        texture2d::{Builder, Texture2DBase},
+        texture2d::{Builder, Texture2D, Texture2DBase},
         SamplerParameter, TextureCompressedFormat, TextureParameter, TextureSourceCompressed,
     },
+    window,
 };
 
-use super::Loader;
+use super::{Loader, LoaderStatus};
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
 pub const DDS_DXT1: u32 = 0x31545844;
@@ -153,10 +163,10 @@ pub struct DirectDrawSurface {
 
 impl DirectDrawSurface {
     /// Parses a DirectDraw Surface file from raw data stored in [`ArrayBuffer`].
-    pub fn from_array_buffer(raw: ArrayBuffer) -> Option<Self> {
+    pub fn from_array_buffer(raw: ArrayBuffer) -> Result<Self, Error> {
         // a dds file has at least 128 bytes
         if raw.byte_length() < 128 {
-            return None;
+            return Err(Error::InvalidDirectDrawSurface);
         }
 
         let data_view = DataView::new(&raw, 0, raw.byte_length() as usize);
@@ -164,7 +174,7 @@ impl DirectDrawSurface {
         // parses magic number
         let magic_number = Self::parse_magic_number(&data_view);
         if magic_number != DDS_MAGIC_NUMBER {
-            return None;
+            return Err(Error::InvalidDirectDrawSurface);
         }
 
         // parses header
@@ -178,7 +188,7 @@ impl DirectDrawSurface {
             || !header.ddsd_pixel_format()
             || !header.pixel_format.ddpf_four_cc()
         {
-            return None;
+            return Err(Error::InvalidDirectDrawSurface);
         }
 
         // parses header dxt10
@@ -191,7 +201,7 @@ impl DirectDrawSurface {
             (None, Uint8Array::new_with_byte_offset(&raw, 128))
         };
 
-        Some(Self {
+        Ok(Self {
             magic_number,
             header,
             header_dxt10,
@@ -208,7 +218,7 @@ impl DirectDrawSurface {
         use_srgb: bool,
         read_mipmaps: bool,
         sampler_params: SI,
-        tex_params: TI,
+        texture_params: TI,
     ) -> Option<Texture2DBase<TextureCompressedFormat>>
     where
         SI: IntoIterator<Item = SamplerParameter>,
@@ -230,13 +240,15 @@ impl DirectDrawSurface {
             Some(compressed_format) => {
                 let base_width = self.header.width as usize;
                 let base_height = self.header.height as usize;
+                let levels = self.header.mipmap_count as usize;
+
                 let mut builder = Builder::new(base_width, base_height, compressed_format)
-                    .set_sampler_parameters(sampler_params)
-                    .set_texture_parameters(tex_params);
+                    .set_max_mipmap_level(levels - 1)
+                    .set_texture_parameters(texture_params)
+                    .set_sampler_parameters(sampler_params);
 
                 if read_mipmaps && self.header.ddsd_mipmap_count() {
                     // reads mipmaps
-                    let levels = self.header.mipmap_count as usize;
                     let mut offset = 128usize;
                     for level in 0..levels {
                         let width = (base_width >> level).max(1);
@@ -371,5 +383,246 @@ impl DirectDrawSurface {
             array_size,
             misc_flags2,
         }
+    }
+}
+
+/// An image loader loads image using [`HtmlImageElement`] from a given url.
+pub struct DDSLoader {
+    url: String,
+    status: *mut LoaderStatus,
+    notifier: Rc<RefCell<Notifier<LoaderStatus>>>,
+    dds: *mut Option<DirectDrawSurface>,
+    error: *mut Option<Error>,
+
+    dxt1_use_alpha: bool,
+    use_srgb: bool,
+    read_mipmaps: bool,
+    sampler_params: Vec<SamplerParameter>,
+    texture_params: Vec<TextureParameter>,
+
+    promise: *mut Option<Promise>,
+    promise_resolve: *mut Option<Closure<dyn FnMut(JsValue)>>,
+    promise_reject: *mut Option<Closure<dyn FnMut(JsValue)>>,
+}
+
+impl Drop for DDSLoader {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(self.status));
+            drop(Box::from_raw(self.dds));
+            drop(Box::from_raw(self.error));
+            drop(Box::from_raw(self.promise));
+            drop(Box::from_raw(self.promise_resolve));
+            drop(Box::from_raw(self.promise_reject));
+        }
+    }
+}
+
+impl DDSLoader {
+    /// Constructs a new dds loader.
+    pub fn new<S>(url: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            url: url.into(),
+            status: Box::leak(Box::new(LoaderStatus::Unload)),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
+            dds: Box::leak(Box::new(None)),
+            error: Box::leak(Box::new(None)),
+
+            dxt1_use_alpha: true,
+            use_srgb: true,
+            read_mipmaps: true,
+            sampler_params: Vec::new(),
+            texture_params: Vec::new(),
+
+            promise: Box::leak(Box::new(None)),
+            promise_resolve: Box::leak(Box::new(None)),
+            promise_reject: Box::leak(Box::new(None)),
+        }
+    }
+
+    /// Constructs a new dds loader with parameters.
+    pub fn with_params<S, SI, TI>(
+        url: S,
+        dxt1_use_alpha: bool,
+        use_srgb: bool,
+        read_mipmaps: bool,
+        sampler_params: SI,
+        texture_params: TI,
+    ) -> Self
+    where
+        S: Into<String>,
+        SI: IntoIterator<Item = SamplerParameter>,
+        TI: IntoIterator<Item = TextureParameter>,
+    {
+        Self {
+            url: url.into(),
+            status: Box::leak(Box::new(LoaderStatus::Unload)),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
+            dds: Box::leak(Box::new(None)),
+            error: Box::leak(Box::new(None)),
+
+            dxt1_use_alpha,
+            use_srgb,
+            read_mipmaps,
+            sampler_params: sampler_params.into_iter().collect(),
+            texture_params: texture_params.into_iter().collect(),
+
+            promise: Box::leak(Box::new(None)),
+            promise_resolve: Box::leak(Box::new(None)),
+            promise_reject: Box::leak(Box::new(None)),
+        }
+    }
+
+    async fn fetch_buffer(url: String) -> Result<JsValue, JsValue> {
+        let mut opts = RequestInit::new();
+        opts.method("GET");
+
+        let request = Request::new_with_str_and_init(&url, &opts)?;
+        let response = JsFuture::from(window().fetch_with_request(&request))
+            .await?
+            .dyn_into::<Response>()
+            .unwrap();
+
+        let array_buffer = JsFuture::from(response.array_buffer()?).await?;
+
+        Ok(array_buffer)
+    }
+
+    /// Starts loading image.
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub fn load(&self) {
+        unsafe {
+            if LoaderStatus::Unload != *self.status {
+                return;
+            }
+
+            let status = self.status;
+            let dds = self.dds;
+            let error = self.error;
+
+            let notifier = Rc::downgrade(&self.notifier);
+            *self.promise_resolve = Some(Closure::new(move |array_buffer: JsValue| {
+                match DirectDrawSurface::from_array_buffer(
+                    array_buffer.dyn_into::<ArrayBuffer>().unwrap(),
+                ) {
+                    Ok(parsed) => {
+                        (*status) = LoaderStatus::Loaded;
+                        (*dds) = Some(parsed);
+
+                        if let Some(notifier) = notifier.upgrade() {
+                            notifier.borrow_mut().notify(&*status);
+                        }
+                    }
+                    Err(err) => {
+                        (*status) = LoaderStatus::Errored;
+                        (*error) = Some(err);
+
+                        if let Some(notifier) = notifier.upgrade() {
+                            notifier.borrow_mut().notify(&*status);
+                        }
+                    }
+                }
+            }));
+
+            let notifier = Rc::downgrade(&self.notifier);
+            *self.promise_reject = Some(Closure::new(move |err: JsValue| {
+                (*status) = LoaderStatus::Errored;
+                (*error) = Some(Error::JsError(err.dyn_into::<js_sys::Error>().unwrap()));
+
+                if let Some(notifier) = notifier.upgrade() {
+                    notifier.borrow_mut().notify(&*status);
+                }
+            }));
+
+            (*self.status) = LoaderStatus::Loading;
+
+            let promise =
+                wasm_bindgen_futures::future_to_promise(Self::fetch_buffer(self.url.to_string()));
+            let promise = promise
+                .then(&(*self.promise_resolve).as_ref().unwrap())
+                .catch(&(*self.promise_reject).as_ref().unwrap());
+            (*self.promise) = Some(promise);
+        }
+    }
+
+    /// Starts loading image and puts it into a [`Promise`].
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub fn load_promise(&self) -> Promise {
+        unsafe {
+            self.load();
+            (*self.promise).clone().unwrap()
+        }
+    }
+
+    /// Starts loading image and asynchronous awaiting.
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub async fn load_async(&self) -> Result<&DirectDrawSurface, Error> {
+        unsafe {
+            self.load();
+            match wasm_bindgen_futures::JsFuture::from((*self.promise).clone().unwrap()).await {
+                Ok(_) => Ok((*self.dds).as_ref().unwrap()),
+                Err(_) => Err((*self.error).clone().unwrap()),
+            }
+        }
+    }
+
+    /// Returns [`DirectDrawSurface`] regardless whether successfully loaded or not.
+    pub fn dds(&self) -> Option<&DirectDrawSurface> {
+        unsafe { (*self.dds).as_ref() }
+    }
+
+    /// Returns [`DirectDrawSurface`] if successfully loaded.
+    pub fn loaded_dds(&self) -> Option<&DirectDrawSurface> {
+        unsafe {
+            match &*self.status {
+                LoaderStatus::Unload | LoaderStatus::Loading | LoaderStatus::Errored => None,
+                LoaderStatus::Loaded => (*self.dds).as_ref(),
+            }
+        }
+    }
+
+    /// Returns image source url.
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+}
+
+impl Loader<Texture2D> for DDSLoader {
+    type Error = Error;
+
+    fn status(&self) -> LoaderStatus {
+        unsafe { *self.status }
+    }
+
+    fn load(&mut self) {
+        Self::load(&self);
+    }
+
+    fn loaded(&self) -> Result<Texture2D, Error> {
+        unsafe {
+            if let Some(err) = &*self.error {
+                return Err(err.clone());
+            }
+
+            let dds = (*self.dds).as_ref().unwrap();
+            let texture = dds
+                .texture_2d(
+                    self.dxt1_use_alpha,
+                    self.use_srgb,
+                    self.read_mipmaps,
+                    self.sampler_params.clone(),
+                    self.texture_params.clone(),
+                )
+                .unwrap();
+
+            Ok(Texture2D::Compressed(texture))
+        }
+    }
+
+    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>> {
+        &self.notifier
     }
 }

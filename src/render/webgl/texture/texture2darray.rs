@@ -1,4 +1,4 @@
-use std::{cell::RefCell, iter::FromIterator, rc::Rc};
+use std::iter::FromIterator;
 
 use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
@@ -7,8 +7,8 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     NativeFormat, Runtime, SamplerParameter, Texture, TextureArray, TextureCompressedFormat,
-    TextureDescriptor, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
-    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
+    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -21,11 +21,11 @@ pub enum MemoryPolicy<F> {
 ///
 /// Different from [`WebGl2RenderingContext::TEXTURE_3D`],
 /// a depth value in [`WebGl2RenderingContext::TEXTURE_2D_ARRAY`] refers to the length of array, not a dimensional value.
-pub struct Texture2DArray<F> {
+pub struct Texture2DArrayBase<F> {
     width: usize,
     height: usize,
     array_length: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     internal_format: F,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
@@ -39,7 +39,7 @@ pub struct Texture2DArray<F> {
 }
 
 #[allow(private_bounds)]
-impl<F> Texture2DArray<F>
+impl<F> Texture2DArrayBase<F>
 where
     F: NativeFormat,
 {
@@ -65,9 +65,10 @@ where
     pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
             let bound = utils::texture_binding_2d_array(&runtime.gl);
-            runtime
-                .gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&runtime.texture));
+            runtime.gl.bind_texture(
+                WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+                Some(&runtime.texture),
+            );
             param.tex_parameter(
                 &runtime.gl,
                 TextureTarget::TEXTURE_2D_ARRAY,
@@ -83,7 +84,7 @@ where
     }
 }
 
-impl Texture2DArray<TextureInternalFormat> {
+impl Texture2DArrayBase<TextureInternalFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -130,7 +131,7 @@ impl Texture2DArray<TextureInternalFormat> {
     }
 }
 
-impl Texture2DArray<TextureCompressedFormat> {
+impl Texture2DArrayBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -177,7 +178,7 @@ impl Texture2DArray<TextureCompressedFormat> {
     }
 }
 
-impl<F> Texture for Texture2DArray<F>
+impl<F> Texture for Texture2DArrayBase<F>
 where
     F: NativeFormat,
 {
@@ -197,13 +198,13 @@ where
         <Self as TexturePlanar>::max_available_mipmap_level(self.width, self.height)
     }
 
-    fn max_level(&self) -> usize {
-        self.max_level
+    fn max_mipmap_level(&self) -> usize {
+        self.max_mipmap_level
     }
 
     fn bytes_length(&self) -> usize {
         let mut used_memory = 0;
-        for level in 0..=self.max_level() {
+        for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
             used_memory += self.internal_format.bytes_length(width, height) * self.array_length;
@@ -223,7 +224,7 @@ where
     }
 }
 
-impl<F> TexturePlanar for Texture2DArray<F>
+impl<F> TexturePlanar for Texture2DArrayBase<F>
 where
     F: NativeFormat,
 {
@@ -236,7 +237,7 @@ where
     }
 }
 
-impl<F> TextureArray for Texture2DArray<F>
+impl<F> TextureArray for Texture2DArrayBase<F>
 where
     F: NativeFormat,
 {
@@ -245,7 +246,7 @@ where
     }
 }
 
-impl<F> TextureItem for Texture2DArray<F>
+impl<F> TextureItem for Texture2DArrayBase<F>
 where
     F: NativeFormat,
 {
@@ -283,7 +284,7 @@ where
         gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D_ARRAY, Some(&texture));
         gl.tex_storage_3d(
             WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-            (self.max_level + 1) as i32,
+            (self.max_mipmap_level + 1) as i32,
             self.internal_format.gl_enum(),
             self.width as i32,
             self.height as i32,
@@ -340,7 +341,7 @@ pub struct Builder<F> {
     width: usize,
     height: usize,
     array_length: usize,
-    max_level: usize,
+    max_mipmap_level: usize,
     memory_policy: MemoryPolicy<F>,
     sampler_params: HashMap<u32, SamplerParameter>,
     tex_params: HashMap<u32, TextureParameter>,
@@ -363,7 +364,7 @@ where
             width,
             height,
             array_length,
-            max_level: <Texture2DArray<F> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level: <Texture2DArrayBase<F> as TexturePlanar>::max_available_mipmap_level(
                 width, height,
             ),
             memory_policy: MemoryPolicy::Unfree,
@@ -378,8 +379,8 @@ where
     }
 
     /// Sets max mipmap level. Max mipmap level is clamped to [`Texture2D::max_available_mipmap_level`].
-    pub fn set_max_level(mut self, max_level: usize) -> Self {
-        self.max_level = self.max_level.min(max_level);
+    pub fn set_max_mipmap_level(mut self, max_mipmap_level: usize) -> Self {
+        self.max_mipmap_level = self.max_mipmap_level.min(max_mipmap_level);
         self
     }
 
@@ -408,7 +409,7 @@ where
     }
 
     /// Builds a [`Texture2DArray`].
-    pub fn build(mut self) -> Texture2DArray<F> {
+    pub fn build(mut self) -> Texture2DArrayBase<F> {
         let (mipmap_base, uploads) = match self.base_source {
             Some(base) => {
                 if !self.mipmap {
@@ -421,11 +422,11 @@ where
             None => (None, self.uploads),
         };
 
-        Texture2DArray {
+        Texture2DArrayBase {
             width: self.width,
             height: self.height,
             array_length: self.array_length,
-            max_level: self.max_level,
+            max_mipmap_level: self.max_mipmap_level,
             internal_format: self.internal_format,
             memory_policy: self.memory_policy,
             sampler_params: self.sampler_params,
@@ -452,8 +453,8 @@ impl Builder<TextureInternalFormat> {
             width,
             height,
             array_length,
-            max_level:
-                <Texture2DArray<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level:
+                <Texture2DArrayBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -539,8 +540,8 @@ impl Builder<TextureCompressedFormat> {
             width,
             height,
             array_length,
-            max_level:
-                <Texture2DArray<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
+            max_mipmap_level:
+                <Texture2DArrayBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
                     width, height,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -598,5 +599,134 @@ impl Builder<TextureCompressedFormat> {
             Some(z_offset),
         ));
         self
+    }
+}
+
+/// A common texture 2d array including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+pub enum Texture2DArray {
+    Uncompressed(Texture2DArrayBase<TextureInternalFormat>),
+    Compressed(Texture2DArrayBase<TextureCompressedFormat>),
+}
+
+impl Texture for Texture2DArray {
+    fn target(&self) -> TextureTarget {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.target(),
+            Texture2DArray::Compressed(t) => t.target(),
+        }
+    }
+
+    fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.sampler_parameters(),
+            Texture2DArray::Compressed(t) => t.sampler_parameters(),
+        }
+    }
+
+    fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.texture_parameters(),
+            Texture2DArray::Compressed(t) => t.texture_parameters(),
+        }
+    }
+
+    fn max_available_mipmap_level(&self) -> usize {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.max_available_mipmap_level(),
+            Texture2DArray::Compressed(t) => t.max_available_mipmap_level(),
+        }
+    }
+
+    fn max_mipmap_level(&self) -> usize {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.max_mipmap_level(),
+            Texture2DArray::Compressed(t) => t.max_mipmap_level(),
+        }
+    }
+
+    fn bytes_length(&self) -> usize {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.bytes_length(),
+            Texture2DArray::Compressed(t) => t.bytes_length(),
+        }
+    }
+
+    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.bytes_length_of_level(level),
+            Texture2DArray::Compressed(t) => t.bytes_length_of_level(level),
+        }
+    }
+}
+
+impl TextureItem for Texture2DArray {
+    fn runtime(&self) -> Option<&Runtime> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.runtime(),
+            Texture2DArray::Compressed(t) => t.runtime(),
+        }
+    }
+
+    fn runtime_unchecked(&self) -> &Runtime {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.runtime_unchecked(),
+            Texture2DArray::Compressed(t) => t.runtime_unchecked(),
+        }
+    }
+
+    fn runtime_mut(&mut self) -> Option<&mut Runtime> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.runtime_mut(),
+            Texture2DArray::Compressed(t) => t.runtime_mut(),
+        }
+    }
+
+    fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.runtime_mut_unchecked(),
+            Texture2DArray::Compressed(t) => t.runtime_mut_unchecked(),
+        }
+    }
+
+    fn set_runtime(&mut self, runtime: Runtime) {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.set_runtime(runtime),
+            Texture2DArray::Compressed(t) => t.set_runtime(runtime),
+        }
+    }
+
+    fn remove_runtime(&mut self) -> Option<Runtime> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.remove_runtime(),
+            Texture2DArray::Compressed(t) => t.remove_runtime(),
+        }
+    }
+
+    fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.validate(capabilities),
+            Texture2DArray::Compressed(t) => t.validate(capabilities),
+        }
+    }
+
+    fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.create_texture(gl),
+            Texture2DArray::Compressed(t) => t.create_texture(gl),
+        }
+    }
+
+    fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.upload(gl),
+            Texture2DArray::Compressed(t) => t.upload(gl),
+        }
+    }
+
+    fn free(&mut self) -> bool {
+        match self {
+            Texture2DArray::Uncompressed(t) => t.free(),
+            Texture2DArray::Compressed(t) => t.free(),
+        }
     }
 }

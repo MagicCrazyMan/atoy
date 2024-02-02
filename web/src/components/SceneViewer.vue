@@ -95,11 +95,7 @@ onMounted(async () => {
     },
     (time: number) => {
       pickTime.value = time;
-    },
-    await loadTexture("/wood.png"),
-    await loadCompressedTexture("/wood_dxt3_mipmaps.dds"),
-    // await loadTexture("/sky.jpg"),
-    // await loadCompressedTexture("/sky_dxt3.dds")
+    }
   );
 
   clearColor.value = (() => {

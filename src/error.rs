@@ -10,7 +10,9 @@ pub enum Error {
     PromiseAwaitFailure(Option<String>),
     NoSuchEntity,
     NoSuchGroup,
+    InvalidDirectDrawSurface,
     WebGLRenderError(crate::render::webgl::error::Error),
+    JsError(js_sys::Error),
     CommonError(Option<String>)
 }
 
@@ -28,6 +30,13 @@ impl std::error::Error for Error {}
 impl From<crate::render::webgl::error::Error> for Error {
     fn from(value: crate::render::webgl::error::Error) -> Self {
         Self::WebGLRenderError(value)
+    }
+}
+
+
+impl From<js_sys::Error> for Error {
+    fn from(value: js_sys::Error) -> Self {
+        Self::JsError(value)
     }
 }
 

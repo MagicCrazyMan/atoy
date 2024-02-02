@@ -1,4 +1,4 @@
-use std::{any::Any, borrow::Cow};
+use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 
 use rand::distributions::{Distribution, Standard};
 
@@ -84,7 +84,7 @@ pub trait StandardMaterial: StandardMaterialSource {
     /// Returns an uniform block buffer binding value by an uniform block name.
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
-    fn notifier(&mut self) -> &mut Notifier<()>;
+    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>>;
 
     fn as_any(&self) -> &dyn Any;
 
