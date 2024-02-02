@@ -386,8 +386,8 @@ impl DirectDrawSurface {
     }
 }
 
-/// An image loader loads image using [`HtmlImageElement`] from a given url.
-pub struct DDSLoader {
+/// An texture loader loads texture from DirectDraw Surface file.
+pub struct DirectDrawSurfaceLoader {
     url: String,
     status: *mut LoaderStatus,
     notifier: Rc<RefCell<Notifier<LoaderStatus>>>,
@@ -405,7 +405,7 @@ pub struct DDSLoader {
     promise_reject: *mut Option<Closure<dyn FnMut(JsValue)>>,
 }
 
-impl Drop for DDSLoader {
+impl Drop for DirectDrawSurfaceLoader {
     fn drop(&mut self) {
         unsafe {
             drop(Box::from_raw(self.status));
@@ -418,7 +418,7 @@ impl Drop for DDSLoader {
     }
 }
 
-impl DDSLoader {
+impl DirectDrawSurfaceLoader {
     /// Constructs a new dds loader.
     pub fn new<S>(url: S) -> Self
     where
@@ -590,8 +590,8 @@ impl DDSLoader {
     }
 }
 
-impl Loader<Texture2D> for DDSLoader {
-    type Error = Error;
+impl Loader<Texture2D> for DirectDrawSurfaceLoader {
+    type Failure = Error;
 
     fn status(&self) -> LoaderStatus {
         unsafe { *self.status }

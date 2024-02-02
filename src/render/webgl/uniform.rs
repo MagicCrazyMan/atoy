@@ -5,7 +5,7 @@ use super::{
     texture::{
         texture2d::Texture2D, texture2darray::Texture2DArrayBase, texture3d::Texture3DBase,
         texture_cubemap::TextureCubeMapBase, TextureCompressedFormat, TextureDescriptor,
-        TextureInternalFormat, TextureUnit,
+        TextureColorFormat, TextureUnit,
     },
 };
 
@@ -54,7 +54,7 @@ pub enum UniformValue {
         unit: TextureUnit,
     },
     Texture3D {
-        descriptor: TextureDescriptor<Texture3DBase<TextureInternalFormat>>,
+        descriptor: TextureDescriptor<Texture3DBase<TextureColorFormat>>,
         unit: TextureUnit,
     },
     Texture3DCompressed {
@@ -62,7 +62,7 @@ pub enum UniformValue {
         unit: TextureUnit,
     },
     Texture2DArray {
-        descriptor: TextureDescriptor<Texture2DArrayBase<TextureInternalFormat>>,
+        descriptor: TextureDescriptor<Texture2DArrayBase<TextureColorFormat>>,
         unit: TextureUnit,
     },
     Texture2DArrayCompressed {
@@ -70,7 +70,7 @@ pub enum UniformValue {
         unit: TextureUnit,
     },
     TextureCubeMap {
-        descriptor: TextureDescriptor<TextureCubeMapBase<TextureInternalFormat>>,
+        descriptor: TextureDescriptor<TextureCubeMapBase<TextureColorFormat>>,
         unit: TextureUnit,
     },
     TextureCubeMapCompressed {

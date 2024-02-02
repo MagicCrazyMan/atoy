@@ -26,7 +26,7 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
-    albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Error = Error>>>,
+    albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
     albedo: Rc<RefCell<Option<UniformValue>>>,
 
     notifier: Rc<RefCell<Notifier<()>>>,
@@ -35,7 +35,7 @@ pub struct TextureMaterial {
 impl TextureMaterial {
     pub fn from_loaders<A>(albedo: A, transparency: Transparency) -> Self
     where
-        A: Loader<Texture2D, Error = Error> + 'static,
+        A: Loader<Texture2D, Failure = Error> + 'static,
     {
         Self {
             transparency,
@@ -50,7 +50,7 @@ impl TextureMaterial {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             struct UpdateAlbedo {
-                loader: Weak<RefCell<dyn Loader<Texture2D, Error = Error>>>,
+                loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
                 albedo: Weak<RefCell<Option<UniformValue>>>,
                 notifier: Weak<RefCell<Notifier<()>>>,
             }

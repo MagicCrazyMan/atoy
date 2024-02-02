@@ -12,7 +12,7 @@ use super::{
     conversion::ToGlEnum,
     error::Error,
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TextureDataType, TextureFormat, TextureInternalFormat},
+    texture::{TextureDataType, TextureFormat, TextureColorFormat},
     utils::{renderbuffer_binding, texture_binding_2d},
 };
 
@@ -288,7 +288,7 @@ impl ClearPolicy {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttachmentProvider {
     FromNewTexture {
-        internal_format: TextureInternalFormat,
+        internal_format: TextureColorFormat,
         clear_policy: Option<ClearPolicy>,
     },
     FromExistingTexture {
@@ -306,7 +306,7 @@ pub enum AttachmentProvider {
 }
 
 impl AttachmentProvider {
-    pub fn new_texture(internal_format: TextureInternalFormat) -> Self {
+    pub fn new_texture(internal_format: TextureColorFormat) -> Self {
         Self::FromNewTexture {
             internal_format,
             clear_policy: None,
@@ -335,7 +335,7 @@ impl AttachmentProvider {
     }
 
     pub fn new_texture_with_clear_policy(
-        internal_format: TextureInternalFormat,
+        internal_format: TextureColorFormat,
         clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNewTexture {

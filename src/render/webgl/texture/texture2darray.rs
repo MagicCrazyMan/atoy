@@ -6,9 +6,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    NativeFormat, Runtime, SamplerParameter, Texture, TextureArray, TextureCompressedFormat,
-    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
+    Runtime, SamplerParameter, Texture, TextureArray, TextureColorFormat, TextureCompressedFormat,
+    TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -41,7 +41,7 @@ pub struct Texture2DArrayBase<F> {
 #[allow(private_bounds)]
 impl<F> Texture2DArrayBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Returns internal format.
     pub fn internal_format(&self) -> F {
@@ -84,7 +84,7 @@ where
     }
 }
 
-impl Texture2DArrayBase<TextureInternalFormat> {
+impl Texture2DArrayBase<TextureColorFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -92,7 +92,7 @@ impl Texture2DArrayBase<TextureInternalFormat> {
         level: usize,
         array_length: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(UploadItem::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params(
             source,
             Some(level),
             Some(array_length),
@@ -117,7 +117,7 @@ impl Texture2DArrayBase<TextureInternalFormat> {
         y_offset: usize,
         z_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(UploadItem::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params(
             source,
             Some(level),
             Some(array_length),
@@ -180,7 +180,7 @@ impl Texture2DArrayBase<TextureCompressedFormat> {
 
 impl<F> Texture for Texture2DArrayBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_2D_ARRAY
@@ -226,7 +226,7 @@ where
 
 impl<F> TexturePlanar for Texture2DArrayBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn width(&self) -> usize {
         self.width
@@ -239,7 +239,7 @@ where
 
 impl<F> TextureArray for Texture2DArrayBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn array_length(&self) -> usize {
         self.array_length
@@ -248,7 +248,7 @@ where
 
 impl<F> TextureItem for Texture2DArrayBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
@@ -355,7 +355,7 @@ pub struct Builder<F> {
 #[allow(private_bounds)]
 impl<F> Builder<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Initializes a new builder with specified width, height and internal format.
     pub fn new(width: usize, height: usize, array_length: usize, internal_format: F) -> Self {
@@ -438,44 +438,98 @@ where
     }
 }
 
-impl Builder<TextureInternalFormat> {
-    /// Initializes a new builder from an existing [`TextureSource`] and [`TextureInternalFormat`].
-    /// Beside, a array length is also required.
-    pub fn with_base_source(
-        array_length: usize,
-        base_source: TextureSource,
-        internal_format: TextureInternalFormat,
-    ) -> Self {
-        let width = base_source.width();
-        let height = base_source.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            array_length,
-            max_mipmap_level:
-                <Texture2DArrayBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
-                    width, height,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
+macro_rules! builder_concrete {
+    ($(($f:ident, $s:ident, $u:ident, $w:ident))+) => {
+        $(
 
-            base_source: Some(UploadItem::new_uncompressed(base_source)),
-            uploads: Vec::new(),
+            impl Builder<$f> {
+                /// Initializes a new builder from an existing texture source.
+                pub fn with_base_source(
+                    array_length: usize,
+                    base_source: $s,
+                    internal_format: $f,
+                ) -> Self {
+                    let width = base_source.width();
+                    let height = base_source.height();
+                    Self {
+                        internal_format,
+                        width,
+                        height,
+                        array_length,
+                        max_mipmap_level:
+                            <Texture2DArrayBase<$f> as TexturePlanar>::max_available_mipmap_level(
+                                width, height,
+                            ),
+                        memory_policy: MemoryPolicy::Unfree,
+                        sampler_params: HashMap::new(),
+                        tex_params: HashMap::new(),
 
-            mipmap: false,
-        }
-    }
+                        base_source: Some(UploadItem::$u(base_source)),
+                        uploads: Vec::new(),
 
-    /// Sets the source in level 0.
-    pub fn set_base_source(mut self, base: TextureSource) -> Self {
-        self.base_source = Some(UploadItem::new_uncompressed(base));
-        self
-    }
+                        mipmap: false,
+                    }
+                }
 
+                /// Sets the source in level 0.
+                pub fn set_base_source(mut self, base: $s) -> Self {
+                    self.base_source = Some(UploadItem::$u(base));
+                    self
+                }
+
+                /// Uploads a new source to texture.
+                pub fn tex_image(mut self, source: $s, level: usize) -> Self {
+                    self.uploads.push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ));
+                    self
+                }
+
+                /// Uploads a new source for a sub-rectangle of the texture.
+                pub fn tex_sub_image(
+                    mut self,
+                    source: $s,
+                    level: usize,
+                    array_length: usize,
+                    width: usize,
+                    height: usize,
+                    x_offset: usize,
+                    y_offset: usize,
+                    z_offset: usize,
+                ) -> Self {
+                    self.uploads.push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        Some(array_length),
+                        Some(width),
+                        Some(height),
+                        Some(x_offset),
+                        Some(y_offset),
+                        Some(z_offset),
+                    ));
+                    self
+                }
+            }
+        )+
+    };
+}
+
+builder_concrete! {
+    (TextureColorFormat, TextureSource, new, with_params)
+    (TextureDepthFormat, TextureSource, new, with_params)
+    (TextureCompressedFormat, TextureSourceCompressed, new_compressed, with_params_compressed)
+}
+
+impl Builder<TextureColorFormat> {
     /// Enable automatic mipmap generation.
-    /// Available only when internal format is one kind of [`TextureInternalFormat`](super::TextureInternalFormat)
+    /// Available only when internal format is one kind of [`TextureColorFormat`](super::TextureColorFormat)
     /// and base source is set.
     ///
     /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
@@ -483,128 +537,11 @@ impl Builder<TextureInternalFormat> {
         self.mipmap = true;
         self
     }
-
-    /// Uploads a new source to texture.
-    pub fn tex_image(mut self, source: TextureSource, level: usize) -> Self {
-        self.uploads.push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new source for a sub-rectangle of the texture.
-    pub fn tex_sub_image(
-        mut self,
-        source: TextureSource,
-        level: usize,
-        array_length: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Self {
-        self.uploads.push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            Some(array_length),
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            Some(z_offset),
-        ));
-        self
-    }
 }
 
-impl Builder<TextureCompressedFormat> {
-    /// Initializes a new builder from an existing [`TextureSourceCompressed`] and [`TextureCompressedFormat`].
-    /// Beside, a array length is also required.
-    pub fn with_base_source(
-        array_length: usize,
-        base_source: TextureSourceCompressed,
-        internal_format: TextureCompressedFormat,
-    ) -> Self {
-        let width = base_source.width();
-        let height = base_source.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            array_length,
-            max_mipmap_level:
-                <Texture2DArrayBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
-                    width, height,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
-
-            base_source: Some(UploadItem::new_compressed(base_source)),
-            uploads: Vec::new(),
-
-            mipmap: false,
-        }
-    }
-
-    /// Sets the source in level 0.
-    pub fn set_base_source(mut self, base_source: TextureSourceCompressed) -> Self {
-        self.base_source = Some(UploadItem::new_compressed(base_source));
-        self
-    }
-
-    /// Uploads a new image to texture.
-    pub fn tex_image(mut self, source: TextureSourceCompressed, level: usize) -> Self {
-        self.uploads.push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new image for a sub-rectangle of the texture.
-    pub fn tex_sub_image(
-        mut self,
-        source: TextureSourceCompressed,
-        level: usize,
-        depth: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Self {
-        self.uploads.push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            Some(depth),
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            Some(z_offset),
-        ));
-        self
-    }
-}
-
-/// A common texture 2d array including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+/// A common texture 2d array including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
 pub enum Texture2DArray {
-    Uncompressed(Texture2DArrayBase<TextureInternalFormat>),
+    Uncompressed(Texture2DArrayBase<TextureColorFormat>),
     Compressed(Texture2DArrayBase<TextureCompressedFormat>),
 }
 

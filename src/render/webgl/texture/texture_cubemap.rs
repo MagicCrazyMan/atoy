@@ -6,9 +6,9 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat,
-    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
+    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat,
+    TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Cube map faces.
@@ -49,7 +49,7 @@ pub struct TextureCubeMapBase<F> {
 #[allow(private_bounds)]
 impl<F> TextureCubeMapBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Returns internal format.
     pub fn internal_format(&self) -> F {
@@ -73,9 +73,10 @@ where
     pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
             let bound = utils::texture_binding_cube_map(&runtime.gl);
-            runtime
-                .gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, Some(&runtime.texture));
+            runtime.gl.bind_texture(
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP,
+                Some(&runtime.texture),
+            );
             param.tex_parameter(
                 &runtime.gl,
                 TextureTarget::TEXTURE_CUBE_MAP,
@@ -91,7 +92,7 @@ where
     }
 }
 
-impl TextureCubeMapBase<TextureInternalFormat> {
+impl TextureCubeMapBase<TextureColorFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -99,7 +100,7 @@ impl TextureCubeMapBase<TextureInternalFormat> {
         source: TextureSource,
         level: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(UploadItem::with_params_uncompressed(
+        self.faces[face as usize].push(UploadItem::with_params(
             source,
             Some(level),
             None,
@@ -123,7 +124,7 @@ impl TextureCubeMapBase<TextureInternalFormat> {
         x_offset: usize,
         y_offset: usize,
     ) -> Result<(), Error> {
-        self.faces[face as usize].push(UploadItem::with_params_uncompressed(
+        self.faces[face as usize].push(UploadItem::with_params(
             source,
             Some(level),
             None,
@@ -185,7 +186,7 @@ impl TextureCubeMapBase<TextureCompressedFormat> {
 
 impl<F> Texture for TextureCubeMapBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_CUBE_MAP
@@ -231,7 +232,7 @@ where
 
 impl<F> TexturePlanar for TextureCubeMapBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn width(&self) -> usize {
         self.width
@@ -244,7 +245,7 @@ where
 
 impl<F> TextureItem for TextureCubeMapBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
@@ -353,7 +354,7 @@ pub struct Builder<F> {
 #[allow(private_bounds)]
 impl<F> Builder<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Initializes a new builder with specified width, height and internal format.
     pub fn new(width: usize, height: usize, internal_format: F) -> Self {
@@ -453,231 +454,134 @@ where
     }
 }
 
-impl Builder<TextureInternalFormat> {
-    /// Initializes a new builder from existing [`TextureSource`]s of each face and [`TextureInternalFormat`].
-    pub fn with_base_source(
-        positive_x: TextureSource,
-        negative_x: TextureSource,
-        positive_y: TextureSource,
-        negative_y: TextureSource,
-        positive_z: TextureSource,
-        negative_z: TextureSource,
-        internal_format: TextureInternalFormat,
-    ) -> Self {
-        let width = positive_x.width();
-        let height = positive_x.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            max_mipmap_level:
-                <TextureCubeMapBase<TextureInternalFormat> as TexturePlanar>::max_available_mipmap_level(
-                    width, height,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
+macro_rules! builder_concrete {
+    ($(($f:ident, $s:ident, $u:ident, $w:ident))+) => {
+        $(
 
-            base_source: Some([
-                Some(UploadItem::new_uncompressed(positive_x)),
-                Some(UploadItem::new_uncompressed(negative_x)),
-                Some(UploadItem::new_uncompressed(positive_y)),
-                Some(UploadItem::new_uncompressed(negative_y)),
-                Some(UploadItem::new_uncompressed(positive_z)),
-                Some(UploadItem::new_uncompressed(negative_z)),
-            ]),
-            faces: [
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            ],
+            impl Builder<$f> {
+                /// Initializes a new builder from an existing texture source.
+                pub fn with_base_sources(
+                    positive_x: $s,
+                    negative_x: $s,
+                    positive_y: $s,
+                    negative_y: $s,
+                    positive_z: $s,
+                    negative_z: $s,
+                    internal_format: $f,
+                ) -> Self {
+                    let width = positive_x.width();
+                    let height = positive_x.height();
+                    Self {
+                        internal_format,
+                        width,
+                        height,
+                        max_mipmap_level:
+                            <TextureCubeMapBase<$f> as TexturePlanar>::max_available_mipmap_level(
+                                width, height
+                            ),
+                        memory_policy: MemoryPolicy::Unfree,
+                        sampler_params: HashMap::new(),
+                        tex_params: HashMap::new(),
 
-            mipmap: false,
-        }
-    }
+                        base_source: Some([
+                            Some(UploadItem::$u(positive_x)),
+                            Some(UploadItem::$u(negative_x)),
+                            Some(UploadItem::$u(positive_y)),
+                            Some(UploadItem::$u(negative_y)),
+                            Some(UploadItem::$u(positive_z)),
+                            Some(UploadItem::$u(negative_z)),
+                        ]),
+                        faces: [
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                            Vec::new(),
+                        ],
 
-    /// Sets the sources of each face in level 0.
-    pub fn set_base_source(
-        mut self,
-        positive_x: TextureSource,
-        negative_x: TextureSource,
-        positive_y: TextureSource,
-        negative_y: TextureSource,
-        positive_z: TextureSource,
-        negative_z: TextureSource,
-    ) -> Self {
-        self.base_source = Some([
-            Some(UploadItem::new_uncompressed(positive_x)),
-            Some(UploadItem::new_uncompressed(negative_x)),
-            Some(UploadItem::new_uncompressed(positive_y)),
-            Some(UploadItem::new_uncompressed(negative_y)),
-            Some(UploadItem::new_uncompressed(positive_z)),
-            Some(UploadItem::new_uncompressed(negative_z)),
-        ]);
-        self
-    }
+                        mipmap: false,
+                    }
+                }
 
+                /// Sets the source in level 0.
+                pub fn set_base_source(
+                    mut self,
+                    positive_x: $s,
+                    negative_x: $s,
+                    positive_y: $s,
+                    negative_y: $s,
+                    positive_z: $s,
+                    negative_z: $s,
+                ) -> Self {
+                    self.base_source = Some([
+                        Some(UploadItem::$u(positive_x)),
+                        Some(UploadItem::$u(negative_x)),
+                        Some(UploadItem::$u(positive_y)),
+                        Some(UploadItem::$u(negative_y)),
+                        Some(UploadItem::$u(positive_z)),
+                        Some(UploadItem::$u(negative_z)),
+                    ]);
+                    self
+                }
+
+                /// Uploads a new source to texture.
+                pub fn tex_image(mut self, face: CubeMapFace, source: $s, level: usize) -> Self {
+                    self.faces[face as usize].push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ));
+                    self
+                }
+
+                /// Uploads a new source for a sub-rectangle of the texture.
+                pub fn tex_sub_image(
+                    mut self,
+                    face: CubeMapFace,
+                    source: $s,
+                    level: usize,
+                    width: usize,
+                    height: usize,
+                    x_offset: usize,
+                    y_offset: usize,
+                ) -> Self {
+                    self.faces[face as usize].push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        None,
+                        Some(width),
+                        Some(height),
+                        Some(x_offset),
+                        Some(y_offset),
+                        None,
+                    ));
+                    self
+                }
+            }
+        )+
+    };
+}
+
+builder_concrete! {
+    (TextureColorFormat, TextureSource, new, with_params)
+    (TextureDepthFormat, TextureSource, new, with_params)
+    (TextureCompressedFormat, TextureSourceCompressed, new_compressed, with_params_compressed)
+}
+
+impl Builder<TextureColorFormat> {
     /// Enable automatic mipmap generation.
-    /// Available only when internal format is one kind of [`TextureInternalFormat`](super::TextureInternalFormat)
+    /// Available only when internal format is one kind of [`TextureColorFormat`](super::TextureColorFormat)
     /// and base source is set.
     ///
     /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
     pub fn generate_mipmap(mut self) -> Self {
         self.mipmap = true;
-        self
-    }
-
-    /// Uploads a new source to a specified cube map face.
-    pub fn tex_image(mut self, face: CubeMapFace, source: TextureSource, level: usize) -> Self {
-        self.faces[face as usize].push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new source for a sub-rectangle to a specified cube map face.
-    pub fn tex_sub_image(
-        mut self,
-        face: CubeMapFace,
-        source: TextureSource,
-        level: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Self {
-        self.faces[face as usize].push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            None,
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            None,
-        ));
-        self
-    }
-}
-
-impl Builder<TextureCompressedFormat> {
-    /// Initializes a new builder from an existing [`TextureSourceCompressed`] and [`TextureCompressedFormat`].
-    pub fn with_base_source(
-        positive_x: TextureSourceCompressed,
-        negative_x: TextureSourceCompressed,
-        positive_y: TextureSourceCompressed,
-        negative_y: TextureSourceCompressed,
-        positive_z: TextureSourceCompressed,
-        negative_z: TextureSourceCompressed,
-        internal_format: TextureCompressedFormat,
-    ) -> Self {
-        let width = positive_x.width();
-        let height = positive_x.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            max_mipmap_level:
-                <TextureCubeMapBase<TextureCompressedFormat> as TexturePlanar>::max_available_mipmap_level(
-                    width, height,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
-
-            base_source: Some([
-                Some(UploadItem::new_compressed(positive_x)),
-                Some(UploadItem::new_compressed(negative_x)),
-                Some(UploadItem::new_compressed(positive_y)),
-                Some(UploadItem::new_compressed(negative_y)),
-                Some(UploadItem::new_compressed(positive_z)),
-                Some(UploadItem::new_compressed(negative_z)),
-            ]),
-            faces: [
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            ],
-
-            mipmap: false,
-        }
-    }
-
-    /// Sets the source in level 0.
-    pub fn set_base_source(
-        mut self,
-        positive_x: TextureSourceCompressed,
-        negative_x: TextureSourceCompressed,
-        positive_y: TextureSourceCompressed,
-        negative_y: TextureSourceCompressed,
-        positive_z: TextureSourceCompressed,
-        negative_z: TextureSourceCompressed,
-    ) -> Self {
-        self.base_source = Some([
-            Some(UploadItem::new_compressed(positive_x)),
-            Some(UploadItem::new_compressed(negative_x)),
-            Some(UploadItem::new_compressed(positive_y)),
-            Some(UploadItem::new_compressed(negative_y)),
-            Some(UploadItem::new_compressed(positive_z)),
-            Some(UploadItem::new_compressed(negative_z)),
-        ]);
-        self
-    }
-
-    /// Uploads a new source to a specified cube map face.
-    pub fn tex_image(
-        mut self,
-        face: CubeMapFace,
-        source: TextureSourceCompressed,
-        level: usize,
-    ) -> Self {
-        self.faces[face as usize].push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new source for a sub-rectangle to a specified cube map face.
-    pub fn tex_sub_image(
-        mut self,
-        face: CubeMapFace,
-        source: TextureSourceCompressed,
-        level: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-    ) -> Self {
-        self.faces[face as usize].push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            None,
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            None,
-        ));
         self
     }
 }
@@ -696,9 +600,9 @@ impl TextureUploadTarget {
     }
 }
 
-/// A common texture cube map array including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+/// A common texture cube map array including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
 pub enum TextureCubeMap {
-    Uncompressed(TextureCubeMapBase<TextureInternalFormat>),
+    Uncompressed(TextureCubeMapBase<TextureColorFormat>),
     Compressed(TextureCubeMapBase<TextureCompressedFormat>),
 }
 

@@ -5,7 +5,7 @@ use web_sys::{WebGl2RenderingContext, WebGlSampler, WebglDebugShaders, WebglLose
 
 use super::{
     error::Error,
-    texture::{TextureCompressedFormat, TextureInternalFormat, TextureUnit},
+    texture::{TextureCompressedFormat, TextureColorFormat, TextureUnit},
 };
 
 struct Inner {
@@ -254,16 +254,16 @@ impl Capabilities {
 
     pub fn verify_internal_format_uncompressed(
         &self,
-        internal_format: TextureInternalFormat,
+        internal_format: TextureColorFormat,
     ) -> Result<(), Error> {
         match internal_format {
-            TextureInternalFormat::R16F
-            | TextureInternalFormat::RG16F
-            | TextureInternalFormat::RGBA16F
-            | TextureInternalFormat::R32F
-            | TextureInternalFormat::RG32F
-            | TextureInternalFormat::RGBA32F
-            | TextureInternalFormat::R11F_G11F_B10F => {
+            TextureColorFormat::R16F
+            | TextureColorFormat::RG16F
+            | TextureColorFormat::RGBA16F
+            | TextureColorFormat::R32F
+            | TextureColorFormat::RG32F
+            | TextureColorFormat::RGBA32F
+            | TextureColorFormat::R11F_G11F_B10F => {
                 if self.color_buffer_float_supported() {
                     Ok(())
                 } else {

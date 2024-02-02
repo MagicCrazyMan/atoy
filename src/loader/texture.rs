@@ -9,7 +9,7 @@ use crate::{
     notify::Notifier,
     render::webgl::texture::{
         texture2d::{self, Texture2D},
-        SamplerParameter, TextureDataType, TextureFormat, TextureInternalFormat, TextureParameter,
+        SamplerParameter, TextureDataType, TextureFormat, TextureColorFormat, TextureParameter,
         TexturePixelStorage, TextureSource,
     },
 };
@@ -362,7 +362,7 @@ impl TextureLoader {
 }
 
 impl Loader<Texture2D> for TextureLoader {
-    type Error = Error;
+    type Failure = Error;
 
     fn status(&self) -> LoaderStatus {
         unsafe { *self.status }
@@ -379,14 +379,14 @@ impl Loader<Texture2D> for TextureLoader {
             }
 
             let image = (*self.image).as_ref().unwrap();
-            let mut builder = texture2d::Builder::<TextureInternalFormat>::with_base_source(
+            let mut builder = texture2d::Builder::<TextureColorFormat>::with_base_source(
                 TextureSource::HtmlImageElement {
                     data: image.clone(),
                     format: TextureFormat::RGBA,
                     data_type: TextureDataType::UNSIGNED_BYTE,
                     pixel_storages: self.pixel_storages.clone(),
                 },
-                TextureInternalFormat::RGBA8,
+                TextureColorFormat::RGBA8,
             )
             .set_sampler_parameters(self.sampler_params.clone())
             .set_texture_parameters(self.texture_params.clone());
@@ -394,7 +394,7 @@ impl Loader<Texture2D> for TextureLoader {
                 builder = builder.generate_mipmap();
             }
 
-            Ok(Texture2D::Uncompressed(builder.build()))
+            Ok(Texture2D::Color(builder.build()))
         }
     }
 

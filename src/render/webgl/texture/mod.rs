@@ -180,10 +180,10 @@ pub enum TextureDataType {
     FLOAT_32_UNSIGNED_INT_24_8_REV,
 }
 
-/// Available texture uncompressed internal formats mapped from [`WebGl2RenderingContext`].
+/// Available texture color internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureInternalFormat {
+pub enum TextureColorFormat {
     RGBA32I,
     RGBA32UI,
     RGBA16I,
@@ -240,6 +240,69 @@ pub enum TextureInternalFormat {
     /// Color renderable when extension EXT_color_buffer_float is enabled.
     R16F,
     R8_SNORM,
+}
+
+impl TextureColorFormat {
+    /// Calculates the bytes length of of a specified internal format in specified size.
+    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
+        match self {
+            TextureColorFormat::RGBA32I => width * height * 16,
+            TextureColorFormat::RGBA32UI => width * height * 16,
+            TextureColorFormat::RGBA16I => width * height * 4,
+            TextureColorFormat::RGBA16UI => width * height * 4,
+            TextureColorFormat::RGBA8 => width * height * 4,
+            TextureColorFormat::RGBA8I => width * height * 4,
+            TextureColorFormat::RGBA8UI => width * height * 4,
+            TextureColorFormat::SRGB8_ALPHA8 => width * height * 4,
+            TextureColorFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureColorFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
+            TextureColorFormat::RGBA4 => width * height * 2,
+            TextureColorFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
+            TextureColorFormat::RGB8 => width * height * 3,
+            TextureColorFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
+            TextureColorFormat::RG32I => width * height * 4,
+            TextureColorFormat::RG32UI => width * height * 4,
+            TextureColorFormat::RG16I => width * height * 4,
+            TextureColorFormat::RG16UI => width * height * 4,
+            TextureColorFormat::RG8 => width * height * 2,
+            TextureColorFormat::RG8I => width * height * 2,
+            TextureColorFormat::RG8UI => width * height * 2,
+            TextureColorFormat::R32I => width * height * 4,
+            TextureColorFormat::R32UI => width * height * 4,
+            TextureColorFormat::R16I => width * height * 2,
+            TextureColorFormat::R16UI => width * height * 2,
+            TextureColorFormat::R8 => width * height * 1,
+            TextureColorFormat::R8I => width * height * 1,
+            TextureColorFormat::R8UI => width * height * 1,
+            TextureColorFormat::RGBA32F => width * height * 16,
+            TextureColorFormat::RGBA16F => width * height * 4,
+            TextureColorFormat::RGBA8_SNORM => width * height * 4,
+            TextureColorFormat::RGB32F => width * height * 12,
+            TextureColorFormat::RGB32I => width * height * 12,
+            TextureColorFormat::RGB32UI => width * height * 12,
+            TextureColorFormat::RGB16F => width * height * 6,
+            TextureColorFormat::RGB16I => width * height * 6,
+            TextureColorFormat::RGB16UI => width * height * 6,
+            TextureColorFormat::RGB8_SNORM => width * height * 3,
+            TextureColorFormat::RGB8I => width * height * 3,
+            TextureColorFormat::RGB8UI => width * height * 3,
+            TextureColorFormat::SRGB8 => width * height * 3,
+            TextureColorFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
+            TextureColorFormat::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
+            TextureColorFormat::RG32F => width * height * 4,
+            TextureColorFormat::RG16F => width * height * 4,
+            TextureColorFormat::RG8_SNORM => width * height * 2,
+            TextureColorFormat::R32F => width * height * 4,
+            TextureColorFormat::R16F => width * height * 2,
+            TextureColorFormat::R8_SNORM => width * height * 1,
+        }
+    }
+}
+
+/// Available texture depth internal formats mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureDepthFormat {
     DEPTH_COMPONENT32F,
     DEPTH_COMPONENT24,
     DEPTH_COMPONENT16,
@@ -247,69 +310,20 @@ pub enum TextureInternalFormat {
     DEPTH24_STENCIL8,
 }
 
-impl TextureInternalFormat {
+impl TextureDepthFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn bytes_length(&self, width: usize, height: usize) -> usize {
         match self {
-            TextureInternalFormat::RGBA32I => width * height * 16,
-            TextureInternalFormat::RGBA32UI => width * height * 16,
-            TextureInternalFormat::RGBA16I => width * height * 4,
-            TextureInternalFormat::RGBA16UI => width * height * 4,
-            TextureInternalFormat::RGBA8 => width * height * 4,
-            TextureInternalFormat::RGBA8I => width * height * 4,
-            TextureInternalFormat::RGBA8UI => width * height * 4,
-            TextureInternalFormat::SRGB8_ALPHA8 => width * height * 4,
-            TextureInternalFormat::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            TextureInternalFormat::RGBA4 => width * height * 2,
-            TextureInternalFormat::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
-            TextureInternalFormat::RGB8 => width * height * 3,
-            TextureInternalFormat::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
-            TextureInternalFormat::RG32I => width * height * 4,
-            TextureInternalFormat::RG32UI => width * height * 4,
-            TextureInternalFormat::RG16I => width * height * 4,
-            TextureInternalFormat::RG16UI => width * height * 4,
-            TextureInternalFormat::RG8 => width * height * 2,
-            TextureInternalFormat::RG8I => width * height * 2,
-            TextureInternalFormat::RG8UI => width * height * 2,
-            TextureInternalFormat::R32I => width * height * 4,
-            TextureInternalFormat::R32UI => width * height * 4,
-            TextureInternalFormat::R16I => width * height * 2,
-            TextureInternalFormat::R16UI => width * height * 2,
-            TextureInternalFormat::R8 => width * height * 1,
-            TextureInternalFormat::R8I => width * height * 1,
-            TextureInternalFormat::R8UI => width * height * 1,
-            TextureInternalFormat::RGBA32F => width * height * 16,
-            TextureInternalFormat::RGBA16F => width * height * 4,
-            TextureInternalFormat::RGBA8_SNORM => width * height * 4,
-            TextureInternalFormat::RGB32F => width * height * 12,
-            TextureInternalFormat::RGB32I => width * height * 12,
-            TextureInternalFormat::RGB32UI => width * height * 12,
-            TextureInternalFormat::RGB16F => width * height * 6,
-            TextureInternalFormat::RGB16I => width * height * 6,
-            TextureInternalFormat::RGB16UI => width * height * 6,
-            TextureInternalFormat::RGB8_SNORM => width * height * 3,
-            TextureInternalFormat::RGB8I => width * height * 3,
-            TextureInternalFormat::RGB8UI => width * height * 3,
-            TextureInternalFormat::SRGB8 => width * height * 3,
-            TextureInternalFormat::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
-            TextureInternalFormat::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
-            TextureInternalFormat::RG32F => width * height * 4,
-            TextureInternalFormat::RG16F => width * height * 4,
-            TextureInternalFormat::RG8_SNORM => width * height * 2,
-            TextureInternalFormat::R32F => width * height * 4,
-            TextureInternalFormat::R16F => width * height * 2,
-            TextureInternalFormat::R8_SNORM => width * height * 1,
-            TextureInternalFormat::DEPTH_COMPONENT32F => width * height * 4,
-            TextureInternalFormat::DEPTH_COMPONENT24 => width * height * 3,
-            TextureInternalFormat::DEPTH_COMPONENT16 => width * height * 2,
-            TextureInternalFormat::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
-            TextureInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
+            TextureDepthFormat::DEPTH_COMPONENT32F => width * height * 4,
+            TextureDepthFormat::DEPTH_COMPONENT24 => width * height * 3,
+            TextureDepthFormat::DEPTH_COMPONENT16 => width * height * 2,
+            TextureDepthFormat::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
+            TextureDepthFormat::DEPTH24_STENCIL8 => width * height * 4,
         }
     }
 }
 
-/// Available texture compressed formats mapped from [`WebGl2RenderingContext`].
+/// Available texture compressed internal and upload formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCompressedFormat {
@@ -818,8 +832,6 @@ pub enum SamplerParameter {
     MIN_LOD(f32),
 }
 
-// impl Eq for SamplerParameter {}
-
 impl SamplerParameter {
     fn sampler_parameter(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
         match self {
@@ -847,15 +859,17 @@ impl SamplerParameter {
     }
 }
 
-/// WebGL native formats of a texture, including [`TextureInternalFormat`] and [`TextureCompressedFormat`].
-/// Different native formats have different memory layout in GPU.
-trait NativeFormat: ToGlEnum + Copy {
+/// WebGL internal formats of a texture, including [`TextureColorFormat`], [`TextureDepthFormat`] and [`TextureCompressedFormat`].
+/// Different internal formats have different memory layout in GPU.
+pub trait TextureInternalFormat: ToGlEnum + Copy {
+    /// Calculates the bytes length of of a specified internal format in specified size.
     fn bytes_length(&self, width: usize, height: usize) -> usize;
 
+    /// Checks capabilities of the internal format.
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error>;
 }
 
-impl NativeFormat for TextureInternalFormat {
+impl TextureInternalFormat for TextureColorFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -866,7 +880,17 @@ impl NativeFormat for TextureInternalFormat {
     }
 }
 
-impl NativeFormat for TextureCompressedFormat {
+impl TextureInternalFormat for TextureDepthFormat {
+    fn bytes_length(&self, width: usize, height: usize) -> usize {
+        self.bytes_length(width, height)
+    }
+
+    fn capabilities(&self, _: &Capabilities) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl TextureInternalFormat for TextureCompressedFormat {
     fn bytes_length(&self, width: usize, height: usize) -> usize {
         self.bytes_length(width, height)
     }
@@ -1816,45 +1840,22 @@ struct UploadItem {
 }
 
 impl UploadItem {
-    /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
-    fn with_params(
-        source: UploadSource,
-        level: Option<usize>,
-        depth: Option<usize>,
-        width: Option<usize>,
-        height: Option<usize>,
-        x_offset: Option<usize>,
-        y_offset: Option<usize>,
-        z_offset: Option<usize>,
-    ) -> Self {
-        Self {
-            source,
-            level,
-            depth,
-            width,
-            height,
-            x_offset,
-            y_offset,
-            z_offset,
+    /// Constructs a new upload data to upload to texture with a specified [`TextureSource`].
+    fn new(source: TextureSource) -> Self {
+        Self{
+            source: UploadSource::Uncompressed(source),
+            level: None,
+            depth: None,
+            width: None,
+            height: None,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
         }
     }
 
-    /// Constructs a new upload data to upload to texture with a specified [`TextureSource`].
-    fn new_uncompressed(source: TextureSource) -> Self {
-        Self::with_params(
-            UploadSource::Uncompressed(source),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-    }
-
     /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSource`].
-    fn with_params_uncompressed(
+    fn with_params(
         source: TextureSource,
         level: Option<usize>,
         depth: Option<usize>,
@@ -1878,16 +1879,16 @@ impl UploadItem {
 
     /// Constructs a new upload data to upload to texture with a specified [`TextureSourceCompressed`].
     fn new_compressed(source: TextureSourceCompressed) -> Self {
-        Self::with_params(
-            UploadSource::Compressed(source),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
+        Self{
+            source: UploadSource::Compressed(source),
+            level: None,
+            depth: None,
+            width: None,
+            height: None,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+        }
     }
 
     /// Constructs a new upload data to upload to texture with customize parameters and a specified [`TextureSourceCompressed`].

@@ -6,9 +6,7 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
 
 use super::{
-    NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat, TextureDepth,
-    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
-    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
+    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat, TextureDepth, TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -38,7 +36,7 @@ pub struct Texture3DBase<F> {
 #[allow(private_bounds)]
 impl<F> Texture3DBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Returns internal format.
     pub fn internal_format(&self) -> F {
@@ -81,7 +79,7 @@ where
     }
 }
 
-impl Texture3DBase<TextureInternalFormat> {
+impl Texture3DBase<TextureColorFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(
         &mut self,
@@ -89,7 +87,7 @@ impl Texture3DBase<TextureInternalFormat> {
         level: usize,
         depth: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(UploadItem::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params(
             source,
             Some(level),
             Some(depth),
@@ -114,7 +112,7 @@ impl Texture3DBase<TextureInternalFormat> {
         y_offset: usize,
         z_offset: usize,
     ) -> Result<(), Error> {
-        self.uploads.push(UploadItem::with_params_uncompressed(
+        self.uploads.push(UploadItem::with_params(
             source,
             Some(level),
             Some(depth),
@@ -177,7 +175,7 @@ impl Texture3DBase<TextureCompressedFormat> {
 
 impl<F> Texture for Texture3DBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn target(&self) -> TextureTarget {
         TextureTarget::TEXTURE_3D
@@ -227,7 +225,7 @@ where
 
 impl<F> TexturePlanar for Texture3DBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn width(&self) -> usize {
         self.width
@@ -240,7 +238,7 @@ where
 
 impl<F> TextureDepth for Texture3DBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn depth(&self) -> usize {
         self.depth
@@ -249,7 +247,7 @@ where
 
 impl<F> TextureItem for Texture3DBase<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     fn runtime(&self) -> Option<&Runtime> {
         self.runtime.as_deref()
@@ -352,7 +350,7 @@ pub struct Builder<F> {
 #[allow(private_bounds)]
 impl<F> Builder<F>
 where
-    F: NativeFormat,
+    F: TextureInternalFormat,
 {
     /// Initializes a new builder with specified width, height and internal format.
     pub fn new(width: usize, height: usize, depth: usize, internal_format: F) -> Self {
@@ -362,7 +360,7 @@ where
             height,
             depth,
             max_mipmap_level:
-                <Texture3DBase<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
+                <Texture3DBase<TextureColorFormat> as TextureDepth>::max_available_mipmap_level(
                     width, height, depth,
                 ),
             memory_policy: MemoryPolicy::Unfree,
@@ -436,44 +434,98 @@ where
     }
 }
 
-impl Builder<TextureInternalFormat> {
-    /// Initializes a new builder from an existing [`TextureSource`] and [`TextureInternalFormat`].
-    /// Beside, a depth value for the third dimension is also required.
-    pub fn with_base_source(
-        depth: usize,
-        base_source: TextureSource,
-        internal_format: TextureInternalFormat,
-    ) -> Self {
-        let width = base_source.width();
-        let height = base_source.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            depth,
-            max_mipmap_level:
-                <Texture3DBase<TextureInternalFormat> as TextureDepth>::max_available_mipmap_level(
-                    width, height, depth,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
+macro_rules! builder_concrete {
+    ($(($f:ident, $s:ident, $u:ident, $w:ident))+) => {
+        $(
 
-            base_source: Some(UploadItem::new_uncompressed(base_source)),
-            uploads: Vec::new(),
+            impl Builder<$f> {
+                /// Initializes a new builder from an existing texture source.
+                pub fn with_base_source(
+                    depth: usize,
+                    base_source: $s,
+                    internal_format: $f,
+                ) -> Self {
+                    let width = base_source.width();
+                    let height = base_source.height();
+                    Self {
+                        internal_format,
+                        width,
+                        height,
+                        depth,
+                        max_mipmap_level:
+                            <Texture3DBase<$f> as TextureDepth>::max_available_mipmap_level(
+                                width, height, depth,
+                            ),
+                        memory_policy: MemoryPolicy::Unfree,
+                        sampler_params: HashMap::new(),
+                        tex_params: HashMap::new(),
 
-            mipmap: false,
-        }
-    }
+                        base_source: Some(UploadItem::$u(base_source)),
+                        uploads: Vec::new(),
 
-    /// Sets the source in level 0.
-    pub fn set_base_source(mut self, base: TextureSource) -> Self {
-        self.base_source = Some(UploadItem::new_uncompressed(base));
-        self
-    }
+                        mipmap: false,
+                    }
+                }
 
+                /// Sets the source in level 0.
+                pub fn set_base_source(mut self, base: $s) -> Self {
+                    self.base_source = Some(UploadItem::$u(base));
+                    self
+                }
+
+                /// Uploads a new source to texture.
+                pub fn tex_image(mut self, source: $s, level: usize) -> Self {
+                    self.uploads.push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ));
+                    self
+                }
+
+                /// Uploads a new source for a sub-rectangle of the texture.
+                pub fn tex_sub_image(
+                    mut self,
+                    source: $s,
+                    level: usize,
+                    depth: usize,
+                    width: usize,
+                    height: usize,
+                    x_offset: usize,
+                    y_offset: usize,
+                    z_offset: usize,
+                ) -> Self {
+                    self.uploads.push(UploadItem::$w(
+                        source,
+                        Some(level),
+                        Some(depth),
+                        Some(width),
+                        Some(height),
+                        Some(x_offset),
+                        Some(y_offset),
+                        Some(z_offset),
+                    ));
+                    self
+                }
+            }
+        )+
+    };
+}
+
+builder_concrete! {
+    (TextureColorFormat, TextureSource, new, with_params)
+    (TextureDepthFormat, TextureSource, new, with_params)
+    (TextureCompressedFormat, TextureSourceCompressed, new_compressed, with_params_compressed)
+}
+
+impl Builder<TextureColorFormat> {
     /// Enable automatic mipmap generation.
-    /// Available only when internal format is one kind of [`TextureInternalFormat`](super::TextureInternalFormat)
+    /// Available only when internal format is one kind of [`TextureColorFormat`](super::TextureColorFormat)
     /// and base source is set.
     ///
     /// Automatic Mipmaps Generation is never enable for [`TextureCompressedFormat`](super::TextureCompressedFormat).
@@ -481,128 +533,11 @@ impl Builder<TextureInternalFormat> {
         self.mipmap = true;
         self
     }
-
-    /// Uploads a new source to texture.
-    pub fn tex_image(mut self, source: TextureSource, level: usize) -> Self {
-        self.uploads.push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new source for a sub-rectangle of the texture.
-    pub fn tex_sub_image(
-        mut self,
-        source: TextureSource,
-        level: usize,
-        depth: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Self {
-        self.uploads.push(UploadItem::with_params_uncompressed(
-            source,
-            Some(level),
-            Some(depth),
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            Some(z_offset),
-        ));
-        self
-    }
 }
 
-impl Builder<TextureCompressedFormat> {
-    /// Initializes a new builder from an existing [`TextureSourceCompressed`] and [`TextureCompressedFormat`].
-    /// Beside, a depth value for the third dimension is also required.
-    pub fn with_base_source(
-        depth: usize,
-        base_source: TextureSourceCompressed,
-        internal_format: TextureCompressedFormat,
-    ) -> Self {
-        let width = base_source.width();
-        let height = base_source.height();
-        Self {
-            internal_format,
-            width,
-            height,
-            depth,
-            max_mipmap_level:
-                <Texture3DBase<TextureCompressedFormat> as TextureDepth>::max_available_mipmap_level(
-                    width, height, depth,
-                ),
-            memory_policy: MemoryPolicy::Unfree,
-            sampler_params: HashMap::new(),
-            tex_params: HashMap::new(),
-
-            base_source: Some(UploadItem::new_compressed(base_source)),
-            uploads: Vec::new(),
-
-            mipmap: false,
-        }
-    }
-
-    /// Sets the source in level 0.
-    pub fn set_base_source(mut self, base_source: TextureSourceCompressed) -> Self {
-        self.base_source = Some(UploadItem::new_compressed(base_source));
-        self
-    }
-
-    /// Uploads a new image to texture.
-    pub fn tex_image(mut self, source: TextureSourceCompressed, level: usize) -> Self {
-        self.uploads.push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ));
-        self
-    }
-
-    /// Uploads a new image for a sub-rectangle of the texture.
-    pub fn tex_sub_image(
-        mut self,
-        source: TextureSourceCompressed,
-        level: usize,
-        depth: usize,
-        width: usize,
-        height: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    ) -> Self {
-        self.uploads.push(UploadItem::with_params_compressed(
-            source,
-            Some(level),
-            Some(depth),
-            Some(width),
-            Some(height),
-            Some(x_offset),
-            Some(y_offset),
-            Some(z_offset),
-        ));
-        self
-    }
-}
-
-/// A common texture 3d including [`TextureInternalFormat`] and [`TextureCompressedFormat`] formats.
+/// A common texture 3d including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
 pub enum Texture3D {
-    Uncompressed(Texture3DBase<TextureInternalFormat>),
+    Uncompressed(Texture3DBase<TextureColorFormat>),
     Compressed(Texture3DBase<TextureCompressedFormat>),
 }
 

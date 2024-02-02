@@ -29,7 +29,7 @@ use crate::light::area_light::AreaLight;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
-use crate::loader::dds::{DDSLoader, DirectDrawSurface, DDS_DXT1, DDS_DXT3};
+use crate::loader::dds::{DirectDrawSurface, DirectDrawSurfaceLoader, DDS_DXT1, DDS_DXT3};
 use crate::loader::texture::TextureLoader;
 use crate::material::texture::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
@@ -41,8 +41,8 @@ use crate::render::webgl::buffer::{
 use crate::render::webgl::draw::{Draw, DrawMode};
 use crate::render::webgl::texture::texture2d::Texture2D;
 use crate::render::webgl::texture::{
-    texture2d, SamplerParameter, TextureCompressedFormat, TextureDataType, TextureDescriptor,
-    TextureFormat, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
+    texture2d, SamplerParameter, TextureColorFormat, TextureCompressedFormat, TextureDataType,
+    TextureDescriptor, TextureFormat, TextureMagnificationFilter, TextureMinificationFilter,
     TextureParameter, TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed,
     TextureUnit, TextureWrapMethod,
 };
@@ -595,48 +595,197 @@ pub fn test_cube(
     // )));
     // scene.entity_collection_mut().add_entity(entity);
 
-    let mut image = EntityOptions::new();
-    image.set_material(Some(TextureMaterial::from_loaders(
-        TextureLoader::with_params(
+    let mut images = GroupOptions::new();
+    [
+        (
             "/sky.jpg",
-            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-            [],
-            [],
+            false,
+            vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            vec![] as Vec<SamplerParameter>,
+            vec![] as Vec<TextureParameter>,
+            true,
+            false,
+            false,
+            false,
+        ),
+        (
+            "/sky_dxt1.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            true,
+            false,
+            false,
+        ),
+        (
+            "/sky_dxt1_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            true,
+            false,
             true,
         ),
-        Transparency::Opaque,
-    )));
-    // let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
-    // image.set_material(Some(TextureMaterial::new(
-    //     UniformValue::Texture2DCompressed {
-    //         descriptor: dds.texture_descriptor(true, true).unwrap(),
-    //         params: vec![
-    //             TextureParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
-    //                 TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
-    //             } else {
-    //                 TextureMinificationFilter::LINEAR
-    //             }),
-    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-    //         ],
-    //         unit: TextureUnit::TEXTURE0,
-    //     },
-    //     Transparency::Opaque,
-    // )));
-    image.set_geometry(Some(Rectangle::new(
-        Vec2::new(0.0, 0.0),
-        Placement::Center,
-        0.25,
-        0.25,
-        1.0,
-        1.0,
-    )));
-    scene.entity_container_mut().add_entity(image);
+        (
+            "/sky_dxt1_srgb_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            true,
+            true,
+            true,
+        ),
+        (
+            "/sky_dxt3.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            false,
+            false,
+        ),
+        (
+            "/sky_dxt3_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            false,
+            true,
+        ),
+        (
+            "/sky_dxt3_srgb_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            true,
+            true,
+        ),
+        (
+            "/sky_dxt5.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            false,
+            false,
+        ),
+        (
+            "/sky_dxt5_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            false,
+            true,
+        ),
+        (
+            "/sky_dxt5_srgb_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            true,
+            true,
+        ),
+        (
+            "/sky_dxt5_srgb_mipmaps.dds",
+            true,
+            vec![],
+            vec![],
+            vec![],
+            false,
+            false,
+            true,
+            false,
+        ),
+    ]
+    .iter()
+    .enumerate()
+    .for_each(
+        |(
+            index,
+            (
+                url,
+                is_compressed,
+                pixel_storages,
+                sampler_parameters,
+                texture_parameters,
+                generate_mipmap,
+                dxt1_use_alpha,
+                use_srgb,
+                read_mipmaps,
+            ),
+        )| {
+            let mut image = EntityOptions::new();
+
+            image.set_model_matrix(Mat4::<f64>::from_rotation_translation_scale(
+                &Quat::<f64>::new_identity(),
+                &Vec3::<f64>::new(0.0, 0.0, -(index as f64)),
+                &Vec3::<f64>::new(4.0, 4.0, 4.0),
+            ));
+
+            image.set_geometry(Some(Rectangle::new(
+                Vec2::new(0.0, 0.0),
+                Placement::Center,
+                0.25,
+                0.25,
+                1.0,
+                1.0,
+            )));
+
+            if *is_compressed {
+                image.set_material(Some(TextureMaterial::from_loaders(
+                    DirectDrawSurfaceLoader::with_params(
+                        *url,
+                        *dxt1_use_alpha,
+                        *use_srgb,
+                        *read_mipmaps,
+                        sampler_parameters.clone(),
+                        texture_parameters.clone(),
+                    ),
+                    Transparency::Opaque,
+                )));
+            } else {
+                image.set_material(Some(TextureMaterial::from_loaders(
+                    TextureLoader::with_params(
+                        *url,
+                        pixel_storages.clone(),
+                        sampler_parameters.clone(),
+                        texture_parameters.clone(),
+                        *generate_mipmap,
+                    ),
+                    Transparency::Opaque,
+                )));
+            }
+
+            images.entities_mut().push(image);
+        },
+    );
+    scene.entity_container_mut().add_group(images);
 
     let mut floor = EntityOptions::new();
     floor.set_material(Some(TextureMaterial::from_loaders(
-        DDSLoader::new("/wood_dxt3_mipmaps.dds"),
+        DirectDrawSurfaceLoader::new("/wood_dxt3_mipmaps.dds"),
         Transparency::Opaque,
     )));
     floor.set_geometry(Some(Rectangle::new(
