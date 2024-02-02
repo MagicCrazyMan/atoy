@@ -493,7 +493,7 @@ impl Camera for UniversalCamera {
 struct ControllerCanvasResize(Rc<RefCell<Inner>>);
 
 impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
-    fn notify(&mut self, canvas: &mut HtmlCanvasElement) {
+    fn notify(&mut self, canvas: &HtmlCanvasElement) {
         let mut inner = self.0.borrow_mut();
 
         let aspect = canvas.width() as f64 / canvas.height() as f64;
@@ -506,7 +506,7 @@ impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
 struct ControllerKeyDown(*mut HashSet<String>);
 
 impl Notifiee<KeyboardEvent> for ControllerKeyDown {
-    fn notify(&mut self, event: &mut KeyboardEvent) {
+    fn notify(&mut self, event: &KeyboardEvent) {
         unsafe {
             let key = event.key();
             match key.as_str() {
@@ -525,7 +525,7 @@ impl Notifiee<KeyboardEvent> for ControllerKeyDown {
 struct ControllerKeyUp(*mut HashSet<String>);
 
 impl Notifiee<KeyboardEvent> for ControllerKeyUp {
-    fn notify(&mut self, event: &mut KeyboardEvent) {
+    fn notify(&mut self, event: &KeyboardEvent) {
         unsafe {
             let key = event.key();
             match key.as_str() {
@@ -544,7 +544,7 @@ impl Notifiee<KeyboardEvent> for ControllerKeyUp {
 struct ControllerMouseMove(Rc<RefCell<Inner>>, *mut Option<MouseEvent>);
 
 impl Notifiee<MouseEvent> for ControllerMouseMove {
-    fn notify(&mut self, event: &mut MouseEvent) {
+    fn notify(&mut self, event: &MouseEvent) {
         unsafe {
             let previous_mouse_event = &mut *self.1;
 
@@ -591,7 +591,7 @@ impl Notifiee<MouseEvent> for ControllerMouseMove {
 struct ControllerWheel(Rc<RefCell<Inner>>);
 
 impl Notifiee<WheelEvent> for ControllerWheel {
-    fn notify(&mut self, event: &mut WheelEvent) {
+    fn notify(&mut self, event: &WheelEvent) {
         let mut inner = self.0.borrow_mut();
 
         let forward_movement = inner.forward_movement;
@@ -609,7 +609,7 @@ impl Notifiee<WheelEvent> for ControllerWheel {
 struct ControllerPreRender(Rc<RefCell<Inner>>, *mut HashSet<String>, *mut Option<f64>);
 
 impl Notifiee<RenderEvent> for ControllerPreRender {
-    fn notify(&mut self, event: &mut RenderEvent) {
+    fn notify(&mut self, event: &RenderEvent) {
         unsafe {
             let current = event.state().timestamp();
 

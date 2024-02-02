@@ -7,16 +7,14 @@ use web_sys::{AddEventListenerOptions, HtmlImageElement};
 use crate::{
     error::{AsJsError, Error},
     notify::Notifier,
+    render::webgl::texture::{
+        texture2d::{self, Texture2D},
+        SamplerParameter, TextureDataType, TextureFormat, TextureInternalFormat, TextureParameter,
+        TexturePixelStorage, TextureSource,
+    },
 };
 
-/// Loading status of [`ImageLoader`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LoadingStatus {
-    Unload,
-    Loading(HtmlImageElement),
-    Loaded(HtmlImageElement),
-    Errored(HtmlImageElement),
-}
+use super::{Loader, LoaderStatus};
 
 /// Cross origin mode of a [`HtmlImageElement`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -44,20 +42,28 @@ impl Display for ImageCrossOrigin {
 }
 
 /// An image loader loads image using [`HtmlImageElement`] from a given url.
-pub struct ImageLoader {
+pub struct TextureLoader {
     url: String,
-    status: *mut LoadingStatus,
-    notifier: Notifier<LoadingStatus>,
+    status: *mut LoaderStatus,
+    notifier: Notifier<LoaderStatus>,
     cross_origin: Option<ImageCrossOrigin>,
     image: *mut Option<HtmlImageElement>,
+    error: *mut Option<Error>,
+
+    generate_mipmaps: bool,
+    pixel_storages: Vec<TexturePixelStorage>,
+    sampler_params: Vec<SamplerParameter>,
+    texture_params: Vec<TextureParameter>,
+
     load_callback: *mut Option<Closure<dyn FnMut()>>,
-    error_callback: *mut Option<Closure<dyn FnMut()>>,
+    error_callback: *mut Option<Closure<dyn FnMut(js_sys::Error)>>,
+
     promise_callback: *mut Option<Box<dyn FnMut(Function, Function)>>,
     promise_resolve: *mut Option<Function>,
     promise_reject: *mut Option<Function>,
 }
 
-impl Drop for ImageLoader {
+impl Drop for TextureLoader {
     fn drop(&mut self) {
         unsafe {
             if let Some(image) = Box::from_raw(self.image).take() {
@@ -84,7 +90,7 @@ impl Drop for ImageLoader {
     }
 }
 
-impl ImageLoader {
+impl TextureLoader {
     /// Constructs a new image loader with given url using [`HtmlImageElement`].
     pub fn new<S>(url: S) -> Self
     where
@@ -92,44 +98,79 @@ impl ImageLoader {
     {
         Self {
             url: url.into(),
-            status: Box::leak(Box::new(LoadingStatus::Unload)),
+            status: Box::leak(Box::new(LoaderStatus::Unload)),
             notifier: Notifier::new(),
             cross_origin: None,
             image: Box::leak(Box::new(None)),
+            error: Box::leak(Box::new(None)),
+
+            generate_mipmaps: true,
+            pixel_storages: Vec::new(),
+            sampler_params: Vec::new(),
+            texture_params: Vec::new(),
+
             load_callback: Box::leak(Box::new(None)),
             error_callback: Box::leak(Box::new(None)),
+
             promise_callback: Box::leak(Box::new(None)),
             promise_resolve: Box::leak(Box::new(None)),
             promise_reject: Box::leak(Box::new(None)),
         }
     }
 
-    fn load_inner(
-        &mut self,
-        success: Option<Function>,
-        failed: Option<Function>,
-    ) -> Result<(), Error> {
-        unsafe {
-            if LoadingStatus::Unload != *self.status {
-                return Ok(());
-            }
+    /// Constructs a new image loader with given url using [`HtmlImageElement`].
+    pub fn with_params<S, PI, SI, TI>(
+        url: S,
+        pixel_storages: PI,
+        sampler_params: SI,
+        texture_params: TI,
+        generate_mipmaps: bool,
+    ) -> Self
+    where
+        S: Into<String>,
+        PI: IntoIterator<Item = TexturePixelStorage>,
+        SI: IntoIterator<Item = SamplerParameter>,
+        TI: IntoIterator<Item = TextureParameter>,
+    {
+        Self {
+            url: url.into(),
+            status: Box::leak(Box::new(LoaderStatus::Unload)),
+            notifier: Notifier::new(),
+            cross_origin: None,
+            image: Box::leak(Box::new(None)),
+            error: Box::leak(Box::new(None)),
 
+            generate_mipmaps,
+            pixel_storages: pixel_storages.into_iter().collect(),
+            sampler_params: sampler_params.into_iter().collect(),
+            texture_params: texture_params.into_iter().collect(),
+
+            load_callback: Box::leak(Box::new(None)),
+            error_callback: Box::leak(Box::new(None)),
+
+            promise_callback: Box::leak(Box::new(None)),
+            promise_resolve: Box::leak(Box::new(None)),
+            promise_reject: Box::leak(Box::new(None)),
+        }
+    }
+
+    fn load_inner(&self, success: Option<Function>, failed: Option<Function>) -> Result<(), Error> {
+        unsafe {
             let image = HtmlImageElement::new().unwrap();
             image.set_src(&self.url);
             image.set_cross_origin(self.cross_origin.as_ref().map(|v| v.as_ref()));
 
             let status = self.status;
+            let error = self.error;
             let load_callback = self.load_callback;
             let error_callback = self.error_callback;
             let promise_resolve = self.promise_resolve;
             let promise_reject = self.promise_reject;
 
             let img = image.clone();
-            let mut notifier = self.notifier.clone();
+            let notifier = self.notifier.clone();
             *self.load_callback = Some(Closure::new(move || {
-                *status = LoadingStatus::Loaded(img.clone());
-                *load_callback = None;
-                *error_callback = None;
+                *status = LoaderStatus::Loaded;
                 if let Err(err) = img.remove_event_listener_with_callback(
                     "error",
                     (*error_callback).as_ref().unwrap().as_ref().unchecked_ref(),
@@ -151,6 +192,9 @@ impl ImageLoader {
                 if let Some(success) = &success {
                     success.call0(&JsValue::undefined()).unwrap();
                 }
+
+                *load_callback = None;
+                *error_callback = None;
             }));
             image
                 .add_event_listener_with_callback_and_add_event_listener_options(
@@ -170,11 +214,15 @@ impl ImageLoader {
                 })?;
 
             let img = image.clone();
-            let mut notifier = self.notifier.clone();
-            *self.error_callback = Some(Closure::new(move || {
-                *status = LoadingStatus::Errored(img.clone());
-                *load_callback = None;
-                *error_callback = None;
+            let notifier = self.notifier.clone();
+            *self.error_callback = Some(Closure::new(move |err: js_sys::Error| {
+                let msg = err.as_error().and_then(|e| e.message().as_string());
+                log::error!(
+                    "remove load callback failure: {}",
+                    msg.as_ref().map(|m| m.as_str()).unwrap_or("unknown")
+                );
+
+                *status = LoaderStatus::Errored;
                 if let Err(err) = img.remove_event_listener_with_callback(
                     "load",
                     (*load_callback).as_ref().unwrap().as_ref().unchecked_ref(),
@@ -196,6 +244,10 @@ impl ImageLoader {
                 if let Some(failed) = &failed {
                     failed.call0(&JsValue::undefined()).unwrap();
                 }
+
+                *load_callback = None;
+                *error_callback = None;
+                *error = Some(Error::CommonError(msg));
             }));
             image
                 .add_event_listener_with_callback_and_add_event_listener_options(
@@ -214,7 +266,7 @@ impl ImageLoader {
                     ))
                 })?;
 
-            *self.status = LoadingStatus::Loading(image.clone());
+            *self.status = LoaderStatus::Loading;
             *self.image = Some(image);
             self.notifier.notify(&mut *self.status);
         }
@@ -223,35 +275,41 @@ impl ImageLoader {
     }
 
     /// Starts loading image.
-    /// This method does nothing if image is not in [`LoadingStatus::Unload`] status.
-    pub fn load(&mut self) -> Result<(), Error> {
-        self.load_inner(None, None)
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub fn load(&self) {
+        unsafe {
+            if LoaderStatus::Unload == *self.status {
+                if let Err(err) = self.load_inner(None, None) {
+                    *self.status = LoaderStatus::Errored;
+                    *self.error = Some(err);
+                    self.notifier.notify(&*self.status);
+                }
+            }
+        }
     }
 
     /// Starts loading image and asynchronous awaiting.
-    /// This method does nothing if image is not in [`LoadingStatus::Unload`] status.
-    pub async fn load_async(&mut self) -> Result<(), Error> {
+    /// This method does nothing if image is not in [`LoaderStatus::Unload`] status.
+    pub async fn load_async(&self) -> Result<(), Error> {
         unsafe {
-            if LoadingStatus::Unload != *self.status {
-                return Ok(());
+            if LoaderStatus::Unload == *self.status {
+                let promise_resolve = self.promise_resolve;
+                let promise_reject = self.promise_reject;
+                *self.promise_callback = Some(Box::new(move |resolve, reject| {
+                    *promise_resolve = Some(resolve);
+                    *promise_reject = Some(reject);
+                }));
+                let promise = Promise::new((*self.promise_callback).as_deref_mut().unwrap());
+                self.load_inner(None, None)?;
+
+                wasm_bindgen_futures::JsFuture::from(promise)
+                    .await
+                    .or_else(|err| {
+                        Err(Error::PromiseAwaitFailure(
+                            err.as_error().and_then(|err| err.message().as_string()),
+                        ))
+                    })?;
             }
-
-            let promise_resolve = self.promise_resolve;
-            let promise_reject = self.promise_reject;
-            *self.promise_callback = Some(Box::new(move |resolve, reject| {
-                *promise_resolve = Some(resolve);
-                *promise_reject = Some(reject);
-            }));
-            let promise = Promise::new((*self.promise_callback).as_deref_mut().unwrap());
-            self.load_inner(None, None)?;
-
-            wasm_bindgen_futures::JsFuture::from(promise)
-                .await
-                .or_else(|err| {
-                    Err(Error::PromiseAwaitFailure(
-                        err.as_error().and_then(|err| err.message().as_string()),
-                    ))
-                })?;
 
             Ok(())
         }
@@ -267,18 +325,65 @@ impl ImageLoader {
         self.load_inner(Some(success), Some(failed))
     }
 
-    /// Returns current loading status.
-    pub fn status(&self) -> &LoadingStatus {
-        unsafe { &*self.status }
+    /// Returns image if regardless whether successfully loaded or not.
+    pub fn image(&self) -> Option<&HtmlImageElement> {
+        unsafe { (*self.image).as_ref() }
     }
 
     /// Returns loaded image if successfully loaded.
-    pub fn image(&self) -> Option<&HtmlImageElement> {
-        unsafe { (*self.image).as_ref() }
+    pub fn loaded_image(&self) -> Option<&HtmlImageElement> {
+        unsafe {
+            match &*self.status {
+                LoaderStatus::Unload | LoaderStatus::Loading | LoaderStatus::Errored => None,
+                LoaderStatus::Loaded => (*self.image).as_ref(),
+            }
+        }
     }
 
     /// Returns image source url.
     pub fn url(&self) -> &str {
         &self.url
+    }
+}
+
+impl Loader<Texture2D> for TextureLoader {
+    type Error = Error;
+
+    fn status(&self) -> LoaderStatus {
+        unsafe { *self.status }
+    }
+
+    fn load(&mut self) {
+        Self::load(&self);
+    }
+
+    fn loaded(&self) -> Result<Texture2D, Error> {
+        unsafe {
+            if let Some(err) = &*self.error {
+                return Err(err.clone());
+            }
+
+            let image = (*self.image).as_ref().unwrap();
+            let mut builder = texture2d::Builder::<TextureInternalFormat>::with_base_source(
+                TextureSource::HtmlImageElement {
+                    data: image.clone(),
+                    format: TextureFormat::RGBA,
+                    data_type: TextureDataType::UNSIGNED_BYTE,
+                    pixel_storages: self.pixel_storages.clone(),
+                },
+                TextureInternalFormat::RGBA8,
+            )
+            .set_sampler_parameters(self.sampler_params.clone())
+            .set_texture_parameters(self.texture_params.clone());
+            if self.generate_mipmaps {
+                builder = builder.generate_mipmap();
+            }
+
+            Ok(Texture2D::Uncompressed(builder.build()))
+        }
+    }
+
+    fn notifier(&self) -> &Notifier<LoaderStatus> {
+        &self.notifier
     }
 }

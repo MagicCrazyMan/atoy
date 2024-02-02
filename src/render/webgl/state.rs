@@ -26,10 +26,7 @@ use super::{
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
-    texture::{
-        texture2d::Texture2D, TextureCompressedFormat, TextureDescriptor, TextureInternalFormat,
-        TextureStore, TextureUnit,
-    },
+    texture::{texture2d::Texture2D, TextureDescriptor, TextureStore, TextureUnit},
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
@@ -39,8 +36,7 @@ pub struct BoundAttribute {
 }
 
 enum TextureKind {
-    Texture2D(TextureDescriptor<Texture2D<TextureInternalFormat>>),
-    Texture2DCompressed(TextureDescriptor<Texture2D<TextureCompressedFormat>>),
+    Texture2D(TextureDescriptor<Texture2D>),
     // Texture2DArray(TextureDescriptor<Texture2DArray>),
     // Texture2DArrayCompressed(TextureDescriptor<Texture2DArrayCompressed>),
     // Texture3D(TextureDescriptor<Texture3D>),
@@ -586,7 +582,6 @@ impl FrameState {
                 None
             }
             UniformValue::Texture2D { .. }
-            | UniformValue::Texture2DCompressed { .. }
             | UniformValue::Texture3D { .. }
             | UniformValue::Texture3DCompressed { .. }
             | UniformValue::Texture2DArray { .. }
@@ -597,10 +592,6 @@ impl FrameState {
                     UniformValue::Texture2D { descriptor, unit } => {
                         self.texture_store_mut().bind_texture(descriptor, *unit)?;
                         (TextureKind::Texture2D(descriptor.clone()), *unit)
-                    }
-                    UniformValue::Texture2DCompressed { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture2DCompressed(descriptor.clone()), *unit)
                     }
                     // UniformValue::Texture3D {
                     //     descriptor,
@@ -680,9 +671,6 @@ impl FrameState {
         {
             match texture {
                 TextureKind::Texture2D(descriptor) => {
-                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                }
-                TextureKind::Texture2DCompressed(descriptor) => {
                     self.texture_store_mut().unbind_texture(&descriptor, unit)?;
                 } // TextureKind::Texture2DArray(descriptor) => {
                   //     self.texture_store_mut().unuse_texture(&descriptor, unit);

@@ -30,8 +30,8 @@ use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
 use crate::loader::dds::{DirectDrawSurface, DDS_DXT1, DDS_DXT3};
-use crate::loader::image::ImageLoader;
-use crate::material::texture_mapping::TextureMaterial;
+use crate::loader::texture::TextureLoader;
+use crate::material::texture::TextureMaterial;
 use crate::material::{self, StandardMaterial, Transparency};
 use crate::notify::Notifiee;
 use crate::render::webgl::attribute::AttributeValue;
@@ -431,14 +431,14 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
 
     struct PreRenderNotifiee(Rc<RefCell<f64>>);
     impl Notifiee<RenderEvent> for PreRenderNotifiee {
-        fn notify(&mut self, msg: &mut RenderEvent) {
+        fn notify(&mut self, msg: &RenderEvent) {
             *self.0.borrow_mut() = crate::window().performance().unwrap().now();
         }
     }
 
     struct PostRenderNotifiee(Rc<RefCell<f64>>, Function);
     impl Notifiee<RenderEvent> for PostRenderNotifiee {
-        fn notify(&mut self, msg: &mut RenderEvent) {
+        fn notify(&mut self, msg: &RenderEvent) {
             let start = *self.0.borrow();
             let end = crate::window().performance().unwrap().now();
             self.1
@@ -479,7 +479,7 @@ struct ViewerPick {
 }
 
 impl Notifiee<MouseEvent> for ViewerPick {
-    fn notify(&mut self, event: &mut MouseEvent) {
+    fn notify(&mut self, event: &MouseEvent) {
         let Some(mut viewer) = self.viewer.upgrade() else {
             return;
         };
@@ -533,8 +533,6 @@ pub fn test_cube(
     pick_callback: &Function,
     floor_rgb: HtmlImageElement,
     floor_dxt: ArrayBuffer,
-    sky_rgb: HtmlImageElement,
-    sky_dxt: ArrayBuffer,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
         Vec3::new(0.0, 5.0, 2.0),
@@ -601,43 +599,13 @@ pub fn test_cube(
 
     let mut image = EntityOptions::new();
     image.set_material(Some(TextureMaterial::new(
-        UniformValue::Texture2D {
-            descriptor: TextureDescriptor::<Texture2D<_>>::new(
-                texture2d::Builder::<TextureInternalFormat>::with_base_source(
-                    TextureSource::HtmlImageElement {
-                        data: sky_rgb.clone(),
-                        format: TextureFormat::RGBA,
-                        data_type: TextureDataType::UNSIGNED_BYTE,
-                        pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-                    },
-                    TextureInternalFormat::SRGB8_ALPHA8,
-                )
-                .generate_mipmap()
-                .set_sampler_parameters([
-                    SamplerParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
-                    SamplerParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                    SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                    SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-                ])
-                .set_texture_parameters([TextureParameter::MAX_ANISOTROPY(16.0)])
-                .set_memory_policy(texture2d::MemoryPolicy::Restorable(Box::new(
-                    move |builder| {
-                        builder
-                            .set_base_source(TextureSource::HtmlImageElement {
-                                data: sky_rgb.clone(),
-                                format: TextureFormat::RGBA,
-                                data_type: TextureDataType::UNSIGNED_BYTE,
-                                pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(
-                                    true,
-                                )],
-                            })
-                            .generate_mipmap()
-                    },
-                )))
-                .build(),
-            ),
-            unit: TextureUnit::TEXTURE0,
-        },
+        TextureLoader::with_params(
+            "/sky.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+        ),
         Transparency::Opaque,
     )));
     // let dds = DirectDrawSurface::parse(sky_dxt).unwrap();
@@ -668,68 +636,24 @@ pub fn test_cube(
     )));
     scene.entity_container_mut().add_entity(image);
 
-    let mut floor = EntityOptions::new();
+    // let mut floor = EntityOptions::new();
     // floor.set_material(Some(TextureMaterial::new(
-    //     UniformValue::Texture2D {
-    //         descriptor: TextureDescriptor::<Texture2D>::new(texture_2d::ConstructPolicy::Simple {
-    //             internal_format: TextureUncompressedInternalFormat::SRGB8_ALPHA8,
-    //             base: TextureSource::HtmlImageElement {
-    //                 data: floor_rgb,
-    //                 format: TextureFormat::RGBA,
-    //                 data_type: TextureDataType::UNSIGNED_BYTE,
-    //                 pixel_storages: vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-    //             },
-    //         }),
-    //         params: vec![
-    //             TextureParameter::MIN_FILTER(TextureMinificationFilter::LINEAR_MIPMAP_LINEAR),
-    //             TextureParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-    //             TextureParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-    //             TextureParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-    //         ],
-    //         unit: TextureUnit::TEXTURE0,
-    //     },
+    //     DirectDrawSurface::from_array_buffer(floor_dxt).unwrap(),
     //     Transparency::Opaque,
     // )));
-    let dds = DirectDrawSurface::parse(floor_dxt).unwrap();
-    floor.set_material(Some(TextureMaterial::new(
-        UniformValue::Texture2DCompressed {
-            descriptor: dds
-                .texture_descriptor_2d(
-                    true,
-                    true,
-                    true,
-                    [
-                        SamplerParameter::MIN_FILTER(if dds.header.mipmap_count > 1 {
-                            TextureMinificationFilter::LINEAR_MIPMAP_LINEAR
-                        } else {
-                            TextureMinificationFilter::LINEAR
-                        }),
-                        SamplerParameter::MAG_FILTER(TextureMagnificationFilter::LINEAR),
-                        SamplerParameter::WRAP_S(TextureWrapMethod::MIRRORED_REPEAT),
-                        SamplerParameter::WRAP_T(TextureWrapMethod::MIRRORED_REPEAT),
-                    ],
-                    [
-                        TextureParameter::MAX_ANISOTROPY(16.0),
-                    ],
-                )
-                .unwrap(),
-            unit: TextureUnit::TEXTURE0,
-        },
-        Transparency::Opaque,
-    )));
-    floor.set_geometry(Some(Rectangle::new(
-        Vec2::new(0.0, 0.0),
-        Placement::Center,
-        1000.0,
-        1000.0,
-        200.0,
-        200.0,
-    )));
-    floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
-        &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
-        &Vec3::new(0.0, -0.6, 0.0),
-    ));
-    scene.entity_container_mut().add_entity(floor);
+    // floor.set_geometry(Some(Rectangle::new(
+    //     Vec2::new(0.0, 0.0),
+    //     Placement::Center,
+    //     1000.0,
+    //     1000.0,
+    //     200.0,
+    //     200.0,
+    // )));
+    // floor.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+    //     &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
+    //     &Vec3::new(0.0, -0.6, 0.0),
+    // ));
+    // scene.entity_container_mut().add_entity(floor);
 
     let mut viewer = create_viewer(scene, camera, render_callback);
     viewer

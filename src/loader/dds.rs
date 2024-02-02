@@ -1,10 +1,14 @@
 use web_sys::js_sys::{ArrayBuffer, DataView, Uint8Array};
 
-use crate::render::webgl::texture::{
-    texture2d::{Builder, Texture2D},
-    SamplerParameter, TextureCompressedFormat, TextureDescriptor, TextureParameter,
-    TextureSourceCompressed,
+use crate::{
+    error::Error,
+    render::webgl::texture::{
+        texture2d::{Builder, Texture2DBase},
+        SamplerParameter, TextureCompressedFormat, TextureParameter, TextureSourceCompressed,
+    },
 };
+
+use super::Loader;
 
 pub const DDS_MAGIC_NUMBER: u32 = 0x20534444;
 pub const DDS_DXT1: u32 = 0x31545844;
@@ -148,8 +152,8 @@ pub struct DirectDrawSurface {
 }
 
 impl DirectDrawSurface {
-    /// Parse a DirectDraw Surface file from raw data stored in [`ArrayBuffer`].
-    pub fn parse(raw: ArrayBuffer) -> Option<Self> {
+    /// Parses a DirectDraw Surface file from raw data stored in [`ArrayBuffer`].
+    pub fn from_array_buffer(raw: ArrayBuffer) -> Option<Self> {
         // a dds file has at least 128 bytes
         if raw.byte_length() < 128 {
             return None;
@@ -196,16 +200,16 @@ impl DirectDrawSurface {
         })
     }
 
-    /// Tries to create a [`TextureDescriptor`] from this DirectDraw Surface.
+    /// Tries to create a [`Texture2D`] from this DirectDraw Surface.
     /// Returns `None` if unable to create a valid descriptor.
-    pub fn texture_descriptor_2d<SI, TI>(
+    pub fn texture_2d<SI, TI>(
         &self,
         dxt1_use_alpha: bool,
         use_srgb: bool,
         read_mipmaps: bool,
         sampler_params: SI,
         tex_params: TI,
-    ) -> Option<TextureDescriptor<Texture2D<TextureCompressedFormat>>>
+    ) -> Option<Texture2DBase<TextureCompressedFormat>>
     where
         SI: IntoIterator<Item = SamplerParameter>,
         TI: IntoIterator<Item = TextureParameter>,
@@ -275,7 +279,7 @@ impl DirectDrawSurface {
                     });
                 };
 
-                Some(TextureDescriptor::<Texture2D<_>>::new(builder.build()))
+                Some(builder.build())
             }
             None => None,
         }

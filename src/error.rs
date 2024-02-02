@@ -11,6 +11,7 @@ pub enum Error {
     NoSuchEntity,
     NoSuchGroup,
     WebGLRenderError(crate::render::webgl::error::Error),
+    CommonError(Option<String>)
 }
 
 impl Error {}

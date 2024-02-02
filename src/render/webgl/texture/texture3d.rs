@@ -1,4 +1,4 @@
-use std::{cell::RefCell, iter::FromIterator, rc::Rc};
+use std::iter::FromIterator;
 
 use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
@@ -7,8 +7,8 @@ use crate::render::webgl::{capabilities::Capabilities, conversion::ToGlEnum, err
 
 use super::{
     NativeFormat, Runtime, SamplerParameter, Texture, TextureCompressedFormat, TextureDepth,
-    TextureDescriptor, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
-    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
+    TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource,
+    TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -329,13 +329,6 @@ where
                 true
             }
         }
-    }
-}
-
-impl<F> TextureDescriptor<Texture3D<F>> {
-    /// Constructs a new texture descriptor with [`Texture3D`].
-    pub fn new(texture: Texture3D<F>) -> Self {
-        Self(Rc::new(RefCell::new(texture)))
     }
 }
 

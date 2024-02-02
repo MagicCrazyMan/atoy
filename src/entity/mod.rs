@@ -251,7 +251,7 @@ struct EntityDirtyNotifiee {
 }
 
 impl Notifiee<()> for EntityDirtyNotifiee {
-    fn notify(&mut self, _: &mut ()) {
+    fn notify(&mut self, _: &()) {
         unsafe {
             *self.dirty = true;
             (*self.group).set_dirty();

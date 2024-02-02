@@ -334,13 +334,6 @@ where
     }
 }
 
-impl<F> TextureDescriptor<Texture2DArray<F>> {
-    /// Constructs a new texture descriptor with [`Texture2DArray`].
-    pub fn new(texture: Texture2DArray<F>) -> Self {
-        Self(Rc::new(RefCell::new(texture)))
-    }
-}
-
 /// A builder to build a [`Texture2DArray`].
 pub struct Builder<F> {
     internal_format: F,

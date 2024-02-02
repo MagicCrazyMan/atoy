@@ -10,6 +10,7 @@ use super::{
 };
 
 /// Available uniform values.
+#[derive(Clone)]
 pub enum UniformValue {
     Bool(bool),
     Float1(f32),
@@ -49,11 +50,7 @@ pub enum UniformValue {
         transpose: bool,
     },
     Texture2D {
-        descriptor: TextureDescriptor<Texture2D<TextureInternalFormat>>,
-        unit: TextureUnit,
-    },
-    Texture2DCompressed {
-        descriptor: TextureDescriptor<Texture2D<TextureCompressedFormat>>,
+        descriptor: TextureDescriptor<Texture2D>,
         unit: TextureUnit,
     },
     Texture3D {

@@ -67,10 +67,18 @@ impl<T> Inner<T> {
     }
 }
 
-#[derive(Clone)]
 pub struct Notifier<T> {
     inner: Rc<RefCell<Inner<T>>>,
-    aborts: Vec<usize>,
+    aborts: Rc<RefCell<Vec<usize>>>,
+}
+
+impl<T> Clone for Notifier<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Rc::clone(&self.inner),
+            aborts: Rc::clone(&self.aborts),
+        }
+    }
 }
 
 impl<T> Notifier<T> {
@@ -80,11 +88,11 @@ impl<T> Notifier<T> {
                 counter: 0,
                 notifiees: HashMap::new(),
             })),
-            aborts: Vec::new(),
+            aborts: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
-    pub fn register<N>(&mut self, notifiee: N) -> Notifying<T>
+    pub fn register<N>(&self, notifiee: N) -> Notifying<T>
     where
         N: Notifiee<T> + 'static,
     {
@@ -100,26 +108,27 @@ impl<T> Notifier<T> {
         }
     }
 
-    pub fn unregister(&mut self, key: usize) {
+    pub fn unregister(&self, key: usize) {
         let Some(notifiee) = self.inner.borrow_mut().notifiees.remove(&key) else {
             return;
         };
         unsafe { drop(Box::from_raw(notifiee)) }
     }
 
-    pub fn notify(&mut self, msg: &mut T) {
+    pub fn notify(&self, msg: &T) {
         unsafe {
             let mut inner = self.inner.borrow_mut();
+            let mut aborts = self.aborts.borrow_mut();
 
             for (key, notifiee) in inner.notifiees.iter_mut() {
                 let notifiee = &mut **notifiee;
                 notifiee.notify(msg);
                 if notifiee.abort() {
-                    self.aborts.push(*key);
+                    aborts.push(*key);
                 }
             }
 
-            for abort in self.aborts.drain(..) {
+            for abort in aborts.drain(..) {
                 let Some(notifiee) = inner.notifiees.remove(&abort) else {
                     continue;
                 };
@@ -130,7 +139,7 @@ impl<T> Notifier<T> {
 }
 
 pub trait Notifiee<T> {
-    fn notify(&mut self, msg: &mut T);
+    fn notify(&mut self, msg: &T);
 
     fn abort(&self) -> bool {
         false

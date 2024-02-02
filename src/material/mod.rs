@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub mod solid_color;
-pub mod texture_mapping;
+pub mod texture;
 
 /// Material transparency.
 #[derive(Clone, Copy, PartialEq)]

@@ -2032,6 +2032,11 @@ impl<T> TextureDescriptor<T>
 where
     T: TextureItem,
 {
+    /// Constructs a new texture descriptor.
+    pub fn new(texture: T) -> Self {
+        Self(Rc::new(RefCell::new(texture)))
+    }
+
     /// Returns [`Texture`] associated with this descriptor.
     pub fn texture(&self) -> Ref<'_, T> {
         self.0.borrow()
