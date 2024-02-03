@@ -5,6 +5,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use gl_matrix4rust::{mat4::Mat4, vec3::Vec3, GLF32};
 use log::warn;
 
 use crate::{
@@ -26,21 +27,29 @@ use super::{StandardMaterial, StandardMaterialSource, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
+
     albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
     albedo: Rc<RefCell<Option<UniformValue>>>,
+
+    normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
+    normal: Rc<RefCell<Option<UniformValue>>>,
 
     notifier: Rc<RefCell<Notifier<()>>>,
 }
 
 impl TextureMaterial {
-    pub fn from_loaders<A>(albedo: A, transparency: Transparency) -> Self
+    pub fn new<A>(albedo: A, transparency: Transparency) -> Self
     where
         A: Loader<Texture2D, Failure = Error> + 'static,
     {
         Self {
             transparency,
+
             albedo_loader: Rc::new(RefCell::new(albedo)),
             albedo: Rc::new(RefCell::new(None)),
+
+            normal_loader: None,
+            normal: Rc::new(RefCell::new(None)),
 
             notifier: Rc::new(RefCell::new(Notifier::new())),
         }
@@ -49,51 +58,32 @@ impl TextureMaterial {
     fn prepare_albedo(&self) {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
-            struct UpdateAlbedo {
-                loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
-                albedo: Weak<RefCell<Option<UniformValue>>>,
-                notifier: Weak<RefCell<Notifier<()>>>,
-            }
-
-            impl Notifiee<LoaderStatus> for UpdateAlbedo {
-                fn notify(&mut self, status: &LoaderStatus) {
-                    let Some(notifier) = self.notifier.upgrade() else {
-                        return;
-                    };
-
-                    match status {
-                        LoaderStatus::Unload => unreachable!(),
-                        LoaderStatus::Loading => {}
-                        LoaderStatus::Loaded => {
-                            let (Some(loader), Some(albedo)) =
-                                (self.loader.upgrade(), self.albedo.upgrade())
-                            else {
-                                return;
-                            };
-
-                            let texture = loader.borrow().loaded().unwrap();
-                            *albedo.borrow_mut() = Some(UniformValue::Texture2D {
-                                descriptor: TextureDescriptor::new(texture),
-                                unit: TextureUnit::TEXTURE0,
-                            });
-                            notifier.borrow_mut().notify(&())
-                        }
-                        LoaderStatus::Errored => {
-                            let Some(loader) = self.loader.upgrade() else {
-                                return;
-                            };
-
-                            let err = loader.borrow().loaded().err().unwrap();
-                            warn!("Failed to load albedo texture. {}", err)
-                        }
-                    }
-                }
-            }
-
             loader.load();
-            loader.notifier().borrow_mut().register(UpdateAlbedo {
+            loader.notifier().borrow_mut().register(WaitLoader {
+                unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
-                albedo: Rc::downgrade(&self.albedo),
+                texture_uniform: Rc::downgrade(&self.albedo),
+                notifier: Rc::downgrade(&self.notifier),
+            });
+        }
+    }
+
+    fn has_normal_map(&self) -> bool {
+        self.normal_loader.is_some()
+    }
+
+    fn prepare_normal(&self) {
+        let Some(normal_loader) = self.normal_loader.as_ref() else {
+            return;
+        };
+
+        let mut loader = normal_loader.borrow_mut();
+        if LoaderStatus::Unload == loader.status() {
+            loader.load();
+            loader.notifier().borrow_mut().register(WaitLoader {
+                unit: TextureUnit::TEXTURE1,
+                loader: Rc::downgrade(normal_loader),
+                texture_uniform: Rc::downgrade(&self.normal),
                 notifier: Rc::downgrade(&self.notifier),
             });
         }
@@ -102,11 +92,20 @@ impl TextureMaterial {
 
 impl StandardMaterial for TextureMaterial {
     fn ready(&self) -> bool {
-        self.albedo.borrow().is_some()
+        match self.has_normal_map() {
+            true => self.albedo.borrow().is_some() && self.normal.borrow().is_some(),
+            false => self.albedo.borrow().is_some(),
+        }
     }
 
     fn prepare(&mut self, _: &mut FrameState) {
-        self.prepare_albedo();
+        match self.has_normal_map() {
+            true => {
+                self.prepare_albedo();
+                self.prepare_normal();
+            }
+            false => self.prepare_albedo(),
+        }
     }
 
     fn transparency(&self) -> Transparency {
@@ -114,21 +113,42 @@ impl StandardMaterial for TextureMaterial {
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
-            AttributeBinding::GeometryTextureCoordinate,
-        ]
+        match self.has_normal_map() {
+            true => 
+            &[
+                AttributeBinding::GeometryPosition,
+                AttributeBinding::GeometryNormal,
+                AttributeBinding::GeometryTangent,
+                AttributeBinding::GeometryBitangent,
+                AttributeBinding::GeometryTextureCoordinate,
+            ],
+            false => 
+            &[
+                AttributeBinding::GeometryPosition,
+                AttributeBinding::GeometryNormal,
+                AttributeBinding::GeometryTextureCoordinate,
+            ],
+        }
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::FromMaterial(Cow::Borrowed("u_DiffuseTexture")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-        ]
+        match self.has_normal_map() {
+            true => &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+            ],
+            false => &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+            ],
+        }
     }
 
     fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
@@ -141,7 +161,11 @@ impl StandardMaterial for TextureMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
         match name {
-            "u_DiffuseTexture" => Some(Readonly::Owned(self.albedo.borrow().clone()?)),
+            "u_AlbedoMap" => Some(Readonly::Owned(self.albedo.borrow().clone()?)),
+            "u_NormalMap" => match self.has_normal_map() {
+                true => Some(Readonly::Owned(self.normal.borrow().clone()?)),
+                false => None,
+            },
             "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
                 self.transparency.alpha(),
             ))),
@@ -177,11 +201,18 @@ impl StandardMaterial for TextureMaterial {
 
 impl StandardMaterialSource for TextureMaterial {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("TextureMaterial")
+        match self.has_normal_map() {
+            true => {
+                Cow::Borrowed("TextureMaterial_NormalMap")
+            }
+            false => Cow::Borrowed("TextureMaterial"),
+        }
     }
 
     fn vertex_process(&self) -> Option<Cow<'static, str>> {
-        None
+        Some(Cow::Borrowed(include_str!(
+            "./shaders/texture_build_vertex.glsl"
+        )))
     }
 
     fn fragment_process(&self) -> Cow<'static, str> {
@@ -189,10 +220,105 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn vertex_defines(&self) -> Vec<Define> {
-        vec![]
+        match self.has_normal_map() {
+            true => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
+            false => vec![],
+        }
     }
 
     fn fragment_defines(&self) -> Vec<Define> {
-        vec![]
+        match self.has_normal_map() {
+            true => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
+            false => vec![],
+        }
+    }
+}
+
+struct WaitLoader {
+    unit: TextureUnit,
+    loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
+    texture_uniform: Weak<RefCell<Option<UniformValue>>>,
+    notifier: Weak<RefCell<Notifier<()>>>,
+}
+
+impl Notifiee<LoaderStatus> for WaitLoader {
+    fn notify(&mut self, status: &LoaderStatus) {
+        let Some(notifier) = self.notifier.upgrade() else {
+            return;
+        };
+
+        match status {
+            LoaderStatus::Unload => unreachable!(),
+            LoaderStatus::Loading => {}
+            LoaderStatus::Loaded => {
+                let (Some(loader), Some(uniform)) =
+                    (self.loader.upgrade(), self.texture_uniform.upgrade())
+                else {
+                    return;
+                };
+
+                let texture = loader.borrow().loaded().unwrap();
+                *uniform.borrow_mut() = Some(UniformValue::Texture2D {
+                    descriptor: TextureDescriptor::new(texture),
+                    unit: self.unit,
+                });
+                notifier.borrow_mut().notify(&())
+            }
+            LoaderStatus::Errored => {
+                let Some(loader) = self.loader.upgrade() else {
+                    return;
+                };
+
+                let err = loader.borrow().loaded().err().unwrap();
+                warn!("Failed to load albedo texture. {}", err)
+            }
+        }
+    }
+}
+
+pub struct Builder {
+    transparency: Transparency,
+    albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
+    normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
+}
+
+impl Builder {
+    /// Constructs a new texture material builder with an albedo map in required.
+    /// By default, the transparency is set to [`Transparency::Opaque`].
+    pub fn new<A>(albedo: A) -> Self
+    where
+        A: Loader<Texture2D, Failure = Error> + 'static,
+    {
+        Self {
+            transparency: Transparency::Opaque,
+            albedo_loader: Rc::new(RefCell::new(albedo)),
+            normal_loader: None,
+        }
+    }
+
+    /// Sets transparency for the material.
+    pub fn set_transparency(mut self, transparency: Transparency) -> Self {
+        self.transparency = transparency;
+        self
+    }
+
+    /// Sets normal map for the material.
+    pub fn set_normal_map<N>(mut self, normal: N) -> Self
+    where
+        N: Loader<Texture2D, Failure = Error> + 'static,
+    {
+        self.normal_loader = Some(Rc::new(RefCell::new(normal)));
+        self
+    }
+
+    pub fn build(self) -> TextureMaterial {
+        TextureMaterial {
+            transparency: self.transparency,
+            albedo_loader: self.albedo_loader,
+            albedo: Rc::new(RefCell::new(None)),
+            normal_loader: self.normal_loader,
+            normal: Rc::new(RefCell::new(None)),
+            notifier: Rc::new(RefCell::new(Notifier::new())),
+        }
     }
 }

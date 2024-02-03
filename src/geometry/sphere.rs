@@ -130,6 +130,14 @@ impl Geometry for Sphere {
         }))
     }
 
+    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        None
+    }
+
+    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        None
+    }
+
     fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
         None
     }

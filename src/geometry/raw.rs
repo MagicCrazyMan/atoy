@@ -18,6 +18,8 @@ pub struct RawGeometry {
     cull_face: Option<CullFace>,
     positions: Option<AttributeValue>,
     normals: Option<AttributeValue>,
+    tangents: Option<AttributeValue>,
+    bitangents: Option<AttributeValue>,
     texture_coordinates: Option<AttributeValue>,
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
@@ -31,6 +33,8 @@ impl RawGeometry {
         cull_face: Option<CullFace>,
         positions: Option<AttributeValue>,
         normals: Option<AttributeValue>,
+        tangents: Option<AttributeValue>,
+        bitangents: Option<AttributeValue>,
         texture_coordinates: Option<AttributeValue>,
         attributes: HashMap<String, AttributeValue>,
         uniforms: HashMap<String, UniformValue>,
@@ -41,6 +45,8 @@ impl RawGeometry {
             cull_face,
             positions,
             normals,
+            tangents,
+            bitangents,
             texture_coordinates,
             attributes,
             uniforms,
@@ -69,6 +75,14 @@ impl Geometry for RawGeometry {
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
         self.normals.as_ref().map(|v| Readonly::Borrowed(v))
+    }
+
+    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        self.tangents.as_ref().map(|v| Readonly::Borrowed(v))
+    }
+
+    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        self.bitangents.as_ref().map(|v| Readonly::Borrowed(v))
     }
 
     fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {

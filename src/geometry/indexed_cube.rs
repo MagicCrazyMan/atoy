@@ -158,6 +158,14 @@ impl Geometry for IndexedCube {
         Some(Readonly::Borrowed(&self.normals_attribute))
     }
 
+    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        None
+    }
+
+    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        None
+    }
+
     fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
         Some(Readonly::Borrowed(&self.textures_attribute))
     }

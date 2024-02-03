@@ -28,6 +28,8 @@ pub struct Rectangle {
     positions: AttributeValue,
     texture_coordinates: AttributeValue,
     normals: AttributeValue,
+    tangents: AttributeValue,
+    bitangents: AttributeValue,
     bounding: BoundingVolume,
     notifier: Notifier<()>,
 }
@@ -49,7 +51,7 @@ impl Rectangle {
             texture_scale_s,
             texture_scale_t,
         );
-        let data = BufferDescriptor::with_memory_policy(
+        let descriptor = BufferDescriptor::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len()),
             BufferUsage::STATIC_DRAW,
             MemoryPolicy::restorable(move || {
@@ -72,7 +74,7 @@ impl Rectangle {
             height,
             bounding,
             positions: AttributeValue::Buffer {
-                descriptor: data.clone(),
+                descriptor: descriptor.clone(),
                 target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::FLOAT,
@@ -81,7 +83,7 @@ impl Rectangle {
                 bytes_offset: 0,
             },
             texture_coordinates: AttributeValue::Buffer {
-                descriptor: data.clone(),
+                descriptor: descriptor.clone(),
                 target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Two,
                 data_type: BufferDataType::FLOAT,
@@ -90,13 +92,31 @@ impl Rectangle {
                 bytes_offset: 32,
             },
             normals: AttributeValue::Buffer {
-                descriptor: data,
+                descriptor: descriptor.clone(),
                 target: BufferTarget::ARRAY_BUFFER,
                 component_size: BufferComponentSize::Three,
                 data_type: BufferDataType::FLOAT,
                 normalized: false,
                 bytes_stride: 0,
                 bytes_offset: 64,
+            },
+            tangents: AttributeValue::Buffer {
+                descriptor: descriptor.clone(),
+                target: BufferTarget::ARRAY_BUFFER,
+                component_size: BufferComponentSize::Three,
+                data_type: BufferDataType::FLOAT,
+                normalized: false,
+                bytes_stride: 0,
+                bytes_offset: 112,
+            },
+            bitangents: AttributeValue::Buffer {
+                descriptor,
+                target: BufferTarget::ARRAY_BUFFER,
+                component_size: BufferComponentSize::Three,
+                data_type: BufferDataType::FLOAT,
+                normalized: false,
+                bytes_stride: 0,
+                bytes_offset: 160,
             },
             notifier: Notifier::new(),
         }
@@ -142,6 +162,14 @@ impl Geometry for Rectangle {
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
         Some(Readonly::Borrowed(&self.normals))
+    }
+
+    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.tangents))
+    }
+
+    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+        Some(Readonly::Borrowed(&self.bitangents))
     }
 
     fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
@@ -193,7 +221,7 @@ fn create_rectangle(
     height: f64,
     texture_scale_s: f64,
     texture_scale_t: f64,
-) -> ([u8; 112], BoundingVolume) {
+) -> ([u8; 208], BoundingVolume) {
     let x = *anchor.x();
     let y = *anchor.y();
 
@@ -253,15 +281,25 @@ fn create_rectangle(
         1.0 * texture_scale_s as f32, 1.0 * texture_scale_t as f32,
         0.0, 1.0 * texture_scale_t as f32,
         0.0, 0.0,
-        // normal
+        // normals
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
         0.0, 0.0, 1.0,
-        0.0, 0.0, 1.0
+        0.0, 0.0, 1.0,
+        // tangents
+        1.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        // bitangents
+        0.0, 1.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 1.0, 0.0,
     ];
 
     (
-        unsafe { std::mem::transmute::<[f32; 28], [u8; 112]>(buffer) },
+        unsafe { std::mem::transmute::<[f32; 52], [u8; 208]>(buffer) },
         bounding_volume,
     )
 }

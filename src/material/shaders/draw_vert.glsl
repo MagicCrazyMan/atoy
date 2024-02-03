@@ -3,6 +3,16 @@
  *
  * Fucntion `atoy_OutputVertex atoy_build_vertex(atoy_InputVertex)` MUST be filled.
  */
+ 
+in vec4 a_Position;
+in vec3 a_Normal;
+in vec2 a_TexCoord;
+
+out vec3 v_PositionWS;
+out vec3 v_PositionES;
+out vec3 v_PositionCS;
+out vec3 v_NormalWS;
+out vec2 v_TexCoord;
 
 void main() {
     atoy_InputVertex input_vertex = atoy_InputVertex(a_Position, a_Normal, a_TexCoord);

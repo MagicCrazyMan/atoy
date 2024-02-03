@@ -42,6 +42,8 @@ pub enum AttributeBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
     GeometryNormal,
+    GeometryTangent,
+    GeometryBitangent,
     FromGeometry(Cow<'static, str>),
     FromMaterial(Cow<'static, str>),
     FromEntity(Cow<'static, str>),
@@ -54,6 +56,8 @@ impl AttributeBinding {
             AttributeBinding::GeometryPosition => "a_Position",
             AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
             AttributeBinding::GeometryNormal => "a_Normal",
+            AttributeBinding::GeometryTangent => "a_Tangent",
+            AttributeBinding::GeometryBitangent => "a_Bitangent",
             AttributeBinding::FromGeometry(name)
             | AttributeBinding::FromMaterial(name)
             | AttributeBinding::FromEntity(name) => name,

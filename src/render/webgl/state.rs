@@ -173,6 +173,8 @@ impl FrameState {
                 AttributeBinding::GeometryPosition => geometry.positions(),
                 AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
                 AttributeBinding::GeometryNormal => geometry.normals(),
+                AttributeBinding::GeometryTangent => geometry.tangents(),
+                AttributeBinding::GeometryBitangent => geometry.bitangents(),
                 AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
                 AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
                 AttributeBinding::FromEntity(name) => entity

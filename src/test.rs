@@ -186,17 +186,17 @@ fn create_scene() -> Result<Scene, Error> {
     //     Vec3::new(0.6, 0.6, 0.6),
     // ));
     scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 1.5, 0.0),
+        Vec3::new(0.0, 0.5, 1.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
     ));
-    scene.add_point_light(PointLight::new(
-        Vec3::new(1.0, 1.5, 0.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.4, 0.4, 0.4),
-        Vec3::new(0.6, 0.6, 0.6),
-    ));
+    // scene.add_point_light(PointLight::new(
+    //     Vec3::new(1.0, 1.5, 0.0),
+    //     Vec3::new(0.0, 0.0, 0.0),
+    //     Vec3::new(0.4, 0.4, 0.4),
+    //     Vec3::new(0.6, 0.6, 0.6),
+    // ));
     // scene.add_point_light(PointLight::new(
     //     Vec3::new(1.0, 1.5, 1.0),
     //     Vec3::new(0.0, 0.0, 0.0),
@@ -538,7 +538,6 @@ pub fn test_cube(
         Vec3::new(0.0, 1.0, 0.0),
     );
     let mut scene = create_scene()?;
-    // let mut scene = create_scene((0.0, 50.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0));
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
@@ -563,7 +562,7 @@ pub fn test_cube(
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);
     }
-    scene.entity_container_mut().add_group(cubes)?;
+    // scene.entity_container_mut().add_group(cubes)?;
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -754,37 +753,69 @@ pub fn test_cube(
             )));
 
             if *is_compressed {
-                image.set_material(Some(TextureMaterial::from_loaders(
-                    DirectDrawSurfaceLoader::with_params(
+                image.set_material(Some(
+                    material::texture::Builder::new(DirectDrawSurfaceLoader::with_params(
                         *url,
                         *dxt1_use_alpha,
                         *use_srgb,
                         *read_mipmaps,
                         sampler_parameters.clone(),
                         texture_parameters.clone(),
-                    ),
-                    Transparency::Opaque,
-                )));
+                    ))
+                    .build(),
+                ));
             } else {
-                image.set_material(Some(TextureMaterial::from_loaders(
-                    TextureLoader::with_params(
+                image.set_material(Some(
+                    material::texture::Builder::new(TextureLoader::with_params(
                         *url,
                         pixel_storages.clone(),
                         sampler_parameters.clone(),
                         texture_parameters.clone(),
                         *generate_mipmap,
-                    ),
-                    Transparency::Opaque,
-                )));
+                    ))
+                    .build(),
+                ));
             }
 
             images.entities_mut().push(image);
         },
     );
-    scene.entity_container_mut().add_group(images);
+    scene.entity_container_mut().add_group(images)?;
+
+    let mut wall = EntityOptions::new();
+    wall.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::from_rotation_to(&Vec3::<f64>::new(0.0, 0.0, 1.0), &Vec3::<f64>::new(1.0, 0.0, 1.0).normalize()),
+        &Vec3::<f64>::new(0.0, 0.0, 0.5),
+    ));
+    wall.set_geometry(Some(Rectangle::new(
+        Vec2::<f64>::new_zero(),
+        Placement::Center,
+        2.0,
+        2.0,
+        1.0,
+        1.0,
+    )));
+    wall.set_material(Some(
+        material::texture::Builder::new(TextureLoader::with_params(
+            "/brickwall.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+        ))
+        .set_normal_map(TextureLoader::with_params(
+            "/brickwall_normal.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+        ))
+        .build(),
+    ));
+    scene.entity_container_mut().add_entity(wall);
 
     let mut floor = EntityOptions::new();
-    floor.set_material(Some(TextureMaterial::from_loaders(
+    floor.set_material(Some(TextureMaterial::new(
         DirectDrawSurfaceLoader::new("/wood_dxt3_mipmaps.dds"),
         Transparency::Opaque,
     )));

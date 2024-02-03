@@ -879,7 +879,7 @@ impl Container {
 
     pub fn add_group(&mut self, group_options: GroupOptions) -> Result<(), Error> {
         unsafe {
-            let mut queue = VecDeque::from_iter([(group_options, None)]);
+            let mut queue: VecDeque<(GroupOptions, Option<&Uuid>)> = VecDeque::from_iter([(group_options, None)]);
             while let Some((group_options, super_group)) = queue.pop_front() {
                 let group: *mut Group = match super_group {
                     Some(super_group) => self.create_group_in_group(super_group)?,

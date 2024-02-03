@@ -28,6 +28,10 @@ pub trait Geometry {
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>>;
 
+    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>>;
+   
+    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>>;
+
     fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>>;
 
     fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;

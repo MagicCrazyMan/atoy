@@ -2,19 +2,6 @@
  * Standard Vertex Shader Constants Source Code.
  */
 
-in vec4 a_Position;
-in vec3 a_Normal;
-in vec2 a_TexCoord;
-
-uniform mat4 u_ModelMatrix;
-uniform mat4 u_NormalMatrix;
-
-out vec3 v_PositionWS;
-out vec3 v_PositionES;
-out vec3 v_PositionCS;
-out vec3 v_NormalWS;
-out vec2 v_TexCoord;
-
 /**
  * Input vertex difinition.
  * 

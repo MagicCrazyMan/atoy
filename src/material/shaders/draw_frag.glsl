@@ -12,8 +12,21 @@ uniform vec3 u_BloomThreshold;
 layout(location = 1) out vec4 o_BloomColor;
 #endif
 
+#ifdef NORMAL_MAP
+uniform sampler2D u_NormalMap;
+in vec3 v_TBN;
+#endif
+
 void main() {
     atoy_Fragment fragment = atoy_build_fragment();
+    #ifdef NORMAL_MAP
+        vec3 color = texture(u_NormalMap, fragment.tex_coord).xyz;
+        color.xy = color.xy * 2.0f - 1.0f;
+        color.z = (color.z - 0.5f) * 2.0f;
+        vec3 normal = v_TBN * color;
+        fragment.normal_ws = normalize(normal);
+    #endif
+
     atoy_Material material = atoy_build_material(fragment);
 
     #ifdef LIGHTING
