@@ -5,7 +5,6 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use gl_matrix4rust::{mat4::Mat4, vec3::Vec3, GLF32};
 use log::warn;
 
 use crate::{
@@ -210,9 +209,7 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn vertex_process(&self) -> Option<Cow<'static, str>> {
-        Some(Cow::Borrowed(include_str!(
-            "./shaders/texture_build_vertex.glsl"
-        )))
+        None
     }
 
     fn fragment_process(&self) -> Cow<'static, str> {

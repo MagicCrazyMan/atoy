@@ -185,12 +185,22 @@ fn create_scene() -> Result<Scene, Error> {
     //     Vec3::new(0.4, 0.4, 0.4),
     //     Vec3::new(0.6, 0.6, 0.6),
     // ));
+    let light_pos = Vec3::new(0.0, 0.5, 0.0);
     scene.add_point_light(PointLight::new(
-        Vec3::new(0.0, 0.5, 1.0),
+        light_pos.clone(),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
     ));
+    let mut hint = EntityOptions::new();
+    hint.set_model_matrix(Mat4::<f64>::from_translation(&light_pos));
+    hint.set_geometry(Some(Sphere::with_params(0.1, 12, 24)));
+    hint.set_material(Some(SolidColorMaterial::with_color(
+        Vec3::new(1.0, 1.0, 1.0),
+        128.0,
+        Transparency::Opaque,
+    )));
+    scene.entity_container_mut().add_entity(hint);
     // scene.add_point_light(PointLight::new(
     //     Vec3::new(1.0, 1.5, 0.0),
     //     Vec3::new(0.0, 0.0, 0.0),
@@ -533,7 +543,7 @@ pub fn test_cube(
     pick_callback: &Function,
 ) -> Result<Viewer, Error> {
     let camera = create_camera(
-        Vec3::new(0.0, 5.0, 2.0),
+        Vec3::new(0.0, 0.0, 3.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
@@ -739,7 +749,7 @@ pub fn test_cube(
 
             image.set_model_matrix(Mat4::<f64>::from_rotation_translation_scale(
                 &Quat::<f64>::new_identity(),
-                &Vec3::<f64>::new(0.0, 0.0, -(index as f64)),
+                &Vec3::<f64>::new(0.0, 0.0, -(index as f64 + 1.0)),
                 &Vec3::<f64>::new(4.0, 4.0, 4.0),
             ));
 
@@ -772,6 +782,7 @@ pub fn test_cube(
                         sampler_parameters.clone(),
                         texture_parameters.clone(),
                         *generate_mipmap,
+                        true,
                     ))
                     .build(),
                 ));
@@ -782,12 +793,52 @@ pub fn test_cube(
     );
     scene.entity_container_mut().add_group(images)?;
 
-    let mut wall = EntityOptions::new();
-    wall.set_model_matrix(Mat4::<f64>::from_rotation_translation(
-        &Quat::<f64>::from_rotation_to(&Vec3::<f64>::new(0.0, 0.0, 1.0), &Vec3::<f64>::new(1.0, 0.0, 1.0).normalize()),
-        &Vec3::<f64>::new(0.0, 0.0, 0.5),
+    // let mut brick_wall = EntityOptions::new();
+    // brick_wall.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+    //     &Quat::<f64>::from_rotation_to(
+    //         &Vec3::<f64>::new(0.0, 0.0, 1.0),
+    //         &Vec3::<f64>::new(-1.0, 0.0, 1.0).normalize(),
+    //     ),
+    //     &Vec3::<f64>::new(1.0, 0.0, 0.0),
+    // ));
+    // brick_wall.set_geometry(Some(Rectangle::new(
+    //     Vec2::<f64>::new_zero(),
+    //     Placement::Center,
+    //     2.0,
+    //     2.0,
+    //     1.0,
+    //     1.0,
+    // )));
+    // brick_wall.set_material(Some(
+    //     material::texture::Builder::new(TextureLoader::with_params(
+    //         "/brickwall.jpg",
+    //         [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+    //         [],
+    //         [],
+    //         true,
+    //         true,
+    //     ))
+    //     .set_normal_map(TextureLoader::with_params(
+    //         "/brickwall_normal.jpg",
+    //         [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+    //         [],
+    //         [],
+    //         true,
+    //         true,
+    //     ))
+    //     .build(),
+    // ));
+    // scene.entity_container_mut().add_entity(brick_wall);
+
+    let mut brick_wall_1 = EntityOptions::new();
+    brick_wall_1.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::from_rotation_to(
+            &Vec3::<f64>::new(0.0, 0.0, 1.0),
+            &Vec3::<f64>::new(-1.0, 0.0, 1.0).normalize(),
+        ),
+        &Vec3::<f64>::new(1.0, 0.5, 0.0),
     ));
-    wall.set_geometry(Some(Rectangle::new(
+    brick_wall_1.set_geometry(Some(Rectangle::new(
         Vec2::<f64>::new_zero(),
         Placement::Center,
         2.0,
@@ -795,12 +846,50 @@ pub fn test_cube(
         1.0,
         1.0,
     )));
-    wall.set_material(Some(
+    brick_wall_1.set_material(Some(
+        material::texture::Builder::new(TextureLoader::with_params(
+            "/bricks2.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+            true,
+        ))
+        .set_normal_map(TextureLoader::with_params(
+            "/bricks2_normal.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+            false,
+        ))
+        .build(),
+    ));
+    scene.entity_container_mut().add_entity(brick_wall_1);
+
+    let mut brick_wall_2 = EntityOptions::new();
+    brick_wall_2.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::from_rotation_to(
+            &Vec3::<f64>::new(0.0, 0.0, 1.0),
+            &Vec3::<f64>::new(1.0, 0.0, 1.0).normalize(),
+        ),
+        &Vec3::<f64>::new(-1.0, 0.5, 0.0),
+    ));
+    brick_wall_2.set_geometry(Some(Rectangle::new(
+        Vec2::<f64>::new_zero(),
+        Placement::Center,
+        2.0,
+        2.0,
+        1.0,
+        1.0,
+    )));
+    brick_wall_2.set_material(Some(
         material::texture::Builder::new(TextureLoader::with_params(
             "/brickwall.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
+            true,
             true,
         ))
         .set_normal_map(TextureLoader::with_params(
@@ -809,10 +898,11 @@ pub fn test_cube(
             [],
             [],
             true,
+            false,
         ))
         .build(),
     ));
-    scene.entity_container_mut().add_entity(wall);
+    scene.entity_container_mut().add_entity(brick_wall_2);
 
     let mut floor = EntityOptions::new();
     floor.set_material(Some(TextureMaterial::new(

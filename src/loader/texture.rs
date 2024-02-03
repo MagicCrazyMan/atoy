@@ -9,7 +9,7 @@ use crate::{
     notify::Notifier,
     render::webgl::texture::{
         texture2d::{self, Texture2D},
-        SamplerParameter, TextureDataType, TextureFormat, TextureColorFormat, TextureParameter,
+        SamplerParameter, TextureColorFormat, TextureDataType, TextureFormat, TextureParameter,
         TexturePixelStorage, TextureSource,
     },
 };
@@ -50,6 +50,7 @@ pub struct TextureLoader {
     image: *mut Option<HtmlImageElement>,
     error: *mut Option<Error>,
 
+    is_srgb: bool,
     generate_mipmaps: bool,
     pixel_storages: Vec<TexturePixelStorage>,
     sampler_params: Vec<SamplerParameter>,
@@ -106,6 +107,7 @@ impl TextureLoader {
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
 
+            is_srgb: false,
             generate_mipmaps: true,
             pixel_storages: Vec::new(),
             sampler_params: Vec::new(),
@@ -127,6 +129,7 @@ impl TextureLoader {
         sampler_params: SI,
         texture_params: TI,
         generate_mipmaps: bool,
+        is_srgb: bool,
     ) -> Self
     where
         S: Into<String>,
@@ -142,6 +145,7 @@ impl TextureLoader {
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
 
+            is_srgb,
             generate_mipmaps,
             pixel_storages: pixel_storages.into_iter().collect(),
             sampler_params: sampler_params.into_iter().collect(),
@@ -386,7 +390,11 @@ impl Loader<Texture2D> for TextureLoader {
                     data_type: TextureDataType::UNSIGNED_BYTE,
                     pixel_storages: self.pixel_storages.clone(),
                 },
-                TextureColorFormat::RGBA8,
+                if self.is_srgb {
+                    TextureColorFormat::SRGB8_ALPHA8
+                } else {
+                    TextureColorFormat::RGBA8
+                },
             )
             .set_sampler_parameters(self.sampler_params.clone())
             .set_texture_parameters(self.texture_params.clone());

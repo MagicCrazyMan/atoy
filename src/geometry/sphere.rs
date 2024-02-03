@@ -33,10 +33,10 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new() -> Sphere {
-        Self::with_opts(1.0, 12, 24)
+        Self::with_params(1.0, 12, 24)
     }
 
-    pub fn with_opts(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
+    pub fn with_params(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, vertical_segments, horizontal_segments);
         let positions_len = positions.length() as usize;

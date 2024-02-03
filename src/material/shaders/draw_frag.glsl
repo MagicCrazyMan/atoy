@@ -14,16 +14,16 @@ layout(location = 1) out vec4 o_BloomColor;
 
 #ifdef NORMAL_MAP
 uniform sampler2D u_NormalMap;
-in vec3 v_TBN;
+in mat3 v_TBN;
 #endif
 
 void main() {
     atoy_Fragment fragment = atoy_build_fragment();
     #ifdef NORMAL_MAP
-        vec3 color = texture(u_NormalMap, fragment.tex_coord).xyz;
-        color.xy = color.xy * 2.0f - 1.0f;
-        color.z = (color.z - 0.5f) * 2.0f;
-        vec3 normal = v_TBN * color;
+        vec3 normal_color = texture(u_NormalMap, fragment.tex_coord).xyz;
+        normal_color.xy = normal_color.xy * 2.0f - 1.0f;
+        normal_color.z = (normal_color.z - 0.5f) * 2.0f;
+        vec3 normal = v_TBN * normal_color;
         fragment.normal_ws = normalize(normal);
     #endif
 
