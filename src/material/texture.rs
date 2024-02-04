@@ -33,6 +33,9 @@ pub struct TextureMaterial {
     normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
     normal: Rc<RefCell<Option<UniformValue>>>,
 
+    parallax_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
+    parallax: Rc<RefCell<Option<UniformValue>>>,
+
     notifier: Rc<RefCell<Notifier<()>>>,
 }
 
@@ -49,6 +52,9 @@ impl TextureMaterial {
 
             normal_loader: None,
             normal: Rc::new(RefCell::new(None)),
+
+            parallax_loader: None,
+            parallax: Rc::new(RefCell::new(None)),
 
             notifier: Rc::new(RefCell::new(Notifier::new())),
         }
@@ -87,23 +93,50 @@ impl TextureMaterial {
             });
         }
     }
+
+    fn has_parallax_map(&self) -> bool {
+        self.parallax_loader.is_some()
+    }
+
+    fn prepare_parallax(&self) {
+        let Some(parallax_loader) = self.parallax_loader.as_ref() else {
+            return;
+        };
+
+        let mut loader = parallax_loader.borrow_mut();
+        if LoaderStatus::Unload == loader.status() {
+            loader.load();
+            loader.notifier().borrow_mut().register(WaitLoader {
+                unit: TextureUnit::TEXTURE2,
+                loader: Rc::downgrade(parallax_loader),
+                texture_uniform: Rc::downgrade(&self.parallax),
+                notifier: Rc::downgrade(&self.notifier),
+            });
+        }
+    }
 }
 
 impl StandardMaterial for TextureMaterial {
     fn ready(&self) -> bool {
-        match self.has_normal_map() {
-            true => self.albedo.borrow().is_some() && self.normal.borrow().is_some(),
-            false => self.albedo.borrow().is_some(),
+        if self.albedo.borrow().is_none() {
+            return false;
+        }
+
+        match (self.has_normal_map(), self.has_parallax_map()) {
+            (true, true) => self.parallax.borrow().is_some() && self.normal.borrow().is_some(),
+            (true, false) => self.normal.borrow().is_some(),
+            (false, true) => self.parallax.borrow().is_some(),
+            (false, false) => true,
         }
     }
 
     fn prepare(&mut self, _: &mut FrameState) {
-        match self.has_normal_map() {
-            true => {
-                self.prepare_albedo();
-                self.prepare_normal();
-            }
-            false => self.prepare_albedo(),
+        self.prepare_albedo();
+        if self.has_normal_map() {
+            self.prepare_normal();
+        }
+        if self.has_parallax_map() {
+            self.prepare_parallax();
         }
     }
 
@@ -112,17 +145,15 @@ impl StandardMaterial for TextureMaterial {
     }
 
     fn attribute_bindings(&self) -> &[AttributeBinding] {
-        match self.has_normal_map() {
-            true => 
-            &[
+        match self.has_normal_map() || self.has_parallax_map() {
+            true => &[
                 AttributeBinding::GeometryPosition,
                 AttributeBinding::GeometryNormal,
                 AttributeBinding::GeometryTangent,
                 AttributeBinding::GeometryBitangent,
                 AttributeBinding::GeometryTextureCoordinate,
             ],
-            false => 
-            &[
+            false => &[
                 AttributeBinding::GeometryPosition,
                 AttributeBinding::GeometryNormal,
                 AttributeBinding::GeometryTextureCoordinate,
@@ -131,8 +162,18 @@ impl StandardMaterial for TextureMaterial {
     }
 
     fn uniform_bindings(&self) -> &[UniformBinding] {
-        match self.has_normal_map() {
-            true => &[
+        match (self.has_normal_map(), self.has_parallax_map()) {
+            (true, true) => &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+            ],
+            (true, false) => &[
                 UniformBinding::ModelMatrix,
                 UniformBinding::NormalMatrix,
                 UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
@@ -140,7 +181,16 @@ impl StandardMaterial for TextureMaterial {
                 UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
                 UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
             ],
-            false => &[
+            (false, true) => &[
+                UniformBinding::ModelMatrix,
+                UniformBinding::NormalMatrix,
+                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+            ],
+            (false, false) => &[
                 UniformBinding::ModelMatrix,
                 UniformBinding::NormalMatrix,
                 UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
@@ -163,6 +213,14 @@ impl StandardMaterial for TextureMaterial {
             "u_AlbedoMap" => Some(Readonly::Owned(self.albedo.borrow().clone()?)),
             "u_NormalMap" => match self.has_normal_map() {
                 true => Some(Readonly::Owned(self.normal.borrow().clone()?)),
+                false => None,
+            },
+            "u_ParallaxHeightScale" => match self.has_parallax_map() {
+                true => Some(Readonly::Owned(UniformValue::Float1(0.1))),
+                false => None,
+            },
+            "u_ParallaxMap" => match self.has_parallax_map() {
+                true => Some(Readonly::Owned(self.parallax.borrow().clone()?)),
                 false => None,
             },
             "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
@@ -200,11 +258,11 @@ impl StandardMaterial for TextureMaterial {
 
 impl StandardMaterialSource for TextureMaterial {
     fn name(&self) -> Cow<'static, str> {
-        match self.has_normal_map() {
-            true => {
-                Cow::Borrowed("TextureMaterial_NormalMap")
-            }
-            false => Cow::Borrowed("TextureMaterial"),
+        match (self.has_normal_map(), self.has_parallax_map()) {
+            (true, true) => Cow::Borrowed("TextureMaterial_NormalMap_ParallaxMap"),
+            (true, false) => Cow::Borrowed("TextureMaterial_NormalMap"),
+            (false, true) => Cow::Borrowed("TextureMaterial_ParallaxMap"),
+            (false, false) => Cow::Borrowed("TextureMaterial"),
         }
     }
 
@@ -217,17 +275,19 @@ impl StandardMaterialSource for TextureMaterial {
     }
 
     fn vertex_defines(&self) -> Vec<Define> {
-        match self.has_normal_map() {
-            true => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
-            false => vec![],
+        match (self.has_normal_map(), self.has_parallax_map()) {
+            (true, true) => vec![
+                Define::WithoutValue(Cow::Borrowed("NORMAL_MAP")),
+                Define::WithoutValue(Cow::Borrowed("PARALLAX_MAP")),
+            ],
+            (true, false) => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
+            (false, true) => vec![Define::WithoutValue(Cow::Borrowed("PARALLAX_MAP"))],
+            (false, false) => vec![],
         }
     }
 
     fn fragment_defines(&self) -> Vec<Define> {
-        match self.has_normal_map() {
-            true => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
-            false => vec![],
-        }
+        self.vertex_defines()
     }
 }
 
@@ -277,6 +337,7 @@ pub struct Builder {
     transparency: Transparency,
     albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
     normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
+    parallax_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
 }
 
 impl Builder {
@@ -290,6 +351,7 @@ impl Builder {
             transparency: Transparency::Opaque,
             albedo_loader: Rc::new(RefCell::new(albedo)),
             normal_loader: None,
+            parallax_loader: None,
         }
     }
 
@@ -308,6 +370,15 @@ impl Builder {
         self
     }
 
+    /// Sets parallax map for the material.
+    pub fn set_parallax_loader<P>(mut self, parallax: P) -> Self
+    where
+        P: Loader<Texture2D, Failure = Error> + 'static,
+    {
+        self.parallax_loader = Some(Rc::new(RefCell::new(parallax)));
+        self
+    }
+
     pub fn build(self) -> TextureMaterial {
         TextureMaterial {
             transparency: self.transparency,
@@ -315,6 +386,8 @@ impl Builder {
             albedo: Rc::new(RefCell::new(None)),
             normal_loader: self.normal_loader,
             normal: Rc::new(RefCell::new(None)),
+            parallax_loader: self.parallax_loader,
+            parallax: Rc::new(RefCell::new(None)),
             notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }

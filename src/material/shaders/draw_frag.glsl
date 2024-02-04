@@ -12,13 +12,32 @@ uniform vec3 u_BloomThreshold;
 layout(location = 1) out vec4 o_BloomColor;
 #endif
 
+#if defined(NORMAL_MAP) || defined(PARALLAX_MAP)
+in mat3 v_TBN;
+#endif
+
 #ifdef NORMAL_MAP
 uniform sampler2D u_NormalMap;
-in mat3 v_TBN;
+#endif
+
+#ifdef PARALLAX_MAP
+uniform sampler2D u_ParallaxMap;
+uniform float u_ParallaxHeightScale;
+in mat3 v_TBNInv;
 #endif
 
 void main() {
     atoy_Fragment fragment = atoy_build_fragment();
+    atoy_Material material = atoy_build_material(fragment);
+
+    #ifdef PARALLAX_MAP
+        vec3 to_camera = normalize(v_TBNInv * u_CameraPosition - v_TBNInv * fragment.position_ws);
+        float height = texture(u_ParallaxMap, fragment.tex_coord).r * u_ParallaxHeightScale;
+        vec2 offset = to_camera.xy /  to_camera.z * height;
+        fragment.tex_coord = fragment.tex_coord - offset;
+        if(fragment.tex_coord.x > 1.0 || fragment.tex_coord.y > 1.0 || fragment.tex_coord.x < 0.0 || fragment.tex_coord.y < 0.0)
+            discard;
+    #endif
     #ifdef NORMAL_MAP
         vec3 normal_color = texture(u_NormalMap, fragment.tex_coord).xyz;
         normal_color.xy = normal_color.xy * 2.0f - 1.0f;
@@ -27,7 +46,6 @@ void main() {
         fragment.normal_ws = normalize(normal);
     #endif
 
-    atoy_Material material = atoy_build_material(fragment);
 
     #ifdef LIGHTING
     atoy_LightingFragment lighting_fragment = atoy_LightingFragment(fragment.position_ws, fragment.normal_ws);

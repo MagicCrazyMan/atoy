@@ -904,6 +904,48 @@ pub fn test_cube(
     ));
     scene.entity_container_mut().add_entity(brick_wall_2);
 
+    let mut brick_wall_parallax = EntityOptions::new();
+    brick_wall_parallax.set_model_matrix(Mat4::<f64>::from_rotation_translation(
+        &Quat::<f64>::new_zero(),
+        &Vec3::<f64>::new(0.0, 0.5, -1.5),
+    ));
+    brick_wall_parallax.set_geometry(Some(Rectangle::new(
+        Vec2::<f64>::new_zero(),
+        Placement::Center,
+        2.0,
+        2.0,
+        1.0,
+        1.0,
+    )));
+    brick_wall_parallax.set_material(Some(
+        material::texture::Builder::new(TextureLoader::with_params(
+            "/bricks2.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+            true,
+        ))
+        .set_normal_map(TextureLoader::with_params(
+            "/bricks2_normal.jpg",
+            [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+            false,
+        ))
+        .set_parallax_loader(TextureLoader::with_params(
+            "bricks2_disp.jpg",
+            vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
+            [],
+            [],
+            true,
+            false,
+        ))
+        .build(),
+    ));
+    scene.entity_container_mut().add_entity(brick_wall_parallax);
+
     let mut floor = EntityOptions::new();
     floor.set_material(Some(TextureMaterial::new(
         DirectDrawSurfaceLoader::new("/wood_dxt3_mipmaps.dds"),
