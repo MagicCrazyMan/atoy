@@ -714,21 +714,25 @@ impl Pipeline for StandardPipeline {
                 {
                     match self.pipeline_shading {
                         StandardPipelineShading::ForwardShading => {
-                            self.forward_shading(state, scene)
+                            self.forward_shading(state, scene)?;
                         }
                         StandardPipelineShading::DeferredShading => {
                             if state.capabilities().color_buffer_float_supported() {
-                                self.deferred_shading(state, scene)
+                                self.deferred_shading(state, scene)?;
                             } else {
                                 // fallback to forward shading if color buffer float not supported
                                 self.forward_shading(state, scene)?;
                                 self.pipeline_shading = StandardPipelineShading::ForwardShading;
-                                Ok(())
                             }
                         }
                         StandardPipelineShading::Picking => unreachable!(),
                     }
-                }
+                };
+
+                // flushes all commands
+                state.gl().flush();
+
+                Ok(())
             }
         }
     }

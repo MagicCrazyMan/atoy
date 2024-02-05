@@ -84,7 +84,6 @@ impl Drop for TextureLoader {
             }
 
             drop(Box::from_raw(self.status));
-            drop(Box::from_raw(self.image));
             drop(Box::from_raw(self.error));
             drop(Box::from_raw(self.promise_callback));
             drop(Box::from_raw(self.promise_resolve));

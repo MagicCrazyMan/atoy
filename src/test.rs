@@ -935,7 +935,7 @@ pub fn test_cube(
             false,
         ))
         .set_parallax_loader(TextureLoader::with_params(
-            "bricks2_disp.jpg",
+            "/bricks2_disp.jpg",
             vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -944,7 +944,7 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    scene.entity_container_mut().add_entity(brick_wall_parallax);
+    // scene.entity_container_mut().add_entity(brick_wall_parallax);
 
     let mut floor = EntityOptions::new();
     floor.set_material(Some(TextureMaterial::new(
