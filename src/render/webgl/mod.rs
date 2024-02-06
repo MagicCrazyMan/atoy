@@ -10,7 +10,7 @@ use self::{
     state::FrameState, texture::TextureStore,
 };
 
-use super::{Pipeline, Render};
+use super::{Pipeline, Renderer};
 
 pub mod attribute;
 pub mod buffer;
@@ -82,7 +82,7 @@ pub enum WebGL2ContextPowerPerformance {
     LowPower,
 }
 
-pub struct WebGL2Render {
+pub struct WebGL2Renderer {
     gl: WebGl2RenderingContext,
     canvas: HtmlCanvasElement,
     program_store: ProgramStore,
@@ -94,14 +94,14 @@ pub struct WebGL2Render {
     post_render_notifier: Notifier<RenderEvent>,
 }
 
-impl Drop for WebGL2Render {
+impl Drop for WebGL2Renderer {
     fn drop(&mut self) {
         self.canvas.remove();
     }
 }
 
-impl WebGL2Render {
-    /// Constructs a new WebGL2 render.
+impl WebGL2Renderer {
+    /// Constructs a new WebGL2 renderer.
     pub fn new(
         canvas: HtmlCanvasElement,
         options: Option<WebGL2ContextOptions>,
@@ -142,43 +142,36 @@ impl WebGL2Render {
     }
 
     /// Returns the [`ProgramStore`].
-    #[inline]
     pub fn program_store(&self) -> &ProgramStore {
         &self.program_store
     }
 
     /// Returns the mutable [`ProgramStore`].
-    #[inline]
     pub fn program_store_mut(&mut self) -> &mut ProgramStore {
         &mut self.program_store
     }
 
     /// Returns the [`BufferStore`].
-    #[inline]
     pub fn buffer_store(&self) -> &BufferStore {
         &self.buffer_store
     }
 
     /// Returns the mutable [`BufferStore`].
-    #[inline]
     pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
         &mut self.buffer_store
     }
 
     /// Returns the [`TextureStore`].
-    #[inline]
     pub fn texture_store(&self) -> &TextureStore {
         &self.texture_store
     }
 
     /// Returns the mutable [`TextureStore`].
-    #[inline]
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
         &mut self.texture_store
     }
 
     /// Returns the [`Capabilities`].
-    #[inline]
     pub fn capabilities(&self) -> &Capabilities {
         &self.capabilities
     }
@@ -192,7 +185,7 @@ impl WebGL2Render {
     }
 }
 
-impl Render for WebGL2Render {
+impl Renderer for WebGL2Renderer {
     type State = FrameState;
 
     type Error = Error;

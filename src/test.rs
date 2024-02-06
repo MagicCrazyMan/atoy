@@ -1,18 +1,20 @@
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::ops::Mul;
+use std::rc::Weak;
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
 use gl_matrix4rust::quat::Quat;
 use gl_matrix4rust::vec2::Vec2;
 use gl_matrix4rust::vec3::Vec3;
+use gl_matrix4rust::vec4::Vec4;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::js_sys::{ArrayBuffer, Date, Function, Uint8Array};
-use web_sys::{HtmlImageElement, MouseEvent};
+use web_sys::{Element, HtmlImageElement, MouseEvent};
 
 use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
@@ -39,6 +41,7 @@ use crate::render::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::render::webgl::draw::{Draw, DrawMode};
+use crate::render::webgl::pipeline::{HdrToneMappingType, StandardPipelineShading};
 use crate::render::webgl::texture::texture2d::Texture2D;
 use crate::render::webgl::texture::{
     texture2d, SamplerParameter, TextureColorFormat, TextureCompressedFormat, TextureDataType,
@@ -48,14 +51,14 @@ use crate::render::webgl::texture::{
 };
 use crate::render::webgl::uniform::UniformValue;
 use crate::render::webgl::RenderEvent;
-use crate::render::Render;
+use crate::render::Renderer;
 use crate::utils::slice_to_float32_array;
-use crate::viewer::{self, Viewer, ViewerWeak};
+use crate::viewer::{self, Viewer};
 use crate::{document, entity};
 use crate::{
     geometry::cube::Cube,
     material::solid_color::SolidColorMaterial,
-    render::webgl::{draw::CullFace, WebGL2Render},
+    render::webgl::{draw::CullFace, WebGL2Renderer},
     scene::Scene,
     window,
 };
@@ -459,11 +462,13 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
 
     let start_timestamp = Rc::new(RefCell::new(0.0));
     viewer
-        .render_mut()
+        .renderer()
+        .borrow_mut()
         .pre_render()
         .register(PreRenderNotifiee(Rc::clone(&start_timestamp)));
     viewer
-        .render_mut()
+        .renderer()
+        .borrow_mut()
         .post_render()
         .register(PostRenderNotifiee(
             Rc::clone(&start_timestamp),
@@ -473,22 +478,164 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
     viewer
 }
 
-// #[wasm_bindgen]
-// pub fn test_max_combined_texture_image_units() -> Result<(), Error> {
-//     let scene = create_scene((0.0, 500.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, -1.0))?;
-//     let render = create_render(&scene)?;
-//     let count = TextureUnit::max_combined_texture_image_units(render.gl());
-//     console_log!("max combined texture image units: {}", count);
+#[wasm_bindgen]
+pub struct ViewerWasm(Rc<RefCell<Viewer>>);
 
-//     Ok(())
-// }
+#[wasm_bindgen]
+impl ViewerWasm {
+    pub fn mount_wasm(&self) -> Option<Element> {
+        self.0.borrow().mount().cloned()
+    }
 
-struct ViewerPick {
-    viewer: ViewerWeak,
+    pub fn set_mount_wasm(&mut self, mount: Option<Element>) -> Result<(), Error> {
+        self.0.borrow_mut().set_mount(mount)
+    }
+
+    pub fn render_when_needed_wasm(&self) -> bool {
+        // self.render_when_needed()
+        true
+    }
+
+    pub fn enable_render_when_needed_wasm(&mut self) {
+        // self.enable_render_when_needed()
+    }
+
+    pub fn disable_render_when_needed_wasm(&mut self) {
+        // self.disable_render_when_needed()
+    }
+
+    /// Returns `true` if entity culling enabled.
+    pub fn culling_enabled_wasm(&self) -> bool {
+        self.0.borrow_mut().culling_enabled()
+    }
+
+    pub fn enable_culling_wasm(&mut self) {
+        self.0.borrow_mut().enable_culling()
+    }
+
+    pub fn disable_culling_wasm(&mut self) {
+        self.0.borrow_mut().disable_culling()
+    }
+
+    /// Returns `true` if entity distance sorting enabled.
+    pub fn distance_sorting_enabled_wasm(&self) -> bool {
+        self.0.borrow().distance_sorting_enabled()
+    }
+
+    pub fn enable_distance_sorting_wasm(&mut self) {
+        self.0.borrow_mut().enable_distance_sorting()
+    }
+
+    pub fn disable_distance_sorting_wasm(&mut self) {
+        self.0.borrow_mut().disable_distance_sorting()
+    }
+
+    pub fn pipeline_shading_wasm(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.0.borrow().pipeline_shading()).unwrap()
+    }
+
+    pub fn set_pipeline_shading_wasm(&mut self, shading: JsValue) {
+        let shading = serde_wasm_bindgen::from_value::<StandardPipelineShading>(shading).unwrap();
+        self.0.borrow_mut().set_pipeline_shading(shading);
+    }
+
+    pub fn clear_color_wasm(&self) -> Box<[f32]> {
+        Box::new(self.0.borrow().clear_color().raw().clone())
+    }
+
+    pub fn set_clear_color_wasm(&mut self, r: f32, g: f32, b: f32, a: f32) {
+        self.0.borrow_mut().set_clear_color(Vec4::new(r, g, b, a))
+    }
+
+    pub fn gamma_correction_enabled_wasm(&self) -> bool {
+        self.0.borrow().gamma_correction_enabled()
+    }
+
+    pub fn enable_gamma_correction_wasm(&mut self) {
+        self.0.borrow_mut().enable_gamma_correction();
+    }
+
+    pub fn disable_gamma_correction_wasm(&mut self) {
+        self.0.borrow_mut().disable_gamma_correction();
+    }
+
+    pub fn gamma_wasm(&self) -> f32 {
+        self.0.borrow().gamma()
+    }
+
+    pub fn set_gamma_wasm(&mut self, gamma: f32) {
+        self.0.borrow_mut().set_gamma(gamma);
+    }
+
+    pub fn lighting_enabled_wasm(&self) -> bool {
+        self.0.borrow().lighting_enabled()
+    }
+
+    pub fn enable_lighting_wasm(&mut self) {
+        self.0.borrow_mut().enable_lighting();
+    }
+
+    pub fn disable_lighting_wasm(&mut self) {
+        self.0.borrow_mut().disable_lighting();
+    }
+
+    pub fn multisamples_wasm(&self) -> Option<i32> {
+        self.0.borrow().multisamples()
+    }
+
+    pub fn set_multisamples_wasm(&mut self, samples: Option<i32>) {
+        self.0.borrow_mut().set_multisamples(samples)
+    }
+
+    pub fn hdr_enabled_wasm(&self) -> bool {
+        self.0.borrow().hdr_enabled()
+    }
+
+    pub fn enable_hdr_wasm(&mut self) {
+        self.0.borrow_mut().enable_hdr();
+    }
+
+    pub fn disable_hdr_wasm(&mut self) {
+        self.0.borrow_mut().disable_hdr();
+    }
+
+    pub fn hdr_tone_mapping_type_wasm(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.0.borrow().hdr_tone_mapping_type()).unwrap()
+    }
+
+    pub fn set_hdr_tone_mapping_type_wasm(&mut self, hdr_tone_mapping_type: JsValue) {
+        let t =
+            serde_wasm_bindgen::from_value::<HdrToneMappingType>(hdr_tone_mapping_type).unwrap();
+        self.0.borrow_mut().set_hdr_tone_mapping_type(t);
+    }
+
+    pub fn bloom_enabled_wasm(&self) -> bool {
+        self.0.borrow().bloom_enabled()
+    }
+
+    pub fn enable_bloom_wasm(&mut self) {
+        self.0.borrow_mut().enable_bloom()
+    }
+
+    pub fn disable_bloom_wasm(&mut self) {
+        self.0.borrow_mut().disable_bloom()
+    }
+
+    pub fn bloom_blur_epoch_wasm(&self) -> usize {
+        self.0.borrow().bloom_blur_epoch()
+    }
+
+    pub fn set_bloom_blur_epoch_wasm(&mut self, epoch: usize) {
+        self.0.borrow_mut().set_bloom_blur_epoch(epoch);
+    }
+}
+
+struct ViewerPicker {
+    viewer: Weak<RefCell<Viewer>>,
     pick_callback: Function,
 }
 
-impl Notifiee<MouseEvent> for ViewerPick {
+impl Notifiee<MouseEvent> for ViewerPicker {
     fn notify(&mut self, event: &MouseEvent) {
         let Some(mut viewer) = self.viewer.upgrade() else {
             return;
@@ -499,7 +646,7 @@ impl Notifiee<MouseEvent> for ViewerPick {
         let start = window().performance().unwrap().now();
 
         // pick entity
-        if let Some(mut entity) = viewer.pick_entity(x, y).unwrap() {
+        if let Some(mut entity) = viewer.borrow_mut().pick_entity(x, y).unwrap() {
             let entity = &mut *entity;
             if let Some(material) = entity
                 .material_mut()
@@ -522,7 +669,7 @@ impl Notifiee<MouseEvent> for ViewerPick {
         };
 
         // pick position
-        if let Some(position) = viewer.pick_position(x, y).unwrap() {
+        if let Some(position) = viewer.borrow_mut().pick_position(x, y).unwrap() {
             console_log!("pick position {}", position);
         };
 
@@ -541,7 +688,7 @@ pub fn test_cube(
     height: f64,
     render_callback: &Function,
     pick_callback: &Function,
-) -> Result<Viewer, Error> {
+) -> Result<ViewerWasm, Error> {
     let camera = create_camera(
         Vec3::new(0.0, 0.0, 3.0),
         Vec3::new(0.0, 0.0, 0.0),
@@ -965,20 +1112,23 @@ pub fn test_cube(
     ));
     scene.entity_container_mut().add_entity(floor);
 
-    let mut viewer = create_viewer(scene, camera, render_callback);
+    let viewer = create_viewer(scene, camera, render_callback);
+    let viewer = Rc::new(RefCell::new(viewer));
     viewer
-        .scene_mut()
+        .borrow()
+        .scene()
+        .borrow_mut()
         .canvas_handler()
         .click()
         .borrow_mut()
-        .register(ViewerPick {
-            viewer: viewer.downgrade(),
+        .register(ViewerPicker {
+            viewer: Rc::downgrade(&viewer),
             pick_callback: pick_callback.clone(),
         });
 
-    viewer.start_render_loop();
+    viewer.borrow_mut().start_render_loop();
 
-    Ok(viewer)
+    Ok(ViewerWasm(viewer))
 }
 
 // // #[wasm_bindgen]
@@ -1328,18 +1478,21 @@ pub fn test_pick(
     }
     scene.entity_container_mut().add_group(cubes)?;
 
-    let mut viewer = create_viewer(scene, camera, render_callback);
+    let viewer = create_viewer(scene, camera, render_callback);
+    let viewer = Rc::new(RefCell::new(viewer));
     viewer
-        .scene_mut()
+        .borrow()
+        .scene()
+        .borrow_mut()
         .canvas_handler()
         .click()
         .borrow_mut()
-        .register(ViewerPick {
-            viewer: viewer.downgrade(),
+        .register(ViewerPicker {
+            viewer: Rc::downgrade(&viewer),
             pick_callback: pick_callback.clone(),
         });
 
-    viewer.start_render_loop();
+    viewer.borrow_mut().start_render_loop();
 
     Ok(())
 }

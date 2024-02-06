@@ -30,10 +30,16 @@ pub(crate) fn document() -> web_sys::Document {
         .expect("failed to get document from window")
 }
 
-pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
+pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) -> i32 {
     window()
         .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("failed to invoke requestAnimationFrame");
+        .expect("failed to invoke requestAnimationFrame")
+}
+
+pub(crate) fn cancel_animation_frame(handle: i32) {
+    window()
+        .cancel_animation_frame(handle)
+        .expect("failed to invoke cancelAnimationFrame");
 }
 
 #[wasm_bindgen::prelude::wasm_bindgen]

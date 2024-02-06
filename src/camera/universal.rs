@@ -667,41 +667,46 @@ impl Controller for UniversalCamera {
         let previous_mouse_event = Box::leak(Box::new(None));
 
         let canvas_resize = viewer
-            .scene_mut()
+            .scene()
+            .borrow_mut()
             .canvas_handler()
             .canvas_resize()
             .borrow_mut()
             .register(ControllerCanvasResize(Rc::clone(&self.inner)));
         let key_down = viewer
-            .scene_mut()
+            .scene()
+            .borrow_mut()
             .canvas_handler()
             .key_down()
             .borrow_mut()
             .register(ControllerKeyDown(pressed_keys));
         let key_up = viewer
-            .scene_mut()
+            .scene()
+            .borrow_mut()
             .canvas_handler()
             .key_up()
             .borrow_mut()
             .register(ControllerKeyUp(pressed_keys));
-        let mouse_move =
-            viewer
-                .scene_mut()
-                .canvas_handler()
-                .mouse_move()
-                .borrow_mut()
-                .register(ControllerMouseMove(
-                    Rc::clone(&self.inner),
-                    previous_mouse_event,
-                ));
+        let mouse_move = viewer
+            .scene()
+            .borrow_mut()
+            .canvas_handler()
+            .mouse_move()
+            .borrow_mut()
+            .register(ControllerMouseMove(
+                Rc::clone(&self.inner),
+                previous_mouse_event,
+            ));
         let wheel = viewer
-            .scene_mut()
+            .scene()
+            .borrow_mut()
             .canvas_handler()
             .wheel()
             .borrow_mut()
             .register(ControllerWheel(Rc::clone(&self.inner)));
         let pre_render = viewer
-            .render_mut()
+            .renderer()
+            .borrow_mut()
             .pre_render()
             .register(ControllerPreRender(
                 Rc::clone(&self.inner),
