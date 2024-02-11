@@ -656,14 +656,14 @@ impl Notifiee<MouseEvent> for ViewerPicker {
                     Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 );
-                entity.set_dirty();
+                entity.make_dirty();
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
                 geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
-                entity.set_dirty();
+                entity.make_dirty();
             }
             console_log!("pick entity {}", entity.id());
         };

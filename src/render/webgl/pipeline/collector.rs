@@ -200,7 +200,7 @@ impl StandardEntitiesCollector {
         let culling = self.culling_enabled();
         let distance_sorting = self.distance_sorting_enabled();
 
-        scene.entity_container_mut().update();
+        scene.entity_container_mut().refresh();
         for entity in scene.entity_container_mut().entities_mut() {
             let transparency = match entity.material().map(|material| material.transparency()) {
                 Some(transparency) => transparency,

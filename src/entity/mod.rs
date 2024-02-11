@@ -240,11 +240,12 @@ pub struct Entity {
     material: Option<(Box<dyn StandardMaterial>, Notifying<()>)>,
 
     group: *mut Group,
+    container: NonDropContainer,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
 
     dirty_id: usize,
-    dirty_id_updated: usize,
+    dirty_id_refreshed: usize,
 }
 
 struct EntityChangeNotifiee(*mut Entity);
@@ -252,13 +253,13 @@ struct EntityChangeNotifiee(*mut Entity);
 impl Notifiee<()> for EntityChangeNotifiee {
     fn notify(&mut self, _: &()) {
         unsafe {
-            (*self.0).set_dirty();
+            (*self.0).make_dirty();
         }
     }
 }
 
 impl Entity {
-    fn from_options(options: EntityOptions, id: Uuid, group: *mut Group) -> *mut Entity {
+    fn from_options(options: EntityOptions, id: Uuid, group: &mut Group) -> *mut Entity {
         let entity = Box::leak(Box::new(Entity {
             id,
             model_matrix: options.model_matrix,
@@ -270,11 +271,12 @@ impl Entity {
             material: None,
 
             group,
+            container: group.container,
             compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_normal_matrix: Mat4::<f64>::new_identity(),
 
             dirty_id: 1,
-            dirty_id_updated: 0,
+            dirty_id_refreshed: 0,
         }));
         entity.set_geometry_boxed(options.geometry);
         entity.set_material_boxed(options.material);
@@ -293,16 +295,6 @@ impl Entity {
             geometry,
             material,
         }
-    }
-
-    pub fn set_dirty(&mut self) {
-        unsafe {
-            self.dirty_id = self.dirty_id.wrapping_add(1);
-        }
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        unsafe { self.dirty_id != self.dirty_id_updated }
     }
 
     pub fn id(&self) -> &Uuid {
@@ -347,7 +339,7 @@ impl Entity {
             self.geometry = Some((geometry, bounding, notifying));
         }
 
-        self.set_dirty();
+        self.make_dirty();
 
         old
     }
@@ -357,7 +349,7 @@ impl Entity {
             return None;
         };
         notifying.unregister();
-        self.set_dirty();
+        self.make_dirty();
         Some(geometry)
     }
 
@@ -398,7 +390,7 @@ impl Entity {
             self.material = Some((material, notifying));
         }
 
-        self.set_dirty();
+        self.make_dirty();
 
         old
     }
@@ -408,7 +400,7 @@ impl Entity {
             return None;
         };
         notifying.unregister();
-        self.set_dirty();
+        self.make_dirty();
         Some(material)
     }
 
@@ -418,7 +410,7 @@ impl Entity {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
@@ -457,7 +449,7 @@ impl Entity {
     {
         let name = name.into();
         self.attribute_values.insert(name.clone(), value);
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn add_uniform_value<S>(&mut self, name: S, value: UniformValue)
@@ -466,7 +458,7 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_values.insert(name.clone(), value);
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn add_uniform_block_value<S>(&mut self, name: S, value: UniformBlockValue)
@@ -475,7 +467,7 @@ impl Entity {
     {
         let name = name.into();
         self.uniform_blocks_values.insert(name.clone(), value);
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn add_property<S, T>(&mut self, name: S, value: T)
@@ -485,12 +477,12 @@ impl Entity {
     {
         let name = name.into();
         self.properties.insert(name.clone(), Box::new(value));
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn remove_attribute_value(&mut self, name: &str) -> Option<(String, AttributeValue)> {
         if let Some(entry) = self.attribute_values.remove_entry(name) {
-            self.set_dirty();
+            self.make_dirty();
             Some(entry)
         } else {
             None
@@ -499,7 +491,7 @@ impl Entity {
 
     pub fn remove_uniform_value(&mut self, name: &str) -> Option<(String, UniformValue)> {
         if let Some(entry) = self.uniform_values.remove_entry(name) {
-            self.set_dirty();
+            self.make_dirty();
             Some(entry)
         } else {
             None
@@ -511,7 +503,7 @@ impl Entity {
         name: &str,
     ) -> Option<(String, UniformBlockValue)> {
         if let Some(entry) = self.uniform_blocks_values.remove_entry(name) {
-            self.set_dirty();
+            self.make_dirty();
             Some(entry)
         } else {
             None
@@ -520,7 +512,7 @@ impl Entity {
 
     pub fn remove_property(&mut self, name: &str) -> Option<(String, Box<dyn Any>)> {
         if let Some(entry) = self.properties.remove_entry(name) {
-            self.set_dirty();
+            self.make_dirty();
             Some(entry)
         } else {
             None
@@ -529,32 +521,56 @@ impl Entity {
 
     pub fn clear_attribute_values(&mut self) {
         self.attribute_values.clear();
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn clear_uniform_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn clear_uniform_blocks_values(&mut self) {
         self.uniform_blocks_values.clear();
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn clear_properties(&mut self) {
         self.properties.clear();
-        self.set_dirty();
+        self.make_dirty();
     }
 
-    pub fn update(&mut self) {
+    pub fn make_dirty(&mut self) {
         unsafe {
-            self.update_matrices();
-            self.update_bounding();
+            self.dirty_id = self.dirty_id.wrapping_add(1);
+            (*self.group).make_dirty();
         }
     }
 
-    unsafe fn update_matrices(&mut self) {
+    pub fn is_dirty(&self) -> bool {
+        self.dirty_id != self.dirty_id_refreshed
+    }
+
+    pub fn dirty_id(&self) -> usize {
+        self.dirty_id
+    }
+
+    pub fn dirty_id_refreshed(&self) -> usize {
+        self.dirty_id_refreshed
+    }
+
+    fn refresh(&mut self) {
+        unsafe {
+            if !self.is_dirty() {
+                return;
+            }
+
+            self.refresh_matrices();
+            self.refresh_bounding();
+            self.dirty_id_refreshed = self.dirty_id;
+        }
+    }
+
+    unsafe fn refresh_matrices(&mut self) {
         self.compose_model_matrix = (*self.group).model_matrix.clone() * self.model_matrix;
         self.compose_normal_matrix = self.compose_model_matrix.clone();
         self.compose_normal_matrix
@@ -563,7 +579,7 @@ impl Entity {
         self.compose_normal_matrix.transpose_in_place();
     }
 
-    fn update_bounding(&mut self) {
+    fn refresh_bounding(&mut self) {
         let Some((geometry, bounding, _)) = self.geometry.as_mut() else {
             return;
         };
@@ -587,7 +603,7 @@ pub struct Group {
     bounding: Option<CullingBoundingVolume>,
 
     dirty_id: usize,
-    dirty_id_updated: usize,
+    dirty_id_refreshed: usize,
 }
 
 impl Group {
@@ -604,25 +620,8 @@ impl Group {
             bounding: None,
 
             dirty_id: 1,
-            dirty_id_updated: 0,
+            dirty_id_refreshed: 0,
         }
-    }
-
-    pub fn set_dirty(&mut self) {
-        unsafe {
-            self.dirty_id = self.dirty_id.wrapping_add(1);
-            Container::from(self.container).set_dirty();
-            // let mut subgroups = self.subgroups.values().collect::<VecDeque<_>>();
-            // while let Some(subgroup) = subgroups.pop_front() {
-            //     (**subgroup).dirty = true;
-            //     (**subgroup).dirty_id.wrapping_add(1);
-            //     subgroups.extend((**subgroup).subgroups.values());
-            // }
-        }
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        unsafe { self.dirty_id != self.dirty_id_updated }
     }
 
     pub fn id(&self) -> &Uuid {
@@ -655,7 +654,7 @@ impl Group {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.set_dirty();
+        self.make_dirty();
     }
 
     pub fn compose_model_matrix(&self) -> &Mat4 {
@@ -672,7 +671,7 @@ impl Group {
             let entity = Entity::from_options(entity_options, id, self);
             self.entities.insert(id, entity);
             (*self.container.entities).insert(id, entity);
-            self.set_dirty();
+            self.make_dirty();
             &mut *entity
         }
     }
@@ -682,7 +681,7 @@ impl Group {
             let entity = self.entities.swap_remove(id)?;
             let entity = Box::from_raw(entity);
             (*self.container.entities).swap_remove(id);
-            self.set_dirty();
+            self.make_dirty();
             Some(entity.to_options())
         }
     }
@@ -737,7 +736,7 @@ impl Group {
                 )
             }
 
-            self.set_dirty();
+            self.make_dirty();
 
             Ok(())
         }
@@ -749,7 +748,7 @@ impl Group {
             let subgroup = Box::leak(Box::new(Self::new(id, Some(self), self.container)));
             self.subgroups.insert(id, subgroup);
             (*self.container.groups).insert(id, subgroup);
-            self.set_dirty();
+            self.make_dirty();
             subgroup
         }
     }
@@ -780,7 +779,7 @@ impl Group {
                 }
             }
 
-            self.set_dirty();
+            self.make_dirty();
 
             Some(out)
         }
@@ -813,7 +812,7 @@ impl Group {
                 }
             }
 
-            self.set_dirty();
+            self.make_dirty();
 
             Some(entity_options)
         }
@@ -859,19 +858,40 @@ impl Group {
             .map(|group| unsafe { &mut **group })
     }
 
-    pub fn update(&mut self) {
+    pub fn make_dirty(&mut self) {
+        self.dirty_id = self.dirty_id.wrapping_add(1);
+        self.container.to_container().make_dirty();
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty_id != self.dirty_id_refreshed
+    }
+
+    pub fn dirty_id(&self) -> usize {
+        self.dirty_id
+    }
+
+    pub fn dirty_id_refreshed(&self) -> usize {
+        self.dirty_id_refreshed
+    }
+
+    pub fn refresh(&mut self) {
+        if !self.is_dirty() {
+            return;
+        }
+
         let mut boundings = Vec::new();
 
         for entity in self.entities_iter_mut() {
-            entity.update();
+            entity.refresh();
             if let Some(bounding) = entity.bounding() {
                 boundings.push(bounding.bounding());
             }
         }
 
-        for group in self.subgroups_iter_mut() {
-            group.update();
-            if let Some(bounding) = group.bounding() {
+        for subgroup in self.subgroups_iter_mut() {
+            subgroup.refresh();
+            if let Some(bounding) = subgroup.bounding() {
                 boundings.push(bounding.bounding());
             }
         }
@@ -885,8 +905,6 @@ pub struct Container {
     entities: *mut IndexMap<Uuid, *mut Entity>,
     groups: *mut IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
-
-    dirty_id: *mut usize,
 }
 
 impl Drop for Container {
@@ -901,7 +919,6 @@ impl Drop for Container {
                 drop(Box::from_raw(group));
             }
             drop(Box::from_raw(self.root_group));
-            drop(Box::from_raw(self.dirty_id));
         }
     }
 }
@@ -911,12 +928,10 @@ impl Container {
         let entities = Box::leak(Box::new(IndexMap::new()));
         let groups = Box::leak(Box::new(IndexMap::new()));
         let dirty = Box::leak(Box::new(true));
-        let dirty_id = Box::leak(Box::new(0));
         let mut container = NonDropContainer {
             entities,
             groups,
             root_group: std::ptr::null_mut(),
-            dirty_id,
         };
         let root_group = Box::leak(Box::new(Group::new(Uuid::new_v4(), None, container)));
         container.root_group = root_group;
@@ -925,19 +940,7 @@ impl Container {
             entities,
             groups,
             root_group,
-
-            dirty_id,
         }
-    }
-
-    pub fn set_dirty(&mut self) {
-        unsafe {
-            (*self.dirty_id).wrapping_add(1);
-        }
-    }
-
-    pub fn dirty_id(&self) -> usize {
-        unsafe { *self.dirty_id }
     }
 
     pub fn entities_len(&self) -> usize {
@@ -1010,7 +1013,7 @@ impl Container {
                 group.entities.swap_remove(entity_id);
                 (*self.root_group).entities.insert(*entity_id, entity);
                 entity.group = self.root_group;
-                self.set_dirty();
+                self.make_dirty();
                 Ok(())
             }
         }
@@ -1031,7 +1034,7 @@ impl Container {
             from_group.entities.swap_remove(entity_id);
             to_group.entities.insert(*entity_id, entity);
             entity.group = to_group;
-            self.set_dirty();
+            self.make_dirty();
         }
 
         Ok(())
@@ -1052,7 +1055,7 @@ impl Container {
             (*parent).subgroups.swap_remove(&group.id);
             (*self.root_group).subgroups.insert(group.id, group);
             group.parent = Some(self.root_group);
-            self.set_dirty();
+            self.make_dirty();
 
             Ok(())
         }
@@ -1082,14 +1085,38 @@ impl Container {
             (*parent).subgroups.swap_remove(group_id);
             to_group.subgroups.insert(*group_id, group);
             group.parent = Some(to_group);
-            self.set_dirty();
+            self.make_dirty();
         }
         Ok(())
     }
 
-    pub fn update(&mut self) {
+    pub fn make_dirty(&mut self) {
         unsafe {
-            (*self.root_group).update();
+            (*self.root_group).make_dirty();
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        unsafe {
+            (*self.root_group).is_dirty()
+        }
+    }
+
+    pub fn dirty_id(&self) -> usize {
+        unsafe {
+            (*self.root_group).dirty_id()
+        }
+    }
+
+    pub fn dirty_id_refreshed(&self) -> usize {
+        unsafe {
+            (*self.root_group).dirty_id_refreshed()
+        }
+    }
+
+    pub fn refresh(&mut self) {
+        unsafe {
+            (*self.root_group).refresh();
         }
     }
 }
@@ -1099,17 +1126,14 @@ struct NonDropContainer {
     entities: *mut IndexMap<Uuid, *mut Entity>,
     groups: *mut IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
-
-    dirty_id: *mut usize,
 }
 
-impl From<NonDropContainer> for Container {
-    fn from(value: NonDropContainer) -> Self {
+impl NonDropContainer {
+    fn to_container(self) -> Container {
         Container {
-            entities: value.entities,
-            groups: value.groups,
-            root_group: value.root_group,
-            dirty_id: value.dirty_id,
+            entities: self.entities,
+            groups: self.groups,
+            root_group: self.root_group,
         }
     }
 }
