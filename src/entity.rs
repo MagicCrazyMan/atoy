@@ -240,12 +240,11 @@ pub struct Entity {
     material: Option<(Box<dyn StandardMaterial>, Notifying<()>)>,
 
     group: *mut Group,
-    container: NonDropContainer,
+    container: *mut ContainerInner,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
 
-    dirty_id: usize,
-    dirty_id_refreshed: usize,
+    dirty: bool,
 }
 
 struct EntityChangeNotifiee(*mut Entity);
@@ -275,8 +274,7 @@ impl Entity {
             compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_normal_matrix: Mat4::<f64>::new_identity(),
 
-            dirty_id: 1,
-            dirty_id_refreshed: 0,
+            dirty: true,
         }));
         entity.set_geometry_boxed(options.geometry);
         entity.set_material_boxed(options.material);
@@ -541,21 +539,13 @@ impl Entity {
 
     pub fn make_dirty(&mut self) {
         unsafe {
-            self.dirty_id = self.dirty_id.wrapping_add(1);
-            (*self.group).make_dirty();
+            self.dirty = true;
+            (*self.container).make_dirty();
         }
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.dirty_id != self.dirty_id_refreshed
-    }
-
-    pub fn dirty_id(&self) -> usize {
-        self.dirty_id
-    }
-
-    pub fn dirty_id_refreshed(&self) -> usize {
-        self.dirty_id_refreshed
+        self.dirty
     }
 
     fn refresh(&mut self) {
@@ -566,12 +556,13 @@ impl Entity {
 
             self.refresh_matrices();
             self.refresh_bounding();
-            self.dirty_id_refreshed = self.dirty_id;
+
+            self.dirty = false;
         }
     }
 
     unsafe fn refresh_matrices(&mut self) {
-        self.compose_model_matrix = (*self.group).model_matrix.clone() * self.model_matrix;
+        self.compose_model_matrix = (*self.group).compose_model_matrix.clone() * self.model_matrix;
         self.compose_normal_matrix = self.compose_model_matrix.clone();
         self.compose_normal_matrix
             .invert_in_place()
@@ -594,20 +585,21 @@ impl Entity {
 pub struct Group {
     id: Uuid,
     parent: Option<*mut Group>,
-    container: NonDropContainer,
+    container: *mut ContainerInner,
     entities: IndexMap<Uuid, *mut Entity>,
     subgroups: IndexMap<Uuid, *mut Group>,
 
     model_matrix: Mat4,
     compose_model_matrix: Mat4,
+
+    enable_bounding: bool,
     bounding: Option<CullingBoundingVolume>,
 
-    dirty_id: usize,
-    dirty_id_refreshed: usize,
+    dirty: bool,
 }
 
 impl Group {
-    fn new(id: Uuid, parent: Option<*mut Group>, container: NonDropContainer) -> Self {
+    fn new(id: Uuid, parent: Option<*mut Group>, container: *mut ContainerInner) -> Self {
         Self {
             id,
             parent,
@@ -617,10 +609,11 @@ impl Group {
 
             model_matrix: Mat4::<f64>::new_identity(),
             compose_model_matrix: Mat4::<f64>::new_identity(),
+
+            enable_bounding: false,
             bounding: None,
 
-            dirty_id: 1,
-            dirty_id_refreshed: 0,
+            dirty: true,
         }
     }
 
@@ -654,11 +647,27 @@ impl Group {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.make_dirty();
+        self.make_dirty(true, true);
     }
 
     pub fn compose_model_matrix(&self) -> &Mat4 {
         &self.compose_model_matrix
+    }
+
+    pub fn bounding_enabled(&self) -> bool {
+        self.enable_bounding
+    }
+
+    pub fn enable_bounding(&mut self) {
+        self.enable_bounding = true;
+        self.bounding = None;
+        self.make_dirty(false, false);
+    }
+
+    pub fn disable_bounding(&mut self) {
+        self.enable_bounding = false;
+        self.bounding = None;
+        self.make_dirty(false, false);
     }
 
     pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
@@ -670,8 +679,8 @@ impl Group {
             let id = Uuid::new_v4();
             let entity = Entity::from_options(entity_options, id, self);
             self.entities.insert(id, entity);
-            (*self.container.entities).insert(id, entity);
-            self.make_dirty();
+            (*self.container).entities.insert(id, entity);
+            self.make_dirty(false, false);
             &mut *entity
         }
     }
@@ -680,8 +689,8 @@ impl Group {
         unsafe {
             let entity = self.entities.swap_remove(id)?;
             let entity = Box::from_raw(entity);
-            (*self.container.entities).swap_remove(id);
-            self.make_dirty();
+            (*self.container).entities.swap_remove(id);
+            self.make_dirty(false, false);
             Some(entity.to_options())
         }
     }
@@ -719,13 +728,13 @@ impl Group {
                 )));
                 group.set_model_matrix(group_options.model_matrix);
                 (*parent).subgroups.insert(group_id, group);
-                (*self.container.groups).insert(group_id, group);
+                (*self.container).groups.insert(group_id, group);
 
                 for entity_options in group_options.entities {
                     let entity_id = Uuid::new_v4();
                     let entity = Entity::from_options(entity_options, entity_id, group);
                     group.entities.insert(entity_id, entity);
-                    (*self.container.entities).insert(entity_id, entity);
+                    (*self.container).entities.insert(entity_id, entity);
                 }
 
                 rollings.extend(
@@ -736,7 +745,7 @@ impl Group {
                 )
             }
 
-            self.make_dirty();
+            self.make_dirty(false, false);
 
             Ok(())
         }
@@ -747,8 +756,8 @@ impl Group {
             let id = Uuid::new_v4();
             let subgroup = Box::leak(Box::new(Self::new(id, Some(self), self.container)));
             self.subgroups.insert(id, subgroup);
-            (*self.container.groups).insert(id, subgroup);
-            self.make_dirty();
+            (*self.container).groups.insert(id, subgroup);
+            self.make_dirty(false, false);
             subgroup
         }
     }
@@ -764,10 +773,10 @@ impl Group {
             let mut rollings = VecDeque::from_iter([(group, &mut out as *mut GroupOptions)]);
             while let Some((group, out)) = rollings.pop_front() {
                 let group = Box::from_raw(group);
-                (*self.container.groups).swap_remove(&group.id);
+                (*self.container).groups.swap_remove(&group.id);
 
                 for (entity_id, entity) in group.entities {
-                    (*self.container.entities).swap_remove(&entity_id);
+                    (*self.container).entities.swap_remove(&entity_id);
                     (*out).entities.push(Box::from_raw(entity).to_options());
                 }
 
@@ -779,7 +788,7 @@ impl Group {
                 }
             }
 
-            self.make_dirty();
+            self.make_dirty(false, false);
 
             Some(out)
         }
@@ -801,18 +810,18 @@ impl Group {
             let mut entity_options = Vec::new();
             let mut groups = group.subgroups.drain(..).collect::<VecDeque<_>>();
             while let Some((group_id, group)) = groups.pop_front() {
-                (*self.container.groups).swap_remove(&group_id);
+                (*self.container).groups.swap_remove(&group_id);
                 let mut group = Box::from_raw(group);
                 groups.extend(group.subgroups);
 
                 for (entity_id, entity) in group.entities.drain(..) {
-                    (*self.container.entities).swap_remove(&entity_id);
+                    (*self.container).entities.swap_remove(&entity_id);
                     let entity = Box::from_raw(entity);
                     entity_options.push(entity.to_options());
                 }
             }
 
-            self.make_dirty();
+            self.make_dirty(false, false);
 
             Some(entity_options)
         }
@@ -858,161 +867,191 @@ impl Group {
             .map(|group| unsafe { &mut **group })
     }
 
-    pub fn make_dirty(&mut self) {
-        self.dirty_id = self.dirty_id.wrapping_add(1);
-        self.container.to_container().make_dirty();
+    pub fn make_dirty(&mut self, make_entities_dirty: bool, make_subgroups_dirty: bool) {
+        unsafe {
+            self.dirty = true;
+
+            if make_entities_dirty {
+                for entity in self.entities_iter_mut() {
+                    entity.dirty = true;
+                }
+            }
+
+            if make_subgroups_dirty {
+                let mut subgroups = self.subgroups_iter_mut().collect::<VecDeque<_>>();
+                while let Some(subgroup) = subgroups.pop_front() {
+                    subgroup.dirty = true;
+                    for entity in subgroup.entities_iter_mut() {
+                        entity.dirty = true;
+                    }
+                    subgroups.extend(subgroup.subgroups_iter_mut());
+                }
+            }
+
+            (*self.container).make_dirty();
+        }
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.dirty_id != self.dirty_id_refreshed
+        self.dirty
     }
 
-    pub fn dirty_id(&self) -> usize {
-        self.dirty_id
-    }
+    fn refresh(&mut self) {
+        if self.is_dirty() {
+            self.compose_model_matrix = match self.parent() {
+                Some(parent) => parent.compose_model_matrix.clone() * self.model_matrix,
+                None => self.model_matrix.clone(),
+            };
 
-    pub fn dirty_id_refreshed(&self) -> usize {
-        self.dirty_id_refreshed
-    }
+            if self.enable_bounding {
+                let mut boundings = Vec::new();
+                for entity in self.entities_iter_mut() {
+                    entity.refresh();
+                    if let Some(bounding) = entity.bounding() {
+                        boundings.push(bounding.bounding());
+                    }
+                }
+                for subgroup in self.subgroups_iter_mut() {
+                    subgroup.refresh();
+                    if let Some(bounding) = subgroup.bounding() {
+                        boundings.push(bounding.bounding());
+                    }
+                }
+                self.bounding = merge_bounding_volumes(boundings)
+                    .map(|bounding| CullingBoundingVolume::new(bounding));
+            } else {
+                for entity in self.entities_iter_mut() {
+                    entity.refresh();
+                }
+                for subgroup in self.subgroups_iter_mut() {
+                    subgroup.refresh();
+                }
+            }
 
-    pub fn refresh(&mut self) {
-        if !self.is_dirty() {
-            return;
-        }
-
-        let mut boundings = Vec::new();
-
-        for entity in self.entities_iter_mut() {
-            entity.refresh();
-            if let Some(bounding) = entity.bounding() {
-                boundings.push(bounding.bounding());
+            self.dirty = false;
+        } else {
+            for entity in self.entities_iter_mut() {
+                entity.refresh();
+            }
+            for subgroup in self.subgroups_iter_mut() {
+                subgroup.refresh();
             }
         }
-
-        for subgroup in self.subgroups_iter_mut() {
-            subgroup.refresh();
-            if let Some(bounding) = subgroup.bounding() {
-                boundings.push(bounding.bounding());
-            }
-        }
-
-        self.bounding =
-            merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
     }
 }
 
-pub struct Container {
-    entities: *mut IndexMap<Uuid, *mut Entity>,
-    groups: *mut IndexMap<Uuid, *mut Group>,
+struct ContainerInner {
+    entities: IndexMap<Uuid, *mut Entity>,
+    groups: IndexMap<Uuid, *mut Group>,
     root_group: *mut Group,
+
+    dirty: bool,
 }
+
+impl ContainerInner {
+    fn new() -> *mut Self {
+        let me = Box::leak(Box::new(Self {
+            entities: IndexMap::new(),
+            groups: IndexMap::new(),
+            root_group: std::ptr::null_mut(),
+
+            dirty: false,
+        }));
+        let root_group = Box::leak(Box::new(Group::new(Uuid::new_v4(), None, me)));
+        me.root_group = root_group;
+        me
+    }
+
+    fn make_dirty(&mut self) {
+        self.dirty = true;
+    }
+}
+
+pub struct Container(*mut ContainerInner);
 
 impl Drop for Container {
     fn drop(&mut self) {
         unsafe {
-            let mut entities = Box::from_raw(self.entities);
-            let mut groups = Box::from_raw(self.groups);
-            for (_, entity) in entities.drain(..) {
-                drop(Box::from_raw(entity).to_options());
-            }
-            for (_, group) in groups.drain(..) {
-                drop(Box::from_raw(group));
-            }
-            drop(Box::from_raw(self.root_group));
+            drop(Box::from_raw(self.0));
         }
     }
 }
 
 impl Container {
     pub fn new() -> Self {
-        let entities = Box::leak(Box::new(IndexMap::new()));
-        let groups = Box::leak(Box::new(IndexMap::new()));
-        let dirty = Box::leak(Box::new(true));
-        let mut container = NonDropContainer {
-            entities,
-            groups,
-            root_group: std::ptr::null_mut(),
-        };
-        let root_group = Box::leak(Box::new(Group::new(Uuid::new_v4(), None, container)));
-        container.root_group = root_group;
-
-        Self {
-            entities,
-            groups,
-            root_group,
-        }
+        Self(ContainerInner::new())
     }
 
     pub fn entities_len(&self) -> usize {
-        unsafe { (*self.entities).len() }
+        unsafe { (*self.0).entities.len() }
     }
 
     pub fn groups_len(&self) -> usize {
-        unsafe { (*self.groups).len() }
+        unsafe { (*self.0).groups.len() }
     }
 
     pub fn entity(&self, id: &Uuid) -> Option<&Entity> {
-        unsafe { (*self.entities).get(id).map(|entity| &**entity) }
+        unsafe { (*self.0).entities.get(id).map(|entity| &**entity) }
     }
 
     pub fn entity_mut(&mut self, id: &Uuid) -> Option<&mut Entity> {
-        unsafe { (*self.entities).get_mut(id).map(|entity| &mut **entity) }
+        unsafe { (*self.0).entities.get_mut(id).map(|entity| &mut **entity) }
     }
 
     pub fn entities(&self) -> impl Iterator<Item = &Entity> {
-        unsafe { (*self.entities).values().map(|entity| &**entity) }
+        unsafe { (*self.0).entities.values().map(|entity| &**entity) }
     }
 
     pub fn entities_mut(&mut self) -> impl Iterator<Item = &mut Entity> {
-        unsafe { (*self.entities).values_mut().map(|entity| &mut **entity) }
+        unsafe { (*self.0).entities.values_mut().map(|entity| &mut **entity) }
     }
 
     pub fn entities_raw(&mut self) -> &mut IndexMap<Uuid, *mut Entity> {
-        unsafe { &mut *self.entities }
+        unsafe { &mut (*self.0).entities }
     }
 
     pub fn root_group(&self) -> &Group {
-        unsafe { &*self.root_group }
+        unsafe { &(*(*self.0).root_group) }
     }
 
     pub fn root_group_mut(&self) -> &mut Group {
-        unsafe { &mut *self.root_group }
+        unsafe { &mut (*(*self.0).root_group) }
     }
 
     pub fn group(&self, id: &Uuid) -> Option<&Group> {
-        unsafe { (*self.groups).get(id).map(|group| &**group) }
+        unsafe { (*self.0).groups.get(id).map(|group| &**group) }
     }
 
     pub fn group_mut(&mut self, id: &Uuid) -> Option<&mut Group> {
-        unsafe { (*self.groups).get_mut(id).map(|group| &mut **group) }
+        unsafe { (*self.0).groups.get_mut(id).map(|group| &mut **group) }
     }
 
     pub fn groups_raw(&mut self) -> &mut IndexMap<Uuid, *mut Group> {
-        unsafe { &mut *self.groups }
+        unsafe { &mut (*self.0).groups }
     }
 
     pub fn groups(&self) -> impl Iterator<Item = &Group> {
-        unsafe { (*self.groups).values().map(|group| &**group) }
+        unsafe { (*self.0).groups.values().map(|group| &**group) }
     }
 
     pub fn groups_mut(&mut self) -> impl Iterator<Item = &mut Group> {
-        unsafe { (*self.groups).values_mut().map(|group| &mut **group) }
+        unsafe { (*self.0).groups.values_mut().map(|group| &mut **group) }
     }
 
     pub fn move_entity_to_root(&mut self, entity_id: &Uuid) -> Result<(), Error> {
         unsafe {
-            let Some(entity) = (*self.entities).get(entity_id) else {
+            let Some(entity) = (*self.0).entities.get(entity_id) else {
                 return Err(Error::NoSuchEntity);
             };
             let entity = &mut **entity;
 
-            if entity.group == self.root_group {
+            if entity.group == (*self.0).root_group {
                 Ok(())
             } else {
                 let group = &mut *entity.group;
                 group.entities.swap_remove(entity_id);
-                (*self.root_group).entities.insert(*entity_id, entity);
-                entity.group = self.root_group;
+                (*(*self.0).root_group).entities.insert(*entity_id, entity);
+                entity.group = (*self.0).root_group;
                 self.make_dirty();
                 Ok(())
             }
@@ -1021,10 +1060,10 @@ impl Container {
 
     pub fn move_entity_to_group(&mut self, entity_id: &Uuid, group_id: &Uuid) -> Result<(), Error> {
         unsafe {
-            let Some(entity) = (*self.entities).get(entity_id) else {
+            let Some(entity) = (*self.0).entities.get(entity_id) else {
                 return Err(Error::NoSuchEntity);
             };
-            let Some(to_group) = (*self.groups).get(group_id) else {
+            let Some(to_group) = (*self.0).groups.get(group_id) else {
                 return Err(Error::NoSuchGroup);
             };
             let entity = &mut **entity;
@@ -1042,19 +1081,19 @@ impl Container {
 
     pub fn move_group_to_root(&mut self, group_id: &Uuid) -> Result<(), Error> {
         unsafe {
-            let Some(group) = (*self.groups).get(group_id) else {
+            let Some(group) = (*self.0).groups.get(group_id) else {
                 return Err(Error::NoSuchGroup);
             };
             let group = &mut **group;
             let parent = group.parent.unwrap();
 
-            if parent == self.root_group {
+            if parent == (*self.0).root_group {
                 return Ok(());
             }
 
             (*parent).subgroups.swap_remove(&group.id);
-            (*self.root_group).subgroups.insert(group.id, group);
-            group.parent = Some(self.root_group);
+            (*(*self.0).root_group).subgroups.insert(group.id, group);
+            group.parent = Some((*self.0).root_group);
             self.make_dirty();
 
             Ok(())
@@ -1067,10 +1106,10 @@ impl Container {
         to_group_id: &Uuid,
     ) -> Result<(), Error> {
         unsafe {
-            let Some(group) = (*self.groups).get(group_id) else {
+            let Some(group) = (*self.0).groups.get(group_id) else {
                 return Err(Error::NoSuchGroup);
             };
-            let Some(to_group) = (*self.groups).get(to_group_id) else {
+            let Some(to_group) = (*self.0).groups.get(to_group_id) else {
                 return Err(Error::NoSuchGroup);
             };
             let group = &mut **group;
@@ -1092,48 +1131,17 @@ impl Container {
 
     pub fn make_dirty(&mut self) {
         unsafe {
-            (*self.root_group).make_dirty();
+            (*self.0).make_dirty();
         }
     }
 
     pub fn is_dirty(&self) -> bool {
-        unsafe {
-            (*self.root_group).is_dirty()
-        }
-    }
-
-    pub fn dirty_id(&self) -> usize {
-        unsafe {
-            (*self.root_group).dirty_id()
-        }
-    }
-
-    pub fn dirty_id_refreshed(&self) -> usize {
-        unsafe {
-            (*self.root_group).dirty_id_refreshed()
-        }
+        unsafe { (*self.0).dirty }
     }
 
     pub fn refresh(&mut self) {
         unsafe {
-            (*self.root_group).refresh();
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct NonDropContainer {
-    entities: *mut IndexMap<Uuid, *mut Entity>,
-    groups: *mut IndexMap<Uuid, *mut Group>,
-    root_group: *mut Group,
-}
-
-impl NonDropContainer {
-    fn to_container(self) -> Container {
-        Container {
-            entities: self.entities,
-            groups: self.groups,
-            root_group: self.root_group,
+            (*(*self.0).root_group).refresh();
         }
     }
 }

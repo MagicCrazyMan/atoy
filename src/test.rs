@@ -690,7 +690,8 @@ pub fn test_cube(
     pick_callback: &Function,
 ) -> Result<ViewerWasm, Error> {
     let camera = create_camera(
-        Vec3::new(0.0, 0.0, 3.0),
+        Vec3::new(0.0, 5.0, 2.0),
+        // Vec3::new(0.0, 0.0, 3.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
@@ -719,7 +720,7 @@ pub fn test_cube(
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);
     }
-    // scene.entity_container_mut().add_group(cubes)?;
+    scene.entity_container_mut().root_group_mut().add_subgroup(cubes)?;
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -939,43 +940,6 @@ pub fn test_cube(
         },
     );
     scene.entity_container_mut().root_group_mut().add_subgroup(images)?;
-
-    // let mut brick_wall = EntityOptions::new();
-    // brick_wall.set_model_matrix(Mat4::<f64>::from_rotation_translation(
-    //     &Quat::<f64>::from_rotation_to(
-    //         &Vec3::<f64>::new(0.0, 0.0, 1.0),
-    //         &Vec3::<f64>::new(-1.0, 0.0, 1.0).normalize(),
-    //     ),
-    //     &Vec3::<f64>::new(1.0, 0.0, 0.0),
-    // ));
-    // brick_wall.set_geometry(Some(Rectangle::new(
-    //     Vec2::<f64>::new_zero(),
-    //     Placement::Center,
-    //     2.0,
-    //     2.0,
-    //     1.0,
-    //     1.0,
-    // )));
-    // brick_wall.set_material(Some(
-    //     material::texture::Builder::new(TextureLoader::with_params(
-    //         "/brickwall.jpg",
-    //         [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-    //         [],
-    //         [],
-    //         true,
-    //         true,
-    //     ))
-    //     .set_normal_map(TextureLoader::with_params(
-    //         "/brickwall_normal.jpg",
-    //         [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
-    //         [],
-    //         [],
-    //         true,
-    //         true,
-    //     ))
-    //     .build(),
-    // ));
-    // scene.entity_container_mut().add_entity(brick_wall);
 
     let mut brick_wall_1 = EntityOptions::new();
     brick_wall_1.set_model_matrix(Mat4::<f64>::from_rotation_translation(

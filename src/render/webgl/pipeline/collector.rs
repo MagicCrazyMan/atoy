@@ -168,7 +168,7 @@ impl StandardEntitiesCollector {
             self.last_collected_id.as_ref(),
             self.last_container_ptr.as_ref(),
             self.last_view_frustum.as_ref(),
-            scene.entity_container().dirty(),
+            scene.entity_container().is_dirty(),
         ) {
             (Some(last_collected_id), Some(last_container), Some(last_view_frustum), false) => {
                 match (

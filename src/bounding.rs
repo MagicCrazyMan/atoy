@@ -330,23 +330,23 @@ fn cull_sphere(
     radius: f64,
 ) -> Culling {
     let mut inside_count = 0u8;
-    let mut distances = [None, None, None, None, None, None, None];
+    let mut distances = [None, None, None, None, None, None];
 
-    for (kind, plane) in planes.iter() {
+    for (index, plane) in planes.iter() {
         match plane {
             Some(plane) => {
                 let distance = plane.distance_to_point(center);
                 if distance > radius {
                     // outside, return
-                    return Culling::Outside(*kind);
+                    return Culling::Outside(*index);
                 } else if distance < -radius {
                     // inside
                     inside_count += 1;
-                    distances[*kind as usize] = Some((distance + radius).abs());
+                    distances[*index as usize] = Some((distance + radius).abs());
                 // distance should always returns positive value
                 } else {
                     // intersect, do nothing
-                    distances[*kind as usize] = Some(distance.abs());
+                    distances[*index as usize] = Some(distance.abs());
                 }
             }
             None => {
