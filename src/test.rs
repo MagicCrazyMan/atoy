@@ -203,7 +203,10 @@ fn create_scene() -> Result<Scene, Error> {
         128.0,
         Transparency::Opaque,
     )));
-    scene.entity_container_mut().root_group_mut().add_entity(hint);
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_entity(hint);
     // scene.add_point_light(PointLight::new(
     //     Vec3::new(1.0, 1.5, 0.0),
     //     Vec3::new(0.0, 0.0, 0.0),
@@ -720,7 +723,10 @@ pub fn test_cube(
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);
     }
-    scene.entity_container_mut().root_group_mut().add_subgroup(cubes)?;
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_subgroup(cubes);
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -939,7 +945,10 @@ pub fn test_cube(
             images.entities_mut().push(image);
         },
     );
-    scene.entity_container_mut().root_group_mut().add_subgroup(images)?;
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_subgroup(images);
 
     let mut brick_wall_1 = EntityOptions::new();
     brick_wall_1.set_model_matrix(Mat4::<f64>::from_rotation_translation(
@@ -976,7 +985,10 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    scene.entity_container_mut().root_group_mut().add_entity(brick_wall_1);
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_entity(brick_wall_1);
 
     let mut brick_wall_2 = EntityOptions::new();
     brick_wall_2.set_model_matrix(Mat4::<f64>::from_rotation_translation(
@@ -1013,7 +1025,10 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    scene.entity_container_mut().root_group_mut().add_entity(brick_wall_2);
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_entity(brick_wall_2);
 
     let mut brick_wall_parallax = EntityOptions::new();
     brick_wall_parallax.set_model_matrix(Mat4::<f64>::from_rotation_translation(
@@ -1074,7 +1089,10 @@ pub fn test_cube(
         &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
         &Vec3::new(0.0, -0.6, 0.0),
     ));
-    scene.entity_container_mut().root_group_mut().add_entity(floor);
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_entity(floor);
 
     let viewer = create_viewer(scene, camera, render_callback);
     let viewer = Rc::new(RefCell::new(viewer));
@@ -1440,7 +1458,10 @@ pub fn test_pick(
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(cube);
     }
-    scene.entity_container_mut().root_group_mut().add_subgroup(cubes)?;
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_subgroup(cubes);
 
     let viewer = create_viewer(scene, camera, render_callback);
     let viewer = Rc::new(RefCell::new(viewer));

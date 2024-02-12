@@ -625,22 +625,6 @@ impl Group {
         unsafe { self.parent.map(|parent| &*parent) }
     }
 
-    pub fn entities_len(&self) -> usize {
-        self.entities.len()
-    }
-
-    pub fn entities_hierarchy_len(&self) -> usize {
-        unsafe {
-            let mut entities_len = self.entities.len();
-            let mut groups = self.subgroups.values().collect::<VecDeque<_>>();
-            while let Some(group) = groups.pop_front() {
-                entities_len += (**group).entities.len();
-                groups.extend((**group).subgroups.values());
-            }
-            entities_len
-        }
-    }
-
     pub fn model_matrix(&self) -> &Mat4 {
         &self.model_matrix
     }
@@ -672,6 +656,22 @@ impl Group {
 
     pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
         self.bounding.as_ref()
+    }
+
+    pub fn entities_len(&self) -> usize {
+        self.entities.len()
+    }
+
+    pub fn entities_hierarchy_len(&self) -> usize {
+        unsafe {
+            let mut entities_len = self.entities.len();
+            let mut groups = self.subgroups.values().collect::<VecDeque<_>>();
+            while let Some(group) = groups.pop_front() {
+                entities_len += (**group).entities.len();
+                groups.extend((**group).subgroups.values());
+            }
+            entities_len
+        }
     }
 
     pub fn add_entity(&mut self, entity_options: EntityOptions) -> &mut Entity {
@@ -715,8 +715,25 @@ impl Group {
             .map(|entity| unsafe { &mut **entity })
     }
 
-    pub fn add_subgroup(&mut self, group_options: GroupOptions) -> Result<(), Error> {
+    pub fn subgroups_len(&self) -> usize {
+        self.subgroups.len()
+    }
+
+    pub fn subgroups_hierarchy_len(&self) -> usize {
         unsafe {
+            let mut subgroups_len = self.subgroups.len();
+            let mut groups = self.subgroups.values().collect::<VecDeque<_>>();
+            while let Some(group) = groups.pop_front() {
+                subgroups_len += (**group).subgroups.len();
+                groups.extend((**group).subgroups.values());
+            }
+            subgroups_len
+        }
+    }
+
+    pub fn add_subgroup(&mut self, group_options: GroupOptions) -> &mut Self {
+        unsafe {
+            let mut subgroup: *mut Group = std::ptr::null_mut();
             let mut rollings: VecDeque<(GroupOptions, *mut Self)> =
                 VecDeque::from_iter([(group_options, self as *mut Self)]);
             while let Some((group_options, parent)) = rollings.pop_front() {
@@ -737,6 +754,10 @@ impl Group {
                     (*self.container).entities.insert(entity_id, entity);
                 }
 
+                if subgroup.is_null() {
+                    subgroup = group;
+                }
+
                 rollings.extend(
                     group_options
                         .subgroups
@@ -747,7 +768,7 @@ impl Group {
 
             self.make_dirty(false, false);
 
-            Ok(())
+            &mut *subgroup
         }
     }
 
