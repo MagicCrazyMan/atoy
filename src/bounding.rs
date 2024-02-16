@@ -178,25 +178,28 @@ impl BoundingVolume {
                 max_y,
                 min_z,
                 max_z,
-            } => cull_bb(
-                planes,
-                &Vec3::<f64>::new(
-                    (min_x + max_x) / 2.0,
-                    (min_y + max_y) / 2.0,
-                    (min_z + max_z) / 2.0,
-                ),
-                |signs| match signs {
-                    0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z),
-                    0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z),
-                    0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z),
-                    0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z),
-                    0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z),
-                    0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z),
-                    0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z),
-                    0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z),
-                    _ => unreachable!(),
-                },
-            ).0,
+            } => {
+                cull_bb(
+                    planes,
+                    &Vec3::<f64>::new(
+                        (min_x + max_x) / 2.0,
+                        (min_y + max_y) / 2.0,
+                        (min_z + max_z) / 2.0,
+                    ),
+                    |signs| match signs {
+                        0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z),
+                        0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z),
+                        0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z),
+                        0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z),
+                        0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z),
+                        0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z),
+                        0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z),
+                        0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z),
+                        _ => unreachable!(),
+                    },
+                )
+                .0
+            }
             BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
                 let center = *center;
                 let x = *x;
@@ -212,7 +215,8 @@ impl BoundingVolume {
                     0b110 => center - x - y + z, // 110
                     0b111 => center - x - y - z, // 111
                     _ => unreachable!(),
-                }).0
+                })
+                .0
             }
         }
     }
@@ -386,7 +390,7 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
 ) -> (Culling, Option<PlaneIndex>) {
     let mut distances = [None, None, None, None, None, None];
     let mut intersect = false;
-    for (kind, plane) in planes.iter() {
+    for (index, plane) in planes.iter() {
         match plane {
             Some(plane) => unsafe {
                 let point_on_plane = plane.point_on_plane();
@@ -408,7 +412,7 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
                 let d = distance_point_and_plane_abs(&nv, &center, n);
                 let a = distance_point_and_plane(&nv, &point_on_plane, n) - d;
                 if a > 0.0 {
-                    return Culling::Outside(*kind);
+                    return (Culling::Outside, Some(*index));
                 }
                 let b = distance_point_and_plane(&pv, &point_on_plane, n) + d;
                 if b > 0.0 {
@@ -416,7 +420,7 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
                 }
 
                 // uses distance between center of bounding volume and plane
-                distances[*kind as usize] =
+                distances[*index as usize] =
                     Some(distance_point_and_plane(&center, &point_on_plane, n));
             },
             None => {
@@ -426,23 +430,29 @@ fn cull_bb<F: Fn(u8) -> Vec3>(
     }
 
     if intersect {
-        Culling::Intersect {
-            top: distances[PlaneIndex::Top as usize].unwrap(),
-            bottom: distances[PlaneIndex::Bottom as usize].unwrap(),
-            left: distances[PlaneIndex::Left as usize].unwrap(),
-            right: distances[PlaneIndex::Right as usize].unwrap(),
-            near: distances[PlaneIndex::Near as usize].unwrap(),
-            far: distances[PlaneIndex::Far as usize],
-        }
+        (
+            Culling::Intersect {
+                top: distances[PlaneIndex::Top as usize].unwrap(),
+                bottom: distances[PlaneIndex::Bottom as usize].unwrap(),
+                left: distances[PlaneIndex::Left as usize].unwrap(),
+                right: distances[PlaneIndex::Right as usize].unwrap(),
+                near: distances[PlaneIndex::Near as usize].unwrap(),
+                far: distances[PlaneIndex::Far as usize],
+            },
+            None,
+        )
     } else {
-        Culling::Inside {
-            top: distances[PlaneIndex::Top as usize].unwrap(),
-            bottom: distances[PlaneIndex::Bottom as usize].unwrap(),
-            left: distances[PlaneIndex::Left as usize].unwrap(),
-            right: distances[PlaneIndex::Right as usize].unwrap(),
-            near: distances[PlaneIndex::Near as usize].unwrap(),
-            far: distances[PlaneIndex::Far as usize],
-        }
+        (
+            Culling::Inside {
+                top: distances[PlaneIndex::Top as usize].unwrap(),
+                bottom: distances[PlaneIndex::Bottom as usize].unwrap(),
+                left: distances[PlaneIndex::Left as usize].unwrap(),
+                right: distances[PlaneIndex::Right as usize].unwrap(),
+                near: distances[PlaneIndex::Near as usize].unwrap(),
+                far: distances[PlaneIndex::Far as usize],
+            },
+            None,
+        )
     }
 }
 

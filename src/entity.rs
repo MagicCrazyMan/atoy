@@ -562,7 +562,7 @@ impl Entity {
     }
 
     unsafe fn refresh_matrices(&mut self) {
-        self.compose_model_matrix = (*self.group).compose_model_matrix.clone() * self.model_matrix;
+        self.compose_model_matrix = (*self.group).compose_model_matrix * self.model_matrix;
         self.compose_normal_matrix = self.compose_model_matrix.clone();
         self.compose_normal_matrix
             .invert_in_place()
@@ -920,7 +920,7 @@ impl Group {
     fn refresh(&mut self) {
         if self.is_dirty() {
             self.compose_model_matrix = match self.parent() {
-                Some(parent) => parent.compose_model_matrix.clone() * self.model_matrix,
+                Some(parent) => parent.compose_model_matrix * self.model_matrix,
                 None => self.model_matrix.clone(),
             };
 
