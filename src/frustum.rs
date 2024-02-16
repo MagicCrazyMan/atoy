@@ -61,15 +61,3 @@ impl ViewFrustum {
         &self.bottom
     }
 }
-
-/// Numerical indices of each plane.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum FrustumPlaneIndex {
-    Top = 0,
-    Bottom = 1,
-    Left = 2,
-    Right = 3,
-    Near = 4,
-    Far = 5,
-}

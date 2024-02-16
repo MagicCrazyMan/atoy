@@ -211,7 +211,7 @@ impl StandardEntitiesCollector {
                 (true, true) => {
                     let distance = match entity.bounding() {
                         Some(bounding) => match bounding.cull(&view_frustum) {
-                            Culling::Outside(_) => continue,
+                            Culling::Outside => continue,
                             Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
                         },
                         None => f64::INFINITY,
@@ -226,7 +226,7 @@ impl StandardEntitiesCollector {
                 (true, false) => {
                     let distance = match entity.bounding() {
                         Some(bounding) => match bounding.cull(&view_frustum) {
-                            Culling::Outside(_) => continue,
+                            Culling::Outside => continue,
                             Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
                         },
                         None => f64::INFINITY,
