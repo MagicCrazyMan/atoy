@@ -761,7 +761,7 @@ pub fn test_cube(
     let mut images = GroupOptions::new();
     [
         (
-            "/sky.jpg",
+            "/images/sky.jpg",
             false,
             vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             vec![] as Vec<SamplerParameter>,
@@ -772,7 +772,7 @@ pub fn test_cube(
             false,
         ),
         (
-            "/sky_dxt1.dds",
+            "/images/sky_dxt1.dds",
             true,
             vec![],
             vec![],
@@ -783,7 +783,7 @@ pub fn test_cube(
             false,
         ),
         (
-            "/sky_dxt1_mipmaps.dds",
+            "/images/sky_dxt1_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -794,7 +794,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt1_srgb_mipmaps.dds",
+            "/images/sky_dxt1_srgb_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -805,7 +805,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt3.dds",
+            "/images/sky_dxt3.dds",
             true,
             vec![],
             vec![],
@@ -816,7 +816,7 @@ pub fn test_cube(
             false,
         ),
         (
-            "/sky_dxt3_mipmaps.dds",
+            "/images/sky_dxt3_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -827,7 +827,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt3_srgb_mipmaps.dds",
+            "/images/sky_dxt3_srgb_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -838,7 +838,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt5.dds",
+            "/images/sky_dxt5.dds",
             true,
             vec![],
             vec![],
@@ -849,7 +849,7 @@ pub fn test_cube(
             false,
         ),
         (
-            "/sky_dxt5_mipmaps.dds",
+            "/images/sky_dxt5_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -860,7 +860,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt5_srgb_mipmaps.dds",
+            "/images/sky_dxt5_srgb_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -871,7 +871,7 @@ pub fn test_cube(
             true,
         ),
         (
-            "/sky_dxt5_srgb_mipmaps.dds",
+            "/images/sky_dxt5_srgb_mipmaps.dds",
             true,
             vec![],
             vec![],
@@ -962,7 +962,7 @@ pub fn test_cube(
     )));
     brick_wall_1.set_material(Some(
         material::texture::Builder::new(TextureLoader::with_params(
-            "/bricks2.jpg",
+            "/images/bricks2.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -970,7 +970,7 @@ pub fn test_cube(
             true,
         ))
         .set_normal_map(TextureLoader::with_params(
-            "/bricks2_normal.jpg",
+            "/images/bricks2_normal.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -999,7 +999,7 @@ pub fn test_cube(
     )));
     brick_wall_2.set_material(Some(
         material::texture::Builder::new(TextureLoader::with_params(
-            "/brickwall.jpg",
+            "/images/brickwall.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -1007,7 +1007,7 @@ pub fn test_cube(
             true,
         ))
         .set_normal_map(TextureLoader::with_params(
-            "/brickwall_normal.jpg",
+            "/images/brickwall_normal.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -1033,7 +1033,7 @@ pub fn test_cube(
     )));
     brick_wall_parallax.set_material(Some(
         material::texture::Builder::new(TextureLoader::with_params(
-            "/bricks2.jpg",
+            "/images/bricks2.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -1041,7 +1041,7 @@ pub fn test_cube(
             true,
         ))
         .set_normal_map(TextureLoader::with_params(
-            "/bricks2_normal.jpg",
+            "/images/bricks2_normal.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -1049,7 +1049,7 @@ pub fn test_cube(
             false,
         ))
         .set_parallax_loader(TextureLoader::with_params(
-            "/bricks2_disp.jpg",
+            "/images/bricks2_disp.jpg",
             vec![TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
             [],
@@ -1066,7 +1066,7 @@ pub fn test_cube(
 
     let mut floor = SimpleBaseEntity::new();
     floor.set_material(Some(TextureMaterial::new(
-        DirectDrawSurfaceLoader::new("/wood_dxt3_mipmaps.dds"),
+        DirectDrawSurfaceLoader::new("/images/wood_dxt3_mipmaps.dds"),
         Transparency::Opaque,
     )));
     floor.set_geometry(Some(Rectangle::new(

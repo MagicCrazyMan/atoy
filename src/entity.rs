@@ -983,6 +983,7 @@ impl Container {
     pub fn refresh(&mut self) {
         unsafe {
             (*(*self.0).root_group).refresh();
+            (*self.0).dirty = false;
         }
     }
 }
