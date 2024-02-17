@@ -600,58 +600,66 @@ impl TextureUploadTarget {
     }
 }
 
-/// A common texture cube map array including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
+/// A combination of texture cube map with [`TextureColorFormat`], [`TextureDepthFormat`] and [`TextureCompressedFormat`].
 pub enum TextureCubeMap {
-    Uncompressed(TextureCubeMapBase<TextureColorFormat>),
+    Color(TextureCubeMapBase<TextureColorFormat>),
+    Depth(TextureCubeMapBase<TextureDepthFormat>),
     Compressed(TextureCubeMapBase<TextureCompressedFormat>),
 }
 
 impl Texture for TextureCubeMap {
     fn target(&self) -> TextureTarget {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.target(),
+            TextureCubeMap::Color(t) => t.target(),
+            TextureCubeMap::Depth(t) => t.target(),
             TextureCubeMap::Compressed(t) => t.target(),
         }
     }
 
     fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.sampler_parameters(),
+            TextureCubeMap::Color(t) => t.sampler_parameters(),
+            TextureCubeMap::Depth(t) => t.sampler_parameters(),
             TextureCubeMap::Compressed(t) => t.sampler_parameters(),
         }
     }
 
     fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.texture_parameters(),
+            TextureCubeMap::Color(t) => t.texture_parameters(),
+            TextureCubeMap::Depth(t) => t.texture_parameters(),
             TextureCubeMap::Compressed(t) => t.texture_parameters(),
         }
     }
 
     fn max_available_mipmap_level(&self) -> usize {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.max_available_mipmap_level(),
+            TextureCubeMap::Color(t) => t.max_available_mipmap_level(),
+            TextureCubeMap::Depth(t) => t.max_available_mipmap_level(),
             TextureCubeMap::Compressed(t) => t.max_available_mipmap_level(),
         }
     }
 
     fn max_mipmap_level(&self) -> usize {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.max_mipmap_level(),
+            TextureCubeMap::Color(t) => t.max_mipmap_level(),
+            TextureCubeMap::Depth(t) => t.max_mipmap_level(),
             TextureCubeMap::Compressed(t) => t.max_mipmap_level(),
         }
     }
 
     fn bytes_length(&self) -> usize {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.bytes_length(),
+            TextureCubeMap::Color(t) => t.bytes_length(),
+            TextureCubeMap::Depth(t) => t.bytes_length(),
             TextureCubeMap::Compressed(t) => t.bytes_length(),
         }
     }
 
     fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.bytes_length_of_level(level),
+            TextureCubeMap::Color(t) => t.bytes_length_of_level(level),
+            TextureCubeMap::Depth(t) => t.bytes_length_of_level(level),
             TextureCubeMap::Compressed(t) => t.bytes_length_of_level(level),
         }
     }
@@ -660,70 +668,80 @@ impl Texture for TextureCubeMap {
 impl TextureItem for TextureCubeMap {
     fn runtime(&self) -> Option<&Runtime> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.runtime(),
+            TextureCubeMap::Color(t) => t.runtime(),
+            TextureCubeMap::Depth(t) => t.runtime(),
             TextureCubeMap::Compressed(t) => t.runtime(),
         }
     }
 
     fn runtime_unchecked(&self) -> &Runtime {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.runtime_unchecked(),
+            TextureCubeMap::Color(t) => t.runtime_unchecked(),
+            TextureCubeMap::Depth(t) => t.runtime_unchecked(),
             TextureCubeMap::Compressed(t) => t.runtime_unchecked(),
         }
     }
 
     fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.runtime_mut(),
+            TextureCubeMap::Color(t) => t.runtime_mut(),
+            TextureCubeMap::Depth(t) => t.runtime_mut(),
             TextureCubeMap::Compressed(t) => t.runtime_mut(),
         }
     }
 
     fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.runtime_mut_unchecked(),
+            TextureCubeMap::Color(t) => t.runtime_mut_unchecked(),
+            TextureCubeMap::Depth(t) => t.runtime_mut_unchecked(),
             TextureCubeMap::Compressed(t) => t.runtime_mut_unchecked(),
         }
     }
 
     fn set_runtime(&mut self, runtime: Runtime) {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.set_runtime(runtime),
+            TextureCubeMap::Color(t) => t.set_runtime(runtime),
+            TextureCubeMap::Depth(t) => t.set_runtime(runtime),
             TextureCubeMap::Compressed(t) => t.set_runtime(runtime),
         }
     }
 
     fn remove_runtime(&mut self) -> Option<Runtime> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.remove_runtime(),
+            TextureCubeMap::Color(t) => t.remove_runtime(),
+            TextureCubeMap::Depth(t) => t.remove_runtime(),
             TextureCubeMap::Compressed(t) => t.remove_runtime(),
         }
     }
 
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.validate(capabilities),
+            TextureCubeMap::Color(t) => t.validate(capabilities),
+            TextureCubeMap::Depth(t) => t.validate(capabilities),
             TextureCubeMap::Compressed(t) => t.validate(capabilities),
         }
     }
 
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.create_texture(gl),
+            TextureCubeMap::Color(t) => t.create_texture(gl),
+            TextureCubeMap::Depth(t) => t.create_texture(gl),
             TextureCubeMap::Compressed(t) => t.create_texture(gl),
         }
     }
 
     fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.upload(gl),
+            TextureCubeMap::Color(t) => t.upload(gl),
+            TextureCubeMap::Depth(t) => t.upload(gl),
             TextureCubeMap::Compressed(t) => t.upload(gl),
         }
     }
 
     fn free(&mut self) -> bool {
         match self {
-            TextureCubeMap::Uncompressed(t) => t.free(),
+            TextureCubeMap::Color(t) => t.free(),
+            TextureCubeMap::Depth(t) => t.free(),
             TextureCubeMap::Compressed(t) => t.free(),
         }
     }

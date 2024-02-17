@@ -26,7 +26,10 @@ use super::{
         FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
-    texture::{texture2d::Texture2D, TextureDescriptor, TextureStore, TextureUnit},
+    texture::{
+        texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
+        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureStore, TextureUnit,
+    },
     uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
 };
 
@@ -37,12 +40,9 @@ pub struct BoundAttribute {
 
 enum TextureKind {
     Texture2D(TextureDescriptor<Texture2D>),
-    // Texture2DArray(TextureDescriptor<Texture2DArray>),
-    // Texture2DArrayCompressed(TextureDescriptor<Texture2DArrayCompressed>),
-    // Texture3D(TextureDescriptor<Texture3D>),
-    // Texture3DCompressed(TextureDescriptor<Texture3DCompressed>),
-    // TextureCubeMap(TextureDescriptor<TextureCubeMap>),
-    // TextureCubeMapCompressed(TextureDescriptor<TextureCubeMapCompressed>),
+    Texture2DArray(TextureDescriptor<Texture2DArray>),
+    Texture3D(TextureDescriptor<Texture3D>),
+    TextureCubeMap(TextureDescriptor<TextureCubeMap>),
 }
 pub struct BoundUniform {
     unit: TextureUnit,
@@ -577,53 +577,26 @@ impl FrameState {
                 None
             }
             UniformValue::Texture2D { .. }
-            | UniformValue::Texture3D { .. }
-            | UniformValue::Texture3DCompressed { .. }
             | UniformValue::Texture2DArray { .. }
-            | UniformValue::Texture2DArrayCompressed { .. }
-            | UniformValue::TextureCubeMap { .. }
-            | UniformValue::TextureCubeMapCompressed { .. } => {
+            | UniformValue::Texture3D { .. }
+            | UniformValue::TextureCubeMap { .. } => {
                 let (kind, unit) = match value {
                     UniformValue::Texture2D { descriptor, unit } => {
                         self.texture_store_mut().bind_texture(descriptor, *unit)?;
                         (TextureKind::Texture2D(descriptor.clone()), *unit)
                     }
-                    // UniformValue::Texture3D {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::Texture3D(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_3D,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
-                    // UniformValue::Texture3DCompressed {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::Texture3DCompressed(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_3D,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
-                    // UniformValue::Texture2DArray {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::Texture2DArray(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
-                    // UniformValue::Texture2DArrayCompressed {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::Texture2DArrayCompressed(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
+                    UniformValue::Texture2DArray { descriptor, unit } => {
+                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
+                        (TextureKind::Texture2DArray(descriptor.clone()), *unit)
+                    }
+                    UniformValue::Texture3D { descriptor, unit } => {
+                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
+                        (TextureKind::Texture3D(descriptor.clone()), *unit)
+                    }
+                    UniformValue::TextureCubeMap { descriptor, unit } => {
+                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
+                        (TextureKind::TextureCubeMap(descriptor.clone()), *unit)
+                    }
                     // UniformValue::TextureCubeMap {
                     //     descriptor,
                     //     unit,
@@ -667,24 +640,16 @@ impl FrameState {
             match texture {
                 TextureKind::Texture2D(descriptor) => {
                     self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                } // TextureKind::Texture2DArray(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
-                  // TextureKind::Texture2DArrayCompressed(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
-                  // TextureKind::Texture3D(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
-                  // TextureKind::Texture3DCompressed(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
-                  // TextureKind::TextureCubeMap(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
-                  // TextureKind::TextureCubeMapCompressed(descriptor) => {
-                  //     self.texture_store_mut().unuse_texture(&descriptor, unit);
-                  // }
+                }
+                TextureKind::Texture2DArray(descriptor) => {
+                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
+                }
+                TextureKind::Texture3D(descriptor) => {
+                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
+                }
+                TextureKind::TextureCubeMap(descriptor) => {
+                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
+                }
             }
         }
 

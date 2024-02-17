@@ -484,9 +484,10 @@ impl Builder<TextureColorFormat> {
     }
 }
 
-/// A common texture 2d including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
+/// A combination of texture 2d with [`TextureColorFormat`], [`TextureDepthFormat`] and [`TextureCompressedFormat`].
 pub enum Texture2D {
     Color(Texture2DBase<TextureColorFormat>),
+    Depth(Texture2DBase<TextureDepthFormat>),
     Compressed(Texture2DBase<TextureCompressedFormat>),
 }
 
@@ -494,6 +495,7 @@ impl Texture for Texture2D {
     fn target(&self) -> TextureTarget {
         match self {
             Texture2D::Color(t) => t.target(),
+            Texture2D::Depth(t) => t.target(),
             Texture2D::Compressed(t) => t.target(),
         }
     }
@@ -501,6 +503,7 @@ impl Texture for Texture2D {
     fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
         match self {
             Texture2D::Color(t) => t.sampler_parameters(),
+            Texture2D::Depth(t) => t.sampler_parameters(),
             Texture2D::Compressed(t) => t.sampler_parameters(),
         }
     }
@@ -508,6 +511,7 @@ impl Texture for Texture2D {
     fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
         match self {
             Texture2D::Color(t) => t.texture_parameters(),
+            Texture2D::Depth(t) => t.texture_parameters(),
             Texture2D::Compressed(t) => t.texture_parameters(),
         }
     }
@@ -515,6 +519,7 @@ impl Texture for Texture2D {
     fn max_available_mipmap_level(&self) -> usize {
         match self {
             Texture2D::Color(t) => t.max_available_mipmap_level(),
+            Texture2D::Depth(t) => t.max_available_mipmap_level(),
             Texture2D::Compressed(t) => t.max_available_mipmap_level(),
         }
     }
@@ -522,6 +527,7 @@ impl Texture for Texture2D {
     fn max_mipmap_level(&self) -> usize {
         match self {
             Texture2D::Color(t) => t.max_mipmap_level(),
+            Texture2D::Depth(t) => t.max_mipmap_level(),
             Texture2D::Compressed(t) => t.max_mipmap_level(),
         }
     }
@@ -529,6 +535,7 @@ impl Texture for Texture2D {
     fn bytes_length(&self) -> usize {
         match self {
             Texture2D::Color(t) => t.bytes_length(),
+            Texture2D::Depth(t) => t.bytes_length(),
             Texture2D::Compressed(t) => t.bytes_length(),
         }
     }
@@ -536,6 +543,7 @@ impl Texture for Texture2D {
     fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
         match self {
             Texture2D::Color(t) => t.bytes_length_of_level(level),
+            Texture2D::Depth(t) => t.bytes_length_of_level(level),
             Texture2D::Compressed(t) => t.bytes_length_of_level(level),
         }
     }
@@ -545,6 +553,7 @@ impl TextureItem for Texture2D {
     fn runtime(&self) -> Option<&Runtime> {
         match self {
             Texture2D::Color(t) => t.runtime(),
+            Texture2D::Depth(t) => t.runtime(),
             Texture2D::Compressed(t) => t.runtime(),
         }
     }
@@ -552,6 +561,7 @@ impl TextureItem for Texture2D {
     fn runtime_unchecked(&self) -> &Runtime {
         match self {
             Texture2D::Color(t) => t.runtime_unchecked(),
+            Texture2D::Depth(t) => t.runtime_unchecked(),
             Texture2D::Compressed(t) => t.runtime_unchecked(),
         }
     }
@@ -559,6 +569,7 @@ impl TextureItem for Texture2D {
     fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         match self {
             Texture2D::Color(t) => t.runtime_mut(),
+            Texture2D::Depth(t) => t.runtime_mut(),
             Texture2D::Compressed(t) => t.runtime_mut(),
         }
     }
@@ -566,6 +577,7 @@ impl TextureItem for Texture2D {
     fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
         match self {
             Texture2D::Color(t) => t.runtime_mut_unchecked(),
+            Texture2D::Depth(t) => t.runtime_mut_unchecked(),
             Texture2D::Compressed(t) => t.runtime_mut_unchecked(),
         }
     }
@@ -573,6 +585,7 @@ impl TextureItem for Texture2D {
     fn set_runtime(&mut self, runtime: Runtime) {
         match self {
             Texture2D::Color(t) => t.set_runtime(runtime),
+            Texture2D::Depth(t) => t.set_runtime(runtime),
             Texture2D::Compressed(t) => t.set_runtime(runtime),
         }
     }
@@ -580,6 +593,7 @@ impl TextureItem for Texture2D {
     fn remove_runtime(&mut self) -> Option<Runtime> {
         match self {
             Texture2D::Color(t) => t.remove_runtime(),
+            Texture2D::Depth(t) => t.remove_runtime(),
             Texture2D::Compressed(t) => t.remove_runtime(),
         }
     }
@@ -587,6 +601,7 @@ impl TextureItem for Texture2D {
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
         match self {
             Texture2D::Color(t) => t.validate(capabilities),
+            Texture2D::Depth(t) => t.validate(capabilities),
             Texture2D::Compressed(t) => t.validate(capabilities),
         }
     }
@@ -594,6 +609,7 @@ impl TextureItem for Texture2D {
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         match self {
             Texture2D::Color(t) => t.create_texture(gl),
+            Texture2D::Depth(t) => t.create_texture(gl),
             Texture2D::Compressed(t) => t.create_texture(gl),
         }
     }
@@ -601,6 +617,7 @@ impl TextureItem for Texture2D {
     fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         match self {
             Texture2D::Color(t) => t.upload(gl),
+            Texture2D::Depth(t) => t.upload(gl),
             Texture2D::Compressed(t) => t.upload(gl),
         }
     }
@@ -608,6 +625,7 @@ impl TextureItem for Texture2D {
     fn free(&mut self) -> bool {
         match self {
             Texture2D::Color(t) => t.free(),
+            Texture2D::Depth(t) => t.free(),
             Texture2D::Compressed(t) => t.free(),
         }
     }

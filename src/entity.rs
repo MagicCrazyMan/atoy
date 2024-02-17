@@ -24,7 +24,7 @@ use crate::{
     },
 };
 
-pub trait BaseEntity {
+pub trait EntityBase {
     fn model_matrix(&self) -> Readonly<'_, Mat4>;
 
     fn geometry(&self) -> Option<&dyn Geometry>;
@@ -46,13 +46,13 @@ pub trait BaseEntity {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub struct SimpleBaseEntity {
+pub struct SimpleEntityBase {
     model_matrix: Mat4,
     geometry: Option<Box<dyn Geometry>>,
     material: Option<Box<dyn StandardMaterial>>,
 }
 
-impl SimpleBaseEntity {
+impl SimpleEntityBase {
     pub fn new() -> Self {
         Self {
             model_matrix: Mat4::<f64>::new_identity(),
@@ -80,7 +80,7 @@ impl SimpleBaseEntity {
     }
 }
 
-impl BaseEntity for SimpleBaseEntity {
+impl EntityBase for SimpleEntityBase {
     fn model_matrix(&self) -> Readonly<'_, Mat4> {
         Readonly::Borrowed(&self.model_matrix)
     }
@@ -130,7 +130,7 @@ impl BaseEntity for SimpleBaseEntity {
 
 pub struct GroupOptions {
     model_matrix: Mat4,
-    entities: Vec<Box<dyn BaseEntity>>,
+    entities: Vec<Box<dyn EntityBase>>,
     subgroups: Vec<GroupOptions>,
 }
 
@@ -151,11 +151,11 @@ impl GroupOptions {
         self.model_matrix = model_matrix;
     }
 
-    pub fn entities(&self) -> &Vec<Box<dyn BaseEntity>> {
+    pub fn entities(&self) -> &Vec<Box<dyn EntityBase>> {
         self.entities.as_ref()
     }
 
-    pub fn entities_mut(&mut self) -> &mut Vec<Box<dyn BaseEntity>> {
+    pub fn entities_mut(&mut self) -> &mut Vec<Box<dyn EntityBase>> {
         &mut self.entities
     }
 
@@ -175,7 +175,7 @@ const ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY: u8 = 0b00000100;
 
 pub struct Entity {
     id: Uuid,
-    base: Box<dyn BaseEntity>,
+    base: Box<dyn EntityBase>,
 
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
@@ -189,7 +189,7 @@ pub struct Entity {
 }
 
 impl Deref for Entity {
-    type Target = Box<dyn BaseEntity>;
+    type Target = Box<dyn EntityBase>;
 
     fn deref(&self) -> &Self::Target {
         &self.base
@@ -203,7 +203,7 @@ impl DerefMut for Entity {
 }
 
 impl Entity {
-    fn new(id: Uuid, base: Box<dyn BaseEntity>, group: &mut Group) -> *mut Entity {
+    fn new(id: Uuid, base: Box<dyn EntityBase>, group: &mut Group) -> *mut Entity {
         let entity = Box::leak(Box::new(Entity {
             id,
             base,
@@ -224,7 +224,7 @@ impl Entity {
         entity
     }
 
-    fn take(self: Box<Self>) -> Box<dyn BaseEntity> {
+    fn take(self: Box<Self>) -> Box<dyn EntityBase> {
         *self.me.borrow_mut() = std::ptr::null_mut();
         self.base
     }
@@ -241,11 +241,11 @@ impl Entity {
         unsafe { &*self.group }
     }
 
-    pub fn base(&self) -> &dyn BaseEntity {
+    pub fn base(&self) -> &dyn EntityBase {
         self.base.as_ref()
     }
 
-    pub fn base_mut(&mut self) -> &mut dyn BaseEntity {
+    pub fn base_mut(&mut self) -> &mut dyn EntityBase {
         self.base.as_mut()
     }
 
@@ -435,12 +435,12 @@ impl Group {
 
     pub fn add_entity<E>(&mut self, entity_base: E) -> &mut Entity
     where
-        E: BaseEntity + 'static,
+        E: EntityBase + 'static,
     {
         self.add_entity_boxed(Box::new(entity_base))
     }
 
-    pub fn add_entity_boxed(&mut self, entity_base: Box<dyn BaseEntity>) -> &mut Entity {
+    pub fn add_entity_boxed(&mut self, entity_base: Box<dyn EntityBase>) -> &mut Entity {
         unsafe {
             let id = Uuid::new_v4();
             let entity = Entity::new(id, entity_base, self);
@@ -451,7 +451,7 @@ impl Group {
         }
     }
 
-    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Box<dyn BaseEntity>> {
+    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Box<dyn EntityBase>> {
         unsafe {
             let entity = self.entities.swap_remove(id)?;
             (*self.container).entities.swap_remove(id);
@@ -580,7 +580,7 @@ impl Group {
         }
     }
 
-    pub fn remove_subgroup_flatten(&mut self, id: &Uuid) -> Option<Vec<Box<dyn BaseEntity>>> {
+    pub fn remove_subgroup_flatten(&mut self, id: &Uuid) -> Option<Vec<Box<dyn EntityBase>>> {
         unsafe {
             let Some(group) = self.subgroups.swap_remove(id) else {
                 return None;

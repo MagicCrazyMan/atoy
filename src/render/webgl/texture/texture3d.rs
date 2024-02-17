@@ -535,58 +535,66 @@ impl Builder<TextureColorFormat> {
     }
 }
 
-/// A common texture 3d including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
+/// A combination of texture 3d with [`TextureColorFormat`], [`TextureDepthFormat`] and [`TextureCompressedFormat`].
 pub enum Texture3D {
-    Uncompressed(Texture3DBase<TextureColorFormat>),
+    Color(Texture3DBase<TextureColorFormat>),
+    Depth(Texture3DBase<TextureDepthFormat>),
     Compressed(Texture3DBase<TextureCompressedFormat>),
 }
 
 impl Texture for Texture3D {
     fn target(&self) -> TextureTarget {
         match self {
-            Texture3D::Uncompressed(t) => t.target(),
+            Texture3D::Color(t) => t.target(),
+            Texture3D::Depth(t) => t.target(),
             Texture3D::Compressed(t) => t.target(),
         }
     }
 
     fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
         match self {
-            Texture3D::Uncompressed(t) => t.sampler_parameters(),
+            Texture3D::Color(t) => t.sampler_parameters(),
+            Texture3D::Depth(t) => t.sampler_parameters(),
             Texture3D::Compressed(t) => t.sampler_parameters(),
         }
     }
 
     fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
         match self {
-            Texture3D::Uncompressed(t) => t.texture_parameters(),
+            Texture3D::Color(t) => t.texture_parameters(),
+            Texture3D::Depth(t) => t.texture_parameters(),
             Texture3D::Compressed(t) => t.texture_parameters(),
         }
     }
 
     fn max_available_mipmap_level(&self) -> usize {
         match self {
-            Texture3D::Uncompressed(t) => t.max_available_mipmap_level(),
+            Texture3D::Color(t) => t.max_available_mipmap_level(),
+            Texture3D::Depth(t) => t.max_available_mipmap_level(),
             Texture3D::Compressed(t) => t.max_available_mipmap_level(),
         }
     }
 
     fn max_mipmap_level(&self) -> usize {
         match self {
-            Texture3D::Uncompressed(t) => t.max_mipmap_level(),
+            Texture3D::Color(t) => t.max_mipmap_level(),
+            Texture3D::Depth(t) => t.max_mipmap_level(),
             Texture3D::Compressed(t) => t.max_mipmap_level(),
         }
     }
 
     fn bytes_length(&self) -> usize {
         match self {
-            Texture3D::Uncompressed(t) => t.bytes_length(),
+            Texture3D::Color(t) => t.bytes_length(),
+            Texture3D::Depth(t) => t.bytes_length(),
             Texture3D::Compressed(t) => t.bytes_length(),
         }
     }
 
     fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
         match self {
-            Texture3D::Uncompressed(t) => t.bytes_length_of_level(level),
+            Texture3D::Color(t) => t.bytes_length_of_level(level),
+            Texture3D::Depth(t) => t.bytes_length_of_level(level),
             Texture3D::Compressed(t) => t.bytes_length_of_level(level),
         }
     }
@@ -595,70 +603,80 @@ impl Texture for Texture3D {
 impl TextureItem for Texture3D {
     fn runtime(&self) -> Option<&Runtime> {
         match self {
-            Texture3D::Uncompressed(t) => t.runtime(),
+            Texture3D::Color(t) => t.runtime(),
+            Texture3D::Depth(t) => t.runtime(),
             Texture3D::Compressed(t) => t.runtime(),
         }
     }
 
     fn runtime_unchecked(&self) -> &Runtime {
         match self {
-            Texture3D::Uncompressed(t) => t.runtime_unchecked(),
+            Texture3D::Color(t) => t.runtime_unchecked(),
+            Texture3D::Depth(t) => t.runtime_unchecked(),
             Texture3D::Compressed(t) => t.runtime_unchecked(),
         }
     }
 
     fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         match self {
-            Texture3D::Uncompressed(t) => t.runtime_mut(),
+            Texture3D::Color(t) => t.runtime_mut(),
+            Texture3D::Depth(t) => t.runtime_mut(),
             Texture3D::Compressed(t) => t.runtime_mut(),
         }
     }
 
     fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
         match self {
-            Texture3D::Uncompressed(t) => t.runtime_mut_unchecked(),
+            Texture3D::Color(t) => t.runtime_mut_unchecked(),
+            Texture3D::Depth(t) => t.runtime_mut_unchecked(),
             Texture3D::Compressed(t) => t.runtime_mut_unchecked(),
         }
     }
 
     fn set_runtime(&mut self, runtime: Runtime) {
         match self {
-            Texture3D::Uncompressed(t) => t.set_runtime(runtime),
+            Texture3D::Color(t) => t.set_runtime(runtime),
+            Texture3D::Depth(t) => t.set_runtime(runtime),
             Texture3D::Compressed(t) => t.set_runtime(runtime),
         }
     }
 
     fn remove_runtime(&mut self) -> Option<Runtime> {
         match self {
-            Texture3D::Uncompressed(t) => t.remove_runtime(),
+            Texture3D::Color(t) => t.remove_runtime(),
+            Texture3D::Depth(t) => t.remove_runtime(),
             Texture3D::Compressed(t) => t.remove_runtime(),
         }
     }
 
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
         match self {
-            Texture3D::Uncompressed(t) => t.validate(capabilities),
+            Texture3D::Color(t) => t.validate(capabilities),
+            Texture3D::Depth(t) => t.validate(capabilities),
             Texture3D::Compressed(t) => t.validate(capabilities),
         }
     }
 
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         match self {
-            Texture3D::Uncompressed(t) => t.create_texture(gl),
+            Texture3D::Color(t) => t.create_texture(gl),
+            Texture3D::Depth(t) => t.create_texture(gl),
             Texture3D::Compressed(t) => t.create_texture(gl),
         }
     }
 
     fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         match self {
-            Texture3D::Uncompressed(t) => t.upload(gl),
+            Texture3D::Color(t) => t.upload(gl),
+            Texture3D::Depth(t) => t.upload(gl),
             Texture3D::Compressed(t) => t.upload(gl),
         }
     }
 
     fn free(&mut self) -> bool {
         match self {
-            Texture3D::Uncompressed(t) => t.free(),
+            Texture3D::Color(t) => t.free(),
+            Texture3D::Depth(t) => t.free(),
             Texture3D::Compressed(t) => t.free(),
         }
     }

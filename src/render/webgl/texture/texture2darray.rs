@@ -539,58 +539,66 @@ impl Builder<TextureColorFormat> {
     }
 }
 
-/// A common texture 2d array including [`TextureColorFormat`] and [`TextureCompressedFormat`] formats, but not [`TextureDepthFormat`].
+/// A combination of texture 2d array with [`TextureColorFormat`], [`TextureDepthFormat`] and [`TextureCompressedFormat`].
 pub enum Texture2DArray {
-    Uncompressed(Texture2DArrayBase<TextureColorFormat>),
+    Color(Texture2DArrayBase<TextureColorFormat>),
+    Depth(Texture2DArrayBase<TextureDepthFormat>),
     Compressed(Texture2DArrayBase<TextureCompressedFormat>),
 }
 
 impl Texture for Texture2DArray {
     fn target(&self) -> TextureTarget {
         match self {
-            Texture2DArray::Uncompressed(t) => t.target(),
+            Texture2DArray::Color(t) => t.target(),
+            Texture2DArray::Depth(t) => t.target(),
             Texture2DArray::Compressed(t) => t.target(),
         }
     }
 
     fn sampler_parameters(&self) -> &HashMap<u32, SamplerParameter> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.sampler_parameters(),
+            Texture2DArray::Color(t) => t.sampler_parameters(),
+            Texture2DArray::Depth(t) => t.sampler_parameters(),
             Texture2DArray::Compressed(t) => t.sampler_parameters(),
         }
     }
 
     fn texture_parameters(&self) -> &HashMap<u32, TextureParameter> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.texture_parameters(),
+            Texture2DArray::Color(t) => t.texture_parameters(),
+            Texture2DArray::Depth(t) => t.texture_parameters(),
             Texture2DArray::Compressed(t) => t.texture_parameters(),
         }
     }
 
     fn max_available_mipmap_level(&self) -> usize {
         match self {
-            Texture2DArray::Uncompressed(t) => t.max_available_mipmap_level(),
+            Texture2DArray::Color(t) => t.max_available_mipmap_level(),
+            Texture2DArray::Depth(t) => t.max_available_mipmap_level(),
             Texture2DArray::Compressed(t) => t.max_available_mipmap_level(),
         }
     }
 
     fn max_mipmap_level(&self) -> usize {
         match self {
-            Texture2DArray::Uncompressed(t) => t.max_mipmap_level(),
+            Texture2DArray::Color(t) => t.max_mipmap_level(),
+            Texture2DArray::Depth(t) => t.max_mipmap_level(),
             Texture2DArray::Compressed(t) => t.max_mipmap_level(),
         }
     }
 
     fn bytes_length(&self) -> usize {
         match self {
-            Texture2DArray::Uncompressed(t) => t.bytes_length(),
+            Texture2DArray::Color(t) => t.bytes_length(),
+            Texture2DArray::Depth(t) => t.bytes_length(),
             Texture2DArray::Compressed(t) => t.bytes_length(),
         }
     }
 
     fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.bytes_length_of_level(level),
+            Texture2DArray::Color(t) => t.bytes_length_of_level(level),
+            Texture2DArray::Depth(t) => t.bytes_length_of_level(level),
             Texture2DArray::Compressed(t) => t.bytes_length_of_level(level),
         }
     }
@@ -599,70 +607,80 @@ impl Texture for Texture2DArray {
 impl TextureItem for Texture2DArray {
     fn runtime(&self) -> Option<&Runtime> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.runtime(),
+            Texture2DArray::Color(t) => t.runtime(),
+            Texture2DArray::Depth(t) => t.runtime(),
             Texture2DArray::Compressed(t) => t.runtime(),
         }
     }
 
     fn runtime_unchecked(&self) -> &Runtime {
         match self {
-            Texture2DArray::Uncompressed(t) => t.runtime_unchecked(),
+            Texture2DArray::Color(t) => t.runtime_unchecked(),
+            Texture2DArray::Depth(t) => t.runtime_unchecked(),
             Texture2DArray::Compressed(t) => t.runtime_unchecked(),
         }
     }
 
     fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.runtime_mut(),
+            Texture2DArray::Color(t) => t.runtime_mut(),
+            Texture2DArray::Depth(t) => t.runtime_mut(),
             Texture2DArray::Compressed(t) => t.runtime_mut(),
         }
     }
 
     fn runtime_mut_unchecked(&mut self) -> &mut Runtime {
         match self {
-            Texture2DArray::Uncompressed(t) => t.runtime_mut_unchecked(),
+            Texture2DArray::Color(t) => t.runtime_mut_unchecked(),
+            Texture2DArray::Depth(t) => t.runtime_mut_unchecked(),
             Texture2DArray::Compressed(t) => t.runtime_mut_unchecked(),
         }
     }
 
     fn set_runtime(&mut self, runtime: Runtime) {
         match self {
-            Texture2DArray::Uncompressed(t) => t.set_runtime(runtime),
+            Texture2DArray::Color(t) => t.set_runtime(runtime),
+            Texture2DArray::Depth(t) => t.set_runtime(runtime),
             Texture2DArray::Compressed(t) => t.set_runtime(runtime),
         }
     }
 
     fn remove_runtime(&mut self) -> Option<Runtime> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.remove_runtime(),
+            Texture2DArray::Color(t) => t.remove_runtime(),
+            Texture2DArray::Depth(t) => t.remove_runtime(),
             Texture2DArray::Compressed(t) => t.remove_runtime(),
         }
     }
 
     fn validate(&self, capabilities: &Capabilities) -> Result<(), Error> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.validate(capabilities),
+            Texture2DArray::Color(t) => t.validate(capabilities),
+            Texture2DArray::Depth(t) => t.validate(capabilities),
             Texture2DArray::Compressed(t) => t.validate(capabilities),
         }
     }
 
     fn create_texture(&self, gl: &WebGl2RenderingContext) -> Result<WebGlTexture, Error> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.create_texture(gl),
+            Texture2DArray::Color(t) => t.create_texture(gl),
+            Texture2DArray::Depth(t) => t.create_texture(gl),
             Texture2DArray::Compressed(t) => t.create_texture(gl),
         }
     }
 
     fn upload(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         match self {
-            Texture2DArray::Uncompressed(t) => t.upload(gl),
+            Texture2DArray::Color(t) => t.upload(gl),
+            Texture2DArray::Depth(t) => t.upload(gl),
             Texture2DArray::Compressed(t) => t.upload(gl),
         }
     }
 
     fn free(&mut self) -> bool {
         match self {
-            Texture2DArray::Uncompressed(t) => t.free(),
+            Texture2DArray::Color(t) => t.free(),
+            Texture2DArray::Depth(t) => t.free(),
             Texture2DArray::Compressed(t) => t.free(),
         }
     }

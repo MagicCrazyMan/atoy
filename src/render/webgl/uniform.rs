@@ -3,9 +3,8 @@ use std::borrow::Cow;
 use super::{
     buffer::BufferDescriptor,
     texture::{
-        texture2d::Texture2D, texture2darray::Texture2DArrayBase, texture3d::Texture3DBase,
-        texture_cubemap::TextureCubeMapBase, TextureCompressedFormat, TextureDescriptor,
-        TextureColorFormat, TextureUnit,
+        texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
+        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureUnit,
     },
 };
 
@@ -53,28 +52,16 @@ pub enum UniformValue {
         descriptor: TextureDescriptor<Texture2D>,
         unit: TextureUnit,
     },
-    Texture3D {
-        descriptor: TextureDescriptor<Texture3DBase<TextureColorFormat>>,
-        unit: TextureUnit,
-    },
-    Texture3DCompressed {
-        descriptor: TextureDescriptor<Texture3DBase<TextureCompressedFormat>>,
-        unit: TextureUnit,
-    },
     Texture2DArray {
-        descriptor: TextureDescriptor<Texture2DArrayBase<TextureColorFormat>>,
+        descriptor: TextureDescriptor<Texture2DArray>,
         unit: TextureUnit,
     },
-    Texture2DArrayCompressed {
-        descriptor: TextureDescriptor<Texture2DArrayBase<TextureCompressedFormat>>,
+    Texture3D {
+        descriptor: TextureDescriptor<Texture3D>,
         unit: TextureUnit,
     },
     TextureCubeMap {
-        descriptor: TextureDescriptor<TextureCubeMapBase<TextureColorFormat>>,
-        unit: TextureUnit,
-    },
-    TextureCubeMapCompressed {
-        descriptor: TextureDescriptor<TextureCubeMapBase<TextureCompressedFormat>>,
+        descriptor: TextureDescriptor<TextureCubeMap>,
         unit: TextureUnit,
     },
 }
