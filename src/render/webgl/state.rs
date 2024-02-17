@@ -177,10 +177,7 @@ impl FrameState {
                 AttributeBinding::GeometryBitangent => geometry.bitangents(),
                 AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
                 AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
-                AttributeBinding::FromEntity(name) => entity
-                    .attribute_values()
-                    .get(name.as_ref())
-                    .map(|v| Readonly::Borrowed(v)),
+                AttributeBinding::FromEntity(name) => entity.base().attribute_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -394,10 +391,7 @@ impl FrameState {
                 }
                 UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
                 UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
-                UniformBinding::FromEntity(name) => entity
-                    .uniform_values()
-                    .get(name.as_ref())
-                    .map(|v| Readonly::Borrowed(v)),
+                UniformBinding::FromEntity(name) => entity.base().uniform_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -437,10 +431,9 @@ impl FrameState {
                 UniformBlockBinding::FromMaterial(name) => {
                     material.uniform_block_value(name.as_ref())
                 }
-                UniformBlockBinding::FromEntity(name) => entity
-                    .uniform_blocks_values()
-                    .get(name.as_ref())
-                    .map(|v| Readonly::Borrowed(v)),
+                UniformBlockBinding::FromEntity(name) => {
+                    entity.base().uniform_block_value(name.as_ref())
+                }
             };
             let Some(value) = value else {
                 warn!(

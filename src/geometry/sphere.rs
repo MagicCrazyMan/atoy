@@ -5,7 +5,6 @@ use web_sys::js_sys::Float32Array;
 
 use crate::{
     bounding::BoundingVolume,
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
@@ -28,7 +27,6 @@ pub struct Sphere {
     positions: BufferDescriptor,
     normals: BufferDescriptor,
     bounding_volume: BoundingVolume,
-    notifier: Notifier<()>,
 }
 
 impl Sphere {
@@ -36,7 +34,11 @@ impl Sphere {
         Self::with_params(1.0, 12, 24)
     }
 
-    pub fn with_params(radius: f64, vertical_segments: usize, horizontal_segments: usize) -> Sphere {
+    pub fn with_params(
+        radius: f64,
+        vertical_segments: usize,
+        horizontal_segments: usize,
+    ) -> Sphere {
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, vertical_segments, horizontal_segments);
         let positions_len = positions.length() as usize;
@@ -58,7 +60,6 @@ impl Sphere {
                 center: Vec3::<f64>::new(0.0, 0.0, 0.0),
                 radius,
             },
-            notifier: Notifier::new(),
         }
     }
 }
@@ -152,10 +153,6 @@ impl Geometry for Sphere {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
-    }
-
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

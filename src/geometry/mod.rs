@@ -8,7 +8,6 @@ use std::any::Any;
 
 use crate::{
     bounding::BoundingVolume,
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
@@ -39,8 +38,6 @@ pub trait Geometry {
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
-
-    fn notifier(&mut self) -> &mut Notifier<()>;
 
     fn as_any(&self) -> &dyn Any;
 

@@ -2,7 +2,6 @@ use std::{any::Any, cell::OnceCell};
 
 use crate::{
     bounding::BoundingVolume,
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
@@ -26,7 +25,6 @@ pub struct IndexedCube {
     normals_attribute: AttributeValue,
     textures_attribute: AttributeValue,
     bounding_volume: BoundingVolume,
-    notifier: Notifier<()>,
 }
 
 impl IndexedCube {
@@ -86,7 +84,6 @@ impl IndexedCube {
             positions_attribute,
             textures_attribute,
             bounding_volume: build_bounding_volume(size),
-            notifier: Notifier::new(),
         }
     }
 }
@@ -180,10 +177,6 @@ impl Geometry for IndexedCube {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
-    }
-
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

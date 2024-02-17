@@ -2,7 +2,6 @@ use std::{any::Any, collections::HashMap};
 
 use crate::{
     bounding::BoundingVolume,
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
@@ -24,7 +23,6 @@ pub struct RawGeometry {
     attributes: HashMap<String, AttributeValue>,
     uniforms: HashMap<String, UniformValue>,
     uniform_blocks: HashMap<String, UniformBlockValue>,
-    notifier: Notifier<()>,
 }
 
 impl RawGeometry {
@@ -51,7 +49,6 @@ impl RawGeometry {
             attributes,
             uniforms,
             uniform_blocks,
-            notifier: Notifier::new(),
         }
     }
 }
@@ -101,10 +98,6 @@ impl Geometry for RawGeometry {
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         self.uniform_blocks.get(name).map(|v| Readonly::Borrowed(v))
-    }
-
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

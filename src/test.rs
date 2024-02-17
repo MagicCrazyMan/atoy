@@ -20,7 +20,7 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::entity::{Entity, EntityOptions, GroupOptions};
+use crate::entity::{BaseEntity, Entity, GroupOptions, SimpleBaseEntity};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -195,7 +195,7 @@ fn create_scene() -> Result<Scene, Error> {
         Vec3::new(0.4, 0.4, 0.4),
         Vec3::new(0.6, 0.6, 0.6),
     ));
-    let mut hint = EntityOptions::new();
+    let mut hint = SimpleBaseEntity::new();
     hint.set_model_matrix(Mat4::<f64>::from_translation(&light_pos));
     hint.set_geometry(Some(Sphere::with_params(0.1, 12, 24)));
     hint.set_material(Some(SolidColorMaterial::with_color(
@@ -659,14 +659,14 @@ impl Notifiee<MouseEvent> for ViewerPicker {
                     Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 );
-                entity.make_dirty();
+                entity.mark_material_dirty();
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
                 geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
-                entity.make_dirty();
+                entity.mark_geometry_dirty();
             }
             console_log!("pick entity {}", entity.id());
         };
@@ -713,7 +713,7 @@ pub fn test_cube(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
-        let mut cube = EntityOptions::new();
+        let mut cube = SimpleBaseEntity::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
@@ -721,7 +721,7 @@ pub fn test_cube(
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.entities_mut().push(cube);
+        cubes.entities_mut().push(Box::new(cube));
     }
     scene
         .entity_container_mut()
@@ -899,14 +899,12 @@ pub fn test_cube(
                 read_mipmaps,
             ),
         )| {
-            let mut image = EntityOptions::new();
-
+            let mut image = SimpleBaseEntity::new();
             image.set_model_matrix(Mat4::<f64>::from_rotation_translation_scale(
                 &Quat::<f64>::new_identity(),
                 &Vec3::<f64>::new(0.0, 0.0, -(index as f64 + 1.0)),
                 &Vec3::<f64>::new(4.0, 4.0, 4.0),
             ));
-
             image.set_geometry(Some(Rectangle::new(
                 Vec2::new(0.0, 0.0),
                 Placement::Center,
@@ -942,15 +940,11 @@ pub fn test_cube(
                 ));
             }
 
-            images.entities_mut().push(image);
+            images.entities_mut().push(Box::new(image));
         },
     );
-    scene
-        .entity_container_mut()
-        .root_group_mut()
-        .add_subgroup(images);
 
-    let mut brick_wall_1 = EntityOptions::new();
+    let mut brick_wall_1 = SimpleBaseEntity::new();
     brick_wall_1.set_model_matrix(Mat4::<f64>::from_rotation_translation(
         &Quat::<f64>::from_rotation_to(
             &Vec3::<f64>::new(0.0, 0.0, 1.0),
@@ -985,12 +979,9 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    scene
-        .entity_container_mut()
-        .root_group_mut()
-        .add_entity(brick_wall_1);
+    images.entities_mut().push(Box::new(brick_wall_1));
 
-    let mut brick_wall_2 = EntityOptions::new();
+    let mut brick_wall_2 = SimpleBaseEntity::new();
     brick_wall_2.set_model_matrix(Mat4::<f64>::from_rotation_translation(
         &Quat::<f64>::from_rotation_to(
             &Vec3::<f64>::new(0.0, 0.0, 1.0),
@@ -1025,12 +1016,9 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    scene
-        .entity_container_mut()
-        .root_group_mut()
-        .add_entity(brick_wall_2);
+    images.entities_mut().push(Box::new(brick_wall_2));
 
-    let mut brick_wall_parallax = EntityOptions::new();
+    let mut brick_wall_parallax = SimpleBaseEntity::new();
     brick_wall_parallax.set_model_matrix(Mat4::<f64>::from_rotation_translation(
         &Quat::<f64>::new_zero(),
         &Vec3::<f64>::new(0.0, 0.5, -1.5),
@@ -1070,9 +1058,13 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    // scene.entity_container_mut().add_entity(brick_wall_parallax);
+    images.entities_mut().push(Box::new(brick_wall_parallax));
+    scene
+        .entity_container_mut()
+        .root_group_mut()
+        .add_subgroup(images);
 
-    let mut floor = EntityOptions::new();
+    let mut floor = SimpleBaseEntity::new();
     floor.set_material(Some(TextureMaterial::new(
         DirectDrawSurfaceLoader::new("/wood_dxt3_mipmaps.dds"),
         Transparency::Opaque,
@@ -1448,7 +1440,7 @@ pub fn test_pick(
         let center_z = start_z - row as f64 * cell_height;
         let model_matrix = Mat4::<f64>::from_translation(&Vec3::new(center_x, 0.0, center_z));
 
-        let mut cube = EntityOptions::new();
+        let mut cube = SimpleBaseEntity::new();
         cube.set_geometry(Some(Cube::new()));
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
@@ -1456,7 +1448,7 @@ pub fn test_pick(
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.entities_mut().push(cube);
+        cubes.entities_mut().push(Box::new(cube));
     }
     scene
         .entity_container_mut()

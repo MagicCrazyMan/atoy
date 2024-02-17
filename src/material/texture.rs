@@ -10,7 +10,7 @@ use log::warn;
 use crate::{
     error::Error,
     loader::{Loader, LoaderStatus},
-    notify::{Notifiee, Notifier},
+    notify::Notifiee,
     readonly::Readonly,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -22,7 +22,9 @@ use crate::{
     },
 };
 
-use super::{StandardMaterial, StandardMaterialSource, Transparency};
+use super::{
+    StandardMaterial, StandardMaterialPreparationCallback, StandardMaterialSource, Transparency,
+};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -35,8 +37,6 @@ pub struct TextureMaterial {
 
     parallax_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
     parallax: Rc<RefCell<Option<UniformValue>>>,
-
-    notifier: Rc<RefCell<Notifier<()>>>,
 }
 
 impl TextureMaterial {
@@ -55,12 +55,10 @@ impl TextureMaterial {
 
             parallax_loader: None,
             parallax: Rc::new(RefCell::new(None)),
-
-            notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }
 
-    fn prepare_albedo(&self) {
+    fn prepare_albedo(&self, callback: StandardMaterialPreparationCallback) {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             loader.load();
@@ -68,7 +66,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
                 texture_uniform: Rc::downgrade(&self.albedo),
-                notifier: Rc::downgrade(&self.notifier),
+                callback,
             });
         }
     }
@@ -77,7 +75,7 @@ impl TextureMaterial {
         self.normal_loader.is_some()
     }
 
-    fn prepare_normal(&self) {
+    fn prepare_normal(&self, callback: StandardMaterialPreparationCallback) {
         let Some(normal_loader) = self.normal_loader.as_ref() else {
             return;
         };
@@ -89,7 +87,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE1,
                 loader: Rc::downgrade(normal_loader),
                 texture_uniform: Rc::downgrade(&self.normal),
-                notifier: Rc::downgrade(&self.notifier),
+                callback,
             });
         }
     }
@@ -98,7 +96,7 @@ impl TextureMaterial {
         self.parallax_loader.is_some()
     }
 
-    fn prepare_parallax(&self) {
+    fn prepare_parallax(&self, callback: StandardMaterialPreparationCallback) {
         let Some(parallax_loader) = self.parallax_loader.as_ref() else {
             return;
         };
@@ -110,7 +108,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE2,
                 loader: Rc::downgrade(parallax_loader),
                 texture_uniform: Rc::downgrade(&self.parallax),
-                notifier: Rc::downgrade(&self.notifier),
+                callback,
             });
         }
     }
@@ -130,13 +128,13 @@ impl StandardMaterial for TextureMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &mut FrameState) {
-        self.prepare_albedo();
+    fn prepare(&mut self, _: &mut FrameState, callback: StandardMaterialPreparationCallback) {
+        self.prepare_albedo(callback.clone());
         if self.has_normal_map() {
-            self.prepare_normal();
+            self.prepare_normal(callback.clone());
         }
         if self.has_parallax_map() {
-            self.prepare_parallax();
+            self.prepare_parallax(callback);
         }
     }
 
@@ -235,10 +233,6 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>> {
-        &self.notifier
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -295,15 +289,11 @@ struct WaitLoader {
     unit: TextureUnit,
     loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
     texture_uniform: Weak<RefCell<Option<UniformValue>>>,
-    notifier: Weak<RefCell<Notifier<()>>>,
+    callback: StandardMaterialPreparationCallback,
 }
 
 impl Notifiee<LoaderStatus> for WaitLoader {
     fn notify(&mut self, status: &LoaderStatus) {
-        let Some(notifier) = self.notifier.upgrade() else {
-            return;
-        };
-
         match status {
             LoaderStatus::Unload => unreachable!(),
             LoaderStatus::Loading => {}
@@ -319,7 +309,7 @@ impl Notifiee<LoaderStatus> for WaitLoader {
                     descriptor: TextureDescriptor::new(texture),
                     unit: self.unit,
                 });
-                notifier.borrow_mut().notify(&())
+                self.callback.finish();
             }
             LoaderStatus::Errored => {
                 let Some(loader) = self.loader.upgrade() else {
@@ -388,7 +378,6 @@ impl Builder {
             normal: Rc::new(RefCell::new(None)),
             parallax_loader: self.parallax_loader,
             parallax: Rc::new(RefCell::new(None)),
-            notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }
 }

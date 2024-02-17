@@ -4,7 +4,6 @@ use gl_matrix4rust::vec2::Vec2;
 
 use crate::{
     bounding::BoundingVolume,
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::AttributeValue,
@@ -31,7 +30,6 @@ pub struct Rectangle {
     tangents: AttributeValue,
     bitangents: AttributeValue,
     bounding: BoundingVolume,
-    notifier: Notifier<()>,
 }
 
 impl Rectangle {
@@ -118,7 +116,6 @@ impl Rectangle {
                 bytes_stride: 0,
                 bytes_offset: 160,
             },
-            notifier: Notifier::new(),
         }
     }
 
@@ -186,10 +183,6 @@ impl Geometry for Rectangle {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
-    }
-
-    fn notifier(&mut self) -> &mut Notifier<()> {
-        &mut self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {

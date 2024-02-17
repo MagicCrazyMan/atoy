@@ -103,12 +103,6 @@ impl CullingBoundingVolume {
     pub fn center(&self) -> Vec3 {
         self.bounding.center()
     }
-
-    /// Transforms this bounding volume native by a transformation matrix.
-    pub fn transform(&mut self, transformation: Mat4) {
-        self.bounding = self.bounding.transform(transformation);
-        self.previous_outside_plane.borrow_mut().take();
-    }
 }
 
 /// Available bounding volumes.

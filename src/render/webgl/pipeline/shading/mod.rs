@@ -200,9 +200,11 @@ fn draw_entity(
     entity: &mut Entity,
 ) -> Result<(), Error> {
     // checks material availability
-    if let Some(material) = entity.material_mut() {
-        material.prepare(state);
-        if !material.ready() {
+    if entity.material().is_some() {
+        // prepares material if not ready yet
+        if !entity.material().unwrap().ready() {
+            let callback = entity.material_callback();
+            entity.material_mut().unwrap().prepare(state, callback);
             return Ok(());
         }
     } else {

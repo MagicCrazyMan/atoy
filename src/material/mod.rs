@@ -1,15 +1,20 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
+use std::{
+    any::Any,
+    borrow::Cow,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use rand::distributions::{Distribution, Standard};
 
 use crate::{
+    entity::Entity,
     light::{
         area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS},
         directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
         point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
         spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
     },
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -45,7 +50,7 @@ impl Distribution<Transparency> for Standard {
 }
 
 impl Transparency {
-    /// Returns alpha.
+    /// Returns alpha value.
     pub fn alpha(&self) -> f32 {
         match self {
             Transparency::Opaque => 1.0,
@@ -55,13 +60,43 @@ impl Transparency {
     }
 }
 
+/// Standard material preparation procedure finishing callback.
+/// Developer should invoke [`StandardMaterialPreparationCallback::finish`]
+/// after [`StandardMaterial::prepare`] finished.
+#[derive(Debug, Clone)]
+pub struct StandardMaterialPreparationCallback(Weak<RefCell<*mut Entity>>);
+
+impl StandardMaterialPreparationCallback {
+    /// Marks preparation procedure is finished.
+    pub fn finish(&self) {
+        unsafe {
+            let Some(entity) = self.0.upgrade() else {
+                return;
+            };
+
+            let mut entity = entity.borrow_mut();
+            if (*entity).is_null() {
+                return;
+            }
+
+            (**entity).mark_material_dirty();
+        }
+    }
+}
+
+impl Entity {
+    pub(crate) fn material_callback(&self) -> StandardMaterialPreparationCallback {
+        StandardMaterialPreparationCallback(Rc::downgrade(self.me()))
+    }
+}
+
 pub trait StandardMaterial: StandardMaterialSource {
     /// Returns `true` if material is ready for drawing.
     /// Drawer skips entity drawing if material is not ready.
     fn ready(&self) -> bool;
 
     /// Prepares material.
-    fn prepare(&mut self, state: &mut FrameState);
+    fn prepare(&mut self, state: &mut FrameState, callback: StandardMaterialPreparationCallback);
 
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
@@ -83,8 +118,6 @@ pub trait StandardMaterial: StandardMaterialSource {
 
     /// Returns an uniform block buffer binding value by an uniform block name.
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
-
-    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>>;
 
     fn as_any(&self) -> &dyn Any;
 

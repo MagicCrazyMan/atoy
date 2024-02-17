@@ -1,9 +1,8 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
+use std::{any::Any, borrow::Cow};
 
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
-    notify::Notifier,
     readonly::Readonly,
     render::webgl::{
         attribute::{AttributeBinding, AttributeValue},
@@ -14,7 +13,9 @@ use crate::{
     },
 };
 
-use super::{StandardMaterial, StandardMaterialSource, Transparency};
+use super::{
+    StandardMaterial, StandardMaterialPreparationCallback, StandardMaterialSource, Transparency,
+};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -22,7 +23,6 @@ pub struct SolidColorMaterial {
     color: Vec3<f32>,
     specular_shininess: f32,
     transparency: Transparency,
-    notifier: Rc<RefCell<Notifier<()>>>,
 }
 
 impl SolidColorMaterial {
@@ -41,7 +41,6 @@ impl SolidColorMaterial {
             color,
             specular_shininess,
             transparency,
-            notifier: Rc::new(RefCell::new(Notifier::new())),
         }
     }
 
@@ -62,7 +61,7 @@ impl StandardMaterial for SolidColorMaterial {
         true
     }
 
-    fn prepare(&mut self, _: &mut FrameState) {}
+    fn prepare(&mut self, _: &mut FrameState, _: StandardMaterialPreparationCallback) {}
 
     fn transparency(&self) -> Transparency {
         self.transparency
@@ -110,10 +109,6 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
-    }
-
-    fn notifier(&self) -> &Rc<RefCell<Notifier<()>>> {
-        &self.notifier
     }
 
     fn as_any(&self) -> &dyn Any {
