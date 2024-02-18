@@ -31,7 +31,7 @@ impl StandardMultisamplesSimpleShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA8),
             ))
         })
@@ -41,13 +41,13 @@ impl StandardMultisamplesSimpleShading {
         let fbo = self.multisample_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_renderbuffer(
+                    .set_color_attachment0(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::RGBA8,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                     ))
-                    .with_samples(samples),
+                    .set_renderbuffer_samples(samples),
             )
         });
         fbo.set_renderbuffer_samples(Some(samples)).unwrap();

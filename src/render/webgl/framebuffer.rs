@@ -12,7 +12,7 @@ use super::{
     conversion::ToGlEnum,
     error::Error,
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TextureDataType, TextureFormat, TextureColorFormat},
+    texture::{TextureColorFormat, TextureDataType, TextureFormat},
     utils::{renderbuffer_binding, texture_binding_2d},
 };
 
@@ -84,24 +84,24 @@ impl FramebufferAttachment {
     }
 
     #[inline]
-    fn to_draw_buffer(&self) -> Option<OperatableBuffer> {
+    fn to_operable_buffer(&self) -> Option<OperableBuffer> {
         match self {
-            FramebufferAttachment::COLOR_ATTACHMENT0 => Some(OperatableBuffer::COLOR_ATTACHMENT0),
-            FramebufferAttachment::COLOR_ATTACHMENT1 => Some(OperatableBuffer::COLOR_ATTACHMENT1),
-            FramebufferAttachment::COLOR_ATTACHMENT2 => Some(OperatableBuffer::COLOR_ATTACHMENT2),
-            FramebufferAttachment::COLOR_ATTACHMENT3 => Some(OperatableBuffer::COLOR_ATTACHMENT3),
-            FramebufferAttachment::COLOR_ATTACHMENT4 => Some(OperatableBuffer::COLOR_ATTACHMENT4),
-            FramebufferAttachment::COLOR_ATTACHMENT5 => Some(OperatableBuffer::COLOR_ATTACHMENT5),
-            FramebufferAttachment::COLOR_ATTACHMENT6 => Some(OperatableBuffer::COLOR_ATTACHMENT6),
-            FramebufferAttachment::COLOR_ATTACHMENT7 => Some(OperatableBuffer::COLOR_ATTACHMENT7),
-            FramebufferAttachment::COLOR_ATTACHMENT8 => Some(OperatableBuffer::COLOR_ATTACHMENT8),
-            FramebufferAttachment::COLOR_ATTACHMENT9 => Some(OperatableBuffer::COLOR_ATTACHMENT9),
-            FramebufferAttachment::COLOR_ATTACHMENT10 => Some(OperatableBuffer::COLOR_ATTACHMENT10),
-            FramebufferAttachment::COLOR_ATTACHMENT11 => Some(OperatableBuffer::COLOR_ATTACHMENT11),
-            FramebufferAttachment::COLOR_ATTACHMENT12 => Some(OperatableBuffer::COLOR_ATTACHMENT12),
-            FramebufferAttachment::COLOR_ATTACHMENT13 => Some(OperatableBuffer::COLOR_ATTACHMENT13),
-            FramebufferAttachment::COLOR_ATTACHMENT14 => Some(OperatableBuffer::COLOR_ATTACHMENT14),
-            FramebufferAttachment::COLOR_ATTACHMENT15 => Some(OperatableBuffer::COLOR_ATTACHMENT15),
+            FramebufferAttachment::COLOR_ATTACHMENT0 => Some(OperableBuffer::COLOR_ATTACHMENT0),
+            FramebufferAttachment::COLOR_ATTACHMENT1 => Some(OperableBuffer::COLOR_ATTACHMENT1),
+            FramebufferAttachment::COLOR_ATTACHMENT2 => Some(OperableBuffer::COLOR_ATTACHMENT2),
+            FramebufferAttachment::COLOR_ATTACHMENT3 => Some(OperableBuffer::COLOR_ATTACHMENT3),
+            FramebufferAttachment::COLOR_ATTACHMENT4 => Some(OperableBuffer::COLOR_ATTACHMENT4),
+            FramebufferAttachment::COLOR_ATTACHMENT5 => Some(OperableBuffer::COLOR_ATTACHMENT5),
+            FramebufferAttachment::COLOR_ATTACHMENT6 => Some(OperableBuffer::COLOR_ATTACHMENT6),
+            FramebufferAttachment::COLOR_ATTACHMENT7 => Some(OperableBuffer::COLOR_ATTACHMENT7),
+            FramebufferAttachment::COLOR_ATTACHMENT8 => Some(OperableBuffer::COLOR_ATTACHMENT8),
+            FramebufferAttachment::COLOR_ATTACHMENT9 => Some(OperableBuffer::COLOR_ATTACHMENT9),
+            FramebufferAttachment::COLOR_ATTACHMENT10 => Some(OperableBuffer::COLOR_ATTACHMENT10),
+            FramebufferAttachment::COLOR_ATTACHMENT11 => Some(OperableBuffer::COLOR_ATTACHMENT11),
+            FramebufferAttachment::COLOR_ATTACHMENT12 => Some(OperableBuffer::COLOR_ATTACHMENT12),
+            FramebufferAttachment::COLOR_ATTACHMENT13 => Some(OperableBuffer::COLOR_ATTACHMENT13),
+            FramebufferAttachment::COLOR_ATTACHMENT14 => Some(OperableBuffer::COLOR_ATTACHMENT14),
+            FramebufferAttachment::COLOR_ATTACHMENT15 => Some(OperableBuffer::COLOR_ATTACHMENT15),
             FramebufferAttachment::DEPTH_ATTACHMENT => None,
             FramebufferAttachment::STENCIL_ATTACHMENT => None,
             FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT => None,
@@ -168,7 +168,7 @@ impl FramebufferAttachment {
 /// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum OperatableBuffer {
+pub enum OperableBuffer {
     NONE,
     /// [`WebGl2RenderingContext::BACK`] only works for Canvas Draw Buffer.
     /// Do not bind this attachment to FBO.
@@ -579,7 +579,7 @@ impl Attach {
 
 struct Bound {
     target: FramebufferTarget,
-    read_buffer: Option<OperatableBuffer>,
+    read_buffer: Option<OperableBuffer>,
     draw_buffers: Option<Array>,
 }
 
@@ -642,14 +642,15 @@ impl Framebuffer {
             if ps.insert(attachment, provider).is_some() {
                 warn!("more than one attachment for {}", attachment.as_message());
             } else {
-                if let Some(draw_buffer) = attachment.to_draw_buffer() {
-                    draw_buffers.push(&JsValue::from_f64(draw_buffer.gl_enum() as f64));
+                if let Some(operable_buffer) = attachment.to_operable_buffer() {
+                    draw_buffers.push(&JsValue::from_f64(operable_buffer.gl_enum() as f64));
                 }
             }
             adds.insert(attachment);
         }
         draw_buffers.sort();
-        // takes the first attachment from draw buffers as default read buffer. uses NONE if no draw buffer.
+
+        // takes the first color attachment from draw buffers as default read buffer. uses NONE if no color attachment available.
         let read_buffer = draw_buffers
             .get(0)
             .as_f64()
@@ -831,7 +832,7 @@ impl Framebuffer {
         self.gl.bind_framebuffer(bound.target.gl_enum(), None);
     }
 
-    pub fn set_read_buffer(&mut self, read_buffer: OperatableBuffer) -> Result<(), Error> {
+    pub fn set_read_buffer(&mut self, read_buffer: OperableBuffer) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::FramebufferUninitialized);
         };
@@ -852,7 +853,7 @@ impl Framebuffer {
 
     pub fn set_draw_buffers<I>(&mut self, draw_buffers: I) -> Result<(), Error>
     where
-        I: IntoIterator<Item = OperatableBuffer>,
+        I: IntoIterator<Item = OperableBuffer>,
     {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::FramebufferUninitialized);
@@ -1035,11 +1036,11 @@ impl Framebuffer {
         match provider {
             Some(provider) => {
                 self.providers.insert(attachment, provider);
-                runtime.removes.insert(attachment);
                 self.adds.insert(attachment);
+                runtime.removes.insert(attachment);
 
-                if let Some(draw_buffer) = attachment.to_draw_buffer() {
-                    let draw_buffer = JsValue::from_f64(draw_buffer.gl_enum() as f64);
+                if let Some(operable_buffer) = attachment.to_operable_buffer() {
+                    let draw_buffer = JsValue::from_f64(operable_buffer.gl_enum() as f64);
                     if !self.draw_buffers.includes(&draw_buffer, 0) {
                         self.draw_buffers.push(&draw_buffer);
                         self.draw_buffers.sort();
@@ -1050,14 +1051,20 @@ impl Framebuffer {
                 self.providers.remove(&attachment);
                 runtime.removes.insert(attachment);
 
-                if let Some(draw_buffer) = attachment.to_draw_buffer() {
-                    let draw_buffer = draw_buffer.gl_enum() as u32;
+                if let Some(operable_buffer) = attachment.to_operable_buffer() {
+                    let draw_buffer = operable_buffer.gl_enum() as u32;
                     self.draw_buffers = self
                         .draw_buffers
                         .filter(&mut |value, _, _| value.as_f64().unwrap() as u32 != draw_buffer);
                 }
             }
         }
+
+        self.read_buffer = self.draw_buffers
+            .get(0)
+            .as_f64()
+            .map(|v| v as u32)
+            .unwrap_or(WebGl2RenderingContext::NONE);
 
         Ok(())
     }
@@ -1067,7 +1074,7 @@ pub struct FramebufferBuilder {
     size_policy: SizePolicy,
     providers: HashMap<FramebufferAttachment, AttachmentProvider>,
     adds: HashSet<FramebufferAttachment>,
-    draw_buffers: HashSet<OperatableBuffer>,
+    draw_buffers: HashSet<OperableBuffer>,
     renderbuffer_samples: Option<i32>,
 }
 
@@ -1082,19 +1089,14 @@ impl FramebufferBuilder {
         }
     }
 
-    pub fn with_size_policy(mut self, size_policy: SizePolicy) -> Self {
+    pub fn set_size_policy(mut self, size_policy: SizePolicy) -> Self {
         self.size_policy = size_policy;
         self
     }
 
-    pub fn with_samples(mut self, samples: i32) -> Self {
+    pub fn set_renderbuffer_samples(mut self, samples: i32) -> Self {
         let samples = if samples == 0 { None } else { Some(samples) };
         self.renderbuffer_samples = samples;
-        self
-    }
-
-    pub fn without_samples(mut self) -> Self {
-        self.renderbuffer_samples = None;
         self
     }
 
@@ -1127,24 +1129,15 @@ impl FramebufferBuilder {
 }
 
 macro_rules! framebuffer_build_attachments {
-    ($(($attachment:expr, $with_func: ident, $without_func: ident)),+) => {
+    ($(($attachment:expr, $func: ident)),+) => {
        impl FramebufferBuilder {
         $(
-            pub fn $with_func(mut self, provider: AttachmentProvider) -> Self {
+            pub fn $func(mut self, provider: AttachmentProvider) -> Self {
                 self.providers.insert($attachment, provider);
-                if let Some(draw_buffer) = $attachment.to_draw_buffer() {
-                    self.draw_buffers.insert(draw_buffer);
+                if let Some(operable_buffer) = $attachment.to_operable_buffer() {
+                    self.draw_buffers.insert(operable_buffer);
                 }
                 self.adds.insert($attachment);
-                self
-            }
-
-            pub fn $without_func(mut self) -> Self {
-                self.providers.remove(&$attachment);
-                if let Some(draw_buffer) = $attachment.to_draw_buffer() {
-                    self.draw_buffers.remove(&draw_buffer);
-                }
-                self.adds.remove(&$attachment);
                 self
             }
         )+
@@ -1153,23 +1146,23 @@ macro_rules! framebuffer_build_attachments {
 }
 
 framebuffer_build_attachments! {
-    (FramebufferAttachment::COLOR_ATTACHMENT0, with_color_attachment0, without_color_attachment0),
-    (FramebufferAttachment::COLOR_ATTACHMENT1, with_color_attachment1, without_color_attachment1),
-    (FramebufferAttachment::COLOR_ATTACHMENT2, with_color_attachment2, without_color_attachment2),
-    (FramebufferAttachment::COLOR_ATTACHMENT3, with_color_attachment3, without_color_attachment3),
-    (FramebufferAttachment::COLOR_ATTACHMENT4, with_color_attachment4, without_color_attachment4),
-    (FramebufferAttachment::COLOR_ATTACHMENT5, with_color_attachment5, without_color_attachment5),
-    (FramebufferAttachment::COLOR_ATTACHMENT6, with_color_attachment6, without_color_attachment6),
-    (FramebufferAttachment::COLOR_ATTACHMENT7, with_color_attachment7, without_color_attachment7),
-    (FramebufferAttachment::COLOR_ATTACHMENT8, with_color_attachment8, without_color_attachment8),
-    (FramebufferAttachment::COLOR_ATTACHMENT9, with_color_attachment9, without_color_attachment9),
-    (FramebufferAttachment::COLOR_ATTACHMENT10, with_color_attachment10, without_color_attachment10),
-    (FramebufferAttachment::COLOR_ATTACHMENT11, with_color_attachment11, without_color_attachment11),
-    (FramebufferAttachment::COLOR_ATTACHMENT12, with_color_attachment12, without_color_attachment12),
-    (FramebufferAttachment::COLOR_ATTACHMENT13, with_color_attachment13, without_color_attachment13),
-    (FramebufferAttachment::COLOR_ATTACHMENT14, with_color_attachment14, without_color_attachment14),
-    (FramebufferAttachment::COLOR_ATTACHMENT15, with_color_attachment15, without_color_attachment15),
-    (FramebufferAttachment::DEPTH_ATTACHMENT, with_depth_attachment, without_depth_attachment),
-    (FramebufferAttachment::STENCIL_ATTACHMENT, with_stencil_attachment, without_stencil_attachment),
-    (FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT, with_depth_stencil_attachment, without_depth_stencil_attachment)
+    (FramebufferAttachment::COLOR_ATTACHMENT0, set_color_attachment0),
+    (FramebufferAttachment::COLOR_ATTACHMENT1, set_color_attachment1),
+    (FramebufferAttachment::COLOR_ATTACHMENT2, set_color_attachment2),
+    (FramebufferAttachment::COLOR_ATTACHMENT3, set_color_attachment3),
+    (FramebufferAttachment::COLOR_ATTACHMENT4, set_color_attachment4),
+    (FramebufferAttachment::COLOR_ATTACHMENT5, set_color_attachment5),
+    (FramebufferAttachment::COLOR_ATTACHMENT6, set_color_attachment6),
+    (FramebufferAttachment::COLOR_ATTACHMENT7, set_color_attachment7),
+    (FramebufferAttachment::COLOR_ATTACHMENT8, set_color_attachment8),
+    (FramebufferAttachment::COLOR_ATTACHMENT9, set_color_attachment9),
+    (FramebufferAttachment::COLOR_ATTACHMENT10, set_color_attachment10),
+    (FramebufferAttachment::COLOR_ATTACHMENT11, set_color_attachment11),
+    (FramebufferAttachment::COLOR_ATTACHMENT12, set_color_attachment12),
+    (FramebufferAttachment::COLOR_ATTACHMENT13, set_color_attachment13),
+    (FramebufferAttachment::COLOR_ATTACHMENT14, set_color_attachment14),
+    (FramebufferAttachment::COLOR_ATTACHMENT15, set_color_attachment15),
+    (FramebufferAttachment::DEPTH_ATTACHMENT, with_depth_attachment),
+    (FramebufferAttachment::STENCIL_ATTACHMENT, with_stencil_attachment),
+    (FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT, with_depth_stencil_attachment)
 }

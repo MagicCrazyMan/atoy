@@ -35,15 +35,15 @@ impl StandardGBufferCollector {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     // positions and specular shininess
-                    .with_color_attachment0(AttachmentProvider::new_texture(
+                    .set_color_attachment0(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
                     // normals
-                    .with_color_attachment1(AttachmentProvider::new_texture(
+                    .set_color_attachment1(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
                     // albedo
-                    .with_color_attachment2(AttachmentProvider::new_texture(
+                    .set_color_attachment2(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(

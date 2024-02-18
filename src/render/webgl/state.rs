@@ -23,7 +23,7 @@ use super::{
     error::Error,
     framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
-        FramebufferBuilder, FramebufferTarget, OperatableBuffer, SizePolicy,
+        FramebufferBuilder, FramebufferTarget, OperableBuffer, SizePolicy,
     },
     program::{Program, ProgramStore},
     texture::{
@@ -866,14 +866,14 @@ impl FrameState {
     pub fn blit_framebuffers_with_buffers<I>(
         &self,
         read_framebuffer: &mut Framebuffer,
-        read_buffer: OperatableBuffer,
+        read_buffer: OperableBuffer,
         draw_framebuffer: &mut Framebuffer,
         draw_buffers: I,
         mask: BlitMask,
         filter: BlitFlilter,
     ) -> Result<(), Error>
     where
-        I: IntoIterator<Item = OperatableBuffer>,
+        I: IntoIterator<Item = OperableBuffer>,
     {
         draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         draw_framebuffer.set_draw_buffers(draw_buffers)?;
@@ -915,7 +915,7 @@ impl FrameState {
     pub fn blit_framebuffers_native<I1, I2>(
         &self,
         read_framebuffer: &WebGlFramebuffer,
-        read_buffer: OperatableBuffer,
+        read_buffer: OperableBuffer,
         draw_framebuffer: &WebGlFramebuffer,
         draw_buffers: I1,
         reset_draw_buffers: I2,
@@ -931,8 +931,8 @@ impl FrameState {
         filter: BlitFlilter,
     ) -> Result<(), Error>
     where
-        I1: IntoIterator<Item = OperatableBuffer>,
-        I2: IntoIterator<Item = OperatableBuffer>,
+        I1: IntoIterator<Item = OperableBuffer>,
+        I2: IntoIterator<Item = OperableBuffer>,
     {
         self.gl.bind_framebuffer(
             WebGl2RenderingContext::DRAW_FRAMEBUFFER,

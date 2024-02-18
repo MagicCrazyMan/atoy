@@ -5,7 +5,7 @@ use crate::render::webgl::{
     error::Error,
     framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
-        FramebufferBuilder, FramebufferTarget, OperatableBuffer,
+        FramebufferBuilder, FramebufferTarget, OperableBuffer,
     },
     pipeline::{
         collector::CollectedEntities,
@@ -50,7 +50,7 @@ impl StandardMultisamplesHdrShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA8),
             ))
         })
@@ -58,7 +58,7 @@ impl StandardMultisamplesHdrShading {
 
     fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -68,10 +68,10 @@ impl StandardMultisamplesHdrShading {
         self.hdr_bloom_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_texture(
+                    .set_color_attachment0(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
-                    .with_color_attachment1(AttachmentProvider::new_texture(
+                    .set_color_attachment1(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     )),
             )
@@ -86,13 +86,13 @@ impl StandardMultisamplesHdrShading {
         let fbo = self.hdr_multisamples_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_renderbuffer(
+                    .set_color_attachment0(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                     ))
-                    .with_samples(samples),
+                    .set_renderbuffer_samples(samples),
             )
         });
         fbo.set_renderbuffer_samples(Some(samples)).unwrap();
@@ -109,16 +109,16 @@ impl StandardMultisamplesHdrShading {
             .get_or_insert_with(|| {
                 state.create_framebuffer_with_builder(
                     FramebufferBuilder::new()
-                        .with_color_attachment0(AttachmentProvider::new_renderbuffer(
+                        .set_color_attachment0(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::RGBA32F,
                         ))
-                        .with_color_attachment1(AttachmentProvider::new_renderbuffer(
+                        .set_color_attachment1(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::RGBA32F,
                         ))
                         .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                             RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                         ))
-                        .with_samples(samples),
+                        .set_renderbuffer_samples(samples),
                 )
             });
         fbo.set_renderbuffer_samples(Some(samples)).unwrap();
@@ -127,7 +127,7 @@ impl StandardMultisamplesHdrShading {
 
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -135,7 +135,7 @@ impl StandardMultisamplesHdrShading {
 
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -143,7 +143,7 @@ impl StandardMultisamplesHdrShading {
 
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -338,17 +338,17 @@ impl StandardMultisamplesHdrShading {
                 self.hdr_multisamples_bloom_framebuffer.as_mut().unwrap();
             state.blit_framebuffers_with_buffers(
                 &mut *hdr_multisamples_bloom_framebuffer,
-                OperatableBuffer::COLOR_ATTACHMENT0,
+                OperableBuffer::COLOR_ATTACHMENT0,
                 &mut *hdr_bloom_framebuffer,
-                [OperatableBuffer::COLOR_ATTACHMENT0, OperatableBuffer::NONE],
+                [OperableBuffer::COLOR_ATTACHMENT0, OperableBuffer::NONE],
                 BlitMask::COLOR_BUFFER_BIT,
                 BlitFlilter::LINEAR,
             )?;
             state.blit_framebuffers_with_buffers(
                 &mut *hdr_multisamples_bloom_framebuffer,
-                OperatableBuffer::COLOR_ATTACHMENT1,
+                OperableBuffer::COLOR_ATTACHMENT1,
                 &mut *hdr_bloom_framebuffer,
-                [OperatableBuffer::NONE, OperatableBuffer::COLOR_ATTACHMENT1],
+                [OperableBuffer::NONE, OperableBuffer::COLOR_ATTACHMENT1],
                 BlitMask::COLOR_BUFFER_BIT,
                 BlitFlilter::LINEAR,
             )?;

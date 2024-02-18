@@ -131,6 +131,53 @@ impl Texture2DArrayBase<TextureColorFormat> {
     }
 }
 
+impl Texture2DArrayBase<TextureDepthFormat> {
+    /// Uploads a new texture source cover a whole level of this texture.
+    pub fn tex_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        array_length: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source,
+            Some(level),
+            Some(array_length),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        Ok(())
+    }
+
+    /// Uploads a sub data from a texture source to specified level of this texture.
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        array_length: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source,
+            Some(level),
+            Some(array_length),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
+        Ok(())
+    }
+}
+
 impl Texture2DArrayBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(

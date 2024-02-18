@@ -110,6 +110,39 @@ impl Texture2DBase<TextureColorFormat> {
     }
 }
 
+impl Texture2DBase<TextureDepthFormat> {
+    /// Uploads a new texture source cover a whole level of this texture.
+    pub fn tex_image(&mut self, source: TextureSource) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source, None, None, None, None, None, None, None,
+        ));
+        Ok(())
+    }
+
+    /// Uploads a sub data from a texture source to specified level of this texture.
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source,
+            Some(level),
+            None,
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            None,
+        ));
+        Ok(())
+    }
+}
+
 impl Texture2DBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(&mut self, source: TextureSourceCompressed) -> Result<(), Error> {

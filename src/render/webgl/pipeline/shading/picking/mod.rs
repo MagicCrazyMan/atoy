@@ -12,7 +12,7 @@ use crate::{
         error::Error,
         framebuffer::{
             AttachmentProvider, ClearPolicy, Framebuffer, FramebufferBuilder, FramebufferTarget,
-            OperatableBuffer,
+            OperableBuffer,
         },
         pipeline::collector::CollectedEntities,
         program::{FragmentShaderSource, ProgramSource, VertexShaderSource},
@@ -46,11 +46,11 @@ impl StandardPicking {
         self.framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_texture_with_clear_policy(
+                    .set_color_attachment0(AttachmentProvider::new_texture_with_clear_policy(
                         TextureColorFormat::R32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
-                    .with_color_attachment1(AttachmentProvider::new_texture_with_clear_policy(
+                    .set_color_attachment1(AttachmentProvider::new_texture_with_clear_policy(
                         TextureColorFormat::RGBA32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
@@ -235,7 +235,7 @@ impl StandardPicking {
         };
 
         fbo.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        fbo.set_read_buffer(OperatableBuffer::COLOR_ATTACHMENT1)?;
+        fbo.set_read_buffer(OperableBuffer::COLOR_ATTACHMENT1)?;
         fbo.read_pixels(
             window_position_x,
             canvas.height() as i32 - window_position_y,

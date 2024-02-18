@@ -44,7 +44,7 @@ impl StandardDeferredShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA8),
             ))
         })

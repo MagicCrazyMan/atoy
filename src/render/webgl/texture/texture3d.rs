@@ -126,6 +126,53 @@ impl Texture3DBase<TextureColorFormat> {
     }
 }
 
+impl Texture3DBase<TextureDepthFormat> {
+    /// Uploads a new texture source cover a whole level of this texture.
+    pub fn tex_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source,
+            Some(level),
+            Some(depth),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        Ok(())
+    }
+
+    /// Uploads a sub data from a texture source to specified level of this texture.
+    pub fn tex_sub_image(
+        &mut self,
+        source: TextureSource,
+        level: usize,
+        depth: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) -> Result<(), Error> {
+        self.uploads.push(UploadItem::with_params(
+            source,
+            Some(level),
+            Some(depth),
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            Some(z_offset),
+        ));
+        Ok(())
+    }
+}
+
 impl Texture3DBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(

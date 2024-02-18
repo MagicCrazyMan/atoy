@@ -77,7 +77,7 @@ impl StandardComposer {
 impl StandardComposer {
     fn composed_framebuffer(&mut self, state: &mut FrameState) -> &mut Framebuffer {
         self.composed_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA8),
             ))
         })

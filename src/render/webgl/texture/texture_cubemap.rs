@@ -138,6 +138,52 @@ impl TextureCubeMapBase<TextureColorFormat> {
     }
 }
 
+impl TextureCubeMapBase<TextureDepthFormat> {
+    /// Uploads a new texture source cover a whole level of this texture.
+    pub fn tex_image(
+        &mut self,
+        face: CubeMapFace,
+        source: TextureSource,
+        level: usize,
+    ) -> Result<(), Error> {
+        self.faces[face as usize].push(UploadItem::with_params(
+            source,
+            Some(level),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ));
+        Ok(())
+    }
+
+    /// Uploads a sub data from a texture source to specified level of this texture.
+    pub fn tex_sub_image(
+        &mut self,
+        face: CubeMapFace,
+        source: TextureSource,
+        level: usize,
+        width: usize,
+        height: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) -> Result<(), Error> {
+        self.faces[face as usize].push(UploadItem::with_params(
+            source,
+            Some(level),
+            None,
+            Some(width),
+            Some(height),
+            Some(x_offset),
+            Some(y_offset),
+            None,
+        ));
+        Ok(())
+    }
+}
+
 impl TextureCubeMapBase<TextureCompressedFormat> {
     /// Uploads a new texture source cover a whole level of this texture.
     pub fn tex_image(

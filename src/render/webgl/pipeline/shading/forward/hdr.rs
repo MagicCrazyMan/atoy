@@ -46,7 +46,7 @@ impl StandardHdrShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA8),
             ))
         })
@@ -56,7 +56,7 @@ impl StandardHdrShading {
         self.hdr_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_texture(
+                    .set_color_attachment0(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
@@ -70,10 +70,10 @@ impl StandardHdrShading {
         self.hdr_bloom_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
-                    .with_color_attachment0(AttachmentProvider::new_texture(
+                    .set_color_attachment0(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
-                    .with_color_attachment1(AttachmentProvider::new_texture(
+                    .set_color_attachment1(AttachmentProvider::new_texture(
                         TextureColorFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
@@ -85,7 +85,7 @@ impl StandardHdrShading {
 
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -93,7 +93,7 @@ impl StandardHdrShading {
 
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
@@ -101,7 +101,7 @@ impl StandardHdrShading {
 
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().with_color_attachment0(
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
                 AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
             ))
         })
