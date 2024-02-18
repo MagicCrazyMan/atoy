@@ -9,7 +9,7 @@ use crate::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage, MemoryPolicy,
         },
-        draw::{CullFace, Draw, DrawElementType, DrawMode},
+        draw::{CullFace, Draw, ElementIndicesDataType, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
 };
@@ -135,7 +135,7 @@ impl Geometry for IndexedCube {
             count: 36,
             offset: 0,
             indices: self.indices.clone(),
-            indices_data_type: DrawElementType::UNSIGNED_BYTE,
+            indices_data_type: ElementIndicesDataType::UNSIGNED_BYTE,
         }
     }
 

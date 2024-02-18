@@ -21,13 +21,13 @@ pub enum Draw {
         count: i32,
         offset: i32,
         indices: BufferDescriptor,
-        indices_data_type: DrawElementType,
+        indices_data_type: ElementIndicesDataType,
     },
 }
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DrawElementType {
+pub enum ElementIndicesDataType {
     UNSIGNED_BYTE,
     UNSIGNED_SHORT,
     UNSIGNED_INT,

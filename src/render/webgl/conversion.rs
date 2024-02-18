@@ -7,7 +7,7 @@ use web_sys::{
 use super::{
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     client_wait::ClientWaitFlags,
-    draw::{CullFace, DrawElementType, DrawMode},
+    draw::{CullFace, ElementIndicesDataType, DrawMode},
     framebuffer::{
         BlitFlilter, BlitMask, FramebufferAttachment, FramebufferTarget, OperableBuffer,
     },
@@ -82,13 +82,13 @@ impl ToGlEnum for BufferUsage {
     }
 }
 
-impl ToGlEnum for DrawElementType {
+impl ToGlEnum for ElementIndicesDataType {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            DrawElementType::UNSIGNED_BYTE => WebGl2RenderingContext::UNSIGNED_BYTE,
-            DrawElementType::UNSIGNED_SHORT => WebGl2RenderingContext::UNSIGNED_SHORT,
-            DrawElementType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
+            ElementIndicesDataType::UNSIGNED_BYTE => WebGl2RenderingContext::UNSIGNED_BYTE,
+            ElementIndicesDataType::UNSIGNED_SHORT => WebGl2RenderingContext::UNSIGNED_SHORT,
+            ElementIndicesDataType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
         }
     }
 }
