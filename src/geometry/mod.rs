@@ -9,7 +9,7 @@ use std::any::Any;
 use crate::{
     bounding::BoundingVolume,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
@@ -23,7 +23,7 @@ pub trait Geometry {
 
     fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>>;
 
-    fn positions(&self) -> Option<Readonly<'_, AttributeValue>>;
+    fn positions(&self) -> Readonly<'_, AttributeValue>;
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>>;
 

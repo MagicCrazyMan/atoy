@@ -1,6 +1,6 @@
 use gl_matrix4rust::{vec3::Vec3, GLF32Borrowed};
 
-use crate::render::webgl::pipeline::UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH;
+use crate::pipeline::webgl::UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH;
 
 const UBO_LIGHTS_AMBIENT_LIGHT_F32_LENGTH: usize =
     UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH as usize / 4;

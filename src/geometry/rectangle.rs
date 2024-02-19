@@ -5,7 +5,7 @@ use gl_matrix4rust::vec2::Vec2;
 use crate::{
     bounding::BoundingVolume,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -153,8 +153,8 @@ impl Geometry for Rectangle {
         Some(Readonly::Borrowed(&self.bounding))
     }
 
-    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.positions))
+    fn positions(&self) -> Readonly<'_, AttributeValue> {
+        Readonly::Borrowed(&self.positions)
     }
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {

@@ -6,7 +6,7 @@ use web_sys::js_sys::Float32Array;
 use crate::{
     bounding::BoundingVolume,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -107,8 +107,8 @@ impl Geometry for Sphere {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Owned(AttributeValue::Buffer {
+    fn positions(&self) -> Readonly<'_, AttributeValue> {
+        Readonly::Owned(AttributeValue::Buffer {
             descriptor: self.positions.clone(),
             target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
@@ -116,7 +116,7 @@ impl Geometry for Sphere {
             normalized: false,
             bytes_stride: 0,
             bytes_offset: 0,
-        }))
+        })
     }
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {

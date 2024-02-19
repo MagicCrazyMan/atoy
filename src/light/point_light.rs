@@ -1,6 +1,6 @@
 use gl_matrix4rust::{vec3::Vec3, GLF32Borrowed, GLF32};
 
-use crate::render::webgl::pipeline::UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH;
+use crate::pipeline::webgl::UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH;
 
 /// Maximum point lights.
 pub const MAX_POINT_LIGHTS: usize = 40;

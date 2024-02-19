@@ -14,9 +14,10 @@ pub mod material;
 pub mod notify;
 pub mod plane;
 pub mod readonly;
-pub mod render;
+pub mod renderer;
 pub mod scene;
-pub mod test;
+// pub mod test;
+pub mod pipeline;
 pub mod utils;
 pub mod viewer;
 

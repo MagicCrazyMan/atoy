@@ -7,7 +7,7 @@ use web_sys::{AddEventListenerOptions, HtmlImageElement};
 use crate::{
     error::{AsJsError, Error},
     notify::Notifier,
-    render::webgl::texture::{
+    renderer::webgl::texture::{
         texture2d::{self, Texture2D},
         SamplerParameter, TextureColorFormat, TextureDataType, TextureFormat, TextureParameter,
         TexturePixelStorage, TextureSource,

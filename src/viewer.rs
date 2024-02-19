@@ -14,13 +14,8 @@ use crate::{
     controller::Controller,
     entity::Entity,
     error::Error,
-    render::{
-        webgl::{
-            pipeline::{HdrToneMappingType, StandardPipeline, StandardPipelineShading},
-            WebGL2Renderer,
-        },
-        Renderer,
-    },
+    pipeline::webgl::{HdrToneMappingType, StandardPipeline, StandardPipelineShading},
+    renderer::{webgl::WebGL2Renderer, Renderer},
     request_animation_frame,
     scene::Scene,
 };

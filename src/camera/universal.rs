@@ -5,7 +5,7 @@ use crate::{
     frustum::ViewFrustum,
     notify::{Notifiee, Notifying},
     plane::Plane,
-    render::webgl::RenderEvent,
+    renderer::webgl::RenderEvent,
     viewer::Viewer,
 };
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};

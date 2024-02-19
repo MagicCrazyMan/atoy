@@ -16,9 +16,9 @@ use crate::{
     bounding::{merge_bounding_volumes, CullingBoundingVolume},
     error::Error,
     geometry::Geometry,
-    material::StandardMaterial,
+    material::webgl::StandardMaterial,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -684,7 +684,7 @@ impl Group {
                     for entity in (**subgroup).entities_iter_mut() {
                         entity.dirty_field |= ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY;
                     }
-                    
+
                     subgroups.extend((**subgroup).subgroups.values_mut());
                 }
             }

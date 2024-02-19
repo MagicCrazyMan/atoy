@@ -3,7 +3,7 @@ use std::{any::Any, collections::HashMap};
 use crate::{
     bounding::BoundingVolume,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
@@ -15,7 +15,7 @@ use super::Geometry;
 pub struct RawGeometry {
     draw: Draw,
     cull_face: Option<CullFace>,
-    positions: Option<AttributeValue>,
+    positions: AttributeValue,
     normals: Option<AttributeValue>,
     tangents: Option<AttributeValue>,
     bitangents: Option<AttributeValue>,
@@ -29,7 +29,7 @@ impl RawGeometry {
     pub fn new(
         draw: Draw,
         cull_face: Option<CullFace>,
-        positions: Option<AttributeValue>,
+        positions: AttributeValue,
         normals: Option<AttributeValue>,
         tangents: Option<AttributeValue>,
         bitangents: Option<AttributeValue>,
@@ -66,8 +66,8 @@ impl Geometry for RawGeometry {
         None
     }
 
-    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
-        self.positions.as_ref().map(|v| Readonly::Borrowed(v))
+    fn positions(&self) -> Readonly<'_, AttributeValue> {
+        Readonly::Borrowed(&self.positions)
     }
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {

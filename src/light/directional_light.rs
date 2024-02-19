@@ -1,6 +1,6 @@
 use gl_matrix4rust::{vec3::Vec3, GLF32Borrowed};
 
-use crate::render::webgl::pipeline::UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH;
+use crate::pipeline::webgl::UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH;
 
 /// Maximum directional lights.
 pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;

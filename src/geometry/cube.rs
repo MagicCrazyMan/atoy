@@ -5,7 +5,7 @@ use gl_matrix4rust::vec3::Vec3;
 use crate::{
     bounding::BoundingVolume,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -148,8 +148,8 @@ impl Geometry for Cube {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.positions_attribute))
+    fn positions(&self) -> Readonly<'_, AttributeValue> {
+        Readonly::Borrowed(&self.positions_attribute)
     }
 
     fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {

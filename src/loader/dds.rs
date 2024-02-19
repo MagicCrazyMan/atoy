@@ -11,7 +11,7 @@ use web_sys::{
 use crate::{
     error::Error,
     notify::Notifier,
-    render::webgl::texture::{
+    renderer::webgl::texture::{
         texture2d::{Builder, Texture2D, Texture2DBase},
         SamplerParameter, TextureCompressedFormat, TextureParameter, TextureSourceCompressed,
     },

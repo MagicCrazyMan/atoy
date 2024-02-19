@@ -11,7 +11,7 @@ pub enum Error {
     NoSuchEntity,
     NoSuchGroup,
     InvalidDirectDrawSurface,
-    WebGLRenderError(crate::render::webgl::error::Error),
+    WebGLRenderError(crate::renderer::webgl::error::Error),
     JsError(js_sys::Error),
     CommonError(Option<String>)
 }
@@ -27,8 +27,8 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-impl From<crate::render::webgl::error::Error> for Error {
-    fn from(value: crate::render::webgl::error::Error) -> Self {
+impl From<crate::renderer::webgl::error::Error> for Error {
+    fn from(value: crate::renderer::webgl::error::Error) -> Self {
         Self::WebGLRenderError(value)
     }
 }
