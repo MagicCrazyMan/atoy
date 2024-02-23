@@ -9,13 +9,12 @@ use crate::renderer::webgl::{
         AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
         FramebufferTarget,
     },
-    program::ShaderProvider,
+    program::{Define, ShaderProvider},
     state::FrameState,
     texture::{TextureColorFormat, TextureUnit},
     uniform::UniformValue,
 };
 
-const GAMMA_CORRECTION_DEFINE: &'static str = "GAMMA_CORRECTION";
 const TEXTURE_UNIFORM_NAME: &'static str = "u_Texture";
 const GAMMA_UNIFORM_NAME: &'static str = "u_Gamma";
 
@@ -26,20 +25,23 @@ pub const DEFAULT_ENABLE_GAMMA: f32 = 2.2;
 /// Standard texture composer.
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
+    shader_provider: ComposerShaderProvider,
     composed_framebuffer: Option<Framebuffer>,
     clear_color: Vec4<f32>,
 
-    gamma_correction: bool,
+    enable_gamma_correction: bool,
     gamma: f32,
 }
 
 impl StandardComposer {
     pub fn new() -> Self {
         Self {
+            shader_provider: ComposerShaderProvider::new(false),
+
             composed_framebuffer: None,
             clear_color: DEFAULT_CLEAR_COLOR,
 
-            gamma_correction: DEFAULT_ENABLE_GAMMA_CORRECTION,
+            enable_gamma_correction: DEFAULT_ENABLE_GAMMA_CORRECTION,
             gamma: DEFAULT_ENABLE_GAMMA,
         }
     }
@@ -53,15 +55,15 @@ impl StandardComposer {
     }
 
     pub fn gamma_correction_enabled(&self) -> bool {
-        self.gamma_correction
+        self.enable_gamma_correction
     }
 
     pub fn enable_gamma_correction(&mut self) {
-        self.gamma_correction = true;
+        self.enable_gamma_correction = true;
     }
 
     pub fn disable_gamma_correction(&mut self) {
-        self.gamma_correction = false;
+        self.enable_gamma_correction = false;
     }
 
     pub fn gamma(&self) -> f32 {
@@ -108,8 +110,11 @@ impl StandardComposer {
             WebGl2RenderingContext::ONE_MINUS_SRC_ALPHA,
         );
 
-        let program = state.program_store_mut().use_program(&ComposerProgram)?;
-
+        // disable gamma correction for composing
+        self.shader_provider.enable_gamma_correction = false;
+        let program = state
+            .program_store_mut()
+            .use_program(&self.shader_provider)?;
         state.bind_uniform_value_by_variable_name(
             program,
             TEXTURE_UNIFORM_NAME,
@@ -139,21 +144,18 @@ impl StandardComposer {
         );
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-        if self.gamma_correction {
-            let program = state.program_store_mut().use_program_with_defines(
-                &ComposerProgram,
-                &[],
-                &[Define::WithoutValue(Cow::Borrowed(GAMMA_CORRECTION_DEFINE))],
-            )?;
+        // enable gamma correction if at the final print stage
+        self.shader_provider.enable_gamma_correction = self.enable_gamma_correction;
+        let program = state
+            .program_store_mut()
+            .use_program(&self.shader_provider)?;
+        if self.shader_provider.enable_gamma_correction {
             state.bind_uniform_value_by_variable_name(
                 program,
                 GAMMA_UNIFORM_NAME,
                 &UniformValue::Float1(self.gamma),
             )?;
-            program
-        } else {
-            state.program_store_mut().use_program(&ComposerProgram)?
-        };
+        }
 
         state.do_computation([(
             self.composed_framebuffer
@@ -168,26 +170,50 @@ impl StandardComposer {
     }
 }
 
-struct ComposerProgram;
+struct ComposerShaderProvider {
+    enable_gamma_correction: bool,
+}
 
-impl ShaderProvider for ComposerProgram {
+impl ComposerShaderProvider {
+    fn new(enable_gamma_correction: bool) -> Self {
+        Self {
+            enable_gamma_correction,
+        }
+    }
+}
+
+impl ShaderProvider for ComposerShaderProvider {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("ComposerProgram")
+        match self.enable_gamma_correction {
+            true => Cow::Borrowed("ComposerGamma"),
+            false => Cow::Borrowed("Composer"),
+        }
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("./shaders/computation.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("./shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Builder(ShaderBuilder::new(
-            true,
-            vec![],
-            vec![],
-            vec![
-                Cow::Borrowed(include_str!("./shaders/gamma.glsl")),
-                Cow::Borrowed(include_str!("./shaders/composer.glsl")),
-            ],
-        ))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("./shaders/composer.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        match self.enable_gamma_correction {
+            true => &[Define::WithoutValue(Cow::Borrowed("USE_GAMMA_CORRECTION"))],
+            false => &[],
+        }
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }

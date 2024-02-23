@@ -40,6 +40,7 @@ pub struct Viewer {
 impl Drop for Viewer {
     fn drop(&mut self) {
         unsafe {
+            log::info!("1111");
             self.stop_render_loop();
             drop(Box::from_raw(self.timestamp));
             drop(Box::from_raw(self.standard_pipeline));

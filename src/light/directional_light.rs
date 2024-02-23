@@ -4,6 +4,7 @@ use crate::pipeline::webgl::UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH;
 
 /// Maximum directional lights.
 pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;
+pub const MAX_DIRECTIONAL_LIGHTS_STRING: &'static str = "12";
 pub const DIRECTIONAL_LIGHTS_COUNT_DEFINE: &'static str = "DIRECTIONAL_LIGHTS_COUNT";
 
 const UBO_LIGHTS_DIRECTIONAL_LIGHT_F32_LENGTH: usize =

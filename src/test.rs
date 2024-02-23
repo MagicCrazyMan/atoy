@@ -20,7 +20,7 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::entity::{EntityBase, Entity, GroupOptions, SimpleEntityBase};
+use crate::entity::{Entity, EntityBase, GroupOptions, SimpleEntityBase};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -33,32 +33,33 @@ use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
 use crate::loader::dds::{DirectDrawSurface, DirectDrawSurfaceLoader, DDS_DXT1, DDS_DXT3};
 use crate::loader::texture::TextureLoader;
-use crate::material::texture::TextureMaterial;
-use crate::material::{self, StandardMaterial, Transparency};
+use crate::material::webgl::texture::TextureMaterial;
+use crate::material::webgl::StandardMaterial;
+use crate::material::{self, Transparency};
 use crate::notify::Notifiee;
-use crate::render::webgl::attribute::AttributeValue;
-use crate::render::webgl::buffer::{
+use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
+use crate::renderer::webgl::attribute::AttributeValue;
+use crate::renderer::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
-use crate::render::webgl::draw::{Draw, DrawMode};
-use crate::render::webgl::pipeline::{HdrToneMappingType, StandardPipelineShading};
-use crate::render::webgl::texture::texture2d::Texture2D;
-use crate::render::webgl::texture::{
+use crate::renderer::webgl::draw::{Draw, DrawMode};
+use crate::renderer::webgl::texture::texture2d::Texture2D;
+use crate::renderer::webgl::texture::{
     texture2d, SamplerParameter, TextureColorFormat, TextureCompressedFormat, TextureDataType,
     TextureDescriptor, TextureFormat, TextureMagnificationFilter, TextureMinificationFilter,
     TextureParameter, TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed,
     TextureUnit, TextureWrapMethod,
 };
-use crate::render::webgl::uniform::UniformValue;
-use crate::render::webgl::RenderEvent;
-use crate::render::Renderer;
+use crate::renderer::webgl::uniform::UniformValue;
+use crate::renderer::webgl::RenderEvent;
+use crate::renderer::Renderer;
 use crate::utils::slice_to_float32_array;
 use crate::viewer::{self, Viewer};
 use crate::{document, entity};
 use crate::{
     geometry::cube::Cube,
-    material::solid_color::SolidColorMaterial,
-    render::webgl::{draw::CullFace, WebGL2Renderer},
+    material::webgl::solid_color::SolidColorMaterial,
+    renderer::webgl::{draw::CullFace, WebGL2Renderer},
     scene::Scene,
     window,
 };
@@ -157,37 +158,37 @@ fn create_scene() -> Result<Scene, Error> {
     //     Vec3::new(0.8, 0.8, 0.8),
     //     128.0,
     // ));
-    // scene.add_spot_light(SpotLight::new(
-    //     Vec3::new(0.0, 1.0, 0.0),
-    //     Vec3::new(1.0, -1.0, -1.0),
-    //     Vec3::new(0.0, 0.0, 0.0),
-    //     Vec3::new(0.4, 0.4, 0.4),
-    //     Vec3::new(0.6, 0.6, 0.6),
-    //     30f32.to_radians(),
-    //     40f32.to_radians(),
-    // ));
-    // scene.add_spot_light(SpotLight::new(
-    //     Vec3::new(0.0, 1.0, 0.0),
-    //     Vec3::new(0.0, -1.0, 0.0),
-    //     Vec3::new(0.0, 0.0, 0.0),
-    //     Vec3::new(0.4, 0.4, 0.4),
-    //     Vec3::new(0.6, 0.6, 0.6),
-    //     30f32.to_radians(),
-    //     60f32.to_radians(),
-    // ));
-    // scene.add_area_light(AreaLight::new(
-    //     Vec3::new(-3.0, 2.0, 0.0),
-    //     Vec3::new(-1.0, -1.0, 1.0),
-    //     Vec3::new(1.0, 0.0, -1.0),
-    //     0.5,
-    //     4.0,
-    //     1.5,
-    //     4.5,
-    //     2.0,
-    //     Vec3::new(0.0, 0.0, 0.0),
-    //     Vec3::new(0.4, 0.4, 0.4),
-    //     Vec3::new(0.6, 0.6, 0.6),
-    // ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, -1.0, -1.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
+        Vec3::new(0.6, 0.6, 0.6),
+        30f32.to_radians(),
+        40f32.to_radians(),
+    ));
+    scene.add_spot_light(SpotLight::new(
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
+        Vec3::new(0.6, 0.6, 0.6),
+        30f32.to_radians(),
+        60f32.to_radians(),
+    ));
+    scene.add_area_light(AreaLight::new(
+        Vec3::new(-3.0, 2.0, 0.0),
+        Vec3::new(-1.0, -1.0, 1.0),
+        Vec3::new(1.0, 0.0, -1.0),
+        0.5,
+        4.0,
+        1.5,
+        4.5,
+        2.0,
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.4, 0.4, 0.4),
+        Vec3::new(0.6, 0.6, 0.6),
+    ));
     let light_pos = Vec3::new(0.0, 0.5, 0.0);
     scene.add_point_light(PointLight::new(
         light_pos.clone(),
@@ -718,7 +719,7 @@ pub fn test_cube(
         cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
-            rand::random(),
+            Transparency::Opaque,
         )));
         cube.set_model_matrix(model_matrix);
         cubes.entities_mut().push(Box::new(cube));
@@ -916,7 +917,7 @@ pub fn test_cube(
 
             if *is_compressed {
                 image.set_material(Some(
-                    material::texture::Builder::new(DirectDrawSurfaceLoader::with_params(
+                    material::webgl::texture::Builder::new(DirectDrawSurfaceLoader::with_params(
                         *url,
                         *dxt1_use_alpha,
                         *use_srgb,
@@ -928,7 +929,7 @@ pub fn test_cube(
                 ));
             } else {
                 image.set_material(Some(
-                    material::texture::Builder::new(TextureLoader::with_params(
+                    material::webgl::texture::Builder::new(TextureLoader::with_params(
                         *url,
                         pixel_storages.clone(),
                         sampler_parameters.clone(),
@@ -961,7 +962,7 @@ pub fn test_cube(
         1.0,
     )));
     brick_wall_1.set_material(Some(
-        material::texture::Builder::new(TextureLoader::with_params(
+        material::webgl::texture::Builder::new(TextureLoader::with_params(
             "/images/bricks2.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
@@ -998,7 +999,7 @@ pub fn test_cube(
         1.0,
     )));
     brick_wall_2.set_material(Some(
-        material::texture::Builder::new(TextureLoader::with_params(
+        material::webgl::texture::Builder::new(TextureLoader::with_params(
             "/images/brickwall.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
@@ -1032,7 +1033,7 @@ pub fn test_cube(
         1.0,
     )));
     brick_wall_parallax.set_material(Some(
-        material::texture::Builder::new(TextureLoader::with_params(
+        material::webgl::texture::Builder::new(TextureLoader::with_params(
             "/images/bricks2.jpg",
             [TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(true)],
             [],
@@ -1059,10 +1060,10 @@ pub fn test_cube(
         .build(),
     ));
     images.entities_mut().push(Box::new(brick_wall_parallax));
-    scene
-        .entity_container_mut()
-        .root_group_mut()
-        .add_subgroup(images);
+    // scene
+    //     .entity_container_mut()
+    //     .root_group_mut()
+    //     .add_subgroup(images);
 
     let mut floor = SimpleEntityBase::new();
     floor.set_material(Some(TextureMaterial::new(

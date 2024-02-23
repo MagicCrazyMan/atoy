@@ -4,17 +4,15 @@ use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::ShaderProvider,
+        program::Define,
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
 
-use super::{
-    StandardMaterial, StandardMaterialPreparationCallback, StandardMaterialSource, Transparency,
-};
+use super::{StandardMaterial, StandardMaterialPreparationCallback, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -56,6 +54,22 @@ impl SolidColorMaterial {
 }
 
 impl StandardMaterial for SolidColorMaterial {
+    fn name(&self) -> Cow<'_, str> {
+        Cow::Borrowed("SolidColorMaterial")
+    }
+
+    fn fragment_process(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("./shaders/solid_color_fragment_process.glsl"))
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
     fn ready(&self) -> bool {
         true
     }
@@ -64,27 +78,6 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn transparency(&self) -> Transparency {
         self.transparency
-    }
-
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        &[
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
-        ]
-    }
-
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-        ]
-    }
-
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
-        &[]
     }
 
     fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
@@ -110,41 +103,56 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
+    }
+
+    fn attribute_bindings(&self) -> &[AttributeBinding] {
+        &[
+            AttributeBinding::GeometryPosition,
+            AttributeBinding::GeometryNormal,
+        ]
+    }
+
+    fn uniform_bindings(&self) -> &[UniformBinding] {
+        &[
+            UniformBinding::ModelMatrix,
+            UniformBinding::NormalMatrix,
+            UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+        ]
+    }
+
+    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+        &[]
+    }
+
+    fn use_position_eye_space(&self) -> bool {
+        false
+    }
+
+    fn use_normal(&self) -> bool {
+        true
+    }
+
+    fn use_texture_coordinate(&self) -> bool {
+        false
+    }
+
+    fn use_tbn(&self) -> bool {
+        false
+    }
+
+    fn use_calculated_bitangent(&self) -> bool {
+        false
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-
-    fn as_standard_material_source(&self) -> &dyn StandardMaterialSource {
-        self
-    }
-
-    fn as_program_source(&self) -> &dyn ShaderProvider {
-        self
-    }
-}
-
-impl StandardMaterialSource for SolidColorMaterial {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("SolidColorMaterial")
-    }
-
-    fn vertex_process(&self) -> Option<Cow<'static, str>> {
-        None
-    }
-
-    fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./shaders/solid_color_build_material.glsl"))
-    }
-
-    fn vertex_defines(&self) -> Vec<Define> {
-        vec![]
-    }
-
-    fn fragment_defines(&self) -> Vec<Define> {
-        vec![]
     }
 }

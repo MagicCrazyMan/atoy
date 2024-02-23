@@ -22,7 +22,6 @@ pub mod error;
 pub mod framebuffer;
 pub mod program;
 pub mod renderbuffer;
-// pub mod shader;
 pub mod state;
 pub mod stencil;
 pub mod texture;
@@ -81,7 +80,32 @@ pub enum WebGL2ContextPowerPerformance {
     LowPower,
 }
 
-const DEFAULT_GLSL_SHADER_CODE_SNIPPETS: [(Cow<'static, str>, Cow<'static, str>); 0] = [];
+const DEFAULT_GLSL_SHADER_CODE_SNIPPETS: [(Cow<'static, str>, Cow<'static, str>); 4] = [
+    (
+        Cow::Borrowed("UniversalUniforms"),
+        Cow::Borrowed(include_str!(
+            "../../pipeline/webgl/shaders/snippets/universal_uniforms.glsl"
+        )),
+    ),
+    (
+        Cow::Borrowed("Lighting"),
+        Cow::Borrowed(include_str!(
+            "../../pipeline/webgl/shaders/snippets/lighting.glsl"
+        )),
+    ),
+    (
+        Cow::Borrowed("Gamma"),
+        Cow::Borrowed(include_str!(
+            "../../pipeline/webgl/shaders/snippets/gamma.glsl"
+        )),
+    ),
+    (
+        Cow::Borrowed("FragmentConstants"),
+        Cow::Borrowed(include_str!(
+            "../../pipeline/webgl/shaders/snippets/fragment_constants.glsl"
+        )),
+    ),
+];
 
 pub struct WebGL2Renderer {
     gl: WebGl2RenderingContext,

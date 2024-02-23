@@ -12,12 +12,12 @@ pub mod loader;
 pub mod lru;
 pub mod material;
 pub mod notify;
+pub mod pipeline;
 pub mod plane;
 pub mod readonly;
 pub mod renderer;
 pub mod scene;
-// pub mod test;
-pub mod pipeline;
+pub mod test;
 pub mod utils;
 pub mod viewer;
 

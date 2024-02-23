@@ -158,9 +158,7 @@ impl FrameState {
         let attribute_bindings = material.attribute_bindings();
         let mut bounds = Vec::with_capacity(attribute_bindings.len());
         for binding in attribute_bindings {
-            let Some(location) =
-                program.get_or_retrieve_attribute_locations(binding.variable_name())
-            else {
+            let Some(location) = program.attribute_locations().get(binding.variable_name()) else {
                 warn!(
                     target: "BindAttributes",
                     "failed to get attribute location {}",
@@ -188,7 +186,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_attribute_value(location, value.as_ref()) {
+            match self.bind_attribute_value(*location, value.as_ref()) {
                 Ok(ba) => bounds.extend(ba),
                 Err(err) => warn!(
                     target: "BindUniforms",
@@ -308,10 +306,10 @@ impl FrameState {
         variable_name: &str,
         value: &AttributeValue,
     ) -> Result<Vec<BoundAttribute>, Error> {
-        let Some(location) = program.get_or_retrieve_attribute_locations(variable_name) else {
+        let Some(location) = program.attribute_locations().get(variable_name) else {
             return Err(Error::NoSuchAttribute(variable_name.to_string()));
         };
-        self.bind_attribute_value(location, value)
+        self.bind_attribute_value(*location, value)
     }
 
     /// Unbinds all attributes.
@@ -341,8 +339,7 @@ impl FrameState {
         // binds uniforms
         let uniform_bindings = material.uniform_bindings();
         for binding in uniform_bindings {
-            let Some(location) = program.get_or_retrieve_uniform_location(binding.variable_name())
-            else {
+            let Some(location) = program.uniform_locations().get(binding.variable_name()) else {
                 warn!(
                     target: "BindUniforms",
                     "failed to get uniform location {}",
@@ -421,8 +418,13 @@ impl FrameState {
         // binds uniform blocks
         let uniform_block_bindings = material.uniform_block_bindings();
         for binding in uniform_block_bindings {
-            let uniform_block_index =
-                program.get_or_retrieve_uniform_block_index(binding.block_name());
+            let Some(uniform_block_index) = program
+                .uniform_block_indices()
+                .get(binding.block_name())
+                .cloned()
+            else {
+                continue;
+            };
 
             let value = match binding {
                 UniformBlockBinding::FromGeometry(name) => {
@@ -663,7 +665,7 @@ impl FrameState {
         variable_name: &str,
         value: &UniformValue,
     ) -> Result<Option<BoundUniform>, Error> {
-        let Some(location) = program.get_or_retrieve_uniform_location(variable_name) else {
+        let Some(location) = program.uniform_locations().get(variable_name) else {
             return Err(Error::NoSuchUniform(variable_name.to_string()));
         };
         self.bind_uniform_value(&location, value)
@@ -712,7 +714,13 @@ impl FrameState {
         uniform_block_name: &str,
         value: &UniformBlockValue,
     ) -> Result<(), Error> {
-        let uniform_block_index = program.get_or_retrieve_uniform_block_index(uniform_block_name);
+        let Some(uniform_block_index) = program
+            .uniform_block_indices()
+            .get(uniform_block_name)
+            .cloned()
+        else {
+            return Err(Error::NoSuchUniform(uniform_block_name.to_string()));
+        };
         self.bind_uniform_block_value(program.program(), uniform_block_index, value)
     }
 

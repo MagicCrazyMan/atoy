@@ -12,18 +12,16 @@ use crate::{
     loader::{Loader, LoaderStatus},
     notify::Notifiee,
     readonly::Readonly,
-    render::webgl::{
+    renderer::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::ShaderProvider,
+        program::Define,
         state::FrameState,
         texture::{texture2d::Texture2D, TextureDescriptor, TextureUnit},
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
 };
 
-use super::{
-    StandardMaterial, StandardMaterialPreparationCallback, StandardMaterialSource, Transparency,
-};
+use super::{StandardMaterial, StandardMaterialPreparationCallback, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -114,6 +112,10 @@ impl TextureMaterial {
 }
 
 impl StandardMaterial for TextureMaterial {
+    fn name(&self) -> Cow<'_, str> {
+        Cow::Borrowed("TextureMaterial")
+    }
+
     fn ready(&self) -> bool {
         if self.albedo.borrow().is_none() {
             return false;
@@ -240,47 +242,48 @@ impl StandardMaterial for TextureMaterial {
         self
     }
 
-    fn as_standard_material_source(&self) -> &dyn StandardMaterialSource {
-        self
+    fn fragment_process(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("./shaders/texture_fragment_process.glsl"))
     }
 
-    fn as_program_source(&self) -> &dyn ShaderProvider {
-        self
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
     }
-}
 
-impl StandardMaterialSource for TextureMaterial {
-    fn name(&self) -> Cow<'static, str> {
+    fn fragment_defines(&self) -> &[Define<'_>] {
         match (self.has_normal_map(), self.has_parallax_map()) {
-            (true, true) => Cow::Borrowed("TextureMaterial_NormalMap_ParallaxMap"),
-            (true, false) => Cow::Borrowed("TextureMaterial_NormalMap"),
-            (false, true) => Cow::Borrowed("TextureMaterial_ParallaxMap"),
-            (false, false) => Cow::Borrowed("TextureMaterial"),
+            (true, true) => &[
+                Define::WithoutValue(Cow::Borrowed("USE_NORMAL_MAP")),
+                Define::WithoutValue(Cow::Borrowed("USE_PARALLAX_MAP")),
+            ],
+            (true, false) => &[Define::WithoutValue(Cow::Borrowed("USE_NORMAL_MAP"))],
+            (false, true) => &[Define::WithoutValue(Cow::Borrowed("USE_PARALLAX_MAP"))],
+            (false, false) => &[],
         }
     }
 
-    fn vertex_process(&self) -> Option<Cow<'static, str>> {
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
         None
     }
 
-    fn fragment_process(&self) -> Cow<'static, str> {
-        Cow::Borrowed(include_str!("./shaders/texture_build_material.glsl"))
+    fn use_position_eye_space(&self) -> bool {
+        false
     }
 
-    fn vertex_defines(&self) -> Vec<Define> {
-        match (self.has_normal_map(), self.has_parallax_map()) {
-            (true, true) => vec![
-                Define::WithoutValue(Cow::Borrowed("NORMAL_MAP")),
-                Define::WithoutValue(Cow::Borrowed("PARALLAX_MAP")),
-            ],
-            (true, false) => vec![Define::WithoutValue(Cow::Borrowed("NORMAL_MAP"))],
-            (false, true) => vec![Define::WithoutValue(Cow::Borrowed("PARALLAX_MAP"))],
-            (false, false) => vec![],
-        }
+    fn use_normal(&self) -> bool {
+        !self.has_normal_map()
     }
 
-    fn fragment_defines(&self) -> Vec<Define> {
-        self.vertex_defines()
+    fn use_texture_coordinate(&self) -> bool {
+        true
+    }
+
+    fn use_tbn(&self) -> bool {
+        self.has_normal_map() || self.has_parallax_map()
+    }
+
+    fn use_calculated_bitangent(&self) -> bool {
+        false
     }
 }
 

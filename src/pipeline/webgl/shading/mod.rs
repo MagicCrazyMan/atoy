@@ -1,9 +1,13 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::OnceLock};
 
 use web_sys::WebGl2RenderingContext;
 
 use crate::{
     entity::Entity,
+    light::{
+        area_light::MAX_AREA_LIGHTS_STRING, directional_light::MAX_DIRECTIONAL_LIGHTS_STRING,
+        point_light::MAX_POINT_LIGHTS_STRING, spot_light::MAX_SPOT_LIGHTS_STRING,
+    },
     material::webgl::StandardMaterial,
     renderer::webgl::{
         buffer::BufferDescriptor,
@@ -22,11 +26,7 @@ use super::{
 
 // pub mod deferred;
 pub mod forward;
-// pub mod picking;
-
-const BLOOM_DEFINE: &'static str = "BLOOM";
-const LIGHTING_DEFINE: &'static str = "LIGHTING";
-const GBUFFER_DEFINE: &'static str = "GBUFFER";
+pub mod picking;
 
 const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
 const BLOOM_THRESHOLD_VALUES: [f32; 3] = [0.2126, 0.7152, 0.0722];
@@ -113,144 +113,8 @@ fn prepare_program<'a, 'b, 'c>(
     draw_state: &DrawState,
     material: &'b dyn StandardMaterial,
 ) -> Result<&'c mut Program, Error> {
-    struct StandardMaterialShaderProvider<'a> {
-        material: &'a dyn StandardMaterial,
-        vertex_defines: Vec<Define<'a>>,
-        fragment_defines: Vec<Define<'a>>,
-    }
-
-    impl<'a> StandardMaterialShaderProvider<'a> {
-        fn new(material: &dyn StandardMaterial) -> Self {
-            let mut standard_defines = Vec::new();
-            if material.use_position_eye_space() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed(
-                    "USE_POSITION_EYE_SPACE",
-                )));
-            }
-            if material.use_normal() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed("USE_NORMAL")));
-            }
-            if material.use_texture_coordinate() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed(
-                    "USE_TEXTURE_COORDINATE",
-                )));
-            }
-            if material.use_tbn() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed("USE_TBN")));
-            }
-            if material.use_tbn_invert() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed("USE_TBN_INVERT")));
-            }
-            if material.use_calculated_bitangent() {
-                standard_defines.push(Define::WithoutValue(Cow::Borrowed(
-                    "USE_CALCULATED_BITANGENT",
-                )));
-            }
-
-            Self {
-                material,
-                vertex_defines: standard_defines
-                    .clone()
-                    .into_iter()
-                    .chain(material.vertex_defines().to_vec().into_iter())
-                    .collect(),
-                fragment_defines: standard_defines
-                    .into_iter()
-                    .chain(material.fragment_defines().to_vec().into_iter())
-                    .collect(),
-            }
-        }
-    }
-
-    impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
-        fn name(&self) -> Cow<'_, str> {
-            const DEFINE_NAME_VALUE_SEPARATOR: &'static str = "!!";
-            const DEFINE_SEPARATOR: &'static str = "##";
-            const VERTEX_FRAGMENT_SEPARATOR: &'static str = "@@";
-
-            let vertex = self
-                .vertex_defines()
-                .iter()
-                .map(|define| match define {
-                    Define::WithValue(name, value) => {
-                        Cow::Owned(format!("{}{}{}", name, DEFINE_NAME_VALUE_SEPARATOR, value))
-                    }
-                    Define::WithoutValue(name) => Cow::Borrowed(name.as_ref()),
-                })
-                .collect::<Vec<_>>()
-                .join(DEFINE_SEPARATOR);
-            let fragment = self
-                .fragment_defines()
-                .iter()
-                .map(|define| match define {
-                    Define::WithValue(name, value) => {
-                        Cow::Owned(format!("{}{}{}", name, DEFINE_NAME_VALUE_SEPARATOR, value))
-                    }
-                    Define::WithoutValue(name) => Cow::Borrowed(name.as_ref()),
-                })
-                .collect::<Vec<_>>()
-                .join(DEFINE_SEPARATOR);
-
-            if vertex.len() + fragment.len() == 0 {
-                self.name()
-            } else {
-                Cow::Owned(format!(
-                    "{}{}{}{}{}",
-                    self.name().as_ref(),
-                    VERTEX_FRAGMENT_SEPARATOR,
-                    vertex,
-                    VERTEX_FRAGMENT_SEPARATOR,
-                    fragment
-                ))
-            }
-        }
-
-        fn vertex_source(&self) -> Cow<'_, str> {
-            Cow::Borrowed(include_str!("../shaders/standard.vert"))
-        }
-
-        fn fragment_source(&self) -> Cow<'_, str> {
-            Cow::Borrowed(include_str!("../shaders/standard.frag"))
-        }
-
-        fn vertex_defines(&self) -> &[Define<'_>] {
-            &self.vertex_defines
-        }
-
-        fn fragment_defines(&self) -> &[Define<'_>] {
-            self.fragment_defines.as_ref()
-        }
-
-        fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
-            self.material.snippet(name)
-        }
-    }
-
-    let defines: Option<&[Define]> = match draw_state {
-        DrawState::Draw {
-            lights_ubo, bloom, ..
-        } => match (lights_ubo.is_some(), bloom) {
-            (true, true) => Some(&[
-                Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE)),
-                Define::WithoutValue(Cow::Borrowed(BLOOM_DEFINE)),
-            ]),
-            (true, false) => Some(&[Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE))]),
-            (false, true) => Some(&[Define::WithoutValue(Cow::Borrowed(BLOOM_DEFINE))]),
-            (false, false) => None,
-        },
-        DrawState::GBuffer { .. } => Some(&[Define::WithoutValue(Cow::Borrowed(GBUFFER_DEFINE))]),
-    };
-
-    let program = match defines {
-        Some(defines) => state.program_store_mut().use_program_with_defines(
-            material.as_program_provider(),
-            &[],
-            defines,
-        )?,
-        None => state
-            .program_store_mut()
-            .use_program(material.as_program_provider())?,
-    };
+    let provider = StandardMaterialShaderProvider::new(material, draw_state);
+    let program = state.program_store_mut().use_program(&provider)?;
 
     match draw_state {
         DrawState::Draw {
@@ -354,39 +218,243 @@ fn draw_entity(
     Ok(())
 }
 
-pub(self) struct HdrReinhardToneMappingProgram;
+struct StandardMaterialShaderProvider<'a> {
+    material: &'a dyn StandardMaterial,
+    draw_state: &'a DrawState<'a>,
+}
 
-impl ShaderProvider for HdrReinhardToneMappingProgram {
-    fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("HdrReinhardToneMappingProgram")
-    }
-
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/computation.vert")))
-    }
-
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!(
-            "../shaders/hdr_reinhard_tone_mapping.frag"
-        )))
+impl<'a> StandardMaterialShaderProvider<'a> {
+    fn new(material: &'a dyn StandardMaterial, draw_state: &'a DrawState) -> Self {
+        Self {
+            material,
+            draw_state,
+        }
     }
 }
 
-pub(self) struct HdrExposureToneMappingProgram;
+impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
+    fn name(&self) -> Cow<'_, str> {
+        const DEFINE_NAME_VALUE_SEPARATOR: &'static str = "!!";
+        const DEFINE_SEPARATOR: &'static str = "##";
+        const DEFINES_SEPARATOR: &'static str = "@@";
 
-impl ShaderProvider for HdrExposureToneMappingProgram {
+        trait JoinDefines {
+            fn join_defines(&self) -> String;
+        }
+
+        impl<'a> JoinDefines for &'a [Define<'a>] {
+            fn join_defines(&self) -> String {
+                self.iter()
+                    .map(|define| match define {
+                        Define::WithValue(name, value) => {
+                            Cow::Owned(format!("{}{}{}", name, DEFINE_NAME_VALUE_SEPARATOR, value))
+                        }
+                        Define::WithoutValue(name) => Cow::Borrowed(name.as_ref()),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(DEFINE_SEPARATOR)
+            }
+        }
+
+        let defines = self.universal_defines().join_defines();
+        let vertex_defines = self.vertex_defines().join_defines();
+        let fragment_defines = self.fragment_defines().join_defines();
+
+        if defines.len() + vertex_defines.len() + fragment_defines.len() == 0 {
+            self.material.name()
+        } else {
+            Cow::Owned(format!(
+                "{}{}{}{}{}{}{}",
+                self.material.name().as_ref(),
+                DEFINES_SEPARATOR,
+                defines,
+                DEFINES_SEPARATOR,
+                vertex_defines,
+                DEFINES_SEPARATOR,
+                fragment_defines
+            ))
+        }
+    }
+
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/standard.vert"))
+    }
+
+    fn fragment_source(&self) -> Cow<'_, str> {
+        match self.draw_state {
+            DrawState::Draw { .. } => Cow::Borrowed(include_str!("../shaders/forward.frag")),
+            DrawState::GBuffer { .. } => todo!(),
+        }
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        let defines = unsafe {
+            static mut DEFINES: OnceLock<[Define<'static>; 12]> = OnceLock::new();
+            DEFINES.get_or_init(|| {
+                [
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                    Define::WithoutValue(Cow::Borrowed("")),
+                ]
+            });
+            DEFINES.get_mut().unwrap()
+        };
+
+        let mut count = 0;
+        if self.material.use_position_eye_space() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_POSITION_EYE_SPACE"));
+            count += 1;
+        }
+        if self.material.use_normal() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_NORMAL"));
+            count += 1;
+        }
+        if self.material.use_texture_coordinate() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TEXTURE_COORDINATE"));
+            count += 1;
+        }
+        if self.material.use_tbn() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TBN"));
+            count += 1;
+        }
+        if self.material.use_tbn_invert() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TBN_INVERT"));
+            count += 1;
+        }
+        if self.material.use_calculated_bitangent() {
+            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_CALCULATED_BITANGENT"));
+            count += 1;
+        }
+        match self.draw_state {
+            DrawState::Draw {
+                lights_ubo, bloom, ..
+            } => {
+                if lights_ubo.is_some() {
+                    defines[count] = Define::WithoutValue(Cow::Borrowed("USE_LIGHTING"));
+                    count += 1;
+                    defines[count] = Define::WithValue(
+                        Cow::Borrowed("DIRECTIONAL_LIGHTS_COUNT"),
+                        Cow::Borrowed(MAX_DIRECTIONAL_LIGHTS_STRING),
+                    );
+                    count += 1;
+                    defines[count] = Define::WithValue(
+                        Cow::Borrowed("POINT_LIGHTS_COUNT"),
+                        Cow::Borrowed(MAX_POINT_LIGHTS_STRING),
+                    );
+                    count += 1;
+                    defines[count] = Define::WithValue(
+                        Cow::Borrowed("SPOT_LIGHTS_COUNT"),
+                        Cow::Borrowed(MAX_SPOT_LIGHTS_STRING),
+                    );
+                    count += 1;
+                    defines[count] = Define::WithValue(
+                        Cow::Borrowed("AREA_LIGHTS_COUNT"),
+                        Cow::Borrowed(MAX_AREA_LIGHTS_STRING),
+                    );
+                    count += 1;
+                    // enable normal automatically if lighting enabled
+                    if !self.material.use_normal() {
+                        defines[count] = Define::WithoutValue(Cow::Borrowed("USE_NORMAL"));
+                        count += 1;
+                    }
+                }
+                if *bloom {
+                    defines[count] = Define::WithoutValue(Cow::Borrowed("USE_BLOOM"));
+                    count += 1;
+                }
+            }
+            DrawState::GBuffer { .. } => todo!(),
+        };
+
+        &defines[..count]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &self.material.vertex_defines()
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &self.material.fragment_defines()
+    }
+
+    fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
+        match name {
+            "FragmentProcess" => Some(self.material.fragment_process()),
+            _ => self.material.snippet(name),
+        }
+    }
+}
+
+pub(self) struct HdrReinhardToneMapping;
+
+impl ShaderProvider for HdrReinhardToneMapping {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("HdrExposureToneMappingProgram")
+        Cow::Borrowed("HdrReinhardToneMapping")
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/computation.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!(
-            "../shaders/hdr_exposure_tone_mapping.frag"
-        )))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/hdr_reinhard_tone_mapping.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
+    }
+}
+
+pub(self) struct HdrExposureToneMapping;
+
+impl ShaderProvider for HdrExposureToneMapping {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("HdrExposureToneMapping")
+    }
+
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/computation.vert"))
+    }
+
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/hdr_exposure_tone_mapping.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }
 
@@ -397,43 +465,91 @@ impl ShaderProvider for BloomMapping {
         Cow::Borrowed("BloomMapping")
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/computation.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/bloom_mapping.frag")))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/bloom_mapping.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }
 
-struct GaussianBlurMappingProgram;
+struct GaussianBlurMapping;
 
-impl ShaderProvider for GaussianBlurMappingProgram {
+impl ShaderProvider for GaussianBlurMapping {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("GaussianBlurMappingProgram")
+        Cow::Borrowed("GaussianBlurMapping")
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/computation.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/gaussian_blur.frag")))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/gaussian_blur.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }
 
-struct BloomBlendMappingProgram;
+struct BloomBlendMapping;
 
-impl ShaderProvider for BloomBlendMappingProgram {
+impl ShaderProvider for BloomBlendMapping {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("BloomBlendMappingProgram")
+        Cow::Borrowed("BloomBlendMapping")
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/computation.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../shaders/bloom_blend.frag")))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../shaders/bloom_blend.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }

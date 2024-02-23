@@ -242,7 +242,7 @@ void atoy_directional_lighting(atoy_DirectionalLight light, atoy_LightingMateria
     color += atoy_ambient(light.ambient, material.albedo);
     color += atoy_diffuse(light.diffuse, material.albedo, material.normal, to_camera);
     // for directional light, skip specular lighting if incident of lighting is perpendicular with surface normal
-    if(max(dot(-light.direction, fragment.normal), 0.0f) != 0.0f) {
+    if(max(dot(-light.direction, material.normal), 0.0f) != 0.0f) {
         color += atoy_specular_phong(light.specular, material.albedo, material.shininess, material.normal, -light.direction, to_camera);
     }
 
@@ -257,7 +257,7 @@ void atoy_point_lighting(atoy_PointLight light, atoy_LightingMaterial material, 
         return;
     }
 
-    vec3 to_light = light.position - fragment.position;
+    vec3 to_light = light.position - material.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
 
@@ -280,7 +280,7 @@ void atoy_spot_lighting(atoy_SpotLight light, atoy_LightingMaterial material, ve
         return;
     }
 
-    vec3 to_light = light.position - fragment.position;
+    vec3 to_light = light.position - material.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
 
@@ -316,7 +316,7 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_LightingMaterial material, ve
         return;
     }
 
-    vec3 to_light = light.position - fragment.position;
+    vec3 to_light = light.position - material.position;
     float light_distance = length(to_light);
     to_light = normalize(to_light);
     vec3 from_light = -to_light;
@@ -332,7 +332,7 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_LightingMaterial material, ve
 
     float h = light.offset / cos_theta;
     float d = light_distance - h;
-    vec3 p = fragment.position + d * to_light;
+    vec3 p = material.position + d * to_light;
 
     vec3 v = p - pop;
     float x = abs(dot(v, light.right));
@@ -369,8 +369,7 @@ void atoy_area_lighting(atoy_AreaLight light, atoy_LightingMaterial material, ve
  * Calculates scene mixed lighting.
  */
 vec3 atoy_lighting(vec3 camera_position, atoy_LightingMaterial material) {
-    vec3 to_camera = normalize(camera_position - fragment.position);
-
+    vec3 to_camera = normalize(camera_position - material.position);
     vec3 lighting = vec3(0.0f);
 
     // ambient light

@@ -43,8 +43,8 @@ impl<'a> Define<'a> {
     /// Builds to GLSL define macro derivative.
     pub fn build(&self) -> String {
         match self {
-            Define::WithValue(name, value) => format!("#define {} {}\n", name, value),
-            Define::WithoutValue(name) => format!("#define {}\n", name),
+            Define::WithValue(name, value) => format!("#define {} {}", name, value),
+            Define::WithoutValue(name) => format!("#define {}", name),
         }
     }
 }
@@ -59,6 +59,10 @@ pub trait ShaderProvider {
 
     /// Returns source code of fragment shader.
     fn fragment_source(&self) -> Cow<'_, str>;
+
+    /// Returns universal defines macros for both vertex and fragment shaders.
+    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
+    fn universal_defines(&self) -> &[Define<'_>];
 
     /// Returns defines macros for vertex shader.
     /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
@@ -75,7 +79,6 @@ pub trait ShaderProvider {
 /// Compiled program item.
 pub struct Program {
     name: String,
-    gl: WebGl2RenderingContext,
     program: WebGlProgram,
     vertex_shader: WebGlShader,
     fragment_shader: WebGlShader,
@@ -96,52 +99,19 @@ impl Program {
         &self.program
     }
 
-    /// Returns uniform locations from variable name.
-    pub fn get_or_retrieve_attribute_locations(&mut self, variable_name: &str) -> Option<u32> {
-        if let Some(location) = self.attribute_locations.get(variable_name) {
-            Some(*location)
-        } else {
-            let location = self.gl.get_attrib_location(&self.program, variable_name);
-            if location == -1 {
-                None
-            } else {
-                let (_, location) = self
-                    .attribute_locations
-                    .insert_unique_unchecked(variable_name.to_string(), location as u32);
-                Some(*location)
-            }
-        }
+    /// Returns attribute locations.
+    pub fn attribute_locations(&self) -> &HashMap<String, u32> {
+        &self.attribute_locations
     }
 
-    /// Returns uniform locations from variable name.
-    pub fn get_or_retrieve_uniform_location(
-        &mut self,
-        variable_name: &str,
-    ) -> Option<WebGlUniformLocation> {
-        match self.uniform_locations.entry_ref(variable_name) {
-            hashbrown::hash_map::EntryRef::Occupied(v) => Some(v.get().clone()),
-            hashbrown::hash_map::EntryRef::Vacant(v) => {
-                let location = self.gl.get_uniform_location(&self.program, variable_name);
-                let Some(location) = location else {
-                    return None;
-                };
-                let location = v.insert(location);
-                Some(location.clone())
-            }
-        }
+    /// Returns uniform locations by a variable name.
+    pub fn uniform_locations(&self) -> &HashMap<String, WebGlUniformLocation> {
+        &self.uniform_locations
     }
 
-    /// Returns uniform block index from variable name.
-    pub fn get_or_retrieve_uniform_block_index(&mut self, block_name: &str) -> u32 {
-        if let Some(index) = self.uniform_block_indices.get(block_name) {
-            *index
-        } else {
-            let index = self.gl.get_uniform_block_index(&self.program, &block_name);
-            let (_, index) = self
-                .uniform_block_indices
-                .insert_unique_unchecked(block_name.to_string(), index);
-            *index
-        }
+    /// Returns uniform block index by a uniform block name.
+    pub fn uniform_block_indices(&mut self) -> &HashMap<String, u32> {
+        &self.uniform_block_indices
     }
 }
 
@@ -214,13 +184,22 @@ impl ProgramStore {
     where
         S: ShaderProvider + ?Sized,
     {
-        let (code, defines) = match is_vertex {
-            true => (provider.vertex_source(), provider.vertex_defines()),
-            false => (provider.fragment_source(), provider.fragment_defines()),
+        let (code, universal_defines, defines) = match is_vertex {
+            true => (
+                provider.vertex_source(),
+                provider.universal_defines(),
+                provider.vertex_defines(),
+            ),
+            false => (
+                provider.fragment_source(),
+                provider.universal_defines(),
+                provider.fragment_defines(),
+            ),
         };
 
+        // evaluated output code length
         let mut evaluated_len = code.len();
-        for define in defines {
+        for define in universal_defines.iter().chain(defines.iter()) {
             evaluated_len +=
                 define.name().len() + define.value().map(|value| value.len()).unwrap_or(0) + 10;
         }
@@ -234,6 +213,9 @@ impl ProgramStore {
                 .and_then(|captures| captures.get(1))
             else {
                 output.push_str(line);
+                if !line.ends_with("\n") {
+                    output.push('\n');
+                }
                 continue;
             };
 
@@ -243,16 +225,17 @@ impl ProgramStore {
             }
 
             if name == GLSL_REPLACEMENT_DEFINES {
-                for define in defines {
+                for define in universal_defines.iter().chain(defines.iter()) {
                     output.push_str(&define.build());
+                    output.push('\n');
                 }
             } else {
                 // finds snippet, finds from provider-associated first, otherwise finds from store
-                let Some(snippet) = provider
-                    .snippet(name)
-                    .map(|snippet| snippet.as_ref())
-                    .or_else(|| self.snippets.get(name).map(|snippet| snippet.as_str()))
-                else {
+                let Some(snippet) = provider.snippet(name).map(|snippet| snippet).or_else(|| {
+                    self.snippets
+                        .get(name)
+                        .map(|snippet| Cow::Borrowed(snippet.as_str()))
+                }) else {
                     warn!(
                         target: "ProgramStore",
                         "code snippet with name `{}` not found",
@@ -262,6 +245,7 @@ impl ProgramStore {
                 };
 
                 output.push_str(&snippet);
+                output.push('\n');
             }
             appended_snippets.insert(name);
         }
@@ -279,17 +263,19 @@ impl ProgramStore {
         let fragment_shader: WebGlShader = compile_shader(&self.gl, false, &fragment_code)?;
 
         let program = create_program(&self.gl, &vertex_shader, &fragment_shader)?;
+        let attribute_locations = collects_attribute_locations(&self.gl, &program);
+        let uniform_locations = collects_uniform_locations(&self.gl, &program);
+        let uniform_block_indices = collects_uniform_block_index(&self.gl, &program);
         Ok(Program {
             name,
 
-            gl: self.gl.clone(),
             program,
             vertex_shader,
             fragment_shader,
 
-            attribute_locations: HashMap::new(),
-            uniform_locations: HashMap::new(),
-            uniform_block_indices: HashMap::new(),
+            attribute_locations,
+            uniform_locations,
+            uniform_block_indices,
         })
     }
 
@@ -390,6 +376,7 @@ pub fn compile_shader(
     is_vertex: bool,
     code: &str,
 ) -> Result<WebGlShader, Error> {
+    // log::info!("{}", code);
     let shader = gl
         .create_shader(if is_vertex {
             WebGl2RenderingContext::VERTEX_SHADER
@@ -439,8 +426,83 @@ pub fn create_program(
     if !success {
         let err = gl.get_program_info_log(&program).map(|err| err);
         gl.delete_program(Some(&program));
-        Err(Error::CompileProgramFailure(err))
-    } else {
-        Ok(program)
+        return Err(Error::CompileProgramFailure(err));
     }
+
+    Ok(program)
+}
+
+/// Collects active attribute locations.
+pub fn collects_attribute_locations(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+) -> HashMap<String, u32> {
+    let mut locations = HashMap::new();
+
+    let num = gl
+        .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
+        .as_f64()
+        .map(|v| v as u32)
+        .unwrap_or(0);
+    for location in 0..num {
+        let Some(info) = gl.get_active_attrib(&program, location) else {
+            continue;
+        };
+
+        locations.insert(info.name(), location);
+    }
+
+    locations
+}
+
+/// Collects active uniform locations.
+pub fn collects_uniform_locations(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+) -> HashMap<String, WebGlUniformLocation> {
+    let mut locations = HashMap::new();
+
+    let num = gl
+        .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_UNIFORMS)
+        .as_f64()
+        .map(|v| v as u32)
+        .unwrap_or(0);
+    for index in 0..num {
+        let Some(info) = gl.get_active_uniform(&program, index) else {
+            continue;
+        };
+        // if we have uniform block in code, getActiveUniform may return index of uniform inside uniform block,
+        // while getUniformLocation can not get its location.
+        let Some(location) = gl.get_uniform_location(&program, &info.name()) else {
+            continue;
+        };
+
+        locations.insert(info.name(), location);
+    }
+
+    locations
+}
+
+/// Collects active uniform block indices.
+pub fn collects_uniform_block_index(
+    gl: &WebGl2RenderingContext,
+    program: &WebGlProgram,
+) -> HashMap<String, u32> {
+    let mut locations = HashMap::new();
+
+    let num = gl
+        .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_UNIFORM_BLOCKS)
+        .as_f64()
+        .map(|v| v as u32)
+        .unwrap_or(0);
+
+    for location in 0..num {
+        let Some(name) = gl.get_active_uniform_block_name(&program, location) else {
+            continue;
+        };
+
+        locations.insert(name, location);
+    }
+
+    locations
 }

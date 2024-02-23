@@ -4,6 +4,7 @@ use crate::pipeline::webgl::UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH;
 
 /// Maximum spot lights.
 pub const MAX_SPOT_LIGHTS: usize = 12;
+pub const MAX_SPOT_LIGHTS_STRING: &'static str = "12";
 pub const SPOT_LIGHTS_COUNT_DEFINE: &'static str = "SPOT_LIGHTS_COUNT";
 
 const UBO_LIGHTS_SPOT_LIGHTS_F32_LENGTH: usize = UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH as usize / 4;

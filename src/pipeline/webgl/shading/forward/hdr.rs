@@ -4,8 +4,8 @@ use crate::{
     pipeline::webgl::{
         collector::CollectedEntities,
         shading::{
-            draw_entities, BloomBlendMappingProgram, DrawState, GaussianBlurMappingProgram,
-            HdrExposureToneMappingProgram, HdrReinhardToneMappingProgram,
+            draw_entities, BloomBlendMapping, DrawState, GaussianBlurMapping,
+            HdrExposureToneMapping, HdrReinhardToneMapping,
             BASE_TEXTURE_UNIFORM_NAME, BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME,
             HDR_TEXTURE_UNIFORM_NAME,
         },
@@ -194,11 +194,11 @@ impl StandardHdrShading {
         let program = match tone_mapping_type {
             HdrToneMappingType::Reinhard => state
                 .program_store_mut()
-                .use_program(&HdrReinhardToneMappingProgram)?,
+                .use_program(&HdrReinhardToneMapping)?,
             HdrToneMappingType::Exposure(exposure) => {
                 let program = state
                     .program_store_mut()
-                    .use_program(&HdrExposureToneMappingProgram)?;
+                    .use_program(&HdrExposureToneMapping)?;
                 state.bind_uniform_value_by_variable_name(
                     program,
                     HDR_EXPOSURE_UNIFORM_NAME,
@@ -276,7 +276,7 @@ impl StandardHdrShading {
 
             let program = state
                 .program_store_mut()
-                .use_program(&GaussianBlurMappingProgram)?;
+                .use_program(&GaussianBlurMapping)?;
 
             for i in 0..bloom_blur_epoch {
                 let (from, from_texture_index, to) = if i % 2 == 0 {
@@ -357,7 +357,7 @@ impl StandardHdrShading {
 
             let program = state
                 .program_store_mut()
-                .use_program(&BloomBlendMappingProgram)?;
+                .use_program(&BloomBlendMapping)?;
             state.bind_uniform_value_by_variable_name(
                 program,
                 BASE_TEXTURE_UNIFORM_NAME,

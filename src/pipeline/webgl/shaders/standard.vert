@@ -3,7 +3,7 @@
 #include Defines
 #include UniversalUniforms
 
-in vec4 a_Position;
+in vec3 a_Position;
 out vec3 v_Position;
 uniform mat4 u_ModelMatrix;
 
@@ -14,20 +14,19 @@ out vec3 v_PositionES;
 #ifdef USE_NORMAL
 in vec3 a_Normal;
 out vec3 v_Normal;
-uniform mat3 u_NormalMatrix;
+uniform mat4 u_NormalMatrix;
 
     #ifdef USE_TBN
     in vec3 a_Tangent;
-
-    #ifndef USE_CALCULATED_BITANGENT
-    in vec3 a_Bitangent;
-    #endif
-
     out mat3 v_TBN;
 
-    #ifdef USE_TBN_INVERT
-    out mat3 v_TBNInvert;
-    #endif
+        #ifndef USE_CALCULATED_BITANGENT
+        in vec3 a_Bitangent;
+        #endif
+
+        #ifdef USE_TBN_INVERT
+        out mat3 v_TBNInvert;
+        #endif
     #endif
 #endif
 
@@ -37,20 +36,22 @@ out vec2 v_TexCoord;
 #endif
 
 void main() {
-    v_Position = u_ViewProjMatrix * u_ModelMatrix * a_Position;
-    gl_Position = v_Position;
+    vec4 position = u_ModelMatrix * vec4(a_Position, 1.0f);
+    v_Position = vec3(position);
+    gl_Position = u_ViewProjMatrix * position;
     
     #ifdef USE_NORMAL
-    v_Normal = u_NormalMatrix * a_Normal;
+    v_Normal = vec3(u_NormalMatrix * vec4(a_Normal, 0.0f));
 
         #ifdef USE_TBN
-        vec3 T = normalize(u_NormalMatrix * a_Tangent);
+        vec3 T = normalize(vec3(u_NormalMatrix * vec4(a_Tangent, 0.0f)));
         vec3 N = normalize(v_Normal);
+        vec3 B;
         
-        #ifndef USE_CALCULATED_BITANGENT
-        vec3 B = cross(N, T);
-        #elif
-        vec3 B = normalize(u_NormalMatrix * a_Bitangent);
+        #ifdef USE_CALCULATED_BITANGENT
+        B = cross(N, T);
+        #else
+        B = normalize(vec3(u_NormalMatrix * vec4(a_Bitangent, 0.0f)));
         #endif
 
         v_TBN = mat3(T, B, N);
@@ -63,6 +64,7 @@ void main() {
     #endif
 
     #ifdef USE_POSITION_EYE_SPACE
-    v_PositionES = u_ViewMatrix * u_ModelMatrix * a_Position;
+    vec4 position_es = u_ViewMatrix * u_ModelMatrix * a_Position;
+    v_PositionES = vec3(position_es / position_es.z);
     #endif
 }

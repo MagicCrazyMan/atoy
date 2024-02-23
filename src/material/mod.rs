@@ -1,8 +1,6 @@
 use rand::distributions::{Distribution, Standard};
 
 pub mod webgl;
-
-// pub mod solid_color;
 // pub mod texture;
 
 /// Material transparency.

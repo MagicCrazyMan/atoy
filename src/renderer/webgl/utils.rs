@@ -15,6 +15,12 @@ pub fn array_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlBuffer> 
         .cast_into_unchecked::<WebGlBuffer>()
 }
 
+pub fn uniform_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlBuffer> {
+    gl.get_parameter(WebGl2RenderingContext::UNIFORM_BUFFER_BINDING)
+        .unwrap()
+        .cast_into_unchecked::<WebGlBuffer>()
+}
+
 pub fn pixel_unpack_buffer_binding(gl: &WebGl2RenderingContext) -> Option<WebGlBuffer> {
     gl.get_parameter(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER_BINDING)
         .unwrap()

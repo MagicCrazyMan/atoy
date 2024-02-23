@@ -22,7 +22,7 @@ use crate::{
     utils::format_bytes_length,
 };
 
-use super::{conversion::ToGlEnum, error::Error, utils::array_buffer_binding};
+use super::{conversion::ToGlEnum, error::Error, utils::{self, array_buffer_binding}};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -1134,6 +1134,7 @@ impl BufferStore {
             };
 
             let runtime = runtime.as_deref_mut().unwrap();
+            let binding = utils::uniform_buffer_binding(&self.gl);
             self.gl
                 .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
             match offset_and_size {
@@ -1151,7 +1152,7 @@ impl BufferStore {
                 ),
             };
             self.gl
-                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
+                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
 
             (*self.ubos).insert(ubo_binding, runtime.id);
             runtime.binding_ubos.insert(ubo_binding);

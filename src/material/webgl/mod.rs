@@ -1,3 +1,6 @@
+pub mod solid_color;
+pub mod texture;
+
 use std::{
     any::Any,
     borrow::Cow,
@@ -10,7 +13,7 @@ use crate::{
     readonly::Readonly,
     renderer::webgl::{
         attribute::{AttributeBinding, AttributeValue},
-        program::{Define, ShaderProvider},
+        program::Define,
         state::FrameState,
         uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
     },
@@ -90,9 +93,7 @@ pub trait StandardMaterial {
     }
 
     /// Returns custom self-associated GLSL code snippet by name.
-    fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
-        None
-    }
+    fn snippet(&self, name: &str) -> Option<Cow<'_, str>>;
 
     /// Returns attribute bindings requirements.
     fn attribute_bindings(&self) -> &[AttributeBinding];
@@ -133,7 +134,7 @@ pub trait StandardMaterial {
     /// Returns `true` as default when [`StandardMaterial::use_tbn`] is `true`,
     /// overrides this method if you really don't want to calculate this or have some idea else.
     fn use_tbn_invert(&self) -> bool {
-        self.use_tbn_invert()
+        self.use_tbn()
     }
 
     /// Returns `true` if vertex shader should calculate bitangets from tangents and normals,
@@ -145,82 +146,4 @@ pub trait StandardMaterial {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
-
-    fn as_program_provider(&self) -> &dyn ShaderProvider;
 }
-
-// /// Replacement derivative name for injecting [`StandardMaterial::vertex_process`].
-// const GLSL_REPLACEMENT_VERTEX_PROCESS: &'static str = "VertexProcess";
-// /// Replacement derivative name for injecting [`StandardMaterial::fragment_process`].
-// const GLSL_REPLACEMENT_FRAGMENT_PROCESS: &'static str = "FragmentProcess";
-
-// impl<S> ShaderProvider for S
-// where
-//     S: StandardMaterial,
-// {
-//     fn name(&self) -> Cow<'_, str> {
-//         const DEFINE_NAME_VALUE_SEPARATOR: &'static str = "!!";
-//         const DEFINE_SEPARATOR: &'static str = "##";
-//         const VERTEX_FRAGMENT_SEPARATOR: &'static str = "@@";
-
-//         let vertex = self
-//             .vertex_defines()
-//             .iter()
-//             .map(|define| match define {
-//                 Define::WithValue(name, value) => {
-//                     Cow::Owned(format!("{}{}{}", name, DEFINE_NAME_VALUE_SEPARATOR, value))
-//                 }
-//                 Define::WithoutValue(name) => Cow::Borrowed(name.as_ref()),
-//             })
-//             .collect::<Vec<_>>()
-//             .join(DEFINE_SEPARATOR);
-//         let fragment = self
-//             .fragment_defines()
-//             .iter()
-//             .map(|define| match define {
-//                 Define::WithValue(name, value) => {
-//                     Cow::Owned(format!("{}{}{}", name, DEFINE_NAME_VALUE_SEPARATOR, value))
-//                 }
-//                 Define::WithoutValue(name) => Cow::Borrowed(name.as_ref()),
-//             })
-//             .collect::<Vec<_>>()
-//             .join(DEFINE_SEPARATOR);
-
-//         if vertex.len() + fragment.len() == 0 {
-//             self.name()
-//         } else {
-//             Cow::Owned(format!(
-//                 "{}{}{}{}{}",
-//                 self.name().as_ref(),
-//                 VERTEX_FRAGMENT_SEPARATOR,
-//                 vertex,
-//                 VERTEX_FRAGMENT_SEPARATOR,
-//                 fragment
-//             ))
-//         }
-//     }
-
-//     fn vertex_source(&self) -> Cow<'_, str> {
-//         Cow::Borrowed(include_str!("./shaders/standard.vert"))
-//     }
-
-//     fn fragment_source(&self) -> Cow<'_, str> {
-//         Cow::Borrowed(include_str!("./shaders/forward_shading.frag"))
-//     }
-
-//     fn vertex_defines(&self) -> &[Define<'_>] {
-//         self.vertex_defines()
-//     }
-
-//     fn fragment_defines(&self) -> &[Define<'_>] {
-//         self.fragment_defines()
-//     }
-
-//     fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
-//         match name {
-//             // GLSL_REPLACEMENT_VERTEX_PROCESS => Some(self.vertex_process()),
-//             GLSL_REPLACEMENT_FRAGMENT_PROCESS => Some(self.fragment_process()),
-//             _ => self.snippet(name),
-//         }
-//     }
-// }

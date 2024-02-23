@@ -28,10 +28,10 @@ use self::{
     composer::StandardComposer,
     preparation::StandardPreparation,
     shading::{
-        deferred::{
-            gbuffer::StandardGBufferCollector, simple::StandardDeferredTransparentShading,
-            StandardDeferredShading,
-        },
+        // deferred::{
+        //     gbuffer::StandardGBufferCollector, simple::StandardDeferredTransparentShading,
+        //     StandardDeferredShading,
+        // },
         forward::{
             hdr::StandardHdrShading, hdr_multisamples::StandardMultisamplesHdrShading,
             simple::StandardSimpleShading, simple_multisamples::StandardMultisamplesSimpleShading,
@@ -246,12 +246,11 @@ pub struct StandardPipeline {
     multisamples_hdr_shading: StandardMultisamplesHdrShading,
     composer: StandardComposer,
     cleanup: StandardCleanup,
-
-    gbuffer: StandardGBufferCollector,
-    deferred_shading: StandardDeferredShading,
-    deferred_translucent_shading: StandardDeferredTransparentShading,
-
     picking: StandardPicking,
+
+    // gbuffer: StandardGBufferCollector,
+    // deferred_shading: StandardDeferredShading,
+    // deferred_translucent_shading: StandardDeferredTransparentShading,
 
     universal_ubo: BufferDescriptor,
     lights_ubo: BufferDescriptor,
@@ -280,10 +279,9 @@ impl StandardPipeline {
             cleanup: StandardCleanup::new(),
             picking: StandardPicking::new(),
 
-            gbuffer: StandardGBufferCollector::new(),
-            deferred_shading: StandardDeferredShading::new(),
-            deferred_translucent_shading: StandardDeferredTransparentShading::new(),
-
+            // gbuffer: StandardGBufferCollector::new(),
+            // deferred_shading: StandardDeferredShading::new(),
+            // deferred_translucent_shading: StandardDeferredTransparentShading::new(),
             universal_ubo: BufferDescriptor::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
                 BufferUsage::DYNAMIC_DRAW,
@@ -633,51 +631,51 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
-        let lights_ubo = if self.lighting_enabled() {
-            Some(&self.lights_ubo)
-        } else {
-            None
-        };
+    // fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    //     let lights_ubo = if self.lighting_enabled() {
+    //         Some(&self.lights_ubo)
+    //     } else {
+    //         None
+    //     };
 
-        let collected_entities = self.entities_collector.collect_entities(state, scene);
+    //     let collected_entities = self.entities_collector.collect_entities(state, scene);
 
-        unsafe {
-            // deferred shading on opaque entities
-            self.gbuffer
-                .draw(state, &collected_entities, &self.universal_ubo)?;
-            let (
-                positions_and_specular_shininess_texture,
-                normals_texture,
-                albedo_texture,
-                depth_stencil,
-            ) = self.gbuffer.deferred_shading_textures().unwrap();
-            self.deferred_shading.draw(
-                state,
-                positions_and_specular_shininess_texture,
-                normals_texture,
-                albedo_texture,
-                &self.universal_ubo,
-                lights_ubo,
-            )?;
+    //     unsafe {
+    //         // deferred shading on opaque entities
+    //         self.gbuffer
+    //             .draw(state, &collected_entities, &self.universal_ubo)?;
+    //         let (
+    //             positions_and_specular_shininess_texture,
+    //             normals_texture,
+    //             albedo_texture,
+    //             depth_stencil,
+    //         ) = self.gbuffer.deferred_shading_textures().unwrap();
+    //         self.deferred_shading.draw(
+    //             state,
+    //             positions_and_specular_shininess_texture,
+    //             normals_texture,
+    //             albedo_texture,
+    //             &self.universal_ubo,
+    //             lights_ubo,
+    //         )?;
 
-            // then forward shading on translucent entities
-            self.deferred_translucent_shading.draw(
-                state,
-                &depth_stencil,
-                &collected_entities,
-                &self.universal_ubo,
-                lights_ubo,
-            )?;
+    //         // then forward shading on translucent entities
+    //         self.deferred_translucent_shading.draw(
+    //             state,
+    //             &depth_stencil,
+    //             &collected_entities,
+    //             &self.universal_ubo,
+    //             lights_ubo,
+    //         )?;
 
-            let opaque_textures = self.deferred_shading.draw_texture().unwrap();
-            let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
-            self.composer
-                .draw(state, [opaque_textures, translucent_texture])?;
-        }
+    //         let opaque_textures = self.deferred_shading.draw_texture().unwrap();
+    //         let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
+    //         self.composer
+    //             .draw(state, [opaque_textures, translucent_texture])?;
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn picking(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
@@ -697,7 +695,9 @@ impl Pipeline for StandardPipeline {
 
     fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
         match self.pipeline_shading {
-            StandardPipelineShading::Picking => self.picking(state, scene),
+            StandardPipelineShading::Picking => {
+                self.picking(state, scene)?;
+            }
             _ => {
                 // prepares
                 {
@@ -717,23 +717,24 @@ impl Pipeline for StandardPipeline {
                             self.forward_shading(state, scene)?;
                         }
                         StandardPipelineShading::DeferredShading => {
-                            if state.capabilities().color_buffer_float_supported() {
-                                self.deferred_shading(state, scene)?;
-                            } else {
-                                // fallback to forward shading if color buffer float not supported
-                                self.forward_shading(state, scene)?;
-                                self.pipeline_shading = StandardPipelineShading::ForwardShading;
-                            }
+                            // if state.capabilities().color_buffer_float_supported() {
+                            //     self.deferred_shading(state, scene)?;
+                            // } else {
+                            //     // fallback to forward shading if color buffer float not supported
+                            //     self.forward_shading(state, scene)?;
+                            //     self.pipeline_shading = StandardPipelineShading::ForwardShading;
+                            // }
+                            todo!()
                         }
                         StandardPipelineShading::Picking => unreachable!(),
-                    }
+                    };
                 };
-
-                // flushes all commands
-                state.gl().flush();
-
-                Ok(())
             }
-        }
+        };
+
+        // flushes all commands
+        state.gl().flush();
+
+        Ok(())
     }
 }

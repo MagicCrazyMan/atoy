@@ -15,7 +15,7 @@ use crate::{
             AttachmentProvider, ClearPolicy, Framebuffer, FramebufferBuilder, FramebufferTarget,
             OperableBuffer,
         },
-        program::ShaderProvider,
+        program::{Define, ShaderProvider},
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
         texture::{TextureColorFormat, TextureDataType, TextureFormat},
@@ -90,13 +90,9 @@ impl StandardPicking {
         }
 
         // prepare material
-        let program = state.program_store_mut().use_program(&PickingProgram)?;
-        let position_location = program
-            .get_or_retrieve_attribute_locations(POSITION_ATTRIBUTE_NAME)
-            .unwrap();
-        let index_location = program.get_or_retrieve_uniform_location(INDEX_UNIFORM_NAME);
-        let model_matrix_location =
-            program.get_or_retrieve_uniform_location(MODEL_MATRIX_UNIFORM_NAME);
+        let program = state
+            .program_store_mut()
+            .use_program(&PickingShaderProvider)?;
 
         state.bind_uniform_value_by_variable_name(
             program,
@@ -123,23 +119,32 @@ impl StandardPicking {
             if let Some(material) = entity.material() {
                 if material.transparency() == Transparency::Transparent {
                     continue;
-                } else if !material.ready() {
+                }
+                if !material.ready() {
                     continue;
                 }
             } else {
                 continue;
             }
 
-            state.gl().uniform_matrix4fv_with_f32_array(
-                model_matrix_location.as_ref(),
-                false,
-                &entity.compose_model_matrix().gl_f32(),
-            );
-            state
-                .gl()
-                .uniform1ui(index_location.as_ref(), (index + 1) as u32);
-            let bound_attributes =
-                state.bind_attribute_value(position_location, geometry.positions().as_ref())?;
+            state.bind_uniform_value_by_variable_name(
+                program,
+                MODEL_MATRIX_UNIFORM_NAME,
+                &UniformValue::Matrix4 {
+                    data: entity.compose_model_matrix().gl_f32(),
+                    transpose: false,
+                },
+            )?;
+            state.bind_uniform_value_by_variable_name(
+                program,
+                INDEX_UNIFORM_NAME,
+                &UniformValue::UnsignedInteger1((index + 1) as u32),
+            )?;
+            let bound_attributes = state.bind_attribute_value_by_variable_name(
+                program,
+                POSITION_ATTRIBUTE_NAME,
+                geometry.positions().as_ref(),
+            )?;
             state.draw(&geometry.draw())?;
             state.unbind_attributes(bound_attributes);
         }
@@ -268,18 +273,34 @@ const INDEX_UNIFORM_NAME: &'static str = "u_Index";
 const MODEL_MATRIX_UNIFORM_NAME: &'static str = "u_ModelMatrix";
 const VIEW_PROJ_MATRIX_UNIFORM_NAME: &'static str = "u_ViewProjMatrix";
 
-struct PickingProgram;
+struct PickingShaderProvider;
 
-impl ShaderProvider for PickingProgram {
+impl ShaderProvider for PickingShaderProvider {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("PickingProgram")
+        Cow::Borrowed("Picking")
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!("../../shaders/picking.vert")))
+    fn vertex_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../../shaders/picking.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Raw(Cow::Borrowed(include_str!("../../shaders/picking.frag")))
+    fn fragment_source(&self) -> Cow<'_, str> {
+        Cow::Borrowed(include_str!("../../shaders/picking.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }
