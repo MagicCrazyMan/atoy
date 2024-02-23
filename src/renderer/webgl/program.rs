@@ -49,7 +49,7 @@ impl<'a> Define<'a> {
     }
 }
 
-/// Custom bindings.
+/// Shader custom bindings.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum CustomBinding<'a> {
     FromGeometry(Cow<'a, str>),

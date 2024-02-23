@@ -48,7 +48,7 @@ pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str = "WEBGL_compres
 pub const EXTENSION_MOZ_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str =
     "MOZ_WEBGL_compressed_texture_s3tc";
 pub const EXTENSION_WEBKIT_WEBGL_COMPRESSED_TEXTURE_S3TC: &'static str =
-    "MOZ_WEBGL_compressed_texture_s3tc";
+    "WEBKIT_WEBGL_compressed_texture_s3tc";
 pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_S3TC_SRGB: &'static str =
     "WEBGL_compressed_texture_s3tc_srgb";
 pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_ETC: &'static str = "WEBGL_compressed_texture_etc";
