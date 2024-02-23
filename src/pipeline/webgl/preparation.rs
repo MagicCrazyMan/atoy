@@ -1,13 +1,18 @@
-use gl_matrix4rust::{vec3::Vec3, GLU8Borrowed, GLF32};
+use gl_matrix4rust::{GLF32Borrowed, GLF32};
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
+    light::{
+        ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
+        directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
+    },
+    pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH,
     renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource},
         error::Error,
         state::FrameState,
     },
-    scene::Scene,
+    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
 };
 
 use super::{
@@ -26,15 +31,27 @@ use super::{
 };
 
 pub struct StandardPreparation {
-    universal_data: ArrayBuffer,
-    last_light_attenuations: Option<Vec3<f32>>,
+    universal_uniforms: ArrayBuffer,
+
+    last_light_attenuations: Option<Attenuation>,
+    last_ambient_light: Option<AmbientLight>,
+    last_directional_lights: Option<Vec<DirectionalLight>>,
+    last_point_lights: Option<Vec<PointLight>>,
+    last_spot_lights: Option<Vec<SpotLight>>,
+    last_area_lights: Option<Vec<AreaLight>>,
 }
 
 impl StandardPreparation {
     pub fn new() -> Self {
         Self {
-            universal_data: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as u32),
+            universal_uniforms: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as u32),
+
             last_light_attenuations: None,
+            last_ambient_light: None,
+            last_directional_lights: None,
+            last_point_lights: None,
+            last_spot_lights: None,
+            last_area_lights: None,
         }
     }
 
@@ -45,7 +62,7 @@ impl StandardPreparation {
     ) -> Result<(), Error> {
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
-            &self.universal_data,
+            &self.universal_uniforms,
             UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET as u32,
             1,
         )
@@ -53,7 +70,7 @@ impl StandardPreparation {
 
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(
-            &self.universal_data,
+            &self.universal_uniforms,
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET as u32,
             3,
         )
@@ -61,7 +78,7 @@ impl StandardPreparation {
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &self.universal_data,
+            &self.universal_uniforms,
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET as u32,
             16,
         )
@@ -69,7 +86,7 @@ impl StandardPreparation {
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &self.universal_data,
+            &self.universal_uniforms,
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET as u32,
             16,
         )
@@ -77,14 +94,14 @@ impl StandardPreparation {
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
-            &self.universal_data,
+            &self.universal_uniforms,
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
         universal_ubo.buffer_sub_data(
-            BufferSource::from_array_buffer(self.universal_data.clone()),
+            BufferSource::from_array_buffer(self.universal_uniforms.clone()),
             0,
         );
         state.buffer_store_mut().bind_uniform_buffer_object(
@@ -110,7 +127,13 @@ impl StandardPreparation {
         {
             lights_ubo.buffer_sub_data(
                 BufferSource::from_binary(
-                    scene.light_attenuations().gl_u8_borrowed().clone(),
+                    unsafe {
+                        std::mem::transmute::<[f32; 3], [u8; 12]>([
+                            scene.light_attenuations().a(),
+                            scene.light_attenuations().b(),
+                            scene.light_attenuations().c(),
+                        ])
+                    },
                     0,
                     12,
                 ),
@@ -120,87 +143,105 @@ impl StandardPreparation {
         }
 
         // u_AmbientLight
-        if let Some(light) = scene.ambient_light_mut() {
-            if light.ubo_dirty() {
-                light.update_ubo();
-
-                lights_ubo.buffer_sub_data(
-                    BufferSource::from_binary(
-                        light.ubo().clone(),
-                        0,
-                        UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
-                    ),
-                    UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
-                );
+        if self.last_ambient_light.as_ref() != scene.ambient_light() {
+            match scene.ambient_light() {
+                Some(light) => {
+                    lights_ubo.buffer_sub_data(
+                        BufferSource::from_binary(
+                            light.ubo(),
+                            0,
+                            UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
+                        ),
+                        UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+                    );
+                }
+                None => {
+                    lights_ubo.buffer_sub_data(
+                        BufferSource::from_binary(
+                            [0; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH],
+                            0,
+                            UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
+                        ),
+                        UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+                    );
+                }
             }
+            self.last_ambient_light = scene.ambient_light().cloned();
         }
 
-        // u_DirectionalLights
-        for (index, light) in scene.directional_lights_mut().into_iter().enumerate() {
-            if light.ubo_dirty() {
-                light.update_ubo();
+        // uses for sending empty data
+        const MAX_UBO_LIGHTS_LENGTH: [u8; UBO_LIGHTS_BYTES_LENGTH] = [0; UBO_LIGHTS_BYTES_LENGTH];
+        macro_rules! update_lights {
+            ($(($last:ident, $lights:ident, $max:tt, $len:tt, $offset:tt))+) => {
+                $(
+                    match &mut self.$last {
+                        Some(last_lights) => {
+                            let lights = scene.$lights();
 
-                lights_ubo.buffer_sub_data(
-                    BufferSource::from_binary(
-                        light.ubo().clone(),
-                        0,
-                        UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
-                    ),
-                    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET
-                        + index * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
-                );
-            }
+                            for (index, light) in lights.into_iter().enumerate() {
+                                let last = last_lights.get(index);
+                                if last.map(|last| last == light).unwrap_or(false) {
+                                    continue;
+                                }
+
+                                lights_ubo.buffer_sub_data(
+                                    BufferSource::from_binary(
+                                        light.ubo(),
+                                        0,
+                                        $len,
+                                    ),
+                                    $offset + index * $len,
+                                );
+                                last_lights.insert(index, light.clone());
+                            }
+
+                            // clears the rest
+                            let removed = last_lights.drain(lights.len()..);
+                            if removed.len() != 0 {
+                                let clear_len = $len * ($max - lights.len());
+                                let clear_offset = $offset + lights.len() * $len;
+                                lights_ubo.buffer_sub_data(
+                                    BufferSource::from_binary(&MAX_UBO_LIGHTS_LENGTH[0..clear_len], 0, clear_len),
+                                    clear_offset,
+                                );
+                            }
+                        }
+                        None => {
+                            let lights = scene.$lights();
+
+                            lights_ubo.buffer_sub_data(
+                                BufferSource::from_binary(
+                                    &MAX_UBO_LIGHTS_LENGTH[0..$len * $max],
+                                    0,
+                                    $len * $max,
+                                ),
+                                $offset,
+                            );
+                            lights
+                                .into_iter()
+                                .enumerate()
+                                .for_each(|(index, light)| {
+                                    lights_ubo.buffer_sub_data(
+                                        BufferSource::from_binary(
+                                            light.ubo(),
+                                            0,
+                                            $len,
+                                        ),
+                                        $offset + index * $len,
+                                    );
+                                });
+                            self.$last = Some(lights.to_vec());
+                        }
+                    }
+                )+
+            };
         }
 
-        // u_PointLights
-        for (index, light) in scene.point_lights_mut().into_iter().enumerate() {
-            if light.ubo_dirty() {
-                light.update_ubo();
-
-                lights_ubo.buffer_sub_data(
-                    BufferSource::from_binary(
-                        light.ubo().clone(),
-                        0,
-                        UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
-                    ),
-                    UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET
-                        + index * UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
-                );
-            }
-        }
-
-        // u_SpotLights
-        for (index, light) in scene.spot_lights_mut().into_iter().enumerate() {
-            if light.ubo_dirty() {
-                light.update_ubo();
-
-                lights_ubo.buffer_sub_data(
-                    BufferSource::from_binary(
-                        light.ubo().clone(),
-                        0,
-                        UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
-                    ),
-                    UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET
-                        + index * UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
-                );
-            }
-        }
-
-        // u_AreaLights
-        for (index, light) in scene.area_lights_mut().into_iter().enumerate() {
-            if light.ubo_dirty() {
-                light.update_ubo();
-
-                lights_ubo.buffer_sub_data(
-                    BufferSource::from_binary(
-                        light.ubo().clone(),
-                        0,
-                        UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
-                    ),
-                    UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET
-                        + index * UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
-                );
-            }
+        update_lights! {
+            (last_directional_lights, directional_lights, MAX_DIRECTIONAL_LIGHTS, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH, UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET)
+            (last_point_lights, point_lights, MAX_POINT_LIGHTS, UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET)
+            (last_spot_lights, spot_lights, MAX_SPOT_LIGHTS, UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET)
+            (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET)
         }
 
         state.buffer_store_mut().bind_uniform_buffer_object(
@@ -231,5 +272,104 @@ impl StandardPreparation {
             self.update_lights_ubo(lights_ubo, state, scene)?;
         }
         Ok(())
+    }
+}
+
+impl AmbientLight {
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH / 4];
+        ubo[0..3].copy_from_slice(self.color().gl_f32_borrowed());
+        ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
+
+        unsafe {
+            std::mem::transmute::<
+                [f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH / 4],
+                [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH],
+            >(ubo)
+        }
+    }
+}
+
+impl DirectionalLight {
+    fn ubo(&self) -> [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH / 4];
+        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
+        ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[8..11].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[12..15].copy_from_slice(self.specular().gl_f32_borrowed());
+
+        unsafe {
+            std::mem::transmute::<
+                [f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH / 4],
+                [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH],
+            >(ubo)
+        }
+    }
+}
+
+impl PointLight {
+    fn ubo(&self) -> [u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH / 4];
+        ubo[0..3].copy_from_slice(&self.position().gl_f32());
+        ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
+        ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[8..11].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[12..15].copy_from_slice(self.specular().gl_f32_borrowed());
+
+        unsafe {
+            std::mem::transmute::<
+                [f32; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH / 4],
+                [u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH],
+            >(ubo)
+        }
+    }
+}
+
+impl AreaLight {
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4];
+        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
+        ubo[4..7].copy_from_slice(self.up().gl_f32_borrowed());
+        ubo[7] = self.inner_width();
+        ubo[8..11].copy_from_slice(self.right().gl_f32_borrowed());
+        ubo[11] = self.inner_height();
+        ubo[12..15].copy_from_slice(&self.position().gl_f32());
+        ubo[15] = self.offset();
+        ubo[16..19].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[19] = self.outer_width();
+        ubo[20..23].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[23] = self.outer_height();
+        ubo[24..27].copy_from_slice(self.specular().gl_f32_borrowed());
+
+        unsafe {
+            std::mem::transmute::<
+                [f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4],
+                [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH],
+            >(ubo)
+        }
+    }
+}
+
+impl SpotLight {
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4];
+        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
+        ubo[4..7].copy_from_slice(&self.position().gl_f32());
+        ubo[7] = 0.0;
+        ubo[8..11].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[11] = self.inner_cutoff().cos();
+        ubo[12..15].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[15] = self.outer_cutoff().cos();
+        ubo[16..19].copy_from_slice(self.specular().gl_f32_borrowed());
+
+        unsafe {
+            std::mem::transmute::<
+                [f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4],
+                [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH],
+            >(ubo)
+        }
     }
 }

@@ -28,6 +28,7 @@ use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::light::ambient_light::AmbientLight;
 use crate::light::area_light::AreaLight;
+use crate::light::attenuation::Attenuation;
 use crate::light::directional_light::DirectionalLight;
 use crate::light::point_light::PointLight;
 use crate::light::spot_light::SpotLight;
@@ -149,7 +150,7 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
 
 fn create_scene() -> Result<Scene, Error> {
     let mut scene = Scene::new()?;
-    scene.set_light_attenuations(Vec3::new(0.0, 1.0, 0.0));
+    scene.set_light_attenuations(Attenuation::new(0.0, 1.0, 0.0));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0,0,0))));
     // scene.add_directional_light(DirectionalLight::new(
     //     Vec3::new(0.0, -1.0, -1.0),

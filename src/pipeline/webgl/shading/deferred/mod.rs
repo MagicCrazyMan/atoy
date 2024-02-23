@@ -6,12 +6,6 @@ use std::borrow::Cow;
 use web_sys::WebGlTexture;
 
 use crate::{
-    light::{
-        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING},
-        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS_STRING},
-        point_light::{MAX_POINT_LIGHTS_STRING, POINT_LIGHTS_COUNT_DEFINE},
-        spot_light::{MAX_SPOT_LIGHTS_STRING, SPOT_LIGHTS_COUNT_DEFINE},
-    },
     pipeline::webgl::{
         UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
         UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
@@ -27,6 +21,11 @@ use crate::{
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
+    },
+    scene::{
+        AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
+        MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
+        POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
     },
 };
 

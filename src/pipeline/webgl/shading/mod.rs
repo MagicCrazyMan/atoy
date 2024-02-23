@@ -4,12 +4,6 @@ use web_sys::WebGl2RenderingContext;
 
 use crate::{
     entity::Entity,
-    light::{
-        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING},
-        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS_STRING},
-        point_light::{MAX_POINT_LIGHTS_STRING, POINT_LIGHTS_COUNT_DEFINE},
-        spot_light::{MAX_SPOT_LIGHTS_STRING, SPOT_LIGHTS_COUNT_DEFINE},
-    },
     material::webgl::StandardMaterial,
     renderer::webgl::{
         buffer::BufferDescriptor,
@@ -18,6 +12,11 @@ use crate::{
         program::{Define, Program, ShaderProvider},
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
+    },
+    scene::{
+        AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
+        MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
+        POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
     },
 };
 

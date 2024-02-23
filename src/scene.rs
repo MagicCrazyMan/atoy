@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
@@ -12,14 +11,28 @@ use crate::{
     entity::Container,
     error::Error,
     light::{
-        ambient_light::AmbientLight,
-        area_light::{AreaLight, MAX_AREA_LIGHTS},
-        directional_light::{DirectionalLight, MAX_DIRECTIONAL_LIGHTS},
-        point_light::{PointLight, MAX_POINT_LIGHTS},
-        spot_light::{SpotLight, MAX_SPOT_LIGHTS},
+        ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
+        directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
     notify::Notifier,
 };
+
+/// Maximum area lights.
+pub const MAX_AREA_LIGHTS: usize = 12;
+pub(crate) const MAX_AREA_LIGHTS_STRING: &'static str = "12";
+pub(crate) const AREA_LIGHTS_COUNT_DEFINE: &'static str = "AREA_LIGHTS_COUNT";
+/// Maximum directional lights.
+pub const MAX_DIRECTIONAL_LIGHTS: usize = 12;
+pub(crate) const MAX_DIRECTIONAL_LIGHTS_STRING: &'static str = "12";
+pub(crate) const DIRECTIONAL_LIGHTS_COUNT_DEFINE: &'static str = "DIRECTIONAL_LIGHTS_COUNT";
+/// Maximum point lights.
+pub const MAX_POINT_LIGHTS: usize = 40;
+pub(crate) const MAX_POINT_LIGHTS_STRING: &'static str = "40";
+pub(crate) const POINT_LIGHTS_COUNT_DEFINE: &'static str = "POINT_LIGHTS_COUNT";
+/// Maximum spot lights.
+pub const MAX_SPOT_LIGHTS: usize = 12;
+pub(crate) const MAX_SPOT_LIGHTS_STRING: &'static str = "12";
+pub(crate) const SPOT_LIGHTS_COUNT_DEFINE: &'static str = "SPOT_LIGHTS_COUNT";
 
 pub struct Scene {
     canvas: HtmlCanvasElement,
@@ -27,7 +40,7 @@ pub struct Scene {
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
     entity_container: Container,
-    light_attenuations: Vec3<f32>,
+    light_attenuations: Attenuation,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
     directional_lights: Vec<DirectionalLight>,
@@ -59,7 +72,7 @@ impl Scene {
             canvas,
 
             entity_container: Container::new(),
-            light_attenuations: Vec3::new(0.0, 1.0, 0.0),
+            light_attenuations: Attenuation::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
             directional_lights: Vec::new(),
@@ -98,25 +111,22 @@ impl Scene {
     }
 
     /// Sets ambient light.
-    pub fn set_ambient_light(&mut self, mut light: Option<AmbientLight>) {
-        if let Some(light) = light.as_mut() {
-            light.set_ubo_dirty();
-        }
+    pub fn set_ambient_light(&mut self, light: Option<AmbientLight>) {
         self.ambient_light = light;
     }
 
     /// Returns lighting attenuation.
-    pub fn light_attenuations(&self) -> &Vec3<f32> {
+    pub fn light_attenuations(&self) -> &Attenuation {
         &self.light_attenuations
     }
 
     /// Sets lighting attenuation.
-    pub fn set_light_attenuations(&mut self, attenuations: Vec3<f32>) {
+    pub fn set_light_attenuations(&mut self, attenuations: Attenuation) {
         self.light_attenuations = attenuations;
     }
 
     /// Adds a point light.
-    pub fn add_point_light(&mut self, mut light: PointLight) {
+    pub fn add_point_light(&mut self, light: PointLight) {
         if self.point_lights.len() == MAX_POINT_LIGHTS {
             warn!(
                 "only {} point lights are available, ignored",
@@ -125,7 +135,6 @@ impl Scene {
             return;
         }
 
-        light.set_ubo_dirty();
         self.point_lights.push(light);
     }
 
@@ -159,7 +168,7 @@ impl Scene {
     }
 
     /// Adds a directional light.
-    pub fn add_directional_light(&mut self, mut light: DirectionalLight) {
+    pub fn add_directional_light(&mut self, light: DirectionalLight) {
         if self.directional_lights.len() == MAX_DIRECTIONAL_LIGHTS {
             warn!(
                 "only {} directional lights are available, ignored",
@@ -168,7 +177,6 @@ impl Scene {
             return;
         }
 
-        light.set_ubo_dirty();
         self.directional_lights.push(light);
     }
 
@@ -202,7 +210,7 @@ impl Scene {
     }
 
     /// Adds a spot light.
-    pub fn add_spot_light(&mut self, mut light: SpotLight) {
+    pub fn add_spot_light(&mut self, light: SpotLight) {
         if self.spot_lights.len() == MAX_SPOT_LIGHTS {
             warn!(
                 "only {} spot lights are available, ignored",
@@ -211,7 +219,6 @@ impl Scene {
             return;
         }
 
-        light.set_ubo_dirty();
         self.spot_lights.push(light);
     }
 
@@ -245,7 +252,7 @@ impl Scene {
     }
 
     /// Adds a area light.
-    pub fn add_area_light(&mut self, mut light: AreaLight) {
+    pub fn add_area_light(&mut self, light: AreaLight) {
         if self.spot_lights.len() == MAX_AREA_LIGHTS {
             warn!(
                 "only {} area lights are available, ignored",
@@ -254,7 +261,6 @@ impl Scene {
             return;
         }
 
-        light.set_ubo_dirty();
         self.area_lights.push(light);
     }
 

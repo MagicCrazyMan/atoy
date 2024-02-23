@@ -10,16 +10,12 @@ use uuid::Uuid;
 
 use crate::{
     entity::Entity,
-    light::{
-        area_light::MAX_AREA_LIGHTS, directional_light::MAX_DIRECTIONAL_LIGHTS,
-        point_light::MAX_POINT_LIGHTS, spot_light::MAX_SPOT_LIGHTS,
-    },
     renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
         error::Error,
         state::FrameState,
     },
-    scene::Scene,
+    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
 };
 
 use self::{
