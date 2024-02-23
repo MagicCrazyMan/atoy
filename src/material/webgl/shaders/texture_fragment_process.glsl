@@ -27,11 +27,7 @@ atoy_Fragment fragment_process() {
     if(tex_coord.x > 1.0f || tex_coord.y > 1.0f || tex_coord.x < 0.0f || tex_coord.y < 0.0f)
         discard;
     #else
-        #ifdef USE_TEXTURE_COORDINATE
-        tex_coord = v_TexCoord;
-        #else
-        tex_coord = vec2(0.0f);
-        #endif
+    tex_coord = v_TexCoord;
     #endif
 
     #ifdef USE_NORMAL_MAP
@@ -40,7 +36,11 @@ atoy_Fragment fragment_process() {
     normal.z = (normal.z - 0.5f) * 2.0f;
     normal = normalize(v_TBN * normal);
     #else
-    normal = v_Normal;
+        #ifdef USE_NORMAL
+        normal = v_Normal;
+        #else
+        normal = vec3(0.0f);
+        #endif
     #endif
 
     vec3 albedo = texture(u_AlbedoMap, tex_coord).xyz;

@@ -12,10 +12,10 @@ use crate::{
     entity::Entity,
     readonly::Readonly,
     renderer::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::Define,
+        attribute::AttributeValue,
+        program::{CustomBinding, Define},
         state::FrameState,
-        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+        uniform::{UniformBlockValue, UniformValue},
     },
 };
 
@@ -95,14 +95,14 @@ pub trait StandardMaterial {
     /// Returns custom self-associated GLSL code snippet by name.
     fn snippet(&self, name: &str) -> Option<Cow<'_, str>>;
 
-    /// Returns attribute bindings requirements.
-    fn attribute_bindings(&self) -> &[AttributeBinding];
+    /// Returns custom attribute bindings.
+    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>];
 
-    /// Returns uniform bindings requirements.
-    fn uniform_bindings(&self) -> &[UniformBinding];
+    /// Returns custom uniform bindings.
+    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>];
 
-    /// Returns uniform block bindings requirements.
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding];
+    /// Returns custom uniform block bindings.
+    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>];
 
     /// Returns `true` if vertex shader should output position on Eye Space.
     /// `vec3 v_PositionES` is available in fragment shader when enabled.

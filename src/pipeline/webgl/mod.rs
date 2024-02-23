@@ -644,7 +644,7 @@ impl StandardPipeline {
         unsafe {
             // deferred shading on opaque entities
             self.gbuffer
-                .collect(state, &collected_entities, &self.universal_ubo)?;
+                .collect(state, &collected_entities, &self.universal_ubo, lights_ubo)?;
             let (
                 positions_and_specular_shininess_texture,
                 normals_texture,

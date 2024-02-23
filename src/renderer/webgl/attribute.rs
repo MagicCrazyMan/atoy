@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
-use super::buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget};
+use super::{
+    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
+    program::CustomBinding,
+};
 
 /// Available attribute values.
 pub enum AttributeValue {
@@ -36,31 +39,50 @@ pub enum AttributeValue {
     IntegerVector4([i32; 4]),
 }
 
-/// Attribute binding sources.
+/// Attribute internal bindings.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum AttributeBinding {
+pub enum AttributeInternalBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
     GeometryNormal,
     GeometryTangent,
     GeometryBitangent,
-    FromGeometry(Cow<'static, str>),
-    FromMaterial(Cow<'static, str>),
-    FromEntity(Cow<'static, str>),
 }
 
-impl AttributeBinding {
+impl AttributeInternalBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
-            AttributeBinding::GeometryPosition => "a_Position",
-            AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
-            AttributeBinding::GeometryNormal => "a_Normal",
-            AttributeBinding::GeometryTangent => "a_Tangent",
-            AttributeBinding::GeometryBitangent => "a_Bitangent",
-            AttributeBinding::FromGeometry(name)
-            | AttributeBinding::FromMaterial(name)
-            | AttributeBinding::FromEntity(name) => name,
+            AttributeInternalBinding::GeometryPosition => "a_Position",
+            AttributeInternalBinding::GeometryTextureCoordinate => "a_TexCoord",
+            AttributeInternalBinding::GeometryNormal => "a_Normal",
+            AttributeInternalBinding::GeometryTangent => "a_Tangent",
+            AttributeInternalBinding::GeometryBitangent => "a_Bitangent",
+        }
+    }
+
+    /// Tries to find attribute internal binding from a variable name.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "a_Position" => Some(AttributeInternalBinding::GeometryPosition),
+            "a_TexCoord" => Some(AttributeInternalBinding::GeometryTextureCoordinate),
+            "a_Normal" => Some(AttributeInternalBinding::GeometryNormal),
+            "a_Tangent" => Some(AttributeInternalBinding::GeometryTangent),
+            "a_Bitangent" => Some(AttributeInternalBinding::GeometryBitangent),
+            _ => None,
+        }
+    }
+
+    /// Returns this attribute internal binding as a [`CustomBinding`].
+    pub fn as_custom_binding(&self) -> CustomBinding {
+        match self {
+            AttributeInternalBinding::GeometryPosition
+            | AttributeInternalBinding::GeometryTextureCoordinate
+            | AttributeInternalBinding::GeometryNormal
+            | AttributeInternalBinding::GeometryTangent
+            | AttributeInternalBinding::GeometryBitangent => {
+                CustomBinding::FromGeometry(Cow::Borrowed(self.variable_name()))
+            }
         }
     }
 }

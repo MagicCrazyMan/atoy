@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use super::{
     buffer::BufferDescriptor,
     texture::{
@@ -80,10 +78,10 @@ pub enum UniformBlockValue {
     },
 }
 
-/// Uniform binding sources.
+/// Uniform internal bindings.
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum UniformBinding {
+pub enum UniformInternalBinding {
     RenderTime,
     CanvasSize,
     DrawingBufferSize,
@@ -93,47 +91,57 @@ pub enum UniformBinding {
     ProjMatrix,
     ViewProjMatrix,
     CameraPosition,
-    FromGeometry(Cow<'static, str>),
-    FromMaterial(Cow<'static, str>),
-    FromEntity(Cow<'static, str>),
 }
 
-impl UniformBinding {
+impl UniformInternalBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
-            UniformBinding::RenderTime => "u_RenderTime",
-            UniformBinding::CanvasSize => "u_CanvasSize",
-            UniformBinding::DrawingBufferSize => "u_DrawingBufferSize",
-            UniformBinding::ModelMatrix => "u_ModelMatrix",
-            UniformBinding::NormalMatrix => "u_NormalMatrix",
-            UniformBinding::ViewMatrix => "u_ViewMatrix",
-            UniformBinding::ProjMatrix => "u_ProjMatrix",
-            UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
-            UniformBinding::CameraPosition => "u_CameraPosition",
-            UniformBinding::FromGeometry(name)
-            | UniformBinding::FromMaterial(name)
-            | UniformBinding::FromEntity(name) => name,
+            UniformInternalBinding::RenderTime => "u_RenderTime",
+            UniformInternalBinding::CanvasSize => "u_CanvasSize",
+            UniformInternalBinding::DrawingBufferSize => "u_DrawingBufferSize",
+            UniformInternalBinding::ModelMatrix => "u_ModelMatrix",
+            UniformInternalBinding::NormalMatrix => "u_NormalMatrix",
+            UniformInternalBinding::ViewMatrix => "u_ViewMatrix",
+            UniformInternalBinding::ProjMatrix => "u_ProjMatrix",
+            UniformInternalBinding::ViewProjMatrix => "u_ViewProjMatrix",
+            UniformInternalBinding::CameraPosition => "u_CameraPosition",
+        }
+    }
+
+    /// Tries to find uniform internal binding from a variable name.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "u_RenderTime" => Some(UniformInternalBinding::RenderTime),
+            "u_CanvasSize" => Some(UniformInternalBinding::CanvasSize),
+            "u_DrawingBufferSize" => Some(UniformInternalBinding::DrawingBufferSize),
+            "u_ModelMatrix" => Some(UniformInternalBinding::ModelMatrix),
+            "u_NormalMatrix" => Some(UniformInternalBinding::NormalMatrix),
+            "u_ViewMatrix" => Some(UniformInternalBinding::ViewMatrix),
+            "u_ProjMatrix" => Some(UniformInternalBinding::ProjMatrix),
+            "u_ViewProjMatrix" => Some(UniformInternalBinding::ViewProjMatrix),
+            "u_CameraPosition" => Some(UniformInternalBinding::CameraPosition),
+            _ => None,
         }
     }
 }
 
-/// Uniform block binding sources.
-#[derive(Clone, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum UniformBlockBinding {
-    FromGeometry(Cow<'static, str>),
-    FromMaterial(Cow<'static, str>),
-    FromEntity(Cow<'static, str>),
-}
+// /// Uniform block binding sources.
+// #[derive(Clone, PartialEq, Eq, Hash)]
+// #[non_exhaustive]
+// pub enum UniformBlockBinding {
+//     FromGeometry(Cow<'static, str>),
+//     FromMaterial(Cow<'static, str>),
+//     FromEntity(Cow<'static, str>),
+// }
 
-impl UniformBlockBinding {
-    /// Returns uniform block interface name.
-    pub fn block_name(&self) -> &str {
-        match self {
-            UniformBlockBinding::FromGeometry(name)
-            | UniformBlockBinding::FromMaterial(name)
-            | UniformBlockBinding::FromEntity(name) => name,
-        }
-    }
-}
+// impl UniformBlockBinding {
+//     /// Returns uniform block interface name.
+//     pub fn block_name(&self) -> &str {
+//         match self {
+//             UniformBlockBinding::FromGeometry(name)
+//             | UniformBlockBinding::FromMaterial(name)
+//             | UniformBlockBinding::FromEntity(name) => name,
+//         }
+//     }
+// }

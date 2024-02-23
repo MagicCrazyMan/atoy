@@ -5,7 +5,7 @@ use log::warn;
 use regex::Regex;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use super::error::Error;
+use super::{attribute::AttributeInternalBinding, error::Error, uniform::UniformInternalBinding};
 
 /// Custom derivative prefix for injecting code snippet when creating program using [`ProgramStore`].
 pub const GLSL_REPLACEMENT_DERIVATIVE: &'static str = "#include";
@@ -49,6 +49,25 @@ impl<'a> Define<'a> {
     }
 }
 
+/// Custom bindings.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum CustomBinding<'a> {
+    FromGeometry(Cow<'a, str>),
+    FromMaterial(Cow<'a, str>),
+    FromEntity(Cow<'a, str>),
+}
+
+impl<'a> CustomBinding<'a> {
+    /// Returns variable name.
+    pub fn variable_name(&self) -> &str {
+        match self {
+            CustomBinding::FromGeometry(name)
+            | CustomBinding::FromMaterial(name)
+            | CustomBinding::FromEntity(name) => name,
+        }
+    }
+}
+
 /// Source providing basic data for compiling a [`WebGlProgram`].
 pub trait ShaderProvider {
     /// Global unique name for the program source.
@@ -86,6 +105,9 @@ pub struct Program {
     attribute_locations: HashMap<String, u32>,
     uniform_locations: HashMap<String, WebGlUniformLocation>,
     uniform_block_indices: HashMap<String, u32>,
+
+    attribute_internal_bindings: Vec<AttributeInternalBinding>,
+    uniform_internal_bindings: Vec<UniformInternalBinding>,
 }
 
 impl Program {
@@ -112,6 +134,16 @@ impl Program {
     /// Returns uniform block index by a uniform block name.
     pub fn uniform_block_indices(&mut self) -> &HashMap<String, u32> {
         &self.uniform_block_indices
+    }
+
+    /// Returns internal attribute bindings extracted from shader source.
+    pub fn attribute_internal_bindings(&self) -> &[AttributeInternalBinding] {
+        &self.attribute_internal_bindings
+    }
+
+    /// Returns internal uniform bindings extracted from shader source.
+    pub fn uniform_internal_bindings(&self) -> &[UniformInternalBinding] {
+        &self.uniform_internal_bindings
     }
 }
 
@@ -263,9 +295,10 @@ impl ProgramStore {
         let fragment_shader: WebGlShader = compile_shader(&self.gl, false, &fragment_code)?;
 
         let program = create_program(&self.gl, &vertex_shader, &fragment_shader)?;
-        let attribute_locations = collects_attribute_locations(&self.gl, &program);
-        let uniform_locations = collects_uniform_locations(&self.gl, &program);
-        let uniform_block_indices = collects_uniform_block_index(&self.gl, &program);
+        let (attribute_locations, attribute_internal_bindings) =
+            collects_attributes(&self.gl, &program);
+        let (uniform_locations, uniform_internal_bindings) = collects_uniforms(&self.gl, &program);
+        let uniform_block_indices = collects_uniform_block_indices(&self.gl, &program);
         Ok(Program {
             name,
 
@@ -276,6 +309,9 @@ impl ProgramStore {
             attribute_locations,
             uniform_locations,
             uniform_block_indices,
+
+            attribute_internal_bindings,
+            uniform_internal_bindings,
         })
     }
 
@@ -432,12 +468,13 @@ pub fn create_program(
     Ok(program)
 }
 
-/// Collects active attribute locations.
-pub fn collects_attribute_locations(
+/// Collects active attribute locations and bindings.
+pub fn collects_attributes(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
-) -> HashMap<String, u32> {
+) -> (HashMap<String, u32>, Vec<AttributeInternalBinding>) {
     let mut locations = HashMap::new();
+    let mut bindings = Vec::new();
 
     let num = gl
         .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
@@ -449,18 +486,28 @@ pub fn collects_attribute_locations(
             continue;
         };
 
-        locations.insert(info.name(), location);
+        let name = info.name();
+
+        if let Some(binding) = AttributeInternalBinding::from_str(&name) {
+            bindings.push(binding);
+        }
+
+        locations.insert(name, location);
     }
 
-    locations
+    (locations, bindings)
 }
 
-/// Collects active uniform locations.
-pub fn collects_uniform_locations(
+/// Collects active uniform locations and bindings.
+pub fn collects_uniforms(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
-) -> HashMap<String, WebGlUniformLocation> {
+) -> (
+    HashMap<String, WebGlUniformLocation>,
+    Vec<UniformInternalBinding>,
+) {
     let mut locations = HashMap::new();
+    let mut bindings = Vec::new();
 
     let num = gl
         .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_UNIFORMS)
@@ -477,14 +524,20 @@ pub fn collects_uniform_locations(
             continue;
         };
 
-        locations.insert(info.name(), location);
+        let name = info.name();
+
+        if let Some(binding) = UniformInternalBinding::from_str(&name) {
+            bindings.push(binding);
+        }
+
+        locations.insert(name, location);
     }
 
-    locations
+    (locations, bindings)
 }
 
 /// Collects active uniform block indices.
-pub fn collects_uniform_block_index(
+pub fn collects_uniform_block_indices(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
 ) -> HashMap<String, u32> {

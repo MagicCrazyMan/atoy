@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    attribute::{AttributeBinding, AttributeValue},
+    attribute::{AttributeInternalBinding, AttributeValue},
     buffer::{BufferDescriptor, BufferStore, BufferTarget},
     capabilities::Capabilities,
     conversion::ToGlEnum,
@@ -25,12 +25,12 @@ use super::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
         FramebufferBuilder, FramebufferTarget, OperableBuffer, SizePolicy,
     },
-    program::{Program, ProgramStore},
+    program::{CustomBinding, Program, ProgramStore},
     texture::{
         texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
         texture_cubemap::TextureCubeMap, TextureDescriptor, TextureStore, TextureUnit,
     },
-    uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+    uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
 };
 
 pub struct BoundAttribute {
@@ -155,9 +155,45 @@ impl FrameState {
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundAttribute>, Error> {
-        let attribute_bindings = material.attribute_bindings();
-        let mut bounds = Vec::with_capacity(attribute_bindings.len());
-        for binding in attribute_bindings {
+        let internal_bindings = program.attribute_internal_bindings();
+        let custom_bindings = material.attribute_custom_bindings();
+        let mut bounds = Vec::with_capacity(internal_bindings.len() + custom_bindings.len());
+
+        for binding in internal_bindings {
+            let location = program
+                .attribute_locations()
+                .get(binding.variable_name())
+                .unwrap();
+
+            let value = match binding {
+                AttributeInternalBinding::GeometryPosition => Some(geometry.positions()),
+                AttributeInternalBinding::GeometryTextureCoordinate => {
+                    geometry.texture_coordinates()
+                }
+                AttributeInternalBinding::GeometryNormal => geometry.normals(),
+                AttributeInternalBinding::GeometryTangent => geometry.tangents(),
+                AttributeInternalBinding::GeometryBitangent => geometry.bitangents(),
+            };
+            let Some(value) = value else {
+                warn!(
+                    target: "BindAttributes",
+                    "no value specified for attribute {}",
+                    binding.variable_name()
+                );
+                continue;
+            };
+
+            match self.bind_attribute_value(*location, value.as_ref()) {
+                Ok(ba) => bounds.extend(ba),
+                Err(err) => warn!(
+                    target: "BindUniforms",
+                    "failed to bind attribute value {}",
+                    err
+                ),
+            }
+        }
+
+        for binding in custom_bindings {
             let Some(location) = program.attribute_locations().get(binding.variable_name()) else {
                 warn!(
                     target: "BindAttributes",
@@ -168,14 +204,9 @@ impl FrameState {
             };
 
             let value = match binding {
-                AttributeBinding::GeometryPosition => Some(geometry.positions()),
-                AttributeBinding::GeometryTextureCoordinate => geometry.texture_coordinates(),
-                AttributeBinding::GeometryNormal => geometry.normals(),
-                AttributeBinding::GeometryTangent => geometry.tangents(),
-                AttributeBinding::GeometryBitangent => geometry.bitangents(),
-                AttributeBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
-                AttributeBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
-                AttributeBinding::FromEntity(name) => entity.base().attribute_value(name.as_ref()),
+                CustomBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
+                CustomBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
+                CustomBinding::FromEntity(name) => entity.base().attribute_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -335,10 +366,89 @@ impl FrameState {
         geometry: &dyn Geometry,
         material: &dyn StandardMaterial,
     ) -> Result<Vec<BoundUniform>, Error> {
-        let mut bounds = Vec::new();
+        let internal_bindings = program.uniform_internal_bindings();
+        let custom_bindings = material.uniform_custom_bindings();
+        let mut bounds = Vec::with_capacity(internal_bindings.len() + custom_bindings.len());
+
         // binds uniforms
-        let uniform_bindings = material.uniform_bindings();
-        for binding in uniform_bindings {
+        for binding in internal_bindings {
+            let location = program
+                .uniform_locations()
+                .get(binding.variable_name())
+                .unwrap();
+
+            let value = match binding {
+                UniformInternalBinding::ModelMatrix
+                | UniformInternalBinding::ViewMatrix
+                | UniformInternalBinding::ProjMatrix
+                | UniformInternalBinding::NormalMatrix
+                | UniformInternalBinding::ViewProjMatrix => {
+                    let data = match binding {
+                        UniformInternalBinding::ModelMatrix => {
+                            entity.compose_model_matrix().gl_f32()
+                        }
+                        UniformInternalBinding::NormalMatrix => {
+                            entity.compose_normal_matrix().gl_f32()
+                        }
+                        UniformInternalBinding::ViewMatrix => self.camera().view_matrix().gl_f32(),
+                        UniformInternalBinding::ProjMatrix => self.camera().proj_matrix().gl_f32(),
+                        UniformInternalBinding::ViewProjMatrix => {
+                            self.camera().view_proj_matrix().gl_f32()
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    Some(Readonly::Owned(UniformValue::Matrix4 {
+                        data,
+                        transpose: false,
+                    }))
+                }
+                UniformInternalBinding::CameraPosition => Some(Readonly::Owned(
+                    UniformValue::FloatVector3(self.camera().position().gl_f32()),
+                )),
+                UniformInternalBinding::RenderTime => Some(Readonly::Owned(UniformValue::Float1(
+                    self.timestamp() as f32,
+                ))),
+                UniformInternalBinding::CanvasSize => {
+                    Some(Readonly::Owned(UniformValue::UnsignedIntegerVector2([
+                        self.canvas.width(),
+                        self.canvas.height(),
+                    ])))
+                }
+                UniformInternalBinding::DrawingBufferSize => {
+                    Some(Readonly::Owned(UniformValue::IntegerVector2([
+                        self.gl.drawing_buffer_width(),
+                        self.gl.drawing_buffer_width(),
+                    ])))
+                }
+            };
+            let Some(value) = value else {
+                warn!(
+                    target: "BindUniforms",
+                    "no value specified for uniform {}",
+                    binding.variable_name()
+                );
+                continue;
+            };
+
+            match self.bind_uniform_value(&location, value.as_ref()) {
+                Ok(bound) => {
+                    if let Some(bound) = bound {
+                        bounds.push(bound);
+                    }
+                }
+                Err(err) => {
+                    warn!(
+                        target: "BindUniforms",
+                        "failed to bind uniform value {}",
+                        err
+                    );
+                }
+            }
+        }
+
+        // binds uniforms
+        for binding in custom_bindings {
             let Some(location) = program.uniform_locations().get(binding.variable_name()) else {
                 warn!(
                     target: "BindUniforms",
@@ -349,46 +459,9 @@ impl FrameState {
             };
 
             let value = match binding {
-                UniformBinding::ModelMatrix
-                | UniformBinding::ViewMatrix
-                | UniformBinding::ProjMatrix
-                | UniformBinding::NormalMatrix
-                | UniformBinding::ViewProjMatrix => {
-                    let data = match binding {
-                        UniformBinding::ModelMatrix => entity.compose_model_matrix().gl_f32(),
-                        UniformBinding::NormalMatrix => entity.compose_normal_matrix().gl_f32(),
-                        UniformBinding::ViewMatrix => self.camera().view_matrix().gl_f32(),
-                        UniformBinding::ProjMatrix => self.camera().proj_matrix().gl_f32(),
-                        UniformBinding::ViewProjMatrix => self.camera().view_proj_matrix().gl_f32(),
-                        _ => unreachable!(),
-                    };
-
-                    Some(Readonly::Owned(UniformValue::Matrix4 {
-                        data,
-                        transpose: false,
-                    }))
-                }
-                UniformBinding::CameraPosition => Some(Readonly::Owned(
-                    UniformValue::FloatVector3(self.camera().position().gl_f32()),
-                )),
-                UniformBinding::RenderTime => Some(Readonly::Owned(UniformValue::Float1(
-                    self.timestamp() as f32,
-                ))),
-                UniformBinding::CanvasSize => {
-                    Some(Readonly::Owned(UniformValue::UnsignedIntegerVector2([
-                        self.canvas.width(),
-                        self.canvas.height(),
-                    ])))
-                }
-                UniformBinding::DrawingBufferSize => {
-                    Some(Readonly::Owned(UniformValue::IntegerVector2([
-                        self.gl.drawing_buffer_width(),
-                        self.gl.drawing_buffer_width(),
-                    ])))
-                }
-                UniformBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
-                UniformBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
-                UniformBinding::FromEntity(name) => entity.base().uniform_value(name.as_ref()),
+                CustomBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
+                CustomBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
+                CustomBinding::FromEntity(name) => entity.base().uniform_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -416,32 +489,25 @@ impl FrameState {
         }
 
         // binds uniform blocks
-        let uniform_block_bindings = material.uniform_block_bindings();
-        for binding in uniform_block_bindings {
+        for binding in material.uniform_block_custom_bindings() {
             let Some(uniform_block_index) = program
                 .uniform_block_indices()
-                .get(binding.block_name())
+                .get(binding.variable_name())
                 .cloned()
             else {
                 continue;
             };
 
             let value = match binding {
-                UniformBlockBinding::FromGeometry(name) => {
-                    geometry.uniform_block_value(name.as_ref())
-                }
-                UniformBlockBinding::FromMaterial(name) => {
-                    material.uniform_block_value(name.as_ref())
-                }
-                UniformBlockBinding::FromEntity(name) => {
-                    entity.base().uniform_block_value(name.as_ref())
-                }
+                CustomBinding::FromGeometry(name) => geometry.uniform_block_value(name.as_ref()),
+                CustomBinding::FromMaterial(name) => material.uniform_block_value(name.as_ref()),
+                CustomBinding::FromEntity(name) => entity.base().uniform_block_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
                     target: "BindUniforms",
                     "no value specified for uniform block {}",
-                    binding.block_name()
+                    binding.variable_name()
                 );
                 continue;
             };

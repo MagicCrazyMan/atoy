@@ -122,6 +122,7 @@ impl StandardGBufferCollector {
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
         universal_ubo: &BufferDescriptor,
+        lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
         // only redraw gbuffer when collected entities changed
         if self
@@ -137,7 +138,10 @@ impl StandardGBufferCollector {
         framebuffer.clear_buffers()?;
         draw_opaque_entities(
             state,
-            &DrawState::GBuffer { universal_ubo },
+            &DrawState::GBuffer {
+                universal_ubo,
+                lights_ubo,
+            },
             collected_entities,
         )?;
         framebuffer.unbind();

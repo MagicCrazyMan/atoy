@@ -13,11 +13,11 @@ use crate::{
     notify::Notifiee,
     readonly::Readonly,
     renderer::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::Define,
+        attribute::AttributeValue,
+        program::{CustomBinding, Define},
         state::FrameState,
         texture::{texture2d::Texture2D, TextureDescriptor, TextureUnit},
-        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+        uniform::{UniformBlockValue, UniformValue},
     },
 };
 
@@ -143,63 +143,42 @@ impl StandardMaterial for TextureMaterial {
         self.transparency
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
-        match self.has_normal_map() || self.has_parallax_map() {
-            true => &[
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryNormal,
-                AttributeBinding::GeometryTangent,
-                AttributeBinding::GeometryBitangent,
-                AttributeBinding::GeometryTextureCoordinate,
-            ],
-            false => &[
-                AttributeBinding::GeometryPosition,
-                AttributeBinding::GeometryNormal,
-                AttributeBinding::GeometryTextureCoordinate,
-            ],
-        }
+    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
+        &[]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
+    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
         match (self.has_normal_map(), self.has_parallax_map()) {
             (true, true) => &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
             ],
             (true, false) => &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
             ],
             (false, true) => &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
             ],
             (false, false) => &[
-                UniformBinding::ModelMatrix,
-                UniformBinding::NormalMatrix,
-                UniformBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
             ],
         }
     }
 
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
         &[]
     }
 
@@ -234,14 +213,6 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn fragment_process(&self) -> Cow<'_, str> {
         Cow::Borrowed(include_str!("./shaders/texture_fragment_process.glsl"))
     }
@@ -271,7 +242,7 @@ impl StandardMaterial for TextureMaterial {
     }
 
     fn use_normal(&self) -> bool {
-        !self.has_normal_map()
+        self.has_normal_map() || self.has_parallax_map()
     }
 
     fn use_texture_coordinate(&self) -> bool {
@@ -284,6 +255,14 @@ impl StandardMaterial for TextureMaterial {
 
     fn use_calculated_bitangent(&self) -> bool {
         false
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

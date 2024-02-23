@@ -5,10 +5,10 @@ use gl_matrix4rust::{vec3::Vec3, GLF32};
 use crate::{
     readonly::Readonly,
     renderer::webgl::{
-        attribute::{AttributeBinding, AttributeValue},
-        program::Define,
+        attribute::AttributeValue,
+        program::{CustomBinding, Define},
         state::FrameState,
-        uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+        uniform::{UniformBlockValue, UniformValue},
     },
 };
 
@@ -107,24 +107,19 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn attribute_bindings(&self) -> &[AttributeBinding] {
+    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
+        &[]
+    }
+
+    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
         &[
-            AttributeBinding::GeometryPosition,
-            AttributeBinding::GeometryNormal,
+            CustomBinding::FromMaterial(Cow::Borrowed("u_Color")),
+            CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
+            CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
         ]
     }
 
-    fn uniform_bindings(&self) -> &[UniformBinding] {
-        &[
-            UniformBinding::ModelMatrix,
-            UniformBinding::NormalMatrix,
-            UniformBinding::FromMaterial(Cow::Borrowed("u_Color")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-            UniformBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-        ]
-    }
-
-    fn uniform_block_bindings(&self) -> &[UniformBlockBinding] {
+    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
         &[]
     }
 

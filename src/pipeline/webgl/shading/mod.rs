@@ -45,6 +45,7 @@ pub(self) enum DrawState<'a> {
     },
     GBuffer {
         universal_ubo: &'a BufferDescriptor,
+        lights_ubo: Option<&'a BufferDescriptor>,
     },
 }
 
@@ -155,7 +156,7 @@ fn prepare_program<'a, 'b, 'c>(
                 )?;
             }
         }
-        DrawState::GBuffer { universal_ubo } => {
+        DrawState::GBuffer { universal_ubo, .. } => {
             // binds atoy_UniversalUniforms
             state.bind_uniform_block_value_by_block_name(
                 program,
@@ -258,6 +259,10 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
             }
         }
 
+        let type_name = match self.draw_state {
+            DrawState::Draw { .. } => "draw",
+            DrawState::GBuffer { .. } => "gbuffer",
+        };
         let defines = self.universal_defines().join_defines();
         let vertex_defines = self.vertex_defines().join_defines();
         let fragment_defines = self.fragment_defines().join_defines();
@@ -266,8 +271,10 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
             self.material.name()
         } else {
             Cow::Owned(format!(
-                "{}{}{}{}{}{}{}",
+                "{}{}{}{}{}{}{}{}{}",
                 self.material.name().as_ref(),
+                DEFINES_SEPARATOR,
+                type_name,
                 DEFINES_SEPARATOR,
                 defines,
                 DEFINES_SEPARATOR,
@@ -284,7 +291,7 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
 
     fn fragment_source(&self) -> Cow<'_, str> {
         match self.draw_state {
-            DrawState::Draw { .. } => Cow::Borrowed(include_str!("../shaders/forward.frag")),
+            DrawState::Draw { .. } => Cow::Borrowed(include_str!("../shaders/draw.frag")),
             DrawState::GBuffer { .. } => Cow::Borrowed(include_str!("../shaders/gbuffer.frag")),
         }
     }
@@ -337,9 +344,7 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
             count += 1;
         }
         match self.draw_state {
-            DrawState::Draw {
-                lights_ubo, bloom, ..
-            } => {
+            DrawState::Draw { lights_ubo, .. } | DrawState::GBuffer { lights_ubo, .. } => {
                 if lights_ubo.is_some() {
                     defines[count] = Define::WithoutValue(Cow::Borrowed("USE_LIGHTING"));
                     count += 1;
@@ -364,19 +369,24 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
                     );
                     count += 1;
                     // enable normal automatically if lighting enabled
-                    if !self.material.use_normal() {
+                    if defines[0..count]
+                        .iter()
+                        .all(|define| define.name() != "USE_NORMAL")
+                    {
                         defines[count] = Define::WithoutValue(Cow::Borrowed("USE_NORMAL"));
                         count += 1;
                     }
                 }
+            }
+        }
+        match self.draw_state {
+            DrawState::Draw { bloom, .. } => {
                 if *bloom {
                     defines[count] = Define::WithoutValue(Cow::Borrowed("USE_BLOOM"));
                     count += 1;
                 }
             }
-            DrawState::GBuffer { .. } => {
-                // do nothing
-            }
+            _ => {}
         };
 
         &defines[..count]
