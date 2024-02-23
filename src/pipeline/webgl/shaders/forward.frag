@@ -16,28 +16,6 @@ precision mediump sampler2DArray;
 #include UniversalUniforms
 #include FragmentConstants
 
-in vec3 v_Position;
-
-#ifdef USE_POSITION_EYE_SPACE
-in vec3 v_PositionES;
-#endif
-
-#ifdef USE_NORMAL
-in vec3 v_Normal;
-
-    #ifdef USE_TBN
-in mat3 v_TBN;
-
-        #ifdef USE_TBN_INVERT
-in mat3 v_TBNInvert;
-        #endif
-    #endif
-#endif
-
-#ifdef USE_TEXTURE_COORDINATE
-in vec2 v_TexCoord;
-#endif
-
 layout(location = 0) out vec4 o_Color;
 
 #ifdef USE_BLOOM

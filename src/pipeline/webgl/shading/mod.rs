@@ -5,8 +5,10 @@ use web_sys::WebGl2RenderingContext;
 use crate::{
     entity::Entity,
     light::{
-        area_light::MAX_AREA_LIGHTS_STRING, directional_light::MAX_DIRECTIONAL_LIGHTS_STRING,
-        point_light::MAX_POINT_LIGHTS_STRING, spot_light::MAX_SPOT_LIGHTS_STRING,
+        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING},
+        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS_STRING},
+        point_light::{MAX_POINT_LIGHTS_STRING, POINT_LIGHTS_COUNT_DEFINE},
+        spot_light::{MAX_SPOT_LIGHTS_STRING, SPOT_LIGHTS_COUNT_DEFINE},
     },
     material::webgl::StandardMaterial,
     renderer::webgl::{
@@ -24,7 +26,7 @@ use super::{
     UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
 };
 
-// pub mod deferred;
+pub mod deferred;
 pub mod forward;
 pub mod picking;
 
@@ -283,7 +285,7 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
     fn fragment_source(&self) -> Cow<'_, str> {
         match self.draw_state {
             DrawState::Draw { .. } => Cow::Borrowed(include_str!("../shaders/forward.frag")),
-            DrawState::GBuffer { .. } => todo!(),
+            DrawState::GBuffer { .. } => Cow::Borrowed(include_str!("../shaders/gbuffer.frag")),
         }
     }
 
@@ -342,22 +344,22 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
                     defines[count] = Define::WithoutValue(Cow::Borrowed("USE_LIGHTING"));
                     count += 1;
                     defines[count] = Define::WithValue(
-                        Cow::Borrowed("DIRECTIONAL_LIGHTS_COUNT"),
+                        Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_DIRECTIONAL_LIGHTS_STRING),
                     );
                     count += 1;
                     defines[count] = Define::WithValue(
-                        Cow::Borrowed("POINT_LIGHTS_COUNT"),
+                        Cow::Borrowed(POINT_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_POINT_LIGHTS_STRING),
                     );
                     count += 1;
                     defines[count] = Define::WithValue(
-                        Cow::Borrowed("SPOT_LIGHTS_COUNT"),
+                        Cow::Borrowed(SPOT_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_SPOT_LIGHTS_STRING),
                     );
                     count += 1;
                     defines[count] = Define::WithValue(
-                        Cow::Borrowed("AREA_LIGHTS_COUNT"),
+                        Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_AREA_LIGHTS_STRING),
                     );
                     count += 1;
@@ -372,7 +374,9 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
                     count += 1;
                 }
             }
-            DrawState::GBuffer { .. } => todo!(),
+            DrawState::GBuffer { .. } => {
+                // do nothing
+            }
         };
 
         &defines[..count]

@@ -14,3 +14,25 @@ struct atoy_Fragment {
     float shininess;
     float transparency;
 };
+
+in vec3 v_Position;
+
+#ifdef USE_POSITION_EYE_SPACE
+in vec3 v_PositionES;
+#endif
+
+#ifdef USE_NORMAL
+in vec3 v_Normal;
+
+    #ifdef USE_TBN
+in mat3 v_TBN;
+
+        #ifdef USE_TBN_INVERT
+in mat3 v_TBNInvert;
+        #endif
+    #endif
+#endif
+
+#ifdef USE_TEXTURE_COORDINATE
+in vec2 v_TexCoord;
+#endif

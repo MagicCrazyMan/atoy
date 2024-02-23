@@ -185,7 +185,7 @@ impl ComposerShaderProvider {
 impl ShaderProvider for ComposerShaderProvider {
     fn name(&self) -> Cow<'static, str> {
         match self.enable_gamma_correction {
-            true => Cow::Borrowed("ComposerGamma"),
+            true => Cow::Borrowed("Composer_Gamma"),
             false => Cow::Borrowed("Composer"),
         }
     }

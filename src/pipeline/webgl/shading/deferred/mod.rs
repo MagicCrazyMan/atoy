@@ -7,10 +7,14 @@ use web_sys::WebGlTexture;
 
 use crate::{
     light::{
-        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS},
-        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS},
-        point_light::{MAX_POINT_LIGHTS, POINT_LIGHTS_COUNT_DEFINE},
-        spot_light::{MAX_SPOT_LIGHTS, SPOT_LIGHTS_COUNT_DEFINE},
+        area_light::{AREA_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING},
+        directional_light::{DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_DIRECTIONAL_LIGHTS_STRING},
+        point_light::{MAX_POINT_LIGHTS_STRING, POINT_LIGHTS_COUNT_DEFINE},
+        spot_light::{MAX_SPOT_LIGHTS_STRING, SPOT_LIGHTS_COUNT_DEFINE},
+    },
+    pipeline::webgl::{
+        UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
+        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
     },
     renderer::webgl::{
         buffer::BufferDescriptor,
@@ -19,10 +23,6 @@ use crate::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
             FramebufferTarget,
         },
-        pipeline::{
-            UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING,
-            UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-        },
         program::{Define, ShaderProvider},
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
@@ -30,15 +30,17 @@ use crate::{
     },
 };
 
-use super::LIGHTING_DEFINE;
-
 pub struct StandardDeferredShading {
+    shader: DeferredShader,
     framebuffer: Option<Framebuffer>,
 }
 
 impl StandardDeferredShading {
     pub fn new() -> Self {
-        Self { framebuffer: None }
+        Self {
+            shader: DeferredShader::new(),
+            framebuffer: None,
+        }
     }
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
@@ -71,11 +73,8 @@ impl StandardDeferredShading {
         self.framebuffer(state).clear_buffers()?;
 
         let program = if let Some(lights_ubo) = lights_ubo {
-            let program = state.program_store_mut().use_program_with_defines(
-                &DeferredShadingProgram,
-                &[],
-                &[Define::WithoutValue(Cow::Borrowed(LIGHTING_DEFINE))],
-            )?;
+            self.shader.lighting = true;
+            let program = state.program_store_mut().use_program(&self.shader)?;
 
             // binds atoy_Lights
             state.bind_uniform_block_value_by_block_name(
@@ -99,9 +98,8 @@ impl StandardDeferredShading {
 
             program
         } else {
-            state
-                .program_store_mut()
-                .use_program(&DeferredShadingProgram)?
+            self.shader.lighting = false;
+            state.program_store_mut().use_program(&self.shader)?
         };
 
         // binds atoy_UniversalUniforms
@@ -140,49 +138,68 @@ const POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME: &'static str =
 const NORMALS_TEXTURE_UNIFORM_NAME: &'static str = "u_NormalsTexture";
 const ALBEDO_TEXTURE_UNIFORM_NAME: &'static str = "u_AlbedoTexture";
 
-struct DeferredShadingProgram;
+struct DeferredShader {
+    lighting: bool,
+}
 
-impl ShaderProvider for DeferredShadingProgram {
+impl DeferredShader {
+    pub fn new() -> Self {
+        Self { lighting: false }
+    }
+}
+
+impl ShaderProvider for DeferredShader {
     fn name(&self) -> Cow<'static, str> {
-        Cow::Borrowed("DeferredShadingProgram")
+        if self.lighting {
+            Cow::Borrowed("DeferredShader")
+        } else {
+            Cow::Borrowed("DeferredShader_Lighting")
+        }
     }
 
-    fn vertex_source(&self) -> VertexShaderSource {
-        VertexShaderSource::Raw(Cow::Borrowed(include_str!(
-            "../../shaders/computation.vert"
-        )))
+    fn vertex_source(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("../../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> FragmentShaderSource {
-        FragmentShaderSource::Builder(ShaderBuilder::new(
-            true,
-            vec![
+    fn fragment_source(&self) -> Cow<'static, str> {
+        Cow::Borrowed(include_str!("../../shaders/deferred.frag"))
+    }
+
+    fn universal_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        &[]
+    }
+
+    fn fragment_defines(&self) -> &[Define<'_>] {
+        if self.lighting {
+            &[
+                Define::WithoutValue(Cow::Borrowed("USE_LIGHTING")),
                 Define::WithValue(
                     Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
-                    Cow::Owned(MAX_DIRECTIONAL_LIGHTS.to_string()),
+                    Cow::Borrowed(MAX_DIRECTIONAL_LIGHTS_STRING),
                 ),
                 Define::WithValue(
                     Cow::Borrowed(POINT_LIGHTS_COUNT_DEFINE),
-                    Cow::Owned(MAX_POINT_LIGHTS.to_string()),
+                    Cow::Borrowed(MAX_POINT_LIGHTS_STRING),
                 ),
                 Define::WithValue(
                     Cow::Borrowed(SPOT_LIGHTS_COUNT_DEFINE),
-                    Cow::Owned(MAX_SPOT_LIGHTS.to_string()),
+                    Cow::Borrowed(MAX_SPOT_LIGHTS_STRING),
                 ),
                 Define::WithValue(
                     Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
-                    Cow::Owned(MAX_AREA_LIGHTS.to_string()),
+                    Cow::Borrowed(MAX_AREA_LIGHTS_STRING),
                 ),
-            ],
-            vec![Cow::Borrowed(include_str!(
-                "../../../../../material/shaders/constants.glsl"
-            ))],
-            vec![
-                Cow::Borrowed(include_str!(
-                    "../../../../../material/shaders/lighting.glsl"
-                )),
-                Cow::Borrowed(include_str!("../../shaders/deferred_frag.glsl")),
-            ],
-        ))
+            ]
+        } else {
+            &[]
+        }
+    }
+
+    fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
+        None
     }
 }

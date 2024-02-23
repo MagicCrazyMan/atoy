@@ -1,3 +1,24 @@
+#version 300 es
+
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+precision highp sampler2DArray;
+#else
+precision mediump float;
+precision mediump int;
+precision mediump sampler2D;
+precision mediump sampler2DArray;
+#endif
+
+#include Defines
+#include UniversalUniforms
+
+#ifdef USE_LIGHTING
+#include Lighting
+#endif
+
 in vec2 v_TexCoord;
 
 uniform sampler2D u_PositionsAndSpecularShininessTexture;
@@ -13,15 +34,14 @@ void main() {
 
     vec3 normal = texture(u_NormalsTexture, v_TexCoord).xyz;
     vec4 albedo_and_existence = texture(u_AlbedoTexture, v_TexCoord);
-    if(albedo_and_existence.a == 0.0) {
+    if(albedo_and_existence.a == 0.0f) {
         discard;
     }
-
     vec3 albedo = albedo_and_existence.xyz;
-    #ifdef LIGHTING
-    atoy_LightingFragment lighting_fragment = atoy_LightingFragment(position, normal);
-    atoy_LightingMaterial lighting_material = atoy_LightingMaterial(albedo, albedo, albedo, specular_shininess);
-    vec3 color = atoy_lighting(u_CameraPosition, lighting_fragment, lighting_material);
+
+    #ifdef USE_LIGHTING
+    atoy_LightingMaterial lighting_material = atoy_LightingMaterial(position, normal, albedo, specular_shininess);
+    vec3 color = atoy_lighting(u_CameraPosition, lighting_material);
     #else
     vec3 color = albedo;
     #endif

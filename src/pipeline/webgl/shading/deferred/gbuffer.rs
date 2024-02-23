@@ -117,7 +117,7 @@ impl StandardGBufferCollector {
         }
     }
 
-    pub unsafe fn draw(
+    pub unsafe fn collect(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
