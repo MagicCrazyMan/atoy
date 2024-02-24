@@ -1,9 +1,4 @@
-use std::borrow::Cow;
-
-use super::{
-    buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget},
-    program::CustomBinding,
-};
+use super::buffer::{BufferComponentSize, BufferDataType, BufferDescriptor, BufferTarget};
 
 /// Available attribute values.
 pub enum AttributeValue {
@@ -70,19 +65,6 @@ impl AttributeInternalBinding {
             "a_Tangent" => Some(AttributeInternalBinding::GeometryTangent),
             "a_Bitangent" => Some(AttributeInternalBinding::GeometryBitangent),
             _ => None,
-        }
-    }
-
-    /// Returns this attribute internal binding as a [`CustomBinding`].
-    pub fn as_custom_binding(&self) -> CustomBinding {
-        match self {
-            AttributeInternalBinding::GeometryPosition
-            | AttributeInternalBinding::GeometryTextureCoordinate
-            | AttributeInternalBinding::GeometryNormal
-            | AttributeInternalBinding::GeometryTangent
-            | AttributeInternalBinding::GeometryBitangent => {
-                CustomBinding::FromGeometry(Cow::Borrowed(self.variable_name()))
-            }
         }
     }
 }

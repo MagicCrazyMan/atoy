@@ -125,23 +125,3 @@ impl UniformInternalBinding {
         }
     }
 }
-
-// /// Uniform block binding sources.
-// #[derive(Clone, PartialEq, Eq, Hash)]
-// #[non_exhaustive]
-// pub enum UniformBlockBinding {
-//     FromGeometry(Cow<'static, str>),
-//     FromMaterial(Cow<'static, str>),
-//     FromEntity(Cow<'static, str>),
-// }
-
-// impl UniformBlockBinding {
-//     /// Returns uniform block interface name.
-//     pub fn block_name(&self) -> &str {
-//         match self {
-//             UniformBlockBinding::FromGeometry(name)
-//             | UniformBlockBinding::FromMaterial(name)
-//             | UniformBlockBinding::FromEntity(name) => name,
-//         }
-//     }
-// }
