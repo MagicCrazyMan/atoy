@@ -1,4 +1,4 @@
-use std::{iter::FromIterator, ptr::NonNull};
+use std::{cell::Ref, iter::FromIterator, ptr::NonNull};
 
 use gl_matrix4rust::GLF32;
 use log::warn;
@@ -9,10 +9,7 @@ use web_sys::{
     WebGlUniformLocation,
 };
 
-use crate::{
-    camera::Camera, entity::Entity, geometry::Geometry, material::webgl::StandardMaterial,
-    readonly::Readonly,
-};
+use crate::{camera::Camera, entity::Entity, readonly::Readonly};
 
 use super::{
     attribute::{AttributeInternalBinding, AttributeValue},
@@ -147,16 +144,18 @@ impl FrameState {
         unsafe { self.capabilities.as_ref() }
     }
 
-    /// Binds attribute values from a entity, geometry and material.
+    /// Binds attribute values from a entity.
     pub fn bind_attributes(
         &mut self,
         program: &mut Program,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn StandardMaterial,
+        entity: &Ref<'_, dyn Entity>,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
-        let custom_bindings = material.attribute_custom_bindings();
+        let custom_bindings = entity
+            .material()
+            .map(|material| material.attribute_custom_bindings())
+            .unwrap_or(&[]);
+
         let mut bounds = Vec::with_capacity(internal_bindings.len() + custom_bindings.len());
 
         for binding in internal_bindings {
@@ -166,13 +165,21 @@ impl FrameState {
                 .unwrap();
 
             let value = match binding {
-                AttributeInternalBinding::GeometryPosition => Some(geometry.positions()),
-                AttributeInternalBinding::GeometryTextureCoordinate => {
-                    geometry.texture_coordinates()
+                AttributeInternalBinding::GeometryPosition => {
+                    entity.geometry().map(|geometry| geometry.positions())
                 }
-                AttributeInternalBinding::GeometryNormal => geometry.normals(),
-                AttributeInternalBinding::GeometryTangent => geometry.tangents(),
-                AttributeInternalBinding::GeometryBitangent => geometry.bitangents(),
+                AttributeInternalBinding::GeometryTextureCoordinate => entity
+                    .geometry()
+                    .and_then(|geometry| geometry.texture_coordinates()),
+                AttributeInternalBinding::GeometryNormal => {
+                    entity.geometry().and_then(|geometry| geometry.normals())
+                }
+                AttributeInternalBinding::GeometryTangent => {
+                    entity.geometry().and_then(|geometry| geometry.tangents())
+                }
+                AttributeInternalBinding::GeometryBitangent => {
+                    entity.geometry().and_then(|geometry| geometry.bitangents())
+                }
             };
             let Some(value) = value else {
                 warn!(
@@ -204,9 +211,13 @@ impl FrameState {
             };
 
             let value = match binding {
-                CustomBinding::FromGeometry(name) => geometry.attribute_value(name.as_ref()),
-                CustomBinding::FromMaterial(name) => material.attribute_value(name.as_ref()),
-                CustomBinding::FromEntity(name) => entity.base().attribute_value(name.as_ref()),
+                CustomBinding::FromGeometry(name) => entity
+                    .geometry()
+                    .and_then(|geometry| geometry.attribute_value(name.as_ref())),
+                CustomBinding::FromMaterial(name) => entity
+                    .material()
+                    .and_then(|material| material.attribute_value(name.as_ref())),
+                CustomBinding::FromEntity(name) => entity.attribute_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -358,16 +369,22 @@ impl FrameState {
         }
     }
 
-    /// Binds uniform values from a entity, geometry and material.
+    /// Binds uniform values from a entity.
     pub fn bind_uniforms(
         &mut self,
         program: &mut Program,
-        entity: &Entity,
-        geometry: &dyn Geometry,
-        material: &dyn StandardMaterial,
+        entity: &Ref<'_, dyn Entity>,
     ) -> Result<Vec<BoundUniform>, Error> {
         let internal_bindings = program.uniform_internal_bindings();
-        let custom_bindings = material.uniform_custom_bindings();
+        let custom_bindings = entity
+            .material()
+            .map(|material| material.uniform_custom_bindings())
+            .unwrap_or(&[]);
+        let block_custom_bindings = entity
+            .material()
+            .map(|material| material.uniform_block_custom_bindings())
+            .unwrap_or(&[]);
+
         let mut bounds = Vec::with_capacity(internal_bindings.len() + custom_bindings.len());
 
         // binds uniforms
@@ -459,9 +476,13 @@ impl FrameState {
             };
 
             let value = match binding {
-                CustomBinding::FromGeometry(name) => geometry.uniform_value(name.as_ref()),
-                CustomBinding::FromMaterial(name) => material.uniform_value(name.as_ref()),
-                CustomBinding::FromEntity(name) => entity.base().uniform_value(name.as_ref()),
+                CustomBinding::FromGeometry(name) => entity
+                    .geometry()
+                    .and_then(|geometry| geometry.uniform_value(name.as_ref())),
+                CustomBinding::FromMaterial(name) => entity
+                    .material()
+                    .and_then(|material| material.uniform_value(name.as_ref())),
+                CustomBinding::FromEntity(name) => entity.uniform_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(
@@ -489,7 +510,7 @@ impl FrameState {
         }
 
         // binds uniform blocks
-        for binding in material.uniform_block_custom_bindings() {
+        for binding in block_custom_bindings {
             let Some(uniform_block_index) = program
                 .uniform_block_indices()
                 .get(binding.variable_name())
@@ -499,9 +520,13 @@ impl FrameState {
             };
 
             let value = match binding {
-                CustomBinding::FromGeometry(name) => geometry.uniform_block_value(name.as_ref()),
-                CustomBinding::FromMaterial(name) => material.uniform_block_value(name.as_ref()),
-                CustomBinding::FromEntity(name) => entity.base().uniform_block_value(name.as_ref()),
+                CustomBinding::FromGeometry(name) => entity
+                    .geometry()
+                    .and_then(|geometry| geometry.uniform_block_value(name.as_ref())),
+                CustomBinding::FromMaterial(name) => entity
+                    .material()
+                    .and_then(|material| material.uniform_block_value(name.as_ref())),
+                CustomBinding::FromEntity(name) => entity.uniform_block_value(name.as_ref()),
             };
             let Some(value) = value else {
                 warn!(

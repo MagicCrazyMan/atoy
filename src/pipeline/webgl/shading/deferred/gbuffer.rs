@@ -20,16 +20,11 @@ use crate::{
 
 pub struct StandardGBufferCollector {
     framebuffer: Option<Framebuffer>,
-
-    last_collected_entities_id: Option<usize>,
 }
 
 impl StandardGBufferCollector {
     pub fn new() -> Self {
-        Self {
-            framebuffer: None,
-            last_collected_entities_id: None,
-        }
+        Self { framebuffer: None }
     }
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
@@ -124,15 +119,6 @@ impl StandardGBufferCollector {
         universal_ubo: &BufferDescriptor,
         lights_ubo: Option<&BufferDescriptor>,
     ) -> Result<(), Error> {
-        // only redraw gbuffer when collected entities changed
-        if self
-            .last_collected_entities_id
-            .map(|id| collected_entities.id() == id)
-            .unwrap_or(false)
-        {
-            return Ok(());
-        }
-
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         framebuffer.clear_buffers()?;
@@ -145,8 +131,6 @@ impl StandardGBufferCollector {
             collected_entities,
         )?;
         framebuffer.unbind();
-
-        self.last_collected_entities_id = Some(collected_entities.id());
 
         Ok(())
     }

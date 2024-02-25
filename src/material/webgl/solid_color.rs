@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::{StandardMaterial, StandardMaterialPreparationCallback, Transparency};
+use super::{StandardMaterial, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -74,7 +74,7 @@ impl StandardMaterial for SolidColorMaterial {
         true
     }
 
-    fn prepare(&mut self, _: &mut FrameState, _: StandardMaterialPreparationCallback) {}
+    fn prepare(&mut self, _: &mut FrameState) {}
 
     fn transparency(&self) -> Transparency {
         self.transparency

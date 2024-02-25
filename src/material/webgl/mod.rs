@@ -1,15 +1,9 @@
 pub mod solid_color;
 pub mod texture;
 
-use std::{
-    any::Any,
-    borrow::Cow,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, borrow::Cow};
 
 use crate::{
-    entity::Entity,
     readonly::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
@@ -21,36 +15,6 @@ use crate::{
 
 use super::Transparency;
 
-/// Standard material preparation procedure finishing callback.
-/// Developer should invoke [`StandardMaterialPreparationCallback::finish`]
-/// after [`StandardMaterial::prepare`] finished.
-#[derive(Debug, Clone)]
-pub struct StandardMaterialPreparationCallback(Weak<RefCell<*mut Entity>>);
-
-impl StandardMaterialPreparationCallback {
-    /// Marks preparation procedure is finished.
-    pub fn finish(&self) {
-        unsafe {
-            let Some(entity) = self.0.upgrade() else {
-                return;
-            };
-
-            let mut entity = entity.borrow_mut();
-            if (*entity).is_null() {
-                return;
-            }
-
-            (**entity).mark_material_dirty();
-        }
-    }
-}
-
-impl Entity {
-    pub(crate) fn material_callback(&self) -> StandardMaterialPreparationCallback {
-        StandardMaterialPreparationCallback(Rc::downgrade(self.me()))
-    }
-}
-
 pub trait StandardMaterial {
     /// Returns a material name.
     fn name(&self) -> Cow<'_, str>;
@@ -60,7 +24,7 @@ pub trait StandardMaterial {
     fn ready(&self) -> bool;
 
     /// Prepares material.
-    fn prepare(&mut self, state: &mut FrameState, callback: StandardMaterialPreparationCallback);
+    fn prepare(&mut self, state: &mut FrameState);
 
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
@@ -73,11 +37,6 @@ pub trait StandardMaterial {
 
     /// Returns a custom uniform block buffer binding value by an uniform block name.
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
-
-    // /// Returns GLSL code snippet with processing function for vertex shader.
-    // fn vertex_process(&self) -> Cow<'_, str> {
-    //     Cow::Borrowed(include_str!("./shaders/vertex_process.glsl"))
-    // }
 
     /// Returns GLSL code snippet with processing function for fragment shader.
     fn fragment_process(&self) -> Cow<'_, str>;

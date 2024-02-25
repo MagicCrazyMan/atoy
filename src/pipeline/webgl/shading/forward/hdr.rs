@@ -5,9 +5,8 @@ use crate::{
         collector::CollectedEntities,
         shading::{
             draw_entities, BloomBlendMapping, DrawState, GaussianBlurMapping,
-            HdrExposureToneMapping, HdrReinhardToneMapping,
-            BASE_TEXTURE_UNIFORM_NAME, BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME,
-            HDR_TEXTURE_UNIFORM_NAME,
+            HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_NAME,
+            BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
         },
         HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
@@ -355,9 +354,7 @@ impl StandardHdrShading {
             let hdr_bloom_blend_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blend_framebuffer(state);
 
-            let program = state
-                .program_store_mut()
-                .use_program(&BloomBlendMapping)?;
+            let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
             state.bind_uniform_value_by_variable_name(
                 program,
                 BASE_TEXTURE_UNIFORM_NAME,

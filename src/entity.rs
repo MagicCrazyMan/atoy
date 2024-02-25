@@ -2,19 +2,16 @@ use std::{
     any::Any,
     cell::RefCell,
     collections::VecDeque,
-    iter::FromIterator,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
 
 use gl_matrix4rust::mat4::Mat4;
 use indexmap::IndexMap;
-use log::warn;
 use uuid::Uuid;
 
 use crate::{
     bounding::{merge_bounding_volumes, CullingBoundingVolume},
-    error::Error,
     geometry::Geometry,
     material::webgl::StandardMaterial,
     readonly::Readonly,
@@ -24,8 +21,14 @@ use crate::{
     },
 };
 
-pub trait EntityBase {
-    fn model_matrix(&self) -> Readonly<'_, Mat4>;
+pub trait Entity {
+    fn id(&self) -> &Uuid;
+
+    fn compose_model_matrix(&self) -> &Mat4;
+
+    fn compose_normal_matrix(&self) -> &Mat4;
+
+    fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
 
     fn geometry(&self) -> Option<&dyn Geometry>;
 
@@ -41,24 +44,142 @@ pub trait EntityBase {
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
+    fn sync(&mut self, group: &dyn Group);
+
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub struct SimpleEntityBase {
-    model_matrix: Mat4,
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn StandardMaterial>>,
+pub trait Group {
+    fn id(&self) -> &Uuid;
+
+    fn compose_model_matrix(&self) -> &Mat4;
+
+    fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
+
+    fn entity(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>>;
+
+    fn entities(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Entity>>> + '_>;
+
+    fn entities_hierarchy(&self) -> HierarchyEntitiesIter
+    where
+        Self: Sized,
+    {
+        HierarchyEntitiesIter::new(self)
+    }
+
+    fn sub_group(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>>;
+
+    fn sub_groups(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Group>>> + '_>;
+
+    fn sub_groups_hierarchy(&self) -> HierarchyGroupsIter
+    where
+        Self: Sized,
+    {
+        HierarchyGroupsIter::new(self)
+    }
+
+    fn sync(&mut self, parent: Option<&dyn Group>);
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl SimpleEntityBase {
+pub struct HierarchyGroupsIter {
+    groups: VecDeque<Rc<RefCell<dyn Group>>>,
+}
+
+impl HierarchyGroupsIter {
+    pub fn new(group: &dyn Group) -> Self {
+        Self {
+            groups: group.sub_groups().collect(),
+        }
+    }
+}
+
+impl Iterator for HierarchyGroupsIter {
+    type Item = Rc<RefCell<dyn Group>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.groups.pop_front() {
+            Some(group) => {
+                self.groups.extend(group.borrow().sub_groups());
+                Some(group)
+            }
+            None => None,
+        }
+    }
+}
+
+pub struct HierarchyEntitiesIter {
+    groups: HierarchyGroupsIter,
+    entities: VecDeque<Rc<RefCell<dyn Entity>>>,
+}
+
+impl HierarchyEntitiesIter {
+    pub fn new(group: &dyn Group) -> Self {
+        Self {
+            groups: HierarchyGroupsIter::new(group),
+            entities: group.entities().collect(),
+        }
+    }
+}
+
+impl Iterator for HierarchyEntitiesIter {
+    type Item = Rc<RefCell<dyn Entity>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.entities.pop_front() {
+            Some(entity) => Some(entity),
+            None => match self.groups.next() {
+                Some(group) => {
+                    self.entities.extend(group.borrow().entities());
+                    match self.entities.pop_front() {
+                        Some(entity) => Some(entity),
+                        None => None,
+                    }
+                }
+                None => None,
+            },
+        }
+    }
+}
+
+pub struct SimpleEntity {
+    id: Uuid,
+
+    model_matrix: Mat4,
+    compose_model_matrix: Mat4,
+    compose_normal_matrix: Mat4,
+
+    geometry: Option<Box<dyn Geometry>>,
+    material: Option<Box<dyn StandardMaterial>>,
+
+    enable_bounding: bool,
+    bounding_volume: Option<CullingBoundingVolume>,
+
+    should_sync: bool,
+}
+
+impl SimpleEntity {
     pub fn new() -> Self {
         Self {
+            id: Uuid::new_v4(),
             model_matrix: Mat4::<f64>::new_identity(),
+            compose_model_matrix: Mat4::<f64>::new_identity(),
+            compose_normal_matrix: Mat4::<f64>::new_identity(),
             geometry: None,
             material: None,
+            enable_bounding: true,
+            bounding_volume: None,
+            should_sync: true,
         }
+    }
+
+    pub fn model_matrix(&self) -> &Mat4 {
+        &self.model_matrix
     }
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
@@ -78,11 +199,67 @@ impl SimpleEntityBase {
     {
         self.material = material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
     }
+
+    pub fn bounding_enabled(&self) -> bool {
+        self.enable_bounding
+    }
+
+    pub fn enable_bounding(&mut self) {
+        self.enable_bounding = true;
+        self.bounding_volume = None;
+        self.set_resync();
+    }
+
+    pub fn disable_bounding(&mut self) {
+        self.enable_bounding = false;
+        self.bounding_volume = None;
+        self.set_resync();
+    }
+
+    pub fn set_resync(&mut self) {
+        self.should_sync = true;
+    }
+
+    fn sync_matrices(&mut self, group: &dyn Group) {
+        self.compose_model_matrix = *group.compose_model_matrix() * *self.model_matrix();
+        self.compose_normal_matrix = self.compose_model_matrix.clone();
+        self.compose_normal_matrix
+            .invert_in_place()
+            .expect("invert a matrix with zero determinant is not allowed");
+        self.compose_normal_matrix.transpose_in_place();
+    }
+
+    fn sync_bounding_volume(&mut self) {
+        if !self.enable_bounding {
+            self.bounding_volume = None;
+            return;
+        }
+
+        let compose_model_matrix = self.compose_model_matrix;
+        self.bounding_volume =
+            self.geometry()
+                .and_then(|geom| geom.bounding_volume())
+                .map(|bounding| {
+                    CullingBoundingVolume::new(bounding.as_ref().transform(compose_model_matrix))
+                });
+    }
 }
 
-impl EntityBase for SimpleEntityBase {
-    fn model_matrix(&self) -> Readonly<'_, Mat4> {
-        Readonly::Borrowed(&self.model_matrix)
+impl Entity for SimpleEntity {
+    fn id(&self) -> &Uuid {
+        &self.id
+    }
+
+    fn compose_model_matrix(&self) -> &Mat4 {
+        &self.compose_model_matrix
+    }
+
+    fn compose_normal_matrix(&self) -> &Mat4 {
+        &self.compose_normal_matrix
+    }
+
+    fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {
+        self.bounding_volume.as_ref()
     }
 
     fn geometry(&self) -> Option<&dyn Geometry> {
@@ -119,6 +296,17 @@ impl EntityBase for SimpleEntityBase {
         None
     }
 
+    fn sync(&mut self, group: &dyn Group) {
+        if !self.should_sync {
+            return;
+        }
+
+        self.sync_matrices(group);
+        self.sync_bounding_volume();
+
+        self.should_sync = false;
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -128,862 +316,217 @@ impl EntityBase for SimpleEntityBase {
     }
 }
 
-pub struct GroupOptions {
-    model_matrix: Mat4,
-    entities: Vec<Box<dyn EntityBase>>,
-    subgroups: Vec<GroupOptions>,
-}
-
-impl GroupOptions {
-    pub fn new() -> Self {
-        Self {
-            entities: Vec::new(),
-            subgroups: Vec::new(),
-            model_matrix: Mat4::<f64>::new_identity(),
-        }
-    }
-
-    pub fn model_matrix(&self) -> &Mat4 {
-        &self.model_matrix
-    }
-
-    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
-        self.model_matrix = model_matrix;
-    }
-
-    pub fn entities(&self) -> &Vec<Box<dyn EntityBase>> {
-        self.entities.as_ref()
-    }
-
-    pub fn entities_mut(&mut self) -> &mut Vec<Box<dyn EntityBase>> {
-        &mut self.entities
-    }
-
-    pub fn sub_groups(&self) -> &Vec<GroupOptions> {
-        self.subgroups.as_ref()
-    }
-
-    pub fn sub_groups_mut(&mut self) -> &mut Vec<GroupOptions> {
-        &mut self.subgroups
-    }
-}
-
-const ENTITY_DIRTY_FIELD_CLEAR: u8 = 0b00000000;
-const ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY: u8 = 0b00000001;
-const ENTITY_DIRTY_FIELD_MATERIAL_DIRTY: u8 = 0b00000010;
-const ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY: u8 = 0b00000100;
-
-pub struct Entity {
+pub struct SimpleGroup {
     id: Uuid,
-    base: Box<dyn EntityBase>,
-
-    compose_model_matrix: Mat4,
-    compose_normal_matrix: Mat4,
-    bounding: Option<CullingBoundingVolume>,
-
-    group: *mut Group,
-    container: *mut ContainerInner,
-    me: Rc<RefCell<*mut Self>>,
-
-    dirty_field: u8,
-}
-
-impl Deref for Entity {
-    type Target = Box<dyn EntityBase>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.base
-    }
-}
-
-impl DerefMut for Entity {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.base
-    }
-}
-
-impl Entity {
-    fn new(id: Uuid, base: Box<dyn EntityBase>, group: &mut Group) -> *mut Entity {
-        let entity = Box::leak(Box::new(Entity {
-            id,
-            base,
-
-            compose_model_matrix: Mat4::<f64>::new_identity(),
-            compose_normal_matrix: Mat4::<f64>::new_identity(),
-            bounding: None,
-
-            group,
-            container: group.container,
-            me: Rc::new(RefCell::new(std::ptr::null_mut())),
-
-            dirty_field: ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY
-                | ENTITY_DIRTY_FIELD_MATERIAL_DIRTY
-                | ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY,
-        }));
-        *entity.me.borrow_mut() = entity;
-        entity
-    }
-
-    fn take(self: Box<Self>) -> Box<dyn EntityBase> {
-        *self.me.borrow_mut() = std::ptr::null_mut();
-        self.base
-    }
-
-    pub(crate) fn me(&self) -> &Rc<RefCell<*mut Self>> {
-        &self.me
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-
-    pub fn group(&self) -> &Group {
-        unsafe { &*self.group }
-    }
-
-    pub fn base(&self) -> &dyn EntityBase {
-        self.base.as_ref()
-    }
-
-    pub fn base_mut(&mut self) -> &mut dyn EntityBase {
-        self.base.as_mut()
-    }
-
-    pub fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
-    }
-
-    pub fn compose_normal_matrix(&self) -> &Mat4 {
-        &self.compose_normal_matrix
-    }
-
-    pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding.as_ref()
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty_field != ENTITY_DIRTY_FIELD_CLEAR
-    }
-
-    pub fn mark_model_matrix_dirty(&mut self) {
-        self.mark_dirty_inner(ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY);
-    }
-
-    pub fn mark_material_dirty(&mut self) {
-        self.mark_dirty_inner(ENTITY_DIRTY_FIELD_MATERIAL_DIRTY);
-    }
-
-    pub fn mark_geometry_dirty(&mut self) {
-        self.mark_dirty_inner(ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY);
-    }
-
-    fn mark_dirty_inner(&mut self, field: u8) {
-        unsafe {
-            self.dirty_field |= field;
-
-            if field & (ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY | ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY)
-                != 0
-            {
-                (*self.group).mark_bounding_volume_dirty();
-            }
-
-            (*self.container).mark_dirty();
-        }
-    }
-
-    fn refresh(&mut self) {
-        unsafe {
-            if !self.is_dirty() {
-                return;
-            }
-
-            self.refresh_compose_matrices();
-            self.refresh_bounding_volume();
-
-            self.dirty_field = ENTITY_DIRTY_FIELD_CLEAR;
-        }
-    }
-
-    unsafe fn refresh_compose_matrices(&mut self) {
-        if self.dirty_field & ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY == 0 {
-            return;
-        }
-
-        self.compose_model_matrix = (*self.group).compose_model_matrix * *self.base.model_matrix();
-        self.compose_normal_matrix = self.compose_model_matrix.clone();
-        self.compose_normal_matrix
-            .invert_in_place()
-            .expect("invert a matrix with zero determinant is not allowed");
-        self.compose_normal_matrix.transpose_in_place();
-    }
-
-    fn refresh_bounding_volume(&mut self) {
-        if self.dirty_field
-            & (ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY | ENTITY_DIRTY_FIELD_GEOMETRY_DIRTY)
-            == 0
-        {
-            return;
-        }
-
-        let compose_model_matrix = self.compose_model_matrix;
-        self.bounding = self
-            .base
-            .geometry()
-            .and_then(|geom| geom.bounding_volume())
-            .map(|bounding| {
-                CullingBoundingVolume::new(bounding.as_ref().transform(compose_model_matrix))
-            });
-    }
-}
-
-const GROUP_DIRTY_FIELD_CLEAR: u8 = 0b00000000;
-const GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY: u8 = 0b00000001;
-const GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY: u8 = 0b00000010;
-
-pub struct Group {
-    id: Uuid,
-    parent: Option<*mut Group>,
-    container: *mut ContainerInner,
-    entities: IndexMap<Uuid, *mut Entity>,
-    subgroups: IndexMap<Uuid, *mut Group>,
 
     model_matrix: Mat4,
     compose_model_matrix: Mat4,
+
+    entities: IndexMap<Uuid, Rc<RefCell<dyn Entity>>>,
+    sub_groups: IndexMap<Uuid, Rc<RefCell<dyn Group>>>,
 
     enable_bounding: bool,
-    bounding: Option<CullingBoundingVolume>,
+    bounding_volume: Option<CullingBoundingVolume>,
 
-    dirty_field: u8,
+    should_sync: bool,
 }
 
-impl Group {
-    fn new(id: Uuid, parent: Option<*mut Group>, container: *mut ContainerInner) -> Self {
+impl SimpleGroup {
+    pub fn new() -> Self {
         Self {
-            id,
-            parent,
-            container,
-            entities: IndexMap::new(),
-            subgroups: IndexMap::new(),
-
+            id: Uuid::new_v4(),
             model_matrix: Mat4::<f64>::new_identity(),
             compose_model_matrix: Mat4::<f64>::new_identity(),
-
-            enable_bounding: false,
-            bounding: None,
-
-            dirty_field: GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY
-                | GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY,
+            entities: IndexMap::new(),
+            sub_groups: IndexMap::new(),
+            enable_bounding: true,
+            bounding_volume: None,
+            should_sync: true,
         }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-
-    pub fn parent(&self) -> Option<&Group> {
-        unsafe { self.parent.map(|parent| &*parent) }
     }
 
     pub fn model_matrix(&self) -> &Mat4 {
         &self.model_matrix
     }
 
-    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
-        self.model_matrix = model_matrix;
-        self.mark_model_matrix_dirty();
-    }
-
-    pub fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
-    }
-
-    pub fn bounding_enabled(&self) -> bool {
-        self.enable_bounding
-    }
-
-    pub fn enable_bounding(&mut self) {
-        self.enable_bounding = true;
-        self.bounding = None;
-        self.mark_bounding_volume_dirty();
-    }
-
-    pub fn disable_bounding(&mut self) {
-        self.enable_bounding = false;
-        self.bounding = None;
-        self.mark_bounding_volume_dirty();
-    }
-
-    pub fn bounding(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding.as_ref()
-    }
-
-    pub fn entities_len(&self) -> usize {
-        self.entities.len()
-    }
-
-    pub fn entities_hierarchy_len(&self) -> usize {
-        unsafe {
-            let mut entities_len = self.entities.len();
-            let mut groups = self.subgroups.values().collect::<VecDeque<_>>();
-            while let Some(group) = groups.pop_front() {
-                entities_len += (**group).entities.len();
-                groups.extend((**group).subgroups.values());
-            }
-            entities_len
-        }
-    }
-
-    pub fn add_entity<E>(&mut self, entity_base: E) -> &mut Entity
+    pub fn add_entity<E>(&mut self, entity: E)
     where
-        E: EntityBase + 'static,
+        E: Entity + 'static,
     {
-        self.add_entity_boxed(Box::new(entity_base))
+        self.add_entity_boxed(Rc::new(RefCell::new(entity)))
     }
 
-    pub fn add_entity_boxed(&mut self, entity_base: Box<dyn EntityBase>) -> &mut Entity {
-        unsafe {
-            let id = Uuid::new_v4();
-            let entity = Entity::new(id, entity_base, self);
-            self.entities.insert(id, entity);
-            (*self.container).entities.insert(id, entity);
-            self.mark_bounding_volume_dirty();
-            &mut *entity
-        }
+    pub fn add_entity_boxed(&mut self, entity: Rc<RefCell<dyn Entity>>) {
+        let id = entity.borrow().id().clone();
+        self.entities.insert(id, entity);
+        self.set_resync();
     }
 
-    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Box<dyn EntityBase>> {
-        unsafe {
-            let entity = self.entities.swap_remove(id)?;
-            (*self.container).entities.swap_remove(id);
-            self.mark_bounding_volume_dirty();
-            Some(Box::from_raw(entity).take())
-        }
-    }
-
-    pub fn entity(&self, id: &Uuid) -> Option<&Entity> {
-        self.entities.get(id).map(|entity| unsafe { &**entity })
-    }
-
-    pub fn entity_mut(&mut self, id: &Uuid) -> Option<&mut Entity> {
-        self.entities
-            .get_mut(id)
-            .map(|entity| unsafe { &mut **entity })
-    }
-
-    pub fn entities_iter(&self) -> impl Iterator<Item = &Entity> {
-        self.entities.values().map(|entity| unsafe { &**entity })
-    }
-
-    pub fn entities_iter_mut(&mut self) -> impl Iterator<Item = &mut Entity> {
-        self.entities
-            .values_mut()
-            .map(|entity| unsafe { &mut **entity })
-    }
-
-    pub fn subgroups_len(&self) -> usize {
-        self.subgroups.len()
-    }
-
-    pub fn subgroups_hierarchy_len(&self) -> usize {
-        unsafe {
-            let mut subgroups_len = self.subgroups.len();
-            let mut groups = self.subgroups.values().collect::<VecDeque<_>>();
-            while let Some(group) = groups.pop_front() {
-                subgroups_len += (**group).subgroups.len();
-                groups.extend((**group).subgroups.values());
+    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>> {
+        match self.entities.swap_remove(id) {
+            Some(entity) => {
+                self.set_resync();
+                Some(entity)
             }
-            subgroups_len
+            None => None,
         }
     }
 
-    pub fn add_subgroup(&mut self, group_options: GroupOptions) -> &mut Self {
-        unsafe {
-            let mut subgroup: *mut Group = std::ptr::null_mut();
-            let mut rollings: VecDeque<(GroupOptions, *mut Self)> =
-                VecDeque::from_iter([(group_options, self as *mut Self)]);
-            while let Some((group_options, parent)) = rollings.pop_front() {
-                let group_id = Uuid::new_v4();
-                let group = Box::leak(Box::new(Self::new(
-                    group_id,
-                    Some(parent),
-                    (*parent).container,
-                )));
-                group.set_model_matrix(group_options.model_matrix);
-                (*parent).subgroups.insert(group_id, group);
-                (*self.container).groups.insert(group_id, group);
+    pub fn add_sub_group<G>(&mut self, group: G)
+    where
+        G: Group + 'static,
+    {
+        self.add_sub_group_boxed(Rc::new(RefCell::new(group)))
+    }
 
-                for entity_options in group_options.entities {
-                    let entity_id = Uuid::new_v4();
-                    let entity = Entity::new(entity_id, entity_options, group);
-                    group.entities.insert(entity_id, entity);
-                    (*self.container).entities.insert(entity_id, entity);
-                }
+    pub fn add_sub_group_boxed(&mut self, group: Rc<RefCell<dyn Group>>) {
+        let id = group.borrow().id().clone();
+        self.sub_groups.insert(id, group);
+        self.set_resync();
+    }
 
-                if subgroup.is_null() {
-                    subgroup = group;
-                }
-
-                rollings.extend(
-                    group_options
-                        .subgroups
-                        .into_iter()
-                        .map(|subgroup_options| (subgroup_options, group as *mut Self)),
-                )
+    pub fn remove_sub_group(&mut self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>> {
+        match self.sub_groups.swap_remove(id) {
+            Some(sub_group) => {
+                self.set_resync();
+                Some(sub_group)
             }
-
-            self.mark_bounding_volume_dirty();
-
-            &mut *subgroup
+            None => None,
         }
     }
 
-    pub fn create_subgroup(&mut self) -> &mut Self {
-        unsafe {
-            let id = Uuid::new_v4();
-            let subgroup = Box::leak(Box::new(Self::new(id, Some(self), self.container)));
-            self.subgroups.insert(id, subgroup);
-            (*self.container).groups.insert(id, subgroup);
-            self.mark_bounding_volume_dirty();
-            subgroup
-        }
+    pub fn should_sync(&self) -> bool {
+        self.should_sync
     }
 
-    pub fn remove_subgroup(&mut self, id: &Uuid) -> Option<GroupOptions> {
-        unsafe {
-            let Some(group) = self.subgroups.swap_remove(id) else {
-                return None;
-            };
-
-            let mut out = GroupOptions::new();
-
-            let mut rollings = VecDeque::from_iter([(group, &mut out as *mut GroupOptions)]);
-            while let Some((group, out)) = rollings.pop_front() {
-                let group = Box::from_raw(group);
-                (*self.container).groups.swap_remove(&group.id);
-
-                for (entity_id, entity) in group.entities {
-                    (*self.container).entities.swap_remove(&entity_id);
-                    (*out).entities.push(Box::from_raw(entity).take());
-                }
-
-                (*out).model_matrix = group.model_matrix;
-
-                for (_, subgroup) in group.subgroups {
-                    (*out).subgroups.push(GroupOptions::new());
-                    rollings.push_back((subgroup, (*out).subgroups.last_mut().unwrap()));
-                }
-            }
-
-            self.mark_bounding_volume_dirty();
-
-            Some(out)
-        }
+    pub fn set_resync(&mut self) {
+        self.should_sync = true;
     }
 
-    pub fn remove_subgroup_flatten(&mut self, id: &Uuid) -> Option<Vec<Box<dyn EntityBase>>> {
-        unsafe {
-            let Some(group) = self.subgroups.swap_remove(id) else {
-                return None;
-            };
-            let mut group = Box::from_raw(group);
-
-            // removes from parent
-            if let Some(parent) = self.parent {
-                (*parent).subgroups.swap_remove(id);
-            }
-
-            // iterates and removes subgroups and entities
-            let mut entity_options = Vec::new();
-            let mut groups = group.subgroups.drain(..).collect::<VecDeque<_>>();
-            while let Some((group_id, group)) = groups.pop_front() {
-                (*self.container).groups.swap_remove(&group_id);
-                let mut group = Box::from_raw(group);
-                groups.extend(group.subgroups);
-
-                for (entity_id, entity) in group.entities.drain(..) {
-                    (*self.container).entities.swap_remove(&entity_id);
-                    entity_options.push(Box::from_raw(entity).take());
-                }
-            }
-
-            self.mark_bounding_volume_dirty();
-
-            Some(entity_options)
-        }
-    }
-
-    pub fn decompose(mut self) {
-        unsafe {
-            let Some(parent) = self.parent else {
-                warn!(
-                    target: "Group",
-                    "decompose root group has no effect"
-                );
-                return;
-            };
-            let me = (*parent).subgroups.swap_remove(&self.id).unwrap();
-
-            self.subgroups.values_mut().for_each(|subgroup| {
-                (**subgroup).parent = Some(parent);
-            });
-            self.entities.values_mut().for_each(|entity| {
-                (**entity).group = parent;
-            });
-            (*parent).entities.extend(self.entities);
-            (*parent).subgroups.extend(self.subgroups);
-
-            drop(Box::from(me));
-        }
-    }
-
-    pub fn subgroup(&self, id: &Uuid) -> Option<&Group> {
-        self.subgroups.get(id).map(|group| unsafe { &**group })
-    }
-
-    pub fn subgroup_mut(&mut self, id: &Uuid) -> Option<&mut Group> {
-        self.subgroups
-            .get_mut(id)
-            .map(|group| unsafe { &mut **group })
-    }
-
-    pub fn subgroups_iter(&self) -> impl Iterator<Item = &Group> {
-        self.subgroups.values().map(|group| unsafe { &**group })
-    }
-
-    pub fn subgroups_iter_mut(&mut self) -> impl Iterator<Item = &mut Group> {
-        self.subgroups
-            .values_mut()
-            .map(|group| unsafe { &mut **group })
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty_field != GROUP_DIRTY_FIELD_CLEAR
-    }
-
-    fn mark_model_matrix_dirty(&mut self) {
-        self.mark_dirty_inner(GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY)
-    }
-
-    fn mark_bounding_volume_dirty(&mut self) {
-        self.mark_dirty_inner(GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY)
-    }
-
-    fn mark_dirty_inner(&mut self, field: u8) {
-        unsafe {
-            self.dirty_field |= field;
-
-            // updates all children if compose model matrix changed
-            if field & GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY != 0 {
-                for entity in self.entities_iter_mut() {
-                    entity.dirty_field |= ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY;
-                }
-
-                let mut subgroups = self.subgroups.values_mut().collect::<VecDeque<_>>();
-                while let Some(subgroup) = subgroups.pop_front() {
-                    (**subgroup).dirty_field |= GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY;
-                    for entity in (**subgroup).entities_iter_mut() {
-                        entity.dirty_field |= ENTITY_DIRTY_FIELD_MODEL_MATRIX_DIRTY;
-                    }
-
-                    subgroups.extend((**subgroup).subgroups.values_mut());
-                }
-            }
-
-            if field
-                & (GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY | GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY)
-                != 0
-            {
-                let mut parent = self.parent;
-                while let Some(p) = parent.take() {
-                    (*p).dirty_field |= GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY;
-                    parent = (*p).parent;
-                }
-            }
-
-            (*self.container).mark_dirty();
-        }
-    }
-
-    fn refresh(&mut self) {
-        if self.is_dirty() {
-            self.refresh_compose_matrices();
-
-            if self.enable_bounding {
-                self.refresh_children_and_bounding_volume();
-            } else {
-                self.refresh_children();
-                self.bounding = None;
-            }
-
-            self.dirty_field = GROUP_DIRTY_FIELD_CLEAR;
-        } else {
-            self.refresh_children();
-        }
-    }
-
-    fn refresh_compose_matrices(&mut self) {
-        if self.dirty_field & GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY == 0 {
-            return;
-        }
-
-        self.compose_model_matrix = match self.parent() {
-            Some(parent) => parent.compose_model_matrix * self.model_matrix,
+    fn sync_matrices(&mut self, parent: Option<&dyn Group>) {
+        self.compose_model_matrix = match parent {
+            Some(parent) => *parent.compose_model_matrix() * self.model_matrix,
             None => self.model_matrix.clone(),
         };
     }
 
-    fn refresh_children_and_bounding_volume(&mut self) {
-        if self.dirty_field
-            & (GROUP_DIRTY_FIELD_MODEL_MATRIX_DIRTY | GROUP_DIRTY_FIELD_BOUNDING_VOLUME_DIRTY)
-            == 0
-        {
-            return;
-        }
+    fn sync_children_and_bounding_volume(&mut self) {
+        let mut bounding_volumes = Vec::new();
 
-        let mut boundings = Vec::new();
-        for entity in self.entities_iter_mut() {
-            entity.refresh();
-            if let Some(bounding) = entity.bounding() {
-                boundings.push(bounding.bounding());
+        for entity in self.entities() {
+            entity.borrow_mut().sync(self);
+
+            if let Some(bounding) = entity.borrow().bounding_volume() {
+                bounding_volumes.push(bounding.bounding_volume());
             }
         }
-        for subgroup in self.subgroups_iter_mut() {
-            subgroup.refresh();
-            if let Some(bounding) = subgroup.bounding() {
-                boundings.push(bounding.bounding());
+
+        for sub_group in self.sub_groups() {
+            sub_group.borrow_mut().sync(Some(self));
+
+            if let Some(bounding) = sub_group.borrow().bounding_volume() {
+                bounding_volumes.push(bounding.bounding_volume());
             }
         }
-        self.bounding =
-            merge_bounding_volumes(boundings).map(|bounding| CullingBoundingVolume::new(bounding));
+
+        self.bounding_volume = merge_bounding_volumes(bounding_volumes)
+            .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
-    fn refresh_children(&mut self) {
-        for entity in self.entities_iter_mut() {
-            entity.refresh();
+    fn sync_children(&mut self) {
+        for entity in self.entities() {
+            entity.borrow_mut().sync(self);
         }
-        for subgroup in self.subgroups_iter_mut() {
-            subgroup.refresh();
-        }
-    }
-}
 
-struct ContainerInner {
-    entities: IndexMap<Uuid, *mut Entity>,
-    groups: IndexMap<Uuid, *mut Group>,
-    root_group: *mut Group,
-
-    dirty: bool,
-}
-
-impl Drop for ContainerInner {
-    fn drop(&mut self) {
-        unsafe {
-            for entity in self.entities.values() {
-                drop(Box::from_raw(*entity));
-            }
-            for group in self.groups.values() {
-                drop(Box::from_raw(*group));
-            }
-            drop(Box::from_raw(self.root_group));
+        for sub_group in self.sub_groups() {
+            sub_group.borrow_mut().sync(Some(self));
         }
     }
 }
 
-impl ContainerInner {
-    fn new() -> *mut Self {
-        let me = Box::leak(Box::new(Self {
-            entities: IndexMap::new(),
-            groups: IndexMap::new(),
-            root_group: std::ptr::null_mut(),
-
-            dirty: false,
-        }));
-        let root_group = Box::leak(Box::new(Group::new(Uuid::new_v4(), None, me)));
-        me.root_group = root_group;
-        me
+impl Group for SimpleGroup {
+    fn id(&self) -> &Uuid {
+        &self.id
     }
 
-    fn mark_dirty(&mut self) {
-        self.dirty = true;
-    }
-}
-
-pub struct Container(*mut ContainerInner);
-
-impl Drop for Container {
-    fn drop(&mut self) {
-        unsafe {
-            drop(Box::from_raw(self.0));
-        }
-    }
-}
-
-impl Container {
-    pub fn new() -> Self {
-        Self(ContainerInner::new())
+    fn compose_model_matrix(&self) -> &Mat4 {
+        &self.compose_model_matrix
     }
 
-    pub fn entities_len(&self) -> usize {
-        unsafe { (*self.0).entities.len() }
+    fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {
+        self.bounding_volume.as_ref()
     }
 
-    pub fn groups_len(&self) -> usize {
-        unsafe { (*self.0).groups.len() }
+    fn entity(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>> {
+        self.entities.get(id).map(|entity| Rc::clone(entity))
     }
 
-    pub fn entity(&self, id: &Uuid) -> Option<&Entity> {
-        unsafe { (*self.0).entities.get(id).map(|entity| &**entity) }
+    fn entities(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Entity>>> + '_> {
+        Box::new(self.entities.values().map(|entity| Rc::clone(entity)))
     }
 
-    pub fn entity_mut(&mut self, id: &Uuid) -> Option<&mut Entity> {
-        unsafe { (*self.0).entities.get_mut(id).map(|entity| &mut **entity) }
+    fn sub_group(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>> {
+        self.sub_groups
+            .get(id)
+            .map(|sub_group| Rc::clone(sub_group))
     }
 
-    pub fn entities(&self) -> impl Iterator<Item = &Entity> {
-        unsafe { (*self.0).entities.values().map(|entity| &**entity) }
+    fn sub_groups(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Group>>> + '_> {
+        Box::new(
+            self.sub_groups
+                .values()
+                .map(|sub_group| Rc::clone(sub_group)),
+        )
     }
 
-    pub fn entities_mut(&mut self) -> impl Iterator<Item = &mut Entity> {
-        unsafe { (*self.0).entities.values_mut().map(|entity| &mut **entity) }
-    }
+    fn sync(&mut self, parent: Option<&dyn Group>) {
+        if self.should_sync {
+            self.sync_matrices(parent);
 
-    pub fn entities_raw(&mut self) -> &mut IndexMap<Uuid, *mut Entity> {
-        unsafe { &mut (*self.0).entities }
-    }
-
-    pub fn root_group(&self) -> &Group {
-        unsafe { &(*(*self.0).root_group) }
-    }
-
-    pub fn root_group_mut(&self) -> &mut Group {
-        unsafe { &mut (*(*self.0).root_group) }
-    }
-
-    pub fn group(&self, id: &Uuid) -> Option<&Group> {
-        unsafe { (*self.0).groups.get(id).map(|group| &**group) }
-    }
-
-    pub fn group_mut(&mut self, id: &Uuid) -> Option<&mut Group> {
-        unsafe { (*self.0).groups.get_mut(id).map(|group| &mut **group) }
-    }
-
-    pub fn groups_raw(&mut self) -> &mut IndexMap<Uuid, *mut Group> {
-        unsafe { &mut (*self.0).groups }
-    }
-
-    pub fn groups(&self) -> impl Iterator<Item = &Group> {
-        unsafe { (*self.0).groups.values().map(|group| &**group) }
-    }
-
-    pub fn groups_mut(&mut self) -> impl Iterator<Item = &mut Group> {
-        unsafe { (*self.0).groups.values_mut().map(|group| &mut **group) }
-    }
-
-    pub fn move_entity_to_root(&mut self, entity_id: &Uuid) -> Result<(), Error> {
-        unsafe {
-            let Some(entity) = (*self.0).entities.get(entity_id) else {
-                return Err(Error::NoSuchEntity);
-            };
-            let entity = &mut **entity;
-
-            if entity.group == (*self.0).root_group {
-                Ok(())
+            if self.enable_bounding {
+                self.sync_children_and_bounding_volume();
             } else {
-                let group = &mut *entity.group;
-                group.entities.swap_remove(entity_id);
-                (*(*self.0).root_group).entities.insert(*entity_id, entity);
-                entity.group = (*self.0).root_group;
-                self.mark_dirty();
-                Ok(())
+                self.sync_children();
+                self.bounding_volume = None;
             }
+            self.should_sync = false;
+        } else {
+            self.sync_children();
         }
     }
 
-    pub fn move_entity_to_group(&mut self, entity_id: &Uuid, group_id: &Uuid) -> Result<(), Error> {
-        unsafe {
-            let Some(entity) = (*self.0).entities.get(entity_id) else {
-                return Err(Error::NoSuchEntity);
-            };
-            let Some(to_group) = (*self.0).groups.get(group_id) else {
-                return Err(Error::NoSuchGroup);
-            };
-            let entity = &mut **entity;
-            let from_group = &mut *entity.group;
-            let to_group = &mut **to_group;
-
-            from_group.entities.swap_remove(entity_id);
-            to_group.entities.insert(*entity_id, entity);
-            entity.group = to_group;
-            self.mark_dirty();
-        }
-
-        Ok(())
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    pub fn move_group_to_root(&mut self, group_id: &Uuid) -> Result<(), Error> {
-        unsafe {
-            let Some(group) = (*self.0).groups.get(group_id) else {
-                return Err(Error::NoSuchGroup);
-            };
-            let group = &mut **group;
-            let parent = group.parent.unwrap();
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
-            if parent == (*self.0).root_group {
-                return Ok(());
-            }
+pub struct SceneGroup(SimpleGroup);
 
-            (*parent).subgroups.swap_remove(&group.id);
-            (*(*self.0).root_group).subgroups.insert(group.id, group);
-            group.parent = Some((*self.0).root_group);
-            self.mark_dirty();
+impl Deref for SceneGroup {
+    type Target = SimpleGroup;
 
-            Ok(())
-        }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for SceneGroup {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl SceneGroup {
+    pub fn new() -> Self {
+        Self(SimpleGroup::new())
     }
 
-    pub fn move_group_to_group(
-        &mut self,
-        group_id: &Uuid,
-        to_group_id: &Uuid,
-    ) -> Result<(), Error> {
-        unsafe {
-            let Some(group) = (*self.0).groups.get(group_id) else {
-                return Err(Error::NoSuchGroup);
-            };
-            let Some(to_group) = (*self.0).groups.get(to_group_id) else {
-                return Err(Error::NoSuchGroup);
-            };
-            let group = &mut **group;
-            let parent = group.parent.unwrap();
-
-            if parent == *to_group {
-                return Ok(());
-            }
-
-            let to_group = &mut **to_group;
-
-            (*parent).subgroups.swap_remove(group_id);
-            to_group.subgroups.insert(*group_id, group);
-            group.parent = Some(to_group);
-            self.mark_dirty();
-        }
-        Ok(())
-    }
-
-    pub fn mark_dirty(&mut self) {
-        unsafe {
-            (*self.0).mark_dirty();
-        }
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        unsafe { (*self.0).dirty }
-    }
-
-    pub fn refresh(&mut self) {
-        unsafe {
-            (*(*self.0).root_group).refresh();
-            (*self.0).dirty = false;
-        }
+    /// Syncs scene entities.
+    pub fn sync(&mut self) {
+        self.0.sync(None)
     }
 }

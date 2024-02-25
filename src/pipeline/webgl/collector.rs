@@ -1,67 +1,40 @@
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
+
+use uuid::Uuid;
+
 use crate::{
     bounding::Culling,
-    entity::{Container, Entity},
+    entity::{Entity, Group},
     frustum::ViewFrustum,
     material::Transparency,
     renderer::webgl::state::FrameState,
     scene::Scene,
 };
 
-#[derive(Clone, Copy)]
-pub struct CollectedEntity {
-    entity: *mut Entity,
-    transparency: Transparency,
-    distance: f64,
-}
-
-impl CollectedEntity {
-    #[inline]
-    pub unsafe fn entity<'a, 'b>(&'a self) -> &'b Entity {
-        &*self.entity
-    }
-
-    #[inline]
-    pub unsafe fn entity_mut<'a, 'b>(&'a self) -> &'b mut Entity {
-        &mut *self.entity
-    }
-
-    #[inline]
-    pub fn entity_raw(&self) -> *mut Entity {
-        self.entity
-    }
-
-    #[inline]
-    pub fn distance(&self) -> f64 {
-        self.distance
-    }
-}
-
 pub struct CollectedEntities<'a> {
-    id: usize,
-    entities: &'a [CollectedEntity],
-    opaque_entities: &'a [CollectedEntity],
-    transparent_entities: &'a [CollectedEntity],
-    translucent_entities: &'a [CollectedEntity],
+    entities: &'a [Weak<RefCell<dyn Entity>>],
+    opaque_entities: &'a [Weak<RefCell<dyn Entity>>],
+    transparent_entities: &'a [Weak<RefCell<dyn Entity>>],
+    translucent_entities: &'a [Weak<RefCell<dyn Entity>>],
 }
 
 impl<'a> CollectedEntities<'a> {
-    pub fn id(&self) -> usize {
-        self.id
-    }
-
-    pub fn entities(&self) -> &[CollectedEntity] {
+    pub fn entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.entities
     }
 
-    pub fn opaque_entities(&self) -> &[CollectedEntity] {
+    pub fn opaque_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.opaque_entities
     }
 
-    pub fn transparent_entities(&self) -> &[CollectedEntity] {
+    pub fn transparent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.transparent_entities
     }
 
-    pub fn translucent_entities(&self) -> &[CollectedEntity] {
+    pub fn translucent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.translucent_entities
     }
 }
@@ -71,12 +44,11 @@ pub struct StandardEntitiesCollector {
     enable_distance_sorting: bool,
 
     last_view_frustum: Option<ViewFrustum>,
-    last_container_ptr: Option<*const Container>,
-    last_collected_id: Option<usize>,
-    last_entities: Vec<CollectedEntity>,
-    last_opaque_entities: Vec<CollectedEntity>,
-    last_transparent_entities: Vec<CollectedEntity>,
-    last_translucent_entities: Vec<CollectedEntity>,
+    last_scene_id: Option<Uuid>,
+    last_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_opaque_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_transparent_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_translucent_entities: Vec<Weak<RefCell<dyn Entity>>>,
 }
 
 impl StandardEntitiesCollector {
@@ -87,8 +59,7 @@ impl StandardEntitiesCollector {
             enable_distance_sorting: true,
 
             last_view_frustum: None,
-            last_container_ptr: None,
-            last_collected_id: None,
+            last_scene_id: None,
             last_entities: Vec::new(),
             last_opaque_entities: Vec::new(),
             last_transparent_entities: Vec::new(),
@@ -99,7 +70,7 @@ impl StandardEntitiesCollector {
     /// Clears previous collected result.
     pub fn clear(&mut self) {
         self.last_view_frustum = None;
-        self.last_container_ptr = None;
+        self.last_scene_id = None;
         self.last_entities.clear();
         self.last_opaque_entities.clear();
         self.last_transparent_entities.clear();
@@ -148,50 +119,48 @@ impl StandardEntitiesCollector {
         }
     }
 
-    pub fn last_collected_entities(&self) -> Option<CollectedEntities> {
-        match self.last_collected_id {
-            Some(id) => Some(CollectedEntities {
-                id,
-                entities: &self.last_entities,
-                opaque_entities: &self.last_opaque_entities,
-                transparent_entities: &self.last_transparent_entities,
-                translucent_entities: &self.last_translucent_entities,
-            }),
-            None => None,
+    /// Returns last collected entities.
+    pub fn last_collected_entities(&self) -> CollectedEntities {
+        CollectedEntities {
+            entities: &self.last_entities,
+            opaque_entities: &self.last_opaque_entities,
+            transparent_entities: &self.last_transparent_entities,
+            translucent_entities: &self.last_translucent_entities,
         }
     }
 
     /// Collects and returns entities.
-    pub fn collect_entities(&mut self, state: &FrameState, scene: &mut Scene) -> CollectedEntities {
+    pub fn collect_entities(
+        &mut self,
+        state: &mut FrameState,
+        scene: &mut Scene,
+    ) -> CollectedEntities {
+        struct CollectedEntity {
+            entity: Rc<RefCell<dyn Entity>>,
+            transparency: Transparency,
+            distance: f64,
+        }
+
         let view_frustum = state.camera().view_frustum();
-        match (
-            self.last_collected_id.as_ref(),
-            self.last_container_ptr.as_ref(),
-            self.last_view_frustum.as_ref(),
-            scene.entity_container().is_dirty(),
-        ) {
-            (Some(last_collected_id), Some(last_container), Some(last_view_frustum), false) => {
-                match (
-                    std::ptr::eq(*last_container, scene.entity_container()),
-                    last_view_frustum == &view_frustum,
-                ) {
-                    (true, true) => {
-                        return CollectedEntities {
-                            id: *last_collected_id,
-                            entities: &self.last_entities,
-                            opaque_entities: &self.last_opaque_entities,
-                            transparent_entities: &self.last_transparent_entities,
-                            translucent_entities: &self.last_translucent_entities,
-                        }
-                    }
-                    _ => {
-                        // recollect
-                    }
-                }
-            }
-            _ => {
-                // recollect
-            }
+
+        let should_recollect = scene.entity_group().should_sync()
+            || self
+                .last_scene_id
+                .as_ref()
+                .map(|last_scene_id| last_scene_id != scene.entity_group().id())
+                .unwrap_or(true)
+            || self
+                .last_view_frustum
+                .as_ref()
+                .map(|last_view_frustum| last_view_frustum != &view_frustum)
+                .unwrap_or(true);
+        if !should_recollect {
+            return CollectedEntities {
+                entities: &self.last_entities,
+                opaque_entities: &self.last_opaque_entities,
+                transparent_entities: &self.last_transparent_entities,
+                translucent_entities: &self.last_translucent_entities,
+            };
         }
 
         self.clear();
@@ -199,95 +168,127 @@ impl StandardEntitiesCollector {
         let view_position = state.camera().position();
         let culling = self.culling_enabled();
         let distance_sorting = self.distance_sorting_enabled();
+        let mut entities = Vec::new();
 
-        scene.entity_container_mut().refresh();
-        for entity in scene.entity_container_mut().entities_mut() {
-            let transparency = match entity.material().map(|material| material.transparency()) {
-                Some(transparency) => transparency,
-                None => continue,
-            };
+        scene.entity_group_mut().sync();
 
-            let collected = match (culling, distance_sorting) {
-                (true, true) => {
-                    let distance = match entity.bounding() {
-                        Some(bounding) => match bounding.cull(&view_frustum) {
-                            Culling::Outside => continue,
-                            Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
-                        },
-                        None => f64::INFINITY,
-                    };
+        if culling {
+            for entity in scene.entity_group_mut().entities() {
+                let distance = match entity.borrow().bounding_volume() {
+                    Some(entity_bounding) => match entity_bounding.cull(&view_frustum) {
+                        Culling::Outside => continue,
+                        Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
+                    },
+                    None => f64::INFINITY,
+                };
 
-                    CollectedEntity {
-                        entity,
-                        transparency,
-                        distance,
-                    }
-                }
-                (true, false) => {
-                    let distance = match entity.bounding() {
-                        Some(bounding) => match bounding.cull(&view_frustum) {
-                            Culling::Outside => continue,
-                            Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
-                        },
-                        None => f64::INFINITY,
-                    };
+                let transparency = entity
+                    .borrow()
+                    .material()
+                    .map(|material| material.transparency())
+                    .unwrap_or(Transparency::Transparent);
 
-                    CollectedEntity {
-                        entity,
-                        transparency,
-                        distance,
-                    }
-                }
-                (false, true) => {
-                    let distance = match entity.bounding() {
-                        Some(bounding) => bounding.center().distance(&view_position),
-                        None => f64::INFINITY,
-                    };
-
-                    CollectedEntity {
-                        entity,
-                        transparency,
-                        distance,
-                    }
-                }
-                (false, false) => CollectedEntity {
+                entities.push(CollectedEntity {
                     entity,
                     transparency,
-                    distance: f64::INFINITY,
-                },
-            };
+                    distance,
+                });
+            }
 
-            self.last_entities.push(collected);
-            if !distance_sorting {
-                match transparency {
-                    Transparency::Opaque => self.last_opaque_entities.push(collected),
-                    Transparency::Transparent => self.last_transparent_entities.push(collected),
-                    Transparency::Translucent(_) => self.last_translucent_entities.push(collected),
+            for group in scene.entity_group_mut().sub_groups_hierarchy() {
+                // culling group bounding
+                if let Some(group_bounding) = group.borrow().bounding_volume() {
+                    if let Culling::Outside = group_bounding.cull(&view_frustum) {
+                        continue;
+                    }
+                }
+
+                for entity in group.borrow().entities() {
+                    let distance = match entity.borrow().bounding_volume() {
+                        Some(entity_bounding) => match entity_bounding.cull(&view_frustum) {
+                            Culling::Outside => continue,
+                            Culling::Inside { near, .. } | Culling::Intersect { near, .. } => near,
+                        },
+                        None => f64::INFINITY,
+                    };
+
+                    let transparency = entity
+                        .borrow()
+                        .material()
+                        .map(|material| material.transparency())
+                        .unwrap_or(Transparency::Transparent);
+
+                    entities.push(CollectedEntity {
+                        entity,
+                        transparency,
+                        distance,
+                    });
+                }
+            }
+        } else {
+            for entity in scene.entity_group_mut().entities_hierarchy() {
+                let transparency = entity
+                    .borrow()
+                    .material()
+                    .map(|material| material.transparency())
+                    .unwrap_or(Transparency::Transparent);
+                let distance = match distance_sorting {
+                    true => entity
+                        .borrow()
+                        .bounding_volume()
+                        .map(|bounding| bounding.center().distance(&view_position))
+                        .unwrap_or(f64::INFINITY),
+                    false => f64::INFINITY,
                 };
+
+                entities.push(CollectedEntity {
+                    entity,
+                    transparency,
+                    distance,
+                });
             }
         }
 
         if distance_sorting {
-            self.last_entities
-                .sort_by(|a, b| a.distance.total_cmp(&b.distance));
-            for collected in self.last_entities.iter() {
-                match collected.transparency {
-                    Transparency::Opaque => self.last_opaque_entities.push(*collected),
-                    Transparency::Transparent => self.last_transparent_entities.push(*collected),
-                    Transparency::Translucent(_) => self.last_translucent_entities.push(*collected),
+            entities.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+        }
+
+        for CollectedEntity {
+            entity,
+            transparency,
+            ..
+        } in entities.iter()
+        {
+            // checks material availability
+            // prepares material if not ready yet
+            {
+                let mut entity = entity.borrow_mut();
+                if let Some(material) = entity.material_mut() {
+                    if !material.ready() {
+                        material.prepare(state);
+                        scene.entity_group_mut().set_resync();
+                        continue;
+                    }
+                }
+            }
+
+            let entity = Rc::downgrade(&entity);
+            self.last_entities.push(Weak::clone(&entity));
+            match transparency {
+                Transparency::Opaque => self.last_opaque_entities.push(Weak::clone(&entity)),
+                Transparency::Transparent => {
+                    self.last_transparent_entities.push(Weak::clone(&entity))
+                }
+                Transparency::Translucent(_) => {
+                    self.last_translucent_entities.push(Weak::clone(&entity))
                 }
             }
         }
 
-        self.last_container_ptr = Some(scene.entity_container());
+        self.last_scene_id = Some(scene.entity_group().id().clone());
         self.last_view_frustum = Some(view_frustum);
-        self.last_collected_id = match self.last_collected_id {
-            Some(last_collected_id) => Some(last_collected_id.wrapping_add(1)),
-            None => Some(0),
-        };
 
         CollectedEntities {
-            id: self.last_collected_id.unwrap(),
             entities: &self.last_entities,
             opaque_entities: &self.last_opaque_entities,
             transparent_entities: &self.last_transparent_entities,

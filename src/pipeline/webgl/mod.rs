@@ -4,9 +4,10 @@ pub mod composer;
 pub mod preparation;
 pub mod shading;
 
+use std::{cell::RefCell, rc::Rc};
+
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::{
     entity::Entity,
@@ -512,30 +513,12 @@ impl StandardPipeline {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<&mut Entity>, Error> {
-        let Some(last_collected_entities) = self.entities_collector.last_collected_entities()
-        else {
-            return Ok(None);
-        };
-
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
         self.picking.pick_entity(
             window_position_x,
             window_position_y,
-            &last_collected_entities,
+            &self.entities_collector.last_collected_entities(),
         )
-    }
-
-    /// Returns picked entity id.
-    /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
-    pub unsafe fn pick_entity_id(
-        &mut self,
-        window_position_x: i32,
-        window_position_y: i32,
-    ) -> Result<Option<Uuid>, Error> {
-        let Some(entity) = self.pick_entity(window_position_x, window_position_y)? else {
-            return Ok(None);
-        };
-        Ok(Some(*entity.id()))
     }
 
     /// Returns picked position.
@@ -545,15 +528,10 @@ impl StandardPipeline {
         window_position_x: i32,
         window_position_y: i32,
     ) -> Result<Option<Vec3>, Error> {
-        let Some(last_collected_entities) = self.entities_collector.last_collected_entities()
-        else {
-            return Ok(None);
-        };
-
         self.picking.pick_position(
             window_position_x,
             window_position_y,
-            &last_collected_entities,
+            &self.entities_collector.last_collected_entities(),
         )
     }
 }

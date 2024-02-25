@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 use log::warn;
@@ -27,8 +27,7 @@ pub struct StandardPicking {
     framebuffer: Option<Framebuffer>,
     pixel: Uint32Array,
 
-    last_gl: Option<WebGl2RenderingContext>,
-    last_picking_collected_entities_id: Option<usize>,
+    gl: Option<WebGl2RenderingContext>,
 }
 
 impl StandardPicking {
@@ -37,8 +36,7 @@ impl StandardPicking {
             framebuffer: None,
             pixel: Uint32Array::new_with_length(4),
 
-            last_gl: None,
-            last_picking_collected_entities_id: None,
+            gl: None,
         }
     }
 
@@ -66,12 +64,8 @@ impl StandardPicking {
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
     ) -> Result<(), Error> {
-        // skips render if collect_entities unchanged and pipeline is not dirty
-        if self
-            .last_picking_collected_entities_id
-            .map(|id| id == collected_entities.id())
-            .unwrap_or(false)
-        {
+        // skips if collected entities is empty
+        if collected_entities.entities().len() == 0 {
             return Ok(());
         }
 
@@ -105,17 +99,21 @@ impl StandardPicking {
 
         // render each entity by picking material
         for (index, entity) in entities.into_iter().enumerate() {
+            let Some(entity) = entity.upgrade() else {
+                continue;
+            };
+            let entity = entity.borrow();
+
             // skips if overflows
             if index > max_entities_len {
                 break;
             }
 
-            let entity = entity.entity();
             let Some(geometry) = entity.geometry() else {
                 continue;
             };
 
-            // do not pick entity has no material or transparent material or not ready
+            // do not pick entity has no material or has transparent material or not ready
             if let Some(material) = entity.material() {
                 if material.transparency() == Transparency::Transparent {
                     continue;
@@ -140,6 +138,7 @@ impl StandardPicking {
                 INDEX_UNIFORM_NAME,
                 &UniformValue::UnsignedInteger1((index + 1) as u32),
             )?;
+
             let bound_attributes = state.bind_attribute_value_by_variable_name(
                 program,
                 POSITION_ATTRIBUTE_NAME,
@@ -152,8 +151,7 @@ impl StandardPicking {
         self.framebuffer(&state).unbind();
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
-        self.last_gl = Some(state.gl().clone());
-        self.last_picking_collected_entities_id = Some(collected_entities.id());
+        self.gl = Some(state.gl().clone());
 
         Ok(())
     }
@@ -164,18 +162,14 @@ impl StandardPicking {
         window_position_x: i32,
         window_position_y: i32,
         collected_entities: &CollectedEntities,
-    ) -> Result<Option<&mut Entity>, Error> {
-        if self
-            .last_picking_collected_entities_id
-            .map(|id| id != collected_entities.id())
-            .unwrap_or(true)
-        {
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
+        if collected_entities.entities().len() == 0 {
             return Ok(None);
-        };
+        }
         let Some(fbo) = self.framebuffer.as_mut() else {
             return Ok(None);
         };
-        let Some(gl) = self.last_gl.as_ref() else {
+        let Some(gl) = self.gl.as_ref() else {
             return Ok(None);
         };
         let Some(canvas) = gl
@@ -203,7 +197,7 @@ impl StandardPicking {
             Ok(collected_entities
                 .entities()
                 .get(index - 1)
-                .map(|e| e.entity_mut()))
+                .and_then(|entity| entity.upgrade()))
         } else {
             Ok(None)
         }
@@ -216,17 +210,13 @@ impl StandardPicking {
         window_position_y: i32,
         collected_entities: &CollectedEntities,
     ) -> Result<Option<Vec3>, Error> {
-        if self
-            .last_picking_collected_entities_id
-            .map(|id| id != collected_entities.id())
-            .unwrap_or(true)
-        {
+        if collected_entities.entities().len() == 0 {
             return Ok(None);
-        };
+        }
         let Some(fbo) = self.framebuffer.as_mut() else {
             return Ok(None);
         };
-        let Some(gl) = self.last_gl.as_ref() else {
+        let Some(gl) = self.gl.as_ref() else {
             return Ok(None);
         };
         let Some(canvas) = gl

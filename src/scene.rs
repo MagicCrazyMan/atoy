@@ -8,7 +8,7 @@ use web_sys::{
 
 use crate::{
     document,
-    entity::Container,
+    entity::SceneGroup,
     error::Error,
     light::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
@@ -39,7 +39,7 @@ pub struct Scene {
     canvas_handler: SceneCanvasHandler,
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
-    entity_container: Container,
+    entities: SceneGroup,
     light_attenuations: Attenuation,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
@@ -71,7 +71,7 @@ impl Scene {
             _select_start_callback: select_start_callback,
             canvas,
 
-            entity_container: Container::new(),
+            entities: SceneGroup::new(),
             light_attenuations: Attenuation::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
@@ -90,14 +90,14 @@ impl Scene {
         &mut self.canvas_handler
     }
 
-    /// Returns root entities collection.
-    pub fn entity_container(&self) -> &Container {
-        &self.entity_container
+    /// Returns entity group.
+    pub fn entity_group(&self) -> &SceneGroup {
+        &self.entities
     }
 
-    /// Returns mutable root entities collection.
-    pub fn entity_container_mut(&mut self) -> &mut Container {
-        &mut self.entity_container
+    /// Returns mutable entity group.
+    pub fn entity_group_mut(&mut self) -> &mut SceneGroup {
+        &mut self.entities
     }
 
     /// Returns ambient light.

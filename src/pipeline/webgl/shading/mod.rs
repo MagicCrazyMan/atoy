@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::OnceLock};
+use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::OnceLock};
 
 use web_sys::WebGl2RenderingContext;
 
@@ -51,6 +51,7 @@ pub(self) enum DrawState<'a> {
 pub(self) unsafe fn draw_entities(
     state: &mut FrameState,
     draw_state: &DrawState,
+
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     draw_opaque_entities(state, &draw_state, collected_entities)?;
@@ -61,14 +62,18 @@ pub(self) unsafe fn draw_entities(
 unsafe fn draw_opaque_entities(
     state: &mut FrameState,
     draw_state: &DrawState,
+
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
     state.gl().depth_mask(true);
 
     // draws opaque enable DEPTH_TEST and disable BLEND and draws them from nearest to farthest first
-    for collected_entity in collected_entities.opaque_entities() {
-        draw_entity(state, draw_state, true, collected_entity.entity_mut())?;
+    for entity in collected_entities.opaque_entities() {
+        let Some(entity) = entity.upgrade() else {
+            continue;
+        };
+        draw_entity(state, draw_state, true, entity)?;
     }
 
     state.gl().disable(WebGl2RenderingContext::CULL_FACE);
@@ -81,6 +86,7 @@ unsafe fn draw_opaque_entities(
 unsafe fn draw_translucent_entities(
     state: &mut FrameState,
     draw_state: &DrawState,
+
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
@@ -93,9 +99,12 @@ unsafe fn draw_translucent_entities(
     );
 
     // draws translucents first with DEPTH_TEST unchangeable and enable BLEND and draws them from farthest to nearest
-    for collected_entity in collected_entities.translucent_entities().iter().rev() {
+    for entity in collected_entities.translucent_entities().iter().rev() {
         // transparency entities never cull face
-        draw_entity(state, draw_state, false, collected_entity.entity_mut())?;
+        let Some(entity) = entity.upgrade() else {
+            continue;
+        };
+        draw_entity(state, draw_state, false, entity)?;
     }
 
     state.gl().depth_mask(true);
@@ -174,27 +183,12 @@ fn prepare_program<'a, 'b, 'c>(
 fn draw_entity(
     state: &mut FrameState,
     draw_state: &DrawState,
-    should_cull_face: bool,
-    entity: &mut Entity,
-) -> Result<(), Error> {
-    // checks material availability
-    if entity.material().is_some() {
-        // prepares material if not ready yet
-        if !entity.material().unwrap().ready() {
-            let callback = entity.material_callback();
-            entity.material_mut().unwrap().prepare(state, callback);
-            return Ok(());
-        }
-    } else {
-        return Ok(());
-    }
-    // checks geometry availability
-    if entity.geometry().is_none() {
-        return Ok(());
-    }
 
+    should_cull_face: bool,
+    entity: Rc<RefCell<dyn Entity>>,
+) -> Result<(), Error> {
+    let entity = entity.borrow();
     let geometry = entity.geometry().unwrap();
-    let material = entity.material().unwrap();
 
     // culls face
     if should_cull_face {
@@ -208,11 +202,9 @@ fn draw_entity(
         state.gl().disable(WebGl2RenderingContext::CULL_FACE);
     }
 
-    // binds program
-    let program = prepare_program(state, draw_state, material)?;
-
-    let bound_attributes = state.bind_attributes(program, &entity, geometry, material)?;
-    let bound_uniforms = state.bind_uniforms(program, &entity, geometry, material)?;
+    let program = prepare_program(state, draw_state, entity.material().unwrap())?;
+    let bound_attributes = state.bind_attributes(program, &entity)?;
+    let bound_uniforms = state.bind_uniforms(program, &entity)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
     state.unbind_uniforms(bound_uniforms)?;

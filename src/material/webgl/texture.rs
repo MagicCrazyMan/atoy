@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-use super::{StandardMaterial, StandardMaterialPreparationCallback, Transparency};
+use super::{StandardMaterial, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -55,7 +55,7 @@ impl TextureMaterial {
         }
     }
 
-    fn prepare_albedo(&self, callback: StandardMaterialPreparationCallback) {
+    fn prepare_albedo(&self) {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             loader.load();
@@ -63,7 +63,6 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
                 texture_uniform: Rc::downgrade(&self.albedo),
-                callback,
             });
         }
     }
@@ -72,7 +71,7 @@ impl TextureMaterial {
         self.normal_loader.is_some()
     }
 
-    fn prepare_normal(&self, callback: StandardMaterialPreparationCallback) {
+    fn prepare_normal(&self) {
         let Some(normal_loader) = self.normal_loader.as_ref() else {
             return;
         };
@@ -84,7 +83,6 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE1,
                 loader: Rc::downgrade(normal_loader),
                 texture_uniform: Rc::downgrade(&self.normal),
-                callback,
             });
         }
     }
@@ -93,7 +91,7 @@ impl TextureMaterial {
         self.parallax_loader.is_some()
     }
 
-    fn prepare_parallax(&self, callback: StandardMaterialPreparationCallback) {
+    fn prepare_parallax(&self) {
         let Some(parallax_loader) = self.parallax_loader.as_ref() else {
             return;
         };
@@ -105,7 +103,6 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE2,
                 loader: Rc::downgrade(parallax_loader),
                 texture_uniform: Rc::downgrade(&self.parallax),
-                callback,
             });
         }
     }
@@ -129,13 +126,13 @@ impl StandardMaterial for TextureMaterial {
         }
     }
 
-    fn prepare(&mut self, _: &mut FrameState, callback: StandardMaterialPreparationCallback) {
-        self.prepare_albedo(callback.clone());
+    fn prepare(&mut self, _: &mut FrameState) {
+        self.prepare_albedo();
         if self.has_normal_map() {
-            self.prepare_normal(callback.clone());
+            self.prepare_normal();
         }
         if self.has_parallax_map() {
-            self.prepare_parallax(callback);
+            self.prepare_parallax();
         }
     }
 
@@ -270,7 +267,6 @@ struct WaitLoader {
     unit: TextureUnit,
     loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
     texture_uniform: Weak<RefCell<Option<UniformValue>>>,
-    callback: StandardMaterialPreparationCallback,
 }
 
 impl Notifiee<LoaderStatus> for WaitLoader {
@@ -290,7 +286,6 @@ impl Notifiee<LoaderStatus> for WaitLoader {
                     descriptor: TextureDescriptor::new(texture),
                     unit: self.unit,
                 });
-                self.callback.finish();
             }
             LoaderStatus::Errored => {
                 let Some(loader) = self.loader.upgrade() else {

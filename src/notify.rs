@@ -33,6 +33,17 @@ pub struct Notifier<T> {
     aborts: Vec<usize>,
 }
 
+impl<T> Drop for Notifier<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let mut notifiees = self.notifiees.borrow_mut();
+            notifiees
+                .iter_mut()
+                .for_each(|(_, notifiee)| drop(Box::from_raw(notifiee)));
+        }
+    }
+}
+
 impl<T> Notifier<T> {
     pub fn new() -> Self {
         Self {

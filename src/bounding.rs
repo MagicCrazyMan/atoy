@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, ops::{Deref, DerefMut}};
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
@@ -14,21 +14,35 @@ use crate::{
 #[derive(Debug)]
 pub struct CullingBoundingVolume {
     previous_outside_plane: RefCell<Option<PlaneIndex>>,
-    bounding: BoundingVolume,
+    bounding_volume: BoundingVolume,
+}
+
+impl Deref for CullingBoundingVolume {
+    type Target = BoundingVolume;
+
+    fn deref(&self) -> &Self::Target {
+        &self.bounding_volume
+    }
+}
+
+impl DerefMut for CullingBoundingVolume {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.bounding_volume
+    }
 }
 
 impl CullingBoundingVolume {
     /// Constructs a new bounding volume from a [`BoundingVolume`].
-    pub fn new(bounding: BoundingVolume) -> Self {
+    pub fn new(bounding_volume: BoundingVolume) -> Self {
         Self {
             previous_outside_plane: RefCell::new(None),
-            bounding,
+            bounding_volume,
         }
     }
 
     /// Gets the [`BoundingVolume`] associated with this culling bounding volume.
-    pub fn bounding(&self) -> BoundingVolume {
-        self.bounding
+    pub fn bounding_volume(&self) -> BoundingVolume {
+        self.bounding_volume
     }
 
     /// Applies culling detection against a frustum.
@@ -45,7 +59,7 @@ impl CullingBoundingVolume {
             planes.swap(0, *p as usize);
         }
 
-        let (culling, outside_plane_index) = match &self.bounding {
+        let (culling, outside_plane_index) = match &self.bounding_volume {
             BoundingVolume::BoundingSphere { center, radius } => {
                 cull_sphere(planes, center, *radius)
             }
@@ -101,7 +115,7 @@ impl CullingBoundingVolume {
 
     /// Gets center of this bounding volume.
     pub fn center(&self) -> Vec3 {
-        self.bounding.center()
+        self.bounding_volume.center()
     }
 }
 

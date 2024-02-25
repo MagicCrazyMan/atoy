@@ -1,7 +1,4 @@
-use std::{
-    cell::{RefCell, RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use log::{error, warn};
@@ -343,7 +340,7 @@ impl Viewer {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<RefMut<'_, Entity>>, Error> {
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
         unsafe {
             let timestamp = *self.timestamp;
             let mut scene = self.scene.borrow_mut();
@@ -356,15 +353,10 @@ impl Viewer {
             renderer.render(pipeline, &mut *camera, &mut *scene, timestamp)?;
             pipeline.set_pipeline_shading(previous_pipeline_shading);
 
-            let Some(id) = pipeline.pick_entity_id(window_position_x, window_position_y)? else {
-                return Ok(None);
-            };
-
-            let entity = RefMut::map(scene, |scene| {
-                scene.entity_container_mut().entity_mut(&id).unwrap()
-            });
-
-            Ok(Some(entity))
+            match pipeline.pick_entity(window_position_x, window_position_y)? {
+                Some(entity) => Ok(Some(entity)),
+                None => Ok(None),
+            }
         }
     }
 
