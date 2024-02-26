@@ -7,13 +7,11 @@ pub mod sphere;
 use std::any::Any;
 
 use crate::{
-    bounding::BoundingVolume,
-    readonly::Readonly,
-    renderer::webgl::{
+    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 pub trait Geometry {
@@ -38,6 +36,8 @@ pub trait Geometry {
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
+
+    fn tick(&mut self, tick: &Tick) -> bool;
 
     fn as_any(&self) -> &dyn Any;
 

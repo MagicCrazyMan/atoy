@@ -10,13 +10,11 @@ use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    entity::Entity,
-    renderer::webgl::{
+    clock::WebClock, entity::Entity, renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
         error::Error,
         state::FrameState,
-    },
-    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
+    }, scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS}
 };
 
 use self::{
@@ -537,7 +535,7 @@ impl StandardPipeline {
 }
 
 impl StandardPipeline {
-    fn forward_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    fn forward_shading(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
         let lights_ubo = if self.lighting_enabled() {
             Some(&self.lights_ubo)
         } else {
@@ -606,7 +604,7 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
         let lights_ubo = if self.lighting_enabled() {
             Some(&self.lights_ubo)
         } else {
@@ -652,7 +650,7 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn picking(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
+    fn picking(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         unsafe {
@@ -666,9 +664,11 @@ impl StandardPipeline {
 impl Pipeline for StandardPipeline {
     type State = FrameState;
 
+    type Clock = WebClock;
+
     type Error = Error;
 
-    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
+    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene<Self::Clock>) -> Result<(), Self::Error> {
         match self.pipeline_shading {
             StandardPipelineShading::Picking => {
                 self.picking(state, scene)?;

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::ops::Mul;
 use std::rc::Weak;
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
@@ -20,6 +21,7 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
+use crate::clock::{Clock, WebClock};
 use crate::entity::{Entity, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
@@ -148,8 +150,9 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
     )
 }
 
-fn create_scene() -> Result<Scene, Error> {
+fn create_scene() -> Result<Scene<WebClock>, Error> {
     let mut scene = Scene::new()?;
+    scene.clock_mut().start(Duration::from_millis(100));
     scene.set_light_attenuations(Attenuation::new(0.0, 1.0, 0.0));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0,0,0))));
     // scene.add_directional_light(DirectionalLight::new(
@@ -437,7 +440,11 @@ fn create_scene() -> Result<Scene, Error> {
     Ok(scene)
 }
 
-fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Function) -> Viewer {
+fn create_viewer(
+    scene: Scene<WebClock>,
+    camera: UniversalCamera,
+    render_callback: &Function,
+) -> Viewer {
     let mut viewer = Viewer::new(scene, camera.clone()).unwrap();
     viewer.add_controller(camera);
     viewer
@@ -642,13 +649,15 @@ impl Notifiee<MouseEvent> for ViewerPicker {
         let Some(viewer) = self.viewer.upgrade() else {
             return;
         };
+        let mut viewer = viewer.borrow_mut();
+
         let x = event.page_x();
         let y = event.page_y();
 
         let start = window().performance().unwrap().now();
 
         // pick entity
-        if let Some(entity) = viewer.borrow_mut().pick_entity(x, y).unwrap() {
+        if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
             let mut entity = entity.borrow_mut();
             if let Some(material) = entity
                 .material_mut()
@@ -658,20 +667,20 @@ impl Notifiee<MouseEvent> for ViewerPicker {
                     Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 );
-                viewer.borrow_mut().scene().borrow_mut().entity_group_mut().set_resync();
+                viewer.scene().borrow_mut().entity_group_mut().set_resync();
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
                 geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
-                viewer.borrow_mut().scene().borrow_mut().entity_group_mut().set_resync();
+                viewer.scene().borrow_mut().entity_group_mut().set_resync();
             }
             console_log!("pick entity {}", entity.id());
         };
 
         // pick position
-        if let Some(position) = viewer.borrow_mut().pick_position(x, y).unwrap() {
+        if let Some(position) = viewer.pick_position(x, y).unwrap() {
             console_log!("pick position {}", position);
         };
 

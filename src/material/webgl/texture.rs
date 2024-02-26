@@ -8,6 +8,7 @@ use std::{
 use log::warn;
 
 use crate::{
+    clock::Tick,
     error::Error,
     loader::{Loader, LoaderStatus},
     notify::Notifiee,
@@ -134,6 +135,10 @@ impl StandardMaterial for TextureMaterial {
         if self.has_parallax_map() {
             self.prepare_parallax();
         }
+    }
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        false
     }
 
     fn transparency(&self) -> Transparency {

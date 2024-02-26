@@ -1,17 +1,15 @@
 use std::{any::Any, cell::OnceCell};
 
 use crate::{
-    bounding::BoundingVolume,
-    readonly::Readonly,
-    renderer::webgl::{
+    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
             BufferUsage, MemoryPolicy,
         },
-        draw::{CullFace, Draw, ElementIndicesDataType, DrawMode},
+        draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 use super::{cube::build_bounding_volume, Geometry};
@@ -177,6 +175,10 @@ impl Geometry for IndexedCube {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
+    }
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        false
     }
 
     fn as_any(&self) -> &dyn Any {

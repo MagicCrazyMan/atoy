@@ -6,12 +6,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
-    bounding::Culling,
-    entity::{Entity, Group},
-    frustum::ViewFrustum,
-    material::Transparency,
-    renderer::webgl::state::FrameState,
-    scene::Scene,
+    bounding::Culling, clock::WebClock, entity::{Entity, Group}, frustum::ViewFrustum, material::Transparency, renderer::webgl::state::FrameState, scene::Scene
 };
 
 pub struct CollectedEntities<'a> {
@@ -133,7 +128,7 @@ impl StandardEntitiesCollector {
     pub fn collect_entities(
         &mut self,
         state: &mut FrameState,
-        scene: &mut Scene,
+        scene: &mut Scene<WebClock>,
     ) -> CollectedEntities {
         struct CollectedEntity {
             entity: Rc<RefCell<dyn Entity>>,

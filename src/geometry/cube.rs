@@ -3,9 +3,7 @@ use std::{any::Any, cell::OnceCell};
 use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
-    bounding::BoundingVolume,
-    readonly::Readonly,
-    renderer::webgl::{
+    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -13,7 +11,7 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 use super::Geometry;
@@ -178,6 +176,10 @@ impl Geometry for Cube {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
+    }
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        false
     }
 
     fn as_any(&self) -> &dyn Any {

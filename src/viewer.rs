@@ -6,15 +6,7 @@ use wasm_bindgen::closure::Closure;
 use web_sys::Element;
 
 use crate::{
-    camera::Camera,
-    cancel_animation_frame,
-    controller::Controller,
-    entity::Entity,
-    error::Error,
-    pipeline::webgl::{HdrToneMappingType, StandardPipeline, StandardPipelineShading},
-    renderer::{webgl::WebGL2Renderer, Renderer},
-    request_animation_frame,
-    scene::Scene,
+    camera::Camera, cancel_animation_frame, clock::WebClock, controller::Controller, entity::Entity, error::Error, pipeline::webgl::{HdrToneMappingType, StandardPipeline, StandardPipelineShading}, renderer::{webgl::WebGL2Renderer, Renderer}, request_animation_frame, scene::Scene
 };
 
 // pub const DEFAULT_RENDER_WHEN_NEEDED: bool = false;
@@ -22,7 +14,7 @@ pub const DEFAULT_RENDER_LOOP_INTERRUPTED_WHEN_ERROR: bool = true;
 
 pub struct Viewer {
     mount: Option<Element>,
-    scene: Rc<RefCell<Scene>>,
+    scene: Rc<RefCell<Scene<WebClock>>>,
     camera: Rc<RefCell<dyn Camera + 'static>>,
     renderer: Rc<RefCell<WebGL2Renderer>>,
     controllers: Rc<RefCell<Vec<Box<dyn Controller>>>>,
@@ -49,7 +41,7 @@ impl Drop for Viewer {
 }
 
 impl Viewer {
-    pub fn new<C>(scene: Scene, camera: C) -> Result<Self, Error>
+    pub fn new<C>(scene: Scene<WebClock>, camera: C) -> Result<Self, Error>
     where
         C: Camera + 'static,
     {
@@ -107,7 +99,7 @@ impl Viewer {
         &self.camera
     }
 
-    pub fn scene(&self) -> &Rc<RefCell<Scene>> {
+    pub fn scene(&self) -> &Rc<RefCell<Scene<WebClock>>> {
         &self.scene
     }
 

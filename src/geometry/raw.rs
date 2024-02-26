@@ -1,13 +1,11 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume,
-    readonly::Readonly,
-    renderer::webgl::{
+    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 use super::Geometry;
@@ -98,6 +96,10 @@ impl Geometry for RawGeometry {
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         self.uniform_blocks.get(name).map(|v| Readonly::Borrowed(v))
+    }
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        false
     }
 
     fn as_any(&self) -> &dyn Any {

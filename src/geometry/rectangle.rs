@@ -3,9 +3,7 @@ use std::any::Any;
 use gl_matrix4rust::vec2::Vec2;
 
 use crate::{
-    bounding::BoundingVolume,
-    readonly::Readonly,
-    renderer::webgl::{
+    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -13,7 +11,7 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }
 };
 
 use super::Geometry;
@@ -183,6 +181,10 @@ impl Geometry for Rectangle {
 
     fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
         None
+    }
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        false
     }
 
     fn as_any(&self) -> &dyn Any {

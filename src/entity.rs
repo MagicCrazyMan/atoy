@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     bounding::{merge_bounding_volumes, CullingBoundingVolume},
+    clock::Tick,
     geometry::Geometry,
     material::webgl::StandardMaterial,
     readonly::Readonly,
@@ -43,6 +44,8 @@ pub trait Entity {
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
+
+    fn tick(&mut self, tick: &Tick) -> bool;
 
     fn sync(&mut self, group: &dyn Group);
 
@@ -79,6 +82,8 @@ pub trait Group {
     {
         HierarchyGroupsIter::new(self)
     }
+
+    fn tick(&mut self, tick: &Tick) -> bool;
 
     fn sync(&mut self, parent: Option<&dyn Group>);
 
@@ -296,6 +301,19 @@ impl Entity for SimpleEntity {
         None
     }
 
+    fn tick(&mut self, tick: &Tick) -> bool {
+        let mut mutated = false;
+
+        if let Some(geometry) = self.geometry.as_mut() {
+            mutated = mutated | geometry.tick(tick);
+        }
+        if let Some(material) = self.material.as_mut() {
+            mutated = mutated | material.tick(tick);
+        }
+
+        mutated
+    }
+
     fn sync(&mut self, group: &dyn Group) {
         if !self.should_sync {
             return;
@@ -477,6 +495,20 @@ impl Group for SimpleGroup {
                 .values()
                 .map(|sub_group| Rc::clone(sub_group)),
         )
+    }
+
+    fn tick(&mut self, tick: &Tick) -> bool {
+        let mut mutated = false;
+
+        for (_, entity) in &mut self.entities {
+            mutated = mutated | entity.borrow_mut().tick(tick);
+        }
+
+        for (_, sub_group) in &mut self.sub_groups {
+            mutated = mutated | sub_group.borrow_mut().tick(tick);
+        }
+
+        mutated
     }
 
     fn sync(&mut self, parent: Option<&dyn Group>) {

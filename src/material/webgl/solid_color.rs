@@ -3,6 +3,7 @@ use std::{any::Any, borrow::Cow};
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
+    clock::Tick,
     readonly::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
@@ -75,6 +76,11 @@ impl StandardMaterial for SolidColorMaterial {
     }
 
     fn prepare(&mut self, _: &mut FrameState) {}
+
+    fn tick(&mut self, _: &Tick) -> bool {
+        self.color = Vec3::new(rand::random(), rand::random(), rand::random());
+        true
+    }
 
     fn transparency(&self) -> Transparency {
         self.transparency

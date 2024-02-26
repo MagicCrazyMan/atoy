@@ -2,17 +2,14 @@ use gl_matrix4rust::{GLF32Borrowed, GLF32};
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
-    light::{
+    clock::WebClock, light::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
-    },
-    pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH,
-    renderer::webgl::{
+    }, pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH, renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource},
         error::Error,
         state::FrameState,
-    },
-    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
+    }, scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS}
 };
 
 use super::{
@@ -116,7 +113,7 @@ impl StandardPreparation {
         &mut self,
         lights_ubo: &mut BufferDescriptor,
         state: &mut FrameState,
-        scene: &mut Scene,
+        scene: &mut Scene<WebClock>,
     ) -> Result<(), Error> {
         // u_Attenuations
         if self
@@ -257,7 +254,7 @@ impl StandardPreparation {
     pub fn prepare(
         &mut self,
         state: &mut FrameState,
-        scene: &mut Scene,
+        scene: &mut Scene<WebClock>,
         universal_ubo: &mut BufferDescriptor,
         mut lights_ubo: Option<&mut BufferDescriptor>,
     ) -> Result<(), Error> {

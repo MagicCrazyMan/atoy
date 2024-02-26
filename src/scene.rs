@@ -7,14 +7,15 @@ use web_sys::{
 };
 
 use crate::{
+    clock::{Clock, Tick, WebClock},
     document,
-    entity::SceneGroup,
+    entity::{Group, SceneGroup},
     error::Error,
     light::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
-    notify::Notifier,
+    notify::{Notifiee, Notifier},
 };
 
 /// Maximum area lights.
@@ -34,12 +35,13 @@ pub const MAX_SPOT_LIGHTS: usize = 12;
 pub(crate) const MAX_SPOT_LIGHTS_STRING: &'static str = "12";
 pub(crate) const SPOT_LIGHTS_COUNT_DEFINE: &'static str = "SPOT_LIGHTS_COUNT";
 
-pub struct Scene {
+pub struct Scene<Clock> {
     canvas: HtmlCanvasElement,
     canvas_handler: SceneCanvasHandler,
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
-    entities: SceneGroup,
+    clock: Clock,
+    entities: *mut SceneGroup,
     light_attenuations: Attenuation,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
@@ -48,7 +50,15 @@ pub struct Scene {
     area_lights: Vec<AreaLight>,
 }
 
-impl Scene {
+impl<Clock> Drop for Scene<Clock> {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(self.entities));
+        }
+    }
+}
+
+impl Scene<WebClock> {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Result<Self, Error> {
         let canvas = document()
@@ -66,12 +76,18 @@ impl Scene {
         let select_start_callback = Closure::new(|| false);
         canvas.set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
 
+        let entities = Box::leak(Box::new(SceneGroup::new()));
+
+        let mut clock = WebClock::new();
+        clock.on_tick(SceneTicking::new(entities));
+
         Ok(Self {
             canvas_handler: SceneCanvasHandler::new(canvas.clone())?,
             _select_start_callback: select_start_callback,
             canvas,
 
-            entities: SceneGroup::new(),
+            clock,
+            entities,
             light_attenuations: Attenuation::new(0.0, 1.0, 0.0),
             ambient_light: None,
             point_lights: Vec::new(),
@@ -80,7 +96,9 @@ impl Scene {
             area_lights: Vec::new(),
         })
     }
+}
 
+impl<Clock> Scene<Clock> {
     /// Returns [`HtmlCanvasElement`].
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
@@ -90,14 +108,24 @@ impl Scene {
         &mut self.canvas_handler
     }
 
+    /// Returns [`Clock`](crate::clock::Clock) associated with this scene.
+    pub fn clock(&self) -> &Clock {
+        &self.clock
+    }
+
+    /// Returns mutable [`Clock`](crate::clock::Clock) associated with this scene.
+    pub fn clock_mut(&mut self) -> &mut Clock {
+        &mut self.clock
+    }
+
     /// Returns entity group.
     pub fn entity_group(&self) -> &SceneGroup {
-        &self.entities
+        unsafe { &*self.entities }
     }
 
     /// Returns mutable entity group.
     pub fn entity_group_mut(&mut self) -> &mut SceneGroup {
-        &mut self.entities
+        unsafe { &mut *self.entities }
     }
 
     /// Returns ambient light.
@@ -540,5 +568,26 @@ impl SceneCanvasHandler {
 
     pub fn key_up(&mut self) -> &Rc<RefCell<Notifier<KeyboardEvent>>> {
         &mut self.key_up.0
+    }
+}
+
+struct SceneTicking {
+    entities: *mut SceneGroup,
+}
+
+impl SceneTicking {
+    fn new(entities: *mut SceneGroup) -> Self {
+        Self { entities }
+    }
+}
+
+impl Notifiee<Tick> for SceneTicking {
+    fn notify(&mut self, msg: &Tick) {
+        unsafe {
+            if (*self.entities).tick(msg) {
+                log::info!("3333");
+                (*self.entities).set_resync();
+            }
+        }
     }
 }

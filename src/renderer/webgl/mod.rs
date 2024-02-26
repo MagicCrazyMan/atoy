@@ -3,7 +3,7 @@ use std::{borrow::Cow, ptr::NonNull};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, notify::Notifier, pipeline::Pipeline, scene::Scene};
+use crate::{camera::Camera, clock::WebClock, notify::Notifier, pipeline::Pipeline, scene::Scene};
 
 use self::{
     buffer::BufferStore, capabilities::Capabilities, error::Error, program::ProgramStore,
@@ -216,13 +216,16 @@ impl WebGL2Renderer {
 impl Renderer for WebGL2Renderer {
     type State = FrameState;
 
+    type Clock = WebClock;
+
     type Error = Error;
 
     fn render(
         &mut self,
-        pipeline: &mut (dyn Pipeline<State = Self::State, Error = Self::Error> + 'static),
+        pipeline: &mut (dyn Pipeline<State = Self::State, Clock = Self::Clock, Error = Self::Error>
+                  + 'static),
         camera: &mut (dyn Camera + 'static),
-        scene: &mut Scene,
+        scene: &mut Scene<Self::Clock>,
         timestamp: f64,
     ) -> Result<(), Self::Error> {
         let mut state = FrameState::new(
