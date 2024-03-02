@@ -1,35 +1,39 @@
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::rc::{Rc, Weak};
 
 use uuid::Uuid;
 
 use crate::{
-    bounding::Culling, clock::WebClock, entity::{Entity, Group}, frustum::ViewFrustum, material::Transparency, renderer::webgl::state::FrameState, scene::Scene
+    bounding::Culling,
+    clock::WebClock,
+    entity::{Entity, Group},
+    frustum::ViewFrustum,
+    material::Transparency,
+    renderer::webgl::state::FrameState,
+    scene::Scene,
+    share::{Share, WeakShare},
 };
 
 pub struct CollectedEntities<'a> {
-    entities: &'a [Weak<RefCell<dyn Entity>>],
-    opaque_entities: &'a [Weak<RefCell<dyn Entity>>],
-    transparent_entities: &'a [Weak<RefCell<dyn Entity>>],
-    translucent_entities: &'a [Weak<RefCell<dyn Entity>>],
+    entities: &'a [WeakShare<dyn Entity>],
+    opaque_entities: &'a [WeakShare<dyn Entity>],
+    transparent_entities: &'a [WeakShare<dyn Entity>],
+    translucent_entities: &'a [WeakShare<dyn Entity>],
 }
 
 impl<'a> CollectedEntities<'a> {
-    pub fn entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
+    pub fn entities(&self) -> &[WeakShare<dyn Entity>] {
         self.entities
     }
 
-    pub fn opaque_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
+    pub fn opaque_entities(&self) -> &[WeakShare<dyn Entity>] {
         self.opaque_entities
     }
 
-    pub fn transparent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
+    pub fn transparent_entities(&self) -> &[WeakShare<dyn Entity>] {
         self.transparent_entities
     }
 
-    pub fn translucent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
+    pub fn translucent_entities(&self) -> &[WeakShare<dyn Entity>] {
         self.translucent_entities
     }
 }
@@ -40,10 +44,10 @@ pub struct StandardEntitiesCollector {
 
     last_view_frustum: Option<ViewFrustum>,
     last_scene_id: Option<Uuid>,
-    last_entities: Vec<Weak<RefCell<dyn Entity>>>,
-    last_opaque_entities: Vec<Weak<RefCell<dyn Entity>>>,
-    last_transparent_entities: Vec<Weak<RefCell<dyn Entity>>>,
-    last_translucent_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_entities: Vec<WeakShare<dyn Entity>>,
+    last_opaque_entities: Vec<WeakShare<dyn Entity>>,
+    last_transparent_entities: Vec<WeakShare<dyn Entity>>,
+    last_translucent_entities: Vec<WeakShare<dyn Entity>>,
 }
 
 impl StandardEntitiesCollector {
@@ -131,18 +135,18 @@ impl StandardEntitiesCollector {
         scene: &mut Scene<WebClock>,
     ) -> CollectedEntities {
         struct CollectedEntity {
-            entity: Rc<RefCell<dyn Entity>>,
+            entity: Share<dyn Entity>,
             transparency: Transparency,
             distance: f64,
         }
 
         let view_frustum = state.camera().view_frustum();
 
-        let should_recollect = scene.entity_group().should_sync()
+        let should_recollect = scene.entity_group().borrow().should_sync()
             || self
                 .last_scene_id
                 .as_ref()
-                .map(|last_scene_id| last_scene_id != scene.entity_group().id())
+                .map(|last_scene_id| last_scene_id != scene.entity_group().borrow().id())
                 .unwrap_or(true)
             || self
                 .last_view_frustum
@@ -165,10 +169,10 @@ impl StandardEntitiesCollector {
         let distance_sorting = self.distance_sorting_enabled();
         let mut entities = Vec::new();
 
-        scene.entity_group_mut().sync();
+        scene.entity_group().borrow_mut().sync(None);
 
         if culling {
-            for entity in scene.entity_group_mut().entities() {
+            for entity in scene.entity_group().borrow().entities() {
                 let distance = match entity.borrow().bounding_volume() {
                     Some(entity_bounding) => match entity_bounding.cull(&view_frustum) {
                         Culling::Outside => continue,
@@ -190,7 +194,7 @@ impl StandardEntitiesCollector {
                 });
             }
 
-            for group in scene.entity_group_mut().sub_groups_hierarchy() {
+            for group in scene.entity_group().borrow().sub_groups_hierarchy() {
                 // culling group bounding
                 if let Some(group_bounding) = group.borrow().bounding_volume() {
                     if let Culling::Outside = group_bounding.cull(&view_frustum) {
@@ -221,7 +225,7 @@ impl StandardEntitiesCollector {
                 }
             }
         } else {
-            for entity in scene.entity_group_mut().entities_hierarchy() {
+            for entity in scene.entity_group().borrow().entities_hierarchy() {
                 let transparency = entity
                     .borrow()
                     .material()
@@ -261,7 +265,7 @@ impl StandardEntitiesCollector {
                 if let Some(material) = entity.material_mut() {
                     if !material.ready() {
                         material.prepare(state);
-                        scene.entity_group_mut().set_resync();
+                        entity.set_resync();
                         continue;
                     }
                 }
@@ -280,7 +284,7 @@ impl StandardEntitiesCollector {
             }
         }
 
-        self.last_scene_id = Some(scene.entity_group().id().clone());
+        self.last_scene_id = Some(scene.entity_group().borrow().id().clone());
         self.last_view_frustum = Some(view_frustum);
 
         CollectedEntities {

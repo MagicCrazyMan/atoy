@@ -1,13 +1,12 @@
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{cell::RefCell, rc::Rc};
 
 use hashbrown::HashMap;
 
+use crate::share::{Share, WeakShare};
+
 pub struct Notifying<T> {
     key: usize,
-    notifiees: Weak<RefCell<HashMap<usize, *mut dyn Notifiee<T>>>>,
+    notifiees: WeakShare<HashMap<usize, *mut dyn Notifiee<T>>>,
 }
 
 impl<T> Notifying<T> {
@@ -29,7 +28,7 @@ impl<T> Notifying<T> {
 
 pub struct Notifier<T> {
     counter: usize,
-    notifiees: Rc<RefCell<HashMap<usize, *mut dyn Notifiee<T>>>>,
+    notifiees: Share<HashMap<usize, *mut dyn Notifiee<T>>>,
     aborts: Vec<usize>,
 }
 

@@ -12,6 +12,7 @@ use crate::{
         SamplerParameter, TextureColorFormat, TextureDataType, TextureFormat, TextureParameter,
         TexturePixelStorage, TextureSource,
     },
+    share::Share,
 };
 
 use super::{Loader, LoaderStatus};
@@ -45,7 +46,7 @@ impl Display for ImageCrossOrigin {
 pub struct TextureLoader {
     url: String,
     status: *mut LoaderStatus,
-    notifier: Rc<RefCell<Notifier<LoaderStatus>>>,
+    notifier: Share<Notifier<LoaderStatus>>,
     cross_origin: Option<ImageCrossOrigin>,
     image: *mut Option<HtmlImageElement>,
     error: *mut Option<Error>,
@@ -405,7 +406,7 @@ impl Loader<Texture2D> for TextureLoader {
         }
     }
 
-    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>> {
+    fn notifier(&self) -> &Share<Notifier<LoaderStatus>> {
         &self.notifier
     }
 }

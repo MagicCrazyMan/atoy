@@ -78,7 +78,6 @@ impl StandardMaterial for SolidColorMaterial {
     fn prepare(&mut self, _: &mut FrameState) {}
 
     fn tick(&mut self, _: &Tick) -> bool {
-        self.color = Vec3::new(rand::random(), rand::random(), rand::random());
         true
     }
 

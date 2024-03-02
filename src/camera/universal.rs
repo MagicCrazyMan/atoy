@@ -6,6 +6,7 @@ use crate::{
     notify::{Notifiee, Notifying},
     plane::Plane,
     renderer::webgl::RenderEvent,
+    share::Share,
     viewer::Viewer,
 };
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
@@ -271,8 +272,8 @@ pub const DEFAULT_ROTATION: f64 = PI / 360.0;
 /// UniversalCamera is inner by cloning, making it convenient to control outside [`Scene`].
 #[derive(Clone)]
 pub struct UniversalCamera {
-    inner: Rc<RefCell<Inner>>,
-    control: Rc<RefCell<Option<Control>>>,
+    inner: Share<Inner>,
+    control: Share<Option<Control>>,
 }
 
 impl UniversalCamera {
@@ -490,7 +491,7 @@ impl Camera for UniversalCamera {
     }
 }
 
-struct ControllerCanvasResize(Rc<RefCell<Inner>>);
+struct ControllerCanvasResize(Share<Inner>);
 
 impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
     fn notify(&mut self, canvas: &HtmlCanvasElement) {
@@ -541,7 +542,7 @@ impl Notifiee<KeyboardEvent> for ControllerKeyUp {
     }
 }
 
-struct ControllerMouseMove(Rc<RefCell<Inner>>, *mut Option<MouseEvent>);
+struct ControllerMouseMove(Share<Inner>, *mut Option<MouseEvent>);
 
 impl Notifiee<MouseEvent> for ControllerMouseMove {
     fn notify(&mut self, event: &MouseEvent) {
@@ -588,7 +589,7 @@ impl Notifiee<MouseEvent> for ControllerMouseMove {
     }
 }
 
-struct ControllerWheel(Rc<RefCell<Inner>>);
+struct ControllerWheel(Share<Inner>);
 
 impl Notifiee<WheelEvent> for ControllerWheel {
     fn notify(&mut self, event: &WheelEvent) {
@@ -606,7 +607,7 @@ impl Notifiee<WheelEvent> for ControllerWheel {
     }
 }
 
-struct ControllerPreRender(Rc<RefCell<Inner>>, *mut HashSet<String>, *mut Option<f64>);
+struct ControllerPreRender(Share<Inner>, *mut HashSet<String>, *mut Option<f64>);
 
 impl Notifiee<RenderEvent> for ControllerPreRender {
     fn notify(&mut self, event: &RenderEvent) {

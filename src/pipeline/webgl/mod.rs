@@ -4,17 +4,19 @@ pub mod composer;
 pub mod preparation;
 pub mod shading;
 
-use std::{cell::RefCell, rc::Rc};
-
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    clock::WebClock, entity::Entity, renderer::webgl::{
+    clock::WebClock,
+    entity::Entity,
+    renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
         error::Error,
         state::FrameState,
-    }, scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS}
+    },
+    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
+    share::Share,
 };
 
 use self::{
@@ -511,7 +513,7 @@ impl StandardPipeline {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
+    ) -> Result<Option<Share<dyn Entity>>, Error> {
         self.picking.pick_entity(
             window_position_x,
             window_position_y,
@@ -535,7 +537,11 @@ impl StandardPipeline {
 }
 
 impl StandardPipeline {
-    fn forward_shading(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
+    fn forward_shading(
+        &mut self,
+        state: &mut FrameState,
+        scene: &mut Scene<WebClock>,
+    ) -> Result<(), Error> {
         let lights_ubo = if self.lighting_enabled() {
             Some(&self.lights_ubo)
         } else {
@@ -604,7 +610,11 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
+    fn deferred_shading(
+        &mut self,
+        state: &mut FrameState,
+        scene: &mut Scene<WebClock>,
+    ) -> Result<(), Error> {
         let lights_ubo = if self.lighting_enabled() {
             Some(&self.lights_ubo)
         } else {
@@ -650,7 +660,11 @@ impl StandardPipeline {
         Ok(())
     }
 
-    fn picking(&mut self, state: &mut FrameState, scene: &mut Scene<WebClock>) -> Result<(), Error> {
+    fn picking(
+        &mut self,
+        state: &mut FrameState,
+        scene: &mut Scene<WebClock>,
+    ) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         unsafe {
@@ -668,7 +682,11 @@ impl Pipeline for StandardPipeline {
 
     type Error = Error;
 
-    fn execute(&mut self, state: &mut Self::State, scene: &mut Scene<Self::Clock>) -> Result<(), Self::Error> {
+    fn execute(
+        &mut self,
+        state: &mut Self::State,
+        scene: &mut Scene<Self::Clock>,
+    ) -> Result<(), Self::Error> {
         match self.pipeline_shading {
             StandardPipelineShading::Picking => {
                 self.picking(state, scene)?;

@@ -1,6 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::notify::Notifier;
+use crate::{notify::Notifier, share::Share};
 
 pub mod dds;
 pub mod texture;
@@ -15,11 +13,11 @@ pub enum LoaderStatus {
 }
 
 /// A simple loader for loading target resources.
-/// 
+///
 /// A loader is designed under notifying pattern.
 /// Calling [`Loader::load`] method just start the procedure of loading resources without waiting.
 /// When resources loaded, developer should notify caller by calling [`Notifier::notify`] method.
-/// 
+///
 /// A loader should not be resettable or reload-able and it should load a target resource only once.
 /// However, during the lifetime of a loader, the [`Loader::load`] method may not be called only once,
 /// thus, developer should avoid reloading resources when implementing a loader
@@ -35,10 +33,10 @@ pub trait Loader<Success> {
     fn load(&mut self);
 
     /// Returns loaded resources.
-    /// 
+    ///
     /// This method should only be called when loader status is [`LoaderStatus::Loaded`] already.
     fn loaded(&self) -> Result<Success, Self::Failure>;
 
     /// A [`Notifier`] notifying loader status.
-    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>>;
+    fn notifier(&self) -> &Share<Notifier<LoaderStatus>>;
 }

@@ -3,9 +3,11 @@ use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebGlSampler, WebglDebugShaders, WebglLoseContext};
 
+use crate::share::Share;
+
 use super::{
     error::Error,
-    texture::{TextureCompressedFormat, TextureColorFormat, TextureUnit},
+    texture::{TextureColorFormat, TextureCompressedFormat, TextureUnit},
 };
 
 struct Inner {
@@ -59,7 +61,7 @@ pub const EXTENSION_EXT_TEXTURE_COMPRESSION_BPTC: &'static str = "EXT_texture_co
 pub const EXTENSION_EXT_TEXTURE_COMPRESSION_RGTC: &'static str = "EXT_texture_compression_rgtc";
 
 #[derive(Clone)]
-pub struct Capabilities(Rc<RefCell<Inner>>);
+pub struct Capabilities(Share<Inner>);
 
 impl Capabilities {
     pub fn new(gl: WebGl2RenderingContext) -> Self {

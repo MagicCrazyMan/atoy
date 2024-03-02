@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, rc::Rc, sync::OnceLock};
+use std::{borrow::Cow, sync::OnceLock};
 
 use web_sys::WebGl2RenderingContext;
 
@@ -18,6 +18,7 @@ use crate::{
         MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
         POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
     },
+    share::Share,
 };
 
 use super::{
@@ -185,7 +186,7 @@ fn draw_entity(
     draw_state: &DrawState,
 
     should_cull_face: bool,
-    entity: Rc<RefCell<dyn Entity>>,
+    entity: Share<dyn Entity>,
 ) -> Result<(), Error> {
     let entity = entity.borrow();
     let geometry = entity.geometry().unwrap();

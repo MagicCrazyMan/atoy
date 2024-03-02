@@ -4,8 +4,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Performance, Window};
 
 use crate::{
-    notify::{Notifiee, Notifier, Notifying},
-    window,
+    notify::{Notifiee, Notifier, Notifying}, share::Share, window
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -72,11 +71,11 @@ pub struct WebClock {
 
     start_time: Option<f64>,
     stop_time: Option<f64>,
-    previous_time: Rc<RefCell<Option<f64>>>,
+    previous_time: Share<Option<f64>>,
 
     handle: Option<i32>,
     handler: Option<Closure<dyn FnMut()>>,
-    notifier: Rc<RefCell<Notifier<Tick>>>,
+    notifier: Share<Notifier<Tick>>,
 }
 
 impl Drop for WebClock {

@@ -9,13 +9,10 @@ use web_sys::{
 };
 
 use crate::{
-    error::Error,
-    notify::Notifier,
-    renderer::webgl::texture::{
+    error::Error, notify::Notifier, renderer::webgl::texture::{
         texture2d::{Builder, Texture2D, Texture2DBase},
         SamplerParameter, TextureCompressedFormat, TextureParameter, TextureSourceCompressed,
-    },
-    window,
+    }, share::Share, window
 };
 
 use super::{Loader, LoaderStatus};
@@ -390,7 +387,7 @@ impl DirectDrawSurface {
 pub struct DirectDrawSurfaceLoader {
     url: String,
     status: *mut LoaderStatus,
-    notifier: Rc<RefCell<Notifier<LoaderStatus>>>,
+    notifier: Share<Notifier<LoaderStatus>>,
     dds: *mut Option<DirectDrawSurface>,
     error: *mut Option<Error>,
 
@@ -622,7 +619,7 @@ impl Loader<Texture2D> for DirectDrawSurfaceLoader {
         }
     }
 
-    fn notifier(&self) -> &Rc<RefCell<Notifier<LoaderStatus>>> {
+    fn notifier(&self) -> &Share<Notifier<LoaderStatus>> {
         &self.notifier
     }
 }

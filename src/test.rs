@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::ops::Mul;
@@ -21,8 +23,8 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::clock::{Clock, WebClock};
-use crate::entity::{Entity, SimpleEntity, SimpleGroup};
+use crate::clock::{Clock, Tick, WebClock};
+use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
 use crate::geometry::raw::RawGeometry;
@@ -41,11 +43,14 @@ use crate::material::webgl::StandardMaterial;
 use crate::material::{self, Transparency};
 use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
+use crate::readonly::Readonly;
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::renderer::webgl::draw::{Draw, DrawMode};
+use crate::renderer::webgl::program::{CustomBinding, Define};
+use crate::renderer::webgl::state::FrameState;
 use crate::renderer::webgl::texture::texture2d::Texture2D;
 use crate::renderer::webgl::texture::{
     texture2d, SamplerParameter, TextureColorFormat, TextureCompressedFormat, TextureDataType,
@@ -53,9 +58,10 @@ use crate::renderer::webgl::texture::{
     TextureParameter, TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed,
     TextureUnit, TextureWrapMethod,
 };
-use crate::renderer::webgl::uniform::UniformValue;
+use crate::renderer::webgl::uniform::{UniformBlockValue, UniformValue};
 use crate::renderer::webgl::RenderEvent;
 use crate::renderer::Renderer;
+use crate::share::{Share, WeakShare};
 use crate::utils::slice_to_float32_array;
 use crate::viewer::{self, Viewer};
 use crate::{document, entity};
@@ -118,6 +124,113 @@ pub fn test_gl_matrix_4_rust() {
     );
 }
 
+struct TickSolidColorMaterial(SolidColorMaterial);
+
+impl TickSolidColorMaterial {
+    /// Constructs a solid color material with specified color and transparency.
+    pub fn with_color(
+        color: Vec3<f32>,
+        specular_shininess: f32,
+        transparency: Transparency,
+    ) -> Self {
+        Self(SolidColorMaterial::with_color(
+            color,
+            specular_shininess,
+            transparency,
+        ))
+    }
+}
+
+impl StandardMaterial for TickSolidColorMaterial {
+    fn name(&self) -> Cow<'_, str> {
+        self.0.name()
+    }
+
+    fn ready(&self) -> bool {
+        self.0.ready()
+    }
+
+    fn prepare(&mut self, state: &mut FrameState) {
+        self.0.prepare(state)
+    }
+
+    fn tick(&mut self, tick: &Tick) -> bool {
+        self.0.set_color(
+            Vec3::new(rand::random(), rand::random(), rand::random()),
+            Transparency::Opaque,
+        );
+        self.0.tick(tick)
+    }
+
+    fn transparency(&self) -> Transparency {
+        self.0.transparency()
+    }
+
+    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>> {
+        self.0.attribute_value(name)
+    }
+
+    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+        self.0.uniform_value(name)
+    }
+
+    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+        self.0.uniform_block_value(name)
+    }
+
+    fn fragment_process(&self) -> Cow<'_, str> {
+        self.0.fragment_process()
+    }
+
+    fn vertex_defines(&self) -> &[Define<'_>] {
+        self.0.vertex_defines()
+    }
+
+    fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
+        self.0.snippet(name)
+    }
+
+    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
+        self.0.attribute_custom_bindings()
+    }
+
+    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
+        self.0.uniform_custom_bindings()
+    }
+
+    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
+        self.0.uniform_block_custom_bindings()
+    }
+
+    fn use_position_eye_space(&self) -> bool {
+        self.0.use_position_eye_space()
+    }
+
+    fn use_normal(&self) -> bool {
+        self.0.use_normal()
+    }
+
+    fn use_texture_coordinate(&self) -> bool {
+        self.0.use_texture_coordinate()
+    }
+
+    fn use_tbn(&self) -> bool {
+        self.0.use_tbn()
+    }
+
+    fn use_calculated_bitangent(&self) -> bool {
+        self.0.use_calculated_bitangent()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 // // static PREALLOCATED: OnceLock<Vec<u8>> = OnceLock::new();
 
 // // #[wasm_bindgen]
@@ -152,7 +265,7 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
 
 fn create_scene() -> Result<Scene<WebClock>, Error> {
     let mut scene = Scene::new()?;
-    scene.clock_mut().start(Duration::from_millis(100));
+    scene.clock_mut().start(Duration::from_secs(1));
     scene.set_light_attenuations(Attenuation::new(0.0, 1.0, 0.0));
     // scene.set_ambient_light(Some(AmbientLight::new(Vec3::new(0,0,0))));
     // scene.add_directional_light(DirectionalLight::new(
@@ -208,7 +321,7 @@ fn create_scene() -> Result<Scene<WebClock>, Error> {
         128.0,
         Transparency::Opaque,
     )));
-    scene.entity_group_mut().add_entity(hint);
+    scene.entity_group().borrow_mut().add_entity(hint);
     // scene.add_point_light(PointLight::new(
     //     Vec3::new(1.0, 1.5, 0.0),
     //     Vec3::new(0.0, 0.0, 0.0),
@@ -451,14 +564,14 @@ fn create_viewer(
         .set_mount(document().get_element_by_id("scene"))
         .unwrap();
 
-    struct PreRenderNotifiee(Rc<RefCell<f64>>);
+    struct PreRenderNotifiee(Share<f64>);
     impl Notifiee<RenderEvent> for PreRenderNotifiee {
         fn notify(&mut self, msg: &RenderEvent) {
             *self.0.borrow_mut() = crate::window().performance().unwrap().now();
         }
     }
 
-    struct PostRenderNotifiee(Rc<RefCell<f64>>, Function);
+    struct PostRenderNotifiee(Share<f64>, Function);
     impl Notifiee<RenderEvent> for PostRenderNotifiee {
         fn notify(&mut self, msg: &RenderEvent) {
             let start = *self.0.borrow();
@@ -488,7 +601,7 @@ fn create_viewer(
 }
 
 #[wasm_bindgen]
-pub struct ViewerWasm(Rc<RefCell<Viewer>>);
+pub struct ViewerWasm(Share<Viewer>);
 
 #[wasm_bindgen]
 impl ViewerWasm {
@@ -640,7 +753,7 @@ impl ViewerWasm {
 }
 
 struct ViewerPicker {
-    viewer: Weak<RefCell<Viewer>>,
+    viewer: WeakShare<Viewer>,
     pick_callback: Function,
 }
 
@@ -667,15 +780,14 @@ impl Notifiee<MouseEvent> for ViewerPicker {
                     Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 );
-                viewer.scene().borrow_mut().entity_group_mut().set_resync();
             }
             if let Some(geometry) = entity
                 .geometry_mut()
                 .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
             {
                 geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
-                viewer.scene().borrow_mut().entity_group_mut().set_resync();
             }
+            entity.set_resync();
             console_log!("pick entity {}", entity.id());
         };
 
@@ -706,13 +818,13 @@ pub fn test_cube(
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    let mut scene = create_scene()?;
+    let scene = create_scene()?;
 
     let cell_width = width / (grid as f64);
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
-    let mut cubes = SimpleGroup::new();
+    let cubes = SimpleGroup::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -723,15 +835,18 @@ pub fn test_cube(
 
         let mut cube = SimpleEntity::new();
         cube.set_geometry(Some(Cube::new()));
-        cube.set_material(Some(SolidColorMaterial::with_color(
+        cube.set_material(Some(TickSolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
             Transparency::Opaque,
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.add_entity(cube);
+        cubes.borrow_mut().add_entity(cube);
     }
-    scene.entity_group_mut().add_sub_group(cubes);
+    scene
+        .entity_group()
+        .borrow_mut()
+        .add_sub_group_shared(cubes);
 
     // let entity = Entity::new();
     // entity.borrow_mut().set_geometry(Some(Rectangle::new(
@@ -945,7 +1060,7 @@ pub fn test_cube(
                 ));
             }
 
-            images.add_entity(image);
+            images.borrow_mut().add_entity(image);
         },
     );
 
@@ -984,7 +1099,7 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    images.add_entity(brick_wall_1);
+    images.borrow_mut().add_entity(brick_wall_1);
 
     let mut brick_wall_2 = SimpleEntity::new();
     brick_wall_2.set_model_matrix(Mat4::<f64>::from_rotation_translation(
@@ -1021,7 +1136,7 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    images.add_entity(brick_wall_2);
+    images.borrow_mut().add_entity(brick_wall_2);
 
     let mut brick_wall_parallax = SimpleEntity::new();
     brick_wall_parallax.set_model_matrix(Mat4::<f64>::from_rotation_translation(
@@ -1063,7 +1178,7 @@ pub fn test_cube(
         ))
         .build(),
     ));
-    images.add_entity(brick_wall_parallax);
+    images.borrow_mut().add_entity(brick_wall_parallax);
 
     let mut floor = SimpleEntity::new();
     floor.set_material(Some(TextureMaterial::new(
@@ -1082,9 +1197,12 @@ pub fn test_cube(
         &Quat::<f64>::from_axis_angle(&Vec3::new(-1.0, 0.0, 0.0), PI / 2.0),
         &Vec3::new(0.0, -0.6, 0.0),
     ));
-    scene.entity_group_mut().add_entity(floor);
+    scene.entity_group().borrow_mut().add_entity(floor);
 
-    scene.entity_group_mut().add_sub_group(images);
+    scene
+        .entity_group()
+        .borrow_mut()
+        .add_sub_group_shared(images);
 
     let viewer = create_viewer(scene, camera, render_callback);
     let viewer = Rc::new(RefCell::new(viewer));
@@ -1431,7 +1549,7 @@ pub fn test_pick(
     let cell_height = height / (grid as f64);
     let start_x = width / 2.0 - cell_width / 2.0;
     let start_z = height / 2.0 - cell_height / 2.0;
-    let mut cubes = SimpleGroup::new();
+    let cubes = SimpleGroup::new();
     for index in 0..count {
         let row = index / grid;
         let col = index % grid;
@@ -1448,9 +1566,12 @@ pub fn test_pick(
             rand::random(),
         )));
         cube.set_model_matrix(model_matrix);
-        cubes.add_entity(cube);
+        cubes.borrow_mut().add_entity(cube);
     }
-    scene.entity_group_mut().add_sub_group(cubes);
+    scene
+        .entity_group()
+        .borrow_mut()
+        .add_sub_group_shared(cubes);
 
     let viewer = create_viewer(scene, camera, render_callback);
     let viewer = Rc::new(RefCell::new(viewer));

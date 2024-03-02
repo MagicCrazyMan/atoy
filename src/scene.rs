@@ -9,13 +9,14 @@ use web_sys::{
 use crate::{
     clock::{Clock, Tick, WebClock},
     document,
-    entity::{Group, SceneGroup},
+    entity::{Group, SimpleGroup},
     error::Error,
     light::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
     notify::{Notifiee, Notifier},
+    share::Share,
 };
 
 /// Maximum area lights.
@@ -41,21 +42,13 @@ pub struct Scene<Clock> {
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
     clock: Clock,
-    entities: *mut SceneGroup,
+    entities: Share<SimpleGroup>,
     light_attenuations: Attenuation,
     ambient_light: Option<AmbientLight>,
     point_lights: Vec<PointLight>,
     directional_lights: Vec<DirectionalLight>,
     spot_lights: Vec<SpotLight>,
     area_lights: Vec<AreaLight>,
-}
-
-impl<Clock> Drop for Scene<Clock> {
-    fn drop(&mut self) {
-        unsafe {
-            drop(Box::from_raw(self.entities));
-        }
-    }
 }
 
 impl Scene<WebClock> {
@@ -76,10 +69,10 @@ impl Scene<WebClock> {
         let select_start_callback = Closure::new(|| false);
         canvas.set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
 
-        let entities = Box::leak(Box::new(SceneGroup::new()));
+        let entities = SimpleGroup::new();
 
         let mut clock = WebClock::new();
-        clock.on_tick(SceneTicking::new(entities));
+        clock.on_tick(SceneTicking::new(Rc::clone(&entities)));
 
         Ok(Self {
             canvas_handler: SceneCanvasHandler::new(canvas.clone())?,
@@ -119,13 +112,8 @@ impl<Clock> Scene<Clock> {
     }
 
     /// Returns entity group.
-    pub fn entity_group(&self) -> &SceneGroup {
-        unsafe { &*self.entities }
-    }
-
-    /// Returns mutable entity group.
-    pub fn entity_group_mut(&mut self) -> &mut SceneGroup {
-        unsafe { &mut *self.entities }
+    pub fn entity_group(&self) -> &Share<SimpleGroup> {
+        &self.entities
     }
 
     /// Returns ambient light.
@@ -325,56 +313,26 @@ impl<Clock> Scene<Clock> {
 pub struct SceneCanvasHandler {
     canvas: HtmlCanvasElement,
     canvas_resize: (
-        Rc<RefCell<Notifier<HtmlCanvasElement>>>,
+        Share<Notifier<HtmlCanvasElement>>,
         ResizeObserver,
         Closure<dyn FnMut(Vec<ResizeObserverEntry>)>,
     ),
-    click: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    double_click: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_down: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_enter: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_leave: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_move: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_out: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_over: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    mouse_up: (
-        Rc<RefCell<Notifier<MouseEvent>>>,
-        Closure<dyn FnMut(MouseEvent)>,
-    ),
-    wheel: (
-        Rc<RefCell<Notifier<WheelEvent>>>,
-        Closure<dyn FnMut(WheelEvent)>,
-    ),
+    click: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    double_click: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_down: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_enter: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_leave: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_move: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_out: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_over: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    mouse_up: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
+    wheel: (Share<Notifier<WheelEvent>>, Closure<dyn FnMut(WheelEvent)>),
     key_down: (
-        Rc<RefCell<Notifier<KeyboardEvent>>>,
+        Share<Notifier<KeyboardEvent>>,
         Closure<dyn FnMut(KeyboardEvent)>,
     ),
     key_up: (
-        Rc<RefCell<Notifier<KeyboardEvent>>>,
+        Share<Notifier<KeyboardEvent>>,
         Closure<dyn FnMut(KeyboardEvent)>,
     ),
 }
@@ -518,76 +476,70 @@ impl SceneCanvasHandler {
         })
     }
 
-    pub fn canvas_resize(&mut self) -> &Rc<RefCell<Notifier<HtmlCanvasElement>>> {
+    pub fn canvas_resize(&mut self) -> &Share<Notifier<HtmlCanvasElement>> {
         &mut self.canvas_resize.0
     }
 
-    pub fn click(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn click(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.click.0
     }
 
-    pub fn double_click(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn double_click(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.double_click.0
     }
 
-    pub fn mouse_down(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_down(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_down.0
     }
 
-    pub fn mouse_enter(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_enter(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_enter.0
     }
 
-    pub fn mouse_leave(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_leave(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_leave.0
     }
 
-    pub fn mouse_move(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_move(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_move.0
     }
 
-    pub fn mouse_out(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_out(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_out.0
     }
 
-    pub fn mouse_over(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_over(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_over.0
     }
 
-    pub fn mouse_up(&mut self) -> &Rc<RefCell<Notifier<MouseEvent>>> {
+    pub fn mouse_up(&mut self) -> &Share<Notifier<MouseEvent>> {
         &mut self.mouse_up.0
     }
 
-    pub fn wheel(&mut self) -> &Rc<RefCell<Notifier<WheelEvent>>> {
+    pub fn wheel(&mut self) -> &Share<Notifier<WheelEvent>> {
         &mut self.wheel.0
     }
 
-    pub fn key_down(&mut self) -> &Rc<RefCell<Notifier<KeyboardEvent>>> {
+    pub fn key_down(&mut self) -> &Share<Notifier<KeyboardEvent>> {
         &mut self.key_down.0
     }
 
-    pub fn key_up(&mut self) -> &Rc<RefCell<Notifier<KeyboardEvent>>> {
+    pub fn key_up(&mut self) -> &Share<Notifier<KeyboardEvent>> {
         &mut self.key_up.0
     }
 }
 
-struct SceneTicking {
-    entities: *mut SceneGroup,
-}
+struct SceneTicking(Share<SimpleGroup>);
 
 impl SceneTicking {
-    fn new(entities: *mut SceneGroup) -> Self {
-        Self { entities }
+    fn new(entities: Share<SimpleGroup>) -> Self {
+        Self(entities)
     }
 }
 
 impl Notifiee<Tick> for SceneTicking {
     fn notify(&mut self, msg: &Tick) {
-        unsafe {
-            if (*self.entities).tick(msg) {
-                log::info!("3333");
-                (*self.entities).set_resync();
-            }
-        }
+        let mut entities = (*self.0).borrow_mut();
+        entities.tick(msg);
     }
 }

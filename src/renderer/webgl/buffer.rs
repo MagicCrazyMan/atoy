@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     cell::{Ref, RefCell, RefMut},
     hash::Hash,
-    rc::{Rc, Weak},
+    rc::Rc,
 };
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
@@ -19,10 +19,15 @@ use web_sys::{
 
 use crate::{
     lru::{Lru, LruNode},
+    share::{Share, WeakShare},
     utils::format_bytes_length,
 };
 
-use super::{conversion::ToGlEnum, error::Error, utils::{self, array_buffer_binding}};
+use super::{
+    conversion::ToGlEnum,
+    error::Error,
+    utils::{self, array_buffer_binding},
+};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -591,7 +596,7 @@ struct Runtime {
 
     store_id: Uuid,
     used_memory: *mut usize,
-    items: *mut HashMap<usize, Weak<RefCell<BufferDescriptorInner>>>,
+    items: *mut HashMap<usize, WeakShare<BufferDescriptorInner>>,
     ubos: *mut HashMap<u32, usize>,
     lru: *mut Lru<usize>,
 }
@@ -624,7 +629,7 @@ struct BufferDescriptorInner {
 /// A key to share and control the [`WebGlBuffer`].
 /// Checks [`BufferStore`] for more details.
 #[derive(Clone)]
-pub struct BufferDescriptor(Rc<RefCell<BufferDescriptorInner>>);
+pub struct BufferDescriptor(Share<BufferDescriptorInner>);
 
 impl BufferDescriptor {
     /// Constructs a new buffer descriptor with specified [`BufferSource`] and [`BufferUsage`].
@@ -750,7 +755,7 @@ impl BufferDescriptor {
 pub enum MemoryPolicy {
     Unfree,
     ReadBack,
-    Restorable(Rc<RefCell<dyn Fn() -> BufferSource>>),
+    Restorable(Share<dyn Fn() -> BufferSource>),
 }
 
 impl Default for MemoryPolicy {
@@ -785,7 +790,7 @@ pub struct BufferStore {
     counter: usize,
     available_memory: usize,
     used_memory: *mut usize,
-    descriptors: *mut HashMap<usize, Weak<RefCell<BufferDescriptorInner>>>,
+    descriptors: *mut HashMap<usize, WeakShare<BufferDescriptorInner>>,
     ubos: *mut HashMap<u32, usize>,
     lru: *mut Lru<usize>,
 }

@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    borrow::Cow,
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 
 use log::warn;
 
@@ -20,6 +15,7 @@ use crate::{
         texture::{texture2d::Texture2D, TextureDescriptor, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
     },
+    share::{Share, WeakShare},
 };
 
 use super::{StandardMaterial, Transparency};
@@ -27,14 +23,14 @@ use super::{StandardMaterial, Transparency};
 pub struct TextureMaterial {
     transparency: Transparency,
 
-    albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
-    albedo: Rc<RefCell<Option<UniformValue>>>,
+    albedo_loader: Share<dyn Loader<Texture2D, Failure = Error>>,
+    albedo: Share<Option<UniformValue>>,
 
-    normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
-    normal: Rc<RefCell<Option<UniformValue>>>,
+    normal_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
+    normal: Share<Option<UniformValue>>,
 
-    parallax_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
-    parallax: Rc<RefCell<Option<UniformValue>>>,
+    parallax_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
+    parallax: Share<Option<UniformValue>>,
 }
 
 impl TextureMaterial {
@@ -270,8 +266,8 @@ impl StandardMaterial for TextureMaterial {
 
 struct WaitLoader {
     unit: TextureUnit,
-    loader: Weak<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
-    texture_uniform: Weak<RefCell<Option<UniformValue>>>,
+    loader: WeakShare<dyn Loader<Texture2D, Failure = Error>>,
+    texture_uniform: WeakShare<Option<UniformValue>>,
 }
 
 impl Notifiee<LoaderStatus> for WaitLoader {
@@ -306,9 +302,9 @@ impl Notifiee<LoaderStatus> for WaitLoader {
 
 pub struct Builder {
     transparency: Transparency,
-    albedo_loader: Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>,
-    normal_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
-    parallax_loader: Option<Rc<RefCell<dyn Loader<Texture2D, Failure = Error>>>>,
+    albedo_loader: Share<dyn Loader<Texture2D, Failure = Error>>,
+    normal_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
+    parallax_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
 }
 
 impl Builder {

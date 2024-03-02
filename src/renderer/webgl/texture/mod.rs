@@ -15,7 +15,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
     hash::Hash,
-    rc::{Rc, Weak},
+    rc::Rc,
 };
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
@@ -29,7 +29,10 @@ use web_sys::{
     ImageBitmap, ImageData, WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
-use crate::lru::{Lru, LruNode};
+use crate::{
+    lru::{Lru, LruNode},
+    share::{Share, WeakShare},
+};
 
 use super::{
     capabilities::{Capabilities, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC},
@@ -921,7 +924,7 @@ macro_rules! texture_sources {
             Function {
                 width: usize,
                 height: usize,
-                callback: Rc<RefCell<dyn Fn() -> TextureSource>>,
+                callback: Share<dyn Fn() -> TextureSource>,
             },
             PixelBufferObject {
                 width: usize,
@@ -1393,7 +1396,7 @@ macro_rules! texture_sources_compressed {
             Function {
                 width: usize,
                 height: usize,
-                callback: Rc<RefCell<dyn Fn() -> TextureSourceCompressed>>,
+                callback: Share<dyn Fn() -> TextureSourceCompressed>,
             },
             PixelBufferObject {
                 width: usize,
@@ -1842,7 +1845,7 @@ struct UploadItem {
 impl UploadItem {
     /// Constructs a new upload data to upload to texture with a specified [`TextureSource`].
     fn new(source: TextureSource) -> Self {
-        Self{
+        Self {
             source: UploadSource::Uncompressed(source),
             level: None,
             depth: None,
@@ -1879,7 +1882,7 @@ impl UploadItem {
 
     /// Constructs a new upload data to upload to texture with a specified [`TextureSourceCompressed`].
     fn new_compressed(source: TextureSourceCompressed) -> Self {
-        Self{
+        Self {
             source: UploadSource::Compressed(source),
             level: None,
             depth: None,
@@ -1988,7 +1991,7 @@ struct Runtime {
     lru_node: *mut LruNode<Uuid>,
 
     used_memory: *mut usize,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
+    textures: *mut HashMap<Uuid, WeakShare<dyn TextureItem>>,
     lru: *mut Lru<Uuid>,
 }
 
@@ -2020,7 +2023,7 @@ impl Drop for Runtime {
     }
 }
 
-pub struct TextureDescriptor<T>(Rc<RefCell<T>>);
+pub struct TextureDescriptor<T>(Share<T>);
 
 impl<T> Clone for TextureDescriptor<T> {
     fn clone(&self) -> Self {
@@ -2057,7 +2060,7 @@ pub struct TextureStore {
 
     used_memory: *mut usize,
     lru: *mut Lru<Uuid>,
-    textures: *mut HashMap<Uuid, Weak<RefCell<dyn TextureItem>>>,
+    textures: *mut HashMap<Uuid, WeakShare<dyn TextureItem>>,
 }
 
 impl TextureStore {
@@ -2168,7 +2171,7 @@ impl TextureStore {
                 let bytes_length = t.bytes_length();
                 (*self.textures).insert(
                     id,
-                    Rc::downgrade(&descriptor.0) as Weak<RefCell<dyn TextureItem>>,
+                    Rc::downgrade(&descriptor.0) as WeakShare<dyn TextureItem>,
                 );
                 (*self.used_memory) += bytes_length;
                 t.set_runtime(Runtime {
