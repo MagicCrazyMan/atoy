@@ -246,13 +246,25 @@ impl Viewer {
         }
     }
 
-    pub fn multisamples(&self) -> Option<i32> {
-        unsafe { (*self.standard_pipeline).multisamples() }
+    pub fn multisamples_enabled(&self) -> bool {
+        unsafe { (*self.standard_pipeline).multisamples_enabled() }
     }
 
-    pub fn set_multisamples(&mut self, samples: Option<i32>) {
+    pub fn enable_multisamples(&mut self) {
+        unsafe { (*self.standard_pipeline).enable_multisamples() }
+    }
+
+    pub fn disable_multisamples(&mut self) {
+        unsafe { (*self.standard_pipeline).disable_multisamples() }
+    }
+
+    pub fn multisamples_count(&self) -> i32 {
+        unsafe { (*self.standard_pipeline).multisamples_count() }
+    }
+
+    pub fn set_multisamples_count(&mut self, count: i32) {
         unsafe {
-            (*self.standard_pipeline).set_multisamples(samples);
+            (*self.standard_pipeline).set_multisamples_count(count);
         }
     }
 

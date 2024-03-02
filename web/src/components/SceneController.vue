@@ -114,18 +114,29 @@
         </div>
 
         <div class="controller" v-if="shadingType.type === 'ForwardShading'">
-          Multisample
+          Enable Multisamples
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="multisamples"
+            @update:model-value="(value) => emit('update:multisamples', !!value)"
+          ></v-switch>
+        </div>
+
+        <div class="controller" v-if="multisamples && shadingType.type === 'ForwardShading'">
+          Multisamples Count
           <v-slider
             show-ticks="always"
             hide-details
             :min="0"
             :max="8"
             :step="1"
-            :model-value="samples"
-            @update:model-value="(value) => emit('update:samples', value)"
+            :model-value="multisamples_count"
+            @update:model-value="(value) => emit('update:multisamples_count', value)"
           >
             <template v-slot:append>
-              <div>{{ samples }}</div>
+              <div>{{ multisamples_count }}</div>
             </template>
           </v-slider>
         </div>
@@ -274,7 +285,11 @@ defineProps({
     type: Boolean,
     required: true,
   },
-  samples: {
+  multisamples: {
+    type: Boolean,
+    required: true,
+  },
+  multisamples_count: {
     type: Number,
     required: true,
   },
@@ -321,7 +336,8 @@ const emit = defineEmits<{
   (event: "update:gamma", value: number): void;
   (event: "update:lighting", value: boolean): void;
   (event: "update:shading-type", value: ShadingType): void;
-  (event: "update:samples", value: number): void;
+  (event: "update:multisamples", value: boolean): void;
+  (event: "update:multisamples_count", value: number): void;
   (event: "update:hdr", value: boolean): void;
   (event: "update:hdr-tone-mapping", value: HdrToneMappingType): void;
   (event: "update:hdr-exposure", value: number): void;

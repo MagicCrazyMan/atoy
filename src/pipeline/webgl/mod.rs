@@ -226,7 +226,8 @@ pub enum StandardPipelineShading {
 
 pub const DEFAULT_SHADING: StandardPipelineShading = StandardPipelineShading::DeferredShading;
 pub const DEFAULT_LIGHTING_ENABLED: bool = true;
-pub const DEFAULT_MULTISAMPLES: i32 = 4;
+pub const DEFAULT_MULTISAMPLES_ENABLED: bool = true;
+pub const DEFAULT_MULTISAMPLES_COUNT: i32 = 4;
 pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 pub const DEFAULT_BLOOM_ENABLED: bool = false;
@@ -253,11 +254,12 @@ pub struct StandardPipeline {
     lights_ubo: BufferDescriptor,
     gaussian_kernel_ubo: BufferDescriptor,
 
-    enable_lighting: bool,
-    multisamples: Option<i32>,
-    enable_hdr: bool,
+    lighting: bool,
+    multisamples: bool,
+    multisamples_count: i32,
+    hdr: bool,
     hdr_tone_mapping_type: HdrToneMappingType,
-    enable_bloom: bool,
+    bloom: bool,
     bloom_blur_epoch: usize,
 }
 
@@ -302,99 +304,90 @@ impl StandardPipeline {
                 }),
             ),
 
-            enable_lighting: DEFAULT_LIGHTING_ENABLED,
-            multisamples: Some(DEFAULT_MULTISAMPLES),
-            enable_hdr: DEFAULT_HDR_ENABLED,
+            lighting: DEFAULT_LIGHTING_ENABLED,
+            multisamples: DEFAULT_MULTISAMPLES_ENABLED,
+            multisamples_count: DEFAULT_MULTISAMPLES_COUNT,
+            hdr: DEFAULT_HDR_ENABLED,
             hdr_tone_mapping_type: DEFAULT_HDR_TONE_MAPPING_TYPE,
-            enable_bloom: DEFAULT_BLOOM_ENABLED,
+            bloom: DEFAULT_BLOOM_ENABLED,
             bloom_blur_epoch: DEFAULT_BLOOM_BLUR_EPOCH,
         }
     }
 
-    #[inline]
     pub fn set_dirty(&mut self) {}
 
-    #[inline]
     pub fn pipeline_shading(&self) -> StandardPipelineShading {
         self.pipeline_shading
     }
 
-    #[inline]
     pub fn set_pipeline_shading(&mut self, pipeline_shading: StandardPipelineShading) {
         self.pipeline_shading = pipeline_shading;
     }
 
-    #[inline]
     pub fn clear_color(&self) -> &Vec4<f32> {
         self.composer.clear_color()
     }
 
-    #[inline]
     pub fn set_clear_color(&mut self, clear_color: Vec4<f32>) {
         self.composer.set_clear_color(clear_color);
         self.set_dirty();
     }
 
-    #[inline]
     pub fn gamma_correction_enabled(&self) -> bool {
         self.composer.gamma_correction_enabled()
     }
 
-    #[inline]
     pub fn enable_gamma_correction(&mut self) {
         self.composer.enable_gamma_correction();
     }
 
-    #[inline]
     pub fn disable_gamma_correction(&mut self) {
         self.composer.disable_gamma_correction();
     }
 
-    #[inline]
     pub fn gamma(&self) -> f32 {
         self.composer.gamma()
     }
 
-    #[inline]
     pub fn set_gamma(&mut self, gamma: f32) {
         self.composer.set_gamma(gamma);
     }
 
     /// Returns `true` if entity culling enabled.
-    #[inline]
+
     pub fn culling_enabled(&self) -> bool {
         self.entities_collector.culling_enabled()
     }
 
     /// Enables culling by bounding volumes.
-    #[inline]
+
     pub fn enable_culling(&mut self) {
         self.entities_collector.enable_culling();
         self.set_dirty();
     }
 
     /// Disables culling by bounding volumes.
-    #[inline]
+
     pub fn disable_culling(&mut self) {
         self.entities_collector.disable_culling();
         self.set_dirty();
     }
 
     /// Returns `true` if entity distance sorting enabled.
-    #[inline]
+
     pub fn distance_sorting_enabled(&self) -> bool {
         self.entities_collector.distance_sorting_enabled()
     }
 
     /// Enables distance sorting by bounding volumes.
-    #[inline]
+
     pub fn enable_distance_sorting(&mut self) {
         self.entities_collector.enable_distance_sorting();
         self.set_dirty();
     }
 
     /// Disables distance sorting by bounding volumes.
-    #[inline]
+
     pub fn disable_distance_sorting(&mut self) {
         self.entities_collector.disable_distance_sorting();
         self.set_dirty();
@@ -402,108 +395,91 @@ impl StandardPipeline {
 
     /// Returns `true` if enable lighting.
     /// Diffuse color of material used directly if lighting is disabled.
-    #[inline]
+
     pub fn lighting_enabled(&self) -> bool {
-        self.enable_lighting
+        self.lighting
     }
 
     /// Enables lighting.
-    #[inline]
+
     pub fn enable_lighting(&mut self) {
-        self.enable_lighting = true;
+        self.lighting = true;
         self.set_dirty();
     }
 
     /// Disables lighting.
-    #[inline]
+
     pub fn disable_lighting(&mut self) {
-        self.enable_lighting = false;
+        self.lighting = false;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn hdr_enabled(&self) -> bool {
-        self.enable_hdr
+        self.hdr
     }
 
-    #[inline]
     pub fn enable_hdr(&mut self) {
-        self.enable_hdr = true;
+        self.hdr = true;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn disable_hdr(&mut self) {
-        self.enable_hdr = false;
+        self.hdr = false;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn hdr_tone_mapping_type(&self) -> HdrToneMappingType {
         self.hdr_tone_mapping_type
     }
 
-    #[inline]
     pub fn set_hdr_tone_mapping_type(&mut self, tone_mapping_type: HdrToneMappingType) {
         self.hdr_tone_mapping_type = tone_mapping_type;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn bloom_enabled(&self) -> bool {
-        self.enable_bloom
+        self.bloom
     }
 
-    #[inline]
     pub fn enable_bloom(&mut self) {
-        self.enable_bloom = true;
+        self.bloom = true;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn disable_bloom(&mut self) {
-        self.enable_bloom = false;
+        self.bloom = false;
         self.set_dirty();
     }
 
-    #[inline]
     pub fn bloom_blur_epoch(&self) -> usize {
         self.bloom_blur_epoch
     }
 
-    #[inline]
     pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
         self.bloom_blur_epoch = epoch;
         self.set_dirty();
     }
 
-    #[inline]
-    pub fn multisamples(&self) -> Option<i32> {
-        match self.multisamples {
-            Some(samples) => {
-                if samples == 0 {
-                    None
-                } else {
-                    Some(samples)
-                }
-            }
-            None => None,
-        }
+    pub fn multisamples_enabled(&self) -> bool {
+        self.multisamples
     }
 
-    pub fn set_multisamples(&mut self, samples: Option<i32>) {
-        match samples {
-            Some(samples) => {
-                if samples == 0 {
-                    self.multisamples = None;
-                } else {
-                    self.multisamples = Some(samples);
-                }
-            }
-            None => {
-                self.multisamples = None;
-            }
-        };
+    pub fn enable_multisamples(&mut self) {
+        self.multisamples = true;
+        self.set_dirty();
+    }
+
+    pub fn disable_multisamples(&mut self) {
+        self.multisamples = false;
+        self.set_dirty();
+    }
+
+    pub fn multisamples_count(&self) -> i32 {
+        self.multisamples_count
+    }
+
+    pub fn set_multisamples_count(&mut self, count: i32) {
+        self.multisamples_count = count;
         self.set_dirty();
     }
 
@@ -551,12 +527,12 @@ impl StandardPipeline {
         let hdr = hdr_supported && self.hdr_enabled();
         let bloom = self.bloom_enabled();
         let bloom_blur_epoch = self.bloom_blur_epoch();
-        let multisamples = self.multisamples();
+        let multisamples = self.multisamples_enabled() && self.multisamples_count() != 0;
 
         unsafe {
             let collected_entities = self.entities_collector.collect_entities(state, scene);
             let compose_textures = match (hdr, multisamples) {
-                (true, None) => {
+                (true, false) => {
                     self.hdr_shading.draw(
                         state,
                         bloom,
@@ -569,10 +545,10 @@ impl StandardPipeline {
                     )?;
                     self.hdr_shading.draw_texture().unwrap()
                 }
-                (true, Some(samples)) => {
+                (true, true) => {
                     self.multisamples_hdr_shading.draw(
                         state,
-                        samples,
+                        self.multisamples_count,
                         bloom,
                         bloom_blur_epoch,
                         self.hdr_tone_mapping_type,
@@ -583,7 +559,7 @@ impl StandardPipeline {
                     )?;
                     self.multisamples_hdr_shading.draw_texture().unwrap()
                 }
-                (false, None) => {
+                (false, false) => {
                     self.simple_shading.draw(
                         state,
                         &collected_entities,
@@ -592,10 +568,10 @@ impl StandardPipeline {
                     )?;
                     self.simple_shading.draw_texture().unwrap()
                 }
-                (false, Some(samples)) => {
+                (false, true) => {
                     self.multisamples_simple_shading.draw(
                         state,
-                        samples,
+                        self.multisamples_count,
                         &collected_entities,
                         &self.universal_ubo,
                         lights_ubo,

@@ -11,7 +11,8 @@
     v-model:gamma="gamma"
     v-model:lighting="lighting"
     v-model:shading-type="shadingType"
-    v-model:samples="samples"
+    v-model:multisamples="multisamples"
+    v-model:multisamples_count="multisamples_count"
     v-model:hdr="hdr"
     v-model:hdr-tone-mapping="hdrToneMapping"
     v-model:hdr-exposure="hdrExposure"
@@ -43,7 +44,8 @@ const lighting = ref(false);
 const shadingType = ref<ShadingType>({
   type: "ForwardShading",
 });
-const samples = ref(0);
+const multisamples = ref(false);
+const multisamples_count = ref(0);
 const hdr = ref(false);
 const hdrToneMapping = ref<HdrToneMappingType>({
   type: "Reinhard",
@@ -99,7 +101,7 @@ onMounted(async () => {
   );
 
   clearColor.value = (() => {
-    const color = viewer.clear_color_wasm();
+    const color = viewer.clear_color();
     const r = Math.floor(color[0] * 255)
       .toString(16)
       .padStart(2, "0");
@@ -114,20 +116,20 @@ onMounted(async () => {
       .padStart(2, "0");
     return `#${r}${g}${b}${a}`;
   })();
-  renderWhenNeeded.value = viewer.render_when_needed_wasm();
-  culling.value = viewer.culling_enabled_wasm();
-  sorting.value = viewer.distance_sorting_enabled_wasm();
-  gammaCorrection.value = viewer.gamma_correction_enabled_wasm();
-  gamma.value = viewer.gamma_wasm();
-  lighting.value = viewer.lighting_enabled_wasm();
-  shadingType.value = viewer.pipeline_shading_wasm();
-  samples.value = viewer.multisamples_wasm() ?? 0;
-  hdr.value = viewer.hdr_enabled_wasm();
-  bloom.value = viewer.bloom_enabled_wasm();
-  bloomBlurEpoch.value = viewer.bloom_blur_epoch_wasm();
+  renderWhenNeeded.value = viewer.render_when_needed();
+  culling.value = viewer.culling_enabled();
+  sorting.value = viewer.distance_sorting_enabled();
+  gammaCorrection.value = viewer.gamma_correction_enabled();
+  gamma.value = viewer.gamma();
+  lighting.value = viewer.lighting_enabled();
+  shadingType.value = viewer.pipeline_shading();
+  multisamples.value = viewer.multisamples_enabled();
+  multisamples_count.value = viewer.multisamples_count();
+  hdr.value = viewer.hdr_enabled();
+  bloom.value = viewer.bloom_enabled();
+  bloomBlurEpoch.value = viewer.bloom_blur_epoch();
 
-  hdrToneMapping.value =
-    viewer.hdr_tone_mapping_type_wasm() as HdrToneMappingType;
+  hdrToneMapping.value = viewer.hdr_tone_mapping_type() as HdrToneMappingType;
   if (hdrToneMapping.value.type === "Exposure") {
     hdrExposure.value = hdrToneMapping.value.value;
   }
@@ -144,44 +146,44 @@ onMounted(async () => {
     const b = bs ? parseInt(bs, 16) / 255 : 0;
     const a = as ? parseInt(as, 16) / 255 : 1;
 
-    viewer.set_clear_color_wasm(r, g, b, a);
+    viewer.set_clear_color(r, g, b, a);
   });
   watch(renderWhenNeeded, (renderWhenNeeded) => {
     if (renderWhenNeeded) {
-      viewer.enable_render_when_needed_wasm();
+      viewer.enable_render_when_needed();
     } else {
-      viewer.disable_render_when_needed_wasm();
+      viewer.disable_render_when_needed();
     }
   });
   watch(culling, (culling) => {
     if (culling) {
-      viewer.enable_culling_wasm();
+      viewer.enable_culling();
     } else {
-      viewer.disable_culling_wasm();
+      viewer.disable_culling();
     }
   });
   watch(sorting, (sorting) => {
     if (sorting) {
-      viewer.enable_distance_sorting_wasm();
+      viewer.enable_distance_sorting();
     } else {
-      viewer.disable_distance_sorting_wasm();
+      viewer.disable_distance_sorting();
     }
   });
   watch(gammaCorrection, (gammaCorrection) => {
     if (gammaCorrection) {
-      viewer.enable_gamma_correction_wasm();
+      viewer.enable_gamma_correction();
     } else {
-      viewer.disable_gamma_correction_wasm();
+      viewer.disable_gamma_correction();
     }
   });
   watch(gamma, (gamma) => {
-    viewer.set_gamma_wasm(gamma);
+    viewer.set_gamma(gamma);
   });
   watch(lighting, (lighting) => {
     if (lighting) {
-      viewer.enable_lighting_wasm();
+      viewer.enable_lighting();
     } else {
-      viewer.disable_lighting_wasm();
+      viewer.disable_lighting();
     }
   });
   watch(shadingType, (shadingType) => {
@@ -189,37 +191,44 @@ onMounted(async () => {
       shadingType.type === "ForwardShading" ||
       shadingType.type === "DeferredShading"
     ) {
-      viewer.set_pipeline_shading_wasm(shadingType);
+      viewer.set_pipeline_shading(shadingType);
     }
   });
-  watch(samples, (samples) => {
-    viewer.set_multisamples_wasm(samples);
+  watch(multisamples, (multisamples) => {
+    if (multisamples) {
+      viewer.enable_multisamples();
+    } else {
+      viewer.disable_multisamples();
+    }
+  });
+  watch(multisamples_count, (count) => {
+    viewer.set_multisamples_count(count);
   });
   watch(hdr, (hdr) => {
     if (hdr) {
-      viewer.enable_hdr_wasm();
+      viewer.enable_hdr();
     } else {
-      viewer.disable_hdr_wasm();
+      viewer.disable_hdr();
     }
   });
   watch(hdrToneMapping, (type) => {
-    viewer.set_hdr_tone_mapping_type_wasm(type);
+    viewer.set_hdr_tone_mapping_type(type);
   });
   watch(hdrExposure, (value) => {
-    viewer.set_hdr_tone_mapping_type_wasm({
+    viewer.set_hdr_tone_mapping_type({
       type: "Exposure",
       value,
     });
   });
   watch(bloom, (bloom) => {
     if (bloom) {
-      viewer.enable_bloom_wasm();
+      viewer.enable_bloom();
     } else {
-      viewer.disable_bloom_wasm();
+      viewer.disable_bloom();
     }
   });
   watch(bloomBlurEpoch, (bloom_blur_epoch) => {
-    viewer.set_bloom_blur_epoch_wasm(bloom_blur_epoch);
+    viewer.set_bloom_blur_epoch(bloom_blur_epoch);
   });
 });
 </script>

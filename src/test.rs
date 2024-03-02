@@ -605,149 +605,161 @@ pub struct ViewerWasm(Share<Viewer>);
 
 #[wasm_bindgen]
 impl ViewerWasm {
-    pub fn mount_wasm(&self) -> Option<Element> {
+    pub fn mount(&self) -> Option<Element> {
         self.0.borrow().mount().cloned()
     }
 
-    pub fn set_mount_wasm(&mut self, mount: Option<Element>) -> Result<(), Error> {
+    pub fn set_mount(&mut self, mount: Option<Element>) -> Result<(), Error> {
         self.0.borrow_mut().set_mount(mount)
     }
 
-    pub fn render_when_needed_wasm(&self) -> bool {
+    pub fn render_when_needed(&self) -> bool {
         // self.render_when_needed()
         true
     }
 
-    pub fn enable_render_when_needed_wasm(&mut self) {
+    pub fn enable_render_when_needed(&mut self) {
         // self.enable_render_when_needed()
     }
 
-    pub fn disable_render_when_needed_wasm(&mut self) {
+    pub fn disable_render_when_needed(&mut self) {
         // self.disable_render_when_needed()
     }
 
     /// Returns `true` if entity culling enabled.
-    pub fn culling_enabled_wasm(&self) -> bool {
+    pub fn culling_enabled(&self) -> bool {
         self.0.borrow_mut().culling_enabled()
     }
 
-    pub fn enable_culling_wasm(&mut self) {
+    pub fn enable_culling(&mut self) {
         self.0.borrow_mut().enable_culling()
     }
 
-    pub fn disable_culling_wasm(&mut self) {
+    pub fn disable_culling(&mut self) {
         self.0.borrow_mut().disable_culling()
     }
 
     /// Returns `true` if entity distance sorting enabled.
-    pub fn distance_sorting_enabled_wasm(&self) -> bool {
+    pub fn distance_sorting_enabled(&self) -> bool {
         self.0.borrow().distance_sorting_enabled()
     }
 
-    pub fn enable_distance_sorting_wasm(&mut self) {
+    pub fn enable_distance_sorting(&mut self) {
         self.0.borrow_mut().enable_distance_sorting()
     }
 
-    pub fn disable_distance_sorting_wasm(&mut self) {
+    pub fn disable_distance_sorting(&mut self) {
         self.0.borrow_mut().disable_distance_sorting()
     }
 
-    pub fn pipeline_shading_wasm(&self) -> JsValue {
+    pub fn pipeline_shading(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.0.borrow().pipeline_shading()).unwrap()
     }
 
-    pub fn set_pipeline_shading_wasm(&mut self, shading: JsValue) {
+    pub fn set_pipeline_shading(&mut self, shading: JsValue) {
         let shading = serde_wasm_bindgen::from_value::<StandardPipelineShading>(shading).unwrap();
         self.0.borrow_mut().set_pipeline_shading(shading);
     }
 
-    pub fn clear_color_wasm(&self) -> Box<[f32]> {
+    pub fn clear_color(&self) -> Box<[f32]> {
         Box::new(self.0.borrow().clear_color().raw().clone())
     }
 
-    pub fn set_clear_color_wasm(&mut self, r: f32, g: f32, b: f32, a: f32) {
+    pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
         self.0.borrow_mut().set_clear_color(Vec4::new(r, g, b, a))
     }
 
-    pub fn gamma_correction_enabled_wasm(&self) -> bool {
+    pub fn gamma_correction_enabled(&self) -> bool {
         self.0.borrow().gamma_correction_enabled()
     }
 
-    pub fn enable_gamma_correction_wasm(&mut self) {
+    pub fn enable_gamma_correction(&mut self) {
         self.0.borrow_mut().enable_gamma_correction();
     }
 
-    pub fn disable_gamma_correction_wasm(&mut self) {
+    pub fn disable_gamma_correction(&mut self) {
         self.0.borrow_mut().disable_gamma_correction();
     }
 
-    pub fn gamma_wasm(&self) -> f32 {
+    pub fn gamma(&self) -> f32 {
         self.0.borrow().gamma()
     }
 
-    pub fn set_gamma_wasm(&mut self, gamma: f32) {
+    pub fn set_gamma(&mut self, gamma: f32) {
         self.0.borrow_mut().set_gamma(gamma);
     }
 
-    pub fn lighting_enabled_wasm(&self) -> bool {
+    pub fn lighting_enabled(&self) -> bool {
         self.0.borrow().lighting_enabled()
     }
 
-    pub fn enable_lighting_wasm(&mut self) {
+    pub fn enable_lighting(&mut self) {
         self.0.borrow_mut().enable_lighting();
     }
 
-    pub fn disable_lighting_wasm(&mut self) {
+    pub fn disable_lighting(&mut self) {
         self.0.borrow_mut().disable_lighting();
     }
 
-    pub fn multisamples_wasm(&self) -> Option<i32> {
-        self.0.borrow().multisamples()
+    pub fn multisamples_enabled(&mut self) -> bool {
+        self.0.borrow_mut().multisamples_enabled()
     }
 
-    pub fn set_multisamples_wasm(&mut self, samples: Option<i32>) {
-        self.0.borrow_mut().set_multisamples(samples)
+    pub fn enable_multisamples(&mut self) {
+        self.0.borrow_mut().enable_multisamples()
     }
 
-    pub fn hdr_enabled_wasm(&self) -> bool {
+    pub fn disable_multisamples(&mut self) {
+        self.0.borrow_mut().disable_multisamples()
+    }
+
+    pub fn multisamples_count(&self) -> i32 {
+        self.0.borrow().multisamples_count()
+    }
+
+    pub fn set_multisamples_count(&mut self, count: i32) {
+        self.0.borrow_mut().set_multisamples_count(count)
+    }
+
+    pub fn hdr_enabled(&self) -> bool {
         self.0.borrow().hdr_enabled()
     }
 
-    pub fn enable_hdr_wasm(&mut self) {
+    pub fn enable_hdr(&mut self) {
         self.0.borrow_mut().enable_hdr();
     }
 
-    pub fn disable_hdr_wasm(&mut self) {
+    pub fn disable_hdr(&mut self) {
         self.0.borrow_mut().disable_hdr();
     }
 
-    pub fn hdr_tone_mapping_type_wasm(&self) -> JsValue {
+    pub fn hdr_tone_mapping_type(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.0.borrow().hdr_tone_mapping_type()).unwrap()
     }
 
-    pub fn set_hdr_tone_mapping_type_wasm(&mut self, hdr_tone_mapping_type: JsValue) {
+    pub fn set_hdr_tone_mapping_type(&mut self, hdr_tone_mapping_type: JsValue) {
         let t =
             serde_wasm_bindgen::from_value::<HdrToneMappingType>(hdr_tone_mapping_type).unwrap();
         self.0.borrow_mut().set_hdr_tone_mapping_type(t);
     }
 
-    pub fn bloom_enabled_wasm(&self) -> bool {
+    pub fn bloom_enabled(&self) -> bool {
         self.0.borrow().bloom_enabled()
     }
 
-    pub fn enable_bloom_wasm(&mut self) {
+    pub fn enable_bloom(&mut self) {
         self.0.borrow_mut().enable_bloom()
     }
 
-    pub fn disable_bloom_wasm(&mut self) {
+    pub fn disable_bloom(&mut self) {
         self.0.borrow_mut().disable_bloom()
     }
 
-    pub fn bloom_blur_epoch_wasm(&self) -> usize {
+    pub fn bloom_blur_epoch(&self) -> usize {
         self.0.borrow().bloom_blur_epoch()
     }
 
-    pub fn set_bloom_blur_epoch_wasm(&mut self, epoch: usize) {
+    pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
         self.0.borrow_mut().set_bloom_blur_epoch(epoch);
     }
 }
