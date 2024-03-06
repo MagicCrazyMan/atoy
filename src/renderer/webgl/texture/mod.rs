@@ -2023,7 +2023,7 @@ impl Drop for Runtime {
     }
 }
 
-pub struct TextureDescriptor<T>(Share<T>);
+pub struct TextureDescriptor<T: ?Sized>(Share<T>);
 
 impl<T> Clone for TextureDescriptor<T> {
     fn clone(&self) -> Self {

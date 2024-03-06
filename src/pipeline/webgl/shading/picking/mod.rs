@@ -125,7 +125,7 @@ impl StandardPicking {
             state.bind_uniform_value_by_variable_name(
                 program,
                 MODEL_MATRIX_UNIFORM_NAME,
-                entity.compose_model_matrix().as_ref(),
+                entity.compose_model_matrix(),
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,

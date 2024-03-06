@@ -1,4 +1,4 @@
-use std::{cell::Ref, iter::FromIterator, ptr::NonNull};
+use std::{iter::FromIterator, ptr::NonNull};
 
 use log::warn;
 use wasm_bindgen::JsValue;
@@ -8,7 +8,7 @@ use web_sys::{
     WebGlUniformLocation,
 };
 
-use crate::{camera::Camera, entity::Entity, readonly::Readonly};
+use crate::{camera::Camera, entity::Entity};
 
 use super::{
     attribute::{AttributeInternalBinding, AttributeValue},
@@ -139,7 +139,7 @@ impl FrameState {
     pub fn bind_attributes(
         &mut self,
         program: &mut Program,
-        entity: &Ref<'_, dyn Entity>,
+        entity: &dyn Entity,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
         let custom_bindings = entity
@@ -364,7 +364,7 @@ impl FrameState {
     pub fn bind_uniforms(
         &mut self,
         program: &mut Program,
-        entity: &Ref<'_, dyn Entity>,
+        entity: &dyn Entity,
     ) -> Result<Vec<BoundUniform>, Error> {
         let internal_bindings = program.uniform_internal_bindings();
         let custom_bindings = entity
@@ -386,20 +386,20 @@ impl FrameState {
                 .unwrap();
 
             let result = match binding {
-                UniformInternalBinding::ModelMatrix
-                | UniformInternalBinding::ViewMatrix
-                | UniformInternalBinding::ProjMatrix
-                | UniformInternalBinding::NormalMatrix
-                | UniformInternalBinding::ViewProjMatrix => {
-                    let matrix = match binding {
-                        UniformInternalBinding::ModelMatrix => entity.compose_model_matrix(),
-                        UniformInternalBinding::NormalMatrix => entity.compose_normal_matrix(),
-                        UniformInternalBinding::ViewMatrix => Readonly::Owned(self.camera().view_matrix().clone()),
-                        UniformInternalBinding::ProjMatrix => Readonly::Owned(self.camera().proj_matrix().clone()),
-                        UniformInternalBinding::ViewProjMatrix => Readonly::Owned(self.camera().view_proj_matrix().clone()),
-                        _ => unreachable!(),
-                    };
-                    self.bind_uniform_value(&location, matrix)
+                UniformInternalBinding::ModelMatrix => {
+                    self.bind_uniform_value(&location, entity.compose_model_matrix())
+                }
+                UniformInternalBinding::NormalMatrix => {
+                    self.bind_uniform_value(&location, entity.compose_normal_matrix())
+                }
+                UniformInternalBinding::ViewMatrix => {
+                    self.bind_uniform_value(&location, self.camera().view_matrix().clone())
+                }
+                UniformInternalBinding::ProjMatrix => {
+                    self.bind_uniform_value(&location, self.camera().proj_matrix().clone())
+                }
+                UniformInternalBinding::ViewProjMatrix => {
+                    self.bind_uniform_value(&location, self.camera().view_proj_matrix().clone())
                 }
                 UniformInternalBinding::CameraPosition => {
                     self.bind_uniform_value(&location, self.camera().position().clone())
@@ -691,27 +691,23 @@ impl FrameState {
                 let kind = match uniform_type {
                     UniformValueType::Texture2D => {
                         let descriptor = value.texture2d();
-                        self.texture_store_mut()
-                            .bind_texture(descriptor.as_ref(), unit)?;
-                        TextureKind::Texture2D(descriptor.as_ref().clone())
+                        self.texture_store_mut().bind_texture(&descriptor, unit)?;
+                        TextureKind::Texture2D(descriptor.clone())
                     }
                     UniformValueType::Texture2DArray => {
                         let descriptor = value.texture2d_array();
-                        self.texture_store_mut()
-                            .bind_texture(descriptor.as_ref(), unit)?;
-                        TextureKind::Texture2DArray(descriptor.as_ref().clone())
+                        self.texture_store_mut().bind_texture(&descriptor, unit)?;
+                        TextureKind::Texture2DArray(descriptor.clone())
                     }
                     UniformValueType::Texture3D => {
                         let descriptor = value.texture3d();
-                        self.texture_store_mut()
-                            .bind_texture(descriptor.as_ref(), unit)?;
-                        TextureKind::Texture3D(descriptor.as_ref().clone())
+                        self.texture_store_mut().bind_texture(&descriptor, unit)?;
+                        TextureKind::Texture3D(descriptor.clone())
                     }
                     UniformValueType::TextureCubeMap => {
                         let descriptor = value.texture_cube_map();
-                        self.texture_store_mut()
-                            .bind_texture(descriptor.as_ref(), unit)?;
-                        TextureKind::TextureCubeMap(descriptor.as_ref().clone())
+                        self.texture_store_mut().bind_texture(&descriptor, unit)?;
+                        TextureKind::TextureCubeMap(descriptor.clone())
                     }
                     _ => unreachable!(),
                 };

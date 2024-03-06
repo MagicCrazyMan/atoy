@@ -1,13 +1,10 @@
-use std::{cell::Ref, ops::Deref};
+use std::borrow::Cow;
 
 use gl_matrix4rust::{
     mat2::Mat2, mat3::Mat3, mat4::Mat4, vec2::Vec2, vec3::Vec3, vec4::Vec4, GLF32,
 };
 
-use crate::{
-    material::Transparency,
-    readonly::{Readonly, ReadonlyUnsized},
-};
+use crate::{material::Transparency, readonly::Readonly};
 
 use super::{
     buffer::BufferDescriptor,
@@ -443,126 +440,6 @@ impl UniformValue for [u32; 4] {
     }
 }
 
-// impl UniformValue for &[f32; 1] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector1
-//     }
-
-//     fn float_vector1(&self) -> Readonly<'_, [f32; 1]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[f32; 2] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector2
-//     }
-
-//     fn float_vector2(&self) -> Readonly<'_, [f32; 2]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[f32; 3] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector3
-//     }
-
-//     fn float_vector3(&self) -> Readonly<'_, [f32; 3]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[f32; 4] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector4
-//     }
-
-//     fn float_vector4(&self) -> Readonly<'_, [f32; 4]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[u32; 1] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::UnsignedIntegerVector1
-//     }
-
-//     fn unsigned_integer_vector1(&self) -> Readonly<'_, [u32; 1]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[u32; 2] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::UnsignedIntegerVector2
-//     }
-
-//     fn unsigned_integer_vector2(&self) -> Readonly<'_, [u32; 2]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[u32; 3] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::UnsignedIntegerVector3
-//     }
-
-//     fn unsigned_integer_vector3(&self) -> Readonly<'_, [u32; 3]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[u32; 4] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::UnsignedIntegerVector4
-//     }
-
-//     fn unsigned_integer_vector4(&self) -> Readonly<'_, [u32; 4]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[i32; 1] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::IntegerVector1
-//     }
-
-//     fn integer_vector1(&self) -> Readonly<'_, [i32; 1]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[i32; 2] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::IntegerVector2
-//     }
-
-//     fn integer_vector2(&self) -> Readonly<'_, [i32; 2]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[i32; 3] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::IntegerVector3
-//     }
-
-//     fn integer_vector3(&self) -> Readonly<'_, [i32; 3]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
-// impl UniformValue for &[i32; 4] {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::IntegerVector1
-//     }
-
-//     fn integer_vector4(&self) -> Readonly<'_, [i32; 4]> {
-//         Readonly::Borrowed(self)
-//     }
-// }
-
 impl UniformValue for Vec2<f32> {
     fn uniform_type(&self) -> UniformValueType {
         UniformValueType::FloatVector2
@@ -582,16 +459,6 @@ impl UniformValue for Vec2<f64> {
         Readonly::Owned(self.gl_f32())
     }
 }
-
-// impl UniformValue for &Vec2<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector3
-//     }
-
-//     fn float_vector2(&self) -> Readonly<'_, [f32; 2]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
 
 impl UniformValue for Vec3<f32> {
     fn uniform_type(&self) -> UniformValueType {
@@ -613,16 +480,6 @@ impl UniformValue for Vec3<f64> {
     }
 }
 
-// impl UniformValue for &Vec3<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector3
-//     }
-
-//     fn float_vector3(&self) -> Readonly<'_, [f32; 3]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
-
 impl UniformValue for Vec4<f32> {
     fn uniform_type(&self) -> UniformValueType {
         UniformValueType::FloatVector4
@@ -642,16 +499,6 @@ impl UniformValue for Vec4<f64> {
         Readonly::Owned(self.gl_f32())
     }
 }
-
-// impl UniformValue for &Vec4<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::FloatVector4
-//     }
-
-//     fn float_vector4(&self) -> Readonly<'_, [f32; 4]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
 
 impl UniformValue for Mat2<f32> {
     fn uniform_type(&self) -> UniformValueType {
@@ -681,20 +528,6 @@ impl UniformValue for Mat2<f64> {
     }
 }
 
-// impl UniformValue for &Mat2<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::Matrix2
-//     }
-
-//     fn matrix_transpose(&self) -> bool {
-//         false
-//     }
-
-//     fn matrix2(&self) -> Readonly<'_, [f32; 4]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
-
 impl UniformValue for Mat3<f32> {
     fn uniform_type(&self) -> UniformValueType {
         UniformValueType::Matrix3
@@ -722,20 +555,6 @@ impl UniformValue for Mat3<f64> {
         Readonly::Owned(self.gl_f32())
     }
 }
-
-// impl UniformValue for &Mat3<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::Matrix3
-//     }
-
-//     fn matrix_transpose(&self) -> bool {
-//         false
-//     }
-
-//     fn matrix3(&self) -> Readonly<'_, [f32; 9]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
 
 impl UniformValue for Mat4<f32> {
     fn uniform_type(&self) -> UniformValueType {
@@ -765,20 +584,6 @@ impl UniformValue for Mat4<f64> {
     }
 }
 
-// impl UniformValue for &Mat4<f32> {
-//     fn uniform_type(&self) -> UniformValueType {
-//         UniformValueType::Matrix4
-//     }
-
-//     fn matrix_transpose(&self) -> bool {
-//         false
-//     }
-
-//     fn matrix4(&self) -> Readonly<'_, [f32; 16]> {
-//         Readonly::Borrowed(self.raw())
-//     }
-// }
-
 impl UniformValue for Transparency {
     fn uniform_type(&self) -> UniformValueType {
         UniformValueType::Float1
@@ -789,175 +594,179 @@ impl UniformValue for Transparency {
     }
 }
 
-impl<'a, T> UniformValue for Readonly<'a, T>
+pub trait AsUniformValue {
+    fn as_uniform_value(&self) -> &dyn UniformValue;
+}
+
+impl<T> UniformValue for T
 where
-    T: UniformValue,
+    T: AsUniformValue,
 {
     fn uniform_type(&self) -> UniformValueType {
-        self.as_ref().uniform_type()
+        self.as_uniform_value().uniform_type()
     }
 
     fn bool(&self) -> bool {
-        self.as_ref().bool()
+        self.as_uniform_value().bool()
     }
 
     fn float1(&self) -> f32 {
-        self.as_ref().float1()
+        self.as_uniform_value().float1()
     }
 
     fn float2(&self) -> (f32, f32) {
-        self.as_ref().float2()
+        self.as_uniform_value().float2()
     }
 
     fn float3(&self) -> (f32, f32, f32) {
-        self.as_ref().float3()
+        self.as_uniform_value().float3()
     }
 
     fn float4(&self) -> (f32, f32, f32, f32) {
-        self.as_ref().float4()
+        self.as_uniform_value().float4()
     }
 
     fn unsigned_integer1(&self) -> u32 {
-        self.as_ref().unsigned_integer1()
+        self.as_uniform_value().unsigned_integer1()
     }
 
     fn unsigned_integer2(&self) -> (u32, u32) {
-        self.as_ref().unsigned_integer2()
+        self.as_uniform_value().unsigned_integer2()
     }
 
     fn unsigned_integer3(&self) -> (u32, u32, u32) {
-        self.as_ref().unsigned_integer3()
+        self.as_uniform_value().unsigned_integer3()
     }
 
     fn unsigned_integer4(&self) -> (u32, u32, u32, u32) {
-        self.as_ref().unsigned_integer4()
+        self.as_uniform_value().unsigned_integer4()
     }
 
     fn integer1(&self) -> i32 {
-        self.as_ref().integer1()
+        self.as_uniform_value().integer1()
     }
 
     fn integer2(&self) -> (i32, i32) {
-        self.as_ref().integer2()
+        self.as_uniform_value().integer2()
     }
 
     fn integer3(&self) -> (i32, i32, i32) {
-        unimplemented!()
+        self.as_uniform_value().integer3()
     }
 
     fn integer4(&self) -> (i32, i32, i32, i32) {
-        unimplemented!()
+        self.as_uniform_value().integer4()
     }
 
     fn float_vector1(&self) -> Readonly<'_, [f32; 1]> {
-        unimplemented!()
+        self.as_uniform_value().float_vector1()
     }
 
     fn float_vector2(&self) -> Readonly<'_, [f32; 2]> {
-        unimplemented!()
+        self.as_uniform_value().float_vector2()
     }
 
     fn float_vector3(&self) -> Readonly<'_, [f32; 3]> {
-        unimplemented!()
+        self.as_uniform_value().float_vector3()
     }
 
     fn float_vector4(&self) -> Readonly<'_, [f32; 4]> {
-        unimplemented!()
+        self.as_uniform_value().float_vector4()
     }
 
     fn integer_vector1(&self) -> Readonly<'_, [i32; 1]> {
-        unimplemented!()
+        self.as_uniform_value().integer_vector1()
     }
 
     fn integer_vector2(&self) -> Readonly<'_, [i32; 2]> {
-        unimplemented!()
+        self.as_uniform_value().integer_vector2()
     }
 
     fn integer_vector3(&self) -> Readonly<'_, [i32; 3]> {
-        unimplemented!()
+        self.as_uniform_value().integer_vector3()
     }
 
     fn integer_vector4(&self) -> Readonly<'_, [i32; 4]> {
-        unimplemented!()
+        self.as_uniform_value().integer_vector4()
     }
 
     fn unsigned_integer_vector1(&self) -> Readonly<'_, [u32; 1]> {
-        unimplemented!()
+        self.as_uniform_value().unsigned_integer_vector1()
     }
 
     fn unsigned_integer_vector2(&self) -> Readonly<'_, [u32; 2]> {
-        unimplemented!()
+        self.as_uniform_value().unsigned_integer_vector2()
     }
 
     fn unsigned_integer_vector3(&self) -> Readonly<'_, [u32; 3]> {
-        unimplemented!()
+        self.as_uniform_value().unsigned_integer_vector3()
     }
 
     fn unsigned_integer_vector4(&self) -> Readonly<'_, [u32; 4]> {
-        unimplemented!()
+        self.as_uniform_value().unsigned_integer_vector4()
     }
 
     fn matrix_transpose(&self) -> bool {
-        unimplemented!()
+        self.as_uniform_value().matrix_transpose()
     }
 
     fn matrix2(&self) -> Readonly<'_, [f32; 4]> {
-        unimplemented!()
+        self.as_uniform_value().matrix2()
     }
 
     fn matrix3(&self) -> Readonly<'_, [f32; 9]> {
-        unimplemented!()
+        self.as_uniform_value().matrix3()
     }
 
     fn matrix4(&self) -> Readonly<'_, [f32; 16]> {
-        unimplemented!()
+        self.as_uniform_value().matrix4()
     }
 
     fn texture_unit(&self) -> TextureUnit {
-        unimplemented!()
+        self.as_uniform_value().texture_unit()
     }
 
     fn texture2d(&self) -> Readonly<'_, TextureDescriptor<Texture2D>> {
-        unimplemented!()
+        self.as_uniform_value().texture2d()
     }
 
     fn texture2d_array(&self) -> Readonly<'_, TextureDescriptor<Texture2DArray>> {
-        unimplemented!()
+        self.as_uniform_value().texture2d_array()
     }
 
     fn texture3d(&self) -> Readonly<'_, TextureDescriptor<Texture3D>> {
-        unimplemented!()
+        self.as_uniform_value().texture3d()
     }
 
     fn texture_cube_map(&self) -> Readonly<'_, TextureDescriptor<TextureCubeMap>> {
-        unimplemented!()
+        self.as_uniform_value().texture_cube_map()
     }
 }
 
-impl<'a, T> UniformValue for ReadonlyUnsized<'a, T>
-where
-    T: UniformValue + ?Sized + 'a,
-{
-    fn uniform_type(&self) -> UniformValueType {
-        ReadonlyUnsized::deref(self).uniform_type()
-    }
-}
-
-impl<'a, T> UniformValue for Ref<'a, T>
+impl<'a, T> AsUniformValue for Readonly<'a, T>
 where
     T: UniformValue,
 {
-    fn uniform_type(&self) -> UniformValueType {
-        Ref::deref(self).uniform_type()
+    fn as_uniform_value(&self) -> &dyn UniformValue {
+        self.as_ref()
     }
 }
 
-impl<T> UniformValue for &T
+impl<'a, T> AsUniformValue for Cow<'a, T>
 where
-    T: UniformValue,
+    T: UniformValue + Clone,
 {
-    fn uniform_type(&self) -> UniformValueType {
-        (*self).uniform_type()
+    fn as_uniform_value(&self) -> &dyn UniformValue {
+        self.as_ref()
+    }
+}
+
+impl<T> AsUniformValue for T
+where
+    T: AsRef<dyn UniformValue>,
+{
+    fn as_uniform_value(&self) -> &dyn UniformValue {
+        self.as_ref()
     }
 }
 

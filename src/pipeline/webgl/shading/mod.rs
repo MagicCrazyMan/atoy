@@ -204,8 +204,8 @@ fn draw_entity(
     }
 
     let program = prepare_program(state, draw_state, entity.material().unwrap())?;
-    let bound_attributes = state.bind_attributes(program, &entity)?;
-    let bound_uniforms = state.bind_uniforms(program, &entity)?;
+    let bound_attributes = state.bind_attributes(program, &*entity)?;
+    let bound_uniforms = state.bind_uniforms(program, &*entity)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
     state.unbind_uniforms(bound_uniforms)?;

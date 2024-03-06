@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    borrow::Cow,
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 
 use log::warn;
 
@@ -193,27 +188,26 @@ impl StandardMaterial for TextureMaterial {
         match name {
             "u_AlbedoMap" => {
                 let albedo = self.albedo.borrow();
-                if albedo.is_some() {
-                    Some(ReadonlyUnsized::Owned(Box::new(Ref::map(
-                        albedo,
-                        |albedo| albedo.as_ref().unwrap(),
-                    ))))
-                } else {
-                    None
+                match &*albedo {
+                    Some(albedo) => Some(ReadonlyUnsized::Owned(Box::new(albedo.clone()))),
+                    None => None,
                 }
             }
-            // "u_NormalMap" => match self.has_normal_map() {
-            //     true => Some(self.normal.borrow()),
-            //     false => None,
-            // },
-            // "u_ParallaxHeightScale" => match self.has_parallax_map() {
-            //     true => Some(&0.1),
-            //     false => None,
-            // },
-            // "u_ParallaxMap" => match self.has_parallax_map() {
-            //     true => Some(self.parallax.borrow()),
-            //     false => None,
-            // },
+            "u_NormalMap" => {
+                let normal = self.normal.borrow();
+                match &*normal {
+                    Some(normal) => Some(ReadonlyUnsized::Owned(Box::new(normal.clone()))),
+                    None => None,
+                }
+            }
+            "u_ParallaxHeightScale" => Some(ReadonlyUnsized::Borrowed(&0.1)),
+            "u_ParallaxMap" => {
+                let parallax = self.parallax.borrow();
+                match &*parallax {
+                    Some(parallax) => Some(ReadonlyUnsized::Owned(Box::new(parallax.clone()))),
+                    None => None,
+                }
+            }
             "u_Transparency" => Some(ReadonlyUnsized::Borrowed(&self.transparency)),
             "u_SpecularShininess" => Some(ReadonlyUnsized::Borrowed(&128.0)),
             _ => None,
