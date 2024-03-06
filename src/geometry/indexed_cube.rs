@@ -1,7 +1,10 @@
 use std::{any::Any, cell::OnceCell};
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    readonly::{Readonly, ReadonlyUnsized},
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -9,7 +12,7 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 use super::{cube::build_bounding_volume, Geometry};
@@ -169,7 +172,7 @@ impl Geometry for IndexedCube {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, _: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
         None
     }
 

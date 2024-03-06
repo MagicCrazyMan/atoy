@@ -5,15 +5,6 @@ pub enum Readonly<'a, T> {
     Owned(T),
 }
 
-impl<'a, T: Clone> Clone for Readonly<'a, T> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Borrowed(v) => Self::Borrowed(*v),
-            Self::Owned(v) => Self::Owned(v.clone()),
-        }
-    }
-}
-
 impl<'a, T> AsRef<T> for Readonly<'a, T> {
     fn as_ref(&self) -> &T {
         match self {
@@ -30,6 +21,31 @@ impl<'a, T> Deref for Readonly<'a, T> {
         match self {
             Readonly::Borrowed(v) => *v,
             Readonly::Owned(v) => v,
+        }
+    }
+}
+
+pub enum ReadonlyUnsized<'a, T: ?Sized + 'a> {
+    Borrowed(&'a T),
+    Owned(Box<T>),
+}
+
+impl<'a, T: ?Sized + 'a> AsRef<T> for ReadonlyUnsized<'a, T> {
+    fn as_ref(&self) -> &T {
+        match self {
+            ReadonlyUnsized::Borrowed(v) => *v,
+            ReadonlyUnsized::Owned(v) => v,
+        }
+    }
+}
+
+impl<'a, T: ?Sized + 'a> Deref for ReadonlyUnsized<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            ReadonlyUnsized::Borrowed(v) => *v,
+            ReadonlyUnsized::Owned(v) => v,
         }
     }
 }

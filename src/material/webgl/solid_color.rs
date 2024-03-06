@@ -1,10 +1,10 @@
 use std::{any::Any, borrow::Cow};
 
-use gl_matrix4rust::{vec3::Vec3, GLF32};
+use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
     clock::Tick,
-    readonly::Readonly,
+    readonly::{Readonly, ReadonlyUnsized},
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
@@ -89,17 +89,11 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
         match name {
-            "u_Color" => Some(Readonly::Owned(UniformValue::FloatVector3(
-                self.color.gl_f32(),
-            ))),
-            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
-                self.transparency.alpha(),
-            ))),
-            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(
-                self.specular_shininess,
-            ))),
+            "u_Color" => Some(ReadonlyUnsized::Borrowed(&self.color)),
+            "u_Transparency" => Some(ReadonlyUnsized::Borrowed(&self.transparency)),
+            "u_SpecularShininess" => Some(ReadonlyUnsized::Borrowed(&self.specular_shininess)),
             _ => None,
         }
     }

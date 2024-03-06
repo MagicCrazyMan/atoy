@@ -12,7 +12,6 @@ use crate::renderer::webgl::{
     program::{Define, ShaderProvider},
     state::FrameState,
     texture::{TextureColorFormat, TextureUnit},
-    uniform::UniformValue,
 };
 
 const TEXTURE_UNIFORM_NAME: &'static str = "u_Texture";
@@ -115,11 +114,7 @@ impl StandardComposer {
         let program = state
             .program_store_mut()
             .use_program(&self.shader_provider)?;
-        state.bind_uniform_value_by_variable_name(
-            program,
-            TEXTURE_UNIFORM_NAME,
-            &UniformValue::Integer1(0),
-        )?;
+        state.bind_uniform_value_by_variable_name(program, TEXTURE_UNIFORM_NAME, 0)?;
 
         for texture in textures {
             state.do_computation([(texture, TextureUnit::TEXTURE0)])?;
@@ -150,11 +145,7 @@ impl StandardComposer {
             .program_store_mut()
             .use_program(&self.shader_provider)?;
         if self.shader_provider.enable_gamma_correction {
-            state.bind_uniform_value_by_variable_name(
-                program,
-                GAMMA_UNIFORM_NAME,
-                &UniformValue::Float1(self.gamma),
-            )?;
+            state.bind_uniform_value_by_variable_name(program, GAMMA_UNIFORM_NAME, self.gamma)?;
         }
 
         state.do_computation([(

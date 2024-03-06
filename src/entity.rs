@@ -14,7 +14,7 @@ use crate::{
     clock::Tick,
     geometry::Geometry,
     material::webgl::StandardMaterial,
-    readonly::Readonly,
+    readonly::{Readonly, ReadonlyUnsized},
     renderer::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
@@ -31,9 +31,9 @@ pub trait Entity {
 
     fn umount(&mut self);
 
-    fn compose_model_matrix(&self) -> &Mat4;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn compose_normal_matrix(&self) -> &Mat4;
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4>;
 
     fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
 
@@ -47,7 +47,7 @@ pub trait Entity {
 
     fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>>;
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
@@ -71,7 +71,7 @@ pub trait Group {
 
     fn umount(&mut self);
 
-    fn compose_model_matrix(&self) -> &Mat4;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
 
     fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
 
@@ -281,12 +281,12 @@ impl Entity for SimpleEntity {
         self.group = None;
     }
 
-    fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_model_matrix)
     }
 
-    fn compose_normal_matrix(&self) -> &Mat4 {
-        &self.compose_normal_matrix
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_normal_matrix)
     }
 
     fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {
@@ -319,7 +319,7 @@ impl Entity for SimpleEntity {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, _: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
         None
     }
 
@@ -532,8 +532,8 @@ impl Group for SimpleGroup {
         self.parent = None;
     }
 
-    fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_model_matrix)
     }
 
     fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {

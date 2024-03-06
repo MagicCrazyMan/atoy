@@ -4,12 +4,14 @@ pub mod texture;
 use std::{any::Any, borrow::Cow};
 
 use crate::{
-    clock::Tick, readonly::Readonly, renderer::webgl::{
+    clock::Tick,
+    readonly::{Readonly, ReadonlyUnsized},
+    renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 use super::Transparency;
@@ -24,7 +26,6 @@ pub trait StandardMaterial {
 
     /// Prepares material.
     fn prepare(&mut self, state: &mut FrameState);
-    
 
     fn tick(&mut self, tick: &Tick) -> bool;
 
@@ -35,7 +36,7 @@ pub trait StandardMaterial {
     fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
 
     /// Returns a custom uniform value by an uniform variable name.
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>>;
 
     /// Returns a custom uniform block buffer binding value by an uniform block name.
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;

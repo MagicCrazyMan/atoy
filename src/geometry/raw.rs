@@ -1,11 +1,14 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    readonly::{Readonly, ReadonlyUnsized},
+    renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 use super::Geometry;
@@ -19,7 +22,7 @@ pub struct RawGeometry {
     bitangents: Option<AttributeValue>,
     texture_coordinates: Option<AttributeValue>,
     attributes: HashMap<String, AttributeValue>,
-    uniforms: HashMap<String, UniformValue>,
+    uniforms: HashMap<String, Box<dyn UniformValue>>,
     uniform_blocks: HashMap<String, UniformBlockValue>,
 }
 
@@ -33,7 +36,7 @@ impl RawGeometry {
         bitangents: Option<AttributeValue>,
         texture_coordinates: Option<AttributeValue>,
         attributes: HashMap<String, AttributeValue>,
-        uniforms: HashMap<String, UniformValue>,
+        uniforms: HashMap<String, Box<dyn UniformValue>>,
         uniform_blocks: HashMap<String, UniformBlockValue>,
     ) -> Self {
         Self {
@@ -90,8 +93,8 @@ impl Geometry for RawGeometry {
         self.attributes.get(name).map(|v| Readonly::Borrowed(v))
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
-        self.uniforms.get(name).map(|v| Readonly::Borrowed(v))
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
+        self.uniforms.get(name).map(|v| ReadonlyUnsized::Borrowed(v.as_ref()))
     }
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {

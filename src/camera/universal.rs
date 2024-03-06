@@ -5,6 +5,7 @@ use crate::{
     frustum::ViewFrustum,
     notify::{Notifiee, Notifying},
     plane::Plane,
+    readonly::Readonly,
     renderer::webgl::RenderEvent,
     share::Share,
     viewer::Viewer,
@@ -462,20 +463,20 @@ impl UniversalCamera {
 }
 
 impl Camera for UniversalCamera {
-    fn position(&self) -> Vec3 {
-        self.inner.borrow().view.invert().unwrap().translation()
+    fn position(&self) -> Readonly<'_, Vec3> {
+        Readonly::Owned(self.inner.borrow().view.invert().unwrap().translation())
     }
 
-    fn view_matrix(&self) -> Mat4 {
-        self.inner.borrow().view
+    fn view_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Owned(self.inner.borrow().view)
     }
 
-    fn proj_matrix(&self) -> Mat4 {
-        self.inner.borrow().proj
+    fn proj_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Owned(self.inner.borrow().proj)
     }
 
-    fn view_proj_matrix(&self) -> Mat4 {
-        self.inner.borrow().view_proj
+    fn view_proj_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Owned(self.inner.borrow().view_proj)
     }
 
     fn view_frustum(&self) -> ViewFrustum {

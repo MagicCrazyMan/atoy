@@ -2,7 +2,7 @@ use std::any::Any;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
-use crate::{frustum::ViewFrustum, plane::Plane};
+use crate::{frustum::ViewFrustum, plane::Plane, readonly::Readonly};
 
 use super::Camera;
 
@@ -184,20 +184,20 @@ impl Default for OrthogonalCamera {
 }
 
 impl Camera for OrthogonalCamera {
-    fn position(&self) -> Vec3 {
-        self.position
+    fn position(&self) -> Readonly<'_, Vec3> {
+        Readonly::Borrowed(&self.position)
     }
 
-    fn view_matrix(&self) -> Mat4 {
-        self.view
+    fn view_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.view)
     }
 
-    fn proj_matrix(&self) -> Mat4 {
-        self.proj
+    fn proj_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.proj)
     }
 
-    fn view_proj_matrix(&self) -> Mat4 {
-        self.view_proj
+    fn view_proj_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.view_proj)
     }
 
     fn view_frustum(&self) -> ViewFrustum {

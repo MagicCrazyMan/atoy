@@ -6,16 +6,16 @@ use std::any::Any;
 
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
-use crate::frustum::ViewFrustum;
+use crate::{frustum::ViewFrustum, readonly::Readonly};
 
 pub trait Camera {
-    fn position(&self) -> Vec3;
+    fn position(&self) -> Readonly<'_, Vec3>;
 
-    fn view_matrix(&self) -> Mat4;
+    fn view_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn proj_matrix(&self) -> Mat4;
+    fn proj_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn view_proj_matrix(&self) -> Mat4;
+    fn view_proj_matrix(&self) -> Readonly<'_, Mat4>;
 
     fn view_frustum(&self) -> ViewFrustum;
 

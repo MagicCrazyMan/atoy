@@ -11,7 +11,7 @@ use crate::{
         error::Error,
         program::{Define, Program, ShaderProvider},
         state::FrameState,
-        uniform::{UniformBlockValue, UniformValue},
+        uniform::UniformBlockValue,
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
@@ -161,7 +161,7 @@ fn prepare_program<'a, 'b, 'c>(
                 state.bind_uniform_value_by_variable_name(
                     program,
                     BLOOM_THRESHOLD_UNIFORM_NAME,
-                    &UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
+                    BLOOM_THRESHOLD_VALUES,
                 )?;
             }
         }

@@ -43,7 +43,7 @@ use crate::material::webgl::StandardMaterial;
 use crate::material::{self, Transparency};
 use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
-use crate::readonly::Readonly;
+use crate::readonly::{Readonly, ReadonlyUnsized};
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -170,7 +170,7 @@ impl StandardMaterial for TickSolidColorMaterial {
         self.0.attribute_value(name)
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
         self.0.uniform_value(name)
     }
 

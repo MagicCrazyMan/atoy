@@ -1,6 +1,5 @@
 use std::{cell::Ref, iter::FromIterator, ptr::NonNull};
 
-use gl_matrix4rust::GLF32;
 use log::warn;
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -27,7 +26,7 @@ use super::{
         texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
         texture_cubemap::TextureCubeMap, TextureDescriptor, TextureStore, TextureUnit,
     },
-    uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
+    uniform::{UniformBlockValue, UniformInternalBinding, UniformValue, UniformValueType},
 };
 
 pub struct BoundAttribute {
@@ -97,49 +96,41 @@ impl FrameState {
     }
 
     /// Returns the [`Camera`].
-    #[inline]
     pub fn camera(&self) -> &dyn Camera {
         unsafe { self.camera.as_ref() }
     }
 
     /// Returns the [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn program_store(&self) -> &ProgramStore {
         unsafe { self.program_store.as_ref() }
     }
 
     /// Returns the mutable [`ProgramStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn program_store_mut(&mut self) -> &mut ProgramStore {
         unsafe { self.program_store.as_mut() }
     }
 
     /// Returns the [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn buffer_store(&self) -> &BufferStore {
         unsafe { self.buffer_store.as_ref() }
     }
 
     /// Returns the mutable [`BufferStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn buffer_store_mut(&mut self) -> &mut BufferStore {
         unsafe { self.buffer_store.as_mut() }
     }
 
     /// Returns the [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn texture_store(&self) -> &TextureStore {
         unsafe { self.texture_store.as_ref() }
     }
 
     /// Returns the mutable [`TextureStore`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn texture_store_mut(&mut self) -> &mut TextureStore {
         unsafe { self.texture_store.as_mut() }
     }
 
     /// Returns the [`Capabilities`] provided by the [`WebGL2Render`](crate::render::webgl::WebGL2Render).
-    #[inline]
     pub fn capabilities(&self) -> &Capabilities {
         unsafe { self.capabilities.as_ref() }
     }
@@ -394,61 +385,41 @@ impl FrameState {
                 .get(binding.variable_name())
                 .unwrap();
 
-            let value = match binding {
+            let result = match binding {
                 UniformInternalBinding::ModelMatrix
                 | UniformInternalBinding::ViewMatrix
                 | UniformInternalBinding::ProjMatrix
                 | UniformInternalBinding::NormalMatrix
                 | UniformInternalBinding::ViewProjMatrix => {
-                    let data = match binding {
-                        UniformInternalBinding::ModelMatrix => {
-                            entity.compose_model_matrix().gl_f32()
-                        }
-                        UniformInternalBinding::NormalMatrix => {
-                            entity.compose_normal_matrix().gl_f32()
-                        }
-                        UniformInternalBinding::ViewMatrix => self.camera().view_matrix().gl_f32(),
-                        UniformInternalBinding::ProjMatrix => self.camera().proj_matrix().gl_f32(),
-                        UniformInternalBinding::ViewProjMatrix => {
-                            self.camera().view_proj_matrix().gl_f32()
-                        }
+                    let matrix = match binding {
+                        UniformInternalBinding::ModelMatrix => entity.compose_model_matrix(),
+                        UniformInternalBinding::NormalMatrix => entity.compose_normal_matrix(),
+                        UniformInternalBinding::ViewMatrix => Readonly::Owned(self.camera().view_matrix().clone()),
+                        UniformInternalBinding::ProjMatrix => Readonly::Owned(self.camera().proj_matrix().clone()),
+                        UniformInternalBinding::ViewProjMatrix => Readonly::Owned(self.camera().view_proj_matrix().clone()),
                         _ => unreachable!(),
                     };
-
-                    Some(Readonly::Owned(UniformValue::Matrix4 {
-                        data,
-                        transpose: false,
-                    }))
+                    self.bind_uniform_value(&location, matrix)
                 }
-                UniformInternalBinding::CameraPosition => Some(Readonly::Owned(
-                    UniformValue::FloatVector3(self.camera().position().gl_f32()),
-                )),
-                UniformInternalBinding::RenderTime => Some(Readonly::Owned(UniformValue::Float1(
-                    self.timestamp() as f32,
-                ))),
+                UniformInternalBinding::CameraPosition => {
+                    self.bind_uniform_value(&location, self.camera().position().clone())
+                }
+                UniformInternalBinding::RenderTime => {
+                    self.bind_uniform_value(&location, self.timestamp as f32)
+                }
                 UniformInternalBinding::CanvasSize => {
-                    Some(Readonly::Owned(UniformValue::UnsignedIntegerVector2([
-                        self.canvas.width(),
-                        self.canvas.height(),
-                    ])))
+                    self.bind_uniform_value(&location, (self.canvas.width(), self.canvas.height()))
                 }
-                UniformInternalBinding::DrawingBufferSize => {
-                    Some(Readonly::Owned(UniformValue::IntegerVector2([
+                UniformInternalBinding::DrawingBufferSize => self.bind_uniform_value(
+                    &location,
+                    (
                         self.gl.drawing_buffer_width(),
                         self.gl.drawing_buffer_width(),
-                    ])))
-                }
-            };
-            let Some(value) = value else {
-                warn!(
-                    target: "BindUniforms",
-                    "no value specified for uniform {}",
-                    binding.variable_name()
-                );
-                continue;
+                    ),
+                ),
             };
 
-            match self.bind_uniform_value(&location, value.as_ref()) {
+            match result {
                 Ok(bound) => {
                     if let Some(bound) = bound {
                         bounds.push(bound);
@@ -493,7 +464,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_uniform_value(&location, value.as_ref()) {
+            match self.bind_uniform_value(&location, value) {
                 Ok(bound) => {
                     if let Some(bound) = bound {
                         bounds.push(bound);
@@ -544,170 +515,204 @@ impl FrameState {
     }
 
     /// Binds a [`UniformValue`] to a uniform.
-    pub fn bind_uniform_value(
+    pub fn bind_uniform_value<U>(
         &mut self,
         location: &WebGlUniformLocation,
-        value: &UniformValue,
-    ) -> Result<Option<BoundUniform>, Error> {
-        let bound = match value {
-            UniformValue::Bool(v) => {
-                if *v {
+        value: U,
+    ) -> Result<Option<BoundUniform>, Error>
+    where
+        U: UniformValue,
+    {
+        let uniform_type = value.uniform_type();
+        let bound = match uniform_type {
+            UniformValueType::Bool => {
+                if value.bool() {
                     self.gl.uniform1i(Some(location), 1);
                 } else {
                     self.gl.uniform1i(Some(location), 0);
                 };
                 None
             }
-            UniformValue::UnsignedInteger1(x) => {
-                self.gl.uniform1ui(Some(location), *x);
-                None
-            }
-            UniformValue::UnsignedInteger2(x, y) => {
-                self.gl.uniform2ui(Some(location), *x, *y);
-                None
-            }
-            UniformValue::UnsignedInteger3(x, y, z) => {
-                self.gl.uniform3ui(Some(location), *x, *y, *z);
-                None
-            }
-            UniformValue::UnsignedInteger4(x, y, z, w) => {
-                self.gl.uniform4ui(Some(location), *x, *y, *z, *w);
-                None
-            }
-            UniformValue::Float1(x) => {
-                self.gl.uniform1f(Some(location), *x);
-                None
-            }
-            UniformValue::Float2(x, y) => {
-                self.gl.uniform2f(Some(location), *x, *y);
-                None
-            }
-            UniformValue::Float3(x, y, z) => {
-                self.gl.uniform3f(Some(location), *x, *y, *z);
-                None
-            }
-            UniformValue::Float4(x, y, z, w) => {
-                self.gl.uniform4f(Some(location), *x, *y, *z, *w);
-                None
-            }
-            UniformValue::Integer1(x) => {
-                self.gl.uniform1i(Some(location), *x);
-                None
-            }
-            UniformValue::Integer2(x, y) => {
-                self.gl.uniform2i(Some(location), *x, *y);
-                None
-            }
-            UniformValue::Integer3(x, y, z) => {
-                self.gl.uniform3i(Some(location), *x, *y, *z);
-                None
-            }
-            UniformValue::Integer4(x, y, z, w) => {
-                self.gl.uniform4i(Some(location), *x, *y, *z, *w);
-                None
-            }
-            UniformValue::FloatVector1(data) => {
-                self.gl.uniform1fv_with_f32_array(Some(location), data);
-                None
-            }
-            UniformValue::FloatVector2(data) => {
-                self.gl.uniform2fv_with_f32_array(Some(location), data);
-                None
-            }
-            UniformValue::FloatVector3(data) => {
-                self.gl.uniform3fv_with_f32_array(Some(location), data);
-                None
-            }
-            UniformValue::FloatVector4(data) => {
-                self.gl.uniform4fv_with_f32_array(Some(location), data);
-                None
-            }
-            UniformValue::IntegerVector1(data) => {
-                self.gl.uniform1iv_with_i32_array(Some(location), data);
-                None
-            }
-            UniformValue::IntegerVector2(data) => {
-                self.gl.uniform2iv_with_i32_array(Some(location), data);
-                None
-            }
-            UniformValue::IntegerVector3(data) => {
-                self.gl.uniform3iv_with_i32_array(Some(location), data);
-                None
-            }
-            UniformValue::IntegerVector4(data) => {
-                self.gl.uniform4iv_with_i32_array(Some(location), data);
-                None
-            }
-            UniformValue::UnsignedIntegerVector1(data) => {
-                self.gl.uniform1uiv_with_u32_array(Some(location), data);
-                None
-            }
-            UniformValue::UnsignedIntegerVector2(data) => {
-                self.gl.uniform2uiv_with_u32_array(Some(location), data);
-                None
-            }
-            UniformValue::UnsignedIntegerVector3(data) => {
-                self.gl.uniform3uiv_with_u32_array(Some(location), data);
-                None
-            }
-            UniformValue::UnsignedIntegerVector4(data) => {
-                self.gl.uniform4uiv_with_u32_array(Some(location), data);
-                None
-            }
-            UniformValue::Matrix2 { data, transpose } => {
+            UniformValueType::UnsignedInteger1 => {
                 self.gl
-                    .uniform_matrix2fv_with_f32_array(Some(location), *transpose, data);
+                    .uniform1ui(Some(location), value.unsigned_integer1());
                 None
             }
-            UniformValue::Matrix3 { data, transpose } => {
+            UniformValueType::UnsignedInteger2 => {
+                let (x, y) = value.unsigned_integer2();
+                self.gl.uniform2ui(Some(location), x, y);
+                None
+            }
+            UniformValueType::UnsignedInteger3 => {
+                let (x, y, z) = value.unsigned_integer3();
+                self.gl.uniform3ui(Some(location), x, y, z);
+                None
+            }
+            UniformValueType::UnsignedInteger4 => {
+                let (x, y, z, w) = value.unsigned_integer4();
+                self.gl.uniform4ui(Some(location), x, y, z, w);
+                None
+            }
+            UniformValueType::Float1 => {
+                self.gl.uniform1f(Some(location), value.float1());
+                None
+            }
+            UniformValueType::Float2 => {
+                let (x, y) = value.float2();
+                self.gl.uniform2f(Some(location), x, y);
+                None
+            }
+            UniformValueType::Float3 => {
+                let (x, y, z) = value.float3();
+                self.gl.uniform3f(Some(location), x, y, z);
+                None
+            }
+            UniformValueType::Float4 => {
+                let (x, y, z, w) = value.float4();
+                self.gl.uniform4f(Some(location), x, y, z, w);
+                None
+            }
+            UniformValueType::Integer1 => {
+                self.gl.uniform1i(Some(location), value.integer1());
+                None
+            }
+            UniformValueType::Integer2 => {
+                let (x, y) = value.integer2();
+                self.gl.uniform2i(Some(location), x, y);
+                None
+            }
+            UniformValueType::Integer3 => {
+                let (x, y, z) = value.integer3();
+                self.gl.uniform3i(Some(location), x, y, z);
+                None
+            }
+            UniformValueType::Integer4 => {
+                let (x, y, z, w) = value.integer4();
+                self.gl.uniform4i(Some(location), x, y, z, w);
+                None
+            }
+            UniformValueType::FloatVector1 => {
                 self.gl
-                    .uniform_matrix3fv_with_f32_array(Some(location), *transpose, data);
+                    .uniform1fv_with_f32_array(Some(location), value.float_vector1().as_ref());
                 None
             }
-            UniformValue::Matrix4 { data, transpose } => {
+            UniformValueType::FloatVector2 => {
                 self.gl
-                    .uniform_matrix4fv_with_f32_array(Some(location), *transpose, data);
+                    .uniform2fv_with_f32_array(Some(location), value.float_vector2().as_ref());
                 None
             }
-            UniformValue::Texture2D { .. }
-            | UniformValue::Texture2DArray { .. }
-            | UniformValue::Texture3D { .. }
-            | UniformValue::TextureCubeMap { .. } => {
-                let (kind, unit) = match value {
-                    UniformValue::Texture2D { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture2D(descriptor.clone()), *unit)
+            UniformValueType::FloatVector3 => {
+                self.gl
+                    .uniform3fv_with_f32_array(Some(location), value.float_vector3().as_ref());
+                None
+            }
+            UniformValueType::FloatVector4 => {
+                self.gl
+                    .uniform4fv_with_f32_array(Some(location), value.float_vector4().as_ref());
+                None
+            }
+            UniformValueType::IntegerVector1 => {
+                self.gl
+                    .uniform1iv_with_i32_array(Some(location), value.integer_vector1().as_ref());
+                None
+            }
+            UniformValueType::IntegerVector2 => {
+                self.gl
+                    .uniform2iv_with_i32_array(Some(location), value.integer_vector2().as_ref());
+                None
+            }
+            UniformValueType::IntegerVector3 => {
+                self.gl
+                    .uniform3iv_with_i32_array(Some(location), value.integer_vector3().as_ref());
+                None
+            }
+            UniformValueType::IntegerVector4 => {
+                self.gl
+                    .uniform4iv_with_i32_array(Some(location), value.integer_vector4().as_ref());
+                None
+            }
+            UniformValueType::UnsignedIntegerVector1 => {
+                self.gl.uniform1uiv_with_u32_array(
+                    Some(location),
+                    value.unsigned_integer_vector1().as_ref(),
+                );
+                None
+            }
+            UniformValueType::UnsignedIntegerVector2 => {
+                self.gl.uniform2uiv_with_u32_array(
+                    Some(location),
+                    value.unsigned_integer_vector2().as_ref(),
+                );
+                None
+            }
+            UniformValueType::UnsignedIntegerVector3 => {
+                self.gl.uniform3uiv_with_u32_array(
+                    Some(location),
+                    value.unsigned_integer_vector3().as_ref(),
+                );
+                None
+            }
+            UniformValueType::UnsignedIntegerVector4 => {
+                self.gl.uniform4uiv_with_u32_array(
+                    Some(location),
+                    value.unsigned_integer_vector4().as_ref(),
+                );
+                None
+            }
+            UniformValueType::Matrix2 => {
+                self.gl.uniform_matrix2fv_with_f32_array(
+                    Some(location),
+                    value.matrix_transpose(),
+                    value.matrix2().as_ref(),
+                );
+                None
+            }
+            UniformValueType::Matrix3 => {
+                self.gl.uniform_matrix3fv_with_f32_array(
+                    Some(location),
+                    value.matrix_transpose(),
+                    value.matrix3().as_ref(),
+                );
+                None
+            }
+            UniformValueType::Matrix4 => {
+                self.gl.uniform_matrix4fv_with_f32_array(
+                    Some(location),
+                    value.matrix_transpose(),
+                    value.matrix4().as_ref(),
+                );
+                None
+            }
+            UniformValueType::Texture2D
+            | UniformValueType::Texture2DArray
+            | UniformValueType::Texture3D
+            | UniformValueType::TextureCubeMap => {
+                let unit = value.texture_unit();
+                let kind = match uniform_type {
+                    UniformValueType::Texture2D => {
+                        let descriptor = value.texture2d();
+                        self.texture_store_mut()
+                            .bind_texture(descriptor.as_ref(), unit)?;
+                        TextureKind::Texture2D(descriptor.as_ref().clone())
                     }
-                    UniformValue::Texture2DArray { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture2DArray(descriptor.clone()), *unit)
+                    UniformValueType::Texture2DArray => {
+                        let descriptor = value.texture2d_array();
+                        self.texture_store_mut()
+                            .bind_texture(descriptor.as_ref(), unit)?;
+                        TextureKind::Texture2DArray(descriptor.as_ref().clone())
                     }
-                    UniformValue::Texture3D { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture3D(descriptor.clone()), *unit)
+                    UniformValueType::Texture3D => {
+                        let descriptor = value.texture3d();
+                        self.texture_store_mut()
+                            .bind_texture(descriptor.as_ref(), unit)?;
+                        TextureKind::Texture3D(descriptor.as_ref().clone())
                     }
-                    UniformValue::TextureCubeMap { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::TextureCubeMap(descriptor.clone()), *unit)
+                    UniformValueType::TextureCubeMap => {
+                        let descriptor = value.texture_cube_map();
+                        self.texture_store_mut()
+                            .bind_texture(descriptor.as_ref(), unit)?;
+                        TextureKind::TextureCubeMap(descriptor.as_ref().clone())
                     }
-                    // UniformValue::TextureCubeMap {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::TextureCubeMap(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
-                    // UniformValue::TextureCubeMapCompressed {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::TextureCubeMapCompressed(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
                     _ => unreachable!(),
                 };
 
@@ -750,12 +755,15 @@ impl FrameState {
     }
 
     /// Binds a [`UniformValue`] to a uniform by variable name.
-    pub fn bind_uniform_value_by_variable_name(
+    pub fn bind_uniform_value_by_variable_name<U>(
         &mut self,
         program: &mut Program,
         variable_name: &str,
-        value: &UniformValue,
-    ) -> Result<Option<BoundUniform>, Error> {
+        value: U,
+    ) -> Result<Option<BoundUniform>, Error>
+    where
+        U: UniformValue,
+    {
         let Some(location) = program.uniform_locations().get(variable_name) else {
             return Err(Error::NoSuchUniform(variable_name.to_string()));
         };

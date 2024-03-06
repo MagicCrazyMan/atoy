@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use gl_matrix4rust::{vec3::Vec3, GLF32};
+use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
@@ -19,7 +19,6 @@ use crate::{
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
         texture::{TextureColorFormat, TextureDataType, TextureFormat},
-        uniform::UniformValue,
     },
     share::Share,
 };
@@ -92,10 +91,7 @@ impl StandardPicking {
         state.bind_uniform_value_by_variable_name(
             program,
             VIEW_PROJ_MATRIX_UNIFORM_NAME,
-            &UniformValue::Matrix4 {
-                data: state.camera().view_proj_matrix().gl_f32(),
-                transpose: false,
-            },
+            state.camera().view_proj_matrix().clone(),
         )?;
 
         // render each entity by picking material
@@ -129,15 +125,12 @@ impl StandardPicking {
             state.bind_uniform_value_by_variable_name(
                 program,
                 MODEL_MATRIX_UNIFORM_NAME,
-                &UniformValue::Matrix4 {
-                    data: entity.compose_model_matrix().gl_f32(),
-                    transpose: false,
-                },
+                entity.compose_model_matrix().as_ref(),
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,
                 INDEX_UNIFORM_NAME,
-                &UniformValue::UnsignedInteger1((index + 1) as u32),
+                (index + 1) as u32,
             )?;
 
             let bound_attributes = state.bind_attribute_value_by_variable_name(

@@ -1,4 +1,9 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
+use std::{
+    any::Any,
+    borrow::Cow,
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
 
 use log::warn;
 
@@ -7,13 +12,13 @@ use crate::{
     error::Error,
     loader::{Loader, LoaderStatus},
     notify::Notifiee,
-    readonly::Readonly,
+    readonly::{Readonly, ReadonlyUnsized},
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         texture::{texture2d::Texture2D, TextureDescriptor, TextureUnit},
-        uniform::{UniformBlockValue, UniformValue},
+        uniform::{UniformBlockValue, UniformValue, UniformValueType},
     },
     share::{Share, WeakShare},
 };
@@ -24,13 +29,13 @@ pub struct TextureMaterial {
     transparency: Transparency,
 
     albedo_loader: Share<dyn Loader<Texture2D, Failure = Error>>,
-    albedo: Share<Option<UniformValue>>,
+    albedo: Share<Option<TextureUniform>>,
 
     normal_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
-    normal: Share<Option<UniformValue>>,
+    normal: Share<Option<TextureUniform>>,
 
     parallax_loader: Option<Share<dyn Loader<Texture2D, Failure = Error>>>,
-    parallax: Share<Option<UniformValue>>,
+    parallax: Share<Option<TextureUniform>>,
 }
 
 impl TextureMaterial {
@@ -59,7 +64,7 @@ impl TextureMaterial {
             loader.notifier().borrow_mut().register(WaitLoader {
                 unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
-                texture_uniform: Rc::downgrade(&self.albedo),
+                texture: Rc::downgrade(&self.albedo),
             });
         }
     }
@@ -79,7 +84,7 @@ impl TextureMaterial {
             loader.notifier().borrow_mut().register(WaitLoader {
                 unit: TextureUnit::TEXTURE1,
                 loader: Rc::downgrade(normal_loader),
-                texture_uniform: Rc::downgrade(&self.normal),
+                texture: Rc::downgrade(&self.normal),
             });
         }
     }
@@ -99,7 +104,7 @@ impl TextureMaterial {
             loader.notifier().borrow_mut().register(WaitLoader {
                 unit: TextureUnit::TEXTURE2,
                 loader: Rc::downgrade(parallax_loader),
-                texture_uniform: Rc::downgrade(&self.parallax),
+                texture: Rc::downgrade(&self.parallax),
             });
         }
     }
@@ -184,25 +189,33 @@ impl StandardMaterial for TextureMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<ReadonlyUnsized<'_, dyn UniformValue>> {
         match name {
-            "u_AlbedoMap" => Some(Readonly::Owned(self.albedo.borrow().clone()?)),
-            "u_NormalMap" => match self.has_normal_map() {
-                true => Some(Readonly::Owned(self.normal.borrow().clone()?)),
-                false => None,
-            },
-            "u_ParallaxHeightScale" => match self.has_parallax_map() {
-                true => Some(Readonly::Owned(UniformValue::Float1(0.1))),
-                false => None,
-            },
-            "u_ParallaxMap" => match self.has_parallax_map() {
-                true => Some(Readonly::Owned(self.parallax.borrow().clone()?)),
-                false => None,
-            },
-            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
-                self.transparency.alpha(),
-            ))),
-            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(128.0))),
+            "u_AlbedoMap" => {
+                let albedo = self.albedo.borrow();
+                if albedo.is_some() {
+                    Some(ReadonlyUnsized::Owned(Box::new(Ref::map(
+                        albedo,
+                        |albedo| albedo.as_ref().unwrap(),
+                    ))))
+                } else {
+                    None
+                }
+            }
+            // "u_NormalMap" => match self.has_normal_map() {
+            //     true => Some(self.normal.borrow()),
+            //     false => None,
+            // },
+            // "u_ParallaxHeightScale" => match self.has_parallax_map() {
+            //     true => Some(&0.1),
+            //     false => None,
+            // },
+            // "u_ParallaxMap" => match self.has_parallax_map() {
+            //     true => Some(self.parallax.borrow()),
+            //     false => None,
+            // },
+            "u_Transparency" => Some(ReadonlyUnsized::Borrowed(&self.transparency)),
+            "u_SpecularShininess" => Some(ReadonlyUnsized::Borrowed(&128.0)),
             _ => None,
         }
     }
@@ -267,7 +280,7 @@ impl StandardMaterial for TextureMaterial {
 struct WaitLoader {
     unit: TextureUnit,
     loader: WeakShare<dyn Loader<Texture2D, Failure = Error>>,
-    texture_uniform: WeakShare<Option<UniformValue>>,
+    texture: WeakShare<Option<TextureUniform>>,
 }
 
 impl Notifiee<LoaderStatus> for WaitLoader {
@@ -276,17 +289,14 @@ impl Notifiee<LoaderStatus> for WaitLoader {
             LoaderStatus::Unload => unreachable!(),
             LoaderStatus::Loading => {}
             LoaderStatus::Loaded => {
-                let (Some(loader), Some(uniform)) =
-                    (self.loader.upgrade(), self.texture_uniform.upgrade())
+                let (Some(loader), Some(uniform)) = (self.loader.upgrade(), self.texture.upgrade())
                 else {
                     return;
                 };
 
                 let texture = loader.borrow().loaded().unwrap();
-                *uniform.borrow_mut() = Some(UniformValue::Texture2D {
-                    descriptor: TextureDescriptor::new(texture),
-                    unit: self.unit,
-                });
+                *uniform.borrow_mut() =
+                    Some(TextureUniform(TextureDescriptor::new(texture), self.unit));
             }
             LoaderStatus::Errored => {
                 let Some(loader) = self.loader.upgrade() else {
@@ -356,5 +366,22 @@ impl Builder {
             parallax_loader: self.parallax_loader,
             parallax: Rc::new(RefCell::new(None)),
         }
+    }
+}
+
+#[derive(Clone)]
+struct TextureUniform(TextureDescriptor<Texture2D>, TextureUnit);
+
+impl UniformValue for TextureUniform {
+    fn uniform_type(&self) -> UniformValueType {
+        UniformValueType::Texture2D
+    }
+
+    fn texture_unit(&self) -> TextureUnit {
+        self.1
+    }
+
+    fn texture2d(&self) -> Readonly<'_, TextureDescriptor<Texture2D>> {
+        Readonly::Borrowed(&self.0)
     }
 }
