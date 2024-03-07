@@ -6,25 +6,23 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage, MemoryPolicy,
+            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
+            BufferUsage, MemoryPolicy, Restorer,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
     },
-    value::Readonly,
+    value::{Readonly, Value},
 };
 
 use super::{cube::build_bounding_volume, Geometry};
 
 pub struct IndexedCube {
     size: f64,
-    indices: BufferDescriptor,
-    positions: BufferDescriptor,
+    indices: Value<'static, Buffer>,
+    positions: Value<'static, Buffer>,
+    normals_and_textures: Value<'static, Buffer>,
 
-    positions_attribute: AttributeValue,
-    normals_attribute: AttributeValue,
-    textures_attribute: AttributeValue,
     bounding_volume: BoundingVolume,
 }
 
@@ -39,51 +37,20 @@ impl IndexedCube {
         let positions = if size == 1.0 {
             buffer_descriptor_with_size_one()
         } else {
-            BufferDescriptor::with_memory_policy(
+            Value::Owned(Buffer::with_memory_policy(
                 BufferSource::from_binary(build_positions(size), 0, 72 * 4),
                 BufferUsage::STATIC_DRAW,
-                MemoryPolicy::restorable(move || {
-                    BufferSource::from_binary(build_positions(size), 0, 72 * 4)
-                }),
-            )
-        };
-        let positions_attribute = AttributeValue::Buffer {
-            descriptor: positions.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 0,
+                MemoryPolicy::restorable(PositionsRestorer(size)),
+            ))
         };
 
         let normals_and_textures = normals_texture_coordinates_buffer_descriptor();
-        let normals_attribute = AttributeValue::Buffer {
-            descriptor: normals_and_textures.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Three,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 0,
-        };
-        let textures_attribute = AttributeValue::Buffer {
-            descriptor: normals_and_textures,
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Two,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 72 * 4,
-        };
 
         Self {
             size,
             indices: indices_buffer_descriptor(),
             positions,
-            normals_attribute,
-            positions_attribute,
-            textures_attribute,
+            normals_and_textures,
             bounding_volume: build_bounding_volume(size),
         }
     }
@@ -97,35 +64,24 @@ impl IndexedCube {
 
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
-        self.size = size;
-        self.bounding_volume = build_bounding_volume(size);
-        if let BufferUsage::STATIC_DRAW = self.positions.usage() {
-            self.positions = BufferDescriptor::with_memory_policy(
+        let usage = self.positions.value().usage();
+        if let BufferUsage::STATIC_DRAW = usage {
+            self.positions = Value::Owned(Buffer::with_memory_policy(
                 BufferSource::from_binary(build_positions(size), 0, 72 * 4),
                 BufferUsage::DYNAMIC_DRAW,
-                MemoryPolicy::restorable(move || {
-                    BufferSource::from_binary(build_positions(size), 0, 72 * 4)
-                }),
-            );
-            self.positions_attribute = AttributeValue::Buffer {
-                descriptor: self.positions.clone(),
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Three,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 0,
-            }
+                MemoryPolicy::restorable(PositionsRestorer(size)),
+            ));
         } else {
-            self.positions.buffer_sub_data(
+            self.positions.value_mut().buffer_sub_data(
                 BufferSource::from_binary(build_positions(size), 0, 72 * 4),
                 0,
             );
             self.positions
-                .set_memory_policy(MemoryPolicy::restorable(move || {
-                    BufferSource::from_binary(build_positions(size), 0, 108 * 4)
-                }));
+                .value_mut()
+                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)));
         }
+        self.size = size;
+        self.bounding_volume = build_bounding_volume(size);
     }
 }
 
@@ -135,7 +91,7 @@ impl Geometry for IndexedCube {
             mode: DrawMode::TRIANGLES,
             count: 36,
             offset: 0,
-            indices: self.indices.clone(),
+            indices: self.indices.value(),
             indices_data_type: ElementIndicesDataType::UNSIGNED_BYTE,
         }
     }
@@ -148,27 +104,51 @@ impl Geometry for IndexedCube {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Readonly<'_, AttributeValue> {
-        Readonly::Borrowed(&self.positions_attribute)
+    fn positions(&self) -> AttributeValue<'_> {
+        AttributeValue::Buffer {
+            descriptor: self.positions.value(),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        }
     }
 
-    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.normals_attribute))
+    fn normals(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.normals_and_textures.value(),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        })
     }
 
-    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+    fn tangents(&self) -> Option<AttributeValue<'_>> {
         None
     }
 
-    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+    fn bitangents(&self) -> Option<AttributeValue<'_>> {
         None
     }
 
-    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.textures_attribute))
+    fn texture_coordinates(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: self.normals_and_textures.value(),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 72 * 4,
+        })
     }
 
-    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 
@@ -209,6 +189,25 @@ fn build_positions(size: f64) -> [u8; 72 * 4] {
     }
 }
 
+/// Positions buffer descriptor cache for cube with size 1, for debug purpose
+static mut POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE: OnceCell<Buffer> = OnceCell::new();
+fn buffer_descriptor_with_size_one() -> Value<'static, Buffer> {
+    unsafe {
+        let descriptor = match POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.get_mut() {
+            Some(descriptor) => descriptor,
+            None => {
+                POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.set(Buffer::with_memory_policy(
+                    BufferSource::from_binary(build_positions(1.0), 0, 72 * 4),
+                    BufferUsage::STATIC_DRAW,
+                    MemoryPolicy::restorable(PositionsRestorer(1.0)),
+                ));
+                POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.get_mut().unwrap()
+            }
+        };
+        Value::Borrowed(descriptor)
+    }
+}
+
 #[rustfmt::skip]
 const NORMALS_TEXTURE_COORDINATES: [f32; 120] = [
     // normals
@@ -227,34 +226,32 @@ const NORMALS_TEXTURE_COORDINATES: [f32; 120] = [
      1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // back
 ];
 
-static mut NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR: OnceCell<BufferDescriptor> =
+static mut NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR: OnceCell<Buffer> =
     OnceCell::new();
-
-fn normals_texture_coordinates_buffer_descriptor() -> BufferDescriptor {
+fn normals_texture_coordinates_buffer_descriptor() -> Value<'static, Buffer> {
     unsafe {
-        NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR
-            .get_or_init(|| {
-                BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(
-                        std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(
-                            &NORMALS_TEXTURE_COORDINATES,
-                        ),
-                        0,
-                        120 * 4,
-                    ),
-                    BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(|| {
+        let descriptor = match NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR.get_mut() {
+            Some(descriptor) => descriptor,
+            None => {
+                NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR.set(
+                    Buffer::with_memory_policy(
                         BufferSource::from_binary(
                             std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(
                                 &NORMALS_TEXTURE_COORDINATES,
                             ),
                             0,
                             120 * 4,
-                        )
-                    }),
-                )
-            })
-            .clone()
+                        ),
+                        BufferUsage::STATIC_DRAW,
+                        MemoryPolicy::restorable(TexturesNormalsRestorer),
+                    ),
+                );
+                NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR
+                    .get_mut()
+                    .unwrap()
+            }
+        };
+        Value::Borrowed(descriptor)
     }
 }
 
@@ -268,36 +265,50 @@ const INDICES: [u8; 36] = [
    20, 21, 22, 20, 22, 23, // right
 ];
 
-static mut INDICES_BUFFER_DESCRIPTOR: OnceCell<BufferDescriptor> = OnceCell::new();
-
-fn indices_buffer_descriptor() -> BufferDescriptor {
+static mut INDICES_BUFFER_DESCRIPTOR: OnceCell<Buffer> = OnceCell::new();
+fn indices_buffer_descriptor() -> Value<'static, Buffer> {
     unsafe {
-        INDICES_BUFFER_DESCRIPTOR
-            .get_or_init(|| {
-                BufferDescriptor::with_memory_policy(
+        let descriptor = match INDICES_BUFFER_DESCRIPTOR.get_mut() {
+            Some(descriptor) => descriptor,
+            None => {
+                INDICES_BUFFER_DESCRIPTOR.set(Buffer::with_memory_policy(
                     BufferSource::from_binary(&INDICES, 0, 36),
                     BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(|| BufferSource::from_binary(&INDICES, 0, 36)),
-                )
-            })
-            .clone()
+                    MemoryPolicy::restorable(IndicesRestorer),
+                ));
+                INDICES_BUFFER_DESCRIPTOR.get_mut().unwrap()
+            }
+        };
+        Value::Borrowed(descriptor)
     }
 }
 
-/// Positions buffer descriptor cache for cube with size 1, for debug purpose
-static mut POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE: OnceCell<BufferDescriptor> = OnceCell::new();
-fn buffer_descriptor_with_size_one() -> BufferDescriptor {
-    unsafe {
-        POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE
-            .get_or_init(|| {
-                BufferDescriptor::with_memory_policy(
-                    BufferSource::from_binary(build_positions(1.0), 0, 72 * 4),
-                    BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(move || {
-                        BufferSource::from_binary(build_positions(1.0), 0, 72 * 4)
-                    }),
-                )
-            })
-            .clone()
+struct PositionsRestorer(f64);
+
+impl Restorer for PositionsRestorer {
+    fn restore(&self) -> BufferSource {
+        BufferSource::from_binary(build_positions(self.0), 0, 108 * 4)
+    }
+}
+
+struct IndicesRestorer;
+
+impl Restorer for IndicesRestorer {
+    fn restore(&self) -> BufferSource {
+        BufferSource::from_binary(&INDICES, 0, 36)
+    }
+}
+
+struct TexturesNormalsRestorer;
+
+impl Restorer for TexturesNormalsRestorer {
+    fn restore(&self) -> BufferSource {
+        unsafe {
+            BufferSource::from_binary(
+                std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(&NORMALS_TEXTURE_COORDINATES),
+                0,
+                120 * 4,
+            )
+        }
     }
 }

@@ -13,7 +13,7 @@ use crate::{camera::Camera, entity::Entity, value::Readonly};
 
 use super::{
     attribute::{AttributeInternalBinding, AttributeValue},
-    buffer::{BufferDescriptor, BufferStore, BufferTarget},
+    buffer::{Buffer, BufferStore, BufferTarget},
     capabilities::Capabilities,
     conversion::ToGlEnum,
     draw::Draw,
@@ -30,9 +30,9 @@ use super::{
     uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
 };
 
-pub struct BoundAttribute {
+pub struct BoundAttribute<'a> {
     location: u32,
-    descriptor: BufferDescriptor,
+    descriptor: Readonly<'a, Buffer>,
 }
 
 enum TextureKind {
@@ -145,11 +145,11 @@ impl FrameState {
     }
 
     /// Binds attribute values from a entity.
-    pub fn bind_attributes(
-        &mut self,
+    pub fn bind_attributes<'a, 'b>(
+        &'a mut self,
         program: &mut Program,
-        entity: &Ref<'_, dyn Entity>,
-    ) -> Result<Vec<BoundAttribute>, Error> {
+        entity: &'b dyn Entity,
+    ) -> Result<Vec<BoundAttribute<'b>>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
         let custom_bindings = entity
             .material()
@@ -190,7 +190,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_attribute_value(*location, value.as_ref()) {
+            match self.bind_attribute_value(*location, &value) {
                 Ok(ba) => bounds.extend(ba),
                 Err(err) => warn!(
                     target: "BindUniforms",
@@ -228,7 +228,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_attribute_value(*location, value.as_ref()) {
+            match self.bind_attribute_value(*location, &value) {
                 Ok(ba) => bounds.extend(ba),
                 Err(err) => warn!(
                     target: "BindUniforms",
@@ -242,11 +242,11 @@ impl FrameState {
     }
 
     /// Binds an [`AttributeValue`] to an attribute.
-    pub fn bind_attribute_value(
-        &mut self,
+    pub fn bind_attribute_value<'a, 'b>(
+        &'a mut self,
         location: u32,
-        value: &AttributeValue,
-    ) -> Result<Vec<BoundAttribute>, Error> {
+        value: &'b AttributeValue<'b>,
+    ) -> Result<Vec<BoundAttribute<'b>>, Error> {
         let mut bounds = Vec::new();
         match value {
             AttributeValue::Buffer {
@@ -274,7 +274,7 @@ impl FrameState {
 
                 bounds.push(BoundAttribute {
                     location,
-                    descriptor: descriptor.clone(),
+                    descriptor: Readonly::Borrowed(descriptor),
                 });
             }
             AttributeValue::InstancedBuffer {
@@ -310,7 +310,7 @@ impl FrameState {
 
                     bounds.push(BoundAttribute {
                         location: offset_location,
-                        descriptor: descriptor.clone(),
+                        descriptor: Readonly::Borrowed(descriptor),
                     });
                 }
                 self.gl.bind_buffer(target.gl_enum(), None);
@@ -373,7 +373,7 @@ impl FrameState {
     pub fn bind_uniforms(
         &mut self,
         program: &mut Program,
-        entity: &Ref<'_, dyn Entity>,
+        entity: &dyn Entity,
     ) -> Result<Vec<BoundUniform>, Error> {
         let internal_bindings = program.uniform_internal_bindings();
         let custom_bindings = entity

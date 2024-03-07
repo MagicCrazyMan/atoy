@@ -1,8 +1,8 @@
 use std::{
     borrow::Cow,
-    cell::{Ref, RefCell, RefMut},
+    cell::{Ref, RefCell},
     hash::Hash,
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
@@ -19,14 +19,14 @@ use web_sys::{
 
 use crate::{
     lru::{Lru, LruNode},
-    share::{Share, WeakShare},
+    renderer::webgl::params::GetWebGlParameters,
     utils::format_bytes_length,
 };
 
 use super::{
     conversion::ToGlEnum,
     error::Error,
-    utils::{self, array_buffer_binding},
+    params::{self},
 };
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
@@ -585,177 +585,404 @@ impl_typed_array! {
     (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-struct Runtime {
-    gl: WebGl2RenderingContext,
-    id: usize,
-    buffer: WebGlBuffer,
-    bytes_length: usize,
-    binding: bool,
-    binding_ubos: HashSet<u32>,
-    lru_node: *mut LruNode<usize>,
-
-    store_id: Uuid,
+struct RegisteredStore {
+    lru_node: *mut LruNode<Uuid>,
     used_memory: *mut usize,
-    items: *mut HashMap<usize, WeakShare<BufferDescriptorInner>>,
-    ubos: *mut HashMap<u32, usize>,
-    lru: *mut Lru<usize>,
+    items: *mut HashMap<
+        Uuid,
+        (
+            Weak<RefCell<Queue>>,
+            Weak<RefCell<MemoryPolicy>>,
+            Weak<RefCell<Runtime>>,
+        ),
+    >,
+    bindings: *mut HashMap<BufferTarget, Uuid>,
+    binding_ubos: *mut HashMap<u32, Uuid>,
+    lru: *mut Lru<Uuid>,
 }
 
-impl Drop for Runtime {
-    fn drop(&mut self) {
-        unsafe {
-            (*self.used_memory) -= self.bytes_length;
-            (*self.lru).remove(self.lru_node);
-            (*self.items).remove(&self.id);
-            for ubo in self.binding_ubos.iter() {
-                (*self.ubos).remove(ubo);
+impl RegisteredStore {
+    fn 
+}
+
+struct Runtime {
+    gl: WebGl2RenderingContext,
+    buffer: Option<WebGlBuffer>,
+    bytes_length: usize,
+    bindings: HashSet<BufferTarget>,
+    binding_ubos: HashSet<u32>,
+}
+
+impl Runtime {
+    fn read_back(&self) -> ArrayBuffer {
+        let Some(buffer) = self.buffer.as_ref() else {
+            return ArrayBuffer::new(0);
+        };
+        if self.bytes_length == 0 {
+            return ArrayBuffer::new(0);
+        }
+
+        let gl = &self.gl;
+        let data = ArrayBuffer::new(self.bytes_length as u32);
+        let binding = gl.array_buffer_binding();
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
+        gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            0,
+            &data,
+        );
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
+
+        data
+    }
+
+    fn get_or_create_buffer(&mut self) -> Result<&WebGlBuffer, Error> {
+        match self.buffer.as_ref() {
+            Some(buffer) => Ok(buffer),
+            None => {
+                let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                Ok(self.buffer.insert(buffer))
             }
-            self.gl.delete_buffer(Some(&self.buffer));
         }
     }
 }
 
-struct BufferDescriptorInner {
+struct QueueItem {
+    source: BufferSource,
+    bytes_offset: usize,
+}
+
+impl QueueItem {
+    fn new(source: BufferSource, bytes_offset: usize) -> Self {
+        Self {
+            source,
+            bytes_offset,
+        }
+    }
+}
+
+struct Queue {
+    max_bytes_length: usize,
+    items: Vec<QueueItem>,
+}
+
+impl Queue {
+    fn new() -> Self {
+        Self {
+            max_bytes_length: 0,
+            items: Vec::new(),
+        }
+    }
+}
+
+pub struct Buffer {
+    id: Uuid,
     name: Option<Cow<'static, str>>,
     usage: BufferUsage,
     memory_policy: MemoryPolicy,
+    queue: Queue,
 
-    queue_bytes_length: usize,
-    queue: Vec<(BufferSource, usize)>,
-
-    runtime: Option<Box<Runtime>>,
+    store: Option<RegisteredStore>,
+    runtime: Option<Rc<RefCell<Runtime>>>,
 }
 
-/// A key to share and control the [`WebGlBuffer`].
-/// Checks [`BufferStore`] for more details.
-#[derive(Clone)]
-pub struct BufferDescriptor(Share<BufferDescriptorInner>);
-
-impl BufferDescriptor {
-    /// Constructs a new buffer descriptor with specified [`BufferSource`] and [`BufferUsage`].
-    pub fn new(source: BufferSource, usage: BufferUsage) -> Self {
-        Self::with_memory_policy(source, usage, MemoryPolicy::ReadBack)
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        self.clear(false);
     }
+}
 
-    /// Constructs a new buffer descriptor with specified [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
-    pub fn with_memory_policy(
-        source: BufferSource,
+impl Buffer {
+    /// Constructs a new buffer descriptor with specified name, [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
+    pub fn new(
+        name: Option<Cow<'static, str>>,
         usage: BufferUsage,
         memory_policy: MemoryPolicy,
     ) -> Self {
-        Self(Rc::new(RefCell::new(BufferDescriptorInner {
+        Self {
+            id: Uuid::new_v4(),
             name: None,
             usage,
             memory_policy,
-
-            queue_bytes_length: source.bytes_length(),
-            queue: Vec::from([(source, 0)]),
+            queue: Queue::new(),
 
             runtime: None,
-        })))
+            store: None,
+        }
+    }
+
+    /// Returns id of this buffer.
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     /// Returns buffer descriptor name.
-    pub fn name(&self) -> Ref<Option<Cow<'_, str>>> {
-        Ref::map(self.0.borrow(), |inner| &inner.name)
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 
     /// Sets buffer descriptor name.
-    pub fn set_name(&mut self, name: impl Into<String>) {
-        self.0.borrow_mut().name.replace(Cow::Owned(name.into()));
-    }
-
-    /// Sets buffer descriptor name.
-    pub fn set_name_str(&mut self, name: &'static str) {
-        self.0.borrow_mut().name.replace(Cow::Borrowed(name));
+    pub fn set_name(&mut self, name: Option<Cow<'static, str>>) {
+        self.name = name;
     }
 
     /// Returns [`BufferUsage`].
     pub fn usage(&self) -> BufferUsage {
-        self.0.borrow().usage
+        self.usage
     }
 
-    pub fn memory_policy(&self) -> Ref<MemoryPolicy> {
-        Ref::map(self.0.borrow(), |inner| &inner.memory_policy)
+    /// Returns current [`MemoryPolicy`].
+    pub fn memory_policy(&self) -> &MemoryPolicy {
+        &self.memory_policy
     }
 
     /// Sets the [`MemoryPolicy`] of this buffer descriptor.
-    pub fn set_memory_policy(&mut self, policy: MemoryPolicy) {
-        self.0.borrow_mut().memory_policy = policy;
+    pub fn set_memory_policy(&mut self, memory_policy: MemoryPolicy) {
+        self.memory_policy = memory_policy;
     }
 
-    /// Allocates new [`WebGlBuffer`] and buffers data to it.
-    /// This operation overrides existing data.
+    /// Initializes this buffer by a [`WebGl2RenderingContext`].
+    pub fn init(&mut self, gl: WebGl2RenderingContext) -> Result<(), Error> {
+        match &self.runtime {
+            Some(runtime) => {
+                if &runtime.borrow().gl == &gl {
+                    Ok(())
+                } else {
+                    Err(Error::BufferAlreadyInitialized)
+                }
+            }
+            None => {
+                let runtime = Runtime {
+                    gl,
+                    buffer: None,
+                    bytes_length: 0,
+                    bindings: HashSet::new(),
+                    binding_ubos: HashSet::new(),
+                };
+                self.runtime = Some(Rc::new(RefCell::new(runtime)));
+                Ok(())
+            }
+        }
+    }
+
+    fn runtime(&self) -> Result<&Rc<RefCell<Runtime>>, Error> {
+        self.runtime
+            .as_ref()
+            .map(|runtime| runtime)
+            .ok_or(Error::BufferUninitialized)
+    }
+
+    fn store(&self) -> Option<&RegisteredStore> {
+        self.store.as_ref()
+    }
+
+    /// Binds buffer to specified [`BufferTarget`].
+    pub fn bind(&self, target: BufferTarget) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let mut runtime = runtime.borrow_mut();
+
+        let buffer = runtime.get_or_create_buffer()?;
+        runtime.gl.bind_buffer(target.gl_enum(), Some(buffer));
+        runtime.bindings.insert(target);
+
+        self.upload_unchecked(target, &mut *runtime);
+
+        Ok(())
+    }
+
+    /// Unbinds buffer at specified [`BufferTarget`].
+    pub fn unbind(&self, target: BufferTarget) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let mut runtime = runtime.borrow_mut();
+
+        if runtime.bindings.remove(&target) {
+            runtime.gl.bind_buffer(target.gl_enum(), None);
+        }
+
+        Ok(())
+    }
+
+    /// Unbinds buffer from specified uniform buffer object index.
+    pub fn unbind_ubo(&self, index: u32) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let mut runtime = runtime.borrow_mut();
+
+        if runtime.binding_ubos.remove(&index) {
+            runtime
+                .gl
+                .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+        }
+
+        Ok(())
+    }
+
+    /// Unbinds buffer from all bindings, including uniform buffer objects.
+    pub fn unbind_all(&self) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let mut runtime = runtime.borrow_mut();
+
+        let gl = &runtime.gl;
+        for index in runtime.binding_ubos.drain() {
+            gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+        }
+        for target in runtime.bindings.drain() {
+            gl.bind_buffer(target.gl_enum(), None);
+        }
+
+        Ok(())
+    }
+
+    fn upload_unchecked(&mut self, target: BufferTarget, runtime: &mut Runtime) {
+        if self.queue.items.len() > 0 {
+            let gl = &runtime.gl;
+            let new_bytes_length = self.queue.max_bytes_length;
+            let old_bytes_length = runtime.bytes_length;
+
+            if new_bytes_length >= old_bytes_length {
+                gl.buffer_data_with_i32(
+                    target.gl_enum(),
+                    new_bytes_length as i32,
+                    self.usage.gl_enum(),
+                );
+            }
+
+            for item in self.queue.items.drain(..) {
+                item.source.buffer_sub_data(gl, target, item.bytes_offset);
+            }
+
+            runtime.bytes_length = new_bytes_length;
+
+            debug!(
+                target: "BufferStore",
+                "buffer new data for {}, old length {}, new length {}",
+                self.name().unwrap_or("unnamed"),
+                old_bytes_length,
+                new_bytes_length
+            );
+        }
+    }
+
+    /// Uploads data to WebGL runtime.
+    pub fn upload(&mut self) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let mut runtime = runtime.borrow_mut();
+
+        let binding = runtime.gl.array_buffer_binding();
+        runtime.gl.bind_buffer(
+            WebGl2RenderingContext::ARRAY_BUFFER,
+            Some(runtime.get_or_create_buffer()?),
+        );
+        self.upload_unchecked(BufferTarget::ARRAY_BUFFER, &mut *runtime);
+        runtime
+            .gl
+            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
+
+        Ok(())
+    }
+
+    /// Clears and unbinds buffer from WebGL runtime.
+    /// Data will be read back from WebGL runtime and
+    /// insert to the first place of the queue if `read_back` is `true`.
+    pub fn clear(&mut self, read_back: bool) -> Result<(), Error> {
+        let runtime = self.runtime()?;
+        let runtime = runtime.borrow_mut();
+
+        self.queue.items.clear();
+        self.queue.max_bytes_length = 0;
+
+        if read_back {
+            let data = runtime.read_back();
+            if data.byte_length() != 0 {
+                self.queue
+                    .items
+                    .push(QueueItem::new(BufferSource::from_array_buffer(data), 0));
+            }
+        }
+
+        let gl = &runtime.gl;
+        if let Some(buffer) = runtime.buffer.take() {
+            for index in runtime.binding_ubos.drain() {
+                gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+            }
+            for target in runtime.bindings.drain() {
+                gl.bind_buffer(target.gl_enum(), None);
+            }
+            gl.delete_buffer(Some(&buffer))
+        }
+        runtime.bytes_length = 0;
+
+        Ok(())
+    }
+
+    /// Reads buffer data back from WebGL runtime and stores it to an [`ArrayBuffer`].
+    pub fn read_back(&self) -> Result<ArrayBuffer, Error> {
+        Ok(self.runtime()?.borrow().read_back())
+    }
+
+    /// Overrides existing data and then buffers new data.
     pub fn buffer_data(&mut self, source: BufferSource) {
-        let mut inner = self.0.borrow_mut();
-        inner.queue_bytes_length = source.bytes_length();
-        inner.queue.clear();
-        inner.queue.push((source, 0));
+        self.queue.max_bytes_length = source.bytes_length();
+        self.queue.items.clear();
+        self.queue.items.push(QueueItem::new(source, 0));
     }
 
-    /// Buffers sub data to [`WebGlBuffer`].
+    /// Buffers sub data.
     pub fn buffer_sub_data(&mut self, source: BufferSource, dst_byte_offset: usize) {
-        let mut inner = self.0.borrow_mut();
-
         let bytes_length = dst_byte_offset + source.bytes_length();
         if dst_byte_offset == 0 {
-            if bytes_length >= inner.queue_bytes_length {
+            if bytes_length >= self.queue.max_bytes_length {
                 // overrides sources in queue if new source covers all
-                inner.queue_bytes_length = bytes_length;
-                inner.queue.clear();
-                inner.queue.push((source, 0));
+                self.queue.max_bytes_length = bytes_length;
+                self.queue.items.clear();
+                self.queue.items.push(QueueItem::new(source, 0));
             } else {
-                inner.queue.push((source, dst_byte_offset));
+                self.queue
+                    .items
+                    .push(QueueItem::new(source, dst_byte_offset));
             }
         } else {
-            if bytes_length <= inner.queue_bytes_length {
-                inner.queue.push((source, dst_byte_offset));
+            if bytes_length <= self.queue.max_bytes_length {
+                self.queue
+                    .items
+                    .push(QueueItem::new(source, dst_byte_offset));
             } else {
-                if let Some(runtime) = inner.runtime.as_deref_mut() {
+                if let Some(runtime) = self.runtime.as_ref().map(|runtime| runtime.borrow()) {
                     // heavy job!
-                    let current_binding = array_buffer_binding(&runtime.gl);
+                    let data = runtime.read_back();
 
-                    let bytes_length = runtime.bytes_length;
-                    let data = Uint8Array::new_with_length(bytes_length as u32);
-                    runtime
-                        .gl
-                        .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
-                    runtime
-                        .gl
-                        .get_buffer_sub_data_with_i32_and_array_buffer_view(
-                            WebGl2RenderingContext::ARRAY_BUFFER,
-                            0,
-                            &data,
-                        );
-                    runtime.gl.bind_buffer(
-                        WebGl2RenderingContext::ARRAY_BUFFER,
-                        current_binding.as_ref(),
+                    self.queue.items.insert(
+                        0,
+                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
                     );
-
-                    inner
-                        .queue
-                        .insert(0, (BufferSource::preallocate(bytes_length), 0));
-                    inner.queue.insert(
-                        1,
-                        (BufferSource::from_uint8_array(data, 0, bytes_length), 0),
-                    );
-                    inner.queue.push((source, dst_byte_offset));
+                    self.queue
+                        .items
+                        .insert(1, QueueItem::new(BufferSource::from_array_buffer(data), 0));
+                    self.queue
+                        .items
+                        .push(QueueItem::new(source, dst_byte_offset));
                 } else {
-                    inner
-                        .queue
-                        .insert(0, (BufferSource::preallocate(bytes_length), 0));
-                    inner.queue.push((source, dst_byte_offset));
+                    self.queue.items.insert(
+                        0,
+                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
+                    );
+                    self.queue
+                        .items
+                        .push(QueueItem::new(source, dst_byte_offset));
                 }
             }
         }
     }
 }
 
+pub trait Restorer {
+    fn restore(&self) -> BufferSource;
+}
+
 /// Memory freeing policies.
 pub enum MemoryPolicy {
     Unfree,
     ReadBack,
-    Restorable(Share<dyn Fn() -> BufferSource>),
+    Restorable(Rc<RefCell<dyn Restorer>>),
 }
 
 impl Default for MemoryPolicy {
@@ -776,72 +1003,76 @@ impl MemoryPolicy {
     }
 
     /// Constructs a restorable memory policy.
-    pub fn restorable<F>(f: F) -> Self
+    pub fn restorable<R>(restorer: R) -> Self
     where
-        F: Fn() -> BufferSource + 'static,
+        R: Restorer + 'static,
     {
-        Self::Restorable(Rc::new(RefCell::new(f)))
+        Self::Restorable(Rc::new(RefCell::new(restorer)))
     }
 }
 
 pub struct BufferStore {
-    gl: WebGl2RenderingContext,
     id: Uuid,
-    counter: usize,
+    gl: WebGl2RenderingContext,
     available_memory: usize,
     used_memory: *mut usize,
-    descriptors: *mut HashMap<usize, WeakShare<BufferDescriptorInner>>,
-    ubos: *mut HashMap<u32, usize>,
-    lru: *mut Lru<usize>,
+    items: *mut HashMap<
+        Uuid,
+        (
+            Weak<RefCell<Queue>>,
+            Weak<RefCell<MemoryPolicy>>,
+            Weak<RefCell<Runtime>>,
+        ),
+    >,
+    bindings: *mut HashMap<BufferTarget, Uuid>,
+    binding_ubos: *mut HashMap<u32, Uuid>,
+    lru: *mut Lru<Uuid>,
 }
 
-impl Drop for BufferStore {
-    fn drop(&mut self) {
-        unsafe {
-            for (_, descriptor) in (*self.descriptors).iter() {
-                let Some(descriptor) = descriptor.upgrade() else {
-                    return;
-                };
-                let mut descriptor = descriptor.borrow_mut();
-                let Some(runtime) = descriptor.runtime.take() else {
-                    return;
-                };
+// impl Drop for BufferStore {
+//     fn drop(&mut self) {
+//         unsafe {
+//             for (queue, _, runtime) in (*self.descriptors).values() {
+//                 let (Some(queue), Some(runtime)) = (queue.upgrade(), runtime.upgrade()) else {
+//                     return;
+//                 };
+//                 let mut queue = queue.borrow_mut();
+//                 let runtime = runtime.borrow();
 
-                let current_binding = array_buffer_binding(&self.gl);
+//                 let current_binding = array_buffer_binding(&self.gl);
 
-                let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
-                self.gl
-                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
-                self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-                    WebGl2RenderingContext::ARRAY_BUFFER,
-                    0,
-                    &data,
-                );
-                self.gl.bind_buffer(
-                    WebGl2RenderingContext::ARRAY_BUFFER,
-                    current_binding.as_ref(),
-                );
-                self.gl.delete_buffer(Some(&runtime.buffer));
+//                 let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
+//                 self.gl
+//                     .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
+//                 self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
+//                     WebGl2RenderingContext::ARRAY_BUFFER,
+//                     0,
+//                     &data,
+//                 );
+//                 self.gl.bind_buffer(
+//                     WebGl2RenderingContext::ARRAY_BUFFER,
+//                     current_binding.as_ref(),
+//                 );
+//                 self.gl.delete_buffer(Some(&runtime.buffer));
 
-                descriptor.queue.insert(
-                    0,
-                    (
-                        BufferSource::from_uint8_array(data, 0, runtime.bytes_length),
-                        0,
-                    ),
-                );
-                descriptor.queue_bytes_length =
-                    descriptor.queue_bytes_length.max(runtime.bytes_length);
-                // store dropped, no need to update LRU anymore
-            }
+//                 queue.items.insert(
+//                     0,
+//                     QueueItem::new(
+//                         BufferSource::from_uint8_array(data, 0, runtime.bytes_length),
+//                         0,
+//                     ),
+//                 );
+//                 queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
+//                 // store dropped, no need to update LRU anymore
+//             }
 
-            drop(Box::from_raw(self.used_memory));
-            drop(Box::from_raw(self.ubos));
-            drop(Box::from_raw(self.lru));
-            drop(Box::from_raw(self.descriptors));
-        }
-    }
-}
+//             drop(Box::from_raw(self.used_memory));
+//             drop(Box::from_raw(self.ubos));
+//             drop(Box::from_raw(self.lru));
+//             drop(Box::from_raw(self.descriptors));
+//         }
+//     }
+// }
 
 impl BufferStore {
     /// Constructs a new buffer store with unlimited memory.
@@ -855,11 +1086,11 @@ impl BufferStore {
         Self {
             gl,
             id: Uuid::new_v4(),
-            counter: 0,
             available_memory: available_memory.min(i32::MAX as usize),
             used_memory: Box::leak(Box::new(0)),
-            descriptors: Box::leak(Box::new(HashMap::new())),
-            ubos: Box::leak(Box::new(HashMap::new())),
+            items: Box::leak(Box::new(HashMap::new())),
+            bindings: Box::leak(Box::new(HashMap::new())),
+            binding_ubos: Box::leak(Box::new(HashMap::new())),
             lru: Box::leak(Box::new(Lru::new())),
         }
     }
@@ -875,131 +1106,161 @@ impl BufferStore {
         unsafe { *self.used_memory }
     }
 
-    unsafe fn next(&mut self) -> usize {
-        if (*self.descriptors).len() == usize::MAX {
-            panic!("too many descriptors, only {} are accepted", usize::MAX);
-        }
-
-        self.counter = self.counter.wrapping_add(1);
-        while (*self.descriptors).contains_key(&self.counter) {
-            self.counter = self.counter.wrapping_add(1);
-        }
-        self.counter
-    }
-
-    /// Uses a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
-    /// Remembers to calls [`BufferStore::unuse_buffer`] after using the [`WebGlBuffer`],
-    /// or the [`WebGlBuffer`] will never be freed.
-    pub fn use_buffer(
-        &mut self,
-        descriptor: &BufferDescriptor,
-        target: BufferTarget,
-    ) -> Result<WebGlBuffer, Error> {
+    /// Registers a buffer to buffer store.
+    pub fn register(&mut self, buffer: &mut Buffer) {
         unsafe {
-            let mut inner = descriptor.0.borrow_mut();
-            let BufferDescriptorInner {
-                name,
-                usage,
-                queue_bytes_length,
-                queue,
-                runtime,
-                ..
-            } = &mut *inner;
-
-            let runtime = match runtime {
-                Some(runtime) => {
-                    if runtime.store_id != self.id {
-                        panic!("share buffer descriptor between buffer store is not allowed");
-                    }
-                    runtime
-                }
-                None => {
-                    debug!(
-                        target: "BufferStore",
-                        "create new buffer for {}",
-                        name.as_deref().unwrap_or("unnamed"),
-                    );
-
-                    let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                    let id = self.next();
-                    (*self.descriptors).insert(id, Rc::downgrade(&descriptor.0));
-                    runtime.insert(Box::new(Runtime {
-                        id,
-                        gl: self.gl.clone(),
-                        binding: false,
-                        buffer,
-                        bytes_length: 0,
-                        binding_ubos: HashSet::new(),
-                        lru_node: LruNode::new(id),
-
-                        store_id: self.id,
-                        used_memory: self.used_memory,
-                        items: self.descriptors,
-                        ubos: self.ubos,
-                        lru: self.lru,
-                    }))
-                }
-            };
-
-            // update buffer data
-            if queue.len() > 0 {
-                let new_bytes_length = *queue_bytes_length;
-                let old_bytes_length = runtime.bytes_length;
-
-                self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
-                if queue[0].1 == 0 && new_bytes_length == queue[0].0.bytes_length() {
-                    let (source, _) = queue.remove(0);
-                    source.buffer_data(&self.gl, target, *usage);
-                } else if new_bytes_length > old_bytes_length {
-                    self.gl.buffer_data_with_i32(
-                        target.gl_enum(),
-                        new_bytes_length as i32,
-                        usage.gl_enum(),
-                    );
-                }
-                for (source, dst_byte_offset) in queue.drain(..) {
-                    source.buffer_sub_data(&self.gl, target, dst_byte_offset);
-                }
-
-                let new_bytes_length = self
-                    .gl
-                    .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
-                    .as_f64()
-                    .map(|size| size as usize)
-                    .unwrap();
-                (*self.used_memory) = (*self.used_memory) - old_bytes_length + new_bytes_length;
-                runtime.bytes_length = new_bytes_length;
-
-                debug!(
-                    target: "BufferStore",
-                    "buffer new data for {}, old length {}, new length {}",
-                    name.as_deref().unwrap_or("unnamed"),
-                    old_bytes_length,
-                    new_bytes_length
-                );
-
-                self.gl.bind_buffer(target.gl_enum(), None);
-            }
-
-            runtime.binding = true;
-            (*self.lru).cache(runtime.lru_node);
-            let buffer = runtime.buffer.clone();
-
-            drop(inner);
-            self.free(target);
-
-            Ok(buffer)
+            (*self.used_memory) += buffer
+                .runtime
+                .as_ref()
+                .map(|runtime| runtime.borrow().bytes_length)
+                .unwrap_or(0);
+            buffer.store = Some(RegisteredStore {
+                lru_node: LruNode::new(buffer.id),
+                used_memory: self.used_memory,
+                items: self.items,
+                bindings: self.bindings,
+                binding_ubos: self.binding_ubos,
+                lru: self.lru,
+            });
         }
     }
 
-    /// Unuses a [`WebGlBuffer`] by a [`BufferDescriptor`].
-    pub fn unuse_buffer(&mut self, descriptor: &BufferDescriptor) {
-        let mut descriptor = descriptor.0.borrow_mut();
-        let Some(runtime) = descriptor.runtime.as_mut() else {
-            return;
-        };
-        runtime.binding = false;
+    pub fn unregister(&mut self, buffer: &mut Buffer) {
+        unsafe {
+            (*self.used_memory) -= buffer
+                .runtime
+                .as_ref()
+                .map(|runtime| runtime.borrow().bytes_length)
+                .unwrap_or(0);
+            buffer.store = None;
+        }
     }
+
+    // /// Uses a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
+    // /// Remembers to calls [`BufferStore::unuse_buffer`] after using the [`WebGlBuffer`],
+    // /// or the [`WebGlBuffer`] will never be freed.
+    // pub fn use_buffer(
+    //     &mut self,
+    //     descriptor: &Buffer,
+    //     target: BufferTarget,
+    // ) -> Result<WebGlBuffer, Error> {
+    //     unsafe {
+    //         let Buffer {
+    //             name,
+    //             usage,
+    //             memory_policy,
+    //             queue,
+    //             runtime,
+    //             ..
+    //         } = descriptor;
+
+    //         let mut runtime = runtime.borrow_mut();
+    //         let runtime = match runtime.as_ref() {
+    //             Some(runtime) => {
+    //                 if runtime.borrow().store_id != self.id {
+    //                     panic!("share buffer descriptor between buffer store is not allowed");
+    //                 }
+    //                 runtime
+    //             }
+    //             None => {
+    //                 debug!(
+    //                     target: "BufferStore",
+    //                     "create new buffer for {}",
+    //                     name.as_deref().unwrap_or("unnamed"),
+    //                 );
+
+    //                 let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+    //                 let id = self.next();
+    //                 let r = Rc::new(RefCell::new(Runtime {
+    //                     id,
+    //                     gl: self.gl.clone(),
+    //                     bindings: false,
+    //                     buffer,
+    //                     bytes_length: 0,
+    //                     binding_ubos: HashSet::new(),
+    //                     lru_node: LruNode::new(id),
+
+    //                     store_id: self.id,
+    //                     used_memory: self.used_memory,
+    //                     items: self.descriptors,
+    //                     ubos: self.ubos,
+    //                     lru: self.lru,
+    //                 }));
+    //                 (*self.descriptors).insert(
+    //                     id,
+    //                     (
+    //                         Rc::downgrade(queue),
+    //                         Rc::downgrade(memory_policy),
+    //                         Rc::downgrade(&r),
+    //                     ),
+    //                 );
+    //                 runtime.insert(r)
+    //             }
+    //         };
+
+    //         // update buffer data
+    //         let mut runtime = runtime.borrow_mut();
+    //         let mut queue = queue.borrow_mut();
+    //         if queue.items.len() > 0 {
+    //             let new_bytes_length = queue.max_bytes_length;
+    //             let old_bytes_length = runtime.bytes_length;
+
+    //             self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
+    //             if queue.items[0].bytes_offset == 0
+    //                 && new_bytes_length == queue.items[0].source.bytes_length()
+    //             {
+    //                 let item = queue.items.remove(0);
+    //                 item.source.buffer_data(&self.gl, target, *usage);
+    //             } else if new_bytes_length > old_bytes_length {
+    //                 self.gl.buffer_data_with_i32(
+    //                     target.gl_enum(),
+    //                     new_bytes_length as i32,
+    //                     usage.gl_enum(),
+    //                 );
+    //             }
+    //             for item in queue.items.drain(..) {
+    //                 item.source
+    //                     .buffer_sub_data(&self.gl, target, item.bytes_offset);
+    //             }
+
+    //             let new_bytes_length = self
+    //                 .gl
+    //                 .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
+    //                 .as_f64()
+    //                 .map(|size| size as usize)
+    //                 .unwrap();
+    //             (*self.used_memory) = (*self.used_memory) - old_bytes_length + new_bytes_length;
+    //             runtime.bytes_length = new_bytes_length;
+
+    //             debug!(
+    //                 target: "BufferStore",
+    //                 "buffer new data for {}, old length {}, new length {}",
+    //                 name.as_deref().unwrap_or("unnamed"),
+    //                 old_bytes_length,
+    //                 new_bytes_length
+    //             );
+
+    //             self.gl.bind_buffer(target.gl_enum(), None);
+    //         }
+
+    //         runtime.binding = true;
+    //         (*self.lru).cache(runtime.lru_node);
+    //         let buffer = runtime.buffer.clone();
+
+    //         self.free(target);
+
+    //         Ok(buffer)
+    //     }
+    // }
+
+    // /// Unuses a [`WebGlBuffer`] by a [`BufferDescriptor`].
+    // pub fn unuse_buffer(&mut self, descriptor: &Buffer) {
+    //     let runtime = descriptor.runtime.borrow_mut();
+    //     let Some(runtime) = runtime.as_ref() else {
+    //         return;
+    //     };
+    //     runtime.borrow_mut().binding = false;
+    // }
 
     /// Frees memory if used memory exceeds the maximum available memory.
     fn free(&mut self, target: BufferTarget) {
@@ -1015,38 +1276,45 @@ impl BufferStore {
                     break;
                 };
                 let id = (*current_node).data();
-                let Entry::Occupied(occupied) = (*self.descriptors).entry(*id) else {
+                let Entry::Occupied(occupied) = (*self.items).entry(*id) else {
                     next_node = (*current_node).more_recently();
                     continue;
                 };
-                let descriptor = occupied.get();
-                let Some(descriptor) = descriptor.upgrade() else {
-                    // deletes if descriptor dropped
+                let (queue, memory_policy, runtime) = occupied.get();
+                let (Some(_), Some(memory_policy), Some(runtime)) =
+                    (queue.upgrade(), memory_policy.upgrade(), runtime.upgrade())
+                else {
+                    // deletes if already dropped
                     occupied.remove();
                     next_node = (*current_node).more_recently();
                     continue;
                 };
 
-                let descriptor = descriptor.borrow();
-                let runtime = descriptor.runtime.as_ref().unwrap();
+                let runtime = runtime.borrow();
                 // skips if using
-                if runtime.binding || runtime.binding_ubos.len() != 0 {
+                if runtime.bindings || runtime.binding_ubos.len() != 0 {
                     next_node = (*current_node).more_recently();
                     continue;
                 }
                 // skips if unfree
-                if let MemoryPolicy::Unfree = &descriptor.memory_policy {
+                if let MemoryPolicy::Unfree = *memory_policy.borrow() {
                     next_node = (*current_node).more_recently();
                     continue;
                 }
 
                 // free
-                let descriptor = occupied.remove().upgrade().unwrap();
-                let mut descriptor = descriptor.borrow_mut();
-                let runtime = descriptor.runtime.take().unwrap();
-                match &descriptor.memory_policy {
+                let (queue, memory_policy, runtime) = occupied.remove();
+                let (queue, memory_policy, runtime) = (
+                    queue.upgrade().unwrap(),
+                    memory_policy.upgrade().unwrap(),
+                    runtime.upgrade().unwrap(),
+                );
+                let runtime = runtime.borrow();
+                match &*memory_policy.borrow() {
                     MemoryPolicy::Unfree => unreachable!(),
                     MemoryPolicy::ReadBack => {
+                        let mut queue = queue.borrow_mut();
+
                         // default, gets buffer data back from WebGlBuffer
                         let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
                         self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
@@ -1058,15 +1326,14 @@ impl BufferStore {
                         self.gl.bind_buffer(target.gl_enum(), None);
                         self.gl.delete_buffer(Some(&runtime.buffer));
 
-                        descriptor.queue.insert(
+                        queue.items.insert(
                             0,
-                            (
+                            QueueItem::new(
                                 BufferSource::from_uint8_array(data, 0, runtime.bytes_length),
                                 0,
                             ),
                         );
-                        descriptor.queue_bytes_length =
-                            descriptor.queue_bytes_length.max(runtime.bytes_length);
+                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
                         debug!(
                             target: "BufferStore",
                             "free buffer (default) {}. freed memory {}, used {}",
@@ -1075,19 +1342,20 @@ impl BufferStore {
                             format_bytes_length(*self.used_memory)
                         );
                     }
-                    MemoryPolicy::Restorable(restore) => {
+                    MemoryPolicy::Restorable(restorer) => {
+                        let mut queue = queue.borrow_mut();
+
                         self.gl.delete_buffer(Some(&runtime.buffer));
-                        let restore = Rc::clone(&restore);
+                        let restorer = Rc::clone(&restorer);
                         let source = BufferSource::Function {
-                            callback: Box::new(move || restore.borrow_mut()()),
+                            callback: Box::new(move || restorer.borrow_mut().restore()),
                             data_length: runtime.bytes_length,
                             src_offset: 0,
                             src_length: runtime.bytes_length,
                         };
 
-                        descriptor.queue.insert(0, (source, 0));
-                        descriptor.queue_bytes_length =
-                            descriptor.queue_bytes_length.max(runtime.bytes_length);
+                        queue.items.insert(0, QueueItem::new(source, 0));
+                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
                         debug!(
                             target: "BufferStore",
                             "free buffer (restorable) {}. freed memory {}, used {}",
@@ -1107,84 +1375,83 @@ impl BufferStore {
         }
     }
 
-    pub fn bind_uniform_buffer_object(
-        &mut self,
-        descriptor: &BufferDescriptor,
-        ubo_binding: u32,
-        offset_and_size: Option<(usize, usize)>,
-    ) -> Result<(), Error> {
-        unsafe {
-            let bounded = (*self.ubos).contains_key(&ubo_binding);
-            let runtime = Ref::map(descriptor.0.borrow(), |inner| &inner.runtime);
-            let (buffer, mut runtime) = match (bounded, runtime.as_deref()) {
-                (true, None) => {
-                    return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding))?;
-                }
-                (true, Some(Runtime { store_id, .. })) => {
-                    if store_id != &self.id {
-                        return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding));
-                    } else {
-                        drop(runtime);
-                        self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
-                        return Ok(());
-                    }
-                }
-                (false, _) => {
-                    drop(runtime);
-                    let buffer = self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
-                    let runtime =
-                        RefMut::map(descriptor.0.borrow_mut(), |inner| &mut inner.runtime);
-                    (buffer, runtime)
-                }
-            };
+    // pub fn bind_uniform_buffer_object(
+    //     &mut self,
+    //     descriptor: &Buffer,
+    //     ubo_binding: u32,
+    //     offset_and_size: Option<(usize, usize)>,
+    // ) -> Result<(), Error> {
+    //     unsafe {
+    //         let bounded = (*self.ubos).contains_key(&ubo_binding);
+    //         let mut runtime = descriptor.runtime.borrow_mut();
+    //         let buffer = match (bounded, runtime.as_mut()) {
+    //             (true, None) => {
+    //                 return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding))?;
+    //             }
+    //             (true, Some(runtime)) => {
+    //                 if &runtime.borrow().store_id != &self.id {
+    //                     return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding));
+    //                 }
 
-            let runtime = runtime.as_deref_mut().unwrap();
-            let binding = utils::uniform_buffer_binding(&self.gl);
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-            match offset_and_size {
-                Some((offset, size)) => self.gl.bind_buffer_range_with_i32_and_i32(
-                    WebGl2RenderingContext::UNIFORM_BUFFER,
-                    ubo_binding,
-                    Some(&buffer),
-                    offset as i32,
-                    size as i32,
-                ),
-                None => self.gl.bind_buffer_base(
-                    WebGl2RenderingContext::UNIFORM_BUFFER,
-                    ubo_binding,
-                    Some(&buffer),
-                ),
-            };
-            self.gl
-                .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
+    //                 drop(runtime);
+    //                 self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
+    //                 return Ok(());
+    //             }
+    //             (false, _) => {
+    //                 drop(runtime);
+    //                 let buffer = self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
+    //                 buffer
+    //             }
+    //         };
 
-            (*self.ubos).insert(ubo_binding, runtime.id);
-            runtime.binding_ubos.insert(ubo_binding);
+    //         let runtime = descriptor.runtime.borrow_mut();
+    //         let mut runtime = runtime.as_ref().unwrap().borrow_mut();
+    //         let binding = params::uniform_buffer_binding(&self.gl);
+    //         self.gl
+    //             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
+    //         match offset_and_size {
+    //             Some((offset, size)) => self.gl.bind_buffer_range_with_i32_and_i32(
+    //                 WebGl2RenderingContext::UNIFORM_BUFFER,
+    //                 ubo_binding,
+    //                 Some(&buffer),
+    //                 offset as i32,
+    //                 size as i32,
+    //             ),
+    //             None => self.gl.bind_buffer_base(
+    //                 WebGl2RenderingContext::UNIFORM_BUFFER,
+    //                 ubo_binding,
+    //                 Some(&buffer),
+    //             ),
+    //         };
+    //         self.gl
+    //             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
 
-            Ok(())
-        }
-    }
+    //         (*self.ubos).insert(ubo_binding, runtime.id);
+    //         runtime.binding_ubos.insert(ubo_binding);
 
-    /// Unbinds a uniform buffer object at mount point.
-    pub fn unbind_uniform_buffer_object(&mut self, binding: u32) {
-        unsafe {
-            let Some(id) = (*self.ubos).remove(&binding) else {
-                return;
-            };
-            let Some(descriptor) = (*self.descriptors).get(&id) else {
-                return;
-            };
-            let Some(descriptor) = descriptor.upgrade() else {
-                return;
-            };
-            let mut descriptor = descriptor.borrow_mut();
-            let runtime = descriptor.runtime.as_mut().unwrap();
-            if runtime.binding_ubos.remove(&binding) {
-                self.gl
-                    .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
-            }
-            runtime.binding = runtime.binding_ubos.len() != 0;
-        }
-    }
+    //         Ok(())
+    //     }
+    // }
+
+    // /// Unbinds a uniform buffer object at mount point.
+    // pub fn unbind_uniform_buffer_object(&mut self, binding: u32) {
+    //     unsafe {
+    //         let Some(id) = (*self.ubos).remove(&binding) else {
+    //             return;
+    //         };
+    //         let Some((_, _, runtime)) = (*self.descriptors).get(&id) else {
+    //             return;
+    //         };
+    //         let Some(runtime) = runtime.upgrade() else {
+    //             return;
+    //         };
+
+    //         let mut runtime = runtime.borrow_mut();
+    //         if runtime.binding_ubos.remove(&binding) {
+    //             self.gl
+    //                 .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
+    //         }
+    //         runtime.bindings = runtime.binding_ubos.len() != 0;
+    //     }
+    // }
 }

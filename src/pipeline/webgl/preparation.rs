@@ -10,7 +10,7 @@ use crate::{
     pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH,
     property::PropertyStamp,
     renderer::webgl::{
-        buffer::{BufferDescriptor, BufferSource},
+        buffer::{Buffer, BufferSource},
         error::Error,
         state::FrameState,
     },
@@ -59,7 +59,7 @@ impl StandardPreparation {
 
     fn update_universal_ubo(
         &mut self,
-        universal_ubo: &mut BufferDescriptor,
+        universal_ubo: &mut Buffer,
         state: &mut FrameState,
     ) -> Result<(), Error> {
         // u_RenderTime
@@ -116,7 +116,7 @@ impl StandardPreparation {
 
     fn update_lights_ubo(
         &mut self,
-        lights_ubo: &mut BufferDescriptor,
+        lights_ubo: &mut Buffer,
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
     ) -> Result<(), Error> {
@@ -267,8 +267,8 @@ impl StandardPreparation {
         &mut self,
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
-        universal_ubo: &mut BufferDescriptor,
-        mut lights_ubo: Option<&mut BufferDescriptor>,
+        universal_ubo: &mut Buffer,
+        mut lights_ubo: Option<&mut Buffer>,
     ) -> Result<(), Error> {
         state.gl().viewport(
             0,

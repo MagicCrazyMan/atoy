@@ -6,7 +6,6 @@ use super::framebuffer::FramebufferTarget;
 pub enum Error {
     WebGL2Unsupported,
     CreateProgramFailure,
-    GetUniformIndicesFailure,
     CreateBufferFailure,
     CreateFramebufferFailure,
     CreateRenderbufferFailure,
@@ -22,6 +21,8 @@ pub enum Error {
     CompileProgramFailure(Option<String>),
     NoSuchAttribute(String),
     NoSuchUniform(String),
+    BufferUninitialized,
+    BufferAlreadyInitialized,
     UniformBufferObjectIndexAlreadyBound(u32),
     TexImageFailure(Option<String>),
     TexCompressedImageFailure,

@@ -33,7 +33,7 @@ pub trait Entity {
 
     fn material_mut(&mut self) -> Option<&mut dyn StandardMaterial>;
 
-    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>>;
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 
@@ -292,7 +292,7 @@ impl Entity for SimpleEntity {
         }
     }
 
-    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 

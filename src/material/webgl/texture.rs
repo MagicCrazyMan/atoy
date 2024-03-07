@@ -180,7 +180,7 @@ impl StandardMaterial for TextureMaterial {
         &[]
     }
 
-    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 

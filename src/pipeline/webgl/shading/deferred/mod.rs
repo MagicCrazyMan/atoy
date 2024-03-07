@@ -11,7 +11,7 @@ use crate::{
         UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
     },
     renderer::webgl::{
-        buffer::BufferDescriptor,
+        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
@@ -26,7 +26,7 @@ use crate::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
         MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
         POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
-    },
+    }, value::Readonly,
 };
 
 pub struct StandardDeferredShading {
@@ -64,8 +64,8 @@ impl StandardDeferredShading {
         positions_and_specular_shininess_texture: &WebGlTexture,
         normals_texture: &WebGlTexture,
         albedo_texture: &WebGlTexture,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
     ) -> Result<(), Error> {
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -80,7 +80,7 @@ impl StandardDeferredShading {
                 program,
                 UBO_LIGHTS_BLOCK_NAME,
                 &UniformBlockValue::BufferBase {
-                    descriptor: lights_ubo.clone(),
+                    descriptor: Readonly::Borrowed(lights_ubo),
                     binding: UBO_LIGHTS_BINDING,
                 },
             )?;
@@ -106,7 +106,7 @@ impl StandardDeferredShading {
             program,
             UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
             &UniformBlockValue::BufferBase {
-                descriptor: universal_ubo.clone(),
+                descriptor: Readonly::Borrowed(universal_ubo),
                 binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
             },
         )?;

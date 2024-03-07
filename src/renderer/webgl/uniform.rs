@@ -1,5 +1,7 @@
+use crate::value::Readonly;
+
 use super::{
-    buffer::BufferDescriptor,
+    buffer::Buffer,
     texture::{
         texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
         texture_cubemap::TextureCubeMap, TextureDescriptor, TextureUnit,
@@ -65,13 +67,13 @@ pub enum UniformValue {
 }
 
 /// Available uniform block values.
-pub enum UniformBlockValue {
+pub enum UniformBlockValue<'a> {
     BufferBase {
-        descriptor: BufferDescriptor,
+        descriptor: Readonly<'a, Buffer>,
         binding: u32,
     },
     BufferRange {
-        descriptor: BufferDescriptor,
+        descriptor: Readonly<'a, Buffer>,
         binding: u32,
         offset: usize,
         size: usize,

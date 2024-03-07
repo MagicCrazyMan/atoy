@@ -33,7 +33,7 @@ pub trait StandardMaterial {
     fn transparency(&self) -> Transparency;
 
     /// Returns a custom attribute value by an attribute variable name.
-    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>>;
 
     /// Returns a custom uniform value by an uniform variable name.
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;

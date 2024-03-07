@@ -3,10 +3,14 @@ use std::iter::FromIterator;
 use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
-use crate::renderer::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
+use crate::renderer::webgl::{
+    capabilities::Capabilities, conversion::ToGlEnum, error::Error, params::GetWebGlParameters,
+};
 
 use super::{
-    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat, TextureDepth, TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem
+    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat, TextureDepth,
+    TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -59,7 +63,7 @@ where
     /// Sets texture parameter.
     pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
-            let bound = utils::texture_binding_3d(&runtime.gl);
+            let bound = runtime.gl.texture_binding_3d();
             runtime
                 .gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_3D, Some(&runtime.texture));

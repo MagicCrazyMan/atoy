@@ -1,6 +1,5 @@
 pub mod cube;
 pub mod indexed_cube;
-pub mod raw;
 pub mod rectangle;
 pub mod sphere;
 
@@ -18,23 +17,23 @@ use crate::{
 };
 
 pub trait Geometry {
-    fn draw(&self) -> Draw;
+    fn draw(&self) -> Draw<'_>;
 
     fn cull_face(&self) -> Option<CullFace>;
 
     fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>>;
 
-    fn positions(&self) -> Readonly<'_, AttributeValue>;
+    fn positions(&self) -> AttributeValue<'_>;
 
-    fn normals(&self) -> Option<Readonly<'_, AttributeValue>>;
+    fn normals(&self) -> Option<AttributeValue<'_>>;
 
-    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>>;
+    fn tangents(&self) -> Option<AttributeValue<'_>>;
 
-    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>>;
+    fn bitangents(&self) -> Option<AttributeValue<'_>>;
 
-    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>>;
+    fn texture_coordinates(&self) -> Option<AttributeValue<'_>>;
 
-    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>>;
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>>;
 
     fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
 

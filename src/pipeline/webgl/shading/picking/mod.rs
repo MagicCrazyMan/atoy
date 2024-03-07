@@ -143,7 +143,7 @@ impl StandardPicking {
             let bound_attributes = state.bind_attribute_value_by_variable_name(
                 program,
                 POSITION_ATTRIBUTE_NAME,
-                geometry.positions().as_ref(),
+                &geometry.positions(),
             )?;
             state.draw(&geometry.draw())?;
             state.unbind_attributes(bound_attributes);

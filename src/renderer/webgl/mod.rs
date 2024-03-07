@@ -20,13 +20,13 @@ pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod framebuffer;
+pub mod params;
 pub mod program;
 pub mod renderbuffer;
 pub mod state;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
-pub mod utils;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]

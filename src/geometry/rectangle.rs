@@ -8,8 +8,8 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
-            BufferUsage, MemoryPolicy,
+            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
+            BufferUsage, MemoryPolicy, Restorer,
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
@@ -25,11 +25,9 @@ pub struct Rectangle {
     placement: Placement,
     width: f64,
     height: f64,
-    positions: AttributeValue,
-    texture_coordinates: AttributeValue,
-    normals: AttributeValue,
-    tangents: AttributeValue,
-    bitangents: AttributeValue,
+    texture_scale_s: f64,
+    texture_scale_t: f64,
+    buffer: Buffer,
     bounding: BoundingVolume,
 }
 
@@ -50,19 +48,16 @@ impl Rectangle {
             texture_scale_s,
             texture_scale_t,
         );
-        let descriptor = BufferDescriptor::with_memory_policy(
+        let buffer = Buffer::with_memory_policy(
             BufferSource::from_binary(compositions, 0, compositions.len()),
             BufferUsage::STATIC_DRAW,
-            MemoryPolicy::restorable(move || {
-                let (compositions, _) = create_rectangle(
-                    anchor,
-                    placement,
-                    width,
-                    height,
-                    texture_scale_s,
-                    texture_scale_t,
-                );
-                BufferSource::from_binary(compositions, 0, compositions.len())
+            MemoryPolicy::restorable(BufferRestorer {
+                anchor,
+                placement,
+                width,
+                height,
+                texture_scale_s,
+                texture_scale_t,
             }),
         );
 
@@ -71,52 +66,10 @@ impl Rectangle {
             placement,
             width,
             height,
+            texture_scale_s,
+            texture_scale_t,
+            buffer,
             bounding,
-            positions: AttributeValue::Buffer {
-                descriptor: descriptor.clone(),
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Two,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 0,
-            },
-            texture_coordinates: AttributeValue::Buffer {
-                descriptor: descriptor.clone(),
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Two,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 32,
-            },
-            normals: AttributeValue::Buffer {
-                descriptor: descriptor.clone(),
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Three,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 64,
-            },
-            tangents: AttributeValue::Buffer {
-                descriptor: descriptor.clone(),
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Three,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 112,
-            },
-            bitangents: AttributeValue::Buffer {
-                descriptor,
-                target: BufferTarget::ARRAY_BUFFER,
-                component_size: BufferComponentSize::Three,
-                data_type: BufferDataType::FLOAT,
-                normalized: false,
-                bytes_stride: 0,
-                bytes_offset: 160,
-            },
         }
     }
 
@@ -134,6 +87,14 @@ impl Rectangle {
 
     pub fn height(&self) -> f64 {
         self.height
+    }
+
+    pub fn texture_scale_s(&self) -> f64 {
+        self.texture_scale_s
+    }
+
+    pub fn texture_scale_t(&self) -> f64 {
+        self.texture_scale_t
     }
 }
 
@@ -154,27 +115,67 @@ impl Geometry for Rectangle {
         Some(Readonly::Borrowed(&self.bounding))
     }
 
-    fn positions(&self) -> Readonly<'_, AttributeValue> {
-        Readonly::Borrowed(&self.positions)
+    fn positions(&self) -> AttributeValue<'_> {
+        AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.buffer),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        }
     }
 
-    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.normals))
+    fn normals(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.buffer),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 64,
+        })
     }
 
-    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.tangents))
+    fn tangents(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.buffer),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 112,
+        })
     }
 
-    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.bitangents))
+    fn bitangents(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.buffer),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 160,
+        })
     }
 
-    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Borrowed(&self.texture_coordinates))
+    fn texture_coordinates(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.buffer),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Two,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 32,
+        })
     }
 
-    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 
@@ -300,4 +301,27 @@ fn create_rectangle(
         unsafe { std::mem::transmute::<[f32; 52], [u8; 208]>(buffer) },
         bounding_volume,
     )
+}
+
+struct BufferRestorer {
+    anchor: Vec2,
+    placement: Placement,
+    width: f64,
+    height: f64,
+    texture_scale_s: f64,
+    texture_scale_t: f64,
+}
+
+impl Restorer for BufferRestorer {
+    fn restore(&self) -> BufferSource {
+        let (compositions, _) = create_rectangle(
+            self.anchor,
+            self.placement,
+            self.width,
+            self.height,
+            self.texture_scale_s,
+            self.texture_scale_t,
+        );
+        BufferSource::from_binary(compositions, 0, compositions.len())
+    }
 }

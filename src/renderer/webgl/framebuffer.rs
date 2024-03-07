@@ -11,9 +11,9 @@ use web_sys::{
 use super::{
     conversion::ToGlEnum,
     error::Error,
+    params::GetWebGlParameters,
     renderbuffer::RenderbufferInternalFormat,
     texture::{TextureColorFormat, TextureDataType, TextureFormat},
-    utils::{renderbuffer_binding, texture_binding_2d},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -390,7 +390,7 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let current_texture = texture_binding_2d(gl);
+                let current_texture = gl.texture_binding_2d();
 
                 let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -421,7 +421,7 @@ impl AttachmentProvider {
                 texture,
                 clear_policy,
             } => {
-                let current_texture = texture_binding_2d(gl);
+                let current_texture = gl.texture_binding_2d();
 
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 gl.framebuffer_texture_2d(
@@ -444,7 +444,7 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let current_renderbuffer = renderbuffer_binding(gl);
+                let current_renderbuffer = gl.renderbuffer_binding();
 
                 let renderbuffer = gl
                     .create_renderbuffer()
@@ -487,7 +487,7 @@ impl AttachmentProvider {
                 renderbuffer,
                 clear_policy,
             } => {
-                let current_renderbuffer = renderbuffer_binding(gl);
+                let current_renderbuffer = gl.renderbuffer_binding();
 
                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
                 gl.framebuffer_renderbuffer(
@@ -1060,7 +1060,8 @@ impl Framebuffer {
             }
         }
 
-        self.read_buffer = self.draw_buffers
+        self.read_buffer = self
+            .draw_buffers
             .get(0)
             .as_f64()
             .map(|v| v as u32)

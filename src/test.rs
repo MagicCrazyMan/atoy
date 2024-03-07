@@ -27,7 +27,6 @@ use crate::clock::{Clock, Tick, WebClock};
 use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
-use crate::geometry::raw::RawGeometry;
 use crate::geometry::rectangle::{Placement, Rectangle};
 use crate::geometry::sphere::Sphere;
 use crate::light::ambient_light::AmbientLight;
@@ -45,7 +44,7 @@ use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
-    BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
+    BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::renderer::webgl::draw::{Draw, DrawMode};
 use crate::renderer::webgl::program::{CustomBinding, Define};
@@ -166,7 +165,7 @@ impl StandardMaterial for TickSolidColorMaterial {
         self.0.transparency()
     }
 
-    fn attribute_value(&self, name: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>> {
         self.0.attribute_value(name)
     }
 

@@ -1,4 +1,6 @@
-use super::buffer::BufferDescriptor;
+use crate::value::Readonly;
+
+use super::buffer::Buffer;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,8 +11,7 @@ pub enum CullFace {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone)]
-pub enum Draw {
+pub enum Draw<'a> {
     Arrays {
         mode: DrawMode,
         first: i32,
@@ -20,7 +21,7 @@ pub enum Draw {
         mode: DrawMode,
         count: i32,
         offset: i32,
-        indices: BufferDescriptor,
+        indices: Readonly<'a, Buffer>,
         indices_data_type: ElementIndicesDataType,
     },
 }

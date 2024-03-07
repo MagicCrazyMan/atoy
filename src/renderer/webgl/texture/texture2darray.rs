@@ -3,7 +3,9 @@ use std::iter::FromIterator;
 use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
-use crate::renderer::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
+use crate::renderer::webgl::{
+    capabilities::Capabilities, conversion::ToGlEnum, error::Error, params::GetWebGlParameters,
+};
 
 use super::{
     Runtime, SamplerParameter, Texture, TextureArray, TextureColorFormat, TextureCompressedFormat,
@@ -64,7 +66,7 @@ where
     /// Sets texture parameter.
     pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
-            let bound = utils::texture_binding_2d_array(&runtime.gl);
+            let bound = runtime.gl.texture_binding_2d_array();
             runtime.gl.bind_texture(
                 WebGl2RenderingContext::TEXTURE_2D_ARRAY,
                 Some(&runtime.texture),

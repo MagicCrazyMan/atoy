@@ -6,7 +6,7 @@ use crate::{
         shading::{draw_translucent_entities, DrawState},
     },
     renderer::webgl::{
-        buffer::BufferDescriptor,
+        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
@@ -55,8 +55,8 @@ impl StandardDeferredTransparentShading {
         state: &mut FrameState,
         depth_stencil: &WebGlRenderbuffer,
         collected_entities: &CollectedEntities,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state, depth_stencil);
         framebuffer.set_attachment(

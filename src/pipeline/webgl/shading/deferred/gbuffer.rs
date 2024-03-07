@@ -6,7 +6,7 @@ use crate::{
         shading::{draw_opaque_entities, DrawState},
     },
     renderer::webgl::{
-        buffer::BufferDescriptor,
+        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
@@ -116,8 +116,8 @@ impl StandardGBufferCollector {
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;

@@ -38,7 +38,7 @@ use super::{
     capabilities::{Capabilities, EXTENSION_EXT_TEXTURE_FILTER_ANISOTROPIC},
     conversion::ToGlEnum,
     error::Error,
-    utils::{self, pixel_unpack_buffer_binding},
+    params::GetWebGlParameters,
 };
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
@@ -601,58 +601,45 @@ pub enum TexturePixelStorage {
 impl TexturePixelStorage {
     fn save(&self, gl: &WebGl2RenderingContext) -> Option<TexturePixelStorage> {
         match self {
-            TexturePixelStorage::PACK_ALIGNMENT(_) => {
-                utils::texture_pixel_storage_pack_alignment(gl)
-                    .map(|v| TexturePixelStorage::PACK_ALIGNMENT(v))
-            }
-            TexturePixelStorage::PACK_ROW_LENGTH(_) => {
-                utils::texture_pixel_storage_pack_row_length(gl)
-                    .map(|v| TexturePixelStorage::PACK_ROW_LENGTH(v))
-            }
-            TexturePixelStorage::PACK_SKIP_PIXELS(_) => {
-                utils::texture_pixel_storage_pack_skip_pixels(gl)
-                    .map(|v| TexturePixelStorage::PACK_SKIP_PIXELS(v))
-            }
-            TexturePixelStorage::PACK_SKIP_ROWS(_) => {
-                utils::texture_pixel_storage_pack_skip_rows(gl)
-                    .map(|v| TexturePixelStorage::PACK_SKIP_ROWS(v))
-            }
-            TexturePixelStorage::UNPACK_ALIGNMENT(_) => {
-                utils::texture_pixel_storage_unpack_alignment(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_ALIGNMENT(v))
-            }
-            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(_) => {
-                utils::texture_pixel_storage_unpack_flip_y_webgl(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v))
-            }
-            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(_) => {
-                utils::texture_pixel_storage_unpack_premultiply_alpha_webgl(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v))
-            }
-            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(_) => {
-                utils::texture_pixel_storage_unpack_colorspace_conversion_webgl(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v))
-            }
-            TexturePixelStorage::UNPACK_ROW_LENGTH(_) => {
-                utils::texture_pixel_storage_unpack_row_length(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_ROW_LENGTH(v))
-            }
-            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(_) => {
-                utils::texture_pixel_storage_unpack_image_height(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v))
-            }
-            TexturePixelStorage::UNPACK_SKIP_PIXELS(_) => {
-                utils::texture_pixel_storage_unpack_skip_pixels(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_SKIP_PIXELS(v))
-            }
-            TexturePixelStorage::UNPACK_SKIP_ROWS(_) => {
-                utils::texture_pixel_storage_unpack_skip_rows(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_SKIP_ROWS(v))
-            }
-            TexturePixelStorage::UNPACK_SKIP_IMAGES(_) => {
-                utils::texture_pixel_storage_unpack_skip_images(gl)
-                    .map(|v| TexturePixelStorage::UNPACK_SKIP_IMAGES(v))
-            }
+            TexturePixelStorage::PACK_ALIGNMENT(_) => gl
+                .texture_pixel_storage_pack_alignment()
+                .map(|v| TexturePixelStorage::PACK_ALIGNMENT(v)),
+            TexturePixelStorage::PACK_ROW_LENGTH(_) => gl
+                .texture_pixel_storage_pack_row_length()
+                .map(|v| TexturePixelStorage::PACK_ROW_LENGTH(v)),
+            TexturePixelStorage::PACK_SKIP_PIXELS(_) => gl
+                .texture_pixel_storage_pack_skip_pixels()
+                .map(|v| TexturePixelStorage::PACK_SKIP_PIXELS(v)),
+            TexturePixelStorage::PACK_SKIP_ROWS(_) => gl
+                .texture_pixel_storage_pack_skip_rows()
+                .map(|v| TexturePixelStorage::PACK_SKIP_ROWS(v)),
+            TexturePixelStorage::UNPACK_ALIGNMENT(_) => gl
+                .texture_pixel_storage_unpack_alignment()
+                .map(|v| TexturePixelStorage::UNPACK_ALIGNMENT(v)),
+            TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(_) => gl
+                .texture_pixel_storage_unpack_flip_y()
+                .map(|v| TexturePixelStorage::UNPACK_FLIP_Y_WEBGL(v)),
+            TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(_) => gl
+                .texture_pixel_storage_unpack_premultiply_alpha()
+                .map(|v| TexturePixelStorage::UNPACK_PREMULTIPLY_ALPHA_WEBGL(v)),
+            TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(_) => gl
+                .texture_pixel_storage_unpack_colorspace_conversion()
+                .map(|v| TexturePixelStorage::UNPACK_COLORSPACE_CONVERSION_WEBGL(v)),
+            TexturePixelStorage::UNPACK_ROW_LENGTH(_) => gl
+                .texture_pixel_storage_unpack_row_length()
+                .map(|v| TexturePixelStorage::UNPACK_ROW_LENGTH(v)),
+            TexturePixelStorage::UNPACK_IMAGE_HEIGHT(_) => gl
+                .texture_pixel_storage_unpack_image_height()
+                .map(|v| TexturePixelStorage::UNPACK_IMAGE_HEIGHT(v)),
+            TexturePixelStorage::UNPACK_SKIP_PIXELS(_) => gl
+                .texture_pixel_storage_unpack_skip_pixels()
+                .map(|v| TexturePixelStorage::UNPACK_SKIP_PIXELS(v)),
+            TexturePixelStorage::UNPACK_SKIP_ROWS(_) => gl
+                .texture_pixel_storage_unpack_skip_rows()
+                .map(|v| TexturePixelStorage::UNPACK_SKIP_ROWS(v)),
+            TexturePixelStorage::UNPACK_SKIP_IMAGES(_) => gl
+                .texture_pixel_storage_unpack_skip_images()
+                .map(|v| TexturePixelStorage::UNPACK_SKIP_IMAGES(v)),
         }
     }
 
@@ -1114,7 +1101,7 @@ macro_rules! texture_sources {
                         pbo_offset,
                         ..
                     } => {
-                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        let current_buffer = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         let result = gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
                             target.gl_enum(),
@@ -1257,7 +1244,7 @@ macro_rules! texture_sources {
                         pbo_offset,
                         ..
                     } => {
-                        let bound = pixel_unpack_buffer_binding(gl);
+                        let bound = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         let result = gl.tex_sub_image_3d_with_i32(
                             target.gl_enum(),
@@ -1489,7 +1476,7 @@ macro_rules! texture_sources_compressed {
                         pbo_offset,
                         ..
                     } => {
-                        let current_buffer = pixel_unpack_buffer_binding(gl);
+                        let current_buffer = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         gl.compressed_tex_sub_image_2d_with_i32_and_i32(
                             target.gl_enum(),
@@ -1598,7 +1585,7 @@ macro_rules! texture_sources_compressed {
                         pbo_offset,
                         ..
                     } => {
-                        let bound = pixel_unpack_buffer_binding(gl);
+                        let bound = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         gl.compressed_tex_sub_image_3d_with_i32_and_i32(
                             target.gl_enum(),
@@ -2004,10 +1991,10 @@ impl Drop for Runtime {
 
             {
                 // unbinds
-                let unit = utils::texture_active_texture_unit(&self.gl);
+                let unit = self.gl.texture_active_texture_unit();
                 for unit in self.using.drain() {
                     self.gl.active_texture(unit.gl_enum());
-                    let texture = utils::texture_binding(&self.gl, self.target);
+                    let texture = self.gl.texture_binding(self.target);
                     if let Some(texture) = texture {
                         if texture == self.texture {
                             self.gl.bind_texture(self.target.gl_enum(), None);
@@ -2198,7 +2185,7 @@ impl TextureStore {
             }
 
             let texture = t.runtime_unchecked().texture.clone();
-            let bound_unit = utils::texture_active_texture_unit(&self.gl);
+            let bound_unit = self.gl.texture_active_texture_unit();
 
             // binds objects
             self.gl.active_texture(unit.gl_enum());
@@ -2239,7 +2226,7 @@ impl TextureStore {
         let mut t = descriptor.texture_mut();
         let target = t.target();
         if let Some(runtime) = t.runtime_mut() {
-            let bound = utils::texture_active_texture_unit(&self.gl);
+            let bound = self.gl.texture_active_texture_unit();
             self.gl.active_texture(unit.gl_enum());
             self.gl.bind_texture(target.gl_enum(), None);
             self.gl.bind_sampler(unit.unit_index() as u32, None);

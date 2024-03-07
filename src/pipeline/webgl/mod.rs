@@ -11,7 +11,7 @@ use crate::{
     clock::WebClock,
     entity::Entity,
     renderer::webgl::{
-        buffer::{BufferDescriptor, BufferSource, BufferUsage, MemoryPolicy},
+        buffer::{Buffer, BufferSource, BufferUsage, MemoryPolicy, Restorer},
         error::Error,
         state::FrameState,
     },
@@ -250,9 +250,9 @@ pub struct StandardPipeline {
     deferred_shading: StandardDeferredShading,
     deferred_translucent_shading: StandardDeferredTransparentShading,
 
-    universal_ubo: BufferDescriptor,
-    lights_ubo: BufferDescriptor,
-    gaussian_kernel_ubo: BufferDescriptor,
+    universal_ubo: Buffer,
+    lights_ubo: Buffer,
+    gaussian_kernel_ubo: Buffer,
 
     lighting: bool,
     multisamples: bool,
@@ -261,6 +261,14 @@ pub struct StandardPipeline {
     hdr_tone_mapping_type: HdrToneMappingType,
     bloom: bool,
     bloom_blur_epoch: usize,
+}
+
+struct GaussianKernelRestorer;
+
+impl Restorer for GaussianKernelRestorer {
+    fn restore(&self) -> BufferSource {
+        BufferSource::from_binary(&UBO_GAUSSIAN_KERNEL_U8, 0, UBO_GAUSSIAN_KERNEL_U8.len())
+    }
 }
 
 impl StandardPipeline {
@@ -282,26 +290,20 @@ impl StandardPipeline {
             deferred_shading: StandardDeferredShading::new(),
             deferred_translucent_shading: StandardDeferredTransparentShading::new(),
 
-            universal_ubo: BufferDescriptor::with_memory_policy(
+            universal_ubo: Buffer::with_memory_policy(
                 BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
                 BufferUsage::DYNAMIC_DRAW,
                 MemoryPolicy::Unfree,
             ),
-            lights_ubo: BufferDescriptor::with_memory_policy(
+            lights_ubo: Buffer::with_memory_policy(
                 BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH),
                 BufferUsage::DYNAMIC_DRAW,
                 MemoryPolicy::Unfree,
             ),
-            gaussian_kernel_ubo: BufferDescriptor::with_memory_policy(
+            gaussian_kernel_ubo: Buffer::with_memory_policy(
                 BufferSource::from_binary(&UBO_GAUSSIAN_KERNEL_U8, 0, UBO_GAUSSIAN_KERNEL_U8.len()),
                 BufferUsage::STATIC_DRAW,
-                MemoryPolicy::restorable(|| {
-                    BufferSource::from_binary(
-                        &UBO_GAUSSIAN_KERNEL_U8,
-                        0,
-                        UBO_GAUSSIAN_KERNEL_U8.len(),
-                    )
-                }),
+                MemoryPolicy::restorable(GaussianKernelRestorer),
             ),
 
             lighting: DEFAULT_LIGHTING_ENABLED,

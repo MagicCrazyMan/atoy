@@ -3,10 +3,14 @@ use std::iter::FromIterator;
 use hashbrown::HashMap;
 use web_sys::{WebGl2RenderingContext, WebGlTexture};
 
-use crate::renderer::webgl::{capabilities::Capabilities, conversion::ToGlEnum, error::Error, utils};
+use crate::renderer::webgl::{
+    capabilities::Capabilities, conversion::ToGlEnum, error::Error, params::GetWebGlParameters,
+};
 
 use super::{
-    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat, TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar, TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem
+    Runtime, SamplerParameter, Texture, TextureColorFormat, TextureCompressedFormat,
+    TextureDepthFormat, TextureInternalFormat, TextureItem, TextureParameter, TexturePlanar,
+    TextureSource, TextureSourceCompressed, TextureTarget, TextureUploadTarget, UploadItem,
 };
 
 /// Memory policies controlling how to manage memory of a texture.
@@ -58,7 +62,7 @@ where
     /// Sets texture parameter.
     pub fn set_texture_parameter(&mut self, param: TextureParameter) -> Result<(), Error> {
         if let Some(runtime) = self.runtime.as_deref_mut() {
-            let bound = utils::texture_binding_2d(&runtime.gl);
+            let bound = runtime.gl.texture_binding_2d();
             runtime
                 .gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&runtime.texture));
@@ -443,20 +447,20 @@ macro_rules! builder_concrete {
                         memory_policy: MemoryPolicy::Unfree,
                         sampler_params: HashMap::new(),
                         tex_params: HashMap::new(),
-            
+
                         base_source: Some(UploadItem::$u(base_source)),
                         uploads: Vec::new(),
-            
+
                         mipmap: false,
                     }
                 }
-            
+
                 /// Sets the source in level 0.
                 pub fn set_base_source(mut self, base: $s) -> Self {
                     self.base_source = Some(UploadItem::$u(base));
                     self
                 }
-            
+
                 /// Uploads a new source to texture.
                 pub fn tex_image(mut self, source: $s, level: usize) -> Self {
                     self.uploads.push(UploadItem::$w(
@@ -471,7 +475,7 @@ macro_rules! builder_concrete {
                     ));
                     self
                 }
-            
+
                 /// Uploads a new source for a sub-rectangle of the texture.
                 pub fn tex_sub_image(
                     mut self,

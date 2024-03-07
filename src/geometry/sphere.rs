@@ -9,7 +9,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
+            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
             BufferUsage,
         },
         draw::{CullFace, Draw, DrawMode},
@@ -25,8 +25,8 @@ pub struct Sphere {
     vertical_segments: usize,
     horizontal_segments: usize,
     num_positions: usize,
-    positions: BufferDescriptor,
-    normals: BufferDescriptor,
+    positions: Buffer,
+    normals: Buffer,
     bounding_volume: BoundingVolume,
 }
 
@@ -49,11 +49,11 @@ impl Sphere {
             vertical_segments,
             horizontal_segments,
             num_positions,
-            positions: BufferDescriptor::new(
+            positions: Buffer::new(
                 BufferSource::from_float32_array(positions, 0, positions_len),
                 BufferUsage::STATIC_DRAW,
             ),
-            normals: BufferDescriptor::new(
+            normals: Buffer::new(
                 BufferSource::from_float32_array(normals, 0, normals_len),
                 BufferUsage::STATIC_DRAW,
             ),
@@ -108,11 +108,23 @@ impl Geometry for Sphere {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> Readonly<'_, AttributeValue> {
-        Readonly::Owned(AttributeValue::Buffer {
-            descriptor: self.positions.clone(),
+    fn positions(&self) -> AttributeValue<'_> {
+        AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.positions),
             target: BufferTarget::ARRAY_BUFFER,
             component_size: BufferComponentSize::Three,
+            data_type: BufferDataType::FLOAT,
+            normalized: false,
+            bytes_stride: 0,
+            bytes_offset: 0,
+        }
+    }
+
+    fn normals(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::Buffer {
+            descriptor: Readonly::Borrowed(&self.normals),
+            target: BufferTarget::ARRAY_BUFFER,
+            component_size: BufferComponentSize::Four,
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
@@ -120,31 +132,19 @@ impl Geometry for Sphere {
         })
     }
 
-    fn normals(&self) -> Option<Readonly<'_, AttributeValue>> {
-        Some(Readonly::Owned(AttributeValue::Buffer {
-            descriptor: self.normals.clone(),
-            target: BufferTarget::ARRAY_BUFFER,
-            component_size: BufferComponentSize::Four,
-            data_type: BufferDataType::FLOAT,
-            normalized: false,
-            bytes_stride: 0,
-            bytes_offset: 0,
-        }))
-    }
-
-    fn tangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+    fn tangents(&self) -> Option<AttributeValue<'_>> {
         None
     }
 
-    fn bitangents(&self) -> Option<Readonly<'_, AttributeValue>> {
+    fn bitangents(&self) -> Option<AttributeValue<'_>> {
         None
     }
 
-    fn texture_coordinates(&self) -> Option<Readonly<'_, AttributeValue>> {
+    fn texture_coordinates(&self) -> Option<AttributeValue<'_>> {
         None
     }
 
-    fn attribute_value(&self, _: &str) -> Option<Readonly<'_, AttributeValue>> {
+    fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 

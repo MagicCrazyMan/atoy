@@ -6,7 +6,7 @@ use crate::{
     entity::Entity,
     material::webgl::StandardMaterial,
     renderer::webgl::{
-        buffer::BufferDescriptor,
+        buffer::Buffer,
         conversion::ToGlEnum,
         error::Error,
         program::{Define, Program, ShaderProvider},
@@ -18,7 +18,7 @@ use crate::{
         MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
         POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
     },
-    share::Share,
+    share::Share, value::Readonly,
 };
 
 use super::{
@@ -39,13 +39,13 @@ const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
 
 pub(self) enum DrawState<'a> {
     Draw {
-        universal_ubo: &'a BufferDescriptor,
-        lights_ubo: Option<&'a BufferDescriptor>,
+        universal_ubo: &'a Buffer,
+        lights_ubo: Option<&'a Buffer>,
         bloom: bool,
     },
     GBuffer {
-        universal_ubo: &'a BufferDescriptor,
-        lights_ubo: Option<&'a BufferDescriptor>,
+        universal_ubo: &'a Buffer,
+        lights_ubo: Option<&'a Buffer>,
     },
 }
 
@@ -139,7 +139,7 @@ fn prepare_program<'a, 'b, 'c>(
                 program,
                 UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
                 &UniformBlockValue::BufferBase {
-                    descriptor: (*universal_ubo).clone(),
+                    descriptor: Readonly::Borrowed(universal_ubo),
                     binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
                 },
             )?;
@@ -150,7 +150,7 @@ fn prepare_program<'a, 'b, 'c>(
                     program,
                     UBO_LIGHTS_BLOCK_NAME,
                     &UniformBlockValue::BufferBase {
-                        descriptor: (*lights_ubo).clone(),
+                        descriptor: Readonly::Borrowed(lights_ubo),
                         binding: UBO_LIGHTS_BINDING,
                     },
                 )?;
@@ -171,7 +171,7 @@ fn prepare_program<'a, 'b, 'c>(
                 program,
                 UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
                 &UniformBlockValue::BufferBase {
-                    descriptor: (*universal_ubo).clone(),
+                    descriptor: Readonly::Borrowed(universal_ubo),
                     binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
                 },
             )?;
@@ -204,8 +204,8 @@ fn draw_entity(
     }
 
     let program = prepare_program(state, draw_state, entity.material().unwrap())?;
-    let bound_attributes = state.bind_attributes(program, &entity)?;
-    let bound_uniforms = state.bind_uniforms(program, &entity)?;
+    let bound_attributes = state.bind_attributes(program, &*entity)?;
+    let bound_uniforms = state.bind_uniforms(program, &*entity)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
     state.unbind_uniforms(bound_uniforms)?;

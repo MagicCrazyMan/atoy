@@ -11,7 +11,7 @@ use crate::{
         HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderer::webgl::{
-        buffer::BufferDescriptor,
+        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
@@ -21,7 +21,7 @@ use crate::{
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
-    },
+    }, value::Readonly,
 };
 
 pub struct StandardMultisamplesHdrShading {
@@ -166,9 +166,9 @@ impl StandardMultisamplesHdrShading {
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
         collected_entities: &CollectedEntities,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
-        gaussian_kernel_ubo: &BufferDescriptor,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
+        gaussian_kernel_ubo: &Buffer,
     ) -> Result<(), Error> {
         if bloom {
             self.draw_hdr_multisamples_bloom(
@@ -201,8 +201,8 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -225,8 +225,8 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &BufferDescriptor,
-        lights_ubo: Option<&BufferDescriptor>,
+        universal_ubo: &Buffer,
+        lights_ubo: Option<&Buffer>,
     ) -> Result<(), Error> {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
@@ -363,7 +363,7 @@ impl StandardMultisamplesHdrShading {
         &mut self,
         state: &mut FrameState,
         bloom_blur_epoch: usize,
-        gaussian_kernel_ubo: &BufferDescriptor,
+        gaussian_kernel_ubo: &Buffer,
     ) -> Result<(), Error> {
         unsafe {
             let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
@@ -385,7 +385,7 @@ impl StandardMultisamplesHdrShading {
                             program,
                             UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             &UniformBlockValue::BufferBase {
-                                descriptor: gaussian_kernel_ubo.clone(),
+                                descriptor: Readonly::Borrowed(gaussian_kernel_ubo),
                                 binding: UBO_GAUSSIAN_BLUR_BINDING,
                             },
                         )?;
