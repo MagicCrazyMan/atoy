@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    collections::VecDeque,
-    rc::{Rc, Weak},
-};
+use std::{any::Any, cell::RefCell, collections::VecDeque, rc::Rc};
 
 use gl_matrix4rust::mat4::Mat4;
 use indexmap::IndexMap;
@@ -19,23 +14,17 @@ use crate::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
     },
-    share::{Share, WeakShare},
+    share::Share,
 };
 
 pub trait Entity {
     fn id(&self) -> &Uuid;
 
-    fn group(&self) -> Option<Share<dyn Group>>;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn mount(&mut self, group: &Share<dyn Group>);
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn umount(&mut self);
-
-    fn compose_model_matrix(&self) -> &Mat4;
-
-    fn compose_normal_matrix(&self) -> &Mat4;
-
-    fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
+    fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>>;
 
     fn geometry(&self) -> Option<&dyn Geometry>;
 
@@ -51,11 +40,13 @@ pub trait Entity {
 
     fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
 
-    fn tick(&mut self, tick: &Tick);
+    fn tick(&mut self, tick: &Tick) -> bool;
 
-    fn sync(&mut self, group: &dyn Group);
+    fn should_update(&self) -> bool;
 
-    fn set_resync(&mut self);
+    fn mark_update(&mut self);
+
+    fn update(&mut self, group: &dyn Group) -> bool;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -65,15 +56,9 @@ pub trait Entity {
 pub trait Group {
     fn id(&self) -> &Uuid;
 
-    fn parent(&self) -> Option<Share<dyn Group>>;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
 
-    fn mount(&mut self, group: &Share<dyn Group>);
-
-    fn umount(&mut self);
-
-    fn compose_model_matrix(&self) -> &Mat4;
-
-    fn bounding_volume(&self) -> Option<&CullingBoundingVolume>;
+    fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>>;
 
     fn entity(&self, id: &Uuid) -> Option<Share<dyn Entity>>;
 
@@ -97,11 +82,13 @@ pub trait Group {
         HierarchyGroupsIter::new(self)
     }
 
-    fn tick(&mut self, tick: &Tick);
+    fn tick(&mut self, tick: &Tick) -> bool;
 
-    fn sync(&mut self, parent: Option<&dyn Group>);
+    fn should_update(&self) -> bool;
 
-    fn set_resync(&mut self, resync_entities: bool, resync_sub_groups: bool);
+    fn mark_update(&mut self);
+
+    fn update(&mut self, parent: Option<&dyn Group>) -> bool;
 
     fn as_any(&self) -> &dyn Any;
 
@@ -170,9 +157,9 @@ impl Iterator for HierarchyEntitiesIter {
 
 pub struct SimpleEntity {
     id: Uuid,
-    group: Option<WeakShare<dyn Group>>,
 
     model_matrix: Mat4,
+    parent_compose_model_matrix: Mat4,
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
 
@@ -182,22 +169,22 @@ pub struct SimpleEntity {
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
 
-    should_sync: bool,
+    should_update: bool,
 }
 
 impl SimpleEntity {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            group: None,
             model_matrix: Mat4::<f64>::new_identity(),
+            parent_compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_normal_matrix: Mat4::<f64>::new_identity(),
             geometry: None,
             material: None,
             enable_bounding: true,
             bounding_volume: None,
-            should_sync: true,
+            should_update: true,
         }
     }
 
@@ -230,17 +217,18 @@ impl SimpleEntity {
     pub fn enable_bounding(&mut self) {
         self.enable_bounding = true;
         self.bounding_volume = None;
-        self.set_resync();
+        self.mark_update();
     }
 
     pub fn disable_bounding(&mut self) {
         self.enable_bounding = false;
         self.bounding_volume = None;
-        self.set_resync();
+        self.mark_update();
     }
 
-    fn sync_matrices(&mut self, group: &dyn Group) {
-        self.compose_model_matrix = *group.compose_model_matrix() * *self.model_matrix();
+    fn update_matrices(&mut self, group: &dyn Group) {
+        self.parent_compose_model_matrix = *group.compose_model_matrix();
+        self.compose_model_matrix = self.parent_compose_model_matrix * self.model_matrix;
         self.compose_normal_matrix = self.compose_model_matrix.clone();
         self.compose_normal_matrix
             .invert_in_place()
@@ -248,7 +236,7 @@ impl SimpleEntity {
         self.compose_normal_matrix.transpose_in_place();
     }
 
-    fn sync_bounding_volume(&mut self) {
+    fn update_bounding_volume(&mut self) {
         if !self.enable_bounding {
             self.bounding_volume = None;
             return;
@@ -269,28 +257,18 @@ impl Entity for SimpleEntity {
         &self.id
     }
 
-    fn group(&self) -> Option<Share<dyn Group>> {
-        self.group.as_ref().and_then(|group| group.upgrade())
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_model_matrix)
     }
 
-    fn mount(&mut self, group: &Share<dyn Group>) {
-        self.group = Some(Rc::downgrade(group));
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_normal_matrix)
     }
 
-    fn umount(&mut self) {
-        self.group = None;
-    }
-
-    fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
-    }
-
-    fn compose_normal_matrix(&self) -> &Mat4 {
-        &self.compose_normal_matrix
-    }
-
-    fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding_volume.as_ref()
+    fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>> {
+        self.bounding_volume
+            .as_ref()
+            .map(|volume| Readonly::Borrowed(volume))
     }
 
     fn geometry(&self) -> Option<&dyn Geometry> {
@@ -327,42 +305,44 @@ impl Entity for SimpleEntity {
         None
     }
 
-    fn tick(&mut self, tick: &Tick) {
+    fn tick(&mut self, tick: &Tick) -> bool {
         let mut mutated = false;
 
         if let Some(geometry) = self.geometry.as_mut() {
-            mutated = mutated | geometry.tick(tick);
+            mutated = geometry.tick(tick) || mutated;
         }
         if let Some(material) = self.material.as_mut() {
-            mutated = mutated | material.tick(tick);
+            mutated = material.tick(tick) || mutated;
         }
 
         if mutated {
-            self.set_resync();
-        }
-    }
-
-    fn sync(&mut self, group: &dyn Group) {
-        if !self.should_sync {
-            return;
+            self.mark_update();
         }
 
-        self.sync_matrices(group);
-        self.sync_bounding_volume();
-
-        self.should_sync = false;
+        mutated
     }
 
-    fn set_resync(&mut self) {
-        self.should_sync = true;
+    fn should_update(&self) -> bool {
+        self.should_update
+    }
 
-        let Some(group) = self.group.as_ref().and_then(|group| group.upgrade()) else {
-            return;
-        };
-        let Ok(mut group) = group.try_borrow_mut() else {
-            return;
-        };
-        group.set_resync(false, false);
+    fn mark_update(&mut self) {
+        self.should_update = true;
+    }
+
+    fn update(&mut self, group: &dyn Group) -> bool {
+        let should_update = self.should_update
+            || group.compose_model_matrix().as_ref() != &self.parent_compose_model_matrix;
+
+        if should_update {
+            self.update_matrices(group);
+            self.update_bounding_volume();
+
+            self.should_update = false;
+            true
+        } else {
+            false
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -376,10 +356,9 @@ impl Entity for SimpleEntity {
 
 pub struct SimpleGroup {
     id: Uuid,
-    me: WeakShare<Self>,
-    parent: Option<WeakShare<dyn Group>>,
 
     model_matrix: Mat4,
+    parent_compose_model_matrix: Mat4,
     compose_model_matrix: Mat4,
 
     entities: IndexMap<Uuid, Share<dyn Entity>>,
@@ -388,25 +367,22 @@ pub struct SimpleGroup {
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
 
-    should_sync: bool,
+    should_update: bool,
 }
 
 impl SimpleGroup {
-    pub fn new() -> Share<Self> {
-        Rc::new_cyclic(|me| {
-            RefCell::new(Self {
-                id: Uuid::new_v4(),
-                me: Weak::clone(me),
-                parent: None,
-                model_matrix: Mat4::<f64>::new_identity(),
-                compose_model_matrix: Mat4::<f64>::new_identity(),
-                entities: IndexMap::new(),
-                sub_groups: IndexMap::new(),
-                enable_bounding: true,
-                bounding_volume: None,
-                should_sync: true,
-            })
-        })
+    pub fn new() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            model_matrix: Mat4::<f64>::new_identity(),
+            parent_compose_model_matrix: Mat4::<f64>::new_identity(),
+            compose_model_matrix: Mat4::<f64>::new_identity(),
+            entities: IndexMap::new(),
+            sub_groups: IndexMap::new(),
+            enable_bounding: true,
+            bounding_volume: None,
+            should_update: true,
+        }
     }
 
     pub fn model_matrix(&self) -> &Mat4 {
@@ -421,24 +397,14 @@ impl SimpleGroup {
     }
 
     pub fn add_entity_shared(&mut self, entity: Share<dyn Entity>) {
+        self.mark_update();
         let id = entity.borrow().id().clone();
-        let me: Rc<RefCell<dyn Group>> = self.me.upgrade().unwrap();
-        entity.borrow_mut().mount(&me);
-        entity.borrow_mut().set_resync();
         self.entities.insert(id, entity);
-        self.set_resync(false, false);
     }
 
     pub fn remove_entity(&mut self, id: &Uuid) -> Option<Share<dyn Entity>> {
-        match self.entities.swap_remove(id) {
-            Some(entity) => {
-                entity.borrow_mut().umount();
-                entity.borrow_mut().set_resync();
-                self.set_resync(false, false);
-                Some(entity)
-            }
-            None => None,
-        }
+        self.mark_update();
+        self.entities.swap_remove(id)
     }
 
     pub fn add_sub_group<G>(&mut self, group: G)
@@ -449,43 +415,28 @@ impl SimpleGroup {
     }
 
     pub fn add_sub_group_shared(&mut self, group: Share<dyn Group>) {
+        self.mark_update();
         let id = group.borrow().id().clone();
-        let me: Rc<RefCell<dyn Group>> = self.me.upgrade().unwrap();
-        group.borrow_mut().mount(&me);
-        group.borrow_mut().set_resync(true, true);
         self.sub_groups.insert(id, group);
-        self.set_resync(false, false);
     }
 
     pub fn remove_sub_group(&mut self, id: &Uuid) -> Option<Share<dyn Group>> {
-        match self.sub_groups.swap_remove(id) {
-            Some(sub_group) => {
-                sub_group.borrow_mut().umount();
-                sub_group.borrow_mut().set_resync(true, true);
-                self.set_resync(false, false);
-                Some(sub_group)
-            }
-            None => None,
-        }
+        self.mark_update();
+        self.sub_groups.swap_remove(id)
     }
 
-    pub fn should_sync(&self) -> bool {
-        self.should_sync
+    fn update_matrices(&mut self, parent: Option<&dyn Group>) {
+        self.parent_compose_model_matrix = parent
+            .map(|parent| *parent.compose_model_matrix())
+            .unwrap_or(Mat4::<f64>::new_identity());
+        self.compose_model_matrix = self.parent_compose_model_matrix * self.model_matrix;
     }
 
-    fn sync_matrices(&mut self, parent: Option<&dyn Group>) {
-        let parent_model_matrix = parent.map(|parent| *parent.compose_model_matrix());
-        self.compose_model_matrix = match parent_model_matrix {
-            Some(parent) => parent * *self.model_matrix(),
-            None => self.model_matrix().clone(),
-        };
-    }
-
-    fn sync_children_and_bounding_volume(&mut self) {
+    fn update_children_and_bounding_volume(&mut self) {
         let mut bounding_volumes = Vec::new();
 
         for entity in self.entities() {
-            entity.borrow_mut().sync(self);
+            entity.borrow_mut().update(self);
 
             if let Some(bounding) = entity.borrow().bounding_volume() {
                 bounding_volumes.push(bounding.bounding_volume());
@@ -493,7 +444,7 @@ impl SimpleGroup {
         }
 
         for sub_group in self.sub_groups() {
-            sub_group.borrow_mut().sync(Some(self));
+            sub_group.borrow_mut().update(Some(self));
 
             if let Some(bounding) = sub_group.borrow().bounding_volume() {
                 bounding_volumes.push(bounding.bounding_volume());
@@ -504,14 +455,18 @@ impl SimpleGroup {
             .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
-    fn sync_children(&mut self) {
+    fn update_children(&mut self) -> bool {
+        let mut mutated = false;
+
         for entity in self.entities() {
-            entity.borrow_mut().sync(self);
+            mutated = entity.borrow_mut().update(self) || mutated;
         }
 
         for sub_group in self.sub_groups() {
-            sub_group.borrow_mut().sync(Some(self));
+            mutated = sub_group.borrow_mut().update(Some(self)) || mutated;
         }
+
+        mutated
     }
 }
 
@@ -520,24 +475,14 @@ impl Group for SimpleGroup {
         &self.id
     }
 
-    fn parent(&self) -> Option<Share<dyn Group>> {
-        self.parent.as_ref().and_then(|parent| parent.upgrade())
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+        Readonly::Borrowed(&self.compose_model_matrix)
     }
 
-    fn mount(&mut self, group: &Share<dyn Group>) {
-        self.parent = Some(Rc::downgrade(group));
-    }
-
-    fn umount(&mut self) {
-        self.parent = None;
-    }
-
-    fn compose_model_matrix(&self) -> &Mat4 {
-        &self.compose_model_matrix
-    }
-
-    fn bounding_volume(&self) -> Option<&CullingBoundingVolume> {
-        self.bounding_volume.as_ref()
+    fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>> {
+        self.bounding_volume
+            .as_ref()
+            .map(|volume| Readonly::Borrowed(volume))
     }
 
     fn entity(&self, id: &Uuid) -> Option<Share<dyn Entity>> {
@@ -562,60 +507,72 @@ impl Group for SimpleGroup {
         )
     }
 
-    fn tick(&mut self, tick: &Tick) {
+    fn tick(&mut self, tick: &Tick) -> bool {
+        let mut mutated = false;
+
         for (_, entity) in &mut self.entities {
-            entity.borrow_mut().tick(tick);
+            mutated = entity.borrow_mut().tick(tick) || mutated;
         }
 
         for (_, sub_group) in &mut self.sub_groups {
-            sub_group.borrow_mut().tick(tick);
+            mutated = sub_group.borrow_mut().tick(tick) || mutated;
         }
+
+        mutated
     }
 
-    fn sync(&mut self, parent: Option<&dyn Group>) {
-        if self.should_sync {
-            self.sync_matrices(parent);
+    fn should_update(&self) -> bool {
+        if self.should_update {
+            return true;
+        }
+
+        if self
+            .entities
+            .values()
+            .any(|entity| entity.borrow().should_update())
+        {
+            return true;
+        }
+
+        if self
+            .sub_groups
+            .values()
+            .any(|sub_group| sub_group.borrow().should_update())
+        {
+            return true;
+        }
+
+        false
+    }
+
+    fn mark_update(&mut self) {
+        self.should_update = true;
+    }
+
+    fn update(&mut self, parent: Option<&dyn Group>) -> bool {
+        let should_update = self.should_update
+            || parent
+                .map(|parent| parent.compose_model_matrix())
+                .map(|parent_compose_model_matrix| {
+                    parent_compose_model_matrix.as_ref() != &self.parent_compose_model_matrix
+                })
+                .unwrap_or(false);
+
+        if should_update {
+            self.update_matrices(parent);
 
             if self.enable_bounding {
-                self.sync_children_and_bounding_volume();
+                self.update_children_and_bounding_volume();
             } else {
-                self.sync_children();
+                self.update_children();
                 self.bounding_volume = None;
             }
-            self.should_sync = false;
+
+            self.should_update = false;
+            true
         } else {
-            self.sync_children();
+            self.update_children()
         }
-    }
-
-    fn set_resync(&mut self, resync_entities: bool, resync_sub_groups: bool) {
-        self.should_sync = true;
-
-        if resync_sub_groups {
-            for sub_group in self.sub_groups_hierarchy() {
-                let Ok(mut sub_group) = sub_group.try_borrow_mut() else {
-                    continue;
-                };
-                sub_group.set_resync(resync_entities, resync_sub_groups);
-            }
-        }
-
-        if resync_entities {
-            for entity in self.entities_hierarchy() {
-                let Ok(mut entity) = entity.try_borrow_mut() else {
-                    continue;
-                };
-                entity.set_resync();
-            }
-        }
-
-        let Some(parent) = self.parent.as_ref().and_then(|parent| parent.upgrade()) else {
-            return;
-        };
-        let Ok(mut parent) = parent.try_borrow_mut() else {
-            return;
-        };
-        parent.set_resync(false, false);
     }
 
     fn as_any(&self) -> &dyn Any {

@@ -11,7 +11,6 @@ use crate::{
 /// An bounding volume for culling detection purpose.
 /// This structure collects more information than [`BoundingVolume`]
 /// to speed up the culling detection procedure.
-#[derive(Debug)]
 pub struct CullingBoundingVolume {
     previous_outside_plane: RefCell<Option<PlaneIndex>>,
     bounding_volume: BoundingVolume,

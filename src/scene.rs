@@ -44,7 +44,7 @@ pub struct Scene<Clock> {
 
     clock: Clock,
     entities: Share<SimpleGroup>,
-    light_attenuations: Property<Attenuation>,
+    light_attenuation: Property<Attenuation>,
     ambient_light: Property<Option<AmbientLight>>,
     directional_lights: Vec<Property<DirectionalLight>>,
     point_lights: Vec<Property<PointLight>>,
@@ -70,7 +70,7 @@ impl Scene<WebClock> {
         let select_start_callback = Closure::new(|| false);
         canvas.set_onselectstart(Some(select_start_callback.as_ref().unchecked_ref()));
 
-        let entities = SimpleGroup::new();
+        let entities = Rc::new(RefCell::new(SimpleGroup::new()));
 
         let mut clock = WebClock::new();
         clock.on_tick(SceneTicking::new(Rc::clone(&entities)));
@@ -82,7 +82,7 @@ impl Scene<WebClock> {
 
             clock,
             entities,
-            light_attenuations: Property::new(Attenuation::new(0.0, 1.0, 0.0)),
+            light_attenuation: Property::new(Attenuation::new(0.0, 1.0, 0.0)),
             ambient_light: Property::new(None),
             directional_lights: Vec::new(),
             point_lights: Vec::new(),
@@ -113,7 +113,7 @@ impl<Clock> Scene<Clock> {
     }
 
     /// Returns entity group.
-    pub fn entity_group(&self) -> &Share<SimpleGroup> {
+    pub fn entities(&self) -> &Share<SimpleGroup> {
         &self.entities
     }
 
@@ -133,18 +133,18 @@ impl<Clock> Scene<Clock> {
     }
 
     /// Returns lighting attenuation.
-    pub fn light_attenuations(&self) -> &Property<Attenuation> {
-        &self.light_attenuations
+    pub fn light_attenuation(&self) -> &Property<Attenuation> {
+        &self.light_attenuation
     }
 
     /// Returns mutable lighting attenuation.
-    pub fn light_attenuations_mut(&mut self) -> &mut Property<Attenuation> {
-        &mut self.light_attenuations
+    pub fn light_attenuation_mut(&mut self) -> &mut Property<Attenuation> {
+        &mut self.light_attenuation
     }
 
     /// Sets lighting attenuation.
-    pub fn set_light_attenuations(&mut self, attenuations: Attenuation) {
-        self.light_attenuations.set_value(attenuations);
+    pub fn set_light_attenuation(&mut self, attenuations: Attenuation) {
+        self.light_attenuation.set_value(attenuations);
     }
 
     /// Adds a directional light.

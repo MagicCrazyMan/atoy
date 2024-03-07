@@ -60,6 +60,11 @@ impl<T> Property<T> {
             dirty_count: self.dirty_count,
         }
     }
+
+    pub fn stamp_to(&self, stamp: &mut PropertyStamp) {
+        stamp.id = self.id;
+        stamp.dirty_count = self.dirty_count;
+    }
 }
 
 impl<T> Deref for Property<T> {
@@ -97,5 +102,13 @@ pub struct PropertyStamp {
 impl PropertyStamp {
     pub fn new(id: Uuid, dirty_count: usize) -> Self {
         Self { id, dirty_count }
+    }
+    
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+    
+    pub fn dirty_count(&self) -> usize {
+        self.dirty_count
     }
 }

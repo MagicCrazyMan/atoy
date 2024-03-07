@@ -142,11 +142,11 @@ impl StandardEntitiesCollector {
 
         let view_frustum = state.camera().view_frustum();
 
-        let should_recollect = scene.entity_group().borrow().should_sync()
+        let should_recollect = scene.entities().borrow_mut().update(None)
             || self
                 .last_scene_id
                 .as_ref()
-                .map(|last_scene_id| last_scene_id != scene.entity_group().borrow().id())
+                .map(|last_scene_id| last_scene_id != scene.entities().borrow().id())
                 .unwrap_or(true)
             || self
                 .last_view_frustum
@@ -169,10 +169,8 @@ impl StandardEntitiesCollector {
         let distance_sorting = self.distance_sorting_enabled();
         let mut entities = Vec::new();
 
-        scene.entity_group().borrow_mut().sync(None);
-
         if culling {
-            for entity in scene.entity_group().borrow().entities() {
+            for entity in scene.entities().borrow().entities() {
                 let distance = match entity.borrow().bounding_volume() {
                     Some(entity_bounding) => match entity_bounding.cull(&view_frustum) {
                         Culling::Outside => continue,
@@ -194,7 +192,7 @@ impl StandardEntitiesCollector {
                 });
             }
 
-            for group in scene.entity_group().borrow().sub_groups_hierarchy() {
+            for group in scene.entities().borrow().sub_groups_hierarchy() {
                 // culling group bounding
                 if let Some(group_bounding) = group.borrow().bounding_volume() {
                     if let Culling::Outside = group_bounding.cull(&view_frustum) {
@@ -225,7 +223,7 @@ impl StandardEntitiesCollector {
                 }
             }
         } else {
-            for entity in scene.entity_group().borrow().entities_hierarchy() {
+            for entity in scene.entities().borrow().entities_hierarchy() {
                 let transparency = entity
                     .borrow()
                     .material()
@@ -265,7 +263,7 @@ impl StandardEntitiesCollector {
                 if let Some(material) = entity.material_mut() {
                     if !material.ready() {
                         material.prepare(state);
-                        entity.set_resync();
+                        entity.mark_update();
                         continue;
                     }
                 }
@@ -284,7 +282,7 @@ impl StandardEntitiesCollector {
             }
         }
 
-        self.last_scene_id = Some(scene.entity_group().borrow().id().clone());
+        self.last_scene_id = Some(scene.entities().borrow().id().clone());
         self.last_view_frustum = Some(view_frustum);
 
         CollectedEntities {

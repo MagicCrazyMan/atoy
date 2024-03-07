@@ -35,7 +35,7 @@ use super::{
 pub struct StandardPreparation {
     universal_uniforms: ArrayBuffer,
 
-    last_light_attenuations: Option<PropertyStamp>,
+    last_light_attenuation: Option<PropertyStamp>,
     last_ambient_light: Option<PropertyStamp>,
     last_directional_lights: Option<Vec<PropertyStamp>>,
     last_point_lights: Option<Vec<PropertyStamp>>,
@@ -48,7 +48,7 @@ impl StandardPreparation {
         Self {
             universal_uniforms: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as u32),
 
-            last_light_attenuations: None,
+            last_light_attenuation: None,
             last_ambient_light: None,
             last_directional_lights: None,
             last_point_lights: None,
@@ -122,18 +122,18 @@ impl StandardPreparation {
     ) -> Result<(), Error> {
         // u_Attenuations
         if self
-            .last_light_attenuations
+            .last_light_attenuation
             .as_ref()
-            .map(|stamp| scene.light_attenuations().is_dirty(stamp))
+            .map(|stamp| scene.light_attenuation().is_dirty(stamp))
             .unwrap_or(true)
         {
             lights_ubo.buffer_sub_data(
                 BufferSource::from_binary(
                     unsafe {
                         std::mem::transmute::<[f32; 3], [u8; 12]>([
-                            scene.light_attenuations().a(),
-                            scene.light_attenuations().b(),
-                            scene.light_attenuations().c(),
+                            scene.light_attenuation().a(),
+                            scene.light_attenuation().b(),
+                            scene.light_attenuation().c(),
                         ])
                     },
                     0,
@@ -141,7 +141,7 @@ impl StandardPreparation {
                 ),
                 UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
             );
-            self.last_light_attenuations = Some(scene.light_attenuations().stamp());
+            self.last_light_attenuation = Some(scene.light_attenuation().stamp());
         }
 
         // u_AmbientLight
