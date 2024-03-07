@@ -15,7 +15,7 @@ use crate::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
-    notify::{Notifiee, Notifier},
+    notify::{Notifiee, Notifier, Notifying},
     property::Property,
     share::Share,
 };
@@ -37,12 +37,16 @@ pub const MAX_SPOT_LIGHTS: usize = 12;
 pub(crate) const MAX_SPOT_LIGHTS_STRING: &'static str = "12";
 pub(crate) const SPOT_LIGHTS_COUNT_DEFINE: &'static str = "SPOT_LIGHTS_COUNT";
 
-pub struct Scene<Clock> {
+pub struct Scene<C>
+where
+    C: Clock,
+{
     canvas: HtmlCanvasElement,
     canvas_handler: SceneCanvasHandler,
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
-    clock: Clock,
+    clock: C,
+    clock_ticking: Notifying<Tick>,
     entities: Share<SimpleGroup>,
     light_attenuation: Property<Attenuation>,
     ambient_light: Property<Option<AmbientLight>>,
@@ -50,6 +54,15 @@ pub struct Scene<Clock> {
     point_lights: Vec<Property<PointLight>>,
     spot_lights: Vec<Property<SpotLight>>,
     area_lights: Vec<Property<AreaLight>>,
+}
+
+impl<C> Drop for Scene<C>
+where
+    C: Clock,
+{
+    fn drop(&mut self) {
+        self.clock.un_tick(self.clock_ticking.key());
+    }
 }
 
 impl Scene<WebClock> {
@@ -73,7 +86,7 @@ impl Scene<WebClock> {
         let entities = Rc::new(RefCell::new(SimpleGroup::new()));
 
         let mut clock = WebClock::new();
-        clock.on_tick(SceneTicking::new(Rc::clone(&entities)));
+        let clock_ticking = clock.on_tick(ClockTicking::new(Rc::clone(&entities)));
 
         Ok(Self {
             canvas_handler: SceneCanvasHandler::new(canvas.clone())?,
@@ -81,6 +94,7 @@ impl Scene<WebClock> {
             canvas,
 
             clock,
+            clock_ticking,
             entities,
             light_attenuation: Property::new(Attenuation::new(0.0, 1.0, 0.0)),
             ambient_light: Property::new(None),
@@ -92,7 +106,10 @@ impl Scene<WebClock> {
     }
 }
 
-impl<Clock> Scene<Clock> {
+impl<C> Scene<C>
+where
+    C: Clock,
+{
     /// Returns [`HtmlCanvasElement`].
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
@@ -103,12 +120,12 @@ impl<Clock> Scene<Clock> {
     }
 
     /// Returns [`Clock`](crate::clock::Clock) associated with this scene.
-    pub fn clock(&self) -> &Clock {
+    pub fn clock(&self) -> &C {
         &self.clock
     }
 
     /// Returns mutable [`Clock`](crate::clock::Clock) associated with this scene.
-    pub fn clock_mut(&mut self) -> &mut Clock {
+    pub fn clock_mut(&mut self) -> &mut C {
         &mut self.clock
     }
 
@@ -495,17 +512,16 @@ impl SceneCanvasHandler {
     }
 }
 
-struct SceneTicking(Share<SimpleGroup>);
+struct ClockTicking(Share<SimpleGroup>);
 
-impl SceneTicking {
+impl ClockTicking {
     fn new(entities: Share<SimpleGroup>) -> Self {
         Self(entities)
     }
 }
 
-impl Notifiee<Tick> for SceneTicking {
+impl Notifiee<Tick> for ClockTicking {
     fn notify(&mut self, msg: &Tick) {
-        let mut entities = (*self.0).borrow_mut();
-        entities.tick(msg);
+        (*self.0).borrow_mut().tick(msg);
     }
 }

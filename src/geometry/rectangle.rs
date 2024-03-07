@@ -3,7 +3,9 @@ use std::any::Any;
 use gl_matrix4rust::vec2::Vec2;
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -11,7 +13,8 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
+    value::Readonly,
 };
 
 use super::Geometry;

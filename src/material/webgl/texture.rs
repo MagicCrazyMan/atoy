@@ -7,7 +7,6 @@ use crate::{
     error::Error,
     loader::{Loader, LoaderStatus},
     notify::Notifiee,
-    readonly::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
@@ -16,6 +15,7 @@ use crate::{
         uniform::{UniformBlockValue, UniformValue},
     },
     share::{Share, WeakShare},
+    value::Readonly,
 };
 
 use super::{StandardMaterial, Transparency};

@@ -4,13 +4,13 @@ use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
     clock::Tick,
-    readonly::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
     },
+    value::Readonly,
 };
 
 use super::{StandardMaterial, Transparency};
@@ -97,9 +97,9 @@ impl StandardMaterial for SolidColorMaterial {
             "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
                 self.transparency.alpha(),
             ))),
-            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(
-                self.specular_shininess,
-            ))),
+            "u_SpecularShininess" => {
+                Some(Readonly::Owned(UniformValue::Float1(self.specular_shininess)))
+            }
             _ => None,
         }
     }

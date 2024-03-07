@@ -2,6 +2,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 
 pub mod bounding;
 pub mod camera;
+pub mod clock;
 pub mod controller;
 pub mod entity;
 pub mod error;
@@ -14,15 +15,14 @@ pub mod material;
 pub mod notify;
 pub mod pipeline;
 pub mod plane;
-pub mod readonly;
+pub mod property;
 pub mod renderer;
 pub mod scene;
+pub mod share;
 pub mod test;
 pub mod utils;
+pub mod value;
 pub mod viewer;
-pub mod clock;
-pub mod share;
-pub mod property;
 
 pub(crate) fn window() -> web_sys::Window {
     web_sys::window().expect("failed to get window instance")

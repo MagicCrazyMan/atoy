@@ -9,7 +9,7 @@ use web_sys::{
     WebGlUniformLocation,
 };
 
-use crate::{camera::Camera, entity::Entity, readonly::Readonly};
+use crate::{camera::Camera, entity::Entity, value::Readonly};
 
 use super::{
     attribute::{AttributeInternalBinding, AttributeValue},

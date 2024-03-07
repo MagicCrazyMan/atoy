@@ -267,7 +267,7 @@ const VIEW_PROJ_MATRIX_UNIFORM_NAME: &'static str = "u_ViewProjMatrix";
 struct PickingShaderProvider;
 
 impl ShaderProvider for PickingShaderProvider {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("Picking")
     }
 

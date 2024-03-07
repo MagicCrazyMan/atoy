@@ -4,12 +4,14 @@ pub mod texture;
 use std::{any::Any, borrow::Cow};
 
 use crate::{
-    clock::Tick, readonly::Readonly, renderer::webgl::{
+    clock::Tick,
+    value::Readonly,
+    renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
 };
 
 use super::Transparency;
@@ -24,7 +26,6 @@ pub trait StandardMaterial {
 
     /// Prepares material.
     fn prepare(&mut self, state: &mut FrameState);
-    
 
     fn tick(&mut self, tick: &Tick) -> bool;
 

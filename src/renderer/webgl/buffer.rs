@@ -656,7 +656,7 @@ impl BufferDescriptor {
     }
 
     /// Returns buffer descriptor name.
-    pub fn name(&self) -> Ref<Option<Cow<'static, str>>> {
+    pub fn name(&self) -> Ref<Option<Cow<'_, str>>> {
         Ref::map(self.0.borrow(), |inner| &inner.name)
     }
 

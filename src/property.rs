@@ -103,11 +103,11 @@ impl PropertyStamp {
     pub fn new(id: Uuid, dirty_count: usize) -> Self {
         Self { id, dirty_count }
     }
-    
+
     pub fn id(&self) -> Uuid {
         self.id
     }
-    
+
     pub fn dirty_count(&self) -> usize {
         self.dirty_count
     }

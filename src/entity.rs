@@ -9,12 +9,11 @@ use crate::{
     clock::Tick,
     geometry::Geometry,
     material::webgl::StandardMaterial,
-    readonly::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
     },
-    share::Share,
+    share::Share, value::Readonly,
 };
 
 pub trait Entity {

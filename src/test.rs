@@ -43,7 +43,6 @@ use crate::material::webgl::StandardMaterial;
 use crate::material::{self, Transparency};
 use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
-use crate::readonly::Readonly;
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
     BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget, BufferUsage,
@@ -63,6 +62,7 @@ use crate::renderer::webgl::RenderEvent;
 use crate::renderer::Renderer;
 use crate::share::{Share, WeakShare};
 use crate::utils::slice_to_float32_array;
+use crate::value::Readonly;
 use crate::viewer::{self, Viewer};
 use crate::{document, entity};
 use crate::{

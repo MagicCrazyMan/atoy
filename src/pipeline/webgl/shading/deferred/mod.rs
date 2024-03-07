@@ -148,7 +148,7 @@ impl DeferredShader {
 }
 
 impl ShaderProvider for DeferredShader {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         if self.lighting {
             Cow::Borrowed("DeferredShader")
         } else {
@@ -156,11 +156,11 @@ impl ShaderProvider for DeferredShader {
         }
     }
 
-    fn vertex_source(&self) -> Cow<'static, str> {
+    fn vertex_source(&self) -> Cow<'_, str> {
         Cow::Borrowed(include_str!("../../shaders/computation.vert"))
     }
 
-    fn fragment_source(&self) -> Cow<'static, str> {
+    fn fragment_source(&self) -> Cow<'_, str> {
         Cow::Borrowed(include_str!("../../shaders/deferred.frag"))
     }
 

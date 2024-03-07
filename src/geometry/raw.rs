@@ -1,11 +1,14 @@
 use std::{any::Any, collections::HashMap};
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
+    value::Readonly,
 };
 
 use super::Geometry;

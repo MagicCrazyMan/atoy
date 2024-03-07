@@ -403,7 +403,7 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
 pub(self) struct HdrReinhardToneMapping;
 
 impl ShaderProvider for HdrReinhardToneMapping {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("HdrReinhardToneMapping")
     }
 
@@ -435,7 +435,7 @@ impl ShaderProvider for HdrReinhardToneMapping {
 pub(self) struct HdrExposureToneMapping;
 
 impl ShaderProvider for HdrExposureToneMapping {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("HdrExposureToneMapping")
     }
 
@@ -467,7 +467,7 @@ impl ShaderProvider for HdrExposureToneMapping {
 pub(self) struct BloomMapping;
 
 impl ShaderProvider for BloomMapping {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("BloomMapping")
     }
 
@@ -499,7 +499,7 @@ impl ShaderProvider for BloomMapping {
 struct GaussianBlurMapping;
 
 impl ShaderProvider for GaussianBlurMapping {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("GaussianBlurMapping")
     }
 
@@ -531,7 +531,7 @@ impl ShaderProvider for GaussianBlurMapping {
 struct BloomBlendMapping;
 
 impl ShaderProvider for BloomBlendMapping {
-    fn name(&self) -> Cow<'static, str> {
+    fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("BloomBlendMapping")
     }
 

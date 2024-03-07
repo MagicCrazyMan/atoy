@@ -4,7 +4,9 @@ use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::Float32Array;
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -12,7 +14,8 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
+    value::Readonly,
 };
 
 use super::Geometry;

@@ -327,7 +327,7 @@ impl ProgramStore {
             // checks using
             if let Some(using_program) = self.using_program.as_ref() {
                 let using_program = &mut **using_program;
-                if using_program.name() == name {
+                if using_program.name() == name.as_ref() {
                     return Ok(using_program);
                 }
             }

@@ -1,7 +1,9 @@
 use std::{any::Any, cell::OnceCell};
 
 use crate::{
-    bounding::BoundingVolume, clock::Tick, readonly::Readonly, renderer::webgl::{
+    bounding::BoundingVolume,
+    clock::Tick,
+    renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
             BufferComponentSize, BufferDataType, BufferDescriptor, BufferSource, BufferTarget,
@@ -9,7 +11,8 @@ use crate::{
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
-    }
+    },
+    value::Readonly,
 };
 
 use super::{cube::build_bounding_volume, Geometry};
