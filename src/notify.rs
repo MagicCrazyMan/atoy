@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops::{Deref, DerefMut}, rc::Rc};
 
 use hashbrown::HashMap;
 
@@ -114,5 +114,28 @@ pub trait Notifiee<T> {
 
     fn abort(&self) -> bool {
         false
+    }
+}
+
+impl<T, N> Notifiee<T> for Box<N>
+where
+    N: Notifiee<T>,
+{
+    fn notify(&mut self, msg: &T) {
+        Box::deref_mut(self).notify(msg)
+    }
+
+    fn abort(&self) -> bool {
+        Box::deref(self).abort()
+    }
+}
+
+impl<T> Notifiee<T> for Box<dyn Notifiee<T>> {
+    fn notify(&mut self, msg: &T) {
+        Box::deref_mut(self).notify(msg)
+    }
+
+    fn abort(&self) -> bool {
+        Box::deref(self).abort()
     }
 }

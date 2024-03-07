@@ -2,14 +2,19 @@ use gl_matrix4rust::{GLF32Borrowed, GLF32};
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
-    clock::WebClock, light::{
-        ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
-        directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
-    }, pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH, renderer::webgl::{
+    clock::WebClock,
+    light::{
+        ambient_light::AmbientLight, area_light::AreaLight, directional_light::DirectionalLight,
+        point_light::PointLight, spot_light::SpotLight,
+    },
+    pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH,
+    property::PropertyStamp,
+    renderer::webgl::{
         buffer::{BufferDescriptor, BufferSource},
         error::Error,
         state::FrameState,
-    }, scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS}
+    },
+    scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
 };
 
 use super::{
@@ -30,12 +35,12 @@ use super::{
 pub struct StandardPreparation {
     universal_uniforms: ArrayBuffer,
 
-    last_light_attenuations: Option<Attenuation>,
-    last_ambient_light: Option<AmbientLight>,
-    last_directional_lights: Option<Vec<DirectionalLight>>,
-    last_point_lights: Option<Vec<PointLight>>,
-    last_spot_lights: Option<Vec<SpotLight>>,
-    last_area_lights: Option<Vec<AreaLight>>,
+    last_light_attenuations: Option<PropertyStamp>,
+    last_ambient_light: Option<PropertyStamp>,
+    last_directional_lights: Option<Vec<PropertyStamp>>,
+    last_point_lights: Option<Vec<PropertyStamp>>,
+    last_spot_lights: Option<Vec<PropertyStamp>>,
+    last_area_lights: Option<Vec<PropertyStamp>>,
 }
 
 impl StandardPreparation {
@@ -119,7 +124,7 @@ impl StandardPreparation {
         if self
             .last_light_attenuations
             .as_ref()
-            .map(|a| a != scene.light_attenuations())
+            .map(|stamp| scene.light_attenuations().is_dirty(stamp))
             .unwrap_or(true)
         {
             lights_ubo.buffer_sub_data(
@@ -136,12 +141,17 @@ impl StandardPreparation {
                 ),
                 UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
             );
-            self.last_light_attenuations = Some(scene.light_attenuations().clone());
+            self.last_light_attenuations = Some(scene.light_attenuations().stamp());
         }
 
         // u_AmbientLight
-        if self.last_ambient_light.as_ref() != scene.ambient_light() {
-            match scene.ambient_light() {
+        if self
+            .last_ambient_light
+            .as_ref()
+            .map(|stamp| scene.ambient_light().is_dirty(stamp))
+            .unwrap_or(true)
+        {
+            match scene.ambient_light().value() {
                 Some(light) => {
                     lights_ubo.buffer_sub_data(
                         BufferSource::from_binary(
@@ -163,21 +173,21 @@ impl StandardPreparation {
                     );
                 }
             }
-            self.last_ambient_light = scene.ambient_light().cloned();
+            self.last_ambient_light = Some(scene.ambient_light().stamp());
         }
 
         // uses for sending empty data
         const MAX_UBO_LIGHTS_LENGTH: [u8; UBO_LIGHTS_BYTES_LENGTH] = [0; UBO_LIGHTS_BYTES_LENGTH];
         macro_rules! update_lights {
-            ($(($last:ident, $lights:ident, $max:tt, $len:tt, $offset:tt))+) => {
+            ($(($last_stamps:ident, $lights:ident, $max:tt, $len:tt, $offset:tt))+) => {
                 $(
-                    match &mut self.$last {
+                    match &mut self.$last_stamps {
                         Some(last_lights) => {
                             let lights = scene.$lights();
 
                             for (index, light) in lights.into_iter().enumerate() {
-                                let last = last_lights.get(index);
-                                if last.map(|last| last == light).unwrap_or(false) {
+                                let last_stamp = last_lights.get(index);
+                                if last_stamp.map(|stamp| !light.is_dirty(stamp)).unwrap_or(false) {
                                     continue;
                                 }
 
@@ -189,7 +199,7 @@ impl StandardPreparation {
                                     ),
                                     $offset + index * $len,
                                 );
-                                last_lights.insert(index, light.clone());
+                                last_lights.insert(index, light.stamp());
                             }
 
                             // clears the rest
@@ -205,7 +215,9 @@ impl StandardPreparation {
                         }
                         None => {
                             let lights = scene.$lights();
+                            let mut stamps = Vec::with_capacity(lights.len());
 
+                            // clears first
                             lights_ubo.buffer_sub_data(
                                 BufferSource::from_binary(
                                     &MAX_UBO_LIGHTS_LENGTH[0..$len * $max],
@@ -214,20 +226,20 @@ impl StandardPreparation {
                                 ),
                                 $offset,
                             );
-                            lights
-                                .into_iter()
-                                .enumerate()
-                                .for_each(|(index, light)| {
-                                    lights_ubo.buffer_sub_data(
-                                        BufferSource::from_binary(
-                                            light.ubo(),
-                                            0,
-                                            $len,
-                                        ),
-                                        $offset + index * $len,
-                                    );
-                                });
-                            self.$last = Some(lights.to_vec());
+
+                            // buffers each
+                            for (index, light) in lights.into_iter().enumerate() {
+                                lights_ubo.buffer_sub_data(
+                                    BufferSource::from_binary(
+                                        light.ubo(),
+                                        0,
+                                        $len,
+                                    ),
+                                    $offset + index * $len,
+                                );
+                                stamps.push(light.stamp());
+                            }
+                            self.$last_stamps = Some(stamps);
                         }
                     }
                 )+

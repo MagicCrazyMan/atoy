@@ -16,6 +16,7 @@ use crate::{
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
     notify::{Notifiee, Notifier},
+    property::Property,
     share::Share,
 };
 
@@ -43,12 +44,12 @@ pub struct Scene<Clock> {
 
     clock: Clock,
     entities: Share<SimpleGroup>,
-    light_attenuations: Attenuation,
-    ambient_light: Option<AmbientLight>,
-    point_lights: Vec<PointLight>,
-    directional_lights: Vec<DirectionalLight>,
-    spot_lights: Vec<SpotLight>,
-    area_lights: Vec<AreaLight>,
+    light_attenuations: Property<Attenuation>,
+    ambient_light: Property<Option<AmbientLight>>,
+    directional_lights: Vec<Property<DirectionalLight>>,
+    point_lights: Vec<Property<PointLight>>,
+    spot_lights: Vec<Property<SpotLight>>,
+    area_lights: Vec<Property<AreaLight>>,
 }
 
 impl Scene<WebClock> {
@@ -81,10 +82,10 @@ impl Scene<WebClock> {
 
             clock,
             entities,
-            light_attenuations: Attenuation::new(0.0, 1.0, 0.0),
-            ambient_light: None,
-            point_lights: Vec::new(),
+            light_attenuations: Property::new(Attenuation::new(0.0, 1.0, 0.0)),
+            ambient_light: Property::new(None),
             directional_lights: Vec::new(),
+            point_lights: Vec::new(),
             spot_lights: Vec::new(),
             area_lights: Vec::new(),
         })
@@ -117,70 +118,33 @@ impl<Clock> Scene<Clock> {
     }
 
     /// Returns ambient light.
-    pub fn ambient_light(&self) -> Option<&AmbientLight> {
-        self.ambient_light.as_ref()
+    pub fn ambient_light(&self) -> &Property<Option<AmbientLight>> {
+        &self.ambient_light
     }
 
     /// Returns mutable ambient light.
-    pub fn ambient_light_mut(&mut self) -> Option<&mut AmbientLight> {
-        self.ambient_light.as_mut()
+    pub fn ambient_light_mut(&mut self) -> &mut Property<Option<AmbientLight>> {
+        &mut self.ambient_light
     }
 
     /// Sets ambient light.
     pub fn set_ambient_light(&mut self, light: Option<AmbientLight>) {
-        self.ambient_light = light;
+        self.ambient_light.set_value(light);
     }
 
     /// Returns lighting attenuation.
-    pub fn light_attenuations(&self) -> &Attenuation {
+    pub fn light_attenuations(&self) -> &Property<Attenuation> {
         &self.light_attenuations
+    }
+
+    /// Returns mutable lighting attenuation.
+    pub fn light_attenuations_mut(&mut self) -> &mut Property<Attenuation> {
+        &mut self.light_attenuations
     }
 
     /// Sets lighting attenuation.
     pub fn set_light_attenuations(&mut self, attenuations: Attenuation) {
-        self.light_attenuations = attenuations;
-    }
-
-    /// Adds a point light.
-    pub fn add_point_light(&mut self, light: PointLight) {
-        if self.point_lights.len() == MAX_POINT_LIGHTS {
-            warn!(
-                "only {} point lights are available, ignored",
-                MAX_POINT_LIGHTS
-            );
-            return;
-        }
-
-        self.point_lights.push(light);
-    }
-
-    /// Removes a point light by index.
-    pub fn remove_point_light(&mut self, index: usize) -> Option<PointLight> {
-        if index < self.point_lights.len() {
-            return None;
-        }
-
-        Some(self.point_lights.remove(index))
-    }
-
-    /// Returns point lights.
-    pub fn point_lights(&self) -> &[PointLight] {
-        &self.point_lights
-    }
-
-    /// Returns mutable point lights.
-    pub fn point_lights_mut(&mut self) -> &mut [PointLight] {
-        &mut self.point_lights
-    }
-
-    /// Returns a point light by index.
-    pub fn point_light(&self, index: usize) -> Option<&PointLight> {
-        self.point_lights.get(index)
-    }
-
-    /// Returns a mutable point light by index.
-    pub fn point_light_mut(&mut self, index: usize) -> Option<&mut PointLight> {
-        self.point_lights.get_mut(index)
+        self.light_attenuations.set_value(attenuations);
     }
 
     /// Adds a directional light.
@@ -193,7 +157,7 @@ impl<Clock> Scene<Clock> {
             return;
         }
 
-        self.directional_lights.push(light);
+        self.directional_lights.push(Property::new(light));
     }
 
     /// Removes a directional light by index.
@@ -202,27 +166,49 @@ impl<Clock> Scene<Clock> {
             return None;
         }
 
-        Some(self.directional_lights.remove(index))
+        Some(self.directional_lights.remove(index).take())
     }
 
     /// Returns directional lights.
-    pub fn directional_lights(&self) -> &[DirectionalLight] {
+    pub fn directional_lights(&self) -> &[Property<DirectionalLight>] {
         &self.directional_lights
     }
 
     /// Returns mutable directional lights.
-    pub fn directional_lights_mut(&mut self) -> &mut [DirectionalLight] {
+    pub fn directional_lights_mut(&mut self) -> &mut [Property<DirectionalLight>] {
         &mut self.directional_lights
     }
 
-    /// Returns a directional light by index.
-    pub fn directional_light(&self, index: usize) -> Option<&DirectionalLight> {
-        self.directional_lights.get(index)
+    /// Adds a point light.
+    pub fn add_point_light(&mut self, light: PointLight) {
+        if self.point_lights.len() >= MAX_POINT_LIGHTS {
+            warn!(
+                "only {} point lights are available, ignored",
+                MAX_POINT_LIGHTS
+            );
+            return;
+        }
+
+        self.point_lights.push(Property::new(light));
     }
 
-    /// Returns a mutable directional light by index.
-    pub fn directional_light_mut(&mut self, index: usize) -> Option<&mut DirectionalLight> {
-        self.directional_lights.get_mut(index)
+    /// Removes a point light by index.
+    pub fn remove_point_light(&mut self, index: usize) -> Option<PointLight> {
+        if index < self.point_lights.len() {
+            return None;
+        }
+
+        Some(self.point_lights.remove(index).take())
+    }
+
+    /// Returns point lights.
+    pub fn point_lights(&self) -> &[Property<PointLight>] {
+        &self.point_lights
+    }
+
+    /// Returns mutable point lights.
+    pub fn point_lights_mut(&mut self) -> &mut [Property<PointLight>] {
+        &mut self.point_lights
     }
 
     /// Adds a spot light.
@@ -235,7 +221,7 @@ impl<Clock> Scene<Clock> {
             return;
         }
 
-        self.spot_lights.push(light);
+        self.spot_lights.push(Property::new(light));
     }
 
     /// Removes a spot light by index.
@@ -244,27 +230,17 @@ impl<Clock> Scene<Clock> {
             return None;
         }
 
-        Some(self.spot_lights.remove(index))
+        Some(self.spot_lights.remove(index).take())
     }
 
     /// Returns spot lights.
-    pub fn spot_lights(&self) -> &[SpotLight] {
+    pub fn spot_lights(&self) -> &[Property<SpotLight>] {
         &self.spot_lights
     }
 
     /// Returns mutable spot lights.
-    pub fn spot_lights_mut(&mut self) -> &mut [SpotLight] {
+    pub fn spot_lights_mut(&mut self) -> &mut [Property<SpotLight>] {
         &mut self.spot_lights
-    }
-
-    /// Returns a spot light by index.
-    pub fn spot_light(&self, index: usize) -> Option<&SpotLight> {
-        self.spot_lights.get(index)
-    }
-
-    /// Returns a mutable spot light by index.
-    pub fn spot_light_mut(&mut self, index: usize) -> Option<&mut SpotLight> {
-        self.spot_lights.get_mut(index)
     }
 
     /// Adds a area light.
@@ -277,7 +253,7 @@ impl<Clock> Scene<Clock> {
             return;
         }
 
-        self.area_lights.push(light);
+        self.area_lights.push(Property::new(light));
     }
 
     /// Removes a area light by index.
@@ -286,27 +262,17 @@ impl<Clock> Scene<Clock> {
             return None;
         }
 
-        Some(self.area_lights.remove(index))
+        Some(self.area_lights.remove(index).take())
     }
 
     /// Returns area lights.
-    pub fn area_lights(&self) -> &[AreaLight] {
+    pub fn area_lights(&self) -> &[Property<AreaLight>] {
         &self.area_lights
     }
 
     /// Returns mutable area lights.
-    pub fn area_lights_mut(&mut self) -> &mut [AreaLight] {
+    pub fn area_lights_mut(&mut self) -> &mut [Property<AreaLight>] {
         &mut self.area_lights
-    }
-
-    /// Returns a area light by index.
-    pub fn area_light(&self, index: usize) -> Option<&AreaLight> {
-        self.area_lights.get(index)
-    }
-
-    /// Returns a mutable area light by index.
-    pub fn area_light_mut(&mut self, index: usize) -> Option<&mut AreaLight> {
-        self.area_lights.get_mut(index)
     }
 }
 
