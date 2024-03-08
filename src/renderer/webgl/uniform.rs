@@ -69,14 +69,14 @@ pub enum UniformValue {
 /// Available uniform block values.
 pub enum UniformBlockValue<'a> {
     BufferBase {
-        descriptor: Readonly<'a, Buffer>,
+        buffer: Readonly<'a, Buffer>,
         binding: u32,
     },
     BufferRange {
-        descriptor: Readonly<'a, Buffer>,
+        buffer: Readonly<'a, Buffer>,
         binding: u32,
-        offset: usize,
-        size: usize,
+        offset: i32,
+        size: i32,
     },
 }
 

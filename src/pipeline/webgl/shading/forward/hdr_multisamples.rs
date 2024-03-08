@@ -8,7 +8,7 @@ use crate::{
             HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_NAME,
             BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
         },
-        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_INDEX, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderer::webgl::{
         buffer::Buffer,
@@ -385,8 +385,8 @@ impl StandardMultisamplesHdrShading {
                             program,
                             UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             &UniformBlockValue::BufferBase {
-                                descriptor: Readonly::Borrowed(gaussian_kernel_ubo),
-                                binding: UBO_GAUSSIAN_BLUR_BINDING,
+                                buffer: Readonly::Borrowed(gaussian_kernel_ubo),
+                                binding: UBO_GAUSSIAN_BLUR_BINDING_INDEX,
                             },
                         )?;
 

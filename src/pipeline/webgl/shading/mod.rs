@@ -22,8 +22,8 @@ use crate::{
 };
 
 use super::{
-    collector::CollectedEntities, UBO_LIGHTS_BINDING, UBO_LIGHTS_BLOCK_NAME,
-    UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+    collector::CollectedEntities, UBO_LIGHTS_BINDING_INDEX, UBO_LIGHTS_BLOCK_NAME,
+    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
 };
 
 pub mod deferred;
@@ -139,8 +139,8 @@ fn prepare_program<'a, 'b, 'c>(
                 program,
                 UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
                 &UniformBlockValue::BufferBase {
-                    descriptor: Readonly::Borrowed(universal_ubo),
-                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+                    buffer: Readonly::Borrowed(universal_ubo),
+                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
                 },
             )?;
 
@@ -150,8 +150,8 @@ fn prepare_program<'a, 'b, 'c>(
                     program,
                     UBO_LIGHTS_BLOCK_NAME,
                     &UniformBlockValue::BufferBase {
-                        descriptor: Readonly::Borrowed(lights_ubo),
-                        binding: UBO_LIGHTS_BINDING,
+                        buffer: Readonly::Borrowed(lights_ubo),
+                        binding: UBO_LIGHTS_BINDING_INDEX,
                     },
                 )?;
             }
@@ -171,8 +171,8 @@ fn prepare_program<'a, 'b, 'c>(
                 program,
                 UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
                 &UniformBlockValue::BufferBase {
-                    descriptor: Readonly::Borrowed(universal_ubo),
-                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING,
+                    buffer: Readonly::Borrowed(universal_ubo),
+                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
                 },
             )?;
         }

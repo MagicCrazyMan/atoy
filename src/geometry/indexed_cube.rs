@@ -6,8 +6,8 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
-            BufferUsage, MemoryPolicy, Restorer,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferUsage,
+            MemoryPolicy, Restorer,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
@@ -35,13 +35,13 @@ impl IndexedCube {
     /// Constructs a cube using elemental index with specified size.
     pub fn with_size(size: f64) -> IndexedCube {
         let positions = if size == 1.0 {
-            buffer_descriptor_with_size_one()
+            positions_size_one_buffer()
         } else {
-            Value::Owned(Buffer::with_memory_policy(
-                BufferSource::from_binary(build_positions(size), 0, 72 * 4),
-                BufferUsage::STATIC_DRAW,
-                MemoryPolicy::restorable(PositionsRestorer(size)),
-            ))
+            let buffer = buffer::Builder::default()
+                .buffer_data(BufferSource::from_binary(build_positions(size), 0, 72 * 4))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
+                .build();
+            Value::Owned(buffer)
         };
 
         let normals_and_textures = normals_texture_coordinates_buffer_descriptor();
@@ -66,11 +66,11 @@ impl IndexedCube {
     pub fn set_size(&mut self, size: f64) {
         let usage = self.positions.value().usage();
         if let BufferUsage::STATIC_DRAW = usage {
-            self.positions = Value::Owned(Buffer::with_memory_policy(
-                BufferSource::from_binary(build_positions(size), 0, 72 * 4),
-                BufferUsage::DYNAMIC_DRAW,
-                MemoryPolicy::restorable(PositionsRestorer(size)),
-            ));
+            let buffer = buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
+                .buffer_data(BufferSource::from_binary(build_positions(size), 0, 72 * 4))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
+                .build();
+            self.positions = Value::Owned(buffer);
         } else {
             self.positions.value_mut().buffer_sub_data(
                 BufferSource::from_binary(build_positions(size), 0, 72 * 4),
@@ -105,9 +105,8 @@ impl Geometry for IndexedCube {
     }
 
     fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::Buffer {
-            descriptor: self.positions.value(),
-            target: BufferTarget::ARRAY_BUFFER,
+        AttributeValue::ArrayBuffer {
+            buffer: self.positions.value(),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -117,9 +116,8 @@ impl Geometry for IndexedCube {
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: self.normals_and_textures.value(),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: self.normals_and_textures.value(),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -137,9 +135,8 @@ impl Geometry for IndexedCube {
     }
 
     fn texture_coordinates(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: self.normals_and_textures.value(),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: self.normals_and_textures.value(),
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -189,22 +186,22 @@ fn build_positions(size: f64) -> [u8; 72 * 4] {
     }
 }
 
-/// Positions buffer descriptor cache for cube with size 1, for debug purpose
-static mut POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE: OnceCell<Buffer> = OnceCell::new();
-fn buffer_descriptor_with_size_one() -> Value<'static, Buffer> {
+/// Positions buffer cache for cube with size 1, for debug purpose
+static mut POSITIONS_SIZE_ONE_BUFFER: OnceCell<Buffer> = OnceCell::new();
+fn positions_size_one_buffer() -> Value<'static, Buffer> {
     unsafe {
-        let descriptor = match POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.get_mut() {
-            Some(descriptor) => descriptor,
+        let buffer = match POSITIONS_SIZE_ONE_BUFFER.get_mut() {
+            Some(buffer) => buffer,
             None => {
-                POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.set(Buffer::with_memory_policy(
-                    BufferSource::from_binary(build_positions(1.0), 0, 72 * 4),
-                    BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(PositionsRestorer(1.0)),
-                ));
-                POSITIONS_BUFFER_DESCRIPTOR_SIZE_ONE.get_mut().unwrap()
+                let buffer = buffer::Builder::default()
+                    .buffer_data(BufferSource::from_binary(build_positions(1.0), 0, 72 * 4))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(1.0)))
+                    .build();
+                POSITIONS_SIZE_ONE_BUFFER.set(buffer).unwrap();
+                POSITIONS_SIZE_ONE_BUFFER.get_mut().unwrap()
             }
         };
-        Value::Borrowed(descriptor)
+        Value::Borrowed(buffer)
     }
 }
 
@@ -226,32 +223,27 @@ const NORMALS_TEXTURE_COORDINATES: [f32; 120] = [
      1.0, 1.0,  0.0, 1.0,  0.0, 0.0,  1.0, 0.0, // back
 ];
 
-static mut NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR: OnceCell<Buffer> =
-    OnceCell::new();
+static mut NORMALS_TEXTURE_COORDINATES_BUFFER: OnceCell<Buffer> = OnceCell::new();
 fn normals_texture_coordinates_buffer_descriptor() -> Value<'static, Buffer> {
     unsafe {
-        let descriptor = match NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR.get_mut() {
-            Some(descriptor) => descriptor,
+        let buffer = match NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut() {
+            Some(buffer) => buffer,
             None => {
-                NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR.set(
-                    Buffer::with_memory_policy(
-                        BufferSource::from_binary(
-                            std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(
-                                &NORMALS_TEXTURE_COORDINATES,
-                            ),
-                            0,
-                            120 * 4,
+                let buffer = buffer::Builder::default()
+                    .buffer_data(BufferSource::from_binary(
+                        std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(
+                            &NORMALS_TEXTURE_COORDINATES,
                         ),
-                        BufferUsage::STATIC_DRAW,
-                        MemoryPolicy::restorable(TexturesNormalsRestorer),
-                    ),
-                );
-                NORMALS_TEXTURE_COORDINATES_BUFFER_DESCRIPTOR
-                    .get_mut()
-                    .unwrap()
+                        0,
+                        120 * 4,
+                    ))
+                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsRestorer))
+                    .build();
+                NORMALS_TEXTURE_COORDINATES_BUFFER.set(buffer).unwrap();
+                NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut().unwrap()
             }
         };
-        Value::Borrowed(descriptor)
+        Value::Borrowed(buffer)
     }
 }
 
@@ -265,24 +257,25 @@ const INDICES: [u8; 36] = [
    20, 21, 22, 20, 22, 23, // right
 ];
 
-static mut INDICES_BUFFER_DESCRIPTOR: OnceCell<Buffer> = OnceCell::new();
+static mut INDICES_BUFFER: OnceCell<Buffer> = OnceCell::new();
 fn indices_buffer_descriptor() -> Value<'static, Buffer> {
     unsafe {
-        let descriptor = match INDICES_BUFFER_DESCRIPTOR.get_mut() {
-            Some(descriptor) => descriptor,
+        let buffer = match INDICES_BUFFER.get_mut() {
+            Some(buffer) => buffer,
             None => {
-                INDICES_BUFFER_DESCRIPTOR.set(Buffer::with_memory_policy(
-                    BufferSource::from_binary(&INDICES, 0, 36),
-                    BufferUsage::STATIC_DRAW,
-                    MemoryPolicy::restorable(IndicesRestorer),
-                ));
-                INDICES_BUFFER_DESCRIPTOR.get_mut().unwrap()
+                let buffer = buffer::Builder::default()
+                    .buffer_data(BufferSource::from_binary(&INDICES, 0, 36))
+                    .set_memory_policy(MemoryPolicy::restorable(IndicesRestorer))
+                    .build();
+                INDICES_BUFFER.set(buffer).unwrap();
+                INDICES_BUFFER.get_mut().unwrap()
             }
         };
-        Value::Borrowed(descriptor)
+        Value::Borrowed(buffer)
     }
 }
 
+#[derive(Debug)]
 struct PositionsRestorer(f64);
 
 impl Restorer for PositionsRestorer {
@@ -291,6 +284,7 @@ impl Restorer for PositionsRestorer {
     }
 }
 
+#[derive(Debug)]
 struct IndicesRestorer;
 
 impl Restorer for IndicesRestorer {
@@ -299,6 +293,7 @@ impl Restorer for IndicesRestorer {
     }
 }
 
+#[derive(Debug)]
 struct TexturesNormalsRestorer;
 
 impl Restorer for TexturesNormalsRestorer {

@@ -1,12 +1,11 @@
 use crate::value::Readonly;
 
-use super::buffer::{BufferComponentSize, BufferDataType, Buffer, BufferTarget};
+use super::buffer::{Buffer, BufferComponentSize, BufferDataType};
 
 /// Available attribute values.
 pub enum AttributeValue<'a> {
-    Buffer {
-        descriptor: Readonly<'a, Buffer>,
-        target: BufferTarget,
+    ArrayBuffer {
+        buffer: Readonly<'a, Buffer>,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
         normalized: bool,
@@ -14,8 +13,7 @@ pub enum AttributeValue<'a> {
         bytes_offset: usize,
     },
     InstancedBuffer {
-        descriptor: Readonly<'a, Buffer>,
-        target: BufferTarget,
+        buffer: Readonly<'a, Buffer>,
         component_size: BufferComponentSize,
         data_type: BufferDataType,
         normalized: bool,

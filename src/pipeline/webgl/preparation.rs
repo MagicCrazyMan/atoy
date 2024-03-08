@@ -20,11 +20,11 @@ use crate::{
 use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING,
+    UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING_INDEX,
     UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
     UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
     UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_BINDING, UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
+    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
@@ -62,6 +62,8 @@ impl StandardPreparation {
         universal_ubo: &mut Buffer,
         state: &mut FrameState,
     ) -> Result<(), Error> {
+        state.buffer_store_mut().register(universal_ubo)?;
+
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
@@ -106,11 +108,8 @@ impl StandardPreparation {
             BufferSource::from_array_buffer(self.universal_uniforms.clone()),
             0,
         );
-        state.buffer_store_mut().bind_uniform_buffer_object(
-            universal_ubo,
-            UBO_UNIVERSAL_UNIFORMS_BINDING,
-            None,
-        )?;
+        universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX)?;
+
         Ok(())
     }
 
@@ -120,6 +119,8 @@ impl StandardPreparation {
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
     ) -> Result<(), Error> {
+        state.buffer_store_mut().register(lights_ubo)?;
+
         // u_Attenuations
         if self
             .last_light_attenuation
@@ -253,11 +254,8 @@ impl StandardPreparation {
             (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET)
         }
 
-        state.buffer_store_mut().bind_uniform_buffer_object(
-            lights_ubo,
-            UBO_LIGHTS_BINDING,
-            None,
-        )?;
+        lights_ubo.bind_ubo(UBO_LIGHTS_BINDING_INDEX)?;
+
         Ok(())
     }
 }

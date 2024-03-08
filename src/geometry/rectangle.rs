@@ -8,8 +8,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
-            BufferUsage, MemoryPolicy, Restorer,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, MemoryPolicy, Restorer,
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
@@ -40,7 +39,7 @@ impl Rectangle {
         texture_scale_s: f64,
         texture_scale_t: f64,
     ) -> Self {
-        let (compositions, bounding) = create_rectangle(
+        let (data, bounding) = create_rectangle(
             anchor,
             placement,
             width,
@@ -48,18 +47,17 @@ impl Rectangle {
             texture_scale_s,
             texture_scale_t,
         );
-        let buffer = Buffer::with_memory_policy(
-            BufferSource::from_binary(compositions, 0, compositions.len()),
-            BufferUsage::STATIC_DRAW,
-            MemoryPolicy::restorable(BufferRestorer {
+        let buffer = buffer::Builder::default()
+            .buffer_data(BufferSource::from_binary(data, 0, data.len()))
+            .set_memory_policy(MemoryPolicy::restorable(BufferRestorer {
                 anchor,
                 placement,
                 width,
                 height,
                 texture_scale_s,
                 texture_scale_t,
-            }),
-        );
+            }))
+            .build();
 
         Self {
             anchor,
@@ -116,9 +114,8 @@ impl Geometry for Rectangle {
     }
 
     fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.buffer),
-            target: BufferTarget::ARRAY_BUFFER,
+        AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -128,9 +125,8 @@ impl Geometry for Rectangle {
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.buffer),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -140,9 +136,8 @@ impl Geometry for Rectangle {
     }
 
     fn tangents(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.buffer),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -152,9 +147,8 @@ impl Geometry for Rectangle {
     }
 
     fn bitangents(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.buffer),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -164,9 +158,8 @@ impl Geometry for Rectangle {
     }
 
     fn texture_coordinates(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.buffer),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -200,7 +193,7 @@ impl Geometry for Rectangle {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Placement {
     Center,
     TopLeft,
@@ -303,6 +296,7 @@ fn create_rectangle(
     )
 }
 
+#[derive(Debug)]
 struct BufferRestorer {
     anchor: Vec2,
     placement: Placement,

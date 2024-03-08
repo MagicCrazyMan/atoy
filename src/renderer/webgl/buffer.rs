@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
+    fmt::Debug,
     hash::Hash,
     rc::{Rc, Weak},
 };
@@ -23,11 +24,7 @@ use crate::{
     utils::format_bytes_length,
 };
 
-use super::{
-    conversion::ToGlEnum,
-    error::Error,
-    params::{self},
-};
+use super::{conversion::ToGlEnum, error::Error};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -262,50 +259,50 @@ impl BufferSource {
         }
     }
 
-    /// Buffers data to WebGL runtime.
-    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
-        match self {
-            BufferSource::Preallocate { bytes_length } => {
-                gl.buffer_data_with_i32(target.gl_enum(), *bytes_length as i32, usage.gl_enum())
-            }
-            BufferSource::Function { callback, .. } => {
-                let source = callback();
-                if let BufferSource::Function { .. } = source {
-                    panic!("recursive BufferSource::Function is not allowed");
-                }
-                if self.bytes_length() != source.bytes_length() {
-                    panic!(
-                        "source returned from BufferSource::Function should have same bytes length"
-                    );
-                }
-                source.buffer_data(gl, target, usage);
-            }
-            BufferSource::Binary {
-                data,
-                src_offset,
-                src_length,
-            } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
-                target.gl_enum(),
-                data.as_ref().as_ref(),
-                usage.gl_enum(),
-                *src_offset as u32,
-                *src_length as u32,
-            ),
-            BufferSource::ArrayBuffer { data } => {
-                gl.buffer_data_with_opt_array_buffer(target.gl_enum(), Some(data), usage.gl_enum())
-            }
-            _ => {
-                let (data, src_offset, src_length) = self.collect_typed_array_buffer();
-                gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
-                    target.gl_enum(),
-                    data,
-                    usage.gl_enum(),
-                    src_offset as u32,
-                    src_length as u32,
-                );
-            }
-        }
-    }
+    // /// Buffers data to WebGL runtime.
+    // fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+    //     match self {
+    //         BufferSource::Preallocate { bytes_length } => {
+    //             gl.buffer_data_with_i32(target.gl_enum(), *bytes_length as i32, usage.gl_enum())
+    //         }
+    //         BufferSource::Function { callback, .. } => {
+    //             let source = callback();
+    //             if let BufferSource::Function { .. } = source {
+    //                 panic!("recursive BufferSource::Function is not allowed");
+    //             }
+    //             if self.bytes_length() != source.bytes_length() {
+    //                 panic!(
+    //                     "source returned from BufferSource::Function should have same bytes length"
+    //                 );
+    //             }
+    //             source.buffer_data(gl, target, usage);
+    //         }
+    //         BufferSource::Binary {
+    //             data,
+    //             src_offset,
+    //             src_length,
+    //         } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
+    //             target.gl_enum(),
+    //             data.as_ref().as_ref(),
+    //             usage.gl_enum(),
+    //             *src_offset as u32,
+    //             *src_length as u32,
+    //         ),
+    //         BufferSource::ArrayBuffer { data } => {
+    //             gl.buffer_data_with_opt_array_buffer(target.gl_enum(), Some(data), usage.gl_enum())
+    //         }
+    //         _ => {
+    //             let (data, src_offset, src_length) = self.collect_typed_array_buffer();
+    //             gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
+    //                 target.gl_enum(),
+    //                 data,
+    //                 usage.gl_enum(),
+    //                 src_offset as u32,
+    //                 src_length as u32,
+    //             );
+    //         }
+    //     }
+    // }
 
     /// Buffers sub data to WebGL runtime.
     fn buffer_sub_data(
@@ -585,26 +582,343 @@ impl_typed_array! {
     (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
 }
 
-struct RegisteredStore {
+impl Debug for BufferSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Preallocate { bytes_length } => f
+                .debug_struct("Preallocate")
+                .field("bytes_length", bytes_length)
+                .finish(),
+            Self::Function {
+                data_length,
+                src_offset,
+                src_length,
+                ..
+            } => f
+                .debug_struct("Function")
+                .field("data_length", data_length)
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Binary {
+                src_offset,
+                src_length,
+                ..
+            } => f
+                .debug_struct("Binary")
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::ArrayBuffer { data } => f
+                .debug_struct("ArrayBuffer")
+                .field("data_length", &data.byte_length())
+                .finish(),
+            Self::DataView {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("DataView")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Int8Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Int8Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Uint8Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Uint8Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Uint8ClampedArray {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Uint8ClampedArray")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Int16Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Int16Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Uint16Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Uint16Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Int32Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Int32Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Uint32Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Uint32Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Float32Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Float32Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::Float64Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("Float64Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::BigInt64Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("BigInt64Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+            Self::BigUint64Array {
+                data,
+                src_offset,
+                src_length,
+            } => f
+                .debug_struct("BigUint64Array")
+                .field("data_length", &data.byte_length())
+                .field("src_offset", src_offset)
+                .field("src_length", src_length)
+                .finish(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Registered {
+    gl: WebGl2RenderingContext,
     lru_node: *mut LruNode<Uuid>,
+    available_memory: *mut usize,
     used_memory: *mut usize,
-    items: *mut HashMap<
-        Uuid,
-        (
-            Weak<RefCell<Queue>>,
-            Weak<RefCell<MemoryPolicy>>,
-            Weak<RefCell<Runtime>>,
-        ),
-    >,
+    items: *mut HashMap<Uuid, BufferItem>,
     bindings: *mut HashMap<BufferTarget, Uuid>,
     binding_ubos: *mut HashMap<u32, Uuid>,
     lru: *mut Lru<Uuid>,
 }
 
-impl RegisteredStore {
-    fn 
+impl Registered {
+    fn update_lru(&mut self) {
+        unsafe {
+            (*self.lru).cache(self.lru_node);
+        }
+    }
+
+    fn update_used_memory(&mut self, new_bytes_length: usize, old_bytes_length: usize) {
+        unsafe {
+            *self.used_memory = *self.used_memory - old_bytes_length + new_bytes_length;
+        }
+    }
+
+    fn add_binding(&mut self, target: BufferTarget, id: Uuid) {
+        unsafe {
+            (*self.bindings).insert(target, id);
+        }
+    }
+
+    fn add_binding_ubo(&mut self, index: u32, id: Uuid) {
+        unsafe {
+            (*self.binding_ubos).insert(index, id);
+        }
+    }
+
+    fn remove_binding(&mut self, target: BufferTarget) {
+        unsafe {
+            (*self.bindings).remove(&target);
+        }
+    }
+
+    fn remove_binding_ubo(&mut self, index: u32) {
+        unsafe {
+            (*self.binding_ubos).remove(&index);
+        }
+    }
+
+    fn is_occupied(&self, target: BufferTarget, id: &Uuid) -> bool {
+        unsafe {
+            (*self.bindings)
+                .get(&target)
+                .map(|v| v != id)
+                .unwrap_or(false)
+        }
+    }
+
+    fn is_occupied_ubo(&self, index: u32, id: &Uuid) -> bool {
+        unsafe {
+            (*self.binding_ubos)
+                .get(&index)
+                .map(|v| v != id)
+                .unwrap_or(false)
+        }
+    }
+
+    /// Frees memory if used memory exceeds the maximum available memory.
+    fn free(&mut self) {
+        // removes buffer from the least recently used until memory usage lower than limitation
+        unsafe {
+            if *self.used_memory <= *self.available_memory {
+                return;
+            }
+
+            let mut next_node = (*self.lru).least_recently();
+            while *self.used_memory > *self.available_memory {
+                let Some(current_node) = next_node.take() else {
+                    break;
+                };
+                let id = (*current_node).data();
+
+                let Entry::Occupied(occupied) = (*self.items).entry(*id) else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+                let item = occupied.get();
+                let (Some(queue), Some(memory_policy), Some(registered), Some(runtime)) = (
+                    item.queue.upgrade(),
+                    item.memory_policy.upgrade(),
+                    item.registered.upgrade(),
+                    item.runtime.upgrade(),
+                ) else {
+                    // deletes if already dropped
+                    occupied.remove();
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+
+                let (mut queue, memory_policy, mut registered, mut runtime) = (
+                    queue.borrow_mut(),
+                    memory_policy.borrow_mut(),
+                    registered.borrow_mut(),
+                    runtime.borrow_mut(),
+                );
+                let (Some(registered), Some(runtime)) = (registered.as_mut(), runtime.as_mut())
+                else {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                };
+
+                // skips if using
+                if runtime.bindings.len() + runtime.binding_ubos.len() != 0 {
+                    next_node = (*current_node).more_recently();
+                    continue;
+                }
+
+                // free
+                match &*memory_policy {
+                    MemoryPolicy::Unfree => {
+                        next_node = (*current_node).more_recently();
+                        continue;
+                    }
+                    MemoryPolicy::ReadBack => {
+                        if runtime.buffer.is_some() {
+                            queue.items.insert(
+                                0,
+                                QueueItem::new(
+                                    BufferSource::from_array_buffer(runtime.read_back()),
+                                    0,
+                                ),
+                            );
+                            queue.max_bytes_length =
+                                queue.max_bytes_length.max(runtime.bytes_length);
+                        }
+
+                        debug!(
+                            target: "BufferStore",
+                            "free buffer (readback) {}. freed memory {}, used {}",
+                            id,
+                            format_bytes_length(runtime.bytes_length),
+                            format_bytes_length(*self.used_memory)
+                        );
+                    }
+                    MemoryPolicy::Restorable(restorer) => {
+                        if let Some(buffer) = runtime.buffer.as_ref() {
+                            self.gl.delete_buffer(Some(&buffer));
+                        }
+
+                        let restorer = Rc::clone(&restorer);
+                        let source = BufferSource::Function {
+                            callback: Box::new(move || restorer.borrow_mut().restore()),
+                            data_length: runtime.bytes_length,
+                            src_offset: 0,
+                            src_length: runtime.bytes_length,
+                        };
+
+                        queue.items.insert(0, QueueItem::new(source, 0));
+                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
+                        debug!(
+                            target: "BufferStore",
+                            "free buffer (restorable) {}. freed memory {}, used {}",
+                            id,
+                            format_bytes_length(runtime.bytes_length),
+                            format_bytes_length(*self.used_memory)
+                        );
+                    }
+                }
+
+                (*registered.used_memory) -= runtime.bytes_length;
+                (*registered.lru).remove(registered.lru_node);
+                runtime.bytes_length = 0;
+
+                occupied.remove();
+
+                next_node = (*current_node).more_recently();
+            }
+        }
+    }
 }
 
+#[derive(Debug)]
 struct Runtime {
     gl: WebGl2RenderingContext,
     buffer: Option<WebGlBuffer>,
@@ -636,17 +950,130 @@ impl Runtime {
         data
     }
 
-    fn get_or_create_buffer(&mut self) -> Result<&WebGlBuffer, Error> {
-        match self.buffer.as_ref() {
-            Some(buffer) => Ok(buffer),
+    fn get_or_create_buffer(&mut self) -> Result<WebGlBuffer, Error> {
+        match self.buffer.as_mut() {
+            Some(buffer) => Ok(buffer.clone()),
             None => {
                 let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                Ok(self.buffer.insert(buffer))
+                Ok(self.buffer.insert(buffer).clone())
             }
+        }
+    }
+
+    fn bind_and_upload(
+        &mut self,
+        target: BufferTarget,
+        usage: BufferUsage,
+        queue: RefMut<'_, Queue>,
+    ) -> Result<(usize, usize), Error> {
+        let buffer = self.get_or_create_buffer()?;
+        self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+        let memory = self.upload(target, usage, queue);
+        self.bindings.insert(target);
+        Ok(memory)
+    }
+
+    fn bind_and_upload_ubo(
+        &mut self,
+        usage: BufferUsage,
+        index: u32,
+        queue: RefMut<'_, Queue>,
+    ) -> Result<(usize, usize), Error> {
+        let buffer = self.get_or_create_buffer()?;
+        let binding = self.gl.uniform_buffer_binding();
+        self.gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
+        let memory = self.upload(BufferTarget::UNIFORM_BUFFER, usage, queue);
+        self.gl.bind_buffer_base(
+            WebGl2RenderingContext::UNIFORM_BUFFER,
+            index,
+            self.buffer.as_ref(),
+        );
+        self.gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
+        self.binding_ubos.insert(index);
+        Ok(memory)
+    }
+
+    fn bind_and_upload_ubo_range(
+        &mut self,
+        usage: BufferUsage,
+        index: u32,
+        offset: i32,
+        size: i32,
+        queue: RefMut<'_, Queue>,
+    ) -> Result<(usize, usize), Error> {
+        let buffer = self.get_or_create_buffer()?;
+        let binding = self.gl.uniform_buffer_binding();
+        self.gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
+        let memory = self.upload(BufferTarget::UNIFORM_BUFFER, usage, queue);
+        self.gl.bind_buffer_range_with_i32_and_i32(
+            WebGl2RenderingContext::UNIFORM_BUFFER,
+            index,
+            self.buffer.as_ref(),
+            offset,
+            size,
+        );
+        self.gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
+        self.binding_ubos.insert(index);
+        Ok(memory)
+    }
+
+    fn unbind(&mut self, target: BufferTarget) {
+        if self.bindings.remove(&target) {
+            self.gl.bind_buffer(target.gl_enum(), None);
+        }
+    }
+
+    fn unbind_ubo(&mut self, index: u32) {
+        if self.binding_ubos.remove(&index) {
+            self.gl
+                .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+        }
+    }
+
+    fn upload(
+        &mut self,
+        target: BufferTarget,
+        usage: BufferUsage,
+        mut queue: RefMut<'_, Queue>,
+    ) -> (usize, usize) {
+        if queue.items.len() > 0 {
+            let new_bytes_length = queue.max_bytes_length;
+            let old_bytes_length = self.bytes_length;
+
+            if new_bytes_length >= old_bytes_length {
+                self.gl.buffer_data_with_i32(
+                    target.gl_enum(),
+                    new_bytes_length as i32,
+                    usage.gl_enum(),
+                );
+            }
+
+            for item in queue.items.drain(..) {
+                item.source
+                    .buffer_sub_data(&self.gl, target, item.bytes_offset);
+            }
+
+            self.bytes_length = new_bytes_length;
+
+            debug!(
+                target: "BufferStore",
+                "buffer new data, old length {}, new length {}",
+                old_bytes_length,
+                new_bytes_length
+            );
+
+            (new_bytes_length, old_bytes_length)
+        } else {
+            (0, 0)
         }
     }
 }
 
+#[derive(Debug)]
 struct QueueItem {
     source: BufferSource,
     bytes_offset: usize,
@@ -661,6 +1088,7 @@ impl QueueItem {
     }
 }
 
+#[derive(Debug)]
 struct Queue {
     max_bytes_length: usize,
     items: Vec<QueueItem>,
@@ -673,22 +1101,79 @@ impl Queue {
             items: Vec::new(),
         }
     }
+
+    /// Overrides existing data and then buffers new data.
+    fn buffer_data(&mut self, source: BufferSource) {
+        self.max_bytes_length = source.bytes_length();
+        self.items.clear();
+        self.items.push(QueueItem::new(source, 0));
+    }
+
+    /// Buffers sub data.
+    fn buffer_sub_data(
+        &mut self,
+        runtime: Option<Ref<'_, Runtime>>,
+        source: BufferSource,
+        dst_byte_offset: usize,
+    ) {
+        let bytes_length = dst_byte_offset + source.bytes_length();
+        if dst_byte_offset == 0 {
+            if bytes_length >= self.max_bytes_length {
+                // overrides sources in queue if new source covers all
+                self.max_bytes_length = bytes_length;
+                self.items.clear();
+                self.items.push(QueueItem::new(source, 0));
+            } else {
+                self.items.push(QueueItem::new(source, dst_byte_offset));
+            }
+        } else {
+            if bytes_length <= self.max_bytes_length {
+                self.items.push(QueueItem::new(source, dst_byte_offset));
+            } else {
+                if let Some(runtime) = runtime.as_ref() {
+                    // heavy job!
+                    let data = runtime.read_back();
+
+                    self.items.insert(
+                        0,
+                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
+                    );
+                    self.items
+                        .insert(1, QueueItem::new(BufferSource::from_array_buffer(data), 0));
+                    self.items.push(QueueItem::new(source, dst_byte_offset));
+                } else {
+                    self.items.insert(
+                        0,
+                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
+                    );
+                    self.items.push(QueueItem::new(source, dst_byte_offset));
+                }
+            }
+        }
+    }
 }
 
+#[derive(Debug)]
 pub struct Buffer {
     id: Uuid,
     name: Option<Cow<'static, str>>,
     usage: BufferUsage,
-    memory_policy: MemoryPolicy,
-    queue: Queue,
-
-    store: Option<RegisteredStore>,
-    runtime: Option<Rc<RefCell<Runtime>>>,
+    memory_policy: Rc<RefCell<MemoryPolicy>>,
+    queue: Rc<RefCell<Queue>>,
+    registered: Rc<RefCell<Option<Registered>>>,
+    runtime: Rc<RefCell<Option<Runtime>>>,
 }
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        self.clear(false);
+        let _ = self.clear(false);
+
+        if let Some(mut registered) = self.registered_mut() {
+            unsafe {
+                (*registered.items).remove(&self.id);
+                (*registered.lru).remove(registered.lru_node);
+            }
+        }
     }
 }
 
@@ -701,13 +1186,12 @@ impl Buffer {
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
-            name: None,
+            name,
             usage,
-            memory_policy,
-            queue: Queue::new(),
-
-            runtime: None,
-            store: None,
+            memory_policy: Rc::new(RefCell::new(memory_policy)),
+            queue: Rc::new(RefCell::new(Queue::new())),
+            registered: Rc::new(RefCell::new(None)),
+            runtime: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -731,72 +1215,146 @@ impl Buffer {
         self.usage
     }
 
-    /// Returns current [`MemoryPolicy`].
-    pub fn memory_policy(&self) -> &MemoryPolicy {
-        &self.memory_policy
-    }
+    // /// Returns current [`MemoryPolicy`].
+    // pub fn memory_policy(&self) -> &MemoryPolicy {
+    //     &self.memory_policy
+    // }
 
     /// Sets the [`MemoryPolicy`] of this buffer descriptor.
     pub fn set_memory_policy(&mut self, memory_policy: MemoryPolicy) {
-        self.memory_policy = memory_policy;
+        *self.memory_policy.borrow_mut() = memory_policy;
     }
 
     /// Initializes this buffer by a [`WebGl2RenderingContext`].
-    pub fn init(&mut self, gl: WebGl2RenderingContext) -> Result<(), Error> {
-        match &self.runtime {
+    pub fn init(&self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
+        let mut runtime = self.runtime.borrow_mut();
+        match runtime.as_mut() {
             Some(runtime) => {
-                if &runtime.borrow().gl == &gl {
+                if &runtime.gl == gl {
                     Ok(())
                 } else {
                     Err(Error::BufferAlreadyInitialized)
                 }
             }
             None => {
-                let runtime = Runtime {
-                    gl,
+                *runtime = Some(Runtime {
+                    gl: gl.clone(),
                     buffer: None,
                     bytes_length: 0,
                     bindings: HashSet::new(),
                     binding_ubos: HashSet::new(),
-                };
-                self.runtime = Some(Rc::new(RefCell::new(runtime)));
+                });
                 Ok(())
             }
         }
     }
 
-    fn runtime(&self) -> Result<&Rc<RefCell<Runtime>>, Error> {
-        self.runtime
-            .as_ref()
-            .map(|runtime| runtime)
-            .ok_or(Error::BufferUninitialized)
+    fn queue_mut(&self) -> RefMut<'_, Queue> {
+        self.queue.borrow_mut()
     }
 
-    fn store(&self) -> Option<&RegisteredStore> {
-        self.store.as_ref()
+    fn runtime(&self) -> Result<Ref<'_, Runtime>, Error> {
+        let runtime = self.runtime.borrow();
+        let runtime = Ref::filter_map(runtime, |runtime| runtime.as_ref())
+            .map_err(|_| Error::BufferAlreadyInitialized);
+        runtime
+    }
+
+    fn runtime_mut(&self) -> Result<RefMut<'_, Runtime>, Error> {
+        let runtime = self.runtime.borrow_mut();
+        let runtime = RefMut::filter_map(runtime, |runtime| runtime.as_mut())
+            .map_err(|_| Error::BufferAlreadyInitialized);
+        runtime
+    }
+
+    fn registered(&self) -> Option<Ref<'_, Registered>> {
+        let registered = self.registered.borrow();
+        let registered = Ref::filter_map(registered, |registered| registered.as_ref()).ok();
+        registered
+    }
+
+    fn registered_mut(&self) -> Option<RefMut<'_, Registered>> {
+        let registered = self.registered.borrow_mut();
+        let registered = RefMut::filter_map(registered, |registered| registered.as_mut()).ok();
+        registered
     }
 
     /// Binds buffer to specified [`BufferTarget`].
     pub fn bind(&self, target: BufferTarget) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let mut runtime = runtime.borrow_mut();
+        if let Some(registered) = self.registered() {
+            if registered.is_occupied(target, &self.id) {
+                return Err(Error::BufferTargetOccupied(target));
+            }
+        }
 
-        let buffer = runtime.get_or_create_buffer()?;
-        runtime.gl.bind_buffer(target.gl_enum(), Some(buffer));
-        runtime.bindings.insert(target);
+        let (new_bytes_length, old_bytes_length) =
+            self.runtime_mut()?
+                .bind_and_upload(target, self.usage, self.queue_mut())?;
 
-        self.upload_unchecked(target, &mut *runtime);
+        if let Some(mut registered) = self.registered_mut() {
+            registered.update_lru();
+            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.add_binding(target, self.id);
+            registered.free();
+        }
+
+        Ok(())
+    }
+
+    /// Binds buffer to specified [`BufferTarget`].
+    pub fn bind_ubo(&self, index: u32) -> Result<(), Error> {
+        if let Some(registered) = self.registered() {
+            if registered.is_occupied_ubo(index, &self.id) {
+                return Err(Error::UniformBufferObjectIndexOccupied(index));
+            }
+        }
+
+        let (new_bytes_length, old_bytes_length) =
+            self.runtime_mut()?
+                .bind_and_upload_ubo(self.usage, index, self.queue_mut())?;
+
+        if let Some(mut registered) = self.registered_mut() {
+            registered.update_lru();
+            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.add_binding_ubo(index, self.id);
+            registered.free();
+        }
+
+        Ok(())
+    }
+
+    /// Binds buffer to specified [`BufferTarget`].
+    pub fn bind_ubo_range(&self, index: u32, offset: i32, size: i32) -> Result<(), Error> {
+        if let Some(registered) = self.registered() {
+            if registered.is_occupied_ubo(index, &self.id) {
+                return Err(Error::UniformBufferObjectIndexOccupied(index));
+            }
+        }
+
+        let (new_bytes_length, old_bytes_length) = self.runtime_mut()?.bind_and_upload_ubo_range(
+            self.usage,
+            index,
+            offset,
+            size,
+            self.queue_mut(),
+        )?;
+
+        if let Some(mut registered) = self.registered_mut() {
+            registered.update_lru();
+            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.add_binding_ubo(index, self.id);
+            registered.free();
+        }
 
         Ok(())
     }
 
     /// Unbinds buffer at specified [`BufferTarget`].
     pub fn unbind(&self, target: BufferTarget) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let mut runtime = runtime.borrow_mut();
+        self.runtime_mut()?.unbind(target);
 
-        if runtime.bindings.remove(&target) {
-            runtime.gl.bind_buffer(target.gl_enum(), None);
+        if let Some(mut registered) = self.registered_mut() {
+            registered.remove_binding(target);
         }
 
         Ok(())
@@ -804,13 +1362,10 @@ impl Buffer {
 
     /// Unbinds buffer from specified uniform buffer object index.
     pub fn unbind_ubo(&self, index: u32) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let mut runtime = runtime.borrow_mut();
+        self.runtime_mut()?.unbind_ubo(index);
 
-        if runtime.binding_ubos.remove(&index) {
-            runtime
-                .gl
-                .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+        if let Some(mut registered) = self.registered_mut() {
+            registered.remove_binding_ubo(index);
         }
 
         Ok(())
@@ -818,64 +1373,45 @@ impl Buffer {
 
     /// Unbinds buffer from all bindings, including uniform buffer objects.
     pub fn unbind_all(&self) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let mut runtime = runtime.borrow_mut();
+        let mut runtime = self.runtime_mut()?;
+        let mut registered = self.registered_mut();
 
-        let gl = &runtime.gl;
+        let gl = runtime.gl.clone();
         for index in runtime.binding_ubos.drain() {
             gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+
+            if let Some(registered) = registered.as_mut() {
+                registered.remove_binding_ubo(index);
+            }
         }
         for target in runtime.bindings.drain() {
             gl.bind_buffer(target.gl_enum(), None);
+
+            if let Some(registered) = registered.as_mut() {
+                registered.remove_binding(target);
+            }
         }
 
         Ok(())
     }
 
-    fn upload_unchecked(&mut self, target: BufferTarget, runtime: &mut Runtime) {
-        if self.queue.items.len() > 0 {
-            let gl = &runtime.gl;
-            let new_bytes_length = self.queue.max_bytes_length;
-            let old_bytes_length = runtime.bytes_length;
-
-            if new_bytes_length >= old_bytes_length {
-                gl.buffer_data_with_i32(
-                    target.gl_enum(),
-                    new_bytes_length as i32,
-                    self.usage.gl_enum(),
-                );
-            }
-
-            for item in self.queue.items.drain(..) {
-                item.source.buffer_sub_data(gl, target, item.bytes_offset);
-            }
-
-            runtime.bytes_length = new_bytes_length;
-
-            debug!(
-                target: "BufferStore",
-                "buffer new data for {}, old length {}, new length {}",
-                self.name().unwrap_or("unnamed"),
-                old_bytes_length,
-                new_bytes_length
-            );
-        }
-    }
-
     /// Uploads data to WebGL runtime.
     pub fn upload(&mut self) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let mut runtime = runtime.borrow_mut();
+        let mut runtime = self.runtime_mut()?;
+        let mut registered = self.registered_mut();
 
         let binding = runtime.gl.array_buffer_binding();
-        runtime.gl.bind_buffer(
-            WebGl2RenderingContext::ARRAY_BUFFER,
-            Some(runtime.get_or_create_buffer()?),
-        );
-        self.upload_unchecked(BufferTarget::ARRAY_BUFFER, &mut *runtime);
+        let (new_bytes_length, old_bytes_length) =
+            runtime.bind_and_upload(BufferTarget::ARRAY_BUFFER, self.usage, self.queue_mut())?;
+        runtime.unbind(BufferTarget::ARRAY_BUFFER);
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
+
+        if let Some(registered) = registered.as_mut() {
+            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.free();
+        }
 
         Ok(())
     }
@@ -884,111 +1420,78 @@ impl Buffer {
     /// Data will be read back from WebGL runtime and
     /// insert to the first place of the queue if `read_back` is `true`.
     pub fn clear(&mut self, read_back: bool) -> Result<(), Error> {
-        let runtime = self.runtime()?;
-        let runtime = runtime.borrow_mut();
+        let mut runtime = self.runtime_mut()?;
+        let mut queue = self.queue_mut();
+        let mut registered = self.registered_mut();
 
-        self.queue.items.clear();
-        self.queue.max_bytes_length = 0;
+        queue.items.clear();
+        queue.max_bytes_length = 0;
 
         if read_back {
             let data = runtime.read_back();
             if data.byte_length() != 0 {
-                self.queue
+                queue
                     .items
                     .push(QueueItem::new(BufferSource::from_array_buffer(data), 0));
             }
         }
 
-        let gl = &runtime.gl;
+        let new_bytes_length = 0;
+        let old_bytes_length = runtime.bytes_length;
+        let gl = runtime.gl.clone();
         if let Some(buffer) = runtime.buffer.take() {
             for index in runtime.binding_ubos.drain() {
                 gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+
+                if let Some(registered) = registered.as_mut() {
+                    registered.remove_binding_ubo(index);
+                }
             }
             for target in runtime.bindings.drain() {
                 gl.bind_buffer(target.gl_enum(), None);
+
+                if let Some(registered) = registered.as_mut() {
+                    registered.remove_binding(target);
+                }
             }
             gl.delete_buffer(Some(&buffer))
         }
-        runtime.bytes_length = 0;
+        runtime.bytes_length = new_bytes_length;
+
+        if let Some(registered) = registered.as_mut() {
+            registered.update_used_memory(new_bytes_length, old_bytes_length);
+        }
 
         Ok(())
     }
 
     /// Reads buffer data back from WebGL runtime and stores it to an [`ArrayBuffer`].
     pub fn read_back(&self) -> Result<ArrayBuffer, Error> {
-        Ok(self.runtime()?.borrow().read_back())
+        Ok(self.runtime_mut()?.read_back())
     }
 
     /// Overrides existing data and then buffers new data.
     pub fn buffer_data(&mut self, source: BufferSource) {
-        self.queue.max_bytes_length = source.bytes_length();
-        self.queue.items.clear();
-        self.queue.items.push(QueueItem::new(source, 0));
+        self.queue_mut().buffer_data(source)
     }
 
     /// Buffers sub data.
     pub fn buffer_sub_data(&mut self, source: BufferSource, dst_byte_offset: usize) {
-        let bytes_length = dst_byte_offset + source.bytes_length();
-        if dst_byte_offset == 0 {
-            if bytes_length >= self.queue.max_bytes_length {
-                // overrides sources in queue if new source covers all
-                self.queue.max_bytes_length = bytes_length;
-                self.queue.items.clear();
-                self.queue.items.push(QueueItem::new(source, 0));
-            } else {
-                self.queue
-                    .items
-                    .push(QueueItem::new(source, dst_byte_offset));
-            }
-        } else {
-            if bytes_length <= self.queue.max_bytes_length {
-                self.queue
-                    .items
-                    .push(QueueItem::new(source, dst_byte_offset));
-            } else {
-                if let Some(runtime) = self.runtime.as_ref().map(|runtime| runtime.borrow()) {
-                    // heavy job!
-                    let data = runtime.read_back();
-
-                    self.queue.items.insert(
-                        0,
-                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
-                    );
-                    self.queue
-                        .items
-                        .insert(1, QueueItem::new(BufferSource::from_array_buffer(data), 0));
-                    self.queue
-                        .items
-                        .push(QueueItem::new(source, dst_byte_offset));
-                } else {
-                    self.queue.items.insert(
-                        0,
-                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
-                    );
-                    self.queue
-                        .items
-                        .push(QueueItem::new(source, dst_byte_offset));
-                }
-            }
-        }
+        self.queue_mut()
+            .buffer_sub_data(self.runtime().ok(), source, dst_byte_offset)
     }
 }
 
-pub trait Restorer {
+pub trait Restorer: Debug {
     fn restore(&self) -> BufferSource;
 }
 
 /// Memory freeing policies.
+#[derive(Debug)]
 pub enum MemoryPolicy {
     Unfree,
     ReadBack,
     Restorable(Rc<RefCell<dyn Restorer>>),
-}
-
-impl Default for MemoryPolicy {
-    fn default() -> Self {
-        Self::ReadBack
-    }
 }
 
 impl MemoryPolicy {
@@ -1011,68 +1514,119 @@ impl MemoryPolicy {
     }
 }
 
+pub struct Builder {
+    name: Option<Cow<'static, str>>,
+    usage: BufferUsage,
+    memory_policy: MemoryPolicy,
+    queue: Queue,
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            name: None,
+            usage: BufferUsage::STATIC_DRAW,
+            memory_policy: MemoryPolicy::ReadBack,
+            queue: Queue::new(),
+        }
+    }
+}
+
+impl Builder {
+    /// Constructs a new buffer builder.
+    pub fn new(usage: BufferUsage) -> Self {
+        Self {
+            name: None,
+            usage,
+            memory_policy: MemoryPolicy::ReadBack,
+            queue: Queue::new(),
+        }
+    }
+
+    /// Sets name.
+    pub fn set_name(mut self, name: String) -> Self {
+        self.name = Some(Cow::Owned(name));
+        self
+    }
+
+    /// Sets name.
+    pub fn set_name_str(mut self, name: &'static str) -> Self {
+        self.name = Some(Cow::Borrowed(name));
+        self
+    }
+
+    /// Sets [`BufferUsage`].
+    pub fn set_usage(mut self, usage: BufferUsage) -> Self {
+        self.usage = usage;
+        self
+    }
+
+    /// Sets [`MemoryPolicy`].
+    pub fn set_memory_policy(mut self, memory_policy: MemoryPolicy) -> Self {
+        self.memory_policy = memory_policy;
+        self
+    }
+
+    /// Overrides existing data and then buffers new data.
+    pub fn buffer_data(mut self, source: BufferSource) -> Self {
+        self.queue.buffer_data(source);
+        self
+    }
+
+    /// Buffers sub data.
+    pub fn buffer_sub_data(mut self, source: BufferSource, dst_byte_offset: usize) -> Self {
+        self.queue.buffer_sub_data(None, source, dst_byte_offset);
+        self
+    }
+
+    pub fn build(self) -> Buffer {
+        Buffer {
+            id: Uuid::new_v4(),
+            name: self.name,
+            usage: self.usage,
+            memory_policy: Rc::new(RefCell::new(self.memory_policy)),
+            queue: Rc::new(RefCell::new(self.queue)),
+            registered: Rc::new(RefCell::new(None)),
+            runtime: Rc::new(RefCell::new(None)),
+        }
+    }
+}
+
+struct BufferItem {
+    queue: Weak<RefCell<Queue>>,
+    memory_policy: Weak<RefCell<MemoryPolicy>>,
+    registered: Weak<RefCell<Option<Registered>>>,
+    runtime: Weak<RefCell<Option<Runtime>>>,
+}
+
 pub struct BufferStore {
-    id: Uuid,
     gl: WebGl2RenderingContext,
-    available_memory: usize,
+    available_memory: *mut usize,
     used_memory: *mut usize,
-    items: *mut HashMap<
-        Uuid,
-        (
-            Weak<RefCell<Queue>>,
-            Weak<RefCell<MemoryPolicy>>,
-            Weak<RefCell<Runtime>>,
-        ),
-    >,
+    items: *mut HashMap<Uuid, BufferItem>,
     bindings: *mut HashMap<BufferTarget, Uuid>,
     binding_ubos: *mut HashMap<u32, Uuid>,
     lru: *mut Lru<Uuid>,
 }
 
-// impl Drop for BufferStore {
-//     fn drop(&mut self) {
-//         unsafe {
-//             for (queue, _, runtime) in (*self.descriptors).values() {
-//                 let (Some(queue), Some(runtime)) = (queue.upgrade(), runtime.upgrade()) else {
-//                     return;
-//                 };
-//                 let mut queue = queue.borrow_mut();
-//                 let runtime = runtime.borrow();
+impl Drop for BufferStore {
+    fn drop(&mut self) {
+        unsafe {
+            drop(Box::from_raw(self.available_memory));
+            drop(Box::from_raw(self.used_memory));
+            drop(Box::from_raw(self.binding_ubos));
+            drop(Box::from_raw(self.bindings));
+            drop(Box::from_raw(self.lru));
 
-//                 let current_binding = array_buffer_binding(&self.gl);
-
-//                 let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
-//                 self.gl
-//                     .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&runtime.buffer));
-//                 self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-//                     WebGl2RenderingContext::ARRAY_BUFFER,
-//                     0,
-//                     &data,
-//                 );
-//                 self.gl.bind_buffer(
-//                     WebGl2RenderingContext::ARRAY_BUFFER,
-//                     current_binding.as_ref(),
-//                 );
-//                 self.gl.delete_buffer(Some(&runtime.buffer));
-
-//                 queue.items.insert(
-//                     0,
-//                     QueueItem::new(
-//                         BufferSource::from_uint8_array(data, 0, runtime.bytes_length),
-//                         0,
-//                     ),
-//                 );
-//                 queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
-//                 // store dropped, no need to update LRU anymore
-//             }
-
-//             drop(Box::from_raw(self.used_memory));
-//             drop(Box::from_raw(self.ubos));
-//             drop(Box::from_raw(self.lru));
-//             drop(Box::from_raw(self.descriptors));
-//         }
-//     }
-// }
+            for item in Box::from_raw(self.items).values_mut() {
+                let Some(registered) = item.registered.upgrade() else {
+                    continue;
+                };
+                *registered.borrow_mut() = None;
+            }
+        }
+    }
+}
 
 impl BufferStore {
     /// Constructs a new buffer store with unlimited memory.
@@ -1085,8 +1639,7 @@ impl BufferStore {
     pub fn with_available_memory(gl: WebGl2RenderingContext, available_memory: usize) -> Self {
         Self {
             gl,
-            id: Uuid::new_v4(),
-            available_memory: available_memory.min(i32::MAX as usize),
+            available_memory: Box::leak(Box::new(available_memory.min(i32::MAX as usize))),
             used_memory: Box::leak(Box::new(0)),
             items: Box::leak(Box::new(HashMap::new())),
             bindings: Box::leak(Box::new(HashMap::new())),
@@ -1098,7 +1651,7 @@ impl BufferStore {
     /// Returns the maximum available memory in bytes.
     /// Returns [`i32::MAX`] if not specified.
     pub fn available_memory(&self) -> usize {
-        self.available_memory
+        unsafe { *self.available_memory }
     }
 
     /// Returns current used memory in bytes.
@@ -1106,352 +1659,82 @@ impl BufferStore {
         unsafe { *self.used_memory }
     }
 
-    /// Registers a buffer to buffer store.
-    pub fn register(&mut self, buffer: &mut Buffer) {
+    /// Inits and registers a buffer to buffer store.
+    pub fn register(&mut self, buffer: &Buffer) -> Result<(), Error> {
         unsafe {
-            (*self.used_memory) += buffer
-                .runtime
-                .as_ref()
-                .map(|runtime| runtime.borrow().bytes_length)
-                .unwrap_or(0);
-            buffer.store = Some(RegisteredStore {
+            if (*self.items).contains_key(buffer.id()) {
+                return Ok(());
+            }
+
+            buffer.init(&self.gl)?;
+
+            let runtime = buffer.runtime().unwrap();
+            (*self.used_memory) += runtime.bytes_length;
+            for binding in &runtime.bindings {
+                if (*self.bindings).contains_key(binding) {
+                    return Err(Error::BufferTargetOccupied(*binding));
+                }
+                (*self.bindings).insert(*binding, buffer.id);
+            }
+            for binding in &runtime.binding_ubos {
+                if (*self.binding_ubos).contains_key(binding) {
+                    return Err(Error::UniformBufferObjectIndexOccupied(*binding));
+                }
+                (*self.binding_ubos).insert(*binding, buffer.id);
+            }
+
+            *buffer.registered.borrow_mut() = Some(Registered {
+                gl: self.gl.clone(),
                 lru_node: LruNode::new(buffer.id),
+                available_memory: self.available_memory,
                 used_memory: self.used_memory,
                 items: self.items,
                 bindings: self.bindings,
                 binding_ubos: self.binding_ubos,
                 lru: self.lru,
             });
+
+            (*self.items).insert(
+                buffer.id,
+                BufferItem {
+                    queue: Rc::downgrade(&buffer.queue),
+                    memory_policy: Rc::downgrade(&buffer.memory_policy),
+                    registered: Rc::downgrade(&buffer.registered),
+                    runtime: Rc::downgrade(&buffer.runtime),
+                },
+            );
+
+            Ok(())
         }
     }
 
-    pub fn unregister(&mut self, buffer: &mut Buffer) {
+    /// Unregisters a buffer from buffer store.
+    pub fn unregister(&mut self, buffer: &Buffer) {
         unsafe {
-            (*self.used_memory) -= buffer
-                .runtime
-                .as_ref()
-                .map(|runtime| runtime.borrow().bytes_length)
-                .unwrap_or(0);
-            buffer.store = None;
-        }
-    }
-
-    // /// Uses a [`WebGlBuffer`] by a [`BufferDescriptor`] and buffer data to it if necessary.
-    // /// Remembers to calls [`BufferStore::unuse_buffer`] after using the [`WebGlBuffer`],
-    // /// or the [`WebGlBuffer`] will never be freed.
-    // pub fn use_buffer(
-    //     &mut self,
-    //     descriptor: &Buffer,
-    //     target: BufferTarget,
-    // ) -> Result<WebGlBuffer, Error> {
-    //     unsafe {
-    //         let Buffer {
-    //             name,
-    //             usage,
-    //             memory_policy,
-    //             queue,
-    //             runtime,
-    //             ..
-    //         } = descriptor;
-
-    //         let mut runtime = runtime.borrow_mut();
-    //         let runtime = match runtime.as_ref() {
-    //             Some(runtime) => {
-    //                 if runtime.borrow().store_id != self.id {
-    //                     panic!("share buffer descriptor between buffer store is not allowed");
-    //                 }
-    //                 runtime
-    //             }
-    //             None => {
-    //                 debug!(
-    //                     target: "BufferStore",
-    //                     "create new buffer for {}",
-    //                     name.as_deref().unwrap_or("unnamed"),
-    //                 );
-
-    //                 let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-    //                 let id = self.next();
-    //                 let r = Rc::new(RefCell::new(Runtime {
-    //                     id,
-    //                     gl: self.gl.clone(),
-    //                     bindings: false,
-    //                     buffer,
-    //                     bytes_length: 0,
-    //                     binding_ubos: HashSet::new(),
-    //                     lru_node: LruNode::new(id),
-
-    //                     store_id: self.id,
-    //                     used_memory: self.used_memory,
-    //                     items: self.descriptors,
-    //                     ubos: self.ubos,
-    //                     lru: self.lru,
-    //                 }));
-    //                 (*self.descriptors).insert(
-    //                     id,
-    //                     (
-    //                         Rc::downgrade(queue),
-    //                         Rc::downgrade(memory_policy),
-    //                         Rc::downgrade(&r),
-    //                     ),
-    //                 );
-    //                 runtime.insert(r)
-    //             }
-    //         };
-
-    //         // update buffer data
-    //         let mut runtime = runtime.borrow_mut();
-    //         let mut queue = queue.borrow_mut();
-    //         if queue.items.len() > 0 {
-    //             let new_bytes_length = queue.max_bytes_length;
-    //             let old_bytes_length = runtime.bytes_length;
-
-    //             self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
-    //             if queue.items[0].bytes_offset == 0
-    //                 && new_bytes_length == queue.items[0].source.bytes_length()
-    //             {
-    //                 let item = queue.items.remove(0);
-    //                 item.source.buffer_data(&self.gl, target, *usage);
-    //             } else if new_bytes_length > old_bytes_length {
-    //                 self.gl.buffer_data_with_i32(
-    //                     target.gl_enum(),
-    //                     new_bytes_length as i32,
-    //                     usage.gl_enum(),
-    //                 );
-    //             }
-    //             for item in queue.items.drain(..) {
-    //                 item.source
-    //                     .buffer_sub_data(&self.gl, target, item.bytes_offset);
-    //             }
-
-    //             let new_bytes_length = self
-    //                 .gl
-    //                 .get_buffer_parameter(target.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
-    //                 .as_f64()
-    //                 .map(|size| size as usize)
-    //                 .unwrap();
-    //             (*self.used_memory) = (*self.used_memory) - old_bytes_length + new_bytes_length;
-    //             runtime.bytes_length = new_bytes_length;
-
-    //             debug!(
-    //                 target: "BufferStore",
-    //                 "buffer new data for {}, old length {}, new length {}",
-    //                 name.as_deref().unwrap_or("unnamed"),
-    //                 old_bytes_length,
-    //                 new_bytes_length
-    //             );
-
-    //             self.gl.bind_buffer(target.gl_enum(), None);
-    //         }
-
-    //         runtime.binding = true;
-    //         (*self.lru).cache(runtime.lru_node);
-    //         let buffer = runtime.buffer.clone();
-
-    //         self.free(target);
-
-    //         Ok(buffer)
-    //     }
-    // }
-
-    // /// Unuses a [`WebGlBuffer`] by a [`BufferDescriptor`].
-    // pub fn unuse_buffer(&mut self, descriptor: &Buffer) {
-    //     let runtime = descriptor.runtime.borrow_mut();
-    //     let Some(runtime) = runtime.as_ref() else {
-    //         return;
-    //     };
-    //     runtime.borrow_mut().binding = false;
-    // }
-
-    /// Frees memory if used memory exceeds the maximum available memory.
-    fn free(&mut self, target: BufferTarget) {
-        // removes buffer from the least recently used until memory usage lower than limitation
-        unsafe {
-            if *self.used_memory <= self.available_memory {
+            if (*self.items).remove(buffer.id()).is_none() {
                 return;
             }
 
-            let mut next_node = (*self.lru).least_recently();
-            while *self.used_memory > self.available_memory {
-                let Some(current_node) = next_node.take() else {
-                    break;
-                };
-                let id = (*current_node).data();
-                let Entry::Occupied(occupied) = (*self.items).entry(*id) else {
-                    next_node = (*current_node).more_recently();
-                    continue;
-                };
-                let (queue, memory_policy, runtime) = occupied.get();
-                let (Some(_), Some(memory_policy), Some(runtime)) =
-                    (queue.upgrade(), memory_policy.upgrade(), runtime.upgrade())
-                else {
-                    // deletes if already dropped
-                    occupied.remove();
-                    next_node = (*current_node).more_recently();
-                    continue;
-                };
-
-                let runtime = runtime.borrow();
-                // skips if using
-                if runtime.bindings || runtime.binding_ubos.len() != 0 {
-                    next_node = (*current_node).more_recently();
-                    continue;
-                }
-                // skips if unfree
-                if let MemoryPolicy::Unfree = *memory_policy.borrow() {
-                    next_node = (*current_node).more_recently();
-                    continue;
-                }
-
-                // free
-                let (queue, memory_policy, runtime) = occupied.remove();
-                let (queue, memory_policy, runtime) = (
-                    queue.upgrade().unwrap(),
-                    memory_policy.upgrade().unwrap(),
-                    runtime.upgrade().unwrap(),
-                );
-                let runtime = runtime.borrow();
-                match &*memory_policy.borrow() {
-                    MemoryPolicy::Unfree => unreachable!(),
-                    MemoryPolicy::ReadBack => {
-                        let mut queue = queue.borrow_mut();
-
-                        // default, gets buffer data back from WebGlBuffer
-                        let data = Uint8Array::new_with_length(runtime.bytes_length as u32);
-                        self.gl.bind_buffer(target.gl_enum(), Some(&runtime.buffer));
-                        self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-                            target.gl_enum(),
-                            0,
-                            &data,
-                        );
-                        self.gl.bind_buffer(target.gl_enum(), None);
-                        self.gl.delete_buffer(Some(&runtime.buffer));
-
-                        queue.items.insert(
-                            0,
-                            QueueItem::new(
-                                BufferSource::from_uint8_array(data, 0, runtime.bytes_length),
-                                0,
-                            ),
-                        );
-                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
-                        debug!(
-                            target: "BufferStore",
-                            "free buffer (default) {}. freed memory {}, used {}",
-                            id,
-                            format_bytes_length(runtime.bytes_length),
-                            format_bytes_length(*self.used_memory)
-                        );
-                    }
-                    MemoryPolicy::Restorable(restorer) => {
-                        let mut queue = queue.borrow_mut();
-
-                        self.gl.delete_buffer(Some(&runtime.buffer));
-                        let restorer = Rc::clone(&restorer);
-                        let source = BufferSource::Function {
-                            callback: Box::new(move || restorer.borrow_mut().restore()),
-                            data_length: runtime.bytes_length,
-                            src_offset: 0,
-                            src_length: runtime.bytes_length,
-                        };
-
-                        queue.items.insert(0, QueueItem::new(source, 0));
-                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
-                        debug!(
-                            target: "BufferStore",
-                            "free buffer (restorable) {}. freed memory {}, used {}",
-                            id,
-                            format_bytes_length(runtime.bytes_length),
-                            format_bytes_length(*self.used_memory)
-                        );
+            let runtime = buffer.runtime().unwrap();
+            (*self.used_memory) -= runtime.bytes_length;
+            for binding in &runtime.bindings {
+                if let Entry::Occupied(entry) = (*self.bindings).entry(*binding) {
+                    if buffer.id() == entry.get() {
+                        entry.remove();
                     }
                 }
-                // reduces used memory
-                (*self.used_memory) -= runtime.bytes_length;
-                // removes LRU
-                (*self.lru).remove(runtime.lru_node);
+            }
+            for binding in &runtime.binding_ubos {
+                if let Entry::Occupied(entry) = (*self.binding_ubos).entry(*binding) {
+                    if buffer.id() == entry.get() {
+                        entry.remove();
+                    }
+                }
+            }
 
-                next_node = (*current_node).more_recently();
+            if let Some(registered) = buffer.registered.borrow_mut().take() {
+                (*self.lru).remove(registered.lru_node);
             }
         }
     }
-
-    // pub fn bind_uniform_buffer_object(
-    //     &mut self,
-    //     descriptor: &Buffer,
-    //     ubo_binding: u32,
-    //     offset_and_size: Option<(usize, usize)>,
-    // ) -> Result<(), Error> {
-    //     unsafe {
-    //         let bounded = (*self.ubos).contains_key(&ubo_binding);
-    //         let mut runtime = descriptor.runtime.borrow_mut();
-    //         let buffer = match (bounded, runtime.as_mut()) {
-    //             (true, None) => {
-    //                 return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding))?;
-    //             }
-    //             (true, Some(runtime)) => {
-    //                 if &runtime.borrow().store_id != &self.id {
-    //                     return Err(Error::UniformBufferObjectIndexAlreadyBound(ubo_binding));
-    //                 }
-
-    //                 drop(runtime);
-    //                 self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
-    //                 return Ok(());
-    //             }
-    //             (false, _) => {
-    //                 drop(runtime);
-    //                 let buffer = self.use_buffer(descriptor, BufferTarget::UNIFORM_BUFFER)?;
-    //                 buffer
-    //             }
-    //         };
-
-    //         let runtime = descriptor.runtime.borrow_mut();
-    //         let mut runtime = runtime.as_ref().unwrap().borrow_mut();
-    //         let binding = params::uniform_buffer_binding(&self.gl);
-    //         self.gl
-    //             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
-    //         match offset_and_size {
-    //             Some((offset, size)) => self.gl.bind_buffer_range_with_i32_and_i32(
-    //                 WebGl2RenderingContext::UNIFORM_BUFFER,
-    //                 ubo_binding,
-    //                 Some(&buffer),
-    //                 offset as i32,
-    //                 size as i32,
-    //             ),
-    //             None => self.gl.bind_buffer_base(
-    //                 WebGl2RenderingContext::UNIFORM_BUFFER,
-    //                 ubo_binding,
-    //                 Some(&buffer),
-    //             ),
-    //         };
-    //         self.gl
-    //             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
-
-    //         (*self.ubos).insert(ubo_binding, runtime.id);
-    //         runtime.binding_ubos.insert(ubo_binding);
-
-    //         Ok(())
-    //     }
-    // }
-
-    // /// Unbinds a uniform buffer object at mount point.
-    // pub fn unbind_uniform_buffer_object(&mut self, binding: u32) {
-    //     unsafe {
-    //         let Some(id) = (*self.ubos).remove(&binding) else {
-    //             return;
-    //         };
-    //         let Some((_, _, runtime)) = (*self.descriptors).get(&id) else {
-    //             return;
-    //         };
-    //         let Some(runtime) = runtime.upgrade() else {
-    //             return;
-    //         };
-
-    //         let mut runtime = runtime.borrow_mut();
-    //         if runtime.binding_ubos.remove(&binding) {
-    //             self.gl
-    //                 .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, binding, None);
-    //         }
-    //         runtime.bindings = runtime.binding_ubos.len() != 0;
-    //     }
-    // }
 }

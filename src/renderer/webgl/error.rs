@@ -1,6 +1,6 @@
 use wasm_bindgen::JsValue;
 
-use super::framebuffer::FramebufferTarget;
+use super::{buffer::BufferTarget, framebuffer::FramebufferTarget};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -23,7 +23,8 @@ pub enum Error {
     NoSuchUniform(String),
     BufferUninitialized,
     BufferAlreadyInitialized,
-    UniformBufferObjectIndexAlreadyBound(u32),
+    BufferTargetOccupied(BufferTarget),
+    UniformBufferObjectIndexOccupied(u32),
     TexImageFailure(Option<String>),
     TexCompressedImageFailure,
     TextureSizeMismatched,

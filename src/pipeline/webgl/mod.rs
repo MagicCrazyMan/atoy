@@ -11,7 +11,7 @@ use crate::{
     clock::WebClock,
     entity::Entity,
     renderer::webgl::{
-        buffer::{Buffer, BufferSource, BufferUsage, MemoryPolicy, Restorer},
+        buffer::{self, Buffer, BufferSource, BufferUsage, MemoryPolicy, Restorer},
         error::Error,
         state::FrameState,
     },
@@ -47,11 +47,11 @@ pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
 pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
 
 /// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BINDING: u32 = 0;
+pub const UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX: u32 = 0;
 /// Uniform Buffer Object mount point for `atoy_Lights`.
-pub const UBO_LIGHTS_BINDING: u32 = 1;
+pub const UBO_LIGHTS_BINDING_INDEX: u32 = 1;
 /// Uniform Buffer Object mount point for gaussian blur.
-pub const UBO_GAUSSIAN_BLUR_BINDING: u32 = 2;
+pub const UBO_GAUSSIAN_BLUR_BINDING_INDEX: u32 = 2;
 
 /// Uniform Buffer Object bytes length for `u_RenderTime`.
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: usize = 16;
@@ -263,6 +263,7 @@ pub struct StandardPipeline {
     bloom_blur_epoch: usize,
 }
 
+#[derive(Debug)]
 struct GaussianKernelRestorer;
 
 impl Restorer for GaussianKernelRestorer {
@@ -290,21 +291,24 @@ impl StandardPipeline {
             deferred_shading: StandardDeferredShading::new(),
             deferred_translucent_shading: StandardDeferredTransparentShading::new(),
 
-            universal_ubo: Buffer::with_memory_policy(
-                BufferSource::preallocate(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH),
-                BufferUsage::DYNAMIC_DRAW,
-                MemoryPolicy::Unfree,
-            ),
-            lights_ubo: Buffer::with_memory_policy(
-                BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH),
-                BufferUsage::DYNAMIC_DRAW,
-                MemoryPolicy::Unfree,
-            ),
-            gaussian_kernel_ubo: Buffer::with_memory_policy(
-                BufferSource::from_binary(&UBO_GAUSSIAN_KERNEL_U8, 0, UBO_GAUSSIAN_KERNEL_U8.len()),
-                BufferUsage::STATIC_DRAW,
-                MemoryPolicy::restorable(GaussianKernelRestorer),
-            ),
+            universal_ubo: buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
+                .buffer_data(BufferSource::preallocate(
+                    UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
+                ))
+                .set_memory_policy(MemoryPolicy::Unfree)
+                .build(),
+            lights_ubo: buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
+                .buffer_data(BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH))
+                .set_memory_policy(MemoryPolicy::Unfree)
+                .build(),
+            gaussian_kernel_ubo: buffer::Builder::new(BufferUsage::STATIC_DRAW)
+                .buffer_data(BufferSource::from_binary(
+                    &UBO_GAUSSIAN_KERNEL_U8,
+                    0,
+                    UBO_GAUSSIAN_KERNEL_U8.len(),
+                ))
+                .set_memory_policy(MemoryPolicy::restorable(GaussianKernelRestorer))
+                .build(),
 
             lighting: DEFAULT_LIGHTING_ENABLED,
             multisamples: DEFAULT_MULTISAMPLES_ENABLED,
@@ -582,7 +586,6 @@ impl StandardPipeline {
                 }
             };
             self.composer.draw(state, [compose_textures])?;
-            self.cleanup.cleanup(state);
         };
 
         Ok(())
@@ -670,7 +673,6 @@ impl Pipeline for StandardPipeline {
                 self.picking(state, scene)?;
             }
             _ => {
-                // prepares
                 {
                     let lights_ubo = if self.lighting_enabled() {
                         Some(&mut self.lights_ubo)
@@ -681,7 +683,6 @@ impl Pipeline for StandardPipeline {
                         .prepare(state, scene, &mut self.universal_ubo, lights_ubo)?;
                 }
 
-                // shading
                 {
                     match self.pipeline_shading {
                         StandardPipelineShading::ForwardShading => {
@@ -699,6 +700,15 @@ impl Pipeline for StandardPipeline {
                         StandardPipelineShading::Picking => unreachable!(),
                     };
                 };
+
+                {
+                    let lights_ubo = if self.lighting_enabled() {
+                        Some(&self.lights_ubo)
+                    } else {
+                        None
+                    };
+                    self.cleanup.cleanup(&self.universal_ubo, lights_ubo)?;
+                }
             }
         };
 

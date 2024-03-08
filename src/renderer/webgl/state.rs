@@ -1,4 +1,4 @@
-use std::{cell::Ref, iter::FromIterator, ptr::NonNull};
+use std::{iter::FromIterator, ptr::NonNull};
 
 use gl_matrix4rust::GLF32;
 use log::warn;
@@ -13,7 +13,7 @@ use crate::{camera::Camera, entity::Entity, value::Readonly};
 
 use super::{
     attribute::{AttributeInternalBinding, AttributeValue},
-    buffer::{Buffer, BufferStore, BufferTarget},
+    buffer::{BufferStore, BufferTarget},
     capabilities::Capabilities,
     conversion::ToGlEnum,
     draw::Draw,
@@ -30,9 +30,8 @@ use super::{
     uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
 };
 
-pub struct BoundAttribute<'a> {
+pub struct BoundAttribute {
     location: u32,
-    descriptor: Readonly<'a, Buffer>,
 }
 
 enum TextureKind {
@@ -145,11 +144,11 @@ impl FrameState {
     }
 
     /// Binds attribute values from a entity.
-    pub fn bind_attributes<'a, 'b>(
-        &'a mut self,
+    pub fn bind_attributes(
+        &mut self,
         program: &mut Program,
-        entity: &'b dyn Entity,
-    ) -> Result<Vec<BoundAttribute<'b>>, Error> {
+        entity: &dyn Entity,
+    ) -> Result<Vec<BoundAttribute>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
         let custom_bindings = entity
             .material()
@@ -242,25 +241,24 @@ impl FrameState {
     }
 
     /// Binds an [`AttributeValue`] to an attribute.
-    pub fn bind_attribute_value<'a, 'b>(
-        &'a mut self,
+    pub fn bind_attribute_value(
+        &mut self,
         location: u32,
-        value: &'b AttributeValue<'b>,
-    ) -> Result<Vec<BoundAttribute<'b>>, Error> {
+        value: &AttributeValue,
+    ) -> Result<Vec<BoundAttribute>, Error> {
         let mut bounds = Vec::new();
         match value {
-            AttributeValue::Buffer {
-                descriptor,
-                target,
+            AttributeValue::ArrayBuffer {
+                buffer,
                 component_size,
                 data_type,
                 normalized,
                 bytes_stride,
                 bytes_offset,
             } => {
-                let buffer = self.buffer_store_mut().use_buffer(&descriptor, *target)?;
+                self.buffer_store_mut().register(&buffer)?;
+                buffer.bind(BufferTarget::ARRAY_BUFFER)?;
 
-                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 self.gl.vertex_attrib_pointer_with_i32(
                     location,
                     *component_size as i32,
@@ -270,25 +268,22 @@ impl FrameState {
                     *bytes_offset as i32,
                 );
                 self.gl.enable_vertex_attrib_array(location);
-                self.gl.bind_buffer(target.gl_enum(), None);
 
-                bounds.push(BoundAttribute {
-                    location,
-                    descriptor: Readonly::Borrowed(descriptor),
-                });
+                buffer.unbind(BufferTarget::ARRAY_BUFFER)?;
+
+                bounds.push(BoundAttribute { location });
             }
             AttributeValue::InstancedBuffer {
-                descriptor,
-                target,
+                buffer,
                 component_size,
                 data_type,
                 normalized,
                 component_count_per_instance,
                 divisor,
             } => {
-                let buffer = self.buffer_store_mut().use_buffer(&descriptor, *target)?;
+                self.buffer_store_mut().register(&buffer)?;
+                buffer.bind(BufferTarget::ARRAY_BUFFER)?;
 
-                self.gl.bind_buffer(target.gl_enum(), Some(&buffer));
                 let component_size = *component_size as usize;
                 // binds each instance
                 for i in 0..*component_count_per_instance {
@@ -310,10 +305,10 @@ impl FrameState {
 
                     bounds.push(BoundAttribute {
                         location: offset_location,
-                        descriptor: Readonly::Borrowed(descriptor),
                     });
                 }
-                self.gl.bind_buffer(target.gl_enum(), None);
+
+                buffer.unbind(BufferTarget::ARRAY_BUFFER)?;
             }
             AttributeValue::Vertex1f(x) => self.gl.vertex_attrib1f(location, *x),
             AttributeValue::Vertex2f(x, y) => self.gl.vertex_attrib2f(location, *x, *y),
@@ -359,13 +354,8 @@ impl FrameState {
     /// If you bind buffer attributes ever,
     /// remember to unbind them by yourself or use this function.
     pub fn unbind_attributes(&mut self, bounds: Vec<BoundAttribute>) {
-        for BoundAttribute {
-            location,
-            descriptor,
-        } in bounds
-        {
+        for BoundAttribute { location } in bounds {
             self.gl.disable_vertex_attrib_array(location);
-            self.buffer_store_mut().unuse_buffer(&descriptor);
         }
     }
 
@@ -690,24 +680,6 @@ impl FrameState {
                         self.texture_store_mut().bind_texture(descriptor, *unit)?;
                         (TextureKind::TextureCubeMap(descriptor.clone()), *unit)
                     }
-                    // UniformValue::TextureCubeMap {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::TextureCubeMap(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
-                    // UniformValue::TextureCubeMapCompressed {
-                    //     descriptor,
-                    //     unit,
-                    // } => (
-                    //     TextureKind::TextureCubeMapCompressed(descriptor.clone()),
-                    //     WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-                    //     self.texture_store_mut().use_texture(&descriptor, *unit)?,
-                    //     unit,
-                    // ),
                     _ => unreachable!(),
                 };
 
@@ -770,31 +742,26 @@ impl FrameState {
         value: &UniformBlockValue,
     ) -> Result<(), Error> {
         let binding = match value {
-            UniformBlockValue::BufferBase {
-                descriptor,
-                binding,
-            } => {
-                self.buffer_store_mut()
-                    .bind_uniform_buffer_object(&descriptor, *binding, None)?;
+            UniformBlockValue::BufferBase { buffer, binding } => {
+                self.buffer_store_mut().register(&buffer)?;
+                buffer.bind_ubo(*binding)?;
                 binding
             }
             UniformBlockValue::BufferRange {
-                descriptor,
+                buffer,
                 binding,
                 offset,
                 size,
             } => {
-                self.buffer_store_mut().bind_uniform_buffer_object(
-                    &descriptor,
-                    *binding,
-                    Some((*offset, *size)),
-                )?;
+                self.buffer_store_mut().register(&buffer)?;
+                buffer.bind_ubo_range(*binding, *offset, *size)?;
                 binding
             }
         };
 
         self.gl
             .uniform_block_binding(program, uniform_block_index, *binding);
+
         Ok(())
     }
 
@@ -827,21 +794,16 @@ impl FrameState {
                 indices,
                 indices_data_type,
             } => {
-                let buffer = self
-                    .buffer_store_mut()
-                    .use_buffer(&indices, BufferTarget::ELEMENT_ARRAY_BUFFER)?;
+                self.buffer_store_mut().register(&indices)?;
 
-                self.gl
-                    .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&buffer));
+                indices.bind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
                 self.gl.draw_elements_with_i32(
                     mode.gl_enum(),
                     *count,
                     indices_data_type.gl_enum(),
                     *offset,
                 );
-                self.gl
-                    .bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, None);
-                self.buffer_store_mut().unuse_buffer(&indices);
+                indices.unbind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
             }
         }
 

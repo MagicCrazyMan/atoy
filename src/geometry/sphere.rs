@@ -8,10 +8,7 @@ use crate::{
     clock::Tick,
     renderer::webgl::{
         attribute::AttributeValue,
-        buffer::{
-            BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget,
-            BufferUsage,
-        },
+        buffer::{self, Buffer, BufferComponentSize, BufferDataType, BufferSource},
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -49,14 +46,16 @@ impl Sphere {
             vertical_segments,
             horizontal_segments,
             num_positions,
-            positions: Buffer::new(
-                BufferSource::from_float32_array(positions, 0, positions_len),
-                BufferUsage::STATIC_DRAW,
-            ),
-            normals: Buffer::new(
-                BufferSource::from_float32_array(normals, 0, normals_len),
-                BufferUsage::STATIC_DRAW,
-            ),
+            positions: buffer::Builder::default()
+                .buffer_data(BufferSource::from_float32_array(
+                    positions,
+                    0,
+                    positions_len,
+                ))
+                .build(),
+            normals: buffer::Builder::default()
+                .buffer_data(BufferSource::from_float32_array(normals, 0, normals_len))
+                .build(),
             bounding_volume: BoundingVolume::BoundingSphere {
                 center: Vec3::<f64>::new(0.0, 0.0, 0.0),
                 radius,
@@ -109,9 +108,8 @@ impl Geometry for Sphere {
     }
 
     fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.positions),
-            target: BufferTarget::ARRAY_BUFFER,
+        AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.positions),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
@@ -121,9 +119,8 @@ impl Geometry for Sphere {
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
-        Some(AttributeValue::Buffer {
-            descriptor: Readonly::Borrowed(&self.normals),
-            target: BufferTarget::ARRAY_BUFFER,
+        Some(AttributeValue::ArrayBuffer {
+            buffer: Readonly::Borrowed(&self.normals),
             component_size: BufferComponentSize::Four,
             data_type: BufferDataType::FLOAT,
             normalized: false,

@@ -1101,7 +1101,7 @@ macro_rules! texture_sources {
                         pbo_offset,
                         ..
                     } => {
-                        let current_buffer = gl.pixel_unpack_buffer_binding();
+                        let binding = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         let result = gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
                             target.gl_enum(),
@@ -1116,7 +1116,7 @@ macro_rules! texture_sources {
                         );
                         gl.bind_buffer(
                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                            current_buffer.as_ref(),
+                            binding.as_ref(),
                         );
                         result
                     }
@@ -1244,7 +1244,7 @@ macro_rules! texture_sources {
                         pbo_offset,
                         ..
                     } => {
-                        let bound = gl.pixel_unpack_buffer_binding();
+                        let binding = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         let result = gl.tex_sub_image_3d_with_i32(
                             target.gl_enum(),
@@ -1261,7 +1261,7 @@ macro_rules! texture_sources {
                         );
                         gl.bind_buffer(
                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                            bound.as_ref(),
+                            binding.as_ref(),
                         );
                         result
                     }
@@ -1476,7 +1476,7 @@ macro_rules! texture_sources_compressed {
                         pbo_offset,
                         ..
                     } => {
-                        let current_buffer = gl.pixel_unpack_buffer_binding();
+                        let binding = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         gl.compressed_tex_sub_image_2d_with_i32_and_i32(
                             target.gl_enum(),
@@ -1491,7 +1491,7 @@ macro_rules! texture_sources_compressed {
                         );
                         gl.bind_buffer(
                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                            current_buffer.as_ref(),
+                            binding.as_ref(),
                         );
                         Ok(())
                     }
@@ -1585,7 +1585,7 @@ macro_rules! texture_sources_compressed {
                         pbo_offset,
                         ..
                     } => {
-                        let bound = gl.pixel_unpack_buffer_binding();
+                        let binding = gl.pixel_unpack_buffer_binding();
                         gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, Some(buffer));
                         gl.compressed_tex_sub_image_3d_with_i32_and_i32(
                             target.gl_enum(),
@@ -1602,7 +1602,7 @@ macro_rules! texture_sources_compressed {
                         );
                         gl.bind_buffer(
                             WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
-                            bound.as_ref(),
+                            binding.as_ref(),
                         );
                         Ok(())
                     }
