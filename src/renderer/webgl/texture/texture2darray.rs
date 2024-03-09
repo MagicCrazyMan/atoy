@@ -251,17 +251,17 @@ where
         self.max_mipmap_level
     }
 
-    fn bytes_length(&self) -> usize {
+    fn byte_length(&self) -> usize {
         let mut used_memory = 0;
         for level in 0..=self.max_mipmap_level() {
             let width = self.width_of_level(level).unwrap();
             let height = self.height_of_level(level).unwrap();
-            used_memory += self.internal_format.bytes_length(width, height) * self.array_length;
+            used_memory += self.internal_format.byte_length(width, height) * self.array_length;
         }
         used_memory
     }
 
-    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+    fn byte_length_of_level(&self, level: usize) -> Option<usize> {
         let Some(width) = self.width_of_level(level) else {
             return None;
         };
@@ -269,7 +269,7 @@ where
             return None;
         };
 
-        Some(self.internal_format.bytes_length(width, height) * self.array_length)
+        Some(self.internal_format.byte_length(width, height) * self.array_length)
     }
 }
 
@@ -636,19 +636,19 @@ impl Texture for Texture2DArray {
         }
     }
 
-    fn bytes_length(&self) -> usize {
+    fn byte_length(&self) -> usize {
         match self {
-            Texture2DArray::Color(t) => t.bytes_length(),
-            Texture2DArray::Depth(t) => t.bytes_length(),
-            Texture2DArray::Compressed(t) => t.bytes_length(),
+            Texture2DArray::Color(t) => t.byte_length(),
+            Texture2DArray::Depth(t) => t.byte_length(),
+            Texture2DArray::Compressed(t) => t.byte_length(),
         }
     }
 
-    fn bytes_length_of_level(&self, level: usize) -> Option<usize> {
+    fn byte_length_of_level(&self, level: usize) -> Option<usize> {
         match self {
-            Texture2DArray::Color(t) => t.bytes_length_of_level(level),
-            Texture2DArray::Depth(t) => t.bytes_length_of_level(level),
-            Texture2DArray::Compressed(t) => t.bytes_length_of_level(level),
+            Texture2DArray::Color(t) => t.byte_length_of_level(level),
+            Texture2DArray::Depth(t) => t.byte_length_of_level(level),
+            Texture2DArray::Compressed(t) => t.byte_length_of_level(level),
         }
     }
 }

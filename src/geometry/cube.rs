@@ -21,6 +21,7 @@ use super::Geometry;
 
 pub struct Cube {
     size: f64,
+    positions_shared: bool,
     positions: Value<'static, Buffer>,
     normals_and_textures: Value<'static, Buffer>,
     bounding_volume: BoundingVolume,
@@ -28,31 +29,27 @@ pub struct Cube {
 
 impl Cube {
     /// Constructs a cube with size `1.0`.
-    pub fn new() -> Cube {
+    pub fn new() -> Self {
         Self::with_size(1.0)
     }
 
     /// Constructs a cube with a specified size.
-    pub fn with_size(size: f64) -> Cube {
-        let positions = if size == 1.0 {
-            positions_size_one_buffer()
+    pub fn with_size(size: f64) -> Self {
+        let (positions, positions_shared) = if size == 1.0 {
+            (positions_size_one_buffer(), true)
         } else {
             let buffer = buffer::Builder::default()
-                .buffer_data(BufferSource::from_function(
-                    move || BufferSource::from_binary(build_positions(size), 0, 108 * 4),
-                    108 * 4,
-                    0,
-                    108 * 4,
-                ))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
+                .buffer_data(PositionsBuilder(size))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
                 .build();
-            Value::Owned(buffer)
+            (Value::Owned(buffer), false)
         };
         let normals_and_textures = normals_texture_coordinates_buffer();
 
         Self {
             size,
             positions,
+            positions_shared,
             normals_and_textures,
             bounding_volume: build_bounding_volume(size),
         }
@@ -65,22 +62,28 @@ impl Cube {
 
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
-        let usage = self.positions.value().usage();
-        if let BufferUsage::STATIC_DRAW = usage {
-            let buffer = buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
-                .buffer_data(BufferSource::from_binary(build_positions(size), 0, 108 * 4))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
-                .build();
-            self.positions = Value::Owned(buffer);
-        } else {
-            self.positions.value_mut().buffer_sub_data(
-                BufferSource::from_binary(build_positions(size), 0, 108 * 4),
-                0,
+        if self.positions_shared {
+            self.positions = Value::Owned(
+                buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
+                    .buffer_data(PositionsBuilder(size))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
+                    .build(),
             );
+            self.positions_shared = false;
+        } else {
+            if BufferUsage::STATIC_DRAW == self.positions.value().usage() {
+                self.positions
+                    .value_mut()
+                    .clear(false, Some(BufferUsage::DYNAMIC_DRAW));
+            }
             self.positions
                 .value_mut()
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)));
+                .buffer_sub_data(PositionsBuilder(size), 0);
+            self.positions
+                .value_mut()
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)));
         }
+
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
     }
@@ -110,7 +113,7 @@ impl Geometry for Cube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         }
     }
 
@@ -121,7 +124,7 @@ impl Geometry for Cube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         })
     }
 
@@ -140,7 +143,7 @@ impl Geometry for Cube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 108 * 4,
+            byte_offset: 108 * 4,
         })
     }
 
@@ -217,14 +220,8 @@ fn normals_texture_coordinates_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(BufferSource::from_binary(
-                        std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
-                            &NORMALS_TEXTURE_COORDINATES,
-                        ),
-                        0,
-                        (108 + 48) * 4,
-                    ))
-                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsRestorer))
+                    .buffer_data(TexturesNormalsBuilder)
+                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBuilder))
                     .build();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.set(buffer).unwrap();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut().unwrap()
@@ -242,8 +239,8 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(BufferSource::from_binary(build_positions(1.0), 0, 108 * 4))
-                    .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(1.0)))
+                    .buffer_data(PositionsBuilder(1.0))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(1.0)))
                     .build();
                 POSITIONS_SIZE_ONE_BUFFER.set(buffer).unwrap();
                 POSITIONS_SIZE_ONE_BUFFER.get_mut().unwrap()
@@ -254,27 +251,77 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
 }
 
 #[derive(Debug)]
-struct PositionsRestorer(f64);
+struct PositionsBuilder(f64);
 
-impl Restorer for PositionsRestorer {
-    fn restore(&self) -> BufferSource {
-        BufferSource::from_binary(build_positions(self.0), 0, 108 * 4)
+impl BufferSource for PositionsBuilder {
+    fn byte_length(&self) -> usize {
+        108 * 4
+    }
+
+    fn buffer_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        usage: BufferUsage,
+    ) {
+        build_positions(self.0).buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        build_positions(self.0).buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl Restorer for PositionsBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(build_positions(self.0))
     }
 }
 
 #[derive(Debug)]
-struct TexturesNormalsRestorer;
+struct TexturesNormalsBuilder;
 
-impl Restorer for TexturesNormalsRestorer {
-    fn restore(&self) -> BufferSource {
+impl TexturesNormalsBuilder {
+    fn as_bytes(&self) -> &'static [u8] {
         unsafe {
-            BufferSource::from_binary(
-                std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
-                    &NORMALS_TEXTURE_COORDINATES,
-                ),
-                0,
-                (108 + 48) * 4,
+            std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
+                &NORMALS_TEXTURE_COORDINATES,
             )
         }
+    }
+}
+
+impl BufferSource for TexturesNormalsBuilder {
+    fn byte_length(&self) -> usize {
+        (108 + 48) * 4
+    }
+
+    fn buffer_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        usage: BufferUsage,
+    ) {
+        self.as_bytes().buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        self.as_bytes().buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl Restorer for TexturesNormalsBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(self.as_bytes())
     }
 }

@@ -38,8 +38,8 @@ impl IndexedCube {
             positions_size_one_buffer()
         } else {
             let buffer = buffer::Builder::default()
-                .buffer_data(BufferSource::from_binary(build_positions(size), 0, 72 * 4))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
+                .buffer_data(PositionsBuilder(size))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
                 .build();
             Value::Owned(buffer)
         };
@@ -64,22 +64,18 @@ impl IndexedCube {
 
     /// Sets cube size.
     pub fn set_size(&mut self, size: f64) {
-        let usage = self.positions.value().usage();
-        if let BufferUsage::STATIC_DRAW = usage {
-            let buffer = buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
-                .buffer_data(BufferSource::from_binary(build_positions(size), 0, 72 * 4))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)))
-                .build();
-            self.positions = Value::Owned(buffer);
-        } else {
-            self.positions.value_mut().buffer_sub_data(
-                BufferSource::from_binary(build_positions(size), 0, 72 * 4),
-                0,
-            );
+        if BufferUsage::STATIC_DRAW == self.positions.value().usage() {
             self.positions
                 .value_mut()
-                .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(size)));
+                .clear(false, Some(BufferUsage::DYNAMIC_DRAW));
         }
+        self.positions
+            .value_mut()
+            .buffer_sub_data(PositionsBuilder(size), 0);
+        self.positions
+            .value_mut()
+            .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)));
+
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
     }
@@ -111,7 +107,7 @@ impl Geometry for IndexedCube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         }
     }
 
@@ -122,7 +118,7 @@ impl Geometry for IndexedCube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         })
     }
 
@@ -141,7 +137,7 @@ impl Geometry for IndexedCube {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 72 * 4,
+            byte_offset: 72 * 4,
         })
     }
 
@@ -194,8 +190,8 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(BufferSource::from_binary(build_positions(1.0), 0, 72 * 4))
-                    .set_memory_policy(MemoryPolicy::restorable(PositionsRestorer(1.0)))
+                    .buffer_data(PositionsBuilder(1.0))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(1.0)))
                     .build();
                 POSITIONS_SIZE_ONE_BUFFER.set(buffer).unwrap();
                 POSITIONS_SIZE_ONE_BUFFER.get_mut().unwrap()
@@ -230,14 +226,8 @@ fn normals_texture_coordinates_buffer_descriptor() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(BufferSource::from_binary(
-                        std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(
-                            &NORMALS_TEXTURE_COORDINATES,
-                        ),
-                        0,
-                        120 * 4,
-                    ))
-                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsRestorer))
+                    .buffer_data(TexturesNormalsBuilder)
+                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBuilder))
                     .build();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.set(buffer).unwrap();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut().unwrap()
@@ -264,8 +254,8 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(BufferSource::from_binary(&INDICES, 0, 36))
-                    .set_memory_policy(MemoryPolicy::restorable(IndicesRestorer))
+                    .buffer_data(IndicesBuilder)
+                    .set_memory_policy(MemoryPolicy::restorable(IndicesBuilder))
                     .build();
                 INDICES_BUFFER.set(buffer).unwrap();
                 INDICES_BUFFER.get_mut().unwrap()
@@ -276,34 +266,106 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
 }
 
 #[derive(Debug)]
-struct PositionsRestorer(f64);
+struct PositionsBuilder(f64);
 
-impl Restorer for PositionsRestorer {
-    fn restore(&self) -> BufferSource {
-        BufferSource::from_binary(build_positions(self.0), 0, 108 * 4)
+impl BufferSource for PositionsBuilder {
+    fn byte_length(&self) -> usize {
+        72 * 4
+    }
+
+    fn buffer_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        usage: BufferUsage,
+    ) {
+        build_positions(self.0).buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        build_positions(self.0).buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl Restorer for PositionsBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(build_positions(self.0))
     }
 }
 
 #[derive(Debug)]
-struct IndicesRestorer;
+struct IndicesBuilder;
 
-impl Restorer for IndicesRestorer {
-    fn restore(&self) -> BufferSource {
-        BufferSource::from_binary(&INDICES, 0, 36)
+impl BufferSource for IndicesBuilder {
+    fn byte_length(&self) -> usize {
+        36
+    }
+
+    fn buffer_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        usage: BufferUsage,
+    ) {
+        INDICES.buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        INDICES.buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl Restorer for IndicesBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(INDICES)
     }
 }
 
 #[derive(Debug)]
-struct TexturesNormalsRestorer;
+struct TexturesNormalsBuilder;
 
-impl Restorer for TexturesNormalsRestorer {
-    fn restore(&self) -> BufferSource {
-        unsafe {
-            BufferSource::from_binary(
-                std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(&NORMALS_TEXTURE_COORDINATES),
-                0,
-                120 * 4,
-            )
-        }
+impl TexturesNormalsBuilder {
+    fn as_bytes(&self) -> &'static [u8] {
+        unsafe { std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(&NORMALS_TEXTURE_COORDINATES) }
+    }
+}
+
+impl BufferSource for TexturesNormalsBuilder {
+    fn byte_length(&self) -> usize {
+        120 * 4
+    }
+
+    fn buffer_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        usage: BufferUsage,
+    ) {
+        self.as_bytes().buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &web_sys::WebGl2RenderingContext,
+        target: buffer::BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        self.as_bytes().buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl Restorer for TexturesNormalsBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(self.as_bytes())
     }
 }

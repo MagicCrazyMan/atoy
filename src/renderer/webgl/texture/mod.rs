@@ -247,7 +247,7 @@ pub enum TextureColorFormat {
 
 impl TextureColorFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
+    pub fn byte_length(&self, width: usize, height: usize) -> usize {
         match self {
             TextureColorFormat::RGBA32I => width * height * 16,
             TextureColorFormat::RGBA32UI => width * height * 16,
@@ -315,7 +315,7 @@ pub enum TextureDepthFormat {
 
 impl TextureDepthFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
+    pub fn byte_length(&self, width: usize, height: usize) -> usize {
         match self {
             TextureDepthFormat::DEPTH_COMPONENT32F => width * height * 4,
             TextureDepthFormat::DEPTH_COMPONENT24 => width * height * 3,
@@ -448,7 +448,7 @@ pub enum TextureCompressedFormat {
 
 impl TextureCompressedFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    pub fn bytes_length(&self, width: usize, height: usize) -> usize {
+    pub fn byte_length(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
             TextureCompressedFormat::RGB_S3TC_DXT1 => ((width + 3) / 4) * ((height + 3) / 4) * 8,
@@ -853,15 +853,15 @@ impl SamplerParameter {
 /// Different internal formats have different memory layout in GPU.
 pub trait TextureInternalFormat: ToGlEnum + Copy {
     /// Calculates the bytes length of of a specified internal format in specified size.
-    fn bytes_length(&self, width: usize, height: usize) -> usize;
+    fn byte_length(&self, width: usize, height: usize) -> usize;
 
     /// Checks capabilities of the internal format.
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error>;
 }
 
 impl TextureInternalFormat for TextureColorFormat {
-    fn bytes_length(&self, width: usize, height: usize) -> usize {
-        self.bytes_length(width, height)
+    fn byte_length(&self, width: usize, height: usize) -> usize {
+        self.byte_length(width, height)
     }
 
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error> {
@@ -871,8 +871,8 @@ impl TextureInternalFormat for TextureColorFormat {
 }
 
 impl TextureInternalFormat for TextureDepthFormat {
-    fn bytes_length(&self, width: usize, height: usize) -> usize {
-        self.bytes_length(width, height)
+    fn byte_length(&self, width: usize, height: usize) -> usize {
+        self.byte_length(width, height)
     }
 
     fn capabilities(&self, _: &Capabilities) -> Result<(), Error> {
@@ -881,8 +881,8 @@ impl TextureInternalFormat for TextureDepthFormat {
 }
 
 impl TextureInternalFormat for TextureCompressedFormat {
-    fn bytes_length(&self, width: usize, height: usize) -> usize {
-        self.bytes_length(width, height)
+    fn byte_length(&self, width: usize, height: usize) -> usize {
+        self.byte_length(width, height)
     }
 
     fn capabilities(&self, capabilities: &Capabilities) -> Result<(), Error> {
@@ -1683,10 +1683,10 @@ pub trait Texture {
     fn max_mipmap_level(&self) -> usize;
 
     /// Returns bytes length of the whole texture in all levels.
-    fn bytes_length(&self) -> usize;
+    fn byte_length(&self) -> usize;
 
     /// Returns bytes length of a mipmap level.
-    fn bytes_length_of_level(&self, level: usize) -> Option<usize>;
+    fn byte_length_of_level(&self, level: usize) -> Option<usize>;
 }
 
 /// Abstract texture trait indicates that the texture has width and height dimensions.
@@ -1971,7 +1971,7 @@ struct Runtime {
     capabilities: Capabilities,
     store_id: Uuid,
     target: TextureTarget,
-    bytes_length: usize,
+    byte_length: usize,
     texture: WebGlTexture,
     sampler: WebGlSampler,
     using: HashSet<TextureUnit>,
@@ -1987,7 +1987,7 @@ impl Drop for Runtime {
         unsafe {
             (*self.textures).remove(&self.id);
             (*self.lru).remove(self.lru_node);
-            (*self.used_memory) -= self.bytes_length;
+            (*self.used_memory) -= self.byte_length;
 
             {
                 // unbinds
@@ -2155,12 +2155,12 @@ impl TextureStore {
 
                 let id = Uuid::new_v4();
                 let lru_node = LruNode::new(id);
-                let bytes_length = t.bytes_length();
+                let byte_length = t.byte_length();
                 (*self.textures).insert(
                     id,
                     Rc::downgrade(&descriptor.0) as WeakShare<dyn TextureItem>,
                 );
-                (*self.used_memory) += bytes_length;
+                (*self.used_memory) += byte_length;
                 t.set_runtime(Runtime {
                     id,
                     gl: self.gl.clone(),
@@ -2169,7 +2169,7 @@ impl TextureStore {
                     texture: texture.clone(),
                     sampler,
                     target,
-                    bytes_length,
+                    byte_length,
                     lru_node,
                     using: HashSet::new(),
 

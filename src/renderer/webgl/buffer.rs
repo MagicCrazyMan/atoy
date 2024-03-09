@@ -12,8 +12,7 @@ use uuid::Uuid;
 use web_sys::{
     js_sys::{
         ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array,
-        Uint8ClampedArray,
+        Int16Array, Int32Array, Int8Array, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
     },
     WebGl2RenderingContext, WebGlBuffer,
 };
@@ -21,7 +20,7 @@ use web_sys::{
 use crate::{
     lru::{Lru, LruNode},
     renderer::webgl::params::GetWebGlParameters,
-    utils::format_bytes_length,
+    utils::format_byte_length,
 };
 
 use super::{conversion::ToGlEnum, error::Error};
@@ -69,7 +68,7 @@ pub enum BufferDataType {
 
 impl BufferDataType {
     /// Gets bytes length of a data type.
-    pub fn bytes_length(&self) -> usize {
+    pub fn byte_length(&self) -> usize {
         match self {
             BufferDataType::FLOAT => 4,
             BufferDataType::BYTE => 1,
@@ -100,209 +99,13 @@ pub enum BufferUsage {
     STREAM_COPY,
 }
 
-/// Available buffer sources.
-///
-/// # Note
-///
-/// Since the linear memory of WASM runtime is impossible to shrink for now,
-/// high memory usage could happen if developer create a large WASM native buffer, for example, `Vec<u8>`.
-/// It is always a good idea to avoid creating native buffer, use `TypedArrayBuffer` from JavaScript instead.
-pub enum BufferSource {
-    Preallocate {
-        bytes_length: usize,
-    },
-    Function {
-        callback: Box<dyn Fn() -> BufferSource>,
-        data_length: usize,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Binary {
-        data: Box<dyn AsRef<[u8]>>,
-        src_offset: usize,
-        src_length: usize,
-    },
-    ArrayBuffer {
-        data: ArrayBuffer,
-    },
-    DataView {
-        data: DataView,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Int8Array {
-        data: Int8Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Uint8Array {
-        data: Uint8Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Uint8ClampedArray {
-        data: Uint8ClampedArray,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Int16Array {
-        data: Int16Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Uint16Array {
-        data: Uint16Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Int32Array {
-        data: Int32Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Uint32Array {
-        data: Uint32Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Float32Array {
-        data: Float32Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    Float64Array {
-        data: Float64Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    BigInt64Array {
-        data: BigInt64Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-    BigUint64Array {
-        data: BigUint64Array,
-        src_offset: usize,
-        src_length: usize,
-    },
-}
+/// A trait defining a buffer source for uploading data to WebGL runtime.
+pub trait BufferSource: Debug {
+    /// Returns bytes length of the data.
+    fn byte_length(&self) -> usize;
 
-impl BufferSource {
-    fn collect_typed_array_buffer(&self) -> (&Object, usize, usize) {
-        match self {
-            BufferSource::Preallocate { .. }
-            | BufferSource::Function { .. }
-            | BufferSource::Binary { .. }
-            | BufferSource::ArrayBuffer { .. } => {
-                unreachable!()
-            }
-            BufferSource::DataView {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Int8Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Uint8Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Uint8ClampedArray {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Int16Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Uint16Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Int32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Uint32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Float32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::Float64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::BigInt64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-            BufferSource::BigUint64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (data, *src_offset, *src_length),
-        }
-    }
-
-    // /// Buffers data to WebGL runtime.
-    // fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
-    //     match self {
-    //         BufferSource::Preallocate { bytes_length } => {
-    //             gl.buffer_data_with_i32(target.gl_enum(), *bytes_length as i32, usage.gl_enum())
-    //         }
-    //         BufferSource::Function { callback, .. } => {
-    //             let source = callback();
-    //             if let BufferSource::Function { .. } = source {
-    //                 panic!("recursive BufferSource::Function is not allowed");
-    //             }
-    //             if self.bytes_length() != source.bytes_length() {
-    //                 panic!(
-    //                     "source returned from BufferSource::Function should have same bytes length"
-    //                 );
-    //             }
-    //             source.buffer_data(gl, target, usage);
-    //         }
-    //         BufferSource::Binary {
-    //             data,
-    //             src_offset,
-    //             src_length,
-    //         } => gl.buffer_data_with_u8_array_and_src_offset_and_length(
-    //             target.gl_enum(),
-    //             data.as_ref().as_ref(),
-    //             usage.gl_enum(),
-    //             *src_offset as u32,
-    //             *src_length as u32,
-    //         ),
-    //         BufferSource::ArrayBuffer { data } => {
-    //             gl.buffer_data_with_opt_array_buffer(target.gl_enum(), Some(data), usage.gl_enum())
-    //         }
-    //         _ => {
-    //             let (data, src_offset, src_length) = self.collect_typed_array_buffer();
-    //             gl.buffer_data_with_array_buffer_view_and_src_offset_and_length(
-    //                 target.gl_enum(),
-    //                 data,
-    //                 usage.gl_enum(),
-    //                 src_offset as u32,
-    //                 src_length as u32,
-    //             );
-    //         }
-    //     }
-    // }
+    /// Buffers data to WebGL runtime.
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage);
 
     /// Buffers sub data to WebGL runtime.
     fn buffer_sub_data(
@@ -310,436 +113,177 @@ impl BufferSource {
         gl: &WebGl2RenderingContext,
         target: BufferTarget,
         dst_byte_offset: usize,
+    );
+}
+
+impl BufferSource for &[u8] {
+    fn byte_length(&self) -> usize {
+        self.len()
+    }
+
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        gl.buffer_data_with_u8_array(target.gl_enum(), self, usage.gl_enum())
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
     ) {
-        match self {
-            BufferSource::Preallocate { bytes_length } => {
-                let src_data = Uint8Array::new_with_length(*bytes_length as u32);
-                gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target.gl_enum(),
-                    dst_byte_offset as i32,
-                    &src_data,
-                    0,
-                    *bytes_length as u32,
-                )
-            }
-            BufferSource::Function { callback, .. } => {
-                let source = callback();
-                if let BufferSource::Function { .. } = source {
-                    panic!("recursively BufferSource::Function is not allowed");
-                }
-                if self.bytes_length() != source.bytes_length() {
-                    panic!(
-                        "source returned from BufferSource::Function should have same bytes length"
-                    );
-                }
-                source.buffer_sub_data(gl, target, dst_byte_offset);
-            }
-            BufferSource::Binary {
-                data,
-                src_offset,
-                src_length,
-            } => gl.buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
-                target.gl_enum(),
-                dst_byte_offset as i32,
-                data.as_ref().as_ref(),
-                *src_offset as u32,
-                *src_length as u32,
-            ),
-            BufferSource::ArrayBuffer { data } => {
-                log::info!("{} {}", data.byte_length(), dst_byte_offset);
-                gl.buffer_sub_data_with_i32_and_array_buffer(
-                    target.gl_enum(),
-                    dst_byte_offset as i32,
-                    data,
-                )
-            }
-            _ => {
-                let (data, src_offset, src_length) = self.collect_typed_array_buffer();
-                gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target.gl_enum(),
-                    dst_byte_offset as i32,
-                    data,
-                    src_offset as u32,
-                    src_length as u32,
-                )
-            }
-        }
-    }
-
-    /// Returns the length of data in bytes.
-    pub fn bytes_length(&self) -> usize {
-        let (raw_length, src_offset, src_length) = match self {
-            BufferSource::Preallocate { bytes_length } => (*bytes_length, 0, 0),
-            BufferSource::Function {
-                data_length,
-                src_offset,
-                src_length,
-                ..
-            } => (*data_length, *src_offset, *src_length),
-            BufferSource::Binary {
-                data,
-                src_offset,
-                src_length,
-                ..
-            } => (data.as_ref().as_ref().len(), *src_offset, *src_length),
-            BufferSource::ArrayBuffer { data } => (data.byte_length() as usize, 0, 0),
-            BufferSource::DataView {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Int8Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Uint8Array {
-                data,
-                src_offset,
-                src_length,
-                ..
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Uint8ClampedArray {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Int16Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Uint16Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Int32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Uint32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Float32Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::Float64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::BigInt64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-            BufferSource::BigUint64Array {
-                data,
-                src_offset,
-                src_length,
-            } => (
-                data.byte_length() as usize,
-                data.byte_offset() as usize + *src_offset,
-                *src_length,
-            ),
-        };
-
-        if src_length == 0 {
-            raw_length.saturating_sub(src_offset)
-        } else {
-            src_length
-        }
+        gl.buffer_sub_data_with_i32_and_u8_array(target.gl_enum(), dst_byte_offset as i32, self);
     }
 }
 
-impl BufferSource {
-    /// Constructs a new preallocation only buffer source.
-    pub fn preallocate(bytes_length: usize) -> Self {
-        Self::Preallocate { bytes_length }
+impl BufferSource for Vec<u8> {
+    fn byte_length(&self) -> usize {
+        self.len()
     }
 
-    /// Constructs a new buffer source from a callback function.
-    /// Preflies information is required and it should be same as the callback value.
-    pub fn from_function<F>(
-        callback: F,
-        data_length: usize,
-        src_offset: usize,
-        src_length: usize,
-    ) -> Self
-    where
-        F: Fn() -> BufferSource + 'static,
-    {
-        Self::Function {
-            callback: Box::new(callback),
-            data_length,
-            src_offset,
-            src_length,
-        }
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        self.as_slice().buffer_data(gl, target, usage)
     }
 
-    /// Constructs a new buffer source from WASM native buffer.
-    pub fn from_binary<D>(data: D, src_offset: usize, src_length: usize) -> Self
-    where
-        D: AsRef<[u8]> + 'static,
-    {
-        Self::Binary {
-            data: Box::new(data),
-            src_offset,
-            src_length,
-        }
-    }
-
-    /// Constructs a new buffer source from [`ArrayBuffer`].
-    pub fn from_array_buffer(data: ArrayBuffer) -> Self {
-        Self::ArrayBuffer { data }
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        self.as_slice().buffer_sub_data(gl, target, dst_byte_offset)
     }
 }
 
-macro_rules! impl_typed_array {
-    ($(($from: ident, $source: tt, $kind: ident, $name: expr)),+) => {
-        impl BufferSource {
-            $(
-                #[doc = "Constructs a new buffer source from "]
-                #[doc = $name]
-                #[doc = "."]
-                pub fn $from(
-                    data: $source,
-                    src_offset: usize,
-                    src_length: usize,
-                ) -> Self {
-                    Self::$kind {
-                        data,
-                        src_offset,
-                        src_length
-                    }
+impl<const N: usize> BufferSource for [u8; N] {
+    fn byte_length(&self) -> usize {
+        self.len()
+    }
+
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        self.as_slice().buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        self.as_slice().buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl<const N: usize> BufferSource for &[u8; N] {
+    fn byte_length(&self) -> usize {
+        self.len()
+    }
+
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        self.as_slice().buffer_data(gl, target, usage)
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        self.as_slice().buffer_sub_data(gl, target, dst_byte_offset)
+    }
+}
+
+impl BufferSource for ArrayBuffer {
+    fn byte_length(&self) -> usize {
+        self.byte_length() as usize
+    }
+
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        gl.buffer_data_with_opt_array_buffer(target.gl_enum(), Some(self), usage.gl_enum())
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        gl.buffer_sub_data_with_i32_and_array_buffer(target.gl_enum(), dst_byte_offset as i32, self)
+    }
+}
+
+macro_rules! array_buffer_view_sources {
+    ($($source:ident),+) => {
+        $(
+            impl BufferSource for $source {
+                fn byte_length(&self) -> usize {
+                    self.byte_length() as usize
                 }
-            )+
-        }
+
+                fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+                    gl.buffer_data_with_array_buffer_view(target.gl_enum(), &self, usage.gl_enum());
+                }
+
+                fn buffer_sub_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, dst_byte_offset: usize) {
+                    gl.buffer_sub_data_with_i32_and_array_buffer_view(target.gl_enum(), dst_byte_offset as i32, &self)
+                }
+            }
+        )+
     };
 }
 
-impl_typed_array! {
-    (from_int8_array, Int8Array, Int8Array, "[`Int8Array`]"),
-    (from_uint8_array, Uint8Array, Uint8Array, "[`Uint8Array`]"),
-    (from_uint8_clamped_array, Uint8ClampedArray, Uint8ClampedArray, "[`Uint8ClampedArray`]"),
-    (from_int16_array, Int16Array, Int16Array, "[`Int16Array`]"),
-    (from_uint16_array, Uint16Array, Uint16Array, "[`Uint16Array`]"),
-    (from_int32_array, Int32Array, Int32Array, "[`Int32Array`]"),
-    (from_uint32_array, Uint32Array, Uint32Array, "[`Uint32Array`]"),
-    (from_float32_array, Float32Array, Float32Array, "[`Float32Array`]"),
-    (from_float64_array, Float64Array, Float64Array, "[`Float64Array`]"),
-    (from_big_int64_array, BigInt64Array, BigInt64Array, "[`BigInt64Array`]"),
-    (from_big_uint64_array, BigUint64Array, BigUint64Array, "[`BigUint64Array`]")
+array_buffer_view_sources!(
+    DataView,
+    Int8Array,
+    Uint8Array,
+    Uint8ClampedArray,
+    Int16Array,
+    Uint16Array,
+    Int32Array,
+    Uint32Array,
+    Float32Array,
+    Float64Array,
+    BigInt64Array,
+    BigUint64Array
+);
+
+/// Preallocated buffer source.
+#[derive(Debug)]
+pub struct Preallocation(usize);
+
+impl Preallocation {
+    /// Constructs a new preallocated buffer source with specified size.
+    pub fn new(size: usize) -> Self {
+        Self(size)
+    }
 }
 
-impl Debug for BufferSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Preallocate { bytes_length } => f
-                .debug_struct("Preallocate")
-                .field("bytes_length", bytes_length)
-                .finish(),
-            Self::Function {
-                data_length,
-                src_offset,
-                src_length,
-                ..
-            } => f
-                .debug_struct("Function")
-                .field("data_length", data_length)
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Binary {
-                src_offset,
-                src_length,
-                ..
-            } => f
-                .debug_struct("Binary")
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::ArrayBuffer { data } => f
-                .debug_struct("ArrayBuffer")
-                .field("data_length", &data.byte_length())
-                .finish(),
-            Self::DataView {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("DataView")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Int8Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Int8Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Uint8Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Uint8Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Uint8ClampedArray {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Uint8ClampedArray")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Int16Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Int16Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Uint16Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Uint16Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Int32Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Int32Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Uint32Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Uint32Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Float32Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Float32Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::Float64Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("Float64Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::BigInt64Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("BigInt64Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-            Self::BigUint64Array {
-                data,
-                src_offset,
-                src_length,
-            } => f
-                .debug_struct("BigUint64Array")
-                .field("data_length", &data.byte_length())
-                .field("src_offset", src_offset)
-                .field("src_length", src_length)
-                .finish(),
-        }
+impl BufferSource for Preallocation {
+    fn byte_length(&self) -> usize {
+        self.0
+    }
+
+    fn buffer_data(&self, gl: &WebGl2RenderingContext, target: BufferTarget, usage: BufferUsage) {
+        gl.buffer_data_with_i32(target.gl_enum(), self.0 as i32, usage.gl_enum());
+    }
+
+    fn buffer_sub_data(
+        &self,
+        gl: &WebGl2RenderingContext,
+        target: BufferTarget,
+        dst_byte_offset: usize,
+    ) {
+        gl.buffer_sub_data_with_i32_and_array_buffer(
+            target.gl_enum(),
+            dst_byte_offset as i32,
+            &ArrayBuffer::new(self.0 as u32),
+        );
     }
 }
 
 #[derive(Debug)]
 struct Registered {
     gl: WebGl2RenderingContext,
+    store_id: Uuid,
     lru_node: *mut LruNode<Uuid>,
     available_memory: *mut usize,
     used_memory: *mut usize,
@@ -756,9 +300,9 @@ impl Registered {
         }
     }
 
-    fn update_used_memory(&mut self, new_bytes_length: usize, old_bytes_length: usize) {
+    fn update_used_memory(&mut self, new_byte_length: usize, old_byte_length: usize) {
         unsafe {
-            *self.used_memory = *self.used_memory - old_bytes_length + new_bytes_length;
+            *self.used_memory = *self.used_memory - old_byte_length + new_byte_length;
         }
     }
 
@@ -862,23 +406,18 @@ impl Registered {
                     }
                     MemoryPolicy::ReadBack => {
                         if runtime.buffer.is_some() {
-                            queue.items.insert(
-                                0,
-                                QueueItem::new(
-                                    BufferSource::from_array_buffer(runtime.read_back()),
-                                    0,
-                                ),
-                            );
-                            queue.max_bytes_length =
-                                queue.max_bytes_length.max(runtime.bytes_length);
+                            queue
+                                .items
+                                .insert(0, QueueItem::new(runtime.read_back(), 0));
+                            queue.max_byte_length = queue.max_byte_length.max(runtime.byte_length);
                         }
 
                         debug!(
                             target: "BufferStore",
                             "free buffer (readback) {}. freed memory {}, used {}",
                             id,
-                            format_bytes_length(runtime.bytes_length),
-                            format_bytes_length(*self.used_memory)
+                            format_byte_length(runtime.byte_length),
+                            format_byte_length(*self.used_memory)
                         );
                     }
                     MemoryPolicy::Restorable(restorer) => {
@@ -886,29 +425,22 @@ impl Registered {
                             self.gl.delete_buffer(Some(&buffer));
                         }
 
-                        let restorer = Rc::clone(&restorer);
-                        let source = BufferSource::Function {
-                            callback: Box::new(move || restorer.borrow_mut().restore()),
-                            data_length: runtime.bytes_length,
-                            src_offset: 0,
-                            src_length: runtime.bytes_length,
-                        };
-
-                        queue.items.insert(0, QueueItem::new(source, 0));
-                        queue.max_bytes_length = queue.max_bytes_length.max(runtime.bytes_length);
+                        let source = restorer.restore();
+                        queue.items.insert(0, QueueItem::new_boxed(source, 0));
+                        queue.max_byte_length = queue.max_byte_length.max(runtime.byte_length);
                         debug!(
                             target: "BufferStore",
                             "free buffer (restorable) {}. freed memory {}, used {}",
                             id,
-                            format_bytes_length(runtime.bytes_length),
-                            format_bytes_length(*self.used_memory)
+                            format_byte_length(runtime.byte_length),
+                            format_byte_length(*self.used_memory)
                         );
                     }
                 }
 
-                (*registered.used_memory) -= runtime.bytes_length;
+                (*registered.used_memory) -= runtime.byte_length;
                 (*registered.lru).remove(registered.lru_node);
-                runtime.bytes_length = 0;
+                runtime.byte_length = 0;
 
                 occupied.remove();
 
@@ -922,7 +454,7 @@ impl Registered {
 struct Runtime {
     gl: WebGl2RenderingContext,
     buffer: Option<WebGlBuffer>,
-    bytes_length: usize,
+    byte_length: usize,
     bindings: HashSet<BufferTarget>,
     binding_ubos: HashSet<u32>,
 }
@@ -932,12 +464,12 @@ impl Runtime {
         let Some(buffer) = self.buffer.as_ref() else {
             return ArrayBuffer::new(0);
         };
-        if self.bytes_length == 0 {
+        if self.byte_length == 0 {
             return ArrayBuffer::new(0);
         }
 
         let gl = &self.gl;
-        let data = ArrayBuffer::new(self.bytes_length as u32);
+        let data = ArrayBuffer::new(self.byte_length as u32);
         let binding = gl.array_buffer_binding();
         gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
         gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
@@ -1041,32 +573,32 @@ impl Runtime {
         mut queue: RefMut<'_, Queue>,
     ) -> (usize, usize) {
         if queue.items.len() > 0 {
-            let new_bytes_length = queue.max_bytes_length;
-            let old_bytes_length = self.bytes_length;
+            let new_byte_length = queue.max_byte_length;
+            let old_byte_length = self.byte_length;
 
-            if new_bytes_length >= old_bytes_length {
+            if new_byte_length >= old_byte_length {
                 self.gl.buffer_data_with_i32(
                     target.gl_enum(),
-                    new_bytes_length as i32,
+                    new_byte_length as i32,
                     usage.gl_enum(),
                 );
             }
 
             for item in queue.items.drain(..) {
                 item.source
-                    .buffer_sub_data(&self.gl, target, item.bytes_offset);
+                    .buffer_sub_data(&self.gl, target, item.byte_offset);
             }
 
-            self.bytes_length = new_bytes_length;
+            self.byte_length = new_byte_length;
 
             debug!(
                 target: "BufferStore",
                 "buffer new data, old length {}, new length {}",
-                old_bytes_length,
-                new_bytes_length
+                old_byte_length,
+                new_byte_length
             );
 
-            (new_bytes_length, old_bytes_length)
+            (new_byte_length, old_byte_length)
         } else {
             (0, 0)
         }
@@ -1075,77 +607,87 @@ impl Runtime {
 
 #[derive(Debug)]
 struct QueueItem {
-    source: BufferSource,
-    bytes_offset: usize,
+    source: Box<dyn BufferSource>,
+    byte_offset: usize,
 }
 
 impl QueueItem {
-    fn new(source: BufferSource, bytes_offset: usize) -> Self {
+    fn new<S>(source: S, byte_offset: usize) -> Self
+    where
+        S: BufferSource + 'static,
+    {
+        Self {
+            source: Box::new(source),
+            byte_offset,
+        }
+    }
+
+    fn new_boxed(source: Box<dyn BufferSource>, byte_offset: usize) -> Self {
         Self {
             source,
-            bytes_offset,
+            byte_offset,
         }
     }
 }
 
 #[derive(Debug)]
 struct Queue {
-    max_bytes_length: usize,
+    max_byte_length: usize,
     items: Vec<QueueItem>,
 }
 
 impl Queue {
     fn new() -> Self {
         Self {
-            max_bytes_length: 0,
+            max_byte_length: 0,
             items: Vec::new(),
         }
     }
 
     /// Overrides existing data and then buffers new data.
-    fn buffer_data(&mut self, source: BufferSource) {
-        self.max_bytes_length = source.bytes_length();
+    fn buffer_data<S>(&mut self, source: S)
+    where
+        S: BufferSource + 'static,
+    {
+        self.max_byte_length = source.byte_length();
         self.items.clear();
         self.items.push(QueueItem::new(source, 0));
     }
 
     /// Buffers sub data.
-    fn buffer_sub_data(
+    fn buffer_sub_data<S>(
         &mut self,
         runtime: Option<Ref<'_, Runtime>>,
-        source: BufferSource,
+        source: S,
         dst_byte_offset: usize,
-    ) {
-        let bytes_length = dst_byte_offset + source.bytes_length();
+    ) where
+        S: BufferSource + 'static,
+    {
+        let byte_length = dst_byte_offset + source.byte_length();
         if dst_byte_offset == 0 {
-            if bytes_length >= self.max_bytes_length {
+            if byte_length >= self.max_byte_length {
                 // overrides sources in queue if new source covers all
-                self.max_bytes_length = bytes_length;
+                self.max_byte_length = byte_length;
                 self.items.clear();
                 self.items.push(QueueItem::new(source, 0));
             } else {
                 self.items.push(QueueItem::new(source, dst_byte_offset));
             }
         } else {
-            if bytes_length <= self.max_bytes_length {
+            if byte_length <= self.max_byte_length {
                 self.items.push(QueueItem::new(source, dst_byte_offset));
             } else {
                 if let Some(runtime) = runtime.as_ref() {
                     // heavy job!
                     let data = runtime.read_back();
 
-                    self.items.insert(
-                        0,
-                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
-                    );
                     self.items
-                        .insert(1, QueueItem::new(BufferSource::from_array_buffer(data), 0));
+                        .insert(0, QueueItem::new(Preallocation(byte_length), 0));
+                    self.items.insert(1, QueueItem::new(data, 0));
                     self.items.push(QueueItem::new(source, dst_byte_offset));
                 } else {
-                    self.items.insert(
-                        0,
-                        QueueItem::new(BufferSource::preallocate(bytes_length), 0),
-                    );
+                    self.items
+                        .insert(0, QueueItem::new(Preallocation(byte_length), 0));
                     self.items.push(QueueItem::new(source, dst_byte_offset));
                 }
             }
@@ -1166,7 +708,7 @@ pub struct Buffer {
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        let _ = self.clear(false);
+        let _ = self.clear(false, None);
 
         if let Some(mut registered) = self.registered_mut() {
             unsafe {
@@ -1178,7 +720,7 @@ impl Drop for Buffer {
 }
 
 impl Buffer {
-    /// Constructs a new buffer descriptor with specified name, [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
+    /// Constructs a new buffer with specified name, [`BufferSource`], [`BufferUsage`] and [`MemoryPolicy`].
     pub fn new(
         name: Option<Cow<'static, str>>,
         usage: BufferUsage,
@@ -1200,12 +742,12 @@ impl Buffer {
         &self.id
     }
 
-    /// Returns buffer descriptor name.
+    /// Returns buffer name.
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
 
-    /// Sets buffer descriptor name.
+    /// Sets buffer name.
     pub fn set_name(&mut self, name: Option<Cow<'static, str>>) {
         self.name = name;
     }
@@ -1215,12 +757,12 @@ impl Buffer {
         self.usage
     }
 
-    // /// Returns current [`MemoryPolicy`].
-    // pub fn memory_policy(&self) -> &MemoryPolicy {
-    //     &self.memory_policy
-    // }
+    /// Returns [`MemoryPolicyKind`] associated with the [`MemoryPolicy`].
+    pub fn memory_policy(&self) -> MemoryPolicyKind {
+        self.memory_policy.borrow().kind()
+    }
 
-    /// Sets the [`MemoryPolicy`] of this buffer descriptor.
+    /// Sets [`MemoryPolicy`].
     pub fn set_memory_policy(&mut self, memory_policy: MemoryPolicy) {
         *self.memory_policy.borrow_mut() = memory_policy;
     }
@@ -1240,7 +782,7 @@ impl Buffer {
                 *runtime = Some(Runtime {
                     gl: gl.clone(),
                     buffer: None,
-                    bytes_length: 0,
+                    byte_length: 0,
                     bindings: HashSet::new(),
                     binding_ubos: HashSet::new(),
                 });
@@ -1287,13 +829,13 @@ impl Buffer {
             }
         }
 
-        let (new_bytes_length, old_bytes_length) =
+        let (new_byte_length, old_byte_length) =
             self.runtime_mut()?
                 .bind_and_upload(target, self.usage, self.queue_mut())?;
 
         if let Some(mut registered) = self.registered_mut() {
             registered.update_lru();
-            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.update_used_memory(new_byte_length, old_byte_length);
             registered.add_binding(target, self.id);
             registered.free();
         }
@@ -1309,13 +851,13 @@ impl Buffer {
             }
         }
 
-        let (new_bytes_length, old_bytes_length) =
+        let (new_byte_length, old_byte_length) =
             self.runtime_mut()?
                 .bind_and_upload_ubo(self.usage, index, self.queue_mut())?;
 
         if let Some(mut registered) = self.registered_mut() {
             registered.update_lru();
-            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.update_used_memory(new_byte_length, old_byte_length);
             registered.add_binding_ubo(index, self.id);
             registered.free();
         }
@@ -1331,7 +873,7 @@ impl Buffer {
             }
         }
 
-        let (new_bytes_length, old_bytes_length) = self.runtime_mut()?.bind_and_upload_ubo_range(
+        let (new_byte_length, old_byte_length) = self.runtime_mut()?.bind_and_upload_ubo_range(
             self.usage,
             index,
             offset,
@@ -1341,7 +883,7 @@ impl Buffer {
 
         if let Some(mut registered) = self.registered_mut() {
             registered.update_lru();
-            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.update_used_memory(new_byte_length, old_byte_length);
             registered.add_binding_ubo(index, self.id);
             registered.free();
         }
@@ -1349,7 +891,7 @@ impl Buffer {
         Ok(())
     }
 
-    /// Unbinds buffer at specified [`BufferTarget`].
+    /// Unbinds buffer from specified [`BufferTarget`].
     pub fn unbind(&self, target: BufferTarget) -> Result<(), Error> {
         self.runtime_mut()?.unbind(target);
 
@@ -1401,7 +943,7 @@ impl Buffer {
         let mut registered = self.registered_mut();
 
         let binding = runtime.gl.array_buffer_binding();
-        let (new_bytes_length, old_bytes_length) =
+        let (new_byte_length, old_byte_length) =
             runtime.bind_and_upload(BufferTarget::ARRAY_BUFFER, self.usage, self.queue_mut())?;
         runtime.unbind(BufferTarget::ARRAY_BUFFER);
         runtime
@@ -1409,60 +951,62 @@ impl Buffer {
             .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
 
         if let Some(registered) = registered.as_mut() {
-            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            registered.update_used_memory(new_byte_length, old_byte_length);
             registered.free();
         }
 
         Ok(())
     }
 
-    /// Clears and unbinds buffer from WebGL runtime.
+    /// Clears and unbinds buffer from WebGL runtime as well as replacing a new [`BufferUsage`].
     /// Data will be read back from WebGL runtime and
     /// insert to the first place of the queue if `read_back` is `true`.
-    pub fn clear(&mut self, read_back: bool) -> Result<(), Error> {
-        let mut runtime = self.runtime_mut()?;
+    pub fn clear(&mut self, read_back: bool, new_usage: Option<BufferUsage>) {
+        if let Some(usage) = new_usage {
+            self.usage = usage;
+        }
+
         let mut queue = self.queue_mut();
         let mut registered = self.registered_mut();
 
         queue.items.clear();
-        queue.max_bytes_length = 0;
+        queue.max_byte_length = 0;
 
-        if read_back {
-            let data = runtime.read_back();
-            if data.byte_length() != 0 {
-                queue
-                    .items
-                    .push(QueueItem::new(BufferSource::from_array_buffer(data), 0));
-            }
-        }
-
-        let new_bytes_length = 0;
-        let old_bytes_length = runtime.bytes_length;
-        let gl = runtime.gl.clone();
-        if let Some(buffer) = runtime.buffer.take() {
-            for index in runtime.binding_ubos.drain() {
-                gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
-
-                if let Some(registered) = registered.as_mut() {
-                    registered.remove_binding_ubo(index);
+        let mut runtime = self.runtime.borrow_mut();
+        if let Some(runtime) = runtime.as_mut() {
+            if read_back {
+                let data = runtime.read_back();
+                if data.byte_length() != 0 {
+                    queue.items.push(QueueItem::new(data, 0));
                 }
             }
-            for target in runtime.bindings.drain() {
-                gl.bind_buffer(target.gl_enum(), None);
 
-                if let Some(registered) = registered.as_mut() {
-                    registered.remove_binding(target);
+            let new_byte_length = 0;
+            let old_byte_length = runtime.byte_length;
+            let gl = runtime.gl.clone();
+            if let Some(buffer) = runtime.buffer.take() {
+                for index in runtime.binding_ubos.drain() {
+                    gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
+
+                    if let Some(registered) = registered.as_mut() {
+                        registered.remove_binding_ubo(index);
+                    }
                 }
+                for target in runtime.bindings.drain() {
+                    gl.bind_buffer(target.gl_enum(), None);
+
+                    if let Some(registered) = registered.as_mut() {
+                        registered.remove_binding(target);
+                    }
+                }
+                gl.delete_buffer(Some(&buffer))
             }
-            gl.delete_buffer(Some(&buffer))
-        }
-        runtime.bytes_length = new_bytes_length;
+            runtime.byte_length = new_byte_length;
 
-        if let Some(registered) = registered.as_mut() {
-            registered.update_used_memory(new_bytes_length, old_bytes_length);
+            if let Some(registered) = registered.as_mut() {
+                registered.update_used_memory(new_byte_length, old_byte_length);
+            }
         }
-
-        Ok(())
     }
 
     /// Reads buffer data back from WebGL runtime and stores it to an [`ArrayBuffer`].
@@ -1471,27 +1015,41 @@ impl Buffer {
     }
 
     /// Overrides existing data and then buffers new data.
-    pub fn buffer_data(&mut self, source: BufferSource) {
-        self.queue_mut().buffer_data(source)
+    pub fn buffer_data<S>(&mut self, source: S)
+    where
+        S: BufferSource + 'static,
+    {
+        self.queue_mut().buffer_data(source);
     }
 
     /// Buffers sub data.
-    pub fn buffer_sub_data(&mut self, source: BufferSource, dst_byte_offset: usize) {
+    pub fn buffer_sub_data<S>(&mut self, source: S, dst_byte_offset: usize)
+    where
+        S: BufferSource + 'static,
+    {
         self.queue_mut()
             .buffer_sub_data(self.runtime().ok(), source, dst_byte_offset)
     }
 }
 
 pub trait Restorer: Debug {
-    fn restore(&self) -> BufferSource;
+    fn restore(&self) -> Box<dyn BufferSource>;
 }
 
-/// Memory freeing policies.
+/// Memory policies kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemoryPolicyKind {
+    Unfree,
+    ReadBack,
+    Restorable,
+}
+
+/// Memory policies.
 #[derive(Debug)]
 pub enum MemoryPolicy {
     Unfree,
     ReadBack,
-    Restorable(Rc<RefCell<dyn Restorer>>),
+    Restorable(Box<dyn Restorer>),
 }
 
 impl MemoryPolicy {
@@ -1510,7 +1068,16 @@ impl MemoryPolicy {
     where
         R: Restorer + 'static,
     {
-        Self::Restorable(Rc::new(RefCell::new(restorer)))
+        Self::Restorable(Box::new(restorer))
+    }
+
+    /// Returns [`MemoryPolicyKind`] associated with the [`MemoryPolicy`].
+    pub fn kind(&self) -> MemoryPolicyKind {
+        match self {
+            MemoryPolicy::Unfree => MemoryPolicyKind::Unfree,
+            MemoryPolicy::ReadBack => MemoryPolicyKind::ReadBack,
+            MemoryPolicy::Restorable(_) => MemoryPolicyKind::Restorable,
+        }
     }
 }
 
@@ -1568,13 +1135,19 @@ impl Builder {
     }
 
     /// Overrides existing data and then buffers new data.
-    pub fn buffer_data(mut self, source: BufferSource) -> Self {
+    pub fn buffer_data<S>(mut self, source: S) -> Self
+    where
+        S: BufferSource + 'static,
+    {
         self.queue.buffer_data(source);
         self
     }
 
     /// Buffers sub data.
-    pub fn buffer_sub_data(mut self, source: BufferSource, dst_byte_offset: usize) -> Self {
+    pub fn buffer_sub_data<S>(mut self, source: S, dst_byte_offset: usize) -> Self
+    where
+        S: BufferSource + 'static,
+    {
         self.queue.buffer_sub_data(None, source, dst_byte_offset);
         self
     }
@@ -1600,6 +1173,7 @@ struct BufferItem {
 }
 
 pub struct BufferStore {
+    id: Uuid,
     gl: WebGl2RenderingContext,
     available_memory: *mut usize,
     used_memory: *mut usize,
@@ -1638,6 +1212,7 @@ impl BufferStore {
     /// Maximum available memory is clamped to [`i32::MAX`] if larger than [`i32::MAX`];
     pub fn with_available_memory(gl: WebGl2RenderingContext, available_memory: usize) -> Self {
         Self {
+            id: Uuid::new_v4(),
             gl,
             available_memory: Box::leak(Box::new(available_memory.min(i32::MAX as usize))),
             used_memory: Box::leak(Box::new(0)),
@@ -1662,14 +1237,19 @@ impl BufferStore {
     /// Inits and registers a buffer to buffer store.
     pub fn register(&mut self, buffer: &Buffer) -> Result<(), Error> {
         unsafe {
-            if (*self.items).contains_key(buffer.id()) {
-                return Ok(());
+            let mut registered = buffer.registered.borrow_mut();
+            if let Some(registered) = registered.as_ref() {
+                if &registered.store_id != &self.id {
+                    return Err(Error::RegisterBufferToMultipleStore);
+                } else {
+                    return Ok(());
+                }
             }
 
             buffer.init(&self.gl)?;
 
             let runtime = buffer.runtime().unwrap();
-            (*self.used_memory) += runtime.bytes_length;
+            (*self.used_memory) += runtime.byte_length;
             for binding in &runtime.bindings {
                 if (*self.bindings).contains_key(binding) {
                     return Err(Error::BufferTargetOccupied(*binding));
@@ -1683,8 +1263,9 @@ impl BufferStore {
                 (*self.binding_ubos).insert(*binding, buffer.id);
             }
 
-            *buffer.registered.borrow_mut() = Some(Registered {
+            *registered = Some(Registered {
                 gl: self.gl.clone(),
+                store_id: self.id,
                 lru_node: LruNode::new(buffer.id),
                 available_memory: self.available_memory,
                 used_memory: self.used_memory,
@@ -1716,7 +1297,7 @@ impl BufferStore {
             }
 
             let runtime = buffer.runtime().unwrap();
-            (*self.used_memory) -= runtime.bytes_length;
+            (*self.used_memory) -= runtime.byte_length;
             for binding in &runtime.bindings {
                 if let Entry::Occupied(entry) = (*self.bindings).entry(*binding) {
                     if buffer.id() == entry.get() {

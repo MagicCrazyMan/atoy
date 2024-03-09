@@ -11,7 +11,7 @@ use crate::{
     clock::WebClock,
     entity::Entity,
     renderer::webgl::{
-        buffer::{self, Buffer, BufferSource, BufferUsage, MemoryPolicy, Restorer},
+        buffer::{self, Buffer, BufferSource, BufferUsage, MemoryPolicy, Preallocation, Restorer},
         error::Error,
         state::FrameState,
     },
@@ -54,71 +54,71 @@ pub const UBO_LIGHTS_BINDING_INDEX: u32 = 1;
 pub const UBO_GAUSSIAN_BLUR_BINDING_INDEX: u32 = 2;
 
 /// Uniform Buffer Object bytes length for `u_RenderTime`.
-pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH: usize = 16;
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH: usize = 16;
 /// Uniform Buffer Object bytes length for `u_CameraPosition`.
-pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH: usize = 16;
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_LENGTH: usize = 16;
 /// Uniform Buffer Object bytes length for `u_ViewMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH: usize = 64;
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_LENGTH: usize = 64;
 /// Uniform Buffer Object bytes length for `u_ProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH: usize = 64;
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 /// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH: usize = 64;
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 
 /// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH: usize =
-    UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_LENGTH;
+pub const UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH: usize =
+    UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH
+        + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_LENGTH
+        + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_LENGTH
+        + UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH
+        + UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH;
 
 /// Uniform Buffer Object bytes offset for `u_RenderTime`.
-pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET: usize = 0;
+pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET: usize = 0;
 /// Uniform Buffer Object bytes offset for `u_CameraPosition`.
-pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET: usize = 16;
+pub const UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET: usize = 16;
 /// Uniform Buffer Object bytes offset for `u_ViewMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET: usize = 32;
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET: usize = 32;
 /// Uniform Buffer Object bytes offset for `u_ProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET: usize = 96;
+pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET: usize = 96;
 /// Uniform Buffer Object bytes offset for `u_ViewProjMatrix`.
-pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET: usize = 160;
+pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET: usize = 160;
 
 /// Uniform Buffer Object bytes length for `u_Attenuations`.
-pub const UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH: usize = 16;
+pub const UBO_LIGHTS_ATTENUATIONS_BYTE_LENGTH: usize = 16;
 /// Uniform Buffer Object bytes length for a `u_AmbientLight` item.
-pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH: usize = 16;
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH: usize = 16;
 /// Uniform Buffer Object bytes length for a `u_DirectionalLights` item.
-pub const UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH: usize = 64;
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH: usize = 64;
 /// Uniform Buffer Object bytes length for a `u_PointLights` item.
-pub const UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH: usize = 64;
+pub const UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH: usize = 64;
 /// Uniform Buffer Object bytes length for a `u_SpotLights` item.
-pub const UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH: usize = 80;
+pub const UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH: usize = 80;
 /// Uniform Buffer Object bytes length for a `u_AreaLights` item.
-pub const UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH: usize = 112;
+pub const UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH: usize = 112;
 
 /// Uniform Buffer Object bytes length for `atoy_Lights`.
-pub const UBO_LIGHTS_BYTES_LENGTH: usize = UBO_LIGHTS_ATTENUATIONS_BYTES_LENGTH
-    + UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH
-    + UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH * MAX_DIRECTIONAL_LIGHTS
-    + UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH * MAX_POINT_LIGHTS
-    + UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH * MAX_SPOT_LIGHTS
-    + UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH * MAX_AREA_LIGHTS;
+pub const UBO_LIGHTS_BYTE_LENGTH: usize = UBO_LIGHTS_ATTENUATIONS_BYTE_LENGTH
+    + UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH
+    + UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH * MAX_DIRECTIONAL_LIGHTS
+    + UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH * MAX_POINT_LIGHTS
+    + UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH * MAX_SPOT_LIGHTS
+    + UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH * MAX_AREA_LIGHTS;
 
 /// Uniform Buffer Object bytes offset for `u_Attenuations`.
-pub const UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET: usize = 0;
+pub const UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET: usize = 0;
 /// Uniform Buffer Object bytes offset for `u_AmbientLight`.
-pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET: usize = 16;
+pub const UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET: usize = 16;
 /// Uniform Buffer Object bytes offset for `u_DirectionalLights`.
-pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET: usize = 32;
+pub const UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET: usize = 32;
 /// Uniform Buffer Object bytes offset for `u_PointLights`.
-pub const UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET: usize = UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET
-    + MAX_DIRECTIONAL_LIGHTS * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH;
+pub const UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET: usize = UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET
+    + MAX_DIRECTIONAL_LIGHTS * UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH;
 /// Uniform Buffer Object bytes offset for `u_SpotLights`.
-pub const UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET: usize =
-    UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET + MAX_POINT_LIGHTS * UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH;
+pub const UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET: usize =
+    UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET + MAX_POINT_LIGHTS * UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH;
 /// Uniform Buffer Object bytes offset for `u_AreaLights`.
-pub const UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET: usize =
-    UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET + MAX_SPOT_LIGHTS * UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH;
+pub const UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET: usize =
+    UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET + MAX_SPOT_LIGHTS * UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH;
 
 /// Uniform Buffer Object data in f32 for `atoy_GaussianKernel`.
 #[rustfmt::skip]
@@ -267,8 +267,8 @@ pub struct StandardPipeline {
 struct GaussianKernelRestorer;
 
 impl Restorer for GaussianKernelRestorer {
-    fn restore(&self) -> BufferSource {
-        BufferSource::from_binary(&UBO_GAUSSIAN_KERNEL_U8, 0, UBO_GAUSSIAN_KERNEL_U8.len())
+    fn restore(&self) -> Box<dyn BufferSource> {
+        Box::new(UBO_GAUSSIAN_KERNEL_U8)
     }
 }
 
@@ -292,21 +292,15 @@ impl StandardPipeline {
             deferred_translucent_shading: StandardDeferredTransparentShading::new(),
 
             universal_ubo: buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
-                .buffer_data(BufferSource::preallocate(
-                    UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
-                ))
+                .buffer_data(Preallocation::new(UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH))
                 .set_memory_policy(MemoryPolicy::Unfree)
                 .build(),
             lights_ubo: buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
-                .buffer_data(BufferSource::preallocate(UBO_LIGHTS_BYTES_LENGTH))
+                .buffer_data(Preallocation::new(UBO_LIGHTS_BYTE_LENGTH))
                 .set_memory_policy(MemoryPolicy::Unfree)
                 .build(),
             gaussian_kernel_ubo: buffer::Builder::new(BufferUsage::STATIC_DRAW)
-                .buffer_data(BufferSource::from_binary(
-                    &UBO_GAUSSIAN_KERNEL_U8,
-                    0,
-                    UBO_GAUSSIAN_KERNEL_U8.len(),
-                ))
+                .buffer_data(UBO_GAUSSIAN_KERNEL_U8)
                 .set_memory_policy(MemoryPolicy::restorable(GaussianKernelRestorer))
                 .build(),
 

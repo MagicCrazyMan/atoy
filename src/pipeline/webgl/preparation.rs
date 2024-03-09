@@ -7,10 +7,9 @@ use crate::{
         ambient_light::AmbientLight, area_light::AreaLight, directional_light::DirectionalLight,
         point_light::PointLight, spot_light::SpotLight,
     },
-    pipeline::webgl::UBO_LIGHTS_BYTES_LENGTH,
     property::PropertyStamp,
     renderer::webgl::{
-        buffer::{Buffer, BufferSource},
+        buffer::{Buffer, Preallocation},
         error::Error,
         state::FrameState,
     },
@@ -18,18 +17,17 @@ use crate::{
 };
 
 use super::{
-    UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
-    UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET, UBO_LIGHTS_BINDING_INDEX,
-    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH,
-    UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH,
-    UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET,
+    UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET,
+    UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH,
+    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_BINDING_INDEX,
+    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH,
+    UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH,
+    UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH,
+    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
+    UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET,
+    UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET, UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET,
+    UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET,
+    UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET,
 };
 
 pub struct StandardPreparation {
@@ -46,7 +44,7 @@ pub struct StandardPreparation {
 impl StandardPreparation {
     pub fn new() -> Self {
         Self {
-            universal_uniforms: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTES_LENGTH as u32),
+            universal_uniforms: ArrayBuffer::new(UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH as u32),
 
             last_light_attenuation: None,
             last_ambient_light: None,
@@ -67,7 +65,7 @@ impl StandardPreparation {
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
-            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTES_OFFSET as u32,
+            UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET as u32,
             1,
         )
         .set_index(0, state.timestamp() as f32);
@@ -75,7 +73,7 @@ impl StandardPreparation {
         // u_CameraPosition
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
-            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTES_OFFSET as u32,
+            UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET as u32,
             3,
         )
         .copy_from(&state.camera().position().gl_f32());
@@ -83,7 +81,7 @@ impl StandardPreparation {
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTES_OFFSET as u32,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().view_matrix().gl_f32());
@@ -91,7 +89,7 @@ impl StandardPreparation {
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
-            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTES_OFFSET as u32,
+            UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().proj_matrix().gl_f32());
@@ -99,15 +97,12 @@ impl StandardPreparation {
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
             &self.universal_uniforms,
-            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTES_OFFSET as u32,
+            UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET as u32,
             16,
         )
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
-        universal_ubo.buffer_sub_data(
-            BufferSource::from_array_buffer(self.universal_uniforms.clone()),
-            0,
-        );
+        universal_ubo.buffer_sub_data(self.universal_uniforms.clone(), 0);
         universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX)?;
 
         Ok(())
@@ -128,19 +123,14 @@ impl StandardPreparation {
             .map(|stamp| scene.light_attenuation().is_dirty(stamp))
             .unwrap_or(true)
         {
+            let mut data = [0.0f32; 3];
+            data[0] = scene.light_attenuation().a();
+            data[1] = scene.light_attenuation().b();
+            data[2] = scene.light_attenuation().c();
+
             lights_ubo.buffer_sub_data(
-                BufferSource::from_binary(
-                    unsafe {
-                        std::mem::transmute::<[f32; 3], [u8; 12]>([
-                            scene.light_attenuation().a(),
-                            scene.light_attenuation().b(),
-                            scene.light_attenuation().c(),
-                        ])
-                    },
-                    0,
-                    12,
-                ),
-                UBO_LIGHTS_ATTENUATIONS_BYTES_OFFSET,
+                unsafe { std::mem::transmute::<[f32; 3], [u8; 12]>(data) },
+                UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET,
             );
             self.last_light_attenuation = Some(scene.light_attenuation().stamp());
         }
@@ -154,23 +144,12 @@ impl StandardPreparation {
         {
             match scene.ambient_light().value() {
                 Some(light) => {
-                    lights_ubo.buffer_sub_data(
-                        BufferSource::from_binary(
-                            light.ubo(),
-                            0,
-                            UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
-                        ),
-                        UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
-                    );
+                    lights_ubo.buffer_sub_data(light.ubo(), UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET);
                 }
                 None => {
                     lights_ubo.buffer_sub_data(
-                        BufferSource::from_binary(
-                            [0; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH],
-                            0,
-                            UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH,
-                        ),
-                        UBO_LIGHTS_AMBIENT_LIGHT_BYTES_OFFSET,
+                        Preallocation::new(UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH),
+                        UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET,
                     );
                 }
             }
@@ -178,9 +157,8 @@ impl StandardPreparation {
         }
 
         // uses for sending empty data
-        const MAX_UBO_LIGHTS_LENGTH: [u8; UBO_LIGHTS_BYTES_LENGTH] = [0; UBO_LIGHTS_BYTES_LENGTH];
         macro_rules! update_lights {
-            ($(($last_stamps:ident, $lights:ident, $max:tt, $len:tt, $offset:tt))+) => {
+            ($(($last_stamps:ident, $lights:ident, $count:tt, $len:tt, $offset:tt))+) => {
                 $(
                     match &mut self.$last_stamps {
                         Some(last_lights) => {
@@ -193,11 +171,7 @@ impl StandardPreparation {
                                 }
 
                                 lights_ubo.buffer_sub_data(
-                                    BufferSource::from_binary(
-                                        light.ubo(),
-                                        0,
-                                        $len,
-                                    ),
+                                    light.ubo(),
                                     $offset + index * $len,
                                 );
                                 last_lights.insert(index, light.stamp());
@@ -206,10 +180,10 @@ impl StandardPreparation {
                             // clears the rest
                             let removed = last_lights.drain(lights.len()..);
                             if removed.len() != 0 {
-                                let clear_len = $len * ($max - lights.len());
+                                let clear_len = $len * ($count - lights.len());
                                 let clear_offset = $offset + lights.len() * $len;
                                 lights_ubo.buffer_sub_data(
-                                    BufferSource::from_binary(&MAX_UBO_LIGHTS_LENGTH[0..clear_len], 0, clear_len),
+                                    Preallocation::new(clear_len),
                                     clear_offset,
                                 );
                             }
@@ -220,22 +194,14 @@ impl StandardPreparation {
 
                             // clears first
                             lights_ubo.buffer_sub_data(
-                                BufferSource::from_binary(
-                                    &MAX_UBO_LIGHTS_LENGTH[0..$len * $max],
-                                    0,
-                                    $len * $max,
-                                ),
+                                Preallocation::new($len * $count),
                                 $offset,
                             );
 
                             // buffers each
                             for (index, light) in lights.into_iter().enumerate() {
                                 lights_ubo.buffer_sub_data(
-                                    BufferSource::from_binary(
-                                        light.ubo(),
-                                        0,
-                                        $len,
-                                    ),
+                                    light.ubo(),
                                     $offset + index * $len,
                                 );
                                 stamps.push(light.stamp());
@@ -248,10 +214,10 @@ impl StandardPreparation {
         }
 
         update_lights! {
-            (last_directional_lights, directional_lights, MAX_DIRECTIONAL_LIGHTS, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH, UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTES_OFFSET)
-            (last_point_lights, point_lights, MAX_POINT_LIGHTS, UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_POINT_LIGHTS_BYTES_OFFSET)
-            (last_spot_lights, spot_lights, MAX_SPOT_LIGHTS, UBO_LIGHTS_SPOT_LIGHT_BYTES_LENGTH, UBO_LIGHTS_SPOT_LIGHTS_BYTES_OFFSET)
-            (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTES_OFFSET)
+            (last_directional_lights, directional_lights, MAX_DIRECTIONAL_LIGHTS, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH, UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET)
+            (last_point_lights, point_lights, MAX_POINT_LIGHTS, UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET)
+            (last_spot_lights, spot_lights, MAX_SPOT_LIGHTS, UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET)
+            (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET)
         }
 
         lights_ubo.bind_ubo(UBO_LIGHTS_BINDING_INDEX)?;
@@ -283,23 +249,23 @@ impl StandardPreparation {
 }
 
 impl AmbientLight {
-    fn ubo(&self) -> [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH] {
-        let mut ubo = [0.0f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH / 4];
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH / 4];
         ubo[0..3].copy_from_slice(self.color().gl_f32_borrowed());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
 
         unsafe {
             std::mem::transmute::<
-                [f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH / 4],
-                [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTES_LENGTH],
+                [f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH / 4],
+                [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH],
             >(ubo)
         }
     }
 }
 
 impl DirectionalLight {
-    fn ubo(&self) -> [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH] {
-        let mut ubo = [0.0f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH / 4];
+    fn ubo(&self) -> [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH / 4];
         ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
         ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
@@ -308,16 +274,16 @@ impl DirectionalLight {
 
         unsafe {
             std::mem::transmute::<
-                [f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH / 4],
-                [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTES_LENGTH],
+                [f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH / 4],
+                [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH],
             >(ubo)
         }
     }
 }
 
 impl PointLight {
-    fn ubo(&self) -> [u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH] {
-        let mut ubo = [0.0f32; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH / 4];
+    fn ubo(&self) -> [u8; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH / 4];
         ubo[0..3].copy_from_slice(&self.position().gl_f32());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
         ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
@@ -326,16 +292,16 @@ impl PointLight {
 
         unsafe {
             std::mem::transmute::<
-                [f32; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH / 4],
-                [u8; UBO_LIGHTS_POINT_LIGHT_BYTES_LENGTH],
+                [f32; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH / 4],
+                [u8; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH],
             >(ubo)
         }
     }
 }
 
 impl AreaLight {
-    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH] {
-        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4];
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4];
         ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
         ubo[4..7].copy_from_slice(self.up().gl_f32_borrowed());
@@ -352,16 +318,16 @@ impl AreaLight {
 
         unsafe {
             std::mem::transmute::<
-                [f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4],
-                [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH],
+                [f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4],
+                [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH],
             >(ubo)
         }
     }
 }
 
 impl SpotLight {
-    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH] {
-        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4];
+    fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH] {
+        let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4];
         ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
         ubo[4..7].copy_from_slice(&self.position().gl_f32());
@@ -374,8 +340,8 @@ impl SpotLight {
 
         unsafe {
             std::mem::transmute::<
-                [f32; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH / 4],
-                [u8; UBO_LIGHTS_AREA_LIGHT_BYTES_LENGTH],
+                [f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4],
+                [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH],
             >(ubo)
         }
     }

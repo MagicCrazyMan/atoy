@@ -48,8 +48,8 @@ impl Rectangle {
             texture_scale_t,
         );
         let buffer = buffer::Builder::default()
-            .buffer_data(BufferSource::from_binary(data, 0, data.len()))
-            .set_memory_policy(MemoryPolicy::restorable(BufferRestorer {
+            .buffer_data(data)
+            .set_memory_policy(MemoryPolicy::restorable(DataBuilder {
                 anchor,
                 placement,
                 width,
@@ -120,7 +120,7 @@ impl Geometry for Rectangle {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         }
     }
 
@@ -131,7 +131,7 @@ impl Geometry for Rectangle {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 64,
+            byte_offset: 64,
         })
     }
 
@@ -142,7 +142,7 @@ impl Geometry for Rectangle {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 112,
+            byte_offset: 112,
         })
     }
 
@@ -153,7 +153,7 @@ impl Geometry for Rectangle {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 160,
+            byte_offset: 160,
         })
     }
 
@@ -164,7 +164,7 @@ impl Geometry for Rectangle {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 32,
+            byte_offset: 32,
         })
     }
 
@@ -296,8 +296,8 @@ fn create_rectangle(
     )
 }
 
-#[derive(Debug)]
-struct BufferRestorer {
+#[derive(Debug, Clone, Copy)]
+struct DataBuilder {
     anchor: Vec2,
     placement: Placement,
     width: f64,
@@ -306,9 +306,9 @@ struct BufferRestorer {
     texture_scale_t: f64,
 }
 
-impl Restorer for BufferRestorer {
-    fn restore(&self) -> BufferSource {
-        let (compositions, _) = create_rectangle(
+impl Restorer for DataBuilder {
+    fn restore(&self) -> Box<dyn BufferSource> {
+        let (data, _) = create_rectangle(
             self.anchor,
             self.placement,
             self.width,
@@ -316,6 +316,6 @@ impl Restorer for BufferRestorer {
             self.texture_scale_s,
             self.texture_scale_t,
         );
-        BufferSource::from_binary(compositions, 0, compositions.len())
+        Box::new(data)
     }
 }

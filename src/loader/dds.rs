@@ -250,12 +250,12 @@ impl DirectDrawSurface {
                     for level in 0..levels {
                         let width = (base_width >> level).max(1);
                         let height = (base_height >> level).max(1);
-                        let bytes_length =
-                            compressed_format.bytes_length(width as usize, height as usize);
+                        let byte_length =
+                            compressed_format.byte_length(width as usize, height as usize);
                         let data = Uint8Array::new_with_byte_offset_and_length(
                             &self.raw,
                             offset as u32,
-                            bytes_length as u32,
+                            byte_length as u32,
                         );
                         builder = builder.tex_image(
                             TextureSourceCompressed::Uint8Array {
@@ -268,14 +268,14 @@ impl DirectDrawSurface {
                             },
                             level,
                         );
-                        offset += bytes_length;
+                        offset += byte_length;
                     }
                 } else {
                     let data = Uint8Array::new_with_byte_offset_and_length(
                         &self.raw,
                         128,
                         compressed_format
-                            .bytes_length(self.header.width as usize, self.header.height as usize)
+                            .byte_length(self.header.width as usize, self.header.height as usize)
                             as u32,
                     );
                     builder = builder.set_base_source(TextureSourceCompressed::Uint8Array {

@@ -254,7 +254,7 @@ impl FrameState {
                 data_type,
                 normalized,
                 bytes_stride,
-                bytes_offset,
+                byte_offset,
             } => {
                 self.buffer_store_mut().register(&buffer)?;
                 buffer.bind(BufferTarget::ARRAY_BUFFER)?;
@@ -265,7 +265,7 @@ impl FrameState {
                     data_type.gl_enum(),
                     *normalized,
                     *bytes_stride as i32,
-                    *bytes_offset as i32,
+                    *byte_offset as i32,
                 );
                 self.gl.enable_vertex_attrib_array(location);
 
@@ -289,8 +289,8 @@ impl FrameState {
                 for i in 0..*component_count_per_instance {
                     let offset_location = location + i as u32;
                     let stride =
-                        data_type.bytes_length() * component_size * component_count_per_instance;
-                    let offset = i * data_type.bytes_length() * component_size;
+                        data_type.byte_length() * component_size * component_count_per_instance;
+                    let offset = i * data_type.byte_length() * component_size;
                     self.gl.vertex_attrib_pointer_with_i32(
                         offset_location,
                         component_size as i32,

@@ -8,7 +8,7 @@ use crate::{
     clock::Tick,
     renderer::webgl::{
         attribute::AttributeValue,
-        buffer::{self, Buffer, BufferComponentSize, BufferDataType, BufferSource},
+        buffer::{self, Buffer, BufferComponentSize, BufferDataType},
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -39,23 +39,14 @@ impl Sphere {
     ) -> Sphere {
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, vertical_segments, horizontal_segments);
-        let positions_len = positions.length() as usize;
-        let normals_len = normals.length() as usize;
+
         Self {
             radius,
             vertical_segments,
             horizontal_segments,
             num_positions,
-            positions: buffer::Builder::default()
-                .buffer_data(BufferSource::from_float32_array(
-                    positions,
-                    0,
-                    positions_len,
-                ))
-                .build(),
-            normals: buffer::Builder::default()
-                .buffer_data(BufferSource::from_float32_array(normals, 0, normals_len))
-                .build(),
+            positions: buffer::Builder::default().buffer_data(positions).build(),
+            normals: buffer::Builder::default().buffer_data(normals).build(),
             bounding_volume: BoundingVolume::BoundingSphere {
                 center: Vec3::<f64>::new(0.0, 0.0, 0.0),
                 radius,
@@ -73,16 +64,10 @@ impl Sphere {
         self.radius = radius;
         let (num_positions, positions, normals) =
             build_positions_and_normals(radius, self.vertical_segments, self.horizontal_segments);
-        let positions_len = positions.length() as usize;
-        let normals_len = normals.length() as usize;
 
         self.num_positions = num_positions;
-        self.positions.buffer_sub_data(
-            BufferSource::from_float32_array(positions, 0, positions_len),
-            0,
-        );
-        self.normals
-            .buffer_sub_data(BufferSource::from_float32_array(normals, 0, normals_len), 0);
+        self.positions.buffer_sub_data(positions, 0);
+        self.normals.buffer_sub_data(normals, 0);
         self.bounding_volume = BoundingVolume::BoundingSphere {
             center: Vec3::<f64>::new(0.0, 0.0, 0.0),
             radius,
@@ -114,7 +99,7 @@ impl Geometry for Sphere {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         }
     }
 
@@ -125,7 +110,7 @@ impl Geometry for Sphere {
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
-            bytes_offset: 0,
+            byte_offset: 0,
         })
     }
 

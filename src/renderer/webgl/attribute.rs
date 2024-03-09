@@ -10,7 +10,7 @@ pub enum AttributeValue<'a> {
         data_type: BufferDataType,
         normalized: bool,
         bytes_stride: usize,
-        bytes_offset: usize,
+        byte_offset: usize,
     },
     InstancedBuffer {
         buffer: Readonly<'a, Buffer>,

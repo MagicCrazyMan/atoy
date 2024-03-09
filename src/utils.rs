@@ -73,7 +73,7 @@ pub fn distance_point_and_plane_abs(p: &Vec3, pop: &Vec3, n: &Vec3) -> f64 {
 /// - For `12034 < N <= 10485760`, uses unit `KiB` and no digit.
 /// - For others, uses unit `MiB` and no digit.
 #[inline]
-pub fn format_bytes_length(len: usize) -> String {
+pub fn format_byte_length(len: usize) -> String {
     if len == 0 || len == 1 {
         format!("{} Byte", len)
     } else if len <= 10240 {

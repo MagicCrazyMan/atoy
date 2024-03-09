@@ -154,11 +154,12 @@ impl StandardMaterial for TickSolidColorMaterial {
     }
 
     fn tick(&mut self, tick: &Tick) -> bool {
+        self.0.tick(tick);
         self.0.set_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             Transparency::Opaque,
         );
-        self.0.tick(tick)
+        true
     }
 
     fn transparency(&self) -> Transparency {
@@ -846,7 +847,7 @@ pub fn test_cube(
 
         let mut cube = SimpleEntity::new();
         cube.set_geometry(Some(Cube::new()));
-        cube.set_material(Some(TickSolidColorMaterial::with_color(
+        cube.set_material(Some(SolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
             Transparency::Opaque,
