@@ -44,7 +44,7 @@ use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
-    BufferComponentSize, BufferDataType, Buffer, BufferSource, BufferTarget, BufferUsage,
+    Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::renderer::webgl::draw::{Draw, DrawMode};
 use crate::renderer::webgl::program::{CustomBinding, Define};
@@ -123,15 +123,13 @@ pub fn test_gl_matrix_4_rust() {
     );
 }
 
+static mut RANDOM_COLOR_ON_TICK: bool = false;
+
 struct TickSolidColorMaterial(SolidColorMaterial);
 
 impl TickSolidColorMaterial {
     /// Constructs a solid color material with specified color and transparency.
-    pub fn with_color(
-        color: Vec3<f32>,
-        specular_shininess: f32,
-        transparency: Transparency,
-    ) -> Self {
+    fn with_color(color: Vec3<f32>, specular_shininess: f32, transparency: Transparency) -> Self {
         Self(SolidColorMaterial::with_color(
             color,
             specular_shininess,
@@ -154,12 +152,18 @@ impl StandardMaterial for TickSolidColorMaterial {
     }
 
     fn tick(&mut self, tick: &Tick) -> bool {
-        self.0.tick(tick);
-        self.0.set_color(
-            Vec3::new(rand::random(), rand::random(), rand::random()),
-            Transparency::Opaque,
-        );
-        true
+        unsafe {
+            if RANDOM_COLOR_ON_TICK {
+                self.0.tick(tick);
+                self.0.set_color(
+                    Vec3::new(rand::random(), rand::random(), rand::random()),
+                    Transparency::Opaque,
+                );
+                true
+            } else {
+                self.0.tick(tick)
+            }
+        }
     }
 
     fn transparency(&self) -> Transparency {
@@ -762,6 +766,22 @@ impl ViewerWasm {
     pub fn set_bloom_blur_epoch(&mut self, epoch: usize) {
         self.0.borrow_mut().set_bloom_blur_epoch(epoch);
     }
+
+    pub fn random_color_on_tick_enabled(&self) -> bool {
+        unsafe { RANDOM_COLOR_ON_TICK }
+    }
+
+    pub fn enable_random_color_on_tick(&mut self) {
+        unsafe {
+            RANDOM_COLOR_ON_TICK = true;
+        }
+    }
+
+    pub fn disable_random_color_on_tick(&mut self) {
+        unsafe {
+            RANDOM_COLOR_ON_TICK = false;
+        }
+    }
 }
 
 struct ViewerPicker {
@@ -847,7 +867,7 @@ pub fn test_cube(
 
         let mut cube = SimpleEntity::new();
         cube.set_geometry(Some(Cube::new()));
-        cube.set_material(Some(SolidColorMaterial::with_color(
+        cube.set_material(Some(TickSolidColorMaterial::with_color(
             Vec3::new(rand::random(), rand::random(), rand::random()),
             128.0,
             Transparency::Opaque,

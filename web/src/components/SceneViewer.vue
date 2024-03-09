@@ -5,6 +5,7 @@
     :pick-time="pickTime"
     v-model:clear-color="clearColor"
     v-model:render-when-needed="renderWhenNeeded"
+    v-model:random-color="randomColor"
     v-model:culling="culling"
     v-model:sorting="sorting"
     v-model:gamma-correction="gammaCorrection"
@@ -34,8 +35,9 @@ import { ref } from "vue";
 import { watch } from "vue";
 import { HdrToneMappingType, ShadingType } from "@/types";
 
-const clearColor = ref("#0000");
 const renderWhenNeeded = ref(true);
+const randomColor = ref(true);
+const clearColor = ref("#0000");
 const culling = ref(false);
 const sorting = ref(false);
 const gammaCorrection = ref(true);
@@ -56,37 +58,10 @@ const bloomBlurEpoch = ref(10);
 const renderTime = ref(0);
 const pickTime = ref(0);
 
-const loadTexture = async (url: string) => {
-  const img = new Image();
-  img.src = url;
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = reject;
-  });
-  return img;
-};
-const loadCompressedTexture = async (url: string) => {
-  const response = await fetch(url);
-  const arrayBuffer = await response.arrayBuffer();
-  return arrayBuffer;
-};
-
 onMounted(async () => {
   await init();
   init_with_log_level(LogLevel.Info);
 
-  // const viewer = test_cube(
-  //   40000,
-  //   200,
-  //   500,
-  //   500,
-  //   (time: number) => {
-  //     renderTime.value = time;
-  //   },
-  //   (time: number) => {
-  //     pickTime.value = time;
-  //   }
-  // );
   const viewer = test_cube(
     40000,
     200,
@@ -117,6 +92,7 @@ onMounted(async () => {
     return `#${r}${g}${b}${a}`;
   })();
   renderWhenNeeded.value = viewer.render_when_needed();
+  randomColor.value = viewer.random_color_on_tick_enabled();
   culling.value = viewer.culling_enabled();
   sorting.value = viewer.distance_sorting_enabled();
   gammaCorrection.value = viewer.gamma_correction_enabled();
@@ -153,6 +129,13 @@ onMounted(async () => {
       viewer.enable_render_when_needed();
     } else {
       viewer.disable_render_when_needed();
+    }
+  });
+  watch(randomColor, (randomColor) => {
+    if (randomColor) {
+      viewer.enable_random_color_on_tick();
+    } else {
+      viewer.disable_random_color_on_tick();
     }
   });
   watch(culling, (culling) => {

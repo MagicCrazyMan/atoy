@@ -29,6 +29,19 @@
         </div>
 
         <div class="controller">
+          Enable Random Color
+          <v-switch
+            hide-details
+            density="compact"
+            color="primary"
+            :model-value="randomColor"
+            @update:model-value="
+              (value) => emit('update:random-color', !!value)
+            "
+          ></v-switch>
+        </div>
+
+        <div class="controller">
           Enable Bounding Volume Culling
           <v-switch
             hide-details
@@ -253,6 +266,14 @@ defineProps({
     type: Number,
     required: true,
   },
+  renderWhenNeeded: {
+    type: Boolean,
+    required: true,
+  },
+  randomColor: {
+    type: Boolean,
+    required: true,
+  },
   clearColor: {
     type: String,
     required: true,
@@ -279,10 +300,6 @@ defineProps({
   },
   shadingType: {
     type: Object as PropType<ShadingType>,
-    required: true,
-  },
-  renderWhenNeeded: {
-    type: Boolean,
     required: true,
   },
   multisamples: {
@@ -328,8 +345,9 @@ const shadingTypes = [
 ];
 
 const emit = defineEmits<{
-  (event: "update:clear-color", value: string): void;
   (event: "update:render-when-needed", value: boolean): void;
+  (event: "update:random-color", value: boolean): void;
+  (event: "update:clear-color", value: string): void;
   (event: "update:culling", value: boolean): void;
   (event: "update:sorting", value: boolean): void;
   (event: "update:gamma-correction", value: boolean): void;
