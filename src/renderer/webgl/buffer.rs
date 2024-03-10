@@ -451,18 +451,30 @@ impl BufferShared {
             }
         }
 
-        let buffer = runtime.get_or_create_buffer()?;
-        runtime.gl.bind_buffer(target.gl_enum(), Some(&buffer));
-        let (new_byte_length, old_byte_length) =
-            runtime.upload(target, self.usage, &mut self.queue);
-        runtime.bindings.insert(target);
+        if runtime.bindings.contains(&target) {
+            let (new_byte_length, old_byte_length) =
+                runtime.upload(target, self.usage, &mut self.queue);
 
-        if let Some(registered) = &mut self.registered {
-            let mut store = registered.store.borrow_mut();
-            store.update_lru(registered.lru_node);
-            store.update_used_memory(new_byte_length, old_byte_length);
-            store.add_binding(target, self.id);
-            store.free();
+            if let Some(registered) = &mut self.registered {
+                let mut store = registered.store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.free();
+            }
+        } else {
+            let buffer = runtime.get_or_create_buffer()?;
+            runtime.gl.bind_buffer(target.gl_enum(), Some(&buffer));
+            let (new_byte_length, old_byte_length) =
+                runtime.upload(target, self.usage, &mut self.queue);
+            runtime.bindings.insert(target);
+
+            if let Some(registered) = &mut self.registered {
+                let mut store = registered.store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.add_binding(target, self.id);
+                store.free();
+            }
         }
 
         Ok(())
@@ -484,23 +496,34 @@ impl BufferShared {
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
         let (new_byte_length, old_byte_length) =
             runtime.upload(BufferTarget::UNIFORM_BUFFER, self.usage, &mut self.queue);
-        runtime.gl.bind_buffer_base(
-            WebGl2RenderingContext::UNIFORM_BUFFER,
-            index,
-            runtime.buffer.as_ref(),
-        );
+
+        if runtime.binding_ubos.contains(&index) {
+            if let Some(registered) = &self.registered {
+                let mut store = registered.store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.free();
+            }
+        } else {
+            runtime.gl.bind_buffer_base(
+                WebGl2RenderingContext::UNIFORM_BUFFER,
+                index,
+                runtime.buffer.as_ref(),
+            );
+            runtime.binding_ubos.insert(index);
+
+            if let Some(registered) = &self.registered {
+                let mut store = registered.store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.add_binding_ubo(index, self.id);
+                store.free();
+            }
+        }
+
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
-        runtime.binding_ubos.insert(index);
-
-        if let Some(registered) = &self.registered {
-            let mut store = registered.store.borrow_mut();
-            store.update_lru(registered.lru_node);
-            store.update_used_memory(new_byte_length, old_byte_length);
-            store.add_binding_ubo(index, self.id);
-            store.free();
-        }
 
         Ok(())
     }
@@ -744,7 +767,8 @@ impl BufferShared {
                     if let Some(readback) = runtime.read_back() {
                         self.queue.items.insert(0, QueueItem::new(readback, 0));
                     }
-                    self.queue.required_byte_length = self.queue.required_byte_length.max(byte_length);
+                    self.queue.required_byte_length =
+                        self.queue.required_byte_length.max(byte_length);
                     runtime.gl.delete_buffer(Some(&buffer));
                     runtime.buffer_byte_length = 0;
                 }
