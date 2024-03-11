@@ -63,12 +63,12 @@ impl StandardMaterial for SolidColorMaterial {
         Cow::Borrowed(include_str!("./shaders/solid_color_fragment_process.glsl"))
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn ready(&self) -> bool {
@@ -97,9 +97,9 @@ impl StandardMaterial for SolidColorMaterial {
             "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
                 self.transparency.alpha(),
             ))),
-            "u_SpecularShininess" => {
-                Some(Readonly::Owned(UniformValue::Float1(self.specular_shininess)))
-            }
+            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(
+                self.specular_shininess,
+            ))),
             _ => None,
         }
     }

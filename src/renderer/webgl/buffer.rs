@@ -480,12 +480,12 @@ impl BufferShared {
         Ok(())
     }
 
-    fn bind_ubo(&mut self, index: u32) -> Result<(), Error> {
+    fn bind_ubo(&mut self, mount_point: u32) -> Result<(), Error> {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered.store.borrow().is_occupied_ubo(index, &self.id) {
-                return Err(Error::UniformBufferObjectIndexOccupied(index));
+            if registered.store.borrow().is_occupied_ubo(mount_point, &self.id) {
+                return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
             }
         }
 
@@ -497,7 +497,7 @@ impl BufferShared {
         let (new_byte_length, old_byte_length) =
             runtime.upload(BufferTarget::UNIFORM_BUFFER, self.usage, &mut self.queue);
 
-        if runtime.binding_ubos.contains(&index) {
+        if runtime.binding_ubos.contains(&mount_point) {
             if let Some(registered) = &self.registered {
                 let mut store = registered.store.borrow_mut();
                 store.update_lru(registered.lru_node);
@@ -507,16 +507,16 @@ impl BufferShared {
         } else {
             runtime.gl.bind_buffer_base(
                 WebGl2RenderingContext::UNIFORM_BUFFER,
-                index,
+                mount_point,
                 runtime.buffer.as_ref(),
             );
-            runtime.binding_ubos.insert(index);
+            runtime.binding_ubos.insert(mount_point);
 
             if let Some(registered) = &self.registered {
                 let mut store = registered.store.borrow_mut();
                 store.update_lru(registered.lru_node);
                 store.update_used_memory(new_byte_length, old_byte_length);
-                store.add_binding_ubo(index, self.id);
+                store.add_binding_ubo(mount_point, self.id);
                 store.free();
             }
         }
@@ -528,12 +528,12 @@ impl BufferShared {
         Ok(())
     }
 
-    fn bind_ubo_range(&mut self, index: u32, offset: i32, size: i32) -> Result<(), Error> {
+    fn bind_ubo_range(&mut self, mount_point: u32, offset: i32, size: i32) -> Result<(), Error> {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered.store.borrow().is_occupied_ubo(index, &self.id) {
-                return Err(Error::UniformBufferObjectIndexOccupied(index));
+            if registered.store.borrow().is_occupied_ubo(mount_point, &self.id) {
+                return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
             }
         }
 
@@ -546,7 +546,7 @@ impl BufferShared {
             runtime.upload(BufferTarget::UNIFORM_BUFFER, self.usage, &mut self.queue);
         runtime.gl.bind_buffer_range_with_i32_and_i32(
             WebGl2RenderingContext::UNIFORM_BUFFER,
-            index,
+            mount_point,
             runtime.buffer.as_ref(),
             offset,
             size,
@@ -554,13 +554,13 @@ impl BufferShared {
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
-        runtime.binding_ubos.insert(index);
+        runtime.binding_ubos.insert(mount_point);
 
         if let Some(registered) = &self.registered {
             let mut store = registered.store.borrow_mut();
             store.update_lru(registered.lru_node);
             store.update_used_memory(new_byte_length, old_byte_length);
-            store.add_binding_ubo(index, self.id);
+            store.add_binding_ubo(mount_point, self.id);
             store.free();
         }
 
@@ -924,13 +924,13 @@ impl Buffer {
     }
 
     /// Binds buffer to specified [`BufferTarget`].
-    pub fn bind_ubo(&self, index: u32) -> Result<(), Error> {
-        self.shared.borrow_mut().bind_ubo(index)
+    pub fn bind_ubo(&self, mount_point: u32) -> Result<(), Error> {
+        self.shared.borrow_mut().bind_ubo(mount_point)
     }
 
     /// Binds buffer to specified [`BufferTarget`].
-    pub fn bind_ubo_range(&self, index: u32, offset: i32, size: i32) -> Result<(), Error> {
-        self.shared.borrow_mut().bind_ubo_range(index, offset, size)
+    pub fn bind_ubo_range(&self, mount_point: u32, offset: i32, size: i32) -> Result<(), Error> {
+        self.shared.borrow_mut().bind_ubo_range(mount_point, offset, size)
     }
 
     /// Unbinds buffer from specified [`BufferTarget`].
@@ -1334,7 +1334,7 @@ impl BufferStore {
             }
             for binding in &runtime.binding_ubos {
                 if store_shared.binding_ubos.contains_key(binding) {
-                    return Err(Error::UniformBufferObjectIndexOccupied(*binding));
+                    return Err(Error::UniformBufferObjectMountPointOccupied(*binding));
                 }
                 store_shared.binding_ubos.insert(*binding, buffer_shared.id);
             }

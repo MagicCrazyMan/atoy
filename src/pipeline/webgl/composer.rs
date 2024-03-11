@@ -198,19 +198,20 @@ impl ShaderProvider for ComposerShaderProvider {
         Cow::Borrowed(include_str!("./shaders/composer.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        match self.enable_gamma_correction {
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        let defines: &[Define<'_>] = match self.enable_gamma_correction {
             true => &[Define::WithoutValue(Cow::Borrowed("USE_GAMMA_CORRECTION"))],
             false => &[],
-        }
+        };
+        Cow::Borrowed(defines)
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {

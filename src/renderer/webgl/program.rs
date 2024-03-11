@@ -81,15 +81,15 @@ pub trait ShaderProvider {
 
     /// Returns universal defines macros for both vertex and fragment shaders.
     /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
-    fn universal_defines(&self) -> &[Define<'_>];
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns defines macros for vertex shader.
     /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
-    fn vertex_defines(&self) -> &[Define<'_>];
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns defines macros for fragment shader.
     /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of fragment shader to make this work.
-    fn fragment_defines(&self) -> &[Define<'_>];
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns self-associated GLSL code snippet by name.
     fn snippet(&self, name: &str) -> Option<Cow<'_, str>>;
@@ -132,7 +132,7 @@ impl Program {
     }
 
     /// Returns uniform block index by a uniform block name.
-    pub fn uniform_block_indices(&mut self) -> &HashMap<String, u32> {
+    pub fn uniform_block_indices(&self) -> &HashMap<String, u32> {
         &self.uniform_block_indices
     }
 
@@ -317,12 +317,12 @@ impl ProgramStore {
 
     /// Uses a program from a program source.
     /// Program will be compiled if it is used for the first time.
-    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, source: &'b S) -> Result<&'c mut Program, Error>
+    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, provider: &'b S) -> Result<&'c mut Program, Error>
     where
         S: ShaderProvider + ?Sized,
     {
         unsafe {
-            let name = source.name();
+            let name = provider.name();
 
             // checks using
             if let Some(using_program) = self.using_program.as_ref() {
@@ -341,7 +341,7 @@ impl ProgramStore {
             }
 
             let name = name.to_string();
-            let program = Box::leak(Box::new(self.compile(name.clone(), source)?));
+            let program = Box::leak(Box::new(self.compile(name.clone(), provider)?));
             self.store
                 .insert_unique_unchecked(name, program as *mut Program);
 

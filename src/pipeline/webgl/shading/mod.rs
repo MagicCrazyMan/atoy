@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::OnceLock};
+use std::borrow::Cow;
 
 use web_sys::WebGl2RenderingContext;
 
@@ -6,24 +6,23 @@ use crate::{
     entity::Entity,
     material::webgl::StandardMaterial,
     renderer::webgl::{
-        buffer::Buffer,
         conversion::ToGlEnum,
         error::Error,
         program::{Define, Program, ShaderProvider},
         state::FrameState,
-        uniform::{UniformBlockValue, UniformValue},
+        uniform::UniformValue,
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
         MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
         POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
     },
-    share::Share, value::Readonly,
+    share::Share,
 };
 
 use super::{
-    collector::CollectedEntities, UBO_LIGHTS_BINDING_INDEX, UBO_LIGHTS_BLOCK_NAME,
-    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+    collector::CollectedEntities, UBO_LIGHTS_BINDING_MOUNT_POINT, UBO_LIGHTS_BLOCK_NAME,
+    UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
 };
 
 pub mod deferred;
@@ -37,33 +36,25 @@ const BLOOM_BLUR_TEXTURE_UNIFORM_NAME: &'static str = "u_BloomBlurTexture";
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
 
-pub(self) enum DrawState<'a> {
-    Draw {
-        universal_ubo: &'a Buffer,
-        lights_ubo: Option<&'a Buffer>,
-        bloom: bool,
-    },
-    GBuffer {
-        universal_ubo: &'a Buffer,
-        lights_ubo: Option<&'a Buffer>,
-    },
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(self) enum DrawState {
+    Draw { lighting: bool, bloom: bool },
+    GBuffer,
 }
 
 pub(self) unsafe fn draw_entities(
     state: &mut FrameState,
-    draw_state: &DrawState,
-
+    draw_state: DrawState,
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
-    draw_opaque_entities(state, &draw_state, collected_entities)?;
-    draw_translucent_entities(state, &draw_state, collected_entities)?;
+    draw_opaque_entities(state, draw_state, collected_entities)?;
+    draw_translucent_entities(state, draw_state, collected_entities)?;
     Ok(())
 }
 
 unsafe fn draw_opaque_entities(
     state: &mut FrameState,
-    draw_state: &DrawState,
-
+    draw_state: DrawState,
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
@@ -86,8 +77,7 @@ unsafe fn draw_opaque_entities(
 
 unsafe fn draw_translucent_entities(
     state: &mut FrameState,
-    draw_state: &DrawState,
-
+    draw_state: DrawState,
     collected_entities: &CollectedEntities,
 ) -> Result<(), Error> {
     state.gl().enable(WebGl2RenderingContext::DEPTH_TEST);
@@ -122,58 +112,35 @@ unsafe fn draw_translucent_entities(
 
 fn prepare_program<'a, 'b, 'c>(
     state: &'a mut FrameState,
-    draw_state: &DrawState,
+    draw_state: DrawState,
     material: &'b dyn StandardMaterial,
-) -> Result<&'c mut Program, Error> {
+) -> Result<&'c Program, Error> {
     let provider = StandardMaterialShaderProvider::new(material, draw_state);
     let program = state.program_store_mut().use_program(&provider)?;
 
-    match draw_state {
-        DrawState::Draw {
-            universal_ubo,
-            lights_ubo,
-            bloom,
-        } => {
-            // binds atoy_UniversalUniforms
-            state.bind_uniform_block_value_by_block_name(
+    // binds atoy_UniversalUniforms
+    state.bind_uniform_block_index_by_block_name(
+        program,
+        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT,
+    )?;
+
+    if let DrawState::Draw { lighting, bloom } = draw_state {
+        // binds atoy_Lights
+        if lighting {
+            state.bind_uniform_block_index_by_block_name(
                 program,
-                UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-                &UniformBlockValue::BufferBase {
-                    buffer: Readonly::Borrowed(universal_ubo),
-                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
-                },
+                UBO_LIGHTS_BLOCK_NAME,
+                UBO_LIGHTS_BINDING_MOUNT_POINT,
             )?;
-
-            // binds atoy_Lights
-            if let Some(lights_ubo) = lights_ubo {
-                state.bind_uniform_block_value_by_block_name(
-                    program,
-                    UBO_LIGHTS_BLOCK_NAME,
-                    &UniformBlockValue::BufferBase {
-                        buffer: Readonly::Borrowed(lights_ubo),
-                        binding: UBO_LIGHTS_BINDING_INDEX,
-                    },
-                )?;
-            }
-
-            // binds bloom blur threshold
-            if *bloom {
-                state.bind_uniform_value_by_variable_name(
-                    program,
-                    BLOOM_THRESHOLD_UNIFORM_NAME,
-                    &UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
-                )?;
-            }
         }
-        DrawState::GBuffer { universal_ubo, .. } => {
-            // binds atoy_UniversalUniforms
-            state.bind_uniform_block_value_by_block_name(
+
+        // binds bloom blur threshold
+        if bloom {
+            state.bind_uniform_value_by_variable_name(
                 program,
-                UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-                &UniformBlockValue::BufferBase {
-                    buffer: Readonly::Borrowed(universal_ubo),
-                    binding: UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
-                },
+                BLOOM_THRESHOLD_UNIFORM_NAME,
+                &UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
             )?;
         }
     }
@@ -183,17 +150,17 @@ fn prepare_program<'a, 'b, 'c>(
 
 fn draw_entity(
     state: &mut FrameState,
-    draw_state: &DrawState,
-
+    draw_state: DrawState,
     should_cull_face: bool,
     entity: Share<dyn Entity>,
 ) -> Result<(), Error> {
     let entity = entity.borrow();
     let geometry = entity.geometry().unwrap();
+    let material = entity.material().unwrap();
 
     // culls face
     if should_cull_face {
-        if let Some(cull_face) = geometry.cull_face() {
+        if let Some(cull_face) = entity.geometry().unwrap().cull_face() {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
             state.gl().cull_face(cull_face.gl_enum());
         } else {
@@ -203,7 +170,8 @@ fn draw_entity(
         state.gl().disable(WebGl2RenderingContext::CULL_FACE);
     }
 
-    let program = prepare_program(state, draw_state, entity.material().unwrap())?;
+    let program = prepare_program(state, draw_state, material)?;
+
     let bound_attributes = state.bind_attributes(program, &*entity)?;
     let bound_uniforms = state.bind_uniforms(program, &*entity)?;
     state.draw(&geometry.draw())?;
@@ -215,11 +183,11 @@ fn draw_entity(
 
 struct StandardMaterialShaderProvider<'a> {
     material: &'a dyn StandardMaterial,
-    draw_state: &'a DrawState<'a>,
+    draw_state: DrawState,
 }
 
 impl<'a> StandardMaterialShaderProvider<'a> {
-    fn new(material: &'a dyn StandardMaterial, draw_state: &'a DrawState) -> Self {
+    fn new(material: &'a dyn StandardMaterial, draw_state: DrawState) -> Self {
         Self {
             material,
             draw_state,
@@ -252,12 +220,12 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
         }
 
         let type_name = match self.draw_state {
-            DrawState::Draw { .. } => "draw",
-            DrawState::GBuffer { .. } => "gbuffer",
+            DrawState::Draw { .. } => "Draw",
+            DrawState::GBuffer => "GBuffer",
         };
-        let defines = self.universal_defines().join_defines();
-        let vertex_defines = self.vertex_defines().join_defines();
-        let fragment_defines = self.fragment_defines().join_defines();
+        let defines = self.universal_defines().as_ref().join_defines();
+        let vertex_defines = self.vertex_defines().as_ref().join_defines();
+        let fragment_defines = self.fragment_defines().as_ref().join_defines();
 
         if defines.len() + vertex_defines.len() + fragment_defines.len() == 0 {
             self.material.name()
@@ -284,112 +252,82 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
     fn fragment_source(&self) -> Cow<'_, str> {
         match self.draw_state {
             DrawState::Draw { .. } => Cow::Borrowed(include_str!("../shaders/draw.frag")),
-            DrawState::GBuffer { .. } => Cow::Borrowed(include_str!("../shaders/gbuffer.frag")),
+            DrawState::GBuffer => Cow::Borrowed(include_str!("../shaders/gbuffer.frag")),
         }
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        let defines = unsafe {
-            static mut DEFINES: OnceLock<[Define<'static>; 12]> = OnceLock::new();
-            DEFINES.get_or_init(|| {
-                [
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                    Define::WithoutValue(Cow::Borrowed("")),
-                ]
-            });
-            DEFINES.get_mut().unwrap()
-        };
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        let mut defines = Vec::with_capacity(12);
 
-        let mut count = 0;
         if self.material.use_position_eye_space() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_POSITION_EYE_SPACE"));
-            count += 1;
+            defines.push(Define::WithoutValue(Cow::Borrowed(
+                "USE_POSITION_EYE_SPACE",
+            )));
         }
-        if self.material.use_normal() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_NORMAL"));
-            count += 1;
-        }
+        match (self.material.use_normal(), self.draw_state) {
+            (true, _) | (false, DrawState::GBuffer) => {
+                defines.push(Define::WithoutValue(Cow::Borrowed("USE_NORMAL")));
+            }
+            (false, DrawState::Draw { lighting, .. }) => {
+                if lighting {
+                    defines.push(Define::WithoutValue(Cow::Borrowed("USE_NORMAL")));
+                }
+            }
+        };
         if self.material.use_texture_coordinate() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TEXTURE_COORDINATE"));
-            count += 1;
+            defines.push(Define::WithoutValue(Cow::Borrowed(
+                "USE_TEXTURE_COORDINATE",
+            )));
         }
         if self.material.use_tbn() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TBN"));
-            count += 1;
+            defines.push(Define::WithoutValue(Cow::Borrowed("USE_TBN")));
         }
         if self.material.use_tbn_invert() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_TBN_INVERT"));
-            count += 1;
+            defines.push(Define::WithoutValue(Cow::Borrowed("USE_TBN_INVERT")));
         }
         if self.material.use_calculated_bitangent() {
-            defines[count] = Define::WithoutValue(Cow::Borrowed("USE_CALCULATED_BITANGENT"));
-            count += 1;
+            defines.push(Define::WithoutValue(Cow::Borrowed(
+                "USE_CALCULATED_BITANGENT",
+            )));
         }
-        match self.draw_state {
-            DrawState::Draw { lights_ubo, .. } | DrawState::GBuffer { lights_ubo, .. } => {
-                if lights_ubo.is_some() {
-                    defines[count] = Define::WithoutValue(Cow::Borrowed("USE_LIGHTING"));
-                    count += 1;
-                    defines[count] = Define::WithValue(
+
+        if let DrawState::Draw { lighting, bloom } = self.draw_state {
+            if lighting {
+                defines.extend([
+                    Define::WithoutValue(Cow::Borrowed("USE_LIGHTING")),
+                    Define::WithValue(
                         Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_DIRECTIONAL_LIGHTS_STRING),
-                    );
-                    count += 1;
-                    defines[count] = Define::WithValue(
+                    ),
+                    Define::WithValue(
                         Cow::Borrowed(POINT_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_POINT_LIGHTS_STRING),
-                    );
-                    count += 1;
-                    defines[count] = Define::WithValue(
+                    ),
+                    Define::WithValue(
                         Cow::Borrowed(SPOT_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_SPOT_LIGHTS_STRING),
-                    );
-                    count += 1;
-                    defines[count] = Define::WithValue(
+                    ),
+                    Define::WithValue(
                         Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
                         Cow::Borrowed(MAX_AREA_LIGHTS_STRING),
-                    );
-                    count += 1;
-                    // enable normal automatically if lighting enabled
-                    if defines[0..count]
-                        .iter()
-                        .all(|define| define.name() != "USE_NORMAL")
-                    {
-                        defines[count] = Define::WithoutValue(Cow::Borrowed("USE_NORMAL"));
-                        count += 1;
-                    }
-                }
+                    ),
+                ]);
+            }
+
+            if bloom {
+                defines.push(Define::WithoutValue(Cow::Borrowed("USE_BLOOM")));
             }
         }
-        match self.draw_state {
-            DrawState::Draw { bloom, .. } => {
-                if *bloom {
-                    defines[count] = Define::WithoutValue(Cow::Borrowed("USE_BLOOM"));
-                    count += 1;
-                }
-            }
-            _ => {}
-        };
 
-        &defines[..count]
+        Cow::Owned(defines)
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &self.material.vertex_defines()
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        self.material.vertex_defines()
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &self.material.fragment_defines()
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        self.material.fragment_defines()
     }
 
     fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
@@ -415,16 +353,16 @@ impl ShaderProvider for HdrReinhardToneMapping {
         Cow::Borrowed(include_str!("../shaders/hdr_reinhard_tone_mapping.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
@@ -447,16 +385,16 @@ impl ShaderProvider for HdrExposureToneMapping {
         Cow::Borrowed(include_str!("../shaders/hdr_exposure_tone_mapping.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
@@ -479,16 +417,16 @@ impl ShaderProvider for BloomMapping {
         Cow::Borrowed(include_str!("../shaders/bloom_mapping.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
@@ -511,16 +449,16 @@ impl ShaderProvider for GaussianBlurMapping {
         Cow::Borrowed(include_str!("../shaders/gaussian_blur.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
@@ -543,16 +481,16 @@ impl ShaderProvider for BloomBlendMapping {
         Cow::Borrowed(include_str!("../shaders/bloom_blend.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {

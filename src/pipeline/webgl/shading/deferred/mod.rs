@@ -7,11 +7,10 @@ use web_sys::WebGlTexture;
 
 use crate::{
     pipeline::webgl::{
-        UBO_LIGHTS_BINDING_INDEX, UBO_LIGHTS_BLOCK_NAME, UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
-        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        UBO_LIGHTS_BINDING_MOUNT_POINT, UBO_LIGHTS_BLOCK_NAME,
+        UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
     },
     renderer::webgl::{
-        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
@@ -20,13 +19,13 @@ use crate::{
         program::{Define, ShaderProvider},
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
-        uniform::{UniformBlockValue, UniformValue},
+        uniform::UniformValue,
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
         MAX_DIRECTIONAL_LIGHTS_STRING, MAX_POINT_LIGHTS_STRING, MAX_SPOT_LIGHTS_STRING,
         POINT_LIGHTS_COUNT_DEFINE, SPOT_LIGHTS_COUNT_DEFINE,
-    }, value::Readonly,
+    },
 };
 
 pub struct StandardDeferredShading {
@@ -64,25 +63,21 @@ impl StandardDeferredShading {
         positions_and_specular_shininess_texture: &WebGlTexture,
         normals_texture: &WebGlTexture,
         albedo_texture: &WebGlTexture,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         self.framebuffer(state).clear_buffers()?;
 
-        let program = if let Some(lights_ubo) = lights_ubo {
+        let program = if lighting {
             self.shader.lighting = true;
             let program = state.program_store_mut().use_program(&self.shader)?;
 
             // binds atoy_Lights
-            state.bind_uniform_block_value_by_block_name(
+            state.bind_uniform_block_index_by_block_name(
                 program,
                 UBO_LIGHTS_BLOCK_NAME,
-                &UniformBlockValue::BufferBase {
-                    buffer: Readonly::Borrowed(lights_ubo),
-                    binding: UBO_LIGHTS_BINDING_INDEX,
-                },
+                UBO_LIGHTS_BINDING_MOUNT_POINT,
             )?;
             state.bind_uniform_value_by_variable_name(
                 program,
@@ -102,13 +97,10 @@ impl StandardDeferredShading {
         };
 
         // binds atoy_UniversalUniforms
-        state.bind_uniform_block_value_by_block_name(
+        state.bind_uniform_block_index_by_block_name(
             program,
             UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-            &UniformBlockValue::BufferBase {
-                buffer: Readonly::Borrowed(universal_ubo),
-                binding: UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX,
-            },
+            UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT,
         )?;
 
         state.bind_uniform_value_by_variable_name(
@@ -164,17 +156,17 @@ impl ShaderProvider for DeferredShader {
         Cow::Borrowed(include_str!("../../shaders/deferred.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
         if self.lighting {
-            &[
+            let defines: &[Define<'_>] = &[
                 Define::WithoutValue(Cow::Borrowed("USE_LIGHTING")),
                 Define::WithValue(
                     Cow::Borrowed(DIRECTIONAL_LIGHTS_COUNT_DEFINE),
@@ -192,9 +184,10 @@ impl ShaderProvider for DeferredShader {
                     Cow::Borrowed(AREA_LIGHTS_COUNT_DEFINE),
                     Cow::Borrowed(MAX_AREA_LIGHTS_STRING),
                 ),
-            ]
+            ];
+            Cow::Borrowed(&defines)
         } else {
-            &[]
+            Cow::Borrowed(&[])
         }
     }
 

@@ -8,7 +8,7 @@ use crate::{
             HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_NAME,
             BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
         },
-        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_INDEX, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderer::webgl::{
         buffer::Buffer,
@@ -21,7 +21,8 @@ use crate::{
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
-    }, value::Readonly,
+    },
+    value::Readonly,
 };
 
 pub struct StandardHdrShading {
@@ -123,17 +124,16 @@ impl StandardHdrShading {
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
         gaussian_kernel_ubo: &Buffer,
     ) -> Result<(), Error> {
         if bloom {
-            self.draw_hdr_bloom(state, collected_entities, universal_ubo, lights_ubo)?;
+            self.draw_hdr_bloom(state, collected_entities, lighting)?;
             self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
-            self.draw_hdr(state, collected_entities, universal_ubo, lights_ubo)?;
+            self.draw_hdr(state, collected_entities, lighting)?;
             self.tone_mapping(state, tone_mapping_type)?;
         }
         Ok(())
@@ -143,17 +143,15 @@ impl StandardHdrShading {
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let fbo = self.hdr_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         fbo.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: false,
             },
             collected_entities,
@@ -166,17 +164,15 @@ impl StandardHdrShading {
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let fbo = self.hdr_bloom_framebuffer(state);
         fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         fbo.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: true,
             },
             collected_entities,
@@ -286,7 +282,7 @@ impl StandardHdrShading {
                             UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             &UniformBlockValue::BufferBase {
                                 buffer: Readonly::Borrowed(gaussian_kernel_ubo),
-                                binding: UBO_GAUSSIAN_BLUR_BINDING_INDEX,
+                                mount_point: UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT,
                             },
                         )?;
 

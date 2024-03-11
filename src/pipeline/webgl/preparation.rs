@@ -19,11 +19,11 @@ use crate::{
 use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_BINDING_INDEX,
+    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_BINDING_MOUNT_POINT,
     UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH,
     UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH,
     UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
+    UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET, UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET,
@@ -103,7 +103,7 @@ impl StandardPreparation {
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
         universal_ubo.buffer_sub_data(self.universal_uniforms.clone(), 0);
-        universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX)?;
+        universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT)?;
 
         Ok(())
     }
@@ -123,15 +123,12 @@ impl StandardPreparation {
             .map(|stamp| scene.light_attenuation().is_dirty(stamp))
             .unwrap_or(true)
         {
-            let mut data = [0.0f32; 3];
-            data[0] = scene.light_attenuation().a();
-            data[1] = scene.light_attenuation().b();
-            data[2] = scene.light_attenuation().c();
+            let mut data = [0u8; 12];
+            data[0..4].copy_from_slice(scene.light_attenuation().a().to_ne_bytes().as_slice());
+            data[4..8].copy_from_slice(scene.light_attenuation().b().to_ne_bytes().as_slice());
+            data[8..12].copy_from_slice(scene.light_attenuation().c().to_ne_bytes().as_slice());
 
-            lights_ubo.buffer_sub_data(
-                unsafe { std::mem::transmute::<[f32; 3], [u8; 12]>(data) },
-                UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET,
-            );
+            lights_ubo.buffer_sub_data(data, UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET);
             self.last_light_attenuation = Some(scene.light_attenuation().stamp());
         }
 
@@ -220,7 +217,7 @@ impl StandardPreparation {
             (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET)
         }
 
-        lights_ubo.bind_ubo(UBO_LIGHTS_BINDING_INDEX)?;
+        lights_ubo.bind_ubo(UBO_LIGHTS_BINDING_MOUNT_POINT)?;
 
         Ok(())
     }
@@ -232,7 +229,7 @@ impl StandardPreparation {
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
         universal_ubo: &mut Buffer,
-        mut lights_ubo: Option<&mut Buffer>,
+        lights_ubo: &mut Buffer,
     ) -> Result<(), Error> {
         state.gl().viewport(
             0,
@@ -241,9 +238,7 @@ impl StandardPreparation {
             state.canvas().height() as i32,
         );
         self.update_universal_ubo(universal_ubo, state)?;
-        if let Some(lights_ubo) = lights_ubo.as_mut() {
-            self.update_lights_ubo(lights_ubo, state, scene)?;
-        }
+        self.update_lights_ubo(lights_ubo, state, scene)?;
         Ok(())
     }
 }

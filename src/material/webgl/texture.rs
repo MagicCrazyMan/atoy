@@ -215,12 +215,12 @@ impl StandardMaterial for TextureMaterial {
         Cow::Borrowed(include_str!("./shaders/texture_fragment_process.glsl"))
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        match (self.has_normal_map(), self.has_parallax_map()) {
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        let defines: &[Define<'_>] = match (self.has_normal_map(), self.has_parallax_map()) {
             (true, true) => &[
                 Define::WithoutValue(Cow::Borrowed("USE_NORMAL_MAP")),
                 Define::WithoutValue(Cow::Borrowed("USE_PARALLAX_MAP")),
@@ -228,7 +228,8 @@ impl StandardMaterial for TextureMaterial {
             (true, false) => &[Define::WithoutValue(Cow::Borrowed("USE_NORMAL_MAP"))],
             (false, true) => &[Define::WithoutValue(Cow::Borrowed("USE_PARALLAX_MAP"))],
             (false, false) => &[],
-        }
+        };
+        Cow::Borrowed(defines)
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {

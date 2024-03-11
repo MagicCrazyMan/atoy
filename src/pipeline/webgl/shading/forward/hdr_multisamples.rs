@@ -8,7 +8,7 @@ use crate::{
             HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_NAME,
             BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
         },
-        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_INDEX, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
     },
     renderer::webgl::{
         buffer::Buffer,
@@ -21,7 +21,8 @@ use crate::{
         state::FrameState,
         texture::{TextureColorFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
-    }, value::Readonly,
+    },
+    value::Readonly,
 };
 
 pub struct StandardMultisamplesHdrShading {
@@ -166,30 +167,17 @@ impl StandardMultisamplesHdrShading {
         bloom_blur_epoch: usize,
         tone_mapping_type: HdrToneMappingType,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
         gaussian_kernel_ubo: &Buffer,
     ) -> Result<(), Error> {
         if bloom {
-            self.draw_hdr_multisamples_bloom(
-                state,
-                samples,
-                collected_entities,
-                universal_ubo,
-                lights_ubo,
-            )?;
+            self.draw_hdr_multisamples_bloom(state, samples, collected_entities, lighting)?;
             self.blit_bloom(state)?;
             self.blur_bloom(state, bloom_blur_epoch, gaussian_kernel_ubo)?;
             self.blend_bloom(state, bloom_blur_epoch)?;
             self.tone_mapping_bloom(state, tone_mapping_type)?;
         } else {
-            self.draw_hdr_multisamples(
-                state,
-                samples,
-                collected_entities,
-                universal_ubo,
-                lights_ubo,
-            )?;
+            self.draw_hdr_multisamples(state, samples, collected_entities, lighting)?;
             self.blit(state)?;
             self.tone_mapping(state, tone_mapping_type)?;
         }
@@ -201,17 +189,15 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let hdr_multisamples_framebuffer = self.hdr_multisamples_framebuffer(state, samples);
         hdr_multisamples_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         hdr_multisamples_framebuffer.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: false,
             },
             collected_entities,
@@ -225,8 +211,7 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let hdr_multisamples_bloom_framebuffer =
             self.hdr_multisamples_bloom_framebuffer(state, samples);
@@ -234,9 +219,8 @@ impl StandardMultisamplesHdrShading {
         hdr_multisamples_bloom_framebuffer.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: true,
             },
             collected_entities,
@@ -386,7 +370,7 @@ impl StandardMultisamplesHdrShading {
                             UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
                             &UniformBlockValue::BufferBase {
                                 buffer: Readonly::Borrowed(gaussian_kernel_ubo),
-                                binding: UBO_GAUSSIAN_BLUR_BINDING_INDEX,
+                                mount_point: UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT,
                             },
                         )?;
 

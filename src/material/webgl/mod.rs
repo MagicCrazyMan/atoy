@@ -45,12 +45,12 @@ pub trait StandardMaterial {
     fn fragment_process(&self) -> Cow<'_, str>;
 
     /// Returns custom defines macros for vertex shader.
-    fn vertex_defines(&self) -> &[Define<'_>];
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns custom defines macros for fragment shader.
     ///
     /// Returns [`StandardMaterial::vertex_defines`] as default.
-    fn fragment_defines(&self) -> &[Define<'_>] {
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
         self.vertex_defines()
     }
 
@@ -72,6 +72,8 @@ pub trait StandardMaterial {
 
     /// Returns `true` if vertex shader should output normal.
     /// `vec3 v_Normal` is available in fragment shader when enabled.
+    /// 
+    /// Otherwise, normals is always enabled if lighting is enabled or rendering in deferred shading.
     ///
     /// [`Geometry::normals`](crate::geometry::Geometry::normals) is required.
     fn use_normal(&self) -> bool;

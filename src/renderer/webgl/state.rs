@@ -146,7 +146,7 @@ impl FrameState {
     /// Binds attribute values from a entity.
     pub fn bind_attributes(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         entity: &dyn Entity,
     ) -> Result<Vec<BoundAttribute>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
@@ -339,7 +339,7 @@ impl FrameState {
 
     pub fn bind_attribute_value_by_variable_name(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         variable_name: &str,
         value: &AttributeValue,
     ) -> Result<Vec<BoundAttribute>, Error> {
@@ -362,7 +362,7 @@ impl FrameState {
     /// Binds uniform values from a entity.
     pub fn bind_uniforms(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         entity: &dyn Entity,
     ) -> Result<Vec<BoundUniform>, Error> {
         let internal_bindings = program.uniform_internal_bindings();
@@ -724,7 +724,7 @@ impl FrameState {
     /// Binds a [`UniformValue`] to a uniform by variable name.
     pub fn bind_uniform_value_by_variable_name(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         variable_name: &str,
         value: &UniformValue,
     ) -> Result<Option<BoundUniform>, Error> {
@@ -742,20 +742,23 @@ impl FrameState {
         value: &UniformBlockValue,
     ) -> Result<(), Error> {
         let binding = match value {
-            UniformBlockValue::BufferBase { buffer, binding } => {
+            UniformBlockValue::BufferBase {
+                buffer,
+                mount_point,
+            } => {
                 self.buffer_store_mut().register(&buffer)?;
-                buffer.bind_ubo(*binding)?;
-                binding
+                buffer.bind_ubo(*mount_point)?;
+                mount_point
             }
             UniformBlockValue::BufferRange {
                 buffer,
-                binding,
+                mount_point,
                 offset,
                 size,
             } => {
                 self.buffer_store_mut().register(&buffer)?;
-                buffer.bind_ubo_range(*binding, *offset, *size)?;
-                binding
+                buffer.bind_ubo_range(*mount_point, *offset, *size)?;
+                mount_point
             }
         };
 
@@ -768,7 +771,7 @@ impl FrameState {
     /// Binds a [`UniformBlockValue`] to a uniform block by a block name.
     pub fn bind_uniform_block_value_by_block_name(
         &mut self,
-        program: &mut Program,
+        program: &Program,
         uniform_block_name: &str,
         value: &UniformBlockValue,
     ) -> Result<(), Error> {
@@ -780,6 +783,37 @@ impl FrameState {
             return Err(Error::NoSuchUniform(uniform_block_name.to_string()));
         };
         self.bind_uniform_block_value(program.program(), uniform_block_index, value)
+    }
+
+    /// Binds a uniform block index to a specified uniform block object index.
+    pub fn bind_uniform_block_index(
+        &self,
+        program: &WebGlProgram,
+        uniform_block_index: u32,
+        mount_point: u32,
+    ) {
+        self.gl
+            .uniform_block_binding(program, uniform_block_index, mount_point);
+    }
+
+    /// Binds a uniform block index to a specified uniform block object index by uniform block name.
+    pub fn bind_uniform_block_index_by_block_name(
+        &self,
+        program: &Program,
+        uniform_block_name: &str,
+        mount_point: u32,
+    ) -> Result<(), Error> {
+        let Some(uniform_block_index) = program
+            .uniform_block_indices()
+            .get(uniform_block_name)
+            .cloned()
+        else {
+            return Err(Error::NoSuchUniform(uniform_block_name.to_string()));
+        };
+
+        self.bind_uniform_block_index(program.program(), uniform_block_index, mount_point);
+
+        Ok(())
     }
 
     pub fn draw(&mut self, draw: &Draw) -> Result<(), Error> {

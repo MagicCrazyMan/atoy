@@ -70,11 +70,11 @@ pub enum UniformValue {
 pub enum UniformBlockValue<'a> {
     BufferBase {
         buffer: Readonly<'a, Buffer>,
-        binding: u32,
+        mount_point: u32,
     },
     BufferRange {
         buffer: Readonly<'a, Buffer>,
-        binding: u32,
+        mount_point: u32,
         offset: i32,
         size: i32,
     },

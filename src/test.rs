@@ -186,7 +186,7 @@ impl StandardMaterial for TickSolidColorMaterial {
         self.0.fragment_process()
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
         self.0.vertex_defines()
     }
 

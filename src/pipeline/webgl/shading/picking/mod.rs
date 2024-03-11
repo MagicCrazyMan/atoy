@@ -279,16 +279,16 @@ impl ShaderProvider for PickingShaderProvider {
         Cow::Borrowed(include_str!("../../shaders/picking.frag"))
     }
 
-    fn universal_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn universal_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn vertex_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn vertex_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
-    fn fragment_defines(&self) -> &[Define<'_>] {
-        &[]
+    fn fragment_defines(&self) -> Cow<'_, [Define<'_>]> {
+        Cow::Borrowed(&[])
     }
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {

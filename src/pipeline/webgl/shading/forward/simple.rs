@@ -6,7 +6,6 @@ use crate::{
         shading::{draw_entities, DrawState},
     },
     renderer::webgl::{
-        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
@@ -51,17 +50,15 @@ impl StandardSimpleShading {
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let framebuffer = self.framebuffer(state);
         framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         framebuffer.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: false,
             },
             collected_entities,

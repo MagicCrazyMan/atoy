@@ -47,11 +47,11 @@ pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
 pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
 
 /// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BINDING_INDEX: u32 = 0;
+pub const UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT: u32 = 0;
 /// Uniform Buffer Object mount point for `atoy_Lights`.
-pub const UBO_LIGHTS_BINDING_INDEX: u32 = 1;
+pub const UBO_LIGHTS_BINDING_MOUNT_POINT: u32 = 1;
 /// Uniform Buffer Object mount point for gaussian blur.
-pub const UBO_GAUSSIAN_BLUR_BINDING_INDEX: u32 = 2;
+pub const UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT: u32 = 2;
 
 /// Uniform Buffer Object bytes length for `u_RenderTime`.
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH: usize = 16;
@@ -65,12 +65,11 @@ pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 
 /// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH: usize =
-    UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH
-        + UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH;
+pub const UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH: usize = UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH
+    + UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH;
 
 /// Uniform Buffer Object bytes offset for `u_RenderTime`.
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET: usize = 0;
@@ -518,11 +517,7 @@ impl StandardPipeline {
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
     ) -> Result<(), Error> {
-        let lights_ubo = if self.lighting_enabled() {
-            Some(&self.lights_ubo)
-        } else {
-            None
-        };
+        let lighting = self.lighting_enabled();
         let hdr_supported = state.capabilities().color_buffer_float_supported();
         let hdr = hdr_supported && self.hdr_enabled();
         let bloom = self.bloom_enabled();
@@ -539,8 +534,7 @@ impl StandardPipeline {
                         bloom_blur_epoch,
                         self.hdr_tone_mapping_type,
                         &collected_entities,
-                        &self.universal_ubo,
-                        lights_ubo,
+                        lighting,
                         &self.gaussian_kernel_ubo,
                     )?;
                     self.hdr_shading.draw_texture().unwrap()
@@ -553,19 +547,14 @@ impl StandardPipeline {
                         bloom_blur_epoch,
                         self.hdr_tone_mapping_type,
                         &collected_entities,
-                        &self.universal_ubo,
-                        lights_ubo,
+                        lighting,
                         &self.gaussian_kernel_ubo,
                     )?;
                     self.multisamples_hdr_shading.draw_texture().unwrap()
                 }
                 (false, false) => {
-                    self.simple_shading.draw(
-                        state,
-                        &collected_entities,
-                        &self.universal_ubo,
-                        lights_ubo,
-                    )?;
+                    self.simple_shading
+                        .draw(state, &collected_entities, lighting)?;
                     self.simple_shading.draw_texture().unwrap()
                 }
                 (false, true) => {
@@ -573,8 +562,7 @@ impl StandardPipeline {
                         state,
                         self.multisamples_count,
                         &collected_entities,
-                        &self.universal_ubo,
-                        lights_ubo,
+                        lighting,
                     )?;
                     self.multisamples_simple_shading.draw_texture().unwrap()
                 }
@@ -590,18 +578,13 @@ impl StandardPipeline {
         state: &mut FrameState,
         scene: &mut Scene<WebClock>,
     ) -> Result<(), Error> {
-        let lights_ubo = if self.lighting_enabled() {
-            Some(&self.lights_ubo)
-        } else {
-            None
-        };
+        let lighting = self.lighting_enabled();
 
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         unsafe {
             // deferred shading on opaque entities
-            self.gbuffer
-                .collect(state, &collected_entities, &self.universal_ubo, lights_ubo)?;
+            self.gbuffer.collect(state, &collected_entities)?;
             let (
                 positions_and_specular_shininess_texture,
                 normals_texture,
@@ -613,8 +596,7 @@ impl StandardPipeline {
                 positions_and_specular_shininess_texture,
                 normals_texture,
                 albedo_texture,
-                &self.universal_ubo,
-                lights_ubo,
+                lighting,
             )?;
 
             // then forward shading on translucent entities
@@ -622,8 +604,7 @@ impl StandardPipeline {
                 state,
                 &depth_stencil,
                 &collected_entities,
-                &self.universal_ubo,
-                lights_ubo,
+                lighting,
             )?;
 
             let opaque_textures = self.deferred_shading.draw_texture().unwrap();
@@ -667,15 +648,12 @@ impl Pipeline for StandardPipeline {
                 self.picking(state, scene)?;
             }
             _ => {
-                {
-                    let lights_ubo = if self.lighting_enabled() {
-                        Some(&mut self.lights_ubo)
-                    } else {
-                        None
-                    };
-                    self.preparation
-                        .prepare(state, scene, &mut self.universal_ubo, lights_ubo)?;
-                }
+                self.preparation.prepare(
+                    state,
+                    scene,
+                    &mut self.universal_ubo,
+                    &mut self.lights_ubo,
+                )?;
 
                 {
                     match self.pipeline_shading {
@@ -695,14 +673,8 @@ impl Pipeline for StandardPipeline {
                     };
                 };
 
-                {
-                    let lights_ubo = if self.lighting_enabled() {
-                        Some(&self.lights_ubo)
-                    } else {
-                        None
-                    };
-                    self.cleanup.cleanup(&self.universal_ubo, lights_ubo)?;
-                }
+                self.cleanup
+                    .cleanup(&self.universal_ubo, &self.lights_ubo)?;
             }
         };
 

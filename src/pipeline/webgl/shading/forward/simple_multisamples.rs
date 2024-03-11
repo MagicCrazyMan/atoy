@@ -6,7 +6,6 @@ use crate::{
         shading::{draw_entities, DrawState},
     },
     renderer::webgl::{
-        buffer::Buffer,
         error::Error,
         framebuffer::{
             AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
@@ -69,16 +68,9 @@ impl StandardMultisamplesSimpleShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
-        self.draw_multisamples(
-            state,
-            samples,
-            collected_entities,
-            universal_ubo,
-            lights_ubo,
-        )?;
+        self.draw_multisamples(state, samples, collected_entities, lighting)?;
         self.blit(state)?;
         Ok(())
     }
@@ -88,17 +80,15 @@ impl StandardMultisamplesSimpleShading {
         state: &mut FrameState,
         samples: i32,
         collected_entities: &CollectedEntities,
-        universal_ubo: &Buffer,
-        lights_ubo: Option<&Buffer>,
+        lighting: bool,
     ) -> Result<(), Error> {
         let multisample_framebuffer = self.multisample_framebuffer(state, samples);
         multisample_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         multisample_framebuffer.clear_buffers()?;
         draw_entities(
             state,
-            &DrawState::Draw {
-                universal_ubo,
-                lights_ubo,
+            DrawState::Draw {
+                lighting,
                 bloom: false,
             },
             collected_entities,

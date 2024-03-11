@@ -24,7 +24,7 @@ pub enum Error {
     BufferUninitialized,
     BufferAlreadyInitialized,
     BufferTargetOccupied(BufferTarget),
-    UniformBufferObjectIndexOccupied(u32),
+    UniformBufferObjectMountPointOccupied(u32),
     RegisterBufferToMultipleStore,
     TexImageFailure(Option<String>),
     TexCompressedImageFailure,
