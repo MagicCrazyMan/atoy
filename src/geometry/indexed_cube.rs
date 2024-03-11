@@ -6,8 +6,8 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferUsage,
-            MemoryPolicy, Restorer,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
+            BufferUsage, MemoryPolicy, Restorer,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
@@ -269,26 +269,20 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
 struct PositionsBuilder(f64);
 
 impl BufferSource for PositionsBuilder {
+    fn data(&self) -> BufferSourceData<'_> {
+        BufferSourceData::Bytes(build_positions(self.0).to_vec())
+    }
+
     fn byte_length(&self) -> usize {
         72 * 4
     }
 
-    fn buffer_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        usage: BufferUsage,
-    ) {
-        build_positions(self.0).buffer_data(gl, target, usage)
+    fn src_offset(&self) -> Option<usize> {
+        None
     }
 
-    fn buffer_sub_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        dst_byte_offset: usize,
-    ) {
-        build_positions(self.0).buffer_sub_data(gl, target, dst_byte_offset)
+    fn src_length(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -302,26 +296,16 @@ impl Restorer for PositionsBuilder {
 struct IndicesBuilder;
 
 impl BufferSource for IndicesBuilder {
-    fn byte_length(&self) -> usize {
-        36
+    fn data(&self) -> BufferSourceData<'_> {
+        BufferSourceData::BytesBorrowed(&INDICES)
     }
 
-    fn buffer_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        usage: BufferUsage,
-    ) {
-        INDICES.buffer_data(gl, target, usage)
+    fn src_offset(&self) -> Option<usize> {
+        None
     }
 
-    fn buffer_sub_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        dst_byte_offset: usize,
-    ) {
-        INDICES.buffer_sub_data(gl, target, dst_byte_offset)
+    fn src_length(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -341,26 +325,16 @@ impl TexturesNormalsBuilder {
 }
 
 impl BufferSource for TexturesNormalsBuilder {
-    fn byte_length(&self) -> usize {
-        120 * 4
+    fn data(&self) -> BufferSourceData<'_> {
+        BufferSourceData::BytesBorrowed(&self.as_bytes())
     }
 
-    fn buffer_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        usage: BufferUsage,
-    ) {
-        self.as_bytes().buffer_data(gl, target, usage)
+    fn src_offset(&self) -> Option<usize> {
+        None
     }
 
-    fn buffer_sub_data(
-        &self,
-        gl: &web_sys::WebGl2RenderingContext,
-        target: buffer::BufferTarget,
-        dst_byte_offset: usize,
-    ) {
-        self.as_bytes().buffer_sub_data(gl, target, dst_byte_offset)
+    fn src_length(&self) -> Option<usize> {
+        None
     }
 }
 
