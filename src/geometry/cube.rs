@@ -262,11 +262,11 @@ impl BufferSource for PositionsBuilder {
         108 * 4
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -295,11 +295,11 @@ impl BufferSource for TexturesNormalsBuilder {
         BufferSourceData::BytesBorrowed(self.as_bytes())
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }

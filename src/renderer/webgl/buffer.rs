@@ -176,13 +176,13 @@ pub trait BufferSource {
         self.data().byte_length()
     }
 
-    /// Returns src offset is available.
+    /// Returns src element offset.
     /// Unavailable for [`BufferSourceData::ArrayBuffer`].
-    fn src_offset(&self) -> Option<usize>;
+    fn src_element_offset(&self) -> Option<usize>;
 
-    /// Returns src length is available.
+    /// Returns src element length.
     /// Unavailable for [`BufferSourceData::ArrayBuffer`].
-    fn src_length(&self) -> Option<usize>;
+    fn src_element_length(&self) -> Option<usize>;
 }
 
 impl BufferSource for &[u8] {
@@ -190,11 +190,11 @@ impl BufferSource for &[u8] {
         BufferSourceData::BytesBorrowed(self)
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -204,11 +204,11 @@ impl BufferSource for Vec<u8> {
         BufferSourceData::BytesBorrowed(self.as_slice())
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -218,11 +218,11 @@ impl<const N: usize> BufferSource for [u8; N] {
         BufferSourceData::BytesBorrowed(self.as_slice())
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -232,11 +232,11 @@ impl<const N: usize> BufferSource for &[u8; N] {
         BufferSourceData::BytesBorrowed(self.as_slice())
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -246,11 +246,11 @@ impl BufferSource for ArrayBuffer {
         BufferSourceData::ArrayBuffer(self.clone())
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -263,11 +263,11 @@ macro_rules! array_buffer_view_sources {
                     BufferSourceData::$source(self.clone())
                 }
 
-                fn src_offset(&self) -> Option<usize> {
+                fn src_element_offset(&self) -> Option<usize> {
                     None
                 }
 
-                fn src_length(&self) -> Option<usize> {
+                fn src_element_length(&self) -> Option<usize> {
                     None
                 }
             }
@@ -310,11 +310,11 @@ impl BufferSource for Preallocation {
         self.0
     }
 
-    fn src_offset(&self) -> Option<usize> {
+    fn src_element_offset(&self) -> Option<usize> {
         None
     }
 
-    fn src_length(&self) -> Option<usize> {
+    fn src_element_length(&self) -> Option<usize> {
         None
     }
 }
@@ -431,8 +431,8 @@ impl BufferRuntime {
                 } = item;
                 let data = source.data();
                 let dst_byte_offset = dst_byte_offset as i32;
-                let src_offset = source.src_offset().unwrap_or(0) as u32;
-                let src_length = source.src_length().unwrap_or(data.byte_length()) as u32;
+                let src_element_offset = source.src_element_offset().unwrap_or(0) as u32;
+                let src_element_length = source.src_element_length().unwrap_or(0) as u32;
                 match data {
                     BufferSourceData::Bytes(_) | BufferSourceData::BytesBorrowed(_) => {
                         let bytes = match &data {
@@ -445,8 +445,8 @@ impl BufferRuntime {
                                 target.gl_enum(),
                                 dst_byte_offset,
                                 &bytes,
-                                src_offset,
-                                src_length,
+                                src_element_offset,
+                                src_element_length,
                             );
                     }
                     BufferSourceData::DataView(_)
@@ -480,8 +480,8 @@ impl BufferRuntime {
                             target.gl_enum(),
                             dst_byte_offset,
                             &buffer,
-                            src_offset,
-                            src_length,
+                            src_element_offset,
+                            src_element_length,
                         );
                     }
                     BufferSourceData::ArrayBuffer(buffer) => {
