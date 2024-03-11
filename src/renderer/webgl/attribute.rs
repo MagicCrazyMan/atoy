@@ -24,14 +24,14 @@ pub enum AttributeValue<'a> {
     Vertex2f(f32, f32),
     Vertex3f(f32, f32, f32),
     Vertex4f(f32, f32, f32, f32),
+    Integer4(i32, i32, i32, i32),
+    UnsignedInteger4(u32, u32, u32, u32),
     Vertex1fv([f32; 1]),
     Vertex2fv([f32; 2]),
     Vertex3fv([f32; 3]),
     Vertex4fv([f32; 4]),
-    UnsignedInteger4(u32, u32, u32, u32),
-    UnsignedIntegerVector4([u32; 4]),
-    Integer4(i32, i32, i32, i32),
     IntegerVector4([i32; 4]),
+    UnsignedIntegerVector4([u32; 4]),
 }
 
 /// Attribute internal bindings.

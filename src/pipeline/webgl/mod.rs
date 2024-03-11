@@ -11,7 +11,9 @@ use crate::{
     clock::WebClock,
     entity::Entity,
     renderer::webgl::{
-        buffer::{self, Buffer, BufferSource, BufferSourceData, BufferUsage, MemoryPolicy, Preallocation},
+        buffer::{
+            self, Buffer, BufferSource, BufferData, BufferUsage, MemoryPolicy, Preallocation,
+        },
         error::Error,
         state::FrameState,
     },
@@ -266,16 +268,12 @@ pub struct StandardPipeline {
 struct GaussianKernelBufferSource;
 
 impl BufferSource for GaussianKernelBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(UBO_GAUSSIAN_KERNEL_BYTES)
-    }
-    
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-    
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: UBO_GAUSSIAN_KERNEL_BYTES,
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 }
 

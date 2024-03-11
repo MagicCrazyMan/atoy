@@ -8,7 +8,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferData,
             BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode},
@@ -254,20 +254,16 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
 struct PositionsBufferSource(f64);
 
 impl BufferSource for PositionsBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::Bytes(build_positions(self.0).to_vec())
+    fn data(&self) -> BufferData<'_> {
+        BufferData::Bytes {
+            data: Box::new(build_positions(self.0)),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 
     fn byte_length(&self) -> usize {
         108 * 4
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
     }
 }
 
@@ -285,15 +281,15 @@ impl TexturesNormalsBufferSource {
 }
 
 impl BufferSource for TexturesNormalsBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(self.as_bytes())
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self.as_bytes(),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn byte_length(&self) -> usize {
+        (108 + 48) * 4
     }
 }

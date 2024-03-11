@@ -6,7 +6,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferData,
             BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
@@ -269,20 +269,16 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
 struct PositionsBufferSource(f64);
 
 impl BufferSource for PositionsBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::Bytes(build_positions(self.0).to_vec())
+    fn data(&self) -> BufferData<'_> {
+        BufferData::Bytes {
+            data: Box::new(build_positions(self.0)),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 
     fn byte_length(&self) -> usize {
         72 * 4
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
     }
 }
 
@@ -290,16 +286,16 @@ impl BufferSource for PositionsBufferSource {
 struct IndicesBufferSource;
 
 impl BufferSource for IndicesBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(&INDICES)
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: &INDICES,
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    
+    fn byte_length(&self) -> usize {
+        36
     }
 }
 
@@ -313,15 +309,15 @@ impl TexturesNormalsBufferSource {
 }
 
 impl BufferSource for TexturesNormalsBufferSource {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(&self.as_bytes())
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self.as_bytes(),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn byte_length(&self) -> usize {
+        120 * 4
     }
 }

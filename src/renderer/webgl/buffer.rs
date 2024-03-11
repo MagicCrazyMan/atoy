@@ -99,44 +99,102 @@ pub enum BufferUsage {
     STREAM_COPY,
 }
 
-/// Buffer data from source for uploading to WebGl runtime.
-pub enum BufferSourceData<'a> {
-    Bytes(Vec<u8>),
-    BytesBorrowed(&'a [u8]),
-    ArrayBuffer(ArrayBuffer),
-    DataView(DataView),
-    Int8Array(Int8Array),
-    Uint8Array(Uint8Array),
-    Uint8ClampedArray(Uint8ClampedArray),
-    Int16Array(Int16Array),
-    Uint16Array(Uint16Array),
-    Int32Array(Int32Array),
-    Uint32Array(Uint32Array),
-    Float32Array(Float32Array),
-    Float64Array(Float64Array),
-    BigInt64Array(BigInt64Array),
-    BigUint64Array(BigUint64Array),
+/// Buffer data from source for uploading to WebGL runtime.
+pub enum BufferData<'a> {
+    Bytes {
+        data: Box<dyn AsRef<[u8]>>,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    BytesBorrowed {
+        data: &'a [u8],
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    ArrayBuffer {
+        data: ArrayBuffer,
+    },
+    DataView {
+        data: DataView,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Int8Array {
+        data: Int8Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Uint8Array {
+        data: Uint8Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Uint8ClampedArray {
+        data: Uint8ClampedArray,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Int16Array {
+        data: Int16Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Uint16Array {
+        data: Uint16Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Int32Array {
+        data: Int32Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Uint32Array {
+        data: Uint32Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Float32Array {
+        data: Float32Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    Float64Array {
+        data: Float64Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    BigInt64Array {
+        data: BigInt64Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
+    BigUint64Array {
+        data: BigUint64Array,
+        src_element_offset: Option<usize>,
+        src_element_length: Option<usize>,
+    },
 }
 
-impl<'a> BufferSourceData<'a> {
+impl<'a> BufferData<'a> {
     /// Returns byte length of the data.
     pub fn byte_length(&self) -> usize {
         match self {
-            BufferSourceData::Bytes(bytes) => bytes.len(),
-            BufferSourceData::BytesBorrowed(bytes) => bytes.len(),
-            BufferSourceData::ArrayBuffer(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::DataView(data_view) => data_view.byte_length() as usize,
-            BufferSourceData::Int8Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Uint8Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Uint8ClampedArray(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Int16Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Uint16Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Int32Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Uint32Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Float32Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::Float64Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::BigInt64Array(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::BigUint64Array(buffer) => buffer.byte_length() as usize,
+            BufferData::Bytes { data, .. } => data.as_ref().as_ref().len(),
+            BufferData::BytesBorrowed { data, .. } => data.len(),
+            BufferData::ArrayBuffer { data, .. } => data.byte_length() as usize,
+            BufferData::DataView { data, .. } => data.byte_length() as usize,
+            BufferData::Int8Array { data, .. } => data.byte_length() as usize,
+            BufferData::Uint8Array { data, .. } => data.byte_length() as usize,
+            BufferData::Uint8ClampedArray { data, .. } => data.byte_length() as usize,
+            BufferData::Int16Array { data, .. } => data.byte_length() as usize,
+            BufferData::Uint16Array { data, .. } => data.byte_length() as usize,
+            BufferData::Int32Array { data, .. } => data.byte_length() as usize,
+            BufferData::Uint32Array { data, .. } => data.byte_length() as usize,
+            BufferData::Float32Array { data, .. } => data.byte_length() as usize,
+            BufferData::Float64Array { data, .. } => data.byte_length() as usize,
+            BufferData::BigInt64Array { data, .. } => data.byte_length() as usize,
+            BufferData::BigUint64Array { data, .. } => data.byte_length() as usize,
         }
     }
 }
@@ -144,112 +202,72 @@ impl<'a> BufferSourceData<'a> {
 /// A trait defining a buffer source for uploading data to WebGL runtime.
 pub trait BufferSource {
     /// Returns data for uploading.
-    fn data(&self) -> BufferSourceData<'_>;
+    fn data(&self) -> BufferData<'_>;
 
     /// Returns byte length of data.
     /// Uses [`BufferSourceData::byte_length`] as default.
     fn byte_length(&self) -> usize {
         self.data().byte_length()
     }
-
-    /// Returns src element offset.
-    /// Unavailable for [`BufferSourceData::ArrayBuffer`].
-    fn src_element_offset(&self) -> Option<usize>;
-
-    /// Returns src element length.
-    /// Unavailable for [`BufferSourceData::ArrayBuffer`].
-    fn src_element_length(&self) -> Option<usize>;
 }
 
 impl BufferSource for &[u8] {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(self)
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self,
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 }
 
 impl BufferSource for Vec<u8> {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(self.as_slice())
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self.as_slice(),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 }
 
 impl<const N: usize> BufferSource for [u8; N] {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(self.as_slice())
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self.as_slice(),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 }
 
 impl<const N: usize> BufferSource for &[u8; N] {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::BytesBorrowed(self.as_slice())
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
+    fn data(&self) -> BufferData<'_> {
+        BufferData::BytesBorrowed {
+            data: self.as_slice(),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 }
 
 impl BufferSource for Rc<dyn BufferSource> {
-    fn data(&self) -> BufferSourceData<'_> {
+    fn data(&self) -> BufferData<'_> {
         self.as_ref().data()
     }
 
     fn byte_length(&self) -> usize {
         self.as_ref().byte_length()
     }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        self.as_ref().src_element_offset()
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        self.as_ref().src_element_length()
-    }
 }
 
 impl BufferSource for ArrayBuffer {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::ArrayBuffer(self.clone())
+    fn data(&self) -> BufferData<'_> {
+        BufferData::ArrayBuffer { data: self.clone() }
     }
 
     fn byte_length(&self) -> usize {
         self.byte_length() as usize
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
     }
 }
 
@@ -257,20 +275,16 @@ macro_rules! array_buffer_view_sources {
     ($($source:ident),+) => {
         $(
             impl BufferSource for $source {
-                fn data(&self) -> BufferSourceData<'_> {
-                    BufferSourceData::$source(self.clone())
+                fn data(&self) -> BufferData<'_> {
+                    BufferData::$source {
+                        data: self.clone(),
+                        src_element_offset: None,
+                        src_element_length: None,
+                    }
                 }
 
                 fn byte_length(&self) -> usize {
                     self.byte_length() as usize
-                }
-
-                fn src_element_offset(&self) -> Option<usize> {
-                    None
-                }
-
-                fn src_element_length(&self) -> Option<usize> {
-                    None
                 }
             }
         )+
@@ -304,20 +318,14 @@ impl Preallocation {
 }
 
 impl BufferSource for Preallocation {
-    fn data(&self) -> BufferSourceData<'_> {
-        BufferSourceData::ArrayBuffer(ArrayBuffer::new(self.0 as u32))
+    fn data(&self) -> BufferData<'_> {
+        BufferData::ArrayBuffer {
+            data: ArrayBuffer::new(self.0 as u32),
+        }
     }
 
     fn byte_length(&self) -> usize {
         self.0
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
     }
 }
 
@@ -426,64 +434,166 @@ impl BufferRuntime {
                 } = item;
                 let data = source.data();
                 let dst_byte_offset = dst_byte_offset as i32;
-                let src_element_offset = source.src_element_offset().unwrap_or(0) as u32;
-                let src_element_length = source.src_element_length().unwrap_or(0) as u32;
                 match data {
-                    BufferSourceData::Bytes(_) | BufferSourceData::BytesBorrowed(_) => {
-                        let bytes = match &data {
-                            BufferSourceData::Bytes(bytes) => bytes.as_slice(),
-                            BufferSourceData::BytesBorrowed(bytes) => *bytes,
+                    BufferData::Bytes { .. } | BufferData::BytesBorrowed { .. } => {
+                        let (data, src_element_offset, src_element_length) = match &data {
+                            BufferData::Bytes {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (data.as_ref().as_ref(), src_element_offset, src_element_length),
+                            BufferData::BytesBorrowed {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (*data, src_element_offset, src_element_length),
                             _ => unreachable!(),
                         };
                         self.gl
                             .buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
                                 target.gl_enum(),
                                 dst_byte_offset,
-                                &bytes,
-                                src_element_offset,
-                                src_element_length,
+                                data,
+                                src_element_offset.unwrap_or(0) as u32,
+                                src_element_length.unwrap_or(0) as u32,
                             );
                     }
-                    BufferSourceData::DataView(_)
-                    | BufferSourceData::Int8Array(_)
-                    | BufferSourceData::Uint8Array(_)
-                    | BufferSourceData::Uint8ClampedArray(_)
-                    | BufferSourceData::Int16Array(_)
-                    | BufferSourceData::Uint16Array(_)
-                    | BufferSourceData::Int32Array(_)
-                    | BufferSourceData::Uint32Array(_)
-                    | BufferSourceData::Float32Array(_)
-                    | BufferSourceData::Float64Array(_)
-                    | BufferSourceData::BigInt64Array(_)
-                    | BufferSourceData::BigUint64Array(_) => {
-                        let buffer: Object = match data {
-                            BufferSourceData::DataView(buffer) => buffer.into(),
-                            BufferSourceData::Int8Array(buffer) => buffer.into(),
-                            BufferSourceData::Uint8Array(buffer) => buffer.into(),
-                            BufferSourceData::Uint8ClampedArray(buffer) => buffer.into(),
-                            BufferSourceData::Int16Array(buffer) => buffer.into(),
-                            BufferSourceData::Uint16Array(buffer) => buffer.into(),
-                            BufferSourceData::Int32Array(buffer) => buffer.into(),
-                            BufferSourceData::Uint32Array(buffer) => buffer.into(),
-                            BufferSourceData::Float32Array(buffer) => buffer.into(),
-                            BufferSourceData::Float64Array(buffer) => buffer.into(),
-                            BufferSourceData::BigInt64Array(buffer) => buffer.into(),
-                            BufferSourceData::BigUint64Array(buffer) => buffer.into(),
+                    BufferData::DataView { .. }
+                    | BufferData::Int8Array { .. }
+                    | BufferData::Uint8Array { .. }
+                    | BufferData::Uint8ClampedArray { .. }
+                    | BufferData::Int16Array { .. }
+                    | BufferData::Uint16Array { .. }
+                    | BufferData::Int32Array { .. }
+                    | BufferData::Uint32Array { .. }
+                    | BufferData::Float32Array { .. }
+                    | BufferData::Float64Array { .. }
+                    | BufferData::BigInt64Array { .. }
+                    | BufferData::BigUint64Array { .. } => {
+                        let (data, src_element_offset, src_element_length) = match data {
+                            BufferData::DataView {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Int8Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Uint8Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Uint8ClampedArray {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Int16Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Uint16Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Int32Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Uint32Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Float32Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::Float64Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::BigInt64Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
+                            BufferData::BigUint64Array {
+                                data,
+                                src_element_offset,
+                                src_element_length,
+                            } => (
+                                Into::<Object>::into(data),
+                                src_element_offset,
+                                src_element_length,
+                            ),
                             _ => unreachable!(),
                         };
                         self.gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
                             target.gl_enum(),
                             dst_byte_offset,
-                            &buffer,
-                            src_element_offset,
-                            src_element_length,
+                            &data,
+                            src_element_offset.unwrap_or(0) as u32,
+                            src_element_length.unwrap_or(0) as u32,
                         );
                     }
-                    BufferSourceData::ArrayBuffer(buffer) => {
+                    BufferData::ArrayBuffer { data } => {
                         self.gl.buffer_sub_data_with_i32_and_array_buffer(
                             target.gl_enum(),
                             dst_byte_offset,
-                            &buffer,
+                            &data,
                         )
                     }
                 };

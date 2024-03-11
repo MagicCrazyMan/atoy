@@ -8,7 +8,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferData,
             MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode},
@@ -308,7 +308,7 @@ struct RectangleBufferSource {
 }
 
 impl BufferSource for RectangleBufferSource {
-    fn data(&self) -> buffer::BufferSourceData<'_> {
+    fn data(&self) -> buffer::BufferData<'_> {
         let (data, _) = create_rectangle(
             self.anchor,
             self.placement,
@@ -317,18 +317,14 @@ impl BufferSource for RectangleBufferSource {
             self.texture_scale_s,
             self.texture_scale_t,
         );
-        BufferSourceData::Bytes(data.to_vec())
+        BufferData::Bytes {
+            data: Box::new(data),
+            src_element_offset: None,
+            src_element_length: None,
+        }
     }
 
     fn byte_length(&self) -> usize {
         208
-    }
-
-    fn src_element_offset(&self) -> Option<usize> {
-        None
-    }
-
-    fn src_element_length(&self) -> Option<usize> {
-        None
     }
 }

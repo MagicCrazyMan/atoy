@@ -142,25 +142,6 @@ impl TextureUnit {
     }
 }
 
-/// Available texture formats mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureFormat {
-    RED,
-    RED_INTEGER,
-    RG,
-    RG_INTEGER,
-    RGB,
-    RGB_INTEGER,
-    RGBA,
-    RGBA_INTEGER,
-    LUMINANCE,
-    LUMINANCE_ALPHA,
-    ALPHA,
-    DEPTH_COMPONENT,
-    DEPTH_STENCIL,
-}
-
 /// Available texture data types mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -181,6 +162,25 @@ pub enum TextureDataType {
     UNSIGNED_INT_5_9_9_9_REV,
     UNSIGNED_INT_24_8,
     FLOAT_32_UNSIGNED_INT_24_8_REV,
+}
+
+/// Available texture formats mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureFormat {
+    RED,
+    RED_INTEGER,
+    RG,
+    RG_INTEGER,
+    RGB,
+    RGB_INTEGER,
+    RGBA,
+    RGBA_INTEGER,
+    LUMINANCE,
+    LUMINANCE_ALPHA,
+    ALPHA,
+    DEPTH_COMPONENT,
+    DEPTH_STENCIL,
 }
 
 /// Available texture color internal formats mapped from [`WebGl2RenderingContext`].
@@ -1653,7 +1653,7 @@ macro_rules! texture_sources_compressed {
 texture_sources_compressed! {
     (Int8Array, Int8Array)
     (Uint8Array, Uint8Array)
-    (Uint8ClampedArray, Uint8Array)
+    (Uint8ClampedArray, Uint8ClampedArray)
     (Int16Array, Int16Array)
     (Uint16Array, Uint16Array)
     (Int32Array, Int32Array)
