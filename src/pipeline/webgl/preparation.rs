@@ -4,10 +4,9 @@ use web_sys::js_sys::{ArrayBuffer, Float32Array};
 use crate::{
     clock::WebClock,
     light::{
-        ambient_light::AmbientLight, area_light::AreaLight, directional_light::DirectionalLight,
-        point_light::PointLight, spot_light::SpotLight,
+        ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
+        directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
-    property::PropertyStamp,
     renderer::webgl::{
         buffer::{Buffer, Preallocation},
         error::Error,
@@ -33,12 +32,12 @@ use super::{
 pub struct StandardPreparation {
     universal_uniforms: ArrayBuffer,
 
-    last_light_attenuation: Option<PropertyStamp>,
-    last_ambient_light: Option<PropertyStamp>,
-    last_directional_lights: Option<Vec<PropertyStamp>>,
-    last_point_lights: Option<Vec<PropertyStamp>>,
-    last_spot_lights: Option<Vec<PropertyStamp>>,
-    last_area_lights: Option<Vec<PropertyStamp>>,
+    last_light_attenuation: Option<Attenuation>,
+    last_ambient_light: Option<AmbientLight>,
+    last_directional_lights: Option<Vec<DirectionalLight>>,
+    last_point_lights: Option<Vec<PointLight>>,
+    last_spot_lights: Option<Vec<SpotLight>>,
+    last_area_lights: Option<Vec<AreaLight>>,
 }
 
 impl StandardPreparation {
@@ -120,7 +119,7 @@ impl StandardPreparation {
         if self
             .last_light_attenuation
             .as_ref()
-            .map(|stamp| scene.light_attenuation().is_dirty(stamp))
+            .map(|last| last != scene.light_attenuation())
             .unwrap_or(true)
         {
             let mut data = [0u8; 12];
@@ -129,17 +128,12 @@ impl StandardPreparation {
             data[8..12].copy_from_slice(scene.light_attenuation().c().to_ne_bytes().as_slice());
 
             lights_ubo.buffer_sub_data(data, UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET);
-            self.last_light_attenuation = Some(scene.light_attenuation().stamp());
+            self.last_light_attenuation = Some(scene.light_attenuation().clone());
         }
 
         // u_AmbientLight
-        if self
-            .last_ambient_light
-            .as_ref()
-            .map(|stamp| scene.ambient_light().is_dirty(stamp))
-            .unwrap_or(true)
-        {
-            match scene.ambient_light().value() {
+        if &self.last_ambient_light != scene.ambient_light() {
+            match scene.ambient_light() {
                 Some(light) => {
                     lights_ubo.buffer_sub_data(light.ubo(), UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET);
                 }
@@ -150,20 +144,20 @@ impl StandardPreparation {
                     );
                 }
             }
-            self.last_ambient_light = Some(scene.ambient_light().stamp());
+            self.last_ambient_light = scene.ambient_light().clone();
         }
 
         // uses for sending empty data
         macro_rules! update_lights {
-            ($(($last_stamps:ident, $lights:ident, $count:tt, $len:tt, $offset:tt))+) => {
+            ($(($last:ident, $lights:ident, $count:tt, $len:tt, $offset:tt))+) => {
                 $(
-                    match &mut self.$last_stamps {
+                    match &mut self.$last {
                         Some(last_lights) => {
                             let lights = scene.$lights();
 
                             for (index, light) in lights.into_iter().enumerate() {
-                                let last_stamp = last_lights.get(index);
-                                if last_stamp.map(|stamp| !light.is_dirty(stamp)).unwrap_or(false) {
+                                let last = last_lights.get(index);
+                                if last.map(|last| last == light).unwrap_or(false) {
                                     continue;
                                 }
 
@@ -171,7 +165,7 @@ impl StandardPreparation {
                                     light.ubo(),
                                     $offset + index * $len,
                                 );
-                                last_lights.insert(index, light.stamp());
+                                last_lights.insert(index, light.clone());
                             }
 
                             // clears the rest
@@ -187,7 +181,7 @@ impl StandardPreparation {
                         }
                         None => {
                             let lights = scene.$lights();
-                            let mut stamps = Vec::with_capacity(lights.len());
+                            let mut last_lights = Vec::with_capacity(lights.len());
 
                             // clears first
                             lights_ubo.buffer_sub_data(
@@ -201,9 +195,9 @@ impl StandardPreparation {
                                     light.ubo(),
                                     $offset + index * $len,
                                 );
-                                stamps.push(light.stamp());
+                                last_lights.push(light.clone());
                             }
-                            self.$last_stamps = Some(stamps);
+                            self.$last = Some(last_lights);
                         }
                     }
                 )+

@@ -15,7 +15,6 @@ pub mod material;
 pub mod notify;
 pub mod pipeline;
 pub mod plane;
-pub mod property;
 pub mod renderer;
 pub mod scene;
 pub mod share;
