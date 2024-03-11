@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["console_error_panic_hook"]
+rebind = []
 
 [dependencies]
 wasm-bindgen = { version = "0.2.89" }

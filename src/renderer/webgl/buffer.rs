@@ -19,11 +19,10 @@ use web_sys::{
 
 use crate::{
     lru::{Lru, LruNode},
-    renderer::webgl::params::GetWebGlParameters,
     utils::format_byte_length,
 };
 
-use super::{conversion::ToGlEnum, error::Error};
+use super::{conversion::ToGlEnum, error::Error, params::GetWebGlParameters};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -349,14 +348,21 @@ impl BufferRuntime {
         }
 
         let gl = &self.gl;
+
+        let binding = if cfg!(feature = "rebind") {
+            gl.array_buffer_binding()
+        } else {
+            None
+        };
+
         let data = Uint8Array::new_with_length(self.buffer_byte_length as u32);
-        let binding = gl.array_buffer_binding();
         gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(buffer));
         gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
             WebGl2RenderingContext::ARRAY_BUFFER,
             0,
             &data,
         );
+
         gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
 
         Some(data.buffer())
@@ -372,7 +378,7 @@ impl BufferRuntime {
             let required_byte_length = queue.required_byte_length;
             let current_byte_length = self.buffer_byte_length;
 
-            if required_byte_length >= current_byte_length {
+            if required_byte_length > current_byte_length {
                 self.gl.buffer_data_with_i32(
                     target.gl_enum(),
                     required_byte_length as i32,
@@ -484,13 +490,23 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered.store.borrow().is_occupied_ubo(mount_point, &self.id) {
+            if registered
+                .store
+                .borrow()
+                .is_occupied_ubo(mount_point, &self.id)
+            {
                 return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
             }
         }
 
         let buffer = runtime.get_or_create_buffer()?;
-        let binding = runtime.gl.uniform_buffer_binding();
+
+        let binding = if cfg!(feature = "rebind") {
+            runtime.gl.array_buffer_binding()
+        } else {
+            None
+        };
+
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
@@ -532,13 +548,23 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered.store.borrow().is_occupied_ubo(mount_point, &self.id) {
+            if registered
+                .store
+                .borrow()
+                .is_occupied_ubo(mount_point, &self.id)
+            {
                 return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
             }
         }
 
         let buffer = runtime.get_or_create_buffer()?;
-        let binding = runtime.gl.uniform_buffer_binding();
+
+        let binding = if cfg!(feature = "rebind") {
+            runtime.gl.array_buffer_binding()
+        } else {
+            None
+        };
+
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(&buffer));
@@ -551,9 +577,6 @@ impl BufferShared {
             offset,
             size,
         );
-        runtime
-            .gl
-            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
         runtime.binding_ubos.insert(mount_point);
 
         if let Some(registered) = &self.registered {
@@ -563,6 +586,10 @@ impl BufferShared {
             store.add_binding_ubo(mount_point, self.id);
             store.free();
         }
+
+        runtime
+            .gl
+            .bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, binding.as_ref());
 
         Ok(())
     }
@@ -623,21 +650,28 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         let buffer = runtime.get_or_create_buffer()?;
-        let binding = runtime.gl.array_buffer_binding();
+
+        let binding = if cfg!(feature = "rebind") {
+            runtime.gl.array_buffer_binding()
+        } else {
+            None
+        };
+
         runtime
             .gl
             .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
         let (new_byte_length, old_byte_length) =
             runtime.upload(BufferTarget::ARRAY_BUFFER, self.usage, &mut self.queue);
-        runtime
-            .gl
-            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
 
         if let Some(registered) = &self.registered {
             let mut store = registered.store.borrow_mut();
             store.update_used_memory(new_byte_length, old_byte_length);
             store.free();
         }
+
+        runtime
+            .gl
+            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, binding.as_ref());
 
         Ok(())
     }
@@ -930,7 +964,9 @@ impl Buffer {
 
     /// Binds buffer to specified [`BufferTarget`].
     pub fn bind_ubo_range(&self, mount_point: u32, offset: i32, size: i32) -> Result<(), Error> {
-        self.shared.borrow_mut().bind_ubo_range(mount_point, offset, size)
+        self.shared
+            .borrow_mut()
+            .bind_ubo_range(mount_point, offset, size)
     }
 
     /// Unbinds buffer from specified [`BufferTarget`].

@@ -13,7 +13,8 @@ use crate::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
     },
-    share::Share, value::Readonly,
+    share::Share,
+    value::Readonly,
 };
 
 pub trait Entity {
@@ -193,6 +194,7 @@ impl SimpleEntity {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
+        self.mark_update();
     }
 
     pub fn set_geometry<G>(&mut self, geometry: Option<G>)
@@ -200,6 +202,7 @@ impl SimpleEntity {
         G: Geometry + 'static,
     {
         self.geometry = geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>);
+        self.mark_update();
     }
 
     pub fn set_material<M>(&mut self, material: Option<M>)
@@ -207,6 +210,7 @@ impl SimpleEntity {
         M: StandardMaterial + 'static,
     {
         self.material = material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
+        self.mark_update();
     }
 
     pub fn bounding_enabled(&self) -> bool {
@@ -386,6 +390,11 @@ impl SimpleGroup {
 
     pub fn model_matrix(&self) -> &Mat4 {
         &self.model_matrix
+    }
+
+    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
+        self.model_matrix = model_matrix;
+        self.mark_update();
     }
 
     pub fn add_entity<E>(&mut self, entity: E)

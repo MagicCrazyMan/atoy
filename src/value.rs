@@ -13,7 +13,7 @@ pub enum Readonly<'a, T> {
 }
 
 impl<'a, T> Readonly<'a, T> {
-    pub fn value(&self) -> &T {
+    fn value(&self) -> &T {
         match self {
             Readonly::Owned(v) => v,
             Readonly::Borrowed(v) => *v,

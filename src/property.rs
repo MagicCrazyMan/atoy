@@ -51,7 +51,7 @@ impl<T> Property<T> {
     }
 
     pub fn is_dirty(&self, stamp: &PropertyStamp) -> bool {
-        self.dirty_count == stamp.dirty_count && self.id == stamp.id
+        self.dirty_count != stamp.dirty_count || self.id != stamp.id
     }
 
     pub fn stamp(&self) -> PropertyStamp {
@@ -93,7 +93,7 @@ impl<T> AsMut<T> for Property<T> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PropertyStamp {
     id: Uuid,
     dirty_count: usize,

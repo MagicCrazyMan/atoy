@@ -390,7 +390,11 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let current_texture = gl.texture_binding_2d();
+                let binding = if cfg!(feature = "rebind") {
+                    gl.texture_binding_2d()
+                } else {
+                    None
+                };
 
                 let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -409,7 +413,7 @@ impl AttachmentProvider {
                     0,
                 );
 
-                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, current_texture.as_ref());
+                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
 
                 Attach::Texture {
                     texture,
@@ -421,7 +425,11 @@ impl AttachmentProvider {
                 texture,
                 clear_policy,
             } => {
-                let current_texture = gl.texture_binding_2d();
+                let binding = if cfg!(feature = "rebind") {
+                    gl.texture_binding_2d()
+                } else {
+                    None
+                };
 
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 gl.framebuffer_texture_2d(
@@ -432,7 +440,7 @@ impl AttachmentProvider {
                     0,
                 );
 
-                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, current_texture.as_ref());
+                gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
 
                 Attach::Texture {
                     texture: texture.clone(),
@@ -444,7 +452,11 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let current_renderbuffer = gl.renderbuffer_binding();
+                let binding = if cfg!(feature = "rebind") {
+                    gl.renderbuffer_binding()
+                } else {
+                    None
+                };
 
                 let renderbuffer = gl
                     .create_renderbuffer()
@@ -472,10 +484,7 @@ impl AttachmentProvider {
                     Some(&renderbuffer),
                 );
 
-                gl.bind_renderbuffer(
-                    WebGl2RenderingContext::RENDERBUFFER,
-                    current_renderbuffer.as_ref(),
-                );
+                gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, binding.as_ref());
 
                 Attach::Renderbuffer {
                     renderbuffer,
@@ -487,7 +496,11 @@ impl AttachmentProvider {
                 renderbuffer,
                 clear_policy,
             } => {
-                let current_renderbuffer = gl.renderbuffer_binding();
+                let binding = if cfg!(feature = "rebind") {
+                    gl.renderbuffer_binding()
+                } else {
+                    None
+                };
 
                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
                 gl.framebuffer_renderbuffer(
@@ -497,10 +510,7 @@ impl AttachmentProvider {
                     Some(renderbuffer),
                 );
 
-                gl.bind_renderbuffer(
-                    WebGl2RenderingContext::RENDERBUFFER,
-                    current_renderbuffer.as_ref(),
-                );
+                gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, binding.as_ref());
 
                 Attach::Renderbuffer {
                     renderbuffer: renderbuffer.clone(),
