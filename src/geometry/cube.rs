@@ -9,7 +9,7 @@ use crate::{
         attribute::AttributeValue,
         buffer::{
             self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
-            BufferUsage, MemoryPolicy, Restorer,
+            BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
@@ -39,8 +39,8 @@ impl Cube {
             (positions_size_one_buffer(), true)
         } else {
             let buffer = buffer::Builder::default()
-                .buffer_data(PositionsBuilder(size))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
+                .buffer_data(PositionsBufferSource(size))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)))
                 .build();
             (Value::Owned(buffer), false)
         };
@@ -65,8 +65,8 @@ impl Cube {
         if self.positions_shared {
             self.positions = Value::Owned(
                 buffer::Builder::new(BufferUsage::DYNAMIC_DRAW)
-                    .buffer_data(PositionsBuilder(size))
-                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
+                    .buffer_data(PositionsBufferSource(size))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)))
                     .build(),
             );
             self.positions_shared = false;
@@ -78,10 +78,10 @@ impl Cube {
             }
             self.positions
                 .value_mut()
-                .buffer_sub_data(PositionsBuilder(size), 0);
+                .buffer_sub_data(PositionsBufferSource(size), 0);
             self.positions
                 .value_mut()
-                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)));
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)));
         }
 
         self.size = size;
@@ -220,8 +220,8 @@ fn normals_texture_coordinates_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(TexturesNormalsBuilder)
-                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBuilder))
+                    .buffer_data(TexturesNormalsBufferSource)
+                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBufferSource))
                     .build();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.set(buffer).unwrap();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut().unwrap()
@@ -239,8 +239,8 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(PositionsBuilder(1.0))
-                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(1.0)))
+                    .buffer_data(PositionsBufferSource(1.0))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(1.0)))
                     .build();
                 POSITIONS_SIZE_ONE_BUFFER.set(buffer).unwrap();
                 POSITIONS_SIZE_ONE_BUFFER.get_mut().unwrap()
@@ -251,9 +251,9 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
 }
 
 #[derive(Debug)]
-struct PositionsBuilder(f64);
+struct PositionsBufferSource(f64);
 
-impl BufferSource for PositionsBuilder {
+impl BufferSource for PositionsBufferSource {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::Bytes(build_positions(self.0).to_vec())
     }
@@ -271,16 +271,10 @@ impl BufferSource for PositionsBuilder {
     }
 }
 
-impl Restorer for PositionsBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(build_positions(self.0))
-    }
-}
-
 #[derive(Debug)]
-struct TexturesNormalsBuilder;
+struct TexturesNormalsBufferSource;
 
-impl TexturesNormalsBuilder {
+impl TexturesNormalsBufferSource {
     fn as_bytes(&self) -> &'static [u8] {
         unsafe {
             std::mem::transmute::<&[f32; 108 + 48], &[u8; (108 + 48) * 4]>(
@@ -290,7 +284,7 @@ impl TexturesNormalsBuilder {
     }
 }
 
-impl BufferSource for TexturesNormalsBuilder {
+impl BufferSource for TexturesNormalsBufferSource {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::BytesBorrowed(self.as_bytes())
     }
@@ -301,11 +295,5 @@ impl BufferSource for TexturesNormalsBuilder {
 
     fn src_element_length(&self) -> Option<usize> {
         None
-    }
-}
-
-impl Restorer for TexturesNormalsBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(self.as_bytes())
     }
 }

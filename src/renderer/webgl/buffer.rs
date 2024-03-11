@@ -125,42 +125,18 @@ impl<'a> BufferSourceData<'a> {
             BufferSourceData::Bytes(bytes) => bytes.len(),
             BufferSourceData::BytesBorrowed(bytes) => bytes.len(),
             BufferSourceData::ArrayBuffer(buffer) => buffer.byte_length() as usize,
-            BufferSourceData::DataView(data_view) => {
-                (data_view.byte_length() - data_view.byte_offset()) as usize
-            }
-            BufferSourceData::Int8Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Uint8Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Uint8ClampedArray(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Int16Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Uint16Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Int32Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Uint32Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Float32Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::Float64Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::BigInt64Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
-            BufferSourceData::BigUint64Array(buffer) => {
-                (buffer.byte_length() - buffer.byte_offset()) as usize
-            }
+            BufferSourceData::DataView(data_view) => data_view.byte_length() as usize,
+            BufferSourceData::Int8Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Uint8Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Uint8ClampedArray(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Int16Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Uint16Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Int32Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Uint32Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Float32Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::Float64Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::BigInt64Array(buffer) => buffer.byte_length() as usize,
+            BufferSourceData::BigUint64Array(buffer) => buffer.byte_length() as usize,
         }
     }
 }
@@ -241,9 +217,31 @@ impl<const N: usize> BufferSource for &[u8; N] {
     }
 }
 
+impl BufferSource for Rc<dyn BufferSource> {
+    fn data(&self) -> BufferSourceData<'_> {
+        self.as_ref().data()
+    }
+
+    fn byte_length(&self) -> usize {
+        self.as_ref().byte_length()
+    }
+
+    fn src_element_offset(&self) -> Option<usize> {
+        self.as_ref().src_element_offset()
+    }
+
+    fn src_element_length(&self) -> Option<usize> {
+        self.as_ref().src_element_length()
+    }
+}
+
 impl BufferSource for ArrayBuffer {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::ArrayBuffer(self.clone())
+    }
+
+    fn byte_length(&self) -> usize {
+        self.byte_length() as usize
     }
 
     fn src_element_offset(&self) -> Option<usize> {
@@ -261,6 +259,10 @@ macro_rules! array_buffer_view_sources {
             impl BufferSource for $source {
                 fn data(&self) -> BufferSourceData<'_> {
                     BufferSourceData::$source(self.clone())
+                }
+
+                fn byte_length(&self) -> usize {
+                    self.byte_length() as usize
                 }
 
                 fn src_element_offset(&self) -> Option<usize> {
@@ -331,13 +333,6 @@ impl QueueItem {
     {
         Self {
             source: Box::new(source),
-            dst_byte_offset: byte_offset,
-        }
-    }
-
-    fn new_boxed(source: Box<dyn BufferSource>, byte_offset: usize) -> Self {
-        Self {
-            source,
             dst_byte_offset: byte_offset,
         }
     }
@@ -958,8 +953,9 @@ impl BufferShared {
                     runtime.buffer_byte_length = 0;
                 }
 
-                let source = restorer.restore();
-                self.queue.items.insert(0, QueueItem::new_boxed(source, 0));
+                self.queue
+                    .items
+                    .insert(0, QueueItem::new(Rc::clone(&restorer), 0));
                 self.queue.required_byte_length = self.queue.required_byte_length.max(byte_length);
 
                 if let Some(registered) = self.registered.as_mut() {
@@ -1145,10 +1141,6 @@ impl Buffer {
     }
 }
 
-pub trait Restorer {
-    fn restore(&self) -> Box<dyn BufferSource>;
-}
-
 /// Memory policies kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryPolicyKind {
@@ -1161,7 +1153,7 @@ pub enum MemoryPolicyKind {
 pub enum MemoryPolicy {
     Unfree,
     ReadBack,
-    Restorable(Box<dyn Restorer>),
+    Restorable(Rc<dyn BufferSource>),
 }
 
 impl Debug for MemoryPolicy {
@@ -1186,11 +1178,11 @@ impl MemoryPolicy {
     }
 
     /// Constructs a restorable memory policy.
-    pub fn restorable<R>(restorer: R) -> Self
+    pub fn restorable<B>(source: B) -> Self
     where
-        R: Restorer + 'static,
+        B: BufferSource + 'static,
     {
-        Self::Restorable(Box::new(restorer))
+        Self::Restorable(Rc::new(source))
     }
 
     /// Returns [`MemoryPolicyKind`] associated with the [`MemoryPolicy`].

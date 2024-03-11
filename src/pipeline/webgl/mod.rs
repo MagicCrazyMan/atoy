@@ -11,7 +11,7 @@ use crate::{
     clock::WebClock,
     entity::Entity,
     renderer::webgl::{
-        buffer::{self, Buffer, BufferSource, BufferUsage, MemoryPolicy, Preallocation, Restorer},
+        buffer::{self, Buffer, BufferSource, BufferSourceData, BufferUsage, MemoryPolicy, Preallocation},
         error::Error,
         state::FrameState,
     },
@@ -205,7 +205,7 @@ pub const UBO_GAUSSIAN_KERNEL: [f32; 324] = [
     0.0002629586560000000, 0.0, 0.0, 0.0,
 ];
 /// Uniform Buffer Object data in u8 for `atoy_GaussianKernel`.
-pub const UBO_GAUSSIAN_KERNEL_U8: &[u8; 324 * 4] =
+pub const UBO_GAUSSIAN_KERNEL_BYTES: &[u8; 324 * 4] =
     unsafe { std::mem::transmute::<&[f32; 324], &[u8; 324 * 4]>(&UBO_GAUSSIAN_KERNEL) };
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -263,11 +263,19 @@ pub struct StandardPipeline {
 }
 
 #[derive(Debug)]
-struct GaussianKernelRestorer;
+struct GaussianKernelBufferSource;
 
-impl Restorer for GaussianKernelRestorer {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(UBO_GAUSSIAN_KERNEL_U8)
+impl BufferSource for GaussianKernelBufferSource {
+    fn data(&self) -> BufferSourceData<'_> {
+        BufferSourceData::BytesBorrowed(UBO_GAUSSIAN_KERNEL_BYTES)
+    }
+    
+    fn src_element_offset(&self) -> Option<usize> {
+        None
+    }
+    
+    fn src_element_length(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -299,8 +307,8 @@ impl StandardPipeline {
                 .set_memory_policy(MemoryPolicy::Unfree)
                 .build(),
             gaussian_kernel_ubo: buffer::Builder::new(BufferUsage::STATIC_DRAW)
-                .buffer_data(UBO_GAUSSIAN_KERNEL_U8)
-                .set_memory_policy(MemoryPolicy::restorable(GaussianKernelRestorer))
+                .buffer_data(UBO_GAUSSIAN_KERNEL_BYTES)
+                .set_memory_policy(MemoryPolicy::restorable(GaussianKernelBufferSource))
                 .build(),
 
             lighting: DEFAULT_LIGHTING_ENABLED,

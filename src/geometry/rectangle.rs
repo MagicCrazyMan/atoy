@@ -8,7 +8,8 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, MemoryPolicy, Restorer,
+            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
+            MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
@@ -49,7 +50,7 @@ impl Rectangle {
         );
         let buffer = buffer::Builder::default()
             .buffer_data(data)
-            .set_memory_policy(MemoryPolicy::restorable(DataBuilder {
+            .set_memory_policy(MemoryPolicy::restorable(RectangleBufferSource {
                 anchor,
                 placement,
                 width,
@@ -297,7 +298,7 @@ fn create_rectangle(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct DataBuilder {
+struct RectangleBufferSource {
     anchor: Vec2,
     placement: Placement,
     width: f64,
@@ -306,8 +307,8 @@ struct DataBuilder {
     texture_scale_t: f64,
 }
 
-impl Restorer for DataBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
+impl BufferSource for RectangleBufferSource {
+    fn data(&self) -> buffer::BufferSourceData<'_> {
         let (data, _) = create_rectangle(
             self.anchor,
             self.placement,
@@ -316,6 +317,18 @@ impl Restorer for DataBuilder {
             self.texture_scale_s,
             self.texture_scale_t,
         );
-        Box::new(data)
+        BufferSourceData::Bytes(data.to_vec())
+    }
+
+    fn byte_length(&self) -> usize {
+        208
+    }
+
+    fn src_element_offset(&self) -> Option<usize> {
+        None
+    }
+
+    fn src_element_length(&self) -> Option<usize> {
+        None
     }
 }

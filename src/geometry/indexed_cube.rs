@@ -7,7 +7,7 @@ use crate::{
         attribute::AttributeValue,
         buffer::{
             self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferSourceData,
-            BufferUsage, MemoryPolicy, Restorer,
+            BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
@@ -38,8 +38,8 @@ impl IndexedCube {
             positions_size_one_buffer()
         } else {
             let buffer = buffer::Builder::default()
-                .buffer_data(PositionsBuilder(size))
-                .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)))
+                .buffer_data(PositionsBufferSource(size))
+                .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)))
                 .build();
             Value::Owned(buffer)
         };
@@ -71,10 +71,10 @@ impl IndexedCube {
         }
         self.positions
             .value_mut()
-            .buffer_sub_data(PositionsBuilder(size), 0);
+            .buffer_sub_data(PositionsBufferSource(size), 0);
         self.positions
             .value_mut()
-            .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(size)));
+            .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)));
 
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
@@ -190,8 +190,8 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(PositionsBuilder(1.0))
-                    .set_memory_policy(MemoryPolicy::restorable(PositionsBuilder(1.0)))
+                    .buffer_data(PositionsBufferSource(1.0))
+                    .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(1.0)))
                     .build();
                 POSITIONS_SIZE_ONE_BUFFER.set(buffer).unwrap();
                 POSITIONS_SIZE_ONE_BUFFER.get_mut().unwrap()
@@ -226,8 +226,8 @@ fn normals_texture_coordinates_buffer_descriptor() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(TexturesNormalsBuilder)
-                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBuilder))
+                    .buffer_data(TexturesNormalsBufferSource)
+                    .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBufferSource))
                     .build();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.set(buffer).unwrap();
                 NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut().unwrap()
@@ -254,8 +254,8 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
             Some(buffer) => buffer,
             None => {
                 let buffer = buffer::Builder::default()
-                    .buffer_data(IndicesBuilder)
-                    .set_memory_policy(MemoryPolicy::restorable(IndicesBuilder))
+                    .buffer_data(IndicesBufferSource)
+                    .set_memory_policy(MemoryPolicy::restorable(IndicesBufferSource))
                     .build();
                 INDICES_BUFFER.set(buffer).unwrap();
                 INDICES_BUFFER.get_mut().unwrap()
@@ -266,9 +266,9 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
 }
 
 #[derive(Debug)]
-struct PositionsBuilder(f64);
+struct PositionsBufferSource(f64);
 
-impl BufferSource for PositionsBuilder {
+impl BufferSource for PositionsBufferSource {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::Bytes(build_positions(self.0).to_vec())
     }
@@ -286,16 +286,10 @@ impl BufferSource for PositionsBuilder {
     }
 }
 
-impl Restorer for PositionsBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(build_positions(self.0))
-    }
-}
-
 #[derive(Debug)]
-struct IndicesBuilder;
+struct IndicesBufferSource;
 
-impl BufferSource for IndicesBuilder {
+impl BufferSource for IndicesBufferSource {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::BytesBorrowed(&INDICES)
     }
@@ -309,22 +303,16 @@ impl BufferSource for IndicesBuilder {
     }
 }
 
-impl Restorer for IndicesBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(INDICES)
-    }
-}
-
 #[derive(Debug)]
-struct TexturesNormalsBuilder;
+struct TexturesNormalsBufferSource;
 
-impl TexturesNormalsBuilder {
+impl TexturesNormalsBufferSource {
     fn as_bytes(&self) -> &'static [u8] {
         unsafe { std::mem::transmute::<&[f32; 120], &[u8; 120 * 4]>(&NORMALS_TEXTURE_COORDINATES) }
     }
 }
 
-impl BufferSource for TexturesNormalsBuilder {
+impl BufferSource for TexturesNormalsBufferSource {
     fn data(&self) -> BufferSourceData<'_> {
         BufferSourceData::BytesBorrowed(&self.as_bytes())
     }
@@ -335,11 +323,5 @@ impl BufferSource for TexturesNormalsBuilder {
 
     fn src_element_length(&self) -> Option<usize> {
         None
-    }
-}
-
-impl Restorer for TexturesNormalsBuilder {
-    fn restore(&self) -> Box<dyn BufferSource> {
-        Box::new(self.as_bytes())
     }
 }
