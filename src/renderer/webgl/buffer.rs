@@ -306,6 +306,10 @@ impl BufferSource for Preallocation {
         BufferSourceData::ArrayBuffer(ArrayBuffer::new(self.0 as u32))
     }
 
+    fn byte_length(&self) -> usize {
+        self.0
+    }
+
     fn src_offset(&self) -> Option<usize> {
         None
     }
