@@ -26,6 +26,8 @@ pub enum Error {
     BufferTargetOccupied(BufferTarget),
     UniformBufferObjectMountPointOccupied(u32),
     RegisterBufferToMultipleStore,
+    TextureUninitialized,
+    TextureAlreadyInitialized,
     TexImageFailure(Option<String>),
     TexCompressedImageFailure,
     TextureSizeMismatched,

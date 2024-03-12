@@ -1432,18 +1432,6 @@ struct StoreShared {
     binding_ubos: HashMap<u32, Uuid>,
 }
 
-impl Debug for StoreShared {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StoreShared")
-            .field("available_memory", &self.available_memory)
-            .field("used_memory", &self.used_memory)
-            .field("items", &self.items)
-            .field("bindings", &self.bindings)
-            .field("binding_ubos", &self.binding_ubos)
-            .finish()
-    }
-}
-
 impl StoreShared {
     fn update_lru(&mut self, lru_node: *mut LruNode<Uuid>) {
         unsafe {
@@ -1575,7 +1563,7 @@ impl BufferStore {
         self.shared.borrow().used_memory
     }
 
-    /// Inits and registers a buffer to buffer store.
+    /// Registers a buffer to store, and initializes the buffer.
     pub fn register(&mut self, buffer: &Buffer) -> Result<(), Error> {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();
