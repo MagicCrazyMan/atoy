@@ -6,8 +6,8 @@ use web_sys::{WebGl2RenderingContext, WebGlSampler, WebglDebugShaders, WebglLose
 use crate::share::Share;
 
 use super::{
+    a::{TextureCompressedFormat, TextureUncompressedInternalFormat, TextureUnit},
     error::Error,
-    texture::{TextureColorFormat, TextureCompressedFormat, TextureUnit},
 };
 
 struct Inner {
@@ -256,16 +256,16 @@ impl Capabilities {
 
     pub fn verify_internal_format_uncompressed(
         &self,
-        internal_format: TextureColorFormat,
+        internal_format: TextureUncompressedInternalFormat,
     ) -> Result<(), Error> {
         match internal_format {
-            TextureColorFormat::R16F
-            | TextureColorFormat::RG16F
-            | TextureColorFormat::RGBA16F
-            | TextureColorFormat::R32F
-            | TextureColorFormat::RG32F
-            | TextureColorFormat::RGBA32F
-            | TextureColorFormat::R11F_G11F_B10F => {
+            TextureUncompressedInternalFormat::R16F
+            | TextureUncompressedInternalFormat::RG16F
+            | TextureUncompressedInternalFormat::RGBA16F
+            | TextureUncompressedInternalFormat::R32F
+            | TextureUncompressedInternalFormat::RG32F
+            | TextureUncompressedInternalFormat::RGBA32F
+            | TextureUncompressedInternalFormat::R11F_G11F_B10F => {
                 if self.color_buffer_float_supported() {
                     Ok(())
                 } else {

@@ -6,8 +6,8 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{camera::Camera, clock::WebClock, notify::Notifier, pipeline::Pipeline, scene::Scene};
 
 use self::{
-    buffer::BufferStore, capabilities::Capabilities, error::Error, program::ProgramStore,
-    state::FrameState, texture::TextureStore,
+    a::TextureStore, buffer::BufferStore, capabilities::Capabilities, error::Error,
+    program::ProgramStore, state::FrameState,
 };
 
 use super::Renderer;
@@ -25,9 +25,9 @@ pub mod program;
 pub mod renderbuffer;
 pub mod state;
 pub mod stencil;
-pub mod texture;
-pub mod uniform;
+// pub mod texture;
 pub mod a;
+pub mod uniform;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]
@@ -150,7 +150,7 @@ impl WebGL2Renderer {
                 DEFAULT_GLSL_SHADER_CODE_SNIPPETS,
             ),
             buffer_store: BufferStore::new(gl.clone()),
-            texture_store: TextureStore::new(gl.clone(), capabilities.clone()),
+            texture_store: TextureStore::new(gl.clone()),
             capabilities,
             gl,
             canvas,

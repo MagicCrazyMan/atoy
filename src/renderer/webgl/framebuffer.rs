@@ -9,11 +9,11 @@ use web_sys::{
 };
 
 use super::{
+    a::{TextureUncompressedInternalFormat, TextureDataType, TexturePixelFormat},
     conversion::ToGlEnum,
     error::Error,
     params::GetWebGlParameters,
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TextureColorFormat, TextureDataType, TextureFormat},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -288,7 +288,7 @@ impl ClearPolicy {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttachmentProvider {
     FromNewTexture {
-        internal_format: TextureColorFormat,
+        internal_format: TextureUncompressedInternalFormat,
         clear_policy: Option<ClearPolicy>,
     },
     FromExistingTexture {
@@ -306,7 +306,7 @@ pub enum AttachmentProvider {
 }
 
 impl AttachmentProvider {
-    pub fn new_texture(internal_format: TextureColorFormat) -> Self {
+    pub fn new_texture(internal_format: TextureUncompressedInternalFormat) -> Self {
         Self::FromNewTexture {
             internal_format,
             clear_policy: None,
@@ -335,7 +335,7 @@ impl AttachmentProvider {
     }
 
     pub fn new_texture_with_clear_policy(
-        internal_format: TextureColorFormat,
+        internal_format: TextureUncompressedInternalFormat,
         clear_policy: ClearPolicy,
     ) -> Self {
         Self::FromNewTexture {
@@ -895,7 +895,7 @@ impl Framebuffer {
         y: i32,
         width: i32,
         height: i32,
-        format: TextureFormat,
+        pixel_format: TexturePixelFormat,
         data_type: TextureDataType,
         dst_data: &Object,
         dst_offset: u32,
@@ -918,7 +918,7 @@ impl Framebuffer {
                 y,
                 width,
                 height,
-                format.gl_enum(),
+                pixel_format.gl_enum(),
                 data_type.gl_enum(),
                 dst_data,
                 dst_offset,

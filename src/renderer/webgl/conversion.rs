@@ -5,21 +5,17 @@ use web_sys::{
 };
 
 use super::{
+    a::{
+        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat, TextureDataType, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter, TexturePixelFormat, TexturePixelStorage, TextureTarget, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat, TextureUnit, TextureUnpackColorSpaceConversion, TextureUploadTarget, TextureWrapMethod
+    },
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     client_wait::ClientWaitFlags,
-    draw::{CullFace, ElementIndicesDataType, DrawMode},
+    draw::{CullFace, DrawMode, ElementIndicesDataType},
     framebuffer::{
         BlitFlilter, BlitMask, FramebufferAttachment, FramebufferTarget, OperableBuffer,
     },
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
-    texture::{
-        SamplerParameter, TextureColorFormat, TextureCompareFunction, TextureCompareMode,
-        TextureCompressedFormat, TextureDataType, TextureDepthFormat, TextureFormat,
-        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-        TexturePixelStorage, TextureTarget, TextureUnit, TextureUnpackColorSpaceConversion,
-        TextureUploadTarget, TextureWrapMethod,
-    },
 };
 
 /// A trait converts Rust data type to WebGL u32.
@@ -160,72 +156,64 @@ impl ToGlEnum for TextureUploadTarget {
     }
 }
 
-impl ToGlEnum for TextureColorFormat {
+impl ToGlEnum for TextureUncompressedInternalFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureColorFormat::RGBA32I => WebGl2RenderingContext::RGBA32I,
-            TextureColorFormat::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
-            TextureColorFormat::RGBA16I => WebGl2RenderingContext::RGBA16I,
-            TextureColorFormat::RGBA16UI => WebGl2RenderingContext::RGBA16UI,
-            TextureColorFormat::RGBA8 => WebGl2RenderingContext::RGBA8,
-            TextureColorFormat::RGBA8I => WebGl2RenderingContext::RGBA8I,
-            TextureColorFormat::RGBA8UI => WebGl2RenderingContext::RGBA8UI,
-            TextureColorFormat::SRGB8_ALPHA8 => WebGl2RenderingContext::SRGB8_ALPHA8,
-            TextureColorFormat::RGB10_A2 => WebGl2RenderingContext::RGB10_A2,
-            TextureColorFormat::RGB10_A2UI => WebGl2RenderingContext::RGB10_A2UI,
-            TextureColorFormat::RGBA4 => WebGl2RenderingContext::RGBA4,
-            TextureColorFormat::RGB5_A1 => WebGl2RenderingContext::RGB5_A1,
-            TextureColorFormat::RGB8 => WebGl2RenderingContext::RGB8,
-            TextureColorFormat::RGB565 => WebGl2RenderingContext::RGB565,
-            TextureColorFormat::RG32I => WebGl2RenderingContext::RG32I,
-            TextureColorFormat::RG32UI => WebGl2RenderingContext::RG32UI,
-            TextureColorFormat::RG16I => WebGl2RenderingContext::RG16I,
-            TextureColorFormat::RG16UI => WebGl2RenderingContext::RG16UI,
-            TextureColorFormat::RG8 => WebGl2RenderingContext::RG8,
-            TextureColorFormat::RG8I => WebGl2RenderingContext::RG8I,
-            TextureColorFormat::RG8UI => WebGl2RenderingContext::RG8UI,
-            TextureColorFormat::R32I => WebGl2RenderingContext::R32I,
-            TextureColorFormat::R32UI => WebGl2RenderingContext::R32UI,
-            TextureColorFormat::R16I => WebGl2RenderingContext::R16I,
-            TextureColorFormat::R16UI => WebGl2RenderingContext::R16UI,
-            TextureColorFormat::R8 => WebGl2RenderingContext::R8,
-            TextureColorFormat::R8I => WebGl2RenderingContext::R8I,
-            TextureColorFormat::R8UI => WebGl2RenderingContext::R8UI,
-            TextureColorFormat::RGBA32F => WebGl2RenderingContext::RGBA32F,
-            TextureColorFormat::RGBA16F => WebGl2RenderingContext::RGBA16F,
-            TextureColorFormat::RGBA8_SNORM => WebGl2RenderingContext::RGBA8_SNORM,
-            TextureColorFormat::RGB32F => WebGl2RenderingContext::RGB32F,
-            TextureColorFormat::RGB32I => WebGl2RenderingContext::RGB32I,
-            TextureColorFormat::RGB32UI => WebGl2RenderingContext::RGB32UI,
-            TextureColorFormat::RGB16F => WebGl2RenderingContext::RGB16F,
-            TextureColorFormat::RGB16I => WebGl2RenderingContext::RGB16I,
-            TextureColorFormat::RGB16UI => WebGl2RenderingContext::RGB16UI,
-            TextureColorFormat::RGB8_SNORM => WebGl2RenderingContext::RGB8_SNORM,
-            TextureColorFormat::RGB8I => WebGl2RenderingContext::RGB8I,
-            TextureColorFormat::RGB8UI => WebGl2RenderingContext::RGB8UI,
-            TextureColorFormat::SRGB8 => WebGl2RenderingContext::SRGB8,
-            TextureColorFormat::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
-            TextureColorFormat::RGB9_E5 => WebGl2RenderingContext::RGB9_E5,
-            TextureColorFormat::RG32F => WebGl2RenderingContext::RG32F,
-            TextureColorFormat::RG16F => WebGl2RenderingContext::RG16F,
-            TextureColorFormat::RG8_SNORM => WebGl2RenderingContext::RG8_SNORM,
-            TextureColorFormat::R32F => WebGl2RenderingContext::R32F,
-            TextureColorFormat::R16F => WebGl2RenderingContext::R16F,
-            TextureColorFormat::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
-        }
-    }
-}
-
-impl ToGlEnum for TextureDepthFormat {
-    #[inline]
-    fn gl_enum(&self) -> u32 {
-        match self {
-            TextureDepthFormat::DEPTH_COMPONENT32F => WebGl2RenderingContext::DEPTH_COMPONENT32F,
-            TextureDepthFormat::DEPTH_COMPONENT24 => WebGl2RenderingContext::DEPTH_COMPONENT24,
-            TextureDepthFormat::DEPTH_COMPONENT16 => WebGl2RenderingContext::DEPTH_COMPONENT16,
-            TextureDepthFormat::DEPTH32F_STENCIL8 => WebGl2RenderingContext::DEPTH32F_STENCIL8,
-            TextureDepthFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
+            TextureUncompressedInternalFormat::RGBA32I => WebGl2RenderingContext::RGBA32I,
+            TextureUncompressedInternalFormat::RGBA32UI => WebGl2RenderingContext::RGBA32UI,
+            TextureUncompressedInternalFormat::RGBA16I => WebGl2RenderingContext::RGBA16I,
+            TextureUncompressedInternalFormat::RGBA16UI => WebGl2RenderingContext::RGBA16UI,
+            TextureUncompressedInternalFormat::RGBA8 => WebGl2RenderingContext::RGBA8,
+            TextureUncompressedInternalFormat::RGBA8I => WebGl2RenderingContext::RGBA8I,
+            TextureUncompressedInternalFormat::RGBA8UI => WebGl2RenderingContext::RGBA8UI,
+            TextureUncompressedInternalFormat::SRGB8_ALPHA8 => WebGl2RenderingContext::SRGB8_ALPHA8,
+            TextureUncompressedInternalFormat::RGB10_A2 => WebGl2RenderingContext::RGB10_A2,
+            TextureUncompressedInternalFormat::RGB10_A2UI => WebGl2RenderingContext::RGB10_A2UI,
+            TextureUncompressedInternalFormat::RGBA4 => WebGl2RenderingContext::RGBA4,
+            TextureUncompressedInternalFormat::RGB5_A1 => WebGl2RenderingContext::RGB5_A1,
+            TextureUncompressedInternalFormat::RGB8 => WebGl2RenderingContext::RGB8,
+            TextureUncompressedInternalFormat::RGB565 => WebGl2RenderingContext::RGB565,
+            TextureUncompressedInternalFormat::RG32I => WebGl2RenderingContext::RG32I,
+            TextureUncompressedInternalFormat::RG32UI => WebGl2RenderingContext::RG32UI,
+            TextureUncompressedInternalFormat::RG16I => WebGl2RenderingContext::RG16I,
+            TextureUncompressedInternalFormat::RG16UI => WebGl2RenderingContext::RG16UI,
+            TextureUncompressedInternalFormat::RG8 => WebGl2RenderingContext::RG8,
+            TextureUncompressedInternalFormat::RG8I => WebGl2RenderingContext::RG8I,
+            TextureUncompressedInternalFormat::RG8UI => WebGl2RenderingContext::RG8UI,
+            TextureUncompressedInternalFormat::R32I => WebGl2RenderingContext::R32I,
+            TextureUncompressedInternalFormat::R32UI => WebGl2RenderingContext::R32UI,
+            TextureUncompressedInternalFormat::R16I => WebGl2RenderingContext::R16I,
+            TextureUncompressedInternalFormat::R16UI => WebGl2RenderingContext::R16UI,
+            TextureUncompressedInternalFormat::R8 => WebGl2RenderingContext::R8,
+            TextureUncompressedInternalFormat::R8I => WebGl2RenderingContext::R8I,
+            TextureUncompressedInternalFormat::R8UI => WebGl2RenderingContext::R8UI,
+            TextureUncompressedInternalFormat::RGBA32F => WebGl2RenderingContext::RGBA32F,
+            TextureUncompressedInternalFormat::RGBA16F => WebGl2RenderingContext::RGBA16F,
+            TextureUncompressedInternalFormat::RGBA8_SNORM => WebGl2RenderingContext::RGBA8_SNORM,
+            TextureUncompressedInternalFormat::RGB32F => WebGl2RenderingContext::RGB32F,
+            TextureUncompressedInternalFormat::RGB32I => WebGl2RenderingContext::RGB32I,
+            TextureUncompressedInternalFormat::RGB32UI => WebGl2RenderingContext::RGB32UI,
+            TextureUncompressedInternalFormat::RGB16F => WebGl2RenderingContext::RGB16F,
+            TextureUncompressedInternalFormat::RGB16I => WebGl2RenderingContext::RGB16I,
+            TextureUncompressedInternalFormat::RGB16UI => WebGl2RenderingContext::RGB16UI,
+            TextureUncompressedInternalFormat::RGB8_SNORM => WebGl2RenderingContext::RGB8_SNORM,
+            TextureUncompressedInternalFormat::RGB8I => WebGl2RenderingContext::RGB8I,
+            TextureUncompressedInternalFormat::RGB8UI => WebGl2RenderingContext::RGB8UI,
+            TextureUncompressedInternalFormat::SRGB8 => WebGl2RenderingContext::SRGB8,
+            TextureUncompressedInternalFormat::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
+            TextureUncompressedInternalFormat::RGB9_E5 => WebGl2RenderingContext::RGB9_E5,
+            TextureUncompressedInternalFormat::RG32F => WebGl2RenderingContext::RG32F,
+            TextureUncompressedInternalFormat::RG16F => WebGl2RenderingContext::RG16F,
+            TextureUncompressedInternalFormat::RG8_SNORM => WebGl2RenderingContext::RG8_SNORM,
+            TextureUncompressedInternalFormat::R32F => WebGl2RenderingContext::R32F,
+            TextureUncompressedInternalFormat::R16F => WebGl2RenderingContext::R16F,
+            TextureUncompressedInternalFormat::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT32F => WebGl2RenderingContext::DEPTH_COMPONENT32F,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT24 => WebGl2RenderingContext::DEPTH_COMPONENT24,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT16 => WebGl2RenderingContext::DEPTH_COMPONENT16,
+            TextureUncompressedInternalFormat::DEPTH32F_STENCIL8 => WebGl2RenderingContext::DEPTH32F_STENCIL8,
+            TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
         }
     }
 }
@@ -384,23 +372,43 @@ impl ToGlEnum for TextureCompressedFormat {
     }
 }
 
-impl ToGlEnum for TextureFormat {
+impl ToGlEnum for TextureUncompressedPixelFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureFormat::RED => WebGl2RenderingContext::RED,
-            TextureFormat::RED_INTEGER => WebGl2RenderingContext::RED_INTEGER,
-            TextureFormat::RG => WebGl2RenderingContext::RG,
-            TextureFormat::RG_INTEGER => WebGl2RenderingContext::RG_INTEGER,
-            TextureFormat::RGB => WebGl2RenderingContext::RGB,
-            TextureFormat::RGB_INTEGER => WebGl2RenderingContext::RGB_INTEGER,
-            TextureFormat::RGBA => WebGl2RenderingContext::RGBA,
-            TextureFormat::RGBA_INTEGER => WebGl2RenderingContext::RGBA_INTEGER,
-            TextureFormat::LUMINANCE => WebGl2RenderingContext::LUMINANCE,
-            TextureFormat::LUMINANCE_ALPHA => WebGl2RenderingContext::LUMINANCE_ALPHA,
-            TextureFormat::ALPHA => WebGl2RenderingContext::ALPHA,
-            TextureFormat::DEPTH_COMPONENT => WebGl2RenderingContext::DEPTH_COMPONENT,
-            TextureFormat::DEPTH_STENCIL => WebGl2RenderingContext::DEPTH_STENCIL,
+            TextureUncompressedPixelFormat::RED => WebGl2RenderingContext::RED,
+            TextureUncompressedPixelFormat::RED_INTEGER => WebGl2RenderingContext::RED_INTEGER,
+            TextureUncompressedPixelFormat::RG => WebGl2RenderingContext::RG,
+            TextureUncompressedPixelFormat::RG_INTEGER => WebGl2RenderingContext::RG_INTEGER,
+            TextureUncompressedPixelFormat::RGB => WebGl2RenderingContext::RGB,
+            TextureUncompressedPixelFormat::RGB_INTEGER => WebGl2RenderingContext::RGB_INTEGER,
+            TextureUncompressedPixelFormat::RGBA => WebGl2RenderingContext::RGBA,
+            TextureUncompressedPixelFormat::RGBA_INTEGER => WebGl2RenderingContext::RGBA_INTEGER,
+            TextureUncompressedPixelFormat::LUMINANCE => WebGl2RenderingContext::LUMINANCE,
+            TextureUncompressedPixelFormat::LUMINANCE_ALPHA => WebGl2RenderingContext::LUMINANCE_ALPHA,
+            TextureUncompressedPixelFormat::ALPHA => WebGl2RenderingContext::ALPHA,
+            TextureUncompressedPixelFormat::DEPTH_COMPONENT => WebGl2RenderingContext::DEPTH_COMPONENT,
+            TextureUncompressedPixelFormat::DEPTH_STENCIL => WebGl2RenderingContext::DEPTH_STENCIL,
+        }
+    }
+}
+
+impl ToGlEnum for TextureInternalFormat {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            TextureInternalFormat::Uncompressed(f) => f.gl_enum(),
+            TextureInternalFormat::Compressed(f) => f.gl_enum(),
+        }
+    }
+}
+
+impl ToGlEnum for TexturePixelFormat {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            TexturePixelFormat::Uncompressed(f) => f.gl_enum(),
+            TexturePixelFormat::Compressed(f) => f.gl_enum(),
         }
     }
 }

@@ -1,12 +1,12 @@
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
     ExtTextureFilterAnisotropic, WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer,
-    WebGlRenderbuffer, WebGlTexture,
+    WebGlRenderbuffer, WebGlSampler, WebGlTexture,
 };
 
 use super::{
+    a::{TextureTarget, TextureUnpackColorSpaceConversion},
     conversion::ToGlEnum,
-    texture::{TextureTarget, TextureUnpackColorSpaceConversion},
 };
 
 pub trait GetWebGlParameters {
@@ -21,6 +21,8 @@ pub trait GetWebGlParameters {
     fn framebuffer_binding(&self) -> Option<WebGlFramebuffer>;
 
     fn texture_active_texture_unit(&self) -> u32;
+
+    fn sampler_binding(&self) -> Option<WebGlSampler>;
 
     fn texture_binding(&self, target: TextureTarget) -> Option<WebGlTexture>;
 
@@ -104,6 +106,12 @@ impl GetWebGlParameters for WebGl2RenderingContext {
             .map(|v| v.as_f64().unwrap())
             .map(|v| v as u32)
             .unwrap()
+    }
+
+    fn sampler_binding(&self) -> Option<WebGlSampler> {
+        self.get_parameter(WebGl2RenderingContext::SAMPLER_BINDING)
+            .unwrap()
+            .cast_into_unchecked::<WebGlSampler>()
     }
 
     fn texture_binding(&self, target: TextureTarget) -> Option<WebGlTexture> {

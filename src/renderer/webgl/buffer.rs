@@ -205,7 +205,7 @@ pub trait BufferSource {
     fn data(&self) -> BufferData<'_>;
 
     /// Returns byte length of data.
-    /// Uses [`BufferSourceData::byte_length`] as default.
+    /// Uses [`BufferData::byte_length`] as default.
     fn byte_length(&self) -> usize {
         self.data().byte_length()
     }
@@ -441,7 +441,11 @@ impl BufferRuntime {
                                 data,
                                 src_element_offset,
                                 src_element_length,
-                            } => (data.as_ref().as_ref(), src_element_offset, src_element_length),
+                            } => (
+                                data.as_ref().as_ref(),
+                                src_element_offset,
+                                src_element_length,
+                            ),
                             BufferData::BytesBorrowed {
                                 data,
                                 src_element_offset,
@@ -1114,8 +1118,16 @@ impl Drop for Buffer {
             }
         }
 
-        if let Some(runtime) = buffer_shared.runtime.as_mut() {
+        if let Some(mut runtime) = buffer_shared.runtime.take() {
             if let Some(buffer) = runtime.buffer.take() {
+                for binding in runtime.bindings {
+                    runtime.gl.bind_buffer(binding.gl_enum(), Some(&buffer));
+                }
+
+                for index in runtime.binding_ubos {
+                    runtime.gl.bind_buffer_base(WebGl2RenderingContext::ARRAY_BUFFER, index, None);
+                }
+
                 runtime.gl.delete_buffer(Some(&buffer));
             }
         }
