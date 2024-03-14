@@ -245,7 +245,7 @@ impl Capabilities {
     }
 
     pub fn verify_texture_unit(&self, unit: TextureUnit) -> Result<(), Error> {
-        let unit = unit.unit_index() + 1;
+        let unit = (unit.unit_index() + 1) as usize;
         let max = self.max_texture_image_units();
         if unit > max {
             return Err(Error::TextureUnitOverflowed { max, value: unit });

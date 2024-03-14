@@ -1086,11 +1086,38 @@ pub trait TextureSource {
 // }
 
 pub trait TextureLayout: Clone {
-    /// Returns texture binding target.
-    fn target() -> TextureTarget;
-
     /// Returns texture internal format.
     fn internal_format(&self) -> TextureInternalFormat;
+}
+
+pub trait TextureLayout2D: TextureLayout {
+    /// Returns texture levels.
+    fn levels(&self) -> usize;
+
+    /// Returns texture width.
+    fn width(&self) -> usize;
+
+    /// Returns texture height.
+    fn height(&self) -> usize;
+}
+
+pub trait TextureLayout2DArray: TextureLayout {
+    /// Returns texture levels.
+    fn levels(&self) -> usize;
+
+    /// Returns texture width.
+    fn width(&self) -> usize;
+
+    /// Returns texture height.
+    fn height(&self) -> usize;
+
+    /// Returns texture array length.
+    fn len(&self) -> usize;
+}
+
+pub trait TextureLayout3D: TextureLayout {
+    /// Returns texture levels.
+    fn levels(&self) -> usize;
 
     /// Returns texture width.
     fn width(&self) -> usize;
@@ -1099,113 +1126,182 @@ pub trait TextureLayout: Clone {
     fn height(&self) -> usize;
 
     /// Returns texture depth.
-    /// Only available for [`TextureTarget::TEXTURE_2D_ARRAY`] and [`TextureTarget::TEXTURE_3D`].
-    /// For [`TextureTarget::TEXTURE_2D_ARRAY`], depth refers to array length.
     fn depth(&self) -> usize;
+}
 
+pub trait TextureLayoutCubeMap: TextureLayout {
     /// Returns texture levels.
     fn levels(&self) -> usize;
+
+    /// Returns texture width.
+    fn width(&self) -> usize;
+
+    /// Returns texture height.
+    fn height(&self) -> usize;
 }
 
-pub trait TextureLayout2D: TextureLayout {
-    
-}
+// trait TextureLayoutExt {
+//     /// Returns the total byte length of the texture of all levels.
+//     fn byte_length(&self) -> usize;
 
+//     fn tex_storage(&self, gl: &WebGl2RenderingContext);
+// }
 
+// impl<T> TextureLayoutExt for T
+// where
+//     T: TextureLayout2D,
+// {
+//     fn byte_length(&self) -> usize {
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let levels = self.levels();
+//         (0..levels)
+//             .map(|level| {
+//                 let width = width / (level + 1);
+//                 let height = height / (level + 1);
+//                 internal_format.byte_length(width, height)
+//             })
+//             .sum::<usize>()
+//     }
 
-trait TextureLayoutExt {
-    /// Returns the total byte length of the texture of all levels.
-    fn byte_length(&self) -> usize;
+//     fn tex_storage(&self, gl: &WebGl2RenderingContext) {
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let levels = self.levels();
+//         gl.tex_storage_2d(
+//             WebGl2RenderingContext::TEXTURE_2D,
+//             levels as i32,
+//             internal_format.gl_enum(),
+//             width as i32,
+//             height as i32,
+//         )
+//     }
+// }
 
-    fn tex_storage(&self, gl: &WebGl2RenderingContext);
-}
+// impl<T> TextureLayoutExt for T
+// where
+//     T: TextureLayout2DArray,
+// {
+//     fn byte_length(&self) -> usize {
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let len = self.len();
+//         let levels = self.levels();
+//         (0..levels)
+//             .map(|level| {
+//                 let width = width / (level + 1);
+//                 let height = height / (level + 1);
+//                 internal_format.byte_length(width, height) * len
+//             })
+//             .sum::<usize>()
+//     }
 
-impl<T> TextureLayoutExt for T
-where
-    T: TextureLayout,
-{
-    fn byte_length(&self) -> usize {
-        let target = Self::target();
-        let internal_format = self.internal_format();
-        let width = self.width();
-        let height = self.height();
-        let depth = self.depth();
-        let levels = self.levels();
-        match target {
-            TextureTarget::TEXTURE_2D => (0..levels)
-                .map(|level| {
-                    let width = width / (level + 1);
-                    let height = height / (level + 1);
-                    internal_format.byte_length(width, height)
-                })
-                .sum::<usize>(),
-            TextureTarget::TEXTURE_2D_ARRAY => (0..levels)
-                .map(|level| {
-                    let width = width / (level + 1);
-                    let height = height / (level + 1);
-                    internal_format.byte_length(width, height) * depth
-                })
-                .sum::<usize>(),
-            TextureTarget::TEXTURE_3D => (0..levels)
-                .map(|level| {
-                    let width = width / (level + 1);
-                    let height = height / (level + 1);
-                    let depth = depth / (level + 1);
-                    internal_format.byte_length(width, height) * depth
-                })
-                .sum::<usize>(),
-            TextureTarget::TEXTURE_CUBE_MAP => (0..levels)
-                .map(|level| {
-                    let width = width / (level + 1);
-                    let height = height / (level + 1);
-                    internal_format.byte_length(width, height) * 6
-                })
-                .sum::<usize>(),
-        }
-    }
+//     fn tex_storage(&self, gl: &WebGl2RenderingContext) {
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let levels = self.levels();
+//         gl.tex_storage_2d(
+//             WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+//             levels as i32,
+//             internal_format.gl_enum(),
+//             width as i32,
+//             height as i32,
+//         )
+//     }
+// }
 
-    fn tex_storage(&self, gl: &WebGl2RenderingContext) {
-        let target = Self::target();
-        let internal_format = self.internal_format();
-        let width = self.width();
-        let height = self.height();
-        let depth = self.depth();
-        let levels = self.levels();
-        match target {
-            TextureTarget::TEXTURE_2D | TextureTarget::TEXTURE_CUBE_MAP => gl.tex_storage_2d(
-                target.gl_enum(),
-                levels as i32,
-                internal_format.gl_enum(),
-                width as i32,
-                height as i32,
-            ),
-            TextureTarget::TEXTURE_2D_ARRAY | TextureTarget::TEXTURE_3D => gl.tex_storage_3d(
-                target.gl_enum(),
-                levels as i32,
-                internal_format.gl_enum(),
-                width as i32,
-                height as i32,
-                depth as i32,
-            ),
-        }
-    }
-}
+// impl<T> TextureLayoutExt for T
+// where
+//     T: TextureLayout2D,
+// {
+//     fn byte_length(&self) -> usize {
+//         let target = Self::target();
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let depth = self.depth();
+//         let levels = self.levels();
+//         match target {
+//             TextureTarget::TEXTURE_2D => (0..levels)
+//                 .map(|level| {
+//                     let width = width / (level + 1);
+//                     let height = height / (level + 1);
+//                     internal_format.byte_length(width, height)
+//                 })
+//                 .sum::<usize>(),
+//             TextureTarget::TEXTURE_2D_ARRAY => (0..levels)
+//                 .map(|level| {
+//                     let width = width / (level + 1);
+//                     let height = height / (level + 1);
+//                     internal_format.byte_length(width, height) * depth
+//                 })
+//                 .sum::<usize>(),
+//             TextureTarget::TEXTURE_3D => (0..levels)
+//                 .map(|level| {
+//                     let width = width / (level + 1);
+//                     let height = height / (level + 1);
+//                     let depth = depth / (level + 1);
+//                     internal_format.byte_length(width, height) * depth
+//                 })
+//                 .sum::<usize>(),
+//             TextureTarget::TEXTURE_CUBE_MAP => (0..levels)
+//                 .map(|level| {
+//                     let width = width / (level + 1);
+//                     let height = height / (level + 1);
+//                     internal_format.byte_length(width, height) * 6
+//                 })
+//                 .sum::<usize>(),
+//         }
+//     }
+
+//     fn tex_storage(&self, gl: &WebGl2RenderingContext) {
+//         let target = Self::target();
+//         let internal_format = self.internal_format();
+//         let width = self.width();
+//         let height = self.height();
+//         let depth = self.depth();
+//         let levels = self.levels();
+//         match target {
+//             TextureTarget::TEXTURE_2D | TextureTarget::TEXTURE_CUBE_MAP => gl.tex_storage_2d(
+//                 target.gl_enum(),
+//                 levels as i32,
+//                 internal_format.gl_enum(),
+//                 width as i32,
+//                 height as i32,
+//             ),
+//             TextureTarget::TEXTURE_2D_ARRAY | TextureTarget::TEXTURE_3D => gl.tex_storage_3d(
+//                 target.gl_enum(),
+//                 levels as i32,
+//                 internal_format.gl_enum(),
+//                 width as i32,
+//                 height as i32,
+//                 depth as i32,
+//             ),
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Texture2D {
+    internal_format: TextureInternalFormat,
+    levels: usize,
     width: usize,
     height: usize,
-    levels: usize,
-    internal_format: TextureInternalFormat,
 }
 
 impl TextureLayout for Texture2D {
-    fn target() -> TextureTarget {
-        TextureTarget::TEXTURE_2D
-    }
-
     fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
+    }
+}
+
+impl TextureLayout2D for Texture2D {
+    fn levels(&self) -> usize {
+        self.levels
     }
 
     fn width(&self) -> usize {
@@ -1214,33 +1310,27 @@ impl TextureLayout for Texture2D {
 
     fn height(&self) -> usize {
         self.height
-    }
-
-    fn depth(&self) -> usize {
-        0
-    }
-
-    fn levels(&self) -> usize {
-        self.levels
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Texture2DArray {
+    internal_format: TextureInternalFormat,
+    levels: usize,
     width: usize,
     height: usize,
-    levels: usize,
     len: usize,
-    internal_format: TextureInternalFormat,
 }
 
 impl TextureLayout for Texture2DArray {
-    fn target() -> TextureTarget {
-        TextureTarget::TEXTURE_2D_ARRAY
-    }
-
     fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
+    }
+}
+
+impl TextureLayout2DArray for Texture2DArray {
+    fn levels(&self) -> usize {
+        self.levels
     }
 
     fn width(&self) -> usize {
@@ -1251,12 +1341,8 @@ impl TextureLayout for Texture2DArray {
         self.height
     }
 
-    fn depth(&self) -> usize {
+    fn len(&self) -> usize {
         self.len
-    }
-
-    fn levels(&self) -> usize {
-        self.levels
     }
 }
 
@@ -1270,12 +1356,14 @@ pub struct Texture3D {
 }
 
 impl TextureLayout for Texture3D {
-    fn target() -> TextureTarget {
-        TextureTarget::TEXTURE_3D
-    }
-
     fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
+    }
+}
+
+impl TextureLayout3D for Texture3D {
+    fn levels(&self) -> usize {
+        self.levels
     }
 
     fn width(&self) -> usize {
@@ -1289,10 +1377,6 @@ impl TextureLayout for Texture3D {
     fn depth(&self) -> usize {
         self.depth
     }
-
-    fn levels(&self) -> usize {
-        self.levels
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1304,12 +1388,14 @@ pub struct TextureCubeMap {
 }
 
 impl TextureLayout for TextureCubeMap {
-    fn target() -> TextureTarget {
-        TextureTarget::TEXTURE_CUBE_MAP
-    }
-
     fn internal_format(&self) -> TextureInternalFormat {
         self.internal_format
+    }
+}
+
+impl TextureLayoutCubeMap for TextureCubeMap {
+    fn levels(&self) -> usize {
+        self.levels
     }
 
     fn width(&self) -> usize {
@@ -1319,13 +1405,142 @@ impl TextureLayout for TextureCubeMap {
     fn height(&self) -> usize {
         self.height
     }
+}
 
-    fn depth(&self) -> usize {
-        0
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum TextureLayoutUniform {
+    Texture2D(Texture2D),
+    Texture2DArray(Texture2DArray),
+    Texture3D(Texture3D),
+    TextureCubeMap(TextureCubeMap),
+}
+
+impl TextureLayoutUniform {
+    fn target(&self) -> TextureTarget {
+        match self {
+            TextureLayoutUniform::Texture2D(_) => TextureTarget::TEXTURE_2D,
+            TextureLayoutUniform::Texture2DArray(_) => TextureTarget::TEXTURE_2D_ARRAY,
+            TextureLayoutUniform::Texture3D(_) => TextureTarget::TEXTURE_3D,
+            TextureLayoutUniform::TextureCubeMap(_) => TextureTarget::TEXTURE_CUBE_MAP,
+        }
     }
 
-    fn levels(&self) -> usize {
-        self.levels
+    fn internal_format(&self) -> TextureInternalFormat {
+        match self {
+            TextureLayoutUniform::Texture2D(Texture2D {
+                internal_format, ..
+            })
+            | TextureLayoutUniform::Texture2DArray(Texture2DArray {
+                internal_format, ..
+            })
+            | TextureLayoutUniform::Texture3D(Texture3D {
+                internal_format, ..
+            })
+            | TextureLayoutUniform::TextureCubeMap(TextureCubeMap {
+                internal_format, ..
+            }) => *internal_format,
+        }
+    }
+
+    fn byte_length(&self) -> usize {
+        match self {
+            TextureLayoutUniform::Texture2D(Texture2D {
+                internal_format,
+                levels,
+                width,
+                height,
+            }) => (0..*levels)
+                .map(|level| {
+                    let width = *width / (level + 1);
+                    let height = *height / (level + 1);
+                    internal_format.byte_length(width, height)
+                })
+                .sum::<usize>(),
+            TextureLayoutUniform::Texture2DArray(Texture2DArray {
+                internal_format,
+                levels,
+                width,
+                height,
+                len,
+            }) => (0..*levels)
+                .map(|level| {
+                    let width = *width / (level + 1);
+                    let height = *height / (level + 1);
+                    internal_format.byte_length(width, height) * *len
+                })
+                .sum::<usize>(),
+            TextureLayoutUniform::Texture3D(Texture3D {
+                width,
+                height,
+                depth,
+                levels,
+                internal_format,
+            }) => (0..*levels)
+                .map(|level| {
+                    let width = *width / (level + 1);
+                    let height = *height / (level + 1);
+                    let depth = *depth / (level + 1);
+                    internal_format.byte_length(width, height) * depth
+                })
+                .sum::<usize>(),
+            TextureLayoutUniform::TextureCubeMap(TextureCubeMap {
+                width,
+                height,
+                levels,
+                internal_format,
+            }) => (0..*levels)
+                .map(|level| {
+                    let width = *width / (level + 1);
+                    let height = *height / (level + 1);
+                    internal_format.byte_length(width, height) * 6
+                })
+                .sum::<usize>(),
+        }
+    }
+
+    fn tex_storage(&self, gl: &WebGl2RenderingContext) {
+        let target = self.target();
+        match self {
+            TextureLayoutUniform::Texture2D(Texture2D {
+                internal_format,
+                levels,
+                width,
+                height,
+            })
+            | TextureLayoutUniform::TextureCubeMap(TextureCubeMap {
+                width,
+                height,
+                levels,
+                internal_format,
+            }) => gl.tex_storage_2d(
+                target.gl_enum(),
+                *levels as i32,
+                internal_format.gl_enum(),
+                *width as i32,
+                *height as i32,
+            ),
+            TextureLayoutUniform::Texture2DArray(Texture2DArray {
+                internal_format,
+                levels,
+                width,
+                height,
+                len: depth,
+            })
+            | TextureLayoutUniform::Texture3D(Texture3D {
+                width,
+                height,
+                depth,
+                levels,
+                internal_format,
+            }) => gl.tex_storage_3d(
+                target.gl_enum(),
+                *levels as i32,
+                internal_format.gl_enum(),
+                *width as i32,
+                *height as i32,
+                *depth as i32,
+            ),
+        }
     }
 }
 
@@ -1362,14 +1577,11 @@ struct TextureRuntime {
 }
 
 impl TextureRuntime {
-    fn get_or_create_texture<L>(
+    fn get_or_create_texture(
         &mut self,
-        layout: &L,
+        layout: &TextureLayoutUniform,
         sample_params: &[SamplerParameter],
-    ) -> Result<(WebGlTexture, WebGlSampler), Error>
-    where
-        L: TextureLayout,
-    {
+    ) -> Result<(WebGlTexture, WebGlSampler), Error> {
         match self.texture.as_ref() {
             Some((texture, sampler)) => Ok((texture.clone(), sampler.clone())),
             None => {
@@ -1382,7 +1594,7 @@ impl TextureRuntime {
                     .create_sampler()
                     .ok_or(Error::CreateSamplerFailure)?;
 
-                let target = L::target();
+                let target = layout.target();
                 let binding = if cfg!(feature = "rebind") {
                     self.gl.texture_binding(target)
                 } else {
@@ -1404,11 +1616,12 @@ impl TextureRuntime {
         }
     }
 
-    fn upload<L>(&self, layout: &L, queue: &mut Vec<QueueItem>) -> Result<(), Error>
-    where
-        L: TextureLayout,
-    {
-        let target = L::target();
+    fn upload(
+        &self,
+        layout: &TextureLayoutUniform,
+        queue: &mut Vec<QueueItem>,
+    ) -> Result<(), Error> {
+        let target = layout.target();
         let internal_format = layout.internal_format();
         for item in queue.drain(..) {
             let data = item.source.data();
@@ -1594,6 +1807,7 @@ struct TextureRegistered {
 
 struct TextureShared {
     id: Uuid,
+    layout_uniform: TextureLayoutUniform,
     sample_params: Vec<SamplerParameter>,
     // memory_policy: MemoryPolicy,
     queue: Vec<QueueItem>,
@@ -1623,19 +1837,17 @@ impl TextureShared {
         }
     }
 
-    fn bind<L>(&mut self, layout: &L, unit: TextureUnit) -> Result<(), Error>
-    where
-        L: TextureLayout,
-    {
+    fn bind(&mut self, unit: TextureUnit) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::TextureUninitialized);
         };
 
-        let target = L::target();
+        let target = self.layout_uniform.target();
         if runtime.bindings.contains(&unit) {
-            runtime.upload(layout, &mut self.queue);
+            runtime.upload(&self.layout_uniform, &mut self.queue);
         } else {
-            let (texture, sampler) = runtime.get_or_create_texture(layout, &self.sample_params)?;
+            let (texture, sampler) =
+                runtime.get_or_create_texture(&self.layout_uniform, &self.sample_params)?;
             let active_texture_unit = if cfg!(feature = "rebind") {
                 Some(runtime.gl.texture_active_texture_unit())
             } else {
@@ -1645,7 +1857,7 @@ impl TextureShared {
             runtime.gl.active_texture(unit.gl_enum());
             runtime.gl.bind_texture(target.gl_enum(), Some(&texture));
             runtime.gl.bind_sampler(unit.unit_index(), Some(&sampler));
-            runtime.upload(layout, &mut self.queue);
+            runtime.upload(&self.layout_uniform, &mut self.queue);
             runtime.bindings.insert(unit);
 
             if let Some(unit) = active_texture_unit {
@@ -1656,15 +1868,12 @@ impl TextureShared {
         Ok(())
     }
 
-    fn unbind<L>(&mut self, layout: &L, unit: TextureUnit) -> Result<(), Error>
-    where
-        L: TextureLayout,
-    {
+    fn unbind(&mut self, unit: TextureUnit) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::TextureUninitialized);
         };
 
-        let target = L::target();
+        let target = self.layout_uniform.target();
         if runtime.bindings.remove(&unit) {
             let active_texture_unit = if cfg!(feature = "rebind") {
                 Some(runtime.gl.texture_active_texture_unit())
@@ -1684,10 +1893,7 @@ impl TextureShared {
         Ok(())
     }
 
-    fn unbind_all<L>(&mut self, layout: &L) -> Result<(), Error>
-    where
-        L: TextureLayout,
-    {
+    fn unbind_all(&mut self) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::TextureUninitialized);
         };
@@ -1698,7 +1904,7 @@ impl TextureShared {
             None
         };
 
-        let target = L::target();
+        let target = self.layout_uniform.target();
         for unit in runtime.bindings.drain() {
             runtime.gl.active_texture(unit.unit_index());
             runtime.gl.bind_texture(target.gl_enum(), None);
@@ -1711,23 +1917,21 @@ impl TextureShared {
         Ok(())
     }
 
-    fn upload<L>(&mut self, layout: &L) -> Result<(), Error>
-    where
-        L: TextureLayout,
-    {
+    fn upload(&mut self) -> Result<(), Error> {
         let Some(runtime) = self.runtime.as_mut() else {
             return Err(Error::TextureUninitialized);
         };
 
-        let (texture, sampler) = runtime.get_or_create_texture(layout, &self.sample_params)?;
-        let target = L::target();
+        let (texture, sampler) =
+            runtime.get_or_create_texture(&self.layout_uniform, &self.sample_params)?;
+        let target = self.layout_uniform.target();
         let binding = if cfg!(feature = "rebind") {
             runtime.gl.texture_binding(target)
         } else {
             None
         };
         runtime.gl.bind_texture(target.gl_enum(), Some(&texture));
-        runtime.upload(layout, &mut self.queue);
+        runtime.upload(&self.layout_uniform, &mut self.queue);
         runtime.gl.bind_texture(target.gl_enum(), binding.as_ref());
 
         Ok(())
@@ -1735,25 +1939,18 @@ impl TextureShared {
 }
 
 #[derive(Debug, Clone)]
-pub struct TextureUnbinder<L>
-where
-    L: TextureLayout,
-{
+pub struct TextureUnbinder {
     unit: TextureUnit,
-    layout: L,
     shared: Weak<RefCell<TextureShared>>,
 }
 
-impl<L> TextureUnbinder<L>
-where
-    L: TextureLayout,
-{
+impl TextureUnbinder {
     /// Unbinds texture.
     pub fn unbind(self) {
         let Some(shared) = self.shared.upgrade() else {
             return;
         };
-        let _ = shared.borrow_mut().unbind(&self.layout, self.unit);
+        let _ = shared.borrow_mut().unbind(self.unit);
     }
 }
 
@@ -1761,8 +1958,8 @@ pub struct Texture<L>
 where
     L: TextureLayout,
 {
-    name: Cow<'static, str>,
-    layout: L,
+    name: Option<Cow<'static, str>>,
+    layout: PhantomData<L>,
     shared: Rc<RefCell<TextureShared>>,
 }
 
@@ -1776,28 +1973,82 @@ where
     }
 
     /// Binds texture to specified target in specified texture unit.
-    pub fn bind(&self, unit: TextureUnit) -> Result<TextureUnbinder<L>, Error> {
-        self.shared.borrow_mut().bind(&self.layout, unit)?;
+    pub fn bind(&self, unit: TextureUnit) -> Result<TextureUnbinder, Error> {
+        self.shared.borrow_mut().bind(unit)?;
         Ok(TextureUnbinder {
             unit,
-            layout: self.layout.clone(),
             shared: Rc::downgrade(&self.shared),
         })
     }
 
     /// Unbinds texture from specified target in specified texture unit.
     pub fn unbind(&self, unit: TextureUnit) -> Result<(), Error> {
-        self.shared.borrow_mut().unbind(&self.layout, unit)
+        self.shared.borrow_mut().unbind(unit)
     }
 
     /// Unbinds texture from all bound texture unit.
     pub fn unbind_all(&self) -> Result<(), Error> {
-        self.shared.borrow_mut().unbind_all(&self.layout)
+        self.shared.borrow_mut().unbind_all()
     }
 
     /// Uploads texture data to WebGL runtime.
     pub fn upload(&self) -> Result<(), Error> {
-        self.shared.borrow_mut().upload(&self.layout)
+        self.shared.borrow_mut().upload()
+    }
+}
+
+impl<L> Texture<L>
+where
+    L: TextureLayout2D,
+{
+    pub fn new(layout: L) -> Self {
+        let shared = Rc::new(RefCell::new(TextureShared {
+            id: Uuid::new_v4(),
+            layout_uniform: TextureLayoutUniform::Texture2D(Texture2D {
+                internal_format: layout.internal_format(),
+                levels: layout.levels(),
+                width: layout.width(),
+                height: layout.height(),
+            }),
+            sample_params: Vec::new(),
+            queue: Vec::new(),
+            registered: None,
+            runtime: None,
+        }));
+
+        Self {
+            name: None,
+            layout: PhantomData,
+            shared,
+        }
+    }
+}
+
+impl<L> Texture<L>
+where
+    L: TextureLayout2DArray,
+{
+    pub fn new(layout: L) -> Self {
+        let shared = Rc::new(RefCell::new(TextureShared {
+            id: Uuid::new_v4(),
+            layout_uniform: TextureLayoutUniform::Texture2DArray(Texture2DArray {
+                internal_format: layout.internal_format(),
+                levels: layout.levels(),
+                width: layout.width(),
+                height: layout.height(),
+                len: layout.len(),
+            }),
+            sample_params: Vec::new(),
+            queue: Vec::new(),
+            registered: None,
+            runtime: None,
+        }));
+
+        Self {
+            name: None,
+            layout: PhantomData,
+            shared,
+        }
     }
 }
 

@@ -6,7 +6,11 @@ use web_sys::{
 
 use super::{
     a::{
-        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat, TextureDataType, TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter, TexturePixelFormat, TexturePixelStorage, TextureTarget, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat, TextureUnit, TextureUnpackColorSpaceConversion, TextureUploadTarget, TextureWrapMethod
+        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
+        TextureDataType, TextureInternalFormat, TextureMagnificationFilter,
+        TextureMinificationFilter, TextureParameter, TexturePixelFormat, TexturePixelStorage,
+        TextureTarget, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat,
+        TextureUnit, TextureUnpackColorSpaceConversion, TextureWrapMethod,
     },
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     client_wait::ClientWaitFlags,
@@ -127,35 +131,6 @@ impl ToGlEnum for TextureTarget {
     }
 }
 
-impl ToGlEnum for TextureUploadTarget {
-    #[inline]
-    fn gl_enum(&self) -> u32 {
-        match self {
-            TextureUploadTarget::TEXTURE_2D => WebGl2RenderingContext::TEXTURE_2D,
-            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_X => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
-            }
-            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Y => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
-            }
-            TextureUploadTarget::TEXTURE_CUBE_MAP_POSITIVE_Z => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
-            }
-            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_X => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
-            }
-            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Y => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
-            }
-            TextureUploadTarget::TEXTURE_CUBE_MAP_NEGATIVE_Z => {
-                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
-            }
-            TextureUploadTarget::TEXTURE_2D_ARRAY => WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-            TextureUploadTarget::TEXTURE_3D => WebGl2RenderingContext::TEXTURE_3D,
-        }
-    }
-}
-
 impl ToGlEnum for TextureUncompressedInternalFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
@@ -201,7 +176,9 @@ impl ToGlEnum for TextureUncompressedInternalFormat {
             TextureUncompressedInternalFormat::RGB8I => WebGl2RenderingContext::RGB8I,
             TextureUncompressedInternalFormat::RGB8UI => WebGl2RenderingContext::RGB8UI,
             TextureUncompressedInternalFormat::SRGB8 => WebGl2RenderingContext::SRGB8,
-            TextureUncompressedInternalFormat::R11F_G11F_B10F => WebGl2RenderingContext::R11F_G11F_B10F,
+            TextureUncompressedInternalFormat::R11F_G11F_B10F => {
+                WebGl2RenderingContext::R11F_G11F_B10F
+            }
             TextureUncompressedInternalFormat::RGB9_E5 => WebGl2RenderingContext::RGB9_E5,
             TextureUncompressedInternalFormat::RG32F => WebGl2RenderingContext::RG32F,
             TextureUncompressedInternalFormat::RG16F => WebGl2RenderingContext::RG16F,
@@ -209,11 +186,21 @@ impl ToGlEnum for TextureUncompressedInternalFormat {
             TextureUncompressedInternalFormat::R32F => WebGl2RenderingContext::R32F,
             TextureUncompressedInternalFormat::R16F => WebGl2RenderingContext::R16F,
             TextureUncompressedInternalFormat::R8_SNORM => WebGl2RenderingContext::R8_SNORM,
-            TextureUncompressedInternalFormat::DEPTH_COMPONENT32F => WebGl2RenderingContext::DEPTH_COMPONENT32F,
-            TextureUncompressedInternalFormat::DEPTH_COMPONENT24 => WebGl2RenderingContext::DEPTH_COMPONENT24,
-            TextureUncompressedInternalFormat::DEPTH_COMPONENT16 => WebGl2RenderingContext::DEPTH_COMPONENT16,
-            TextureUncompressedInternalFormat::DEPTH32F_STENCIL8 => WebGl2RenderingContext::DEPTH32F_STENCIL8,
-            TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => WebGl2RenderingContext::DEPTH24_STENCIL8,
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT32F => {
+                WebGl2RenderingContext::DEPTH_COMPONENT32F
+            }
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT24 => {
+                WebGl2RenderingContext::DEPTH_COMPONENT24
+            }
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT16 => {
+                WebGl2RenderingContext::DEPTH_COMPONENT16
+            }
+            TextureUncompressedInternalFormat::DEPTH32F_STENCIL8 => {
+                WebGl2RenderingContext::DEPTH32F_STENCIL8
+            }
+            TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => {
+                WebGl2RenderingContext::DEPTH24_STENCIL8
+            }
         }
     }
 }
@@ -385,9 +372,13 @@ impl ToGlEnum for TextureUncompressedPixelFormat {
             TextureUncompressedPixelFormat::RGBA => WebGl2RenderingContext::RGBA,
             TextureUncompressedPixelFormat::RGBA_INTEGER => WebGl2RenderingContext::RGBA_INTEGER,
             TextureUncompressedPixelFormat::LUMINANCE => WebGl2RenderingContext::LUMINANCE,
-            TextureUncompressedPixelFormat::LUMINANCE_ALPHA => WebGl2RenderingContext::LUMINANCE_ALPHA,
+            TextureUncompressedPixelFormat::LUMINANCE_ALPHA => {
+                WebGl2RenderingContext::LUMINANCE_ALPHA
+            }
             TextureUncompressedPixelFormat::ALPHA => WebGl2RenderingContext::ALPHA,
-            TextureUncompressedPixelFormat::DEPTH_COMPONENT => WebGl2RenderingContext::DEPTH_COMPONENT,
+            TextureUncompressedPixelFormat::DEPTH_COMPONENT => {
+                WebGl2RenderingContext::DEPTH_COMPONENT
+            }
             TextureUncompressedPixelFormat::DEPTH_STENCIL => WebGl2RenderingContext::DEPTH_STENCIL,
         }
     }
