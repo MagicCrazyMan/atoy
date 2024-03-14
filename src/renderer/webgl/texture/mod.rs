@@ -245,6 +245,12 @@ pub enum TextureColorFormat {
     R8_SNORM,
 }
 
+impl ToGlEnum for TextureColorFormat {
+    fn gl_enum(&self) -> u32 {
+        todo!()
+    }
+}
+
 impl TextureColorFormat {
     /// Calculates the bytes length of of a specified internal format in specified size.
     pub fn byte_length(&self, width: usize, height: usize) -> usize {
@@ -311,6 +317,12 @@ pub enum TextureDepthFormat {
     DEPTH_COMPONENT16,
     DEPTH32F_STENCIL8,
     DEPTH24_STENCIL8,
+}
+
+impl ToGlEnum for TextureDepthFormat {
+    fn gl_enum(&self) -> u32 {
+        todo!()
+    }
 }
 
 impl TextureDepthFormat {
@@ -444,6 +456,12 @@ pub enum TextureCompressedFormat {
     RED_GREEN_RGTC2,
     /// Available when extension `EXT_texture_compression_rgtc` enabled.
     SIGNED_RED_GREEN_RGTC2,
+}
+
+impl ToGlEnum for TextureCompressedFormat {
+    fn gl_enum(&self) -> u32 {
+        todo!()
+    }
 }
 
 impl TextureCompressedFormat {

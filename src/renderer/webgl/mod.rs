@@ -25,7 +25,7 @@ pub mod program;
 pub mod renderbuffer;
 pub mod state;
 pub mod stencil;
-// pub mod texture;
+pub mod texture;
 pub mod a;
 pub mod uniform;
 

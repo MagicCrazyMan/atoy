@@ -28,6 +28,7 @@ pub enum Error {
     RegisterBufferToMultipleStore,
     TextureUninitialized,
     TextureAlreadyInitialized,
+    TextureCompressionMismatched,
     TexImageFailure(Option<String>),
     TexCompressedImageFailure,
     TextureSizeMismatched,
