@@ -18,7 +18,7 @@ use crate::{
         },
         program::{Define, ShaderProvider},
         state::FrameState,
-        texture::{TextureColorFormat, TextureUnit},
+        texture::{TextureUncompressedInternalFormat, TextureUnit},
         uniform::UniformValue,
     },
     scene::{
@@ -43,11 +43,9 @@ impl StandardDeferredShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new().set_color_attachment0(AttachmentProvider::new_texture(
-                    TextureColorFormat::RGBA8,
-                )),
-            )
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
+            ))
         })
     }
 

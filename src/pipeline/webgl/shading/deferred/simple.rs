@@ -12,7 +12,7 @@ use crate::{
             FramebufferTarget,
         },
         state::FrameState,
-        texture::TextureColorFormat,
+        texture::TextureUncompressedInternalFormat,
     },
 };
 
@@ -34,7 +34,7 @@ impl StandardDeferredTransparentShading {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA8,
+                        TextureUncompressedInternalFormat::RGBA8,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::from_renderbuffer(
                         depth_stencil.clone(),

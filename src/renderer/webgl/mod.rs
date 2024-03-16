@@ -6,8 +6,8 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{camera::Camera, clock::WebClock, notify::Notifier, pipeline::Pipeline, scene::Scene};
 
 use self::{
-    a::TextureStore, buffer::BufferStore, capabilities::Capabilities, error::Error,
-    program::ProgramStore, state::FrameState,
+    buffer::BufferStore, capabilities::Capabilities, error::Error, program::ProgramStore,
+    state::FrameState, texture::TextureStore,
 };
 
 use super::Renderer;
@@ -26,7 +26,6 @@ pub mod renderbuffer;
 pub mod state;
 pub mod stencil;
 pub mod texture;
-pub mod a;
 pub mod uniform;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

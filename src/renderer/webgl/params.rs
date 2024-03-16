@@ -5,7 +5,7 @@ use web_sys::{
 };
 
 use super::{
-    a::{TextureTarget, TextureUnpackColorSpaceConversion},
+    texture::{TextureTarget, TextureUnpackColorSpaceConversion},
     conversion::ToGlEnum,
 };
 

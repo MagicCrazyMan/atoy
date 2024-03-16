@@ -5,7 +5,6 @@ use std::{any::Any, borrow::Cow};
 
 use crate::{
     clock::Tick,
-    value::Readonly,
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
@@ -36,10 +35,10 @@ pub trait StandardMaterial {
     fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>>;
 
     /// Returns a custom uniform value by an uniform variable name.
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
+    fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>>;
 
     /// Returns a custom uniform block buffer binding value by an uniform block name.
-    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue<'_>>;
 
     /// Returns GLSL code snippet with processing function for fragment shader.
     fn fragment_process(&self) -> Cow<'_, str>;
@@ -72,7 +71,7 @@ pub trait StandardMaterial {
 
     /// Returns `true` if vertex shader should output normal.
     /// `vec3 v_Normal` is available in fragment shader when enabled.
-    /// 
+    ///
     /// Otherwise, normals is always enabled if lighting is enabled or rendering in deferred shading.
     ///
     /// [`Geometry::normals`](crate::geometry::Geometry::normals) is required.

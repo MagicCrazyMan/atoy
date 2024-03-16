@@ -13,7 +13,7 @@ use crate::{
         },
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
-        texture::TextureColorFormat,
+        texture::TextureUncompressedInternalFormat,
     },
 };
 
@@ -31,7 +31,7 @@ impl StandardSimpleShading {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA8,
+                        TextureUncompressedInternalFormat::RGBA8,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,

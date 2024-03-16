@@ -173,10 +173,10 @@ fn draw_entity(
     let program = prepare_program(state, draw_state, material)?;
 
     let bound_attributes = state.bind_attributes(program, &*entity)?;
-    let bound_uniforms = state.bind_uniforms(program, &*entity)?;
+    let unbinders = state.bind_uniforms(program, &*entity)?;
     state.draw(&geometry.draw())?;
     state.unbind_attributes(bound_attributes);
-    state.unbind_uniforms(bound_uniforms)?;
+    unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
 
     Ok(())
 }

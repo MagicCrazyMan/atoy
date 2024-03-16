@@ -12,37 +12,14 @@ use web_sys::{
 use crate::{camera::Camera, entity::Entity, value::Readonly};
 
 use super::{
-    attribute::{AttributeInternalBinding, AttributeValue},
-    buffer::{BufferStore, BufferTarget},
-    capabilities::Capabilities,
-    conversion::ToGlEnum,
-    draw::Draw,
-    error::Error,
-    framebuffer::{
+    attribute::{AttributeInternalBinding, AttributeValue}, buffer::{BufferStore, BufferTarget}, capabilities::Capabilities, conversion::ToGlEnum, draw::Draw, error::Error, framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
         FramebufferBuilder, FramebufferTarget, OperableBuffer, SizePolicy,
-    },
-    program::{CustomBinding, Program, ProgramStore},
-    texture::{
-        texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
-        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureStore, TextureUnit,
-    },
-    uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
+    }, params::GetWebGlParameters, program::{CustomBinding, Program, ProgramStore}, texture::{TextureStore, TextureUnbinder, TextureUnit}, uniform::{UniformBlockValue, UniformInternalBinding, UniformValue}
 };
 
 pub struct BoundAttribute {
     location: u32,
-}
-
-enum TextureKind {
-    Texture2D(TextureDescriptor<Texture2D>),
-    Texture2DArray(TextureDescriptor<Texture2DArray>),
-    Texture3D(TextureDescriptor<Texture3D>),
-    TextureCubeMap(TextureDescriptor<TextureCubeMap>),
-}
-pub struct BoundUniform {
-    unit: TextureUnit,
-    kind: TextureKind,
 }
 
 pub struct FrameState {
@@ -364,7 +341,7 @@ impl FrameState {
         &mut self,
         program: &Program,
         entity: &dyn Entity,
-    ) -> Result<Vec<BoundUniform>, Error> {
+    ) -> Result<Vec<TextureUnbinder>, Error> {
         let internal_bindings = program.uniform_internal_bindings();
         let custom_bindings = entity
             .material()
@@ -483,7 +460,7 @@ impl FrameState {
                 continue;
             };
 
-            match self.bind_uniform_value(&location, value.as_ref()) {
+            match self.bind_uniform_value(&location, &value) {
                 Ok(bound) => {
                     if let Some(bound) = bound {
                         bounds.push(bound);
@@ -527,7 +504,7 @@ impl FrameState {
                 continue;
             };
 
-            self.bind_uniform_block_value(program.program(), uniform_block_index, value.as_ref())?;
+            self.bind_uniform_block_value(program.program(), uniform_block_index, &value)?;
         }
 
         Ok(bounds)
@@ -538,7 +515,7 @@ impl FrameState {
         &mut self,
         location: &WebGlUniformLocation,
         value: &UniformValue,
-    ) -> Result<Option<BoundUniform>, Error> {
+    ) -> Result<Option<TextureUnbinder>, Error> {
         let bound = match value {
             UniformValue::Bool(v) => {
                 if *v {
@@ -663,62 +640,37 @@ impl FrameState {
             | UniformValue::Texture2DArray { .. }
             | UniformValue::Texture3D { .. }
             | UniformValue::TextureCubeMap { .. } => {
-                let (kind, unit) = match value {
-                    UniformValue::Texture2D { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture2D(descriptor.clone()), *unit)
+                let (unbinder, unit) = match value {
+                    UniformValue::Texture2D { texture, unit } => {
+                        self.texture_store_mut().register(texture)?;
+                        let unbinder = texture.bind(*unit)?;
+                        (unbinder, unit)
                     }
-                    UniformValue::Texture2DArray { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture2DArray(descriptor.clone()), *unit)
+                    UniformValue::Texture2DArray { texture, unit } => {
+                        self.texture_store_mut().register(texture)?;
+                        let unbinder = texture.bind(*unit)?;
+                        (unbinder, unit)
                     }
-                    UniformValue::Texture3D { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::Texture3D(descriptor.clone()), *unit)
+                    UniformValue::Texture3D { texture, unit } => {
+                        self.texture_store_mut().register(texture)?;
+                        let unbinder = texture.bind(*unit)?;
+                        (unbinder, unit)
                     }
-                    UniformValue::TextureCubeMap { descriptor, unit } => {
-                        self.texture_store_mut().bind_texture(descriptor, *unit)?;
-                        (TextureKind::TextureCubeMap(descriptor.clone()), *unit)
+                    UniformValue::TextureCubeMap { texture, unit } => {
+                        self.texture_store_mut().register(texture)?;
+                        let unbinder = texture.bind(*unit)?;
+                        (unbinder, unit)
                     }
                     _ => unreachable!(),
                 };
 
                 self.gl.uniform1i(Some(location), unit.unit_index() as i32);
 
-                Some(BoundUniform { unit, kind })
+                Some(unbinder)
             }
         };
 
         Ok(bound)
-    }
-
-    /// Unbinds all uniforms.
-    ///
-    /// If you bind buffer uniforms ever,
-    /// remember to unbind them by yourself or use this function.
-    pub fn unbind_uniforms(&mut self, bounds: Vec<BoundUniform>) -> Result<(), Error> {
-        for BoundUniform {
-            unit,
-            kind: texture,
-        } in bounds
-        {
-            match texture {
-                TextureKind::Texture2D(descriptor) => {
-                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                }
-                TextureKind::Texture2DArray(descriptor) => {
-                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                }
-                TextureKind::Texture3D(descriptor) => {
-                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                }
-                TextureKind::TextureCubeMap(descriptor) => {
-                    self.texture_store_mut().unbind_texture(&descriptor, unit)?;
-                }
-            }
-        }
-
-        Ok(())
     }
 
     /// Binds a [`UniformValue`] to a uniform by variable name.
@@ -727,7 +679,7 @@ impl FrameState {
         program: &Program,
         variable_name: &str,
         value: &UniformValue,
-    ) -> Result<Option<BoundUniform>, Error> {
+    ) -> Result<Option<TextureUnbinder>, Error> {
         let Some(location) = program.uniform_locations().get(variable_name) else {
             return Err(Error::NoSuchUniform(variable_name.to_string()));
         };
@@ -890,25 +842,27 @@ impl FrameState {
     where
         I: IntoIterator<Item = (&'a WebGlTexture, TextureUnit)>,
     {
+
         let sampler = self.capabilities().computation_sampler()?;
-        let mut texture_units = Vec::new();
-        for (texture, texture_unit) in textures {
-            self.gl.active_texture(texture_unit.gl_enum());
+        let mut states = Vec::new();
+        for (texture, unit) in textures {
+            self.gl.active_texture(unit.gl_enum());
+            let binding = self.gl.texture_binding_2d();
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
             self.gl
-                .bind_sampler(texture_unit.unit_index() as u32, Some(&sampler));
-            texture_units.push(texture_unit);
+                .bind_sampler(unit.unit_index() as u32, Some(&sampler));
+            states.push((unit, binding));
         }
 
         self.gl
             .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
 
-        for texture_unit in texture_units {
-            self.gl.active_texture(texture_unit.gl_enum());
+        for (unit, binding) in states {
+            self.gl.active_texture(unit.gl_enum());
             self.gl
-                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
-            self.gl.bind_sampler(texture_unit.unit_index() as u32, None);
+                .bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
+            self.gl.bind_sampler(unit.unit_index() as u32, None);
         }
 
         Ok(())

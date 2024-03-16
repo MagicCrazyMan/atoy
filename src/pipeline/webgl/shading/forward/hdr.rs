@@ -19,7 +19,7 @@ use crate::{
         },
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
-        texture::{TextureColorFormat, TextureUnit},
+        texture::{TextureUncompressedInternalFormat, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::Readonly,
@@ -48,11 +48,9 @@ impl StandardHdrShading {
 
     fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new().set_color_attachment0(AttachmentProvider::new_texture(
-                    TextureColorFormat::RGBA8,
-                )),
-            )
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
+            ))
         })
     }
 
@@ -61,7 +59,7 @@ impl StandardHdrShading {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
@@ -75,10 +73,10 @@ impl StandardHdrShading {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     .set_color_attachment1(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,
@@ -90,7 +88,7 @@ impl StandardHdrShading {
     fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
             ))
         })
     }
@@ -98,7 +96,7 @@ impl StandardHdrShading {
     fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
             ))
         })
     }
@@ -106,7 +104,7 @@ impl StandardHdrShading {
     fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
         self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
             state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureColorFormat::RGBA32F),
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
             ))
         })
     }

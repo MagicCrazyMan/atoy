@@ -1,6 +1,10 @@
 use wasm_bindgen::JsValue;
 
-use super::{buffer::BufferTarget, framebuffer::FramebufferTarget};
+use super::{
+    buffer::BufferTarget,
+    framebuffer::FramebufferTarget,
+    texture::{TextureInternalFormat, TextureTarget, TextureUnit},
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -28,10 +32,11 @@ pub enum Error {
     RegisterBufferToMultipleStore,
     TextureUninitialized,
     TextureAlreadyInitialized,
-    TextureCompressionMismatched,
-    TexImageFailure(Option<String>),
-    TexCompressedImageFailure,
-    TextureSizeMismatched,
+    TextureTargetOccupied(TextureUnit, TextureTarget),
+    TextureInternalFormatMismatched,
+    TextureInternalFormatUnsupported(TextureInternalFormat),
+    TextureUploadImageFailure(Option<String>),
+    RegisterTextureToMultipleStore,
     TextureSizeOverflowed {
         max: (usize, usize),
         value: (usize, usize),
@@ -40,11 +45,6 @@ pub enum Error {
         max: usize,
         value: usize,
     },
-    TextureSharingDisallowed,
-    TextureSourceFunctionRecursionDisallowed,
-    TextureSourceFunctionSizeMismatched,
-    TextureSourceFunctionBytesLengthMismatched,
-    TextureSourceFunctionFormatMismatched,
     FramebufferUninitialized,
     FramebufferUnbound,
     FramebufferBinding(FramebufferTarget),

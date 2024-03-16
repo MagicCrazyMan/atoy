@@ -130,11 +130,11 @@ impl Geometry for Sphere {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, _: &str) -> Option<UniformValue<'_>> {
         None
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue<'_>> {
         None
     }
 

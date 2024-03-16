@@ -251,16 +251,6 @@ impl<const N: usize> BufferSource for &[u8; N] {
     }
 }
 
-impl BufferSource for Rc<dyn BufferSource> {
-    fn data(&self) -> BufferData<'_> {
-        self.as_ref().data()
-    }
-
-    fn byte_length(&self) -> usize {
-        self.as_ref().byte_length()
-    }
-}
-
 impl BufferSource for ArrayBuffer {
     fn data(&self) -> BufferData<'_> {
         BufferData::ArrayBuffer { data: self.clone() }
@@ -627,11 +617,40 @@ struct BufferRegistered {
 
 struct BufferShared {
     id: Uuid,
+    name: Option<Cow<'static, str>>,
     usage: BufferUsage,
     memory_policy: MemoryPolicy,
     queue: Queue,
     registered: Option<BufferRegistered>,
     runtime: Option<BufferRuntime>,
+}
+
+impl Drop for BufferShared {
+    fn drop(&mut self) {
+        if let Some(registered) = self.registered.as_mut() {
+            let mut store_shared = registered.store.borrow_mut();
+            store_shared.items.remove(&self.id);
+            unsafe {
+                store_shared.lru.remove(registered.lru_node);
+            }
+        }
+
+        if let Some(mut runtime) = self.runtime.take() {
+            if let Some(buffer) = runtime.buffer.take() {
+                for binding in runtime.bindings {
+                    runtime.gl.bind_buffer(binding.gl_enum(), None);
+                }
+
+                for index in runtime.binding_ubos {
+                    runtime
+                        .gl
+                        .bind_buffer_base(WebGl2RenderingContext::ARRAY_BUFFER, index, None);
+                }
+
+                runtime.gl.delete_buffer(Some(&buffer));
+            }
+        }
+    }
 }
 
 impl Debug for BufferShared {
@@ -1011,19 +1030,19 @@ impl BufferShared {
         }
     }
 
-    fn free(&mut self) {
+    fn free(&mut self) -> bool {
         let Some(runtime) = self.runtime.as_mut() else {
-            return;
+            return false;
         };
 
         // skips if using
         if runtime.bindings.len() + runtime.binding_ubos.len() != 0 {
-            return;
+            return false;
         }
 
         // free
         match &self.memory_policy {
-            MemoryPolicy::Unfree => {}
+            MemoryPolicy::Unfree => false,
             MemoryPolicy::ReadBack => {
                 let byte_length = runtime.buffer_byte_length;
                 if let Some(buffer) = runtime.buffer.take() {
@@ -1058,8 +1077,29 @@ impl BufferShared {
                         format_byte_length(byte_length),
                     );
                 }
+                true
             }
             MemoryPolicy::Restorable(restorer) => {
+                struct RestoreBufferSource {
+                    restorer: Rc<dyn BufferSource>,
+                }
+
+                impl RestoreBufferSource {
+                    fn new(restorer: Rc<dyn BufferSource>) -> Self {
+                        Self { restorer }
+                    }
+                }
+
+                impl BufferSource for RestoreBufferSource {
+                    fn data(&self) -> BufferData<'_> {
+                        self.restorer.data()
+                    }
+
+                    fn byte_length(&self) -> usize {
+                        self.restorer.byte_length()
+                    }
+                }
+
                 let byte_length = runtime.buffer_byte_length;
 
                 if let Some(buffer) = runtime.buffer.take() {
@@ -1067,9 +1107,10 @@ impl BufferShared {
                     runtime.buffer_byte_length = 0;
                 }
 
-                self.queue
-                    .items
-                    .insert(0, QueueItem::new(Rc::clone(&restorer), 0));
+                self.queue.items.insert(
+                    0,
+                    QueueItem::new(RestoreBufferSource::new(Rc::clone(&restorer)), 0),
+                );
                 self.queue.required_byte_length = self.queue.required_byte_length.max(byte_length);
 
                 if let Some(registered) = self.registered.as_mut() {
@@ -1094,44 +1135,15 @@ impl BufferShared {
                         format_byte_length(byte_length),
                     );
                 }
+                true
             }
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Buffer {
-    name: Option<Cow<'static, str>>,
     shared: Rc<RefCell<BufferShared>>,
-}
-
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        let mut buffer_shared = self.shared.borrow_mut();
-        let id = buffer_shared.id;
-
-        if let Some(registered) = buffer_shared.registered.as_mut() {
-            let mut store_shared = registered.store.borrow_mut();
-            store_shared.items.remove(&id);
-            unsafe {
-                store_shared.lru.remove(registered.lru_node);
-            }
-        }
-
-        if let Some(mut runtime) = buffer_shared.runtime.take() {
-            if let Some(buffer) = runtime.buffer.take() {
-                for binding in runtime.bindings {
-                    runtime.gl.bind_buffer(binding.gl_enum(), Some(&buffer));
-                }
-
-                for index in runtime.binding_ubos {
-                    runtime.gl.bind_buffer_base(WebGl2RenderingContext::ARRAY_BUFFER, index, None);
-                }
-
-                runtime.gl.delete_buffer(Some(&buffer));
-            }
-        }
-    }
 }
 
 impl Buffer {
@@ -1143,6 +1155,7 @@ impl Buffer {
     ) -> Self {
         let shared = BufferShared {
             id: Uuid::new_v4(),
+            name,
             memory_policy,
             usage,
             queue: Queue::new(),
@@ -1150,7 +1163,6 @@ impl Buffer {
             runtime: None,
         };
         Self {
-            name,
             shared: Rc::new(RefCell::new(shared)),
         }
     }
@@ -1160,14 +1172,17 @@ impl Buffer {
         self.shared.borrow().id
     }
 
-    /// Returns buffer name.
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
+    /// Sets name.
+    pub fn set_name(&self, name: Option<Cow<'static, str>>) {
+        self.shared.borrow_mut().name = name;
     }
 
-    /// Sets buffer name.
-    pub fn set_name(&mut self, name: Option<Cow<'static, str>>) {
-        self.name = name;
+    /// Returns name.
+    pub fn name(&self) -> Option<String> {
+        match self.shared.borrow().name.as_ref() {
+            Some(name) => Some(name.to_string()),
+            None => None,
+        }
     }
 
     /// Returns [`BufferUsage`].
@@ -1419,6 +1434,7 @@ impl Builder {
     pub fn build(self) -> Buffer {
         let shared = BufferShared {
             id: Uuid::new_v4(),
+            name: self.name,
             usage: self.usage,
             memory_policy: self.memory_policy,
             queue: self.queue,
@@ -1426,7 +1442,6 @@ impl Builder {
             runtime: None,
         };
         Buffer {
-            name: self.name,
             shared: Rc::new(RefCell::new(shared)),
         }
     }
@@ -1510,7 +1525,10 @@ impl StoreShared {
                 };
 
                 if let Ok(mut item) = item.try_borrow_mut() {
-                    item.free();
+                    if !item.free() {
+                        next_node = (*current_node).more_recently();
+                        continue;
+                    }
                 }
 
                 occupied.remove();
@@ -1538,7 +1556,7 @@ impl Drop for BufferStore {
 }
 
 impl BufferStore {
-    /// Constructs a new buffer store with unlimited memory.
+    /// Constructs a new buffer store with [`i32::MAX`] bytes memory limitation.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self::with_available_memory(gl, i32::MAX as usize)
     }
@@ -1562,6 +1580,11 @@ impl BufferStore {
             id: Uuid::new_v4(),
             shared: Rc::new(RefCell::new(stored)),
         }
+    }
+
+    /// Returns store id.
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 
     /// Returns the maximum available memory in bytes.
@@ -1620,7 +1643,7 @@ impl BufferStore {
         }
     }
 
-    /// Unregisters a buffer from buffer store.
+    /// Unregisters a buffer from store.
     pub fn unregister(&mut self, buffer: &Buffer) {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();

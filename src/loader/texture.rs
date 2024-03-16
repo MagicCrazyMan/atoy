@@ -8,9 +8,10 @@ use crate::{
     error::{AsJsError, Error},
     notify::Notifier,
     renderer::webgl::texture::{
-        texture2d::{self, Texture2D},
-        SamplerParameter, TextureColorFormat, TextureDataType, TextureFormat, TextureParameter,
-        TexturePixelStorage, TextureSource,
+        SamplerParameter, Texture, Texture2D, TextureData, TextureInternalFormat, TextureParameter,
+        TexturePixelStorage, TextureSource, TextureUncompressedData,
+        TextureUncompressedInternalFormat, TextureUncompressedPixelDataType,
+        TextureUncompressedPixelFormat,
     },
     share::Share,
 };
@@ -365,7 +366,7 @@ impl TextureLoader {
     }
 }
 
-impl Loader<Texture2D> for TextureLoader {
+impl Loader<Texture<Texture2D>> for TextureLoader {
     type Failure = Error;
 
     fn status(&self) -> LoaderStatus {
@@ -376,37 +377,62 @@ impl Loader<Texture2D> for TextureLoader {
         Self::load(&self);
     }
 
-    fn loaded(&self) -> Result<Texture2D, Error> {
+    fn loaded(&self) -> Result<Texture<Texture2D>, Error> {
         unsafe {
             if let Some(err) = &*self.error {
                 return Err(err.clone());
             }
 
             let image = (*self.image).as_ref().unwrap();
-            let mut builder = texture2d::Builder::<TextureColorFormat>::with_base_source(
-                TextureSource::HtmlImageElement {
-                    data: image.clone(),
-                    format: TextureFormat::RGBA,
-                    data_type: TextureDataType::UNSIGNED_BYTE,
-                    pixel_storages: self.pixel_storages.clone(),
-                },
-                if self.is_srgb {
-                    TextureColorFormat::SRGB8_ALPHA8
+            let texture = Texture::<Texture2D>::with_auto_levels(
+                TextureInternalFormat::Uncompressed(if self.is_srgb {
+                    TextureUncompressedInternalFormat::SRGB8_ALPHA8
                 } else {
-                    TextureColorFormat::RGBA8
-                },
-            )
-            .set_sampler_parameters(self.sampler_params.clone())
-            .set_texture_parameters(self.texture_params.clone());
-            if self.generate_mipmaps {
-                builder = builder.generate_mipmap();
-            }
+                    TextureUncompressedInternalFormat::RGBA8
+                }),
+                image.natural_width() as usize,
+                image.natural_height() as usize,
+            );
+            texture.set_texture_parameters(self.texture_params.iter().map(|p| *p));
+            texture.set_sampler_parameters(self.sampler_params.iter().map(|p| *p));
+            texture.tex_image(
+                HtmlImageTextureSource::new(image.clone(), self.pixel_storages.clone()),
+                0,
+                self.generate_mipmaps,
+            );
 
-            Ok(Texture2D::Color(builder.build()))
+            Ok(texture)
         }
     }
 
     fn notifier(&self) -> &Share<Notifier<LoaderStatus>> {
         &self.notifier
+    }
+}
+
+struct HtmlImageTextureSource {
+    image: HtmlImageElement,
+    pixel_storages: Vec<TexturePixelStorage>,
+}
+
+impl HtmlImageTextureSource {
+    fn new(image: HtmlImageElement, pixel_storages: Vec<TexturePixelStorage>) -> Self {
+        Self {
+            image,
+            pixel_storages,
+        }
+    }
+}
+
+impl TextureSource for HtmlImageTextureSource {
+    fn data(&self) -> TextureData {
+        TextureData::Uncompressed {
+            pixel_format: TextureUncompressedPixelFormat::RGBA,
+            pixel_data_type: TextureUncompressedPixelDataType::UNSIGNED_BYTE,
+            pixel_storages: self.pixel_storages.clone(),
+            data: TextureUncompressedData::HtmlImageElement {
+                data: self.image.clone(),
+            },
+        }
     }
 }

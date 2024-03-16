@@ -49,13 +49,7 @@ use crate::renderer::webgl::buffer::{
 use crate::renderer::webgl::draw::{Draw, DrawMode};
 use crate::renderer::webgl::program::{CustomBinding, Define};
 use crate::renderer::webgl::state::FrameState;
-use crate::renderer::webgl::texture::texture2d::Texture2D;
-use crate::renderer::webgl::texture::{
-    texture2d, SamplerParameter, TextureColorFormat, TextureCompressedFormat, TextureDataType,
-    TextureDescriptor, TextureFormat, TextureMagnificationFilter, TextureMinificationFilter,
-    TextureParameter, TexturePixelStorage, TexturePlanar, TextureSource, TextureSourceCompressed,
-    TextureUnit, TextureWrapMethod,
-};
+use crate::renderer::webgl::texture::{SamplerParameter, TextureParameter, TexturePixelStorage};
 use crate::renderer::webgl::uniform::{UniformBlockValue, UniformValue};
 use crate::renderer::webgl::RenderEvent;
 use crate::renderer::Renderer;
@@ -174,11 +168,11 @@ impl StandardMaterial for TickSolidColorMaterial {
         self.0.attribute_value(name)
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>> {
         self.0.uniform_value(name)
     }
 
-    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue<'_>> {
         self.0.uniform_block_value(name)
     }
 

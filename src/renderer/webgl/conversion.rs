@@ -5,13 +5,6 @@ use web_sys::{
 };
 
 use super::{
-    a::{
-        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
-        TextureDataType, TextureInternalFormat, TextureMagnificationFilter,
-        TextureMinificationFilter, TextureParameter, TexturePixelFormat, TexturePixelStorage,
-        TextureTarget, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat,
-        TextureUnit, TextureUnpackColorSpaceConversion, TextureWrapMethod,
-    },
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     client_wait::ClientWaitFlags,
     draw::{CullFace, DrawMode, ElementIndicesDataType},
@@ -20,6 +13,13 @@ use super::{
     },
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
+    texture::{
+        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
+        TextureInternalFormat, TextureMagnificationFilter, TextureMinificationFilter,
+        TextureParameter, TexturePixelStorage, TextureTarget, TextureUncompressedInternalFormat,
+        TextureUncompressedPixelDataType, TextureUncompressedPixelFormat, TextureUnit,
+        TextureUnpackColorSpaceConversion, TextureWrapMethod,
+    },
 };
 
 /// A trait converts Rust data type to WebGL u32.
@@ -394,46 +394,44 @@ impl ToGlEnum for TextureInternalFormat {
     }
 }
 
-impl ToGlEnum for TexturePixelFormat {
+impl ToGlEnum for TextureUncompressedPixelDataType {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TexturePixelFormat::Uncompressed(f) => f.gl_enum(),
-            TexturePixelFormat::Compressed(f) => f.gl_enum(),
-        }
-    }
-}
-
-impl ToGlEnum for TextureDataType {
-    #[inline]
-    fn gl_enum(&self) -> u32 {
-        match self {
-            TextureDataType::FLOAT => WebGl2RenderingContext::FLOAT,
-            TextureDataType::HALF_FLOAT => WebGl2RenderingContext::HALF_FLOAT,
-            TextureDataType::BYTE => WebGl2RenderingContext::BYTE,
-            TextureDataType::SHORT => WebGl2RenderingContext::SHORT,
-            TextureDataType::INT => WebGl2RenderingContext::INT,
-            TextureDataType::UNSIGNED_BYTE => WebGl2RenderingContext::UNSIGNED_BYTE,
-            TextureDataType::UNSIGNED_SHORT => WebGl2RenderingContext::UNSIGNED_SHORT,
-            TextureDataType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
-            TextureDataType::UNSIGNED_SHORT_5_6_5 => WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5,
-            TextureDataType::UNSIGNED_SHORT_4_4_4_4 => {
+            TextureUncompressedPixelDataType::FLOAT => WebGl2RenderingContext::FLOAT,
+            TextureUncompressedPixelDataType::HALF_FLOAT => WebGl2RenderingContext::HALF_FLOAT,
+            TextureUncompressedPixelDataType::BYTE => WebGl2RenderingContext::BYTE,
+            TextureUncompressedPixelDataType::SHORT => WebGl2RenderingContext::SHORT,
+            TextureUncompressedPixelDataType::INT => WebGl2RenderingContext::INT,
+            TextureUncompressedPixelDataType::UNSIGNED_BYTE => {
+                WebGl2RenderingContext::UNSIGNED_BYTE
+            }
+            TextureUncompressedPixelDataType::UNSIGNED_SHORT => {
+                WebGl2RenderingContext::UNSIGNED_SHORT
+            }
+            TextureUncompressedPixelDataType::UNSIGNED_INT => WebGl2RenderingContext::UNSIGNED_INT,
+            TextureUncompressedPixelDataType::UNSIGNED_SHORT_5_6_5 => {
+                WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5
+            }
+            TextureUncompressedPixelDataType::UNSIGNED_SHORT_4_4_4_4 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_4_4_4_4
             }
-            TextureDataType::UNSIGNED_SHORT_5_5_5_1 => {
+            TextureUncompressedPixelDataType::UNSIGNED_SHORT_5_5_5_1 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_5_5_5_1
             }
-            TextureDataType::UNSIGNED_INT_2_10_10_10_REV => {
+            TextureUncompressedPixelDataType::UNSIGNED_INT_2_10_10_10_REV => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
-            TextureDataType::UNSIGNED_INT_10F_11F_11F_REV => {
+            TextureUncompressedPixelDataType::UNSIGNED_INT_10F_11F_11F_REV => {
                 WebGl2RenderingContext::UNSIGNED_INT_10F_11F_11F_REV
             }
-            TextureDataType::UNSIGNED_INT_5_9_9_9_REV => {
+            TextureUncompressedPixelDataType::UNSIGNED_INT_5_9_9_9_REV => {
                 WebGl2RenderingContext::UNSIGNED_INT_5_9_9_9_REV
             }
-            TextureDataType::UNSIGNED_INT_24_8 => WebGl2RenderingContext::UNSIGNED_INT_24_8,
-            TextureDataType::FLOAT_32_UNSIGNED_INT_24_8_REV => {
+            TextureUncompressedPixelDataType::UNSIGNED_INT_24_8 => {
+                WebGl2RenderingContext::UNSIGNED_INT_24_8
+            }
+            TextureUncompressedPixelDataType::FLOAT_32_UNSIGNED_INT_24_8_REV => {
                 WebGl2RenderingContext::FLOAT_32_UNSIGNED_INT_24_8_REV
             }
         }

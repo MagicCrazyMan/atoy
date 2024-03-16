@@ -9,10 +9,14 @@ use web_sys::{
 };
 
 use crate::{
-    error::Error, notify::Notifier, renderer::webgl::texture::{
-        texture2d::{Builder, Texture2D, Texture2DBase},
-        SamplerParameter, TextureCompressedFormat, TextureParameter, TextureSourceCompressed,
-    }, share::Share, window
+    error::Error,
+    notify::Notifier,
+    renderer::webgl::texture::{
+        SamplerParameter, Texture, Texture2D, TextureCompressedData, TextureCompressedFormat,
+        TextureData, TextureInternalFormat, TextureParameter, TextureSource,
+    },
+    share::Share,
+    window,
 };
 
 use super::{Loader, LoaderStatus};
@@ -216,12 +220,60 @@ impl DirectDrawSurface {
         read_mipmaps: bool,
         sampler_params: SI,
         texture_params: TI,
-    ) -> Option<Texture2DBase<TextureCompressedFormat>>
+    ) -> Option<Texture<Texture2D>>
     where
         SI: IntoIterator<Item = SamplerParameter>,
         TI: IntoIterator<Item = TextureParameter>,
     {
-        let compressed_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
+        struct CompressedTextureSource {
+            raw: ArrayBuffer,
+            byte_offset: usize,
+            byte_length: usize,
+            pixel_format: TextureCompressedFormat,
+            width: usize,
+            height: usize,
+        }
+
+        impl CompressedTextureSource {
+            fn new(
+                raw: &ArrayBuffer,
+                byte_offset: usize,
+                byte_length: usize,
+                pixel_format: TextureCompressedFormat,
+                width: usize,
+                height: usize,
+            ) -> Self {
+                Self {
+                    raw: raw.clone(),
+                    byte_offset,
+                    byte_length,
+                    pixel_format,
+                    width,
+                    height,
+                }
+            }
+        }
+
+        impl TextureSource for CompressedTextureSource {
+            fn data(&self) -> TextureData {
+                TextureData::Compressed {
+                    pixel_format: self.pixel_format,
+                    data: TextureCompressedData::Uint8Array {
+                        width: self.width,
+                        height: self.height,
+                        data: Uint8Array::new_with_byte_offset_and_length(
+                            &self.raw,
+                            self.byte_offset as u32,
+                            self.byte_length as u32,
+                        ),
+                        src_element_offset: None,
+                        src_element_length_override: None,
+                    },
+                }
+            }
+        }
+
+        let pixel_format = match (self.header.pixel_format.four_cc, dxt1_use_alpha, use_srgb) {
             (DDS_DXT1, false, false) => Some(TextureCompressedFormat::RGB_S3TC_DXT1),
             (DDS_DXT1, true, false) => Some(TextureCompressedFormat::RGBA_S3TC_DXT1),
             (DDS_DXT1, false, true) => Some(TextureCompressedFormat::SRGB_S3TC_DXT1),
@@ -233,62 +285,58 @@ impl DirectDrawSurface {
             (_, _, _) => None,
         };
 
-        match compressed_format {
-            Some(compressed_format) => {
-                let base_width = self.header.width as usize;
-                let base_height = self.header.height as usize;
+        match pixel_format {
+            Some(pixel_format) => {
+                let width = self.header.width as usize;
+                let height = self.header.height as usize;
                 let levels = self.header.mipmap_count as usize;
 
-                let mut builder = Builder::new(base_width, base_height, compressed_format)
-                    .set_max_mipmap_level(levels - 1)
-                    .set_texture_parameters(texture_params)
-                    .set_sampler_parameters(sampler_params);
+                let texture = Texture::<Texture2D>::new(
+                    TextureInternalFormat::Compressed(pixel_format),
+                    levels,
+                    width,
+                    height,
+                );
+                texture.set_texture_parameters(texture_params);
+                texture.set_sampler_parameters(sampler_params);
 
                 if read_mipmaps && self.header.ddsd_mipmap_count() {
                     // reads mipmaps
-                    let mut offset = 128usize;
+                    let mut byte_offset = 128usize;
                     for level in 0..levels {
-                        let width = (base_width >> level).max(1);
-                        let height = (base_height >> level).max(1);
-                        let byte_length =
-                            compressed_format.byte_length(width as usize, height as usize);
-                        let data = Uint8Array::new_with_byte_offset_and_length(
-                            &self.raw,
-                            offset as u32,
-                            byte_length as u32,
-                        );
-                        builder = builder.tex_image(
-                            TextureSourceCompressed::Uint8Array {
+                        let width = (width >> level).max(1);
+                        let height = (height >> level).max(1);
+                        let byte_length = pixel_format.byte_length(width, height);
+                        texture.tex_image(
+                            CompressedTextureSource::new(
+                                &self.raw,
+                                byte_offset,
+                                byte_length,
+                                pixel_format,
                                 width,
                                 height,
-                                compressed_format,
-                                data,
-                                src_offset: 0,
-                                src_length_override: None,
-                            },
+                            ),
                             level,
+                            false,
                         );
-                        offset += byte_length;
+                        byte_offset += byte_length;
                     }
                 } else {
-                    let data = Uint8Array::new_with_byte_offset_and_length(
-                        &self.raw,
-                        128,
-                        compressed_format
-                            .byte_length(self.header.width as usize, self.header.height as usize)
-                            as u32,
+                    texture.tex_image(
+                        CompressedTextureSource::new(
+                            &self.raw,
+                            128,
+                            pixel_format.byte_length(width, height),
+                            pixel_format,
+                            width,
+                            height,
+                        ),
+                        0,
+                        false,
                     );
-                    builder = builder.set_base_source(TextureSourceCompressed::Uint8Array {
-                        width: self.header.width as usize,
-                        height: self.header.height as usize,
-                        compressed_format,
-                        data,
-                        src_offset: 0,
-                        src_length_override: None,
-                    });
                 };
 
-                Some(builder.build())
+                Some(texture)
             }
             None => None,
         }
@@ -587,7 +635,7 @@ impl DirectDrawSurfaceLoader {
     }
 }
 
-impl Loader<Texture2D> for DirectDrawSurfaceLoader {
+impl Loader<Texture<Texture2D>> for DirectDrawSurfaceLoader {
     type Failure = Error;
 
     fn status(&self) -> LoaderStatus {
@@ -598,7 +646,7 @@ impl Loader<Texture2D> for DirectDrawSurfaceLoader {
         Self::load(&self);
     }
 
-    fn loaded(&self) -> Result<Texture2D, Error> {
+    fn loaded(&self) -> Result<Texture<Texture2D>, Error> {
         unsafe {
             if let Some(err) = &*self.error {
                 return Err(err.clone());
@@ -615,7 +663,7 @@ impl Loader<Texture2D> for DirectDrawSurfaceLoader {
                 )
                 .unwrap();
 
-            Ok(Texture2D::Compressed(texture))
+            Ok(texture)
         }
     }
 

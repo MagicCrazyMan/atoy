@@ -18,7 +18,9 @@ use crate::{
         program::{Define, ShaderProvider},
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
-        texture::{TextureColorFormat, TextureDataType, TextureFormat},
+        texture::{
+            TextureUncompressedPixelDataType, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat,
+        },
         uniform::UniformValue,
     },
     share::Share,
@@ -46,11 +48,11 @@ impl StandardPicking {
             state.create_framebuffer_with_builder(
                 FramebufferBuilder::new()
                     .set_color_attachment0(AttachmentProvider::new_texture_with_clear_policy(
-                        TextureColorFormat::R32UI,
+                        TextureUncompressedInternalFormat::R32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .set_color_attachment1(AttachmentProvider::new_texture_with_clear_policy(
-                        TextureColorFormat::RGBA32UI,
+                        TextureUncompressedInternalFormat::RGBA32UI,
                         ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                     ))
                     .with_depth_attachment(AttachmentProvider::new_renderbuffer(
@@ -186,8 +188,8 @@ impl StandardPicking {
             canvas.height() as i32 - window_position_y,
             1,
             1,
-            TextureFormat::RED_INTEGER,
-            TextureDataType::UNSIGNED_INT,
+            TextureUncompressedPixelFormat::RED_INTEGER,
+            TextureUncompressedPixelDataType::UNSIGNED_INT,
             &self.pixel,
             0,
         )?;
@@ -234,8 +236,8 @@ impl StandardPicking {
             canvas.height() as i32 - window_position_y,
             1,
             1,
-            TextureFormat::RGBA_INTEGER,
-            TextureDataType::UNSIGNED_INT,
+            TextureUncompressedPixelFormat::RGBA_INTEGER,
+            TextureUncompressedPixelDataType::UNSIGNED_INT,
             &self.pixel,
             0,
         )?;

@@ -36,9 +36,9 @@ pub trait Entity {
 
     fn attribute_value(&self, name: &str) -> Option<AttributeValue<'_>>;
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>>;
+    fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>>;
 
-    fn uniform_block_value(&self, name: &str) -> Option<Readonly<'_, UniformBlockValue>>;
+    fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue<'_>>;
 
     fn tick(&mut self, tick: &Tick) -> bool;
 
@@ -300,11 +300,11 @@ impl Entity for SimpleEntity {
         None
     }
 
-    fn uniform_value(&self, _: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, _: &str) -> Option<UniformValue<'_>> {
         None
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue<'_>> {
         None
     }
 

@@ -10,7 +10,6 @@ use crate::{
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
     },
-    value::Readonly,
 };
 
 use super::{StandardMaterial, Transparency};
@@ -89,22 +88,16 @@ impl StandardMaterial for SolidColorMaterial {
         None
     }
 
-    fn uniform_value(&self, name: &str) -> Option<Readonly<'_, UniformValue>> {
+    fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>> {
         match name {
-            "u_Color" => Some(Readonly::Owned(UniformValue::FloatVector3(
-                self.color.gl_f32(),
-            ))),
-            "u_Transparency" => Some(Readonly::Owned(UniformValue::Float1(
-                self.transparency.alpha(),
-            ))),
-            "u_SpecularShininess" => Some(Readonly::Owned(UniformValue::Float1(
-                self.specular_shininess,
-            ))),
+            "u_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
+            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
+            "u_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
             _ => None,
         }
     }
 
-    fn uniform_block_value(&self, _: &str) -> Option<Readonly<'_, UniformBlockValue>> {
+    fn uniform_block_value(&self, _: &str) -> Option<UniformBlockValue<'_>> {
         None
     }
 

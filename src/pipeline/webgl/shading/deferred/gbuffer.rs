@@ -13,7 +13,7 @@ use crate::{
         },
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
-        texture::TextureColorFormat,
+        texture::TextureUncompressedInternalFormat,
     },
 };
 
@@ -32,15 +32,15 @@ impl StandardGBufferCollector {
                 FramebufferBuilder::new()
                     // positions and specular shininess
                     .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     // normals
                     .set_color_attachment1(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     // albedo
                     .set_color_attachment2(AttachmentProvider::new_texture(
-                        TextureColorFormat::RGBA32F,
+                        TextureUncompressedInternalFormat::RGBA32F,
                     ))
                     .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
                         RenderbufferInternalFormat::DEPTH32F_STENCIL8,

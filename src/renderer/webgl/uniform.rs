@@ -1,16 +1,11 @@
 use crate::value::Readonly;
 
 use super::{
-    buffer::Buffer,
-    texture::{
-        texture2d::Texture2D, texture2darray::Texture2DArray, texture3d::Texture3D,
-        texture_cubemap::TextureCubeMap, TextureDescriptor, TextureUnit,
-    },
+    buffer::Buffer, texture::{Texture, Texture2D, Texture2DArray, Texture3D, TextureCubeMap, TextureUnit},
 };
 
 /// Available uniform values.
-#[derive(Clone)]
-pub enum UniformValue {
+pub enum UniformValue<'a> {
     Bool(bool),
     Float1(f32),
     Float2(f32, f32),
@@ -49,19 +44,19 @@ pub enum UniformValue {
         transpose: bool,
     },
     Texture2D {
-        descriptor: TextureDescriptor<Texture2D>,
+        texture: Readonly<'a, Texture<Texture2D>>,
         unit: TextureUnit,
     },
     Texture2DArray {
-        descriptor: TextureDescriptor<Texture2DArray>,
+        texture: Readonly<'a, Texture<Texture2DArray>>,
         unit: TextureUnit,
     },
     Texture3D {
-        descriptor: TextureDescriptor<Texture3D>,
+        texture: Readonly<'a, Texture<Texture3D>>,
         unit: TextureUnit,
     },
     TextureCubeMap {
-        descriptor: TextureDescriptor<TextureCubeMap>,
+        texture: Readonly<'a, Texture<TextureCubeMap>>,
         unit: TextureUnit,
     },
 }

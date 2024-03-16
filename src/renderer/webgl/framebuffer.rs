@@ -9,11 +9,13 @@ use web_sys::{
 };
 
 use super::{
-    a::{TextureUncompressedInternalFormat, TextureDataType, TexturePixelFormat},
     conversion::ToGlEnum,
     error::Error,
     params::GetWebGlParameters,
     renderbuffer::RenderbufferInternalFormat,
+    texture::{
+        TextureUncompressedPixelDataType, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat,
+    },
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -390,11 +392,7 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let binding = if cfg!(feature = "rebind") {
-                    gl.texture_binding_2d()
-                } else {
-                    None
-                };
+                let binding = gl.texture_binding_2d();
 
                 let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
@@ -425,11 +423,7 @@ impl AttachmentProvider {
                 texture,
                 clear_policy,
             } => {
-                let binding = if cfg!(feature = "rebind") {
-                    gl.texture_binding_2d()
-                } else {
-                    None
-                };
+                let binding = gl.texture_binding_2d();
 
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
                 gl.framebuffer_texture_2d(
@@ -452,11 +446,7 @@ impl AttachmentProvider {
                 internal_format,
                 clear_policy,
             } => {
-                let binding = if cfg!(feature = "rebind") {
-                    gl.renderbuffer_binding()
-                } else {
-                    None
-                };
+                let binding = gl.renderbuffer_binding();
 
                 let renderbuffer = gl
                     .create_renderbuffer()
@@ -496,11 +486,7 @@ impl AttachmentProvider {
                 renderbuffer,
                 clear_policy,
             } => {
-                let binding = if cfg!(feature = "rebind") {
-                    gl.renderbuffer_binding()
-                } else {
-                    None
-                };
+                let binding = gl.renderbuffer_binding();
 
                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
                 gl.framebuffer_renderbuffer(
@@ -895,8 +881,8 @@ impl Framebuffer {
         y: i32,
         width: i32,
         height: i32,
-        pixel_format: TexturePixelFormat,
-        data_type: TextureDataType,
+        pixel_format: TextureUncompressedPixelFormat,
+        data_type: TextureUncompressedPixelDataType,
         dst_data: &Object,
         dst_offset: u32,
     ) -> Result<(), Error> {
