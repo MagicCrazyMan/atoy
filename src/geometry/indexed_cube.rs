@@ -6,7 +6,7 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferData,
+            self, Buffer, BufferComponentSize, BufferData, BufferDataType, BufferSource,
             BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
@@ -37,7 +37,7 @@ impl IndexedCube {
         let positions = if size == 1.0 {
             positions_size_one_buffer()
         } else {
-            let buffer = buffer::Builder::default()
+            let buffer = buffer::Builder::new(BufferUsage::STATIC_DRAW)
                 .buffer_data(PositionsBufferSource(size))
                 .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(size)))
                 .build();
@@ -189,7 +189,7 @@ fn positions_size_one_buffer() -> Value<'static, Buffer> {
         let buffer = match POSITIONS_SIZE_ONE_BUFFER.get_mut() {
             Some(buffer) => buffer,
             None => {
-                let buffer = buffer::Builder::default()
+                let buffer = buffer::Builder::new(BufferUsage::STATIC_DRAW)
                     .buffer_data(PositionsBufferSource(1.0))
                     .set_memory_policy(MemoryPolicy::restorable(PositionsBufferSource(1.0)))
                     .build();
@@ -225,7 +225,7 @@ fn normals_texture_coordinates_buffer_descriptor() -> Value<'static, Buffer> {
         let buffer = match NORMALS_TEXTURE_COORDINATES_BUFFER.get_mut() {
             Some(buffer) => buffer,
             None => {
-                let buffer = buffer::Builder::default()
+                let buffer = buffer::Builder::new(BufferUsage::STATIC_DRAW)
                     .buffer_data(TexturesNormalsBufferSource)
                     .set_memory_policy(MemoryPolicy::restorable(TexturesNormalsBufferSource))
                     .build();
@@ -253,7 +253,7 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
         let buffer = match INDICES_BUFFER.get_mut() {
             Some(buffer) => buffer,
             None => {
-                let buffer = buffer::Builder::default()
+                let buffer = buffer::Builder::new(BufferUsage::STATIC_DRAW)
                     .buffer_data(IndicesBufferSource)
                     .set_memory_policy(MemoryPolicy::restorable(IndicesBufferSource))
                     .build();
@@ -293,7 +293,7 @@ impl BufferSource for IndicesBufferSource {
             src_element_length: None,
         }
     }
-    
+
     fn byte_length(&self) -> usize {
         36
     }

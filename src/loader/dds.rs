@@ -12,8 +12,9 @@ use crate::{
     error::Error,
     notify::Notifier,
     renderer::webgl::texture::{
-        SamplerParameter, Texture, Texture2D, TextureCompressedData, TextureCompressedFormat,
-        TextureData, TextureInternalFormat, TextureParameter, TextureSource,
+        Builder, SamplerParameter, Texture, Texture2D, TextureCompressedData,
+        TextureCompressedFormat, TextureData, TextureInternalFormat, TextureParameter,
+        TextureSource,
     },
     share::Share,
     window,
@@ -291,14 +292,14 @@ impl DirectDrawSurface {
                 let height = self.header.height as usize;
                 let levels = self.header.mipmap_count as usize;
 
-                let texture = Texture::<Texture2D>::new(
+                let mut builder = Builder::<Texture2D>::new(
                     TextureInternalFormat::Compressed(pixel_format),
                     levels,
                     width,
                     height,
                 );
-                texture.set_texture_parameters(texture_params);
-                texture.set_sampler_parameters(sampler_params);
+                builder.set_texture_parameters(texture_params);
+                builder.set_sampler_parameters(sampler_params);
 
                 if read_mipmaps && self.header.ddsd_mipmap_count() {
                     // reads mipmaps
@@ -307,7 +308,7 @@ impl DirectDrawSurface {
                         let width = (width >> level).max(1);
                         let height = (height >> level).max(1);
                         let byte_length = pixel_format.byte_length(width, height);
-                        texture.tex_image(
+                        builder.tex_image(
                             CompressedTextureSource::new(
                                 &self.raw,
                                 byte_offset,
@@ -322,7 +323,7 @@ impl DirectDrawSurface {
                         byte_offset += byte_length;
                     }
                 } else {
-                    texture.tex_image(
+                    builder.tex_image(
                         CompressedTextureSource::new(
                             &self.raw,
                             128,
@@ -336,7 +337,7 @@ impl DirectDrawSurface {
                     );
                 };
 
-                Some(texture)
+                Some(builder.build())
             }
             None => None,
         }

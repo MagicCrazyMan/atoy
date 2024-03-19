@@ -18,10 +18,7 @@ use web_sys::{
     WebGl2RenderingContext, WebGlBuffer,
 };
 
-use crate::{
-    lru::{Lru, LruNode},
-    utils::format_byte_length,
-};
+use crate::lru::{Lru, LruNode};
 
 use super::{conversion::ToGlEnum, error::Error, params::GetWebGlParameters};
 
@@ -627,27 +624,31 @@ struct BufferShared {
 
 impl Drop for BufferShared {
     fn drop(&mut self) {
-        if let Some(registered) = self.registered.as_mut() {
-            let mut store_shared = registered.store.borrow_mut();
-            store_shared.items.remove(&self.id);
-            unsafe {
-                store_shared.lru.remove(registered.lru_node);
-            }
-        }
-
         if let Some(mut runtime) = self.runtime.take() {
             if let Some(buffer) = runtime.buffer.take() {
-                for binding in runtime.bindings {
+                for binding in runtime.bindings.iter() {
                     runtime.gl.bind_buffer(binding.gl_enum(), None);
                 }
 
-                for index in runtime.binding_ubos {
-                    runtime
-                        .gl
-                        .bind_buffer_base(WebGl2RenderingContext::ARRAY_BUFFER, index, None);
+                for index in runtime.binding_ubos.iter() {
+                    runtime.gl.bind_buffer_base(
+                        WebGl2RenderingContext::UNIFORM_BUFFER,
+                        *index,
+                        None,
+                    );
                 }
 
                 runtime.gl.delete_buffer(Some(&buffer));
+            }
+
+            if let Some(registered) = self.registered.as_mut() {
+                registered.store.borrow_mut().unregister(
+                    &self.id,
+                    registered.lru_node,
+                    runtime.buffer_byte_length,
+                    runtime.bindings.iter(),
+                    runtime.binding_ubos.iter(),
+                );
             }
         }
     }
@@ -847,10 +848,10 @@ impl BufferShared {
 
         if runtime.bindings.remove(&target) {
             runtime.gl.bind_buffer(target.gl_enum(), None);
-        }
 
-        if let Some(registered) = &self.registered {
-            registered.store.borrow_mut().remove_binding(target);
+            if let Some(registered) = &self.registered {
+                registered.store.borrow_mut().remove_binding(target);
+            }
         }
 
         Ok(())
@@ -863,10 +864,10 @@ impl BufferShared {
             runtime
                 .gl
                 .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
-        }
 
-        if let Some(registered) = self.registered.as_mut() {
-            registered.store.borrow_mut().remove_binding_ubo(index);
+            if let Some(registered) = self.registered.as_mut() {
+                registered.store.borrow_mut().remove_binding_ubo(index);
+            }
         }
 
         Ok(())
@@ -1040,104 +1041,81 @@ impl BufferShared {
             return false;
         }
 
-        // free
-        match &self.memory_policy {
-            MemoryPolicy::Unfree => false,
-            MemoryPolicy::ReadBack => {
-                let byte_length = runtime.buffer_byte_length;
-                if let Some(buffer) = runtime.buffer.take() {
-                    if let Some(readback) = runtime.read_back() {
-                        self.queue.items.insert(0, QueueItem::new(readback, 0));
-                    }
-                    self.queue.required_byte_length =
-                        self.queue.required_byte_length.max(byte_length);
-                    runtime.gl.delete_buffer(Some(&buffer));
-                    runtime.buffer_byte_length = 0;
-                }
-
-                if let Some(registered) = self.registered.as_mut() {
-                    let mut store = registered.store.borrow_mut();
-                    store.used_memory -= byte_length;
-                    unsafe {
-                        store.lru.remove(registered.lru_node);
-                    }
-
-                    debug!(
-                        target: "BufferStore",
-                        "free buffer (readback) {}. freed memory {}, used {}",
-                        self.id,
-                        format_byte_length(byte_length),
-                        format_byte_length(store.used_memory)
-                    );
-                } else {
-                    debug!(
-                        target: "BufferStore",
-                        "free buffer (readback) {}. freed memory {}",
-                        self.id,
-                        format_byte_length(byte_length),
-                    );
-                }
-                true
-            }
-            MemoryPolicy::Restorable(restorer) => {
-                struct RestoreBufferSource {
-                    restorer: Rc<dyn BufferSource>,
-                }
-
-                impl RestoreBufferSource {
-                    fn new(restorer: Rc<dyn BufferSource>) -> Self {
-                        Self { restorer }
-                    }
-                }
-
-                impl BufferSource for RestoreBufferSource {
-                    fn data(&self) -> BufferData<'_> {
-                        self.restorer.data()
-                    }
-
-                    fn byte_length(&self) -> usize {
-                        self.restorer.byte_length()
-                    }
-                }
-
-                let byte_length = runtime.buffer_byte_length;
-
-                if let Some(buffer) = runtime.buffer.take() {
-                    runtime.gl.delete_buffer(Some(&buffer));
-                    runtime.buffer_byte_length = 0;
-                }
-
-                self.queue.items.insert(
-                    0,
-                    QueueItem::new(RestoreBufferSource::new(Rc::clone(&restorer)), 0),
-                );
-                self.queue.required_byte_length = self.queue.required_byte_length.max(byte_length);
-
-                if let Some(registered) = self.registered.as_mut() {
-                    let mut store = registered.store.borrow_mut();
-                    store.used_memory -= byte_length;
-                    unsafe {
-                        store.lru.remove(registered.lru_node);
-                    }
-
-                    debug!(
-                        target: "BufferStore",
-                        "free buffer (restorable) {}. freed memory {}, used {}",
-                        self.id,
-                        format_byte_length(byte_length),
-                        format_byte_length(store.used_memory)
-                    );
-                } else {
-                    debug!(
-                        target: "BufferStore",
-                        "free buffer (restorable) {}. freed memory {}",
-                        self.id,
-                        format_byte_length(byte_length),
-                    );
-                }
-                true
-            }
+        if let MemoryPolicy::Unfree = self.memory_policy {
+            return false;
         }
+
+        // free
+        if let Some(buffer) = runtime.buffer.take() {
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.update_used_memory(0, runtime.buffer_byte_length);
+                unsafe {
+                    store.lru.remove(registered.lru_node);
+                }
+            }
+
+            let restore = match &self.memory_policy {
+                MemoryPolicy::ReadBack => runtime
+                    .read_back()
+                    .map(|readback| QueueItem::new(readback, 0)),
+                MemoryPolicy::Restorable(restorer) => {
+                    struct RestoreBufferSource {
+                        restorer: Rc<dyn BufferSource>,
+                    }
+
+                    impl RestoreBufferSource {
+                        fn new(restorer: Rc<dyn BufferSource>) -> Self {
+                            Self { restorer }
+                        }
+                    }
+
+                    impl BufferSource for RestoreBufferSource {
+                        fn data(&self) -> BufferData<'_> {
+                            self.restorer.data()
+                        }
+
+                        fn byte_length(&self) -> usize {
+                            self.restorer.byte_length()
+                        }
+                    }
+
+                    Some(QueueItem::new(
+                        RestoreBufferSource::new(Rc::clone(restorer)),
+                        0,
+                    ))
+                }
+                MemoryPolicy::Unfree => unreachable!(),
+            };
+            if let Some(restore) = restore {
+                self.queue.items.insert(0, restore);
+                self.queue.required_byte_length = self
+                    .queue
+                    .required_byte_length
+                    .max(runtime.buffer_byte_length);
+            }
+
+            runtime.gl.delete_buffer(Some(&buffer));
+            runtime.buffer_byte_length = 0;
+        }
+
+        true
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BufferUnbinder {
+    target: BufferTarget,
+    shared: Weak<RefCell<BufferShared>>,
+}
+
+impl BufferUnbinder {
+    /// Unbinds buffer.
+    pub fn unbind(self) {
+        let Some(shared) = self.shared.upgrade() else {
+            return;
+        };
+        let _ = shared.borrow_mut().unbind(self.target);
     }
 }
 
@@ -1339,17 +1317,6 @@ pub struct Builder {
     queue: Queue,
 }
 
-impl Default for Builder {
-    fn default() -> Self {
-        Self {
-            name: None,
-            usage: BufferUsage::STATIC_DRAW,
-            memory_policy: MemoryPolicy::ReadBack,
-            queue: Queue::new(),
-        }
-    }
-}
-
 impl Builder {
     /// Constructs a new buffer builder.
     pub fn new(usage: BufferUsage) -> Self {
@@ -1497,9 +1464,7 @@ impl StoreShared {
             .unwrap_or(false)
     }
 
-    /// Frees memory if used memory exceeds the maximum available memory.
     fn free(&mut self) {
-        // removes buffer from the least recently used until memory usage lower than limitation
         unsafe {
             if self.used_memory <= self.available_memory {
                 return;
@@ -1534,6 +1499,30 @@ impl StoreShared {
                 occupied.remove();
                 next_node = (*current_node).more_recently();
             }
+        }
+    }
+
+    fn unregister<'a, B, U>(
+        &mut self,
+        id: &Uuid,
+        lru_node: *mut LruNode<Uuid>,
+        buffer_byte_length: usize,
+        bindings: B,
+        binding_ubos: U,
+    ) where
+        B: IntoIterator<Item = &'a BufferTarget>,
+        U: IntoIterator<Item = &'a u32>,
+    {
+        bindings.into_iter().for_each(|binding| {
+            self.bindings.remove(binding);
+        });
+        binding_ubos.into_iter().for_each(|binding_ubo| {
+            self.binding_ubos.remove(binding_ubo);
+        });
+        self.used_memory -= buffer_byte_length;
+        self.items.remove(id);
+        unsafe {
+            self.lru.remove(lru_node);
         }
     }
 }

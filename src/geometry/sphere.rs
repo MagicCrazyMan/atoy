@@ -8,7 +8,7 @@ use crate::{
     clock::Tick,
     renderer::webgl::{
         attribute::AttributeValue,
-        buffer::{self, Buffer, BufferComponentSize, BufferDataType},
+        buffer::{self, Buffer, BufferComponentSize, BufferDataType, BufferUsage},
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -45,8 +45,12 @@ impl Sphere {
             vertical_segments,
             horizontal_segments,
             num_positions,
-            positions: buffer::Builder::default().buffer_data(positions).build(),
-            normals: buffer::Builder::default().buffer_data(normals).build(),
+            positions: buffer::Builder::new(BufferUsage::STATIC_DRAW)
+                .buffer_data(positions)
+                .build(),
+            normals: buffer::Builder::new(BufferUsage::STATIC_DRAW)
+                .buffer_data(normals)
+                .build(),
             bounding_volume: BoundingVolume::BoundingSphere {
                 center: Vec3::<f64>::new(0.0, 0.0, 0.0),
                 radius,

@@ -8,8 +8,8 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
-            self, Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferData,
-            MemoryPolicy,
+            self, Buffer, BufferComponentSize, BufferData, BufferDataType, BufferSource,
+            BufferUsage, MemoryPolicy,
         },
         draw::{CullFace, Draw, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
@@ -48,7 +48,7 @@ impl Rectangle {
             texture_scale_s,
             texture_scale_t,
         );
-        let buffer = buffer::Builder::default()
+        let buffer = buffer::Builder::new(BufferUsage::STATIC_DRAW)
             .buffer_data(data)
             .set_memory_policy(MemoryPolicy::restorable(RectangleBufferSource {
                 anchor,

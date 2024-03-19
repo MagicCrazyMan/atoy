@@ -8,8 +8,8 @@ use crate::{
     error::{AsJsError, Error},
     notify::Notifier,
     renderer::webgl::texture::{
-        SamplerParameter, Texture, Texture2D, TextureData, TextureInternalFormat, TextureParameter,
-        TexturePixelStorage, TextureSource, TextureUncompressedData,
+        Builder, SamplerParameter, Texture, Texture2D, TextureData, TextureInternalFormat,
+        TextureParameter, TexturePixelStorage, TextureSource, TextureUncompressedData,
         TextureUncompressedInternalFormat, TextureUncompressedPixelDataType,
         TextureUncompressedPixelFormat,
     },
@@ -384,7 +384,7 @@ impl Loader<Texture<Texture2D>> for TextureLoader {
             }
 
             let image = (*self.image).as_ref().unwrap();
-            let texture = Texture::<Texture2D>::with_auto_levels(
+            let mut builder = Builder::<Texture2D>::with_auto_levels(
                 TextureInternalFormat::Uncompressed(if self.is_srgb {
                     TextureUncompressedInternalFormat::SRGB8_ALPHA8
                 } else {
@@ -393,15 +393,15 @@ impl Loader<Texture<Texture2D>> for TextureLoader {
                 image.natural_width() as usize,
                 image.natural_height() as usize,
             );
-            texture.set_texture_parameters(self.texture_params.iter().map(|p| *p));
-            texture.set_sampler_parameters(self.sampler_params.iter().map(|p| *p));
-            texture.tex_image(
+            builder.set_texture_parameters(self.texture_params.iter().map(|p| *p));
+            builder.set_sampler_parameters(self.sampler_params.iter().map(|p| *p));
+            builder.tex_image(
                 HtmlImageTextureSource::new(image.clone(), self.pixel_storages.clone()),
                 0,
                 self.generate_mipmaps,
             );
 
-            Ok(texture)
+            Ok(builder.build())
         }
     }
 

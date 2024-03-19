@@ -1256,6 +1256,7 @@ impl TextureRuntime {
         layout: &TextureLayout,
         texture_params: &[TextureParameter],
         sampler_params: &[SamplerParameter],
+        registered: Option<&mut TextureRegistered>,
     ) -> Result<(WebGlTexture, WebGlSampler), Error> {
         match self.texture.as_ref() {
             Some((texture, sampler)) => Ok((texture.clone(), sampler.clone())),
@@ -1318,8 +1319,17 @@ impl TextureRuntime {
                 }
 
                 self.gl.bind_texture(target.gl_enum(), binding.as_ref());
+                self.byte_length = layout.byte_length();
 
                 let (texture, sampler) = self.texture.insert((texture, sampler));
+
+                if let Some(registered) = registered {
+                    registered
+                        .store
+                        .borrow_mut()
+                        .increase_used_memory(self.byte_length);
+                }
+
                 Ok((texture.clone(), sampler.clone()))
             }
         }
@@ -2072,7 +2082,7 @@ struct TextureShared {
     layout: TextureLayout,
     sampler_params: Vec<SamplerParameter>,
     texture_params: Vec<TextureParameter>,
-    // memory_policy: MemoryPolicy,
+    memory_policy: MemoryPolicyShared,
     queue: Vec<QueueItem>,
     registered: Option<TextureRegistered>,
     runtime: Option<TextureRuntime>,
@@ -2080,14 +2090,6 @@ struct TextureShared {
 
 impl Drop for TextureShared {
     fn drop(&mut self) {
-        if let Some(registered) = self.registered.as_mut() {
-            let mut store_shared = registered.store.borrow_mut();
-            store_shared.textures.remove(&self.id);
-            unsafe {
-                store_shared.lru.remove(registered.lru_node);
-            }
-        }
-
         if let Some(mut runtime) = self.runtime.take() {
             if let Some((texture, sampler)) = runtime.texture.take() {
                 let target = self.layout.target;
@@ -2098,7 +2100,7 @@ impl Drop for TextureShared {
                     None
                 };
 
-                for unit in runtime.bindings {
+                for unit in runtime.bindings.iter() {
                     runtime.gl.active_texture(unit.gl_enum());
                     runtime.gl.bind_sampler(unit.unit_index(), None);
                     runtime.gl.bind_texture(target.gl_enum(), None);
@@ -2110,6 +2112,16 @@ impl Drop for TextureShared {
                 if let Some(activing) = activing {
                     runtime.gl.active_texture(activing);
                 }
+            }
+
+            if let Some(registered) = self.registered.as_mut() {
+                registered.store.borrow_mut().unregister(
+                    &self.id,
+                    registered.lru_node,
+                    runtime.byte_length,
+                    self.layout.target,
+                    runtime.bindings.iter(),
+                );
             }
         }
     }
@@ -2141,7 +2153,7 @@ impl TextureShared {
                 self.runtime = Some(TextureRuntime {
                     capabilities: Capabilities::new(gl.clone()),
                     gl: gl.clone(),
-                    byte_length: self.layout.byte_length(),
+                    byte_length: 0,
                     texture: None,
                     bindings: HashSet::new(),
                 });
@@ -2152,18 +2164,34 @@ impl TextureShared {
     }
 
     fn bind(&mut self, unit: TextureUnit) -> Result<(), Error> {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::TextureUninitialized);
-        };
+        let runtime = self.runtime.as_mut().ok_or(Error::TextureUninitialized)?;
 
         let target = self.layout.target();
+
+        if let Some(registered) = self.registered.as_mut() {
+            if registered
+                .store
+                .borrow()
+                .is_occupied(unit, target, &self.id)
+            {
+                return Err(Error::TextureTargetOccupied(unit, target));
+            }
+        }
+
         if runtime.bindings.contains(&unit) {
             runtime.upload(&self.layout, &mut self.queue)?;
+
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.free();
+            }
         } else {
             let (texture, sampler) = runtime.get_or_create_texture(
                 &self.layout,
                 &self.texture_params,
                 &self.sampler_params,
+                self.registered.as_mut(),
             )?;
             let active_texture_unit = if cfg!(feature = "rebind") {
                 Some(runtime.gl.texture_active_texture_unit())
@@ -2180,15 +2208,20 @@ impl TextureShared {
             if let Some(unit) = active_texture_unit {
                 runtime.gl.active_texture(unit);
             }
+
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.add_binding(unit, target, self.id);
+                store.update_lru(registered.lru_node);
+                store.free();
+            }
         }
 
         Ok(())
     }
 
     fn unbind(&mut self, unit: TextureUnit) -> Result<(), Error> {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::TextureUninitialized);
-        };
+        let runtime = self.runtime.as_mut().ok_or(Error::TextureUninitialized)?;
 
         let target = self.layout.target();
         if runtime.bindings.remove(&unit) {
@@ -2205,15 +2238,18 @@ impl TextureShared {
             if let Some(unit) = active_texture_unit {
                 runtime.gl.active_texture(unit);
             }
+
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.remove_binding(unit, target);
+            }
         }
 
         Ok(())
     }
 
     fn unbind_all(&mut self) -> Result<(), Error> {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::TextureUninitialized);
-        };
+        let runtime = self.runtime.as_mut().ok_or(Error::TextureUninitialized)?;
 
         let active_texture_unit = if cfg!(feature = "rebind") {
             Some(runtime.gl.texture_active_texture_unit())
@@ -2225,6 +2261,11 @@ impl TextureShared {
         for unit in runtime.bindings.drain() {
             runtime.gl.active_texture(unit.unit_index());
             runtime.gl.bind_texture(target.gl_enum(), None);
+
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.remove_binding(unit, target);
+            }
         }
 
         if let Some(unit) = active_texture_unit {
@@ -2235,14 +2276,13 @@ impl TextureShared {
     }
 
     fn upload(&mut self) -> Result<(), Error> {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return Err(Error::TextureUninitialized);
-        };
+        let runtime = self.runtime.as_mut().ok_or(Error::TextureUninitialized)?;
 
         let (texture, _) = runtime.get_or_create_texture(
             &self.layout,
             &self.texture_params,
             &self.sampler_params,
+            self.registered.as_mut(),
         )?;
         let target = self.layout.target();
         let binding = if cfg!(feature = "rebind") {
@@ -2339,49 +2379,58 @@ impl TextureShared {
             return false;
         }
 
-        // match &self.memory_policy {
-        //     MemoryPolicy::Unfree => false,
-        //     MemoryPolicy::Restorable(restorer) => {
-        //         struct RestoreTextureSource {
-        //             restorer: Rc<dyn TextureSource>,
-        //         }
+        let queue = match &self.memory_policy {
+            MemoryPolicyShared::Texture2D(memory_policy) => match memory_policy {
+                MemoryPolicy::Unfree => return false,
+                MemoryPolicy::Restorable(restorer) => {
+                    let mut restore = RestoreReceiver::<Texture2D>::new();
+                    restorer.restore(&mut restore);
+                    restore.queue
+                }
+            },
+            MemoryPolicyShared::Texture2DArray(memory_policy) => match memory_policy {
+                MemoryPolicy::Unfree => return false,
+                MemoryPolicy::Restorable(restorer) => {
+                    let mut restore = RestoreReceiver::<Texture2DArray>::new();
+                    restorer.restore(&mut restore);
+                    restore.queue
+                }
+            },
+            MemoryPolicyShared::Texture3D(memory_policy) => match memory_policy {
+                MemoryPolicy::Unfree => return false,
+                MemoryPolicy::Restorable(restorer) => {
+                    let mut restore = RestoreReceiver::<Texture3D>::new();
+                    restorer.restore(&mut restore);
+                    restore.queue
+                }
+            },
+            MemoryPolicyShared::TextureCubeMap(memory_policy) => match memory_policy {
+                MemoryPolicy::Unfree => return false,
+                MemoryPolicy::Restorable(restorer) => {
+                    let mut builder = RestoreReceiver::<TextureCubeMap>::new();
+                    restorer.restore(&mut builder);
+                    builder.queue
+                }
+            },
+        };
 
-        //         impl RestoreTextureSource {
-        //             fn new(restorer: Rc<dyn TextureSource>) -> Self {
-        //                 Self { restorer }
-        //             }
-        //         }
+        if let Some((texture, sampler)) = runtime.texture.take() {
+            if let Some(registered) = self.registered.as_mut() {
+                let mut store = registered.store.borrow_mut();
+                store.decrease_used_memory(runtime.byte_length);
+                unsafe {
+                    store.lru.remove(registered.lru_node);
+                }
+            }
 
-        //         impl TextureSource for RestoreTextureSource {
-        //             fn data(&self) -> TextureData {
-        //                 self.restorer.data()
-        //             }
-        //         }
+            runtime.gl.delete_sampler(Some(&sampler));
+            runtime.gl.delete_texture(Some(&texture));
+            runtime.byte_length = 0;
+        }
 
-        //         let byte_length = runtime.byte_length;
+        self.queue = queue.into_iter().chain(self.queue.drain(..)).collect();
 
-        //         self.queue.insert(
-        //             0,
-        //             QueueItem {
-        //                 source: Box::new(RestoreTextureSource::new(RestoreTextureSource::new(
-        //                     Rc::clone(restorer),
-        //                 ))),
-        //                 target: self.layout.target,
-        //                 cube_map_face: (),
-        //                 generate_mipmaps: (),
-        //                 level: 0,
-        //                 x_offset: Some(0),
-        //                 y_offset: Some(0),
-        //                 z_offset: Some(0),
-        //                 width: Some(self.layout.width),
-        //                 height: Some(self.layout.height),
-        //                 depth: Some(self.layout.depth),
-        //             },
-        //         );
-        //         todo!()
-        //     }
-        // }
-        todo!()
+        true
     }
 }
 
@@ -2507,6 +2556,9 @@ impl Texture<Texture2D> {
         levels: usize,
         width: usize,
         height: usize,
+        texture_params: Vec<TextureParameter>,
+        sampler_params: Vec<SamplerParameter>,
+        memory_policy: MemoryPolicy<Texture2D>,
     ) -> Self {
         let shared = Rc::new(RefCell::new(TextureShared {
             id: Uuid::new_v4(),
@@ -2519,8 +2571,9 @@ impl Texture<Texture2D> {
                 height,
                 depth: 0,
             },
-            texture_params: Vec::new(),
-            sampler_params: Vec::new(),
+            memory_policy: MemoryPolicyShared::Texture2D(memory_policy),
+            texture_params,
+            sampler_params,
             queue: Vec::new(),
             registered: None,
             runtime: None,
@@ -2532,35 +2585,61 @@ impl Texture<Texture2D> {
         }
     }
 
-    pub fn with_auto_levels(
-        internal_format: TextureInternalFormat,
-        width: usize,
-        height: usize,
-    ) -> Self {
-        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
-        Self::new(internal_format, levels, width, height)
-    }
-
+    /// Returns texture target.
     pub fn target(&self) -> TextureTarget {
         self.shared.borrow().layout.target
     }
 
+    /// Returns texture internal format.
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.shared.borrow().layout.internal_format
     }
 
+    /// Returns mipmap levels.
     pub fn levels(&self) -> usize {
         self.shared.borrow().layout.levels
     }
 
+    /// Returns texture width at level 0.
     pub fn width(&self) -> usize {
         self.shared.borrow().layout.width
     }
 
+    /// Returns texture height at level 0.
     pub fn height(&self) -> usize {
         self.shared.borrow().layout.height
     }
 
+    /// Returns texture width at specified level.
+    pub fn width_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let width = (layout.width >> level).max(1);
+        Some(width)
+    }
+
+    /// Returns texture height at specified level.
+    pub fn height_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let height = (layout.height >> level).max(1);
+        Some(height)
+    }
+
+    /// Sets memory policy
+    pub fn set_memory_policy(&self, memory_policy: MemoryPolicy<Texture2D>) {
+        self.shared.borrow_mut().memory_policy = MemoryPolicyShared::Texture2D(memory_policy);
+    }
+
+    /// Uploads new texture image data.
     pub fn tex_image<S>(&self, source: S, level: usize, generate_mipmaps: bool)
     where
         S: TextureSource + 'static,
@@ -2580,6 +2659,7 @@ impl Texture<Texture2D> {
         });
     }
 
+    /// Uploads new texture sub image data.
     pub fn tex_sub_image<S>(
         &self,
         source: S,
@@ -2616,6 +2696,9 @@ impl Texture<Texture2DArray> {
         width: usize,
         height: usize,
         len: usize,
+        texture_params: Vec<TextureParameter>,
+        sampler_params: Vec<SamplerParameter>,
+        memory_policy: MemoryPolicy<Texture2DArray>,
     ) -> Self {
         let shared = Rc::new(RefCell::new(TextureShared {
             id: Uuid::new_v4(),
@@ -2628,8 +2711,9 @@ impl Texture<Texture2DArray> {
                 height,
                 depth: len,
             },
-            texture_params: Vec::new(),
-            sampler_params: Vec::new(),
+            memory_policy: MemoryPolicyShared::Texture2DArray(memory_policy),
+            texture_params,
+            sampler_params,
             queue: Vec::new(),
             registered: None,
             runtime: None,
@@ -2641,40 +2725,66 @@ impl Texture<Texture2DArray> {
         }
     }
 
-    pub fn with_auto_levels(
-        internal_format: TextureInternalFormat,
-        width: usize,
-        height: usize,
-        len: usize,
-    ) -> Self {
-        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
-        Self::new(internal_format, levels, width, height, len)
-    }
-
+    /// Returns texture target.
     pub fn target(&self) -> TextureTarget {
         self.shared.borrow().layout.target
     }
 
+    /// Returns texture internal format.
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.shared.borrow().layout.internal_format
     }
 
+    /// Returns texture mipmap levels.
     pub fn levels(&self) -> usize {
         self.shared.borrow().layout.levels
     }
 
+    /// Returns texture width at level 0.
     pub fn width(&self) -> usize {
         self.shared.borrow().layout.width
     }
 
+    /// Returns texture height at level 0.
     pub fn height(&self) -> usize {
         self.shared.borrow().layout.height
     }
 
+    /// Returns texture array length.
     pub fn len(&self) -> usize {
         self.shared.borrow().layout.depth
     }
 
+    /// Returns texture width at specified level.
+    pub fn width_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let width = (layout.width >> level).max(1);
+        Some(width)
+    }
+
+    /// Returns texture height at specified level.
+    pub fn height_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let height = (layout.height >> level).max(1);
+        Some(height)
+    }
+
+    /// Sets memory policy
+    pub fn set_memory_policy(&self, memory_policy: MemoryPolicy<Texture2DArray>) {
+        self.shared.borrow_mut().memory_policy = MemoryPolicyShared::Texture2DArray(memory_policy);
+    }
+
+    /// Uploads new texture image data.
     pub fn tex_image<S>(&self, source: S, level: usize, generate_mipmaps: bool)
     where
         S: TextureSource + 'static,
@@ -2694,6 +2804,7 @@ impl Texture<Texture2DArray> {
         });
     }
 
+    /// Uploads new texture sub image data.
     pub fn tex_sub_image<S>(
         &self,
         source: S,
@@ -2732,6 +2843,9 @@ impl Texture<Texture3D> {
         width: usize,
         height: usize,
         depth: usize,
+        texture_params: Vec<TextureParameter>,
+        sampler_params: Vec<SamplerParameter>,
+        memory_policy: MemoryPolicy<Texture3D>,
     ) -> Self {
         let shared = Rc::new(RefCell::new(TextureShared {
             id: Uuid::new_v4(),
@@ -2744,8 +2858,9 @@ impl Texture<Texture3D> {
                 height,
                 depth,
             },
-            texture_params: Vec::new(),
-            sampler_params: Vec::new(),
+            memory_policy: MemoryPolicyShared::Texture3D(memory_policy),
+            texture_params,
+            sampler_params,
             queue: Vec::new(),
             registered: None,
             runtime: None,
@@ -2757,40 +2872,78 @@ impl Texture<Texture3D> {
         }
     }
 
-    pub fn with_auto_levels(
-        internal_format: TextureInternalFormat,
-        width: usize,
-        height: usize,
-        depth: usize,
-    ) -> Self {
-        let levels = (width.max(height).max(depth) as f64).log2().floor() as usize + 1;
-        Self::new(internal_format, levels, width, height, depth)
-    }
-
+    /// Returns texture target.
     pub fn target(&self) -> TextureTarget {
         self.shared.borrow().layout.target
     }
 
+    /// Returns texture internal format.
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.shared.borrow().layout.internal_format
     }
 
+    /// Returns mipmap levels.
     pub fn levels(&self) -> usize {
         self.shared.borrow().layout.levels
     }
 
+    /// Returns texture width at level 0.
     pub fn width(&self) -> usize {
         self.shared.borrow().layout.width
     }
 
+    /// Returns texture height at level 0.
     pub fn height(&self) -> usize {
         self.shared.borrow().layout.height
     }
 
+    /// Returns texture depth at level 0.
     pub fn depth(&self) -> usize {
         self.shared.borrow().layout.depth
     }
 
+    /// Returns texture width at specified level.
+    pub fn width_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let width = (layout.width >> level).max(1);
+        Some(width)
+    }
+
+    /// Returns texture height at specified level.
+    pub fn height_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let height = (layout.height >> level).max(1);
+        Some(height)
+    }
+
+    /// Returns texture depth at specified level.
+    pub fn depth_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let depth = (layout.depth >> level).max(1);
+        Some(depth)
+    }
+
+    /// Sets memory policy
+    pub fn set_memory_policy(&self, memory_policy: MemoryPolicy<Texture3D>) {
+        self.shared.borrow_mut().memory_policy = MemoryPolicyShared::Texture3D(memory_policy);
+    }
+
+    /// Uploads new texture image data.
     pub fn tex_image<S>(&self, source: S, level: usize, generate_mipmaps: bool)
     where
         S: TextureSource + 'static,
@@ -2810,6 +2963,7 @@ impl Texture<Texture3D> {
         });
     }
 
+    /// Uploads new texture sub image data.
     pub fn tex_sub_image<S>(
         &self,
         source: S,
@@ -2847,6 +3001,9 @@ impl Texture<TextureCubeMap> {
         levels: usize,
         width: usize,
         height: usize,
+        texture_params: Vec<TextureParameter>,
+        sampler_params: Vec<SamplerParameter>,
+        memory_policy: MemoryPolicy<TextureCubeMap>,
     ) -> Self {
         let shared = Rc::new(RefCell::new(TextureShared {
             id: Uuid::new_v4(),
@@ -2859,8 +3016,9 @@ impl Texture<TextureCubeMap> {
                 height,
                 depth: 0,
             },
-            texture_params: Vec::new(),
-            sampler_params: Vec::new(),
+            memory_policy: MemoryPolicyShared::TextureCubeMap(memory_policy),
+            texture_params,
+            sampler_params,
             queue: Vec::new(),
             registered: None,
             runtime: None,
@@ -2872,35 +3030,61 @@ impl Texture<TextureCubeMap> {
         }
     }
 
-    pub fn with_auto_levels(
-        internal_format: TextureInternalFormat,
-        width: usize,
-        height: usize,
-    ) -> Self {
-        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
-        Self::new(internal_format, levels, width, height)
-    }
-
+    /// Returns texture target.
     pub fn target(&self) -> TextureTarget {
         self.shared.borrow().layout.target
     }
 
+    /// Returns texture internal format.
     pub fn internal_format(&self) -> TextureInternalFormat {
         self.shared.borrow().layout.internal_format
     }
 
+    /// Returns texture mipmap levels.
     pub fn levels(&self) -> usize {
         self.shared.borrow().layout.levels
     }
 
+    /// Returns texture width at level 0.
     pub fn width(&self) -> usize {
         self.shared.borrow().layout.width
     }
 
+    /// Returns texture height at level 0.
     pub fn height(&self) -> usize {
         self.shared.borrow().layout.height
     }
 
+    /// Returns texture width at specified level.
+    pub fn width_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let width = (layout.width >> level).max(1);
+        Some(width)
+    }
+
+    /// Returns texture height at specified level.
+    pub fn height_of_level(&self, level: usize) -> Option<usize> {
+        let layout = self.shared.borrow().layout;
+
+        if level > layout.levels {
+            return None;
+        }
+
+        let height = (layout.height >> level).max(1);
+        Some(height)
+    }
+
+    /// Sets memory policy
+    pub fn set_memory_policy(&self, memory_policy: MemoryPolicy<TextureCubeMap>) {
+        self.shared.borrow_mut().memory_policy = MemoryPolicyShared::TextureCubeMap(memory_policy);
+    }
+
+    /// Uploads new texture image data.
     pub fn tex_image<S>(
         &self,
         source: S,
@@ -2925,6 +3109,7 @@ impl Texture<TextureCubeMap> {
         });
     }
 
+    /// Uploads new texture sub image data.
     pub fn tex_sub_image<S>(
         &self,
         source: S,
@@ -2954,6 +3139,507 @@ impl Texture<TextureCubeMap> {
     }
 }
 
+pub struct Builder<T> {
+    name: Option<Cow<'static, str>>,
+    layout: TextureLayout,
+    memory_policy: MemoryPolicy<T>,
+    texture_params: Vec<TextureParameter>,
+    sampler_params: Vec<SamplerParameter>,
+    queue: Vec<QueueItem>,
+}
+
+impl<T> Builder<T> {
+    /// Sets texture name.
+    pub fn set_name<S>(&mut self, name: S)
+    where
+        S: Into<String>,
+    {
+        self.name = Some(Cow::Owned(name.into()));
+    }
+
+    /// Sets texture name by static str.
+    pub fn set_name_str(&mut self, name: &'static str) {
+        self.name = Some(Cow::Borrowed(name.into()));
+    }
+
+    /// Sets a single texture parameters.
+    pub fn set_texture_parameter(&mut self, texture_param: TextureParameter) {
+        let old = self
+            .texture_params
+            .iter()
+            .position(|p| p.kind() == texture_param.kind());
+        match old {
+            Some(index) => {
+                let _ = std::mem::replace(&mut self.texture_params[index], texture_param);
+            }
+            None => self.texture_params.push(texture_param),
+        }
+    }
+
+    /// Sets texture parameters.
+    pub fn set_texture_parameters<I: IntoIterator<Item = TextureParameter>>(
+        &mut self,
+        texture_params: I,
+    ) {
+        self.texture_params.clear();
+        self.texture_params.extend(texture_params);
+    }
+
+    /// Sets a single sampler parameters.
+    pub fn set_sampler_parameter(&mut self, sampler_param: SamplerParameter) {
+        let old = self
+            .sampler_params
+            .iter()
+            .position(|p| p.kind() == sampler_param.kind());
+        match old {
+            Some(index) => {
+                let _ = std::mem::replace(&mut self.sampler_params[index], sampler_param);
+            }
+            None => self.sampler_params.push(sampler_param),
+        }
+    }
+
+    /// Sets sampler parameters.
+    pub fn set_sampler_parameters<I: IntoIterator<Item = SamplerParameter>>(
+        &mut self,
+        sampler_params: I,
+    ) {
+        self.sampler_params.clear();
+        self.sampler_params.extend(sampler_params);
+    }
+
+    /// Sets memory policy.
+    pub fn set_memory_policy(&mut self, memory_policy: MemoryPolicy<T>) {
+        self.memory_policy = memory_policy;
+    }
+}
+
+impl Builder<Texture2D> {
+    /// Creates a new 2d texture builder.
+    pub fn new(
+        internal_format: TextureInternalFormat,
+        levels: usize,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        Self {
+            name: None,
+            layout: TextureLayout {
+                target: TextureTarget::TEXTURE_2D,
+                internal_format,
+                levels,
+                width,
+                height,
+                depth: 0,
+            },
+            memory_policy: MemoryPolicy::Unfree,
+            texture_params: Vec::new(),
+            sampler_params: Vec::new(),
+            queue: Vec::new(),
+        }
+    }
+
+    /// Creates a new 2d texture builder with automatically calculated mipmaps levels.
+    pub fn with_auto_levels(
+        internal_format: TextureInternalFormat,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
+        Self::new(internal_format, levels, width, height)
+    }
+
+    /// Uploads new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Uploads new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        width: usize,
+        height: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: None,
+            width: Some(width),
+            height: Some(height),
+            depth: None,
+        });
+    }
+
+    /// Builds 2d texture.
+    pub fn build(self) -> Texture<Texture2D> {
+        let shared = TextureShared {
+            id: Uuid::new_v4(),
+            name: self.name,
+            layout: self.layout,
+            memory_policy: MemoryPolicyShared::Texture2D(self.memory_policy),
+            sampler_params: self.sampler_params,
+            texture_params: self.texture_params,
+            queue: self.queue,
+            registered: None,
+            runtime: None,
+        };
+        Texture::<Texture2D> {
+            layout: PhantomData,
+            shared: Rc::new(RefCell::new(shared)),
+        }
+    }
+}
+
+impl Builder<Texture2DArray> {
+    /// Creates a new 2d array texture builder.
+    pub fn new(
+        internal_format: TextureInternalFormat,
+        levels: usize,
+        width: usize,
+        height: usize,
+        len: usize,
+    ) -> Self {
+        Self {
+            name: None,
+            layout: TextureLayout {
+                target: TextureTarget::TEXTURE_2D_ARRAY,
+                internal_format,
+                levels,
+                width,
+                height,
+                depth: len,
+            },
+            memory_policy: MemoryPolicy::Unfree,
+            texture_params: Vec::new(),
+            sampler_params: Vec::new(),
+            queue: Vec::new(),
+        }
+    }
+
+    /// Creates a new 2d array texture builder with automatically calculated mipmaps levels.
+    pub fn with_auto_levels(
+        internal_format: TextureInternalFormat,
+        width: usize,
+        height: usize,
+        len: usize,
+    ) -> Self {
+        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
+        Self::new(internal_format, levels, width, height, len)
+    }
+
+    /// Uploads new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D_ARRAY,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Uploads new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        array_index_offset: usize,
+        width: usize,
+        height: usize,
+        array_index: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D_ARRAY,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: Some(array_index_offset),
+            width: Some(width),
+            height: Some(height),
+            depth: Some(array_index),
+        });
+    }
+
+    /// Builds 2d array texture.
+    pub fn build(self) -> Texture<Texture2DArray> {
+        let shared = TextureShared {
+            id: Uuid::new_v4(),
+            name: self.name,
+            layout: self.layout,
+            memory_policy: MemoryPolicyShared::Texture2DArray(self.memory_policy),
+            sampler_params: self.sampler_params,
+            texture_params: self.texture_params,
+            queue: self.queue,
+            registered: None,
+            runtime: None,
+        };
+        Texture::<Texture2DArray> {
+            layout: PhantomData,
+            shared: Rc::new(RefCell::new(shared)),
+        }
+    }
+}
+
+impl Builder<Texture3D> {
+    /// Creates a new 3d texture builder.
+    pub fn new(
+        internal_format: TextureInternalFormat,
+        levels: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+    ) -> Self {
+        Self {
+            name: None,
+            layout: TextureLayout {
+                target: TextureTarget::TEXTURE_3D,
+                internal_format,
+                levels,
+                width,
+                height,
+                depth,
+            },
+            memory_policy: MemoryPolicy::Unfree,
+            texture_params: Vec::new(),
+            sampler_params: Vec::new(),
+            queue: Vec::new(),
+        }
+    }
+
+    /// Creates a new 3d texture builder with automatically calculated mipmaps levels.
+    pub fn with_auto_levels(
+        internal_format: TextureInternalFormat,
+        width: usize,
+        height: usize,
+        depth: usize,
+    ) -> Self {
+        let levels = (width.max(height).max(depth) as f64).log2().floor() as usize + 1;
+        Self::new(internal_format, levels, width, height, depth)
+    }
+
+    /// Uploads new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_3D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Uploads new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_3D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: Some(z_offset),
+            width: Some(width),
+            height: Some(height),
+            depth: Some(depth),
+        });
+    }
+
+    /// Builds 3d texture.
+    pub fn build(self) -> Texture<Texture3D> {
+        let shared = TextureShared {
+            id: Uuid::new_v4(),
+            name: self.name,
+            layout: self.layout,
+            memory_policy: MemoryPolicyShared::Texture3D(self.memory_policy),
+            sampler_params: self.sampler_params,
+            texture_params: self.texture_params,
+            queue: self.queue,
+            registered: None,
+            runtime: None,
+        };
+        Texture::<Texture3D> {
+            layout: PhantomData,
+            shared: Rc::new(RefCell::new(shared)),
+        }
+    }
+}
+
+impl Builder<TextureCubeMap> {
+    /// Creates a new cube map texture builder.
+    pub fn new(
+        internal_format: TextureInternalFormat,
+        levels: usize,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        Self {
+            name: None,
+            layout: TextureLayout {
+                target: TextureTarget::TEXTURE_CUBE_MAP,
+                internal_format,
+                levels,
+                width,
+                height,
+                depth: 0,
+            },
+            memory_policy: MemoryPolicy::Unfree,
+            texture_params: Vec::new(),
+            sampler_params: Vec::new(),
+            queue: Vec::new(),
+        }
+    }
+
+    /// Creates a new cube map texture builder with automatically calculated mipmaps levels.
+    pub fn with_auto_levels(
+        internal_format: TextureInternalFormat,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        let levels = (width.max(height) as f64).log2().floor() as usize + 1;
+        Self::new(internal_format, levels, width, height)
+    }
+
+    /// Uploads new texture image data.
+    pub fn tex_image<S>(
+        &mut self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_CUBE_MAP,
+            cube_map_face: Some(face),
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Uploads new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        width: usize,
+        height: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_CUBE_MAP,
+            cube_map_face: Some(face),
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: None,
+            width: Some(width),
+            height: Some(height),
+            depth: None,
+        });
+    }
+
+    /// Builds 3d texture.
+    pub fn build(self) -> Texture<TextureCubeMap> {
+        let shared = TextureShared {
+            id: Uuid::new_v4(),
+            name: self.name,
+            layout: self.layout,
+            memory_policy: MemoryPolicyShared::TextureCubeMap(self.memory_policy),
+            sampler_params: self.sampler_params,
+            texture_params: self.texture_params,
+            queue: self.queue,
+            registered: None,
+            runtime: None,
+        };
+        Texture::<TextureCubeMap> {
+            layout: PhantomData,
+            shared: Rc::new(RefCell::new(shared)),
+        }
+    }
+}
+
 /// Memory policies kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryPolicyKind {
@@ -2961,17 +3647,275 @@ pub enum MemoryPolicyKind {
     Restorable,
 }
 
-pub trait Restorer {
-    fn restore(&self) -> TextureData;
+enum MemoryPolicyShared {
+    Texture2D(MemoryPolicy<Texture2D>),
+    Texture2DArray(MemoryPolicy<Texture2DArray>),
+    Texture3D(MemoryPolicy<Texture3D>),
+    TextureCubeMap(MemoryPolicy<TextureCubeMap>),
+}
+
+pub struct RestoreReceiver<T> {
+    layout: PhantomData<T>,
+    queue: Vec<QueueItem>,
+}
+
+impl<T> TextureSource for RestoreReceiver<T> {
+    fn data(&self) -> TextureData {
+        todo!()
+    }
+}
+
+impl RestoreReceiver<Texture2D> {
+    fn new() -> Self {
+        Self {
+            layout: PhantomData,
+            queue: Vec::new(),
+        }
+    }
+
+    /// Restores new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Restores new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        width: usize,
+        height: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: None,
+            width: Some(width),
+            height: Some(height),
+            depth: None,
+        });
+    }
+}
+
+impl RestoreReceiver<Texture2DArray> {
+    fn new() -> Self {
+        Self {
+            layout: PhantomData,
+            queue: Vec::new(),
+        }
+    }
+
+    /// Restores new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D_ARRAY,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Restores new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        array_index_offset: usize,
+        width: usize,
+        height: usize,
+        array_index: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_2D_ARRAY,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: Some(array_index_offset),
+            width: Some(width),
+            height: Some(height),
+            depth: Some(array_index),
+        });
+    }
+}
+
+impl RestoreReceiver<Texture3D> {
+    fn new() -> Self {
+        Self {
+            layout: PhantomData,
+            queue: Vec::new(),
+        }
+    }
+
+    /// Restores new texture image data.
+    pub fn tex_image<S>(&mut self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_3D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Restores new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_3D,
+            cube_map_face: None,
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: Some(z_offset),
+            width: Some(width),
+            height: Some(height),
+            depth: Some(depth),
+        });
+    }
+}
+
+impl RestoreReceiver<TextureCubeMap> {
+    fn new() -> Self {
+        Self {
+            layout: PhantomData,
+            queue: Vec::new(),
+        }
+    }
+
+    /// Restores new texture image data.
+    pub fn tex_image<S>(
+        &mut self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_CUBE_MAP,
+            cube_map_face: Some(face),
+            generate_mipmaps,
+            level,
+            x_offset: None,
+            y_offset: None,
+            z_offset: None,
+            width: None,
+            height: None,
+            depth: None,
+        });
+    }
+
+    /// Restores new texture sub image data.
+    pub fn tex_sub_image<S>(
+        &mut self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        width: usize,
+        height: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSource + 'static,
+    {
+        self.queue.push(QueueItem {
+            source: Box::new(source),
+            target: TextureTarget::TEXTURE_CUBE_MAP,
+            cube_map_face: Some(face),
+            generate_mipmaps,
+            level,
+            x_offset: Some(x_offset),
+            y_offset: Some(y_offset),
+            z_offset: None,
+            width: Some(width),
+            height: Some(height),
+            depth: None,
+        });
+    }
+}
+
+/// Tetxure restorer for restoring a texture.
+pub trait Restorer<T> {
+    /// Restors necessary data to a texture builder.
+    fn restore(&self, builder: &mut RestoreReceiver<T>);
 }
 
 /// Memory policies.
-pub enum MemoryPolicy {
+pub enum MemoryPolicy<T> {
     Unfree,
-    Restorable(Rc<dyn TextureSource>),
+    Restorable(Rc<dyn Restorer<T>>),
 }
 
-impl Debug for MemoryPolicy {
+impl<T> Debug for MemoryPolicy<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unfree => write!(f, "Unfree"),
@@ -2980,18 +3924,18 @@ impl Debug for MemoryPolicy {
     }
 }
 
-impl MemoryPolicy {
+impl<T> MemoryPolicy<T> {
     /// Constructs a unfree-able memory policy.
     pub fn unfree() -> Self {
         Self::Unfree
     }
 
     /// Constructs a restorable memory policy.
-    pub fn restorable<B>(source: B) -> Self
+    pub fn restorable<R>(restorer: R) -> Self
     where
-        B: TextureSource + 'static,
+        R: Restorer<T> + 'static,
     {
-        Self::Restorable(Rc::new(source))
+        Self::Restorable(Rc::new(restorer))
     }
 
     /// Returns [`MemoryPolicyKind`] associated with the [`MemoryPolicy`].
@@ -3044,9 +3988,7 @@ impl StoreShared {
             .unwrap_or(false)
     }
 
-    /// Frees memory if used memory exceeds the maximum available memory.
     fn free(&mut self) {
-        // removes buffer from the least recently used until memory usage lower than limitation
         unsafe {
             if self.used_memory <= self.available_memory {
                 return;
@@ -3080,6 +4022,26 @@ impl StoreShared {
                 occupied.remove();
                 next_node = (*current_node).more_recently();
             }
+        }
+    }
+
+    fn unregister<'a, B>(
+        &mut self,
+        id: &Uuid,
+        lru_node: *mut LruNode<Uuid>,
+        byte_length: usize,
+        target: TextureTarget,
+        bindings: B,
+    ) where
+        B: IntoIterator<Item = &'a TextureUnit>,
+    {
+        bindings.into_iter().for_each(|unit| {
+            self.bindings.remove(&(*unit, target));
+        });
+        self.used_memory -= byte_length;
+        self.textures.remove(id);
+        unsafe {
+            self.lru.remove(lru_node);
         }
     }
 }
