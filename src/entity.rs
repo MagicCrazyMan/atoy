@@ -14,7 +14,6 @@ use crate::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
     },
-    share::Share,
     value::Readonly,
 };
 
@@ -85,9 +84,9 @@ pub trait Group {
 
     fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>>;
 
-    fn entity(&self, id: &Uuid) -> Option<Share<dyn Entity>>;
+    fn entity(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>>;
 
-    fn entities(&self) -> Box<dyn Iterator<Item = Share<dyn Entity>> + '_>;
+    fn entities(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Entity>>> + '_>;
 
     fn entities_hierarchy(&self) -> HierarchyEntitiesIter
     where
@@ -96,9 +95,9 @@ pub trait Group {
         HierarchyEntitiesIter::new(self)
     }
 
-    fn sub_group(&self, id: &Uuid) -> Option<Share<dyn Group>>;
+    fn sub_group(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>>;
 
-    fn sub_groups(&self) -> Box<dyn Iterator<Item = Share<dyn Group>> + '_>;
+    fn sub_groups(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Group>>> + '_>;
 
     fn sub_groups_hierarchy(&self) -> HierarchyGroupsIter
     where
@@ -123,7 +122,7 @@ pub trait Group {
 }
 
 pub struct HierarchyGroupsIter {
-    groups: VecDeque<Share<dyn Group>>,
+    groups: VecDeque<Rc<RefCell<dyn Group>>>,
 }
 
 impl HierarchyGroupsIter {
@@ -135,7 +134,7 @@ impl HierarchyGroupsIter {
 }
 
 impl Iterator for HierarchyGroupsIter {
-    type Item = Share<dyn Group>;
+    type Item = Rc<RefCell<dyn Group>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.groups.pop_front() {
@@ -150,7 +149,7 @@ impl Iterator for HierarchyGroupsIter {
 
 pub struct HierarchyEntitiesIter {
     groups: HierarchyGroupsIter,
-    entities: VecDeque<Share<dyn Entity>>,
+    entities: VecDeque<Rc<RefCell<dyn Entity>>>,
 }
 
 impl HierarchyEntitiesIter {
@@ -163,7 +162,7 @@ impl HierarchyEntitiesIter {
 }
 
 impl Iterator for HierarchyEntitiesIter {
-    type Item = Share<dyn Entity>;
+    type Item = Rc<RefCell<dyn Entity>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.entities.pop_front() {
@@ -495,8 +494,8 @@ pub struct SimpleGroup {
     parent_compose_model_matrix: Mat4,
     compose_model_matrix: Mat4,
 
-    entities: IndexMap<Uuid, (Share<dyn Entity>, Aborter<EntityMessage>)>,
-    sub_groups: IndexMap<Uuid, (Share<dyn Group>, Aborter<GroupMessage>)>,
+    entities: IndexMap<Uuid, (Rc<RefCell<dyn Entity>>, Aborter<EntityMessage>)>,
+    sub_groups: IndexMap<Uuid, (Rc<RefCell<dyn Group>>, Aborter<GroupMessage>)>,
 
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
@@ -546,7 +545,7 @@ impl SimpleGroup {
         self.add_entity_shared(Rc::new(RefCell::new(entity)))
     }
 
-    pub fn add_entity_shared(&mut self, entity: Share<dyn Entity>) {
+    pub fn add_entity_shared(&mut self, entity: Rc<RefCell<dyn Entity>>) {
         struct EntityChanged {
             sender: Sender<GroupMessage>,
             should_update: Rc<RefCell<bool>>,
@@ -586,7 +585,7 @@ impl SimpleGroup {
         self.channel.0.send(GroupMessage::Changed);
     }
 
-    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Share<dyn Entity>> {
+    pub fn remove_entity(&mut self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>> {
         match self.entities.swap_remove(id) {
             Some((entity, aborter)) => {
                 aborter.off();
@@ -607,7 +606,7 @@ impl SimpleGroup {
         self.add_sub_group_shared(Rc::new(RefCell::new(group)))
     }
 
-    pub fn add_sub_group_shared(&mut self, group: Share<dyn Group>) {
+    pub fn add_sub_group_shared(&mut self, group: Rc<RefCell<dyn Group>>) {
         struct SubGroupChanged {
             sender: Sender<GroupMessage>,
             should_update: Rc<RefCell<bool>>,
@@ -647,7 +646,7 @@ impl SimpleGroup {
         self.channel.0.send(GroupMessage::Changed);
     }
 
-    pub fn remove_sub_group(&mut self, id: &Uuid) -> Option<Share<dyn Group>> {
+    pub fn remove_sub_group(&mut self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>> {
         match self.sub_groups.swap_remove(id) {
             Some((sub_group, aborter)) => {
                 aborter.off();
@@ -717,21 +716,21 @@ impl Group for SimpleGroup {
             .map(|volume| Readonly::Borrowed(volume))
     }
 
-    fn entity(&self, id: &Uuid) -> Option<Share<dyn Entity>> {
+    fn entity(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Entity>>> {
         self.entities.get(id).map(|(entity, _)| Rc::clone(entity))
     }
 
-    fn entities(&self) -> Box<dyn Iterator<Item = Share<dyn Entity>> + '_> {
+    fn entities(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Entity>>> + '_> {
         Box::new(self.entities.values().map(|(entity, _)| Rc::clone(entity)))
     }
 
-    fn sub_group(&self, id: &Uuid) -> Option<Share<dyn Group>> {
+    fn sub_group(&self, id: &Uuid) -> Option<Rc<RefCell<dyn Group>>> {
         self.sub_groups
             .get(id)
             .map(|(sub_group, _)| Rc::clone(sub_group))
     }
 
-    fn sub_groups(&self) -> Box<dyn Iterator<Item = Share<dyn Group>> + '_> {
+    fn sub_groups(&self) -> Box<dyn Iterator<Item = Rc<RefCell<dyn Group>>> + '_> {
         Box::new(
             self.sub_groups
                 .values()

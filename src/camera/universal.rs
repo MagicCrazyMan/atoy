@@ -6,7 +6,6 @@ use crate::{
     message::{Aborter, Executor},
     plane::Plane,
     renderer::webgl::RenderEvent,
-    share::Share,
     viewer::Viewer,
 };
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
@@ -272,8 +271,8 @@ pub const DEFAULT_ROTATION: f64 = PI / 360.0;
 /// UniversalCamera is inner by cloning, making it convenient to control outside [`Scene`].
 #[derive(Clone)]
 pub struct UniversalCamera {
-    inner: Share<Inner>,
-    control: Share<Option<Control>>,
+    inner: Rc<RefCell<Inner>>,
+    control: Rc<RefCell<Option<Control>>>,
 }
 
 impl UniversalCamera {
@@ -491,7 +490,7 @@ impl Camera for UniversalCamera {
     }
 }
 
-struct ControllerCanvasResize(Share<Inner>);
+struct ControllerCanvasResize(Rc<RefCell<Inner>>);
 
 impl Executor for ControllerCanvasResize {
     type Message = HtmlCanvasElement;
@@ -548,7 +547,7 @@ impl Executor for ControllerKeyUp {
     }
 }
 
-struct ControllerMouseMove(Share<Inner>, *mut Option<MouseEvent>);
+struct ControllerMouseMove(Rc<RefCell<Inner>>, *mut Option<MouseEvent>);
 
 impl Executor for ControllerMouseMove {
     type Message = MouseEvent;
@@ -597,7 +596,7 @@ impl Executor for ControllerMouseMove {
     }
 }
 
-struct ControllerWheel(Share<Inner>);
+struct ControllerWheel(Rc<RefCell<Inner>>);
 
 impl Executor for ControllerWheel {
     type Message = WheelEvent;
@@ -617,7 +616,7 @@ impl Executor for ControllerWheel {
     }
 }
 
-struct ControllerPreRender(Share<Inner>, *mut HashSet<String>, *mut Option<f64>);
+struct ControllerPreRender(Rc<RefCell<Inner>>, *mut HashSet<String>, *mut Option<f64>);
 
 impl Executor for ControllerPreRender {
     type Message = RenderEvent;

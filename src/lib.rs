@@ -17,7 +17,6 @@ pub mod pipeline;
 pub mod plane;
 pub mod renderer;
 pub mod scene;
-pub mod share;
 pub mod test;
 pub mod utils;
 pub mod value;

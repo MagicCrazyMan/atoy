@@ -4,6 +4,8 @@ pub mod composer;
 pub mod preparation;
 pub mod shading;
 
+use std::{cell::RefCell, rc::Rc};
+
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +19,6 @@ use crate::{
         state::FrameState,
     },
     scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
-    share::Share,
 };
 
 use self::{
@@ -493,7 +494,7 @@ impl StandardPipeline {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<Share<dyn Entity>>, Error> {
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
         self.picking.pick_entity(
             window_position_x,
             window_position_y,

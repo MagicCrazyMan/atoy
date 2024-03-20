@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, GLF32};
 use log::warn;
@@ -19,11 +19,11 @@ use crate::{
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
         texture::{
-            TextureUncompressedPixelDataType, TextureUncompressedInternalFormat, TextureUncompressedPixelFormat,
+            TextureUncompressedInternalFormat, TextureUncompressedPixelDataType,
+            TextureUncompressedPixelFormat,
         },
         uniform::UniformValue,
     },
-    share::Share,
 };
 
 pub struct StandardPicking {
@@ -165,7 +165,7 @@ impl StandardPicking {
         window_position_x: i32,
         window_position_y: i32,
         collected_entities: &CollectedEntities,
-    ) -> Result<Option<Share<dyn Entity>>, Error> {
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
         if collected_entities.entities().len() == 0 {
             return Ok(None);
         }

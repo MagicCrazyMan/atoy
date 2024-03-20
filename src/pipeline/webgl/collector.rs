@@ -1,4 +1,7 @@
-use std::rc::{Rc, Weak};
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use uuid::Uuid;
 
@@ -9,30 +12,29 @@ use crate::{
     material::Transparency,
     renderer::webgl::state::FrameState,
     scene::Scene,
-    share::{Share, WeakShare},
 };
 
 pub struct CollectedEntities<'a> {
-    entities: &'a [WeakShare<dyn Entity>],
-    opaque_entities: &'a [WeakShare<dyn Entity>],
-    transparent_entities: &'a [WeakShare<dyn Entity>],
-    translucent_entities: &'a [WeakShare<dyn Entity>],
+    entities: &'a [Weak<RefCell<dyn Entity>>],
+    opaque_entities: &'a [Weak<RefCell<dyn Entity>>],
+    transparent_entities: &'a [Weak<RefCell<dyn Entity>>],
+    translucent_entities: &'a [Weak<RefCell<dyn Entity>>],
 }
 
 impl<'a> CollectedEntities<'a> {
-    pub fn entities(&self) -> &[WeakShare<dyn Entity>] {
+    pub fn entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.entities
     }
 
-    pub fn opaque_entities(&self) -> &[WeakShare<dyn Entity>] {
+    pub fn opaque_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.opaque_entities
     }
 
-    pub fn transparent_entities(&self) -> &[WeakShare<dyn Entity>] {
+    pub fn transparent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.transparent_entities
     }
 
-    pub fn translucent_entities(&self) -> &[WeakShare<dyn Entity>] {
+    pub fn translucent_entities(&self) -> &[Weak<RefCell<dyn Entity>>] {
         self.translucent_entities
     }
 }
@@ -43,10 +45,10 @@ pub struct StandardEntitiesCollector {
 
     last_view_frustum: Option<ViewFrustum>,
     last_entities_group_id: Option<Uuid>,
-    last_entities: Vec<WeakShare<dyn Entity>>,
-    last_opaque_entities: Vec<WeakShare<dyn Entity>>,
-    last_transparent_entities: Vec<WeakShare<dyn Entity>>,
-    last_translucent_entities: Vec<WeakShare<dyn Entity>>,
+    last_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_opaque_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_transparent_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    last_translucent_entities: Vec<Weak<RefCell<dyn Entity>>>,
 }
 
 impl StandardEntitiesCollector {
@@ -134,7 +136,7 @@ impl StandardEntitiesCollector {
         scene: &mut Scene,
     ) -> CollectedEntities {
         struct CollectedEntity {
-            entity: Share<dyn Entity>,
+            entity: Rc<RefCell<dyn Entity>>,
             transparency: Transparency,
             distance: f64,
         }

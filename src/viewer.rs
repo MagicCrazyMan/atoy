@@ -15,7 +15,6 @@ use crate::{
     renderer::{webgl::WebGL2Renderer, Renderer},
     request_animation_frame,
     scene::Scene,
-    share::Share,
 };
 
 // pub const DEFAULT_RENDER_WHEN_NEEDED: bool = false;
@@ -23,10 +22,10 @@ pub const DEFAULT_RENDER_LOOP_INTERRUPTED_WHEN_ERROR: bool = true;
 
 pub struct Viewer {
     mount: Option<Element>,
-    scene: Share<Scene>,
-    camera: Share<dyn Camera + 'static>,
-    renderer: Share<WebGL2Renderer>,
-    controllers: Share<Vec<Box<dyn Controller>>>,
+    scene: Rc<RefCell<Scene>>,
+    camera: Rc<RefCell<dyn Camera + 'static>>,
+    renderer: Rc<RefCell<WebGL2Renderer>>,
+    controllers: Rc<RefCell<Vec<Box<dyn Controller>>>>,
 
     timestamp: *mut f64,
     standard_pipeline: *mut StandardPipeline,
@@ -104,15 +103,15 @@ impl Viewer {
         unsafe { *self.timestamp }
     }
 
-    pub fn camera(&self) -> &Share<dyn Camera + 'static> {
+    pub fn camera(&self) -> &Rc<RefCell<dyn Camera + 'static>> {
         &self.camera
     }
 
-    pub fn scene(&self) -> &Share<Scene> {
+    pub fn scene(&self) -> &Rc<RefCell<Scene>> {
         &self.scene
     }
 
-    pub fn renderer(&self) -> &Share<WebGL2Renderer> {
+    pub fn renderer(&self) -> &Rc<RefCell<WebGL2Renderer>> {
         &self.renderer
     }
 
@@ -353,7 +352,7 @@ impl Viewer {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<Share<dyn Entity>>, Error> {
+    ) -> Result<Option<Rc<RefCell<dyn Entity>>>, Error> {
         unsafe {
             let timestamp = *self.timestamp;
             let mut scene = self.scene.borrow_mut();

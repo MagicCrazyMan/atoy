@@ -16,7 +16,6 @@ use crate::{
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
     message::{channel, Aborter, Executor, Receiver, Sender},
-    share::Share,
 };
 
 /// Maximum area lights.
@@ -44,7 +43,7 @@ pub struct Scene {
     clock: HtmlClock,
     _clock_aborter: Aborter<Tick>,
 
-    entities: Share<SimpleGroup>,
+    entities: Rc<RefCell<SimpleGroup>>,
     light_attenuation: Attenuation,
     ambient_light: Option<AmbientLight>,
     directional_lights: Vec<DirectionalLight>,
@@ -121,7 +120,7 @@ impl Scene {
     }
 
     /// Returns entity group.
-    pub fn entities(&self) -> &Share<SimpleGroup> {
+    pub fn entities(&self) -> &Rc<RefCell<SimpleGroup>> {
         &self.entities
     }
 
@@ -557,10 +556,10 @@ impl CanvasHandler {
     }
 }
 
-struct ClockTicking(Share<SimpleGroup>);
+struct ClockTicking(Rc<RefCell<SimpleGroup>>);
 
 impl ClockTicking {
-    fn new(entities: Share<SimpleGroup>) -> Self {
+    fn new(entities: Rc<RefCell<SimpleGroup>>) -> Self {
         Self(entities)
     }
 }

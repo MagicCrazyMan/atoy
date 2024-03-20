@@ -53,7 +53,6 @@ use crate::renderer::webgl::texture::{SamplerParameter, TextureParameter, Textur
 use crate::renderer::webgl::uniform::{UniformBlockValue, UniformValue};
 use crate::renderer::webgl::RenderEvent;
 use crate::renderer::Renderer;
-use crate::share::{Share, WeakShare};
 use crate::utils::slice_to_float32_array;
 use crate::value::Readonly;
 use crate::viewer::{self, Viewer};
@@ -559,7 +558,7 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
         .set_mount(document().get_element_by_id("scene"))
         .unwrap();
 
-    struct PreRender(Share<f64>);
+    struct PreRender(Rc<RefCell<f64>>);
     impl Executor for PreRender {
         type Message = RenderEvent;
 
@@ -568,7 +567,7 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
         }
     }
 
-    struct PostRender(Share<f64>, Function);
+    struct PostRender(Rc<RefCell<f64>>, Function);
     impl Executor for PostRender {
         type Message = RenderEvent;
 
@@ -596,7 +595,7 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
 }
 
 #[wasm_bindgen]
-pub struct ViewerWasm(Share<Viewer>);
+pub struct ViewerWasm(Rc<RefCell<Viewer>>);
 
 #[wasm_bindgen]
 impl ViewerWasm {
@@ -776,7 +775,7 @@ impl ViewerWasm {
 }
 
 struct ViewerPicker {
-    viewer: WeakShare<Viewer>,
+    viewer: Weak<RefCell<Viewer>>,
     pick_callback: Function,
 }
 
