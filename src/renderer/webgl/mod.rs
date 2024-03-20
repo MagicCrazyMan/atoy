@@ -3,7 +3,12 @@ use std::{borrow::Cow, ptr::NonNull};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
-use crate::{camera::Camera, clock::WebClock, notify::Notifier, pipeline::Pipeline, scene::Scene};
+use crate::{
+    camera::Camera,
+    channel::{channel, Receiver, Sender},
+    pipeline::Pipeline,
+    scene::Scene,
+};
 
 use self::{
     buffer::BufferStore, capabilities::Capabilities, error::Error, program::ProgramStore,
@@ -115,8 +120,8 @@ pub struct WebGL2Renderer {
     texture_store: TextureStore,
     capabilities: Capabilities,
 
-    pre_render_notifier: Notifier<RenderEvent>,
-    post_render_notifier: Notifier<RenderEvent>,
+    pre_render_channel: (Sender<RenderEvent>, Receiver<RenderEvent>),
+    post_render_channel: (Sender<RenderEvent>, Receiver<RenderEvent>),
 }
 
 impl Drop for WebGL2Renderer {
@@ -154,8 +159,8 @@ impl WebGL2Renderer {
             gl,
             canvas,
 
-            pre_render_notifier: Notifier::new(),
-            post_render_notifier: Notifier::new(),
+            pre_render_channel: channel(),
+            post_render_channel: channel(),
         })
     }
 
@@ -204,28 +209,25 @@ impl WebGL2Renderer {
         &self.capabilities
     }
 
-    pub fn pre_render(&mut self) -> &mut Notifier<RenderEvent> {
-        &mut self.pre_render_notifier
+    pub fn pre_render(&mut self) -> Receiver<RenderEvent> {
+        self.pre_render_channel.1.clone()
     }
 
-    pub fn post_render(&mut self) -> &mut Notifier<RenderEvent> {
-        &mut self.post_render_notifier
+    pub fn post_render(&mut self) -> Receiver<RenderEvent> {
+        self.post_render_channel.1.clone()
     }
 }
 
 impl Renderer for WebGL2Renderer {
     type State = FrameState;
 
-    type Clock = WebClock;
-
     type Error = Error;
 
     fn render(
         &mut self,
-        pipeline: &mut (dyn Pipeline<State = Self::State, Clock = Self::Clock, Error = Self::Error>
-                  + 'static),
+        pipeline: &mut (dyn Pipeline<State = Self::State, Error = Self::Error> + 'static),
         camera: &mut (dyn Camera + 'static),
-        scene: &mut Scene<Self::Clock>,
+        scene: &mut Scene,
         timestamp: f64,
     ) -> Result<(), Self::Error> {
         let mut state = FrameState::new(
@@ -239,11 +241,13 @@ impl Renderer for WebGL2Renderer {
             &mut self.capabilities,
         );
 
-        self.pre_render_notifier
-            .notify(&mut RenderEvent::new(&mut state));
+        self.pre_render_channel
+            .0
+            .send(&mut RenderEvent::new(&mut state));
         pipeline.execute(&mut state, scene)?;
-        self.post_render_notifier
-            .notify(&mut RenderEvent::new(&mut state));
+        self.post_render_channel
+            .0
+            .send(&mut RenderEvent::new(&mut state));
 
         Ok(())
     }

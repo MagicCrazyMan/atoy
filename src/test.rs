@@ -23,7 +23,8 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::clock::{Clock, Tick, WebClock};
+use crate::channel::Executor;
+use crate::clock::{Clock, HtmlClock, Tick};
 use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
@@ -40,7 +41,6 @@ use crate::loader::texture::TextureLoader;
 use crate::material::webgl::texture::TextureMaterial;
 use crate::material::webgl::StandardMaterial;
 use crate::material::{self, Transparency};
-use crate::notify::Notifiee;
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
@@ -261,7 +261,7 @@ fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) ->
     )
 }
 
-fn create_scene() -> Result<Scene<WebClock>, Error> {
+fn create_scene() -> Result<Scene, Error> {
     let mut scene = Scene::new()?;
     scene.clock_mut().start(Duration::from_secs(1));
     scene.set_light_attenuation(Attenuation::new(0.0, 1.0, 0.0));
@@ -551,27 +551,27 @@ fn create_scene() -> Result<Scene<WebClock>, Error> {
     Ok(scene)
 }
 
-fn create_viewer(
-    scene: Scene<WebClock>,
-    camera: UniversalCamera,
-    render_callback: &Function,
-) -> Viewer {
+fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Function) -> Viewer {
     let mut viewer = Viewer::new(scene, camera.clone()).unwrap();
     viewer.add_controller(camera);
     viewer
         .set_mount(document().get_element_by_id("scene"))
         .unwrap();
 
-    struct PreRenderNotifiee(Share<f64>);
-    impl Notifiee<RenderEvent> for PreRenderNotifiee {
-        fn notify(&mut self, msg: &RenderEvent) {
+    struct PreRender(Share<f64>);
+    impl Executor for PreRender {
+        type Message = RenderEvent;
+
+        fn execute(&mut self, msg: &Self::Message) {
             *self.0.borrow_mut() = crate::window().performance().unwrap().now();
         }
     }
 
-    struct PostRenderNotifiee(Share<f64>, Function);
-    impl Notifiee<RenderEvent> for PostRenderNotifiee {
-        fn notify(&mut self, msg: &RenderEvent) {
+    struct PostRender(Share<f64>, Function);
+    impl Executor for PostRender {
+        type Message = RenderEvent;
+
+        fn execute(&mut self, msg: &Self::Message) {
             let start = *self.0.borrow();
             let end = crate::window().performance().unwrap().now();
             self.1
@@ -585,12 +585,12 @@ fn create_viewer(
         .renderer()
         .borrow_mut()
         .pre_render()
-        .register(PreRenderNotifiee(Rc::clone(&start_timestamp)));
+        .on(PreRender(Rc::clone(&start_timestamp)));
     viewer
         .renderer()
         .borrow_mut()
         .post_render()
-        .register(PostRenderNotifiee(
+        .on(PostRender(
             Rc::clone(&start_timestamp),
             render_callback.clone(),
         ));
@@ -783,8 +783,10 @@ struct ViewerPicker {
     pick_callback: Function,
 }
 
-impl Notifiee<MouseEvent> for ViewerPicker {
-    fn notify(&mut self, event: &MouseEvent) {
+impl Executor for ViewerPicker {
+    type Message = MouseEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         let Some(viewer) = self.viewer.upgrade() else {
             return;
         };
@@ -1231,8 +1233,7 @@ pub fn test_cube(
         .borrow_mut()
         .canvas_handler()
         .click()
-        .borrow_mut()
-        .register(ViewerPicker {
+        .on(ViewerPicker {
             viewer: Rc::downgrade(&viewer),
             pick_callback: pick_callback.clone(),
         });
@@ -1597,8 +1598,7 @@ pub fn test_pick(
         .borrow_mut()
         .canvas_handler()
         .click()
-        .borrow_mut()
-        .register(ViewerPicker {
+        .on(ViewerPicker {
             viewer: Rc::downgrade(&viewer),
             pick_callback: pick_callback.clone(),
         });

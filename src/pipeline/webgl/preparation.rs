@@ -2,7 +2,6 @@ use gl_matrix4rust::{GLF32Borrowed, GLF32};
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
-    clock::WebClock,
     light::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
@@ -111,7 +110,7 @@ impl StandardPreparation {
         &mut self,
         lights_ubo: &mut Buffer,
         state: &mut FrameState,
-        scene: &mut Scene<WebClock>,
+        scene: &mut Scene,
     ) -> Result<(), Error> {
         state.buffer_store_mut().register(lights_ubo)?;
 
@@ -221,7 +220,7 @@ impl StandardPreparation {
     pub fn prepare(
         &mut self,
         state: &mut FrameState,
-        scene: &mut Scene<WebClock>,
+        scene: &mut Scene,
         universal_ubo: &mut Buffer,
         lights_ubo: &mut Buffer,
     ) -> Result<(), Error> {

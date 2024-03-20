@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::{
     bounding::Culling,
-    clock::WebClock,
     entity::{Entity, Group},
     frustum::ViewFrustum,
     material::Transparency,
@@ -132,7 +131,7 @@ impl StandardEntitiesCollector {
     pub fn collect_entities(
         &mut self,
         state: &mut FrameState,
-        scene: &mut Scene<WebClock>,
+        scene: &mut Scene,
     ) -> CollectedEntities {
         struct CollectedEntity {
             entity: Share<dyn Entity>,

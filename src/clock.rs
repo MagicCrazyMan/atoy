@@ -4,9 +4,11 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Performance, Window};
 
 use crate::{
-    notify::{Notifiee, Notifier, Notifying}, share::Share, window
+    channel::{channel, Receiver, Sender},
+    window,
 };
 
+/// Clock tick indicating clock ticking information.
 #[derive(Clone, Copy, PartialEq)]
 pub struct Tick {
     start_time: f64,
@@ -16,18 +18,23 @@ pub struct Tick {
 }
 
 impl Tick {
+    /// Returns the time when clock started.
     pub fn start_time(&self) -> f64 {
         self.start_time
     }
 
+    /// Returns previous tick time if exists.
     pub fn previous_time(&self) -> Option<f64> {
         self.previous_time.clone()
     }
 
+    /// Returns current tick time.
     pub fn current_time(&self) -> f64 {
         self.current_time
     }
 
+    /// Returns delta time between current tick time and
+    /// previous tick time if previous tick time exists.
     pub fn delta_time(&self) -> Option<f64> {
         if let Some(previous_time) = self.previous_time {
             Some(self.current_time - previous_time)
@@ -36,55 +43,61 @@ impl Tick {
         }
     }
 
+    /// Returns ticking interval of the clock.
     pub fn interval(&self) -> Duration {
         self.interval
     }
 }
 
+/// A trait defining a clock.
 pub trait Clock {
+    /// Returns the time when clock started.
     fn start_time(&self) -> Option<f64>;
 
+    /// Returns the time when clock stopped.
     fn stop_time(&self) -> Option<f64>;
 
+    /// Returns previous tick time if exists.
     fn previous_time(&self) -> Option<f64>;
 
+    /// Returns `true` if this clock is ticking.
     fn running(&self) -> bool;
 
+    /// Returns a [`MessageChannel`] for broadcasting ticking message.
+    fn ticking(&self) -> Receiver<Tick>;
+
+    /// Starts the clock.
     fn start(&mut self, interval: Duration);
 
+    /// Stops the clock.
     fn stop(&mut self);
-
-    fn on_tick<N>(&mut self, notifiee: N) -> Notifying<Tick>
-    where
-        N: Notifiee<Tick> + 'static;
-
-    fn un_tick(&mut self, key: usize);
 
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-pub struct WebClock {
+/// A [`Clock`] implemented by [`Performance`] from Web JavaScript.
+pub struct HtmlClock {
     window: Window,
     performance: Performance,
 
     start_time: Option<f64>,
     stop_time: Option<f64>,
-    previous_time: Share<Option<f64>>,
+    previous_time: Rc<RefCell<Option<f64>>>,
 
     handle: Option<i32>,
     handler: Option<Closure<dyn FnMut()>>,
-    notifier: Share<Notifier<Tick>>,
+    channel: (Sender<Tick>, Receiver<Tick>),
 }
 
-impl Drop for WebClock {
+impl Drop for HtmlClock {
     fn drop(&mut self) {
         self.stop();
     }
 }
 
-impl Clock for WebClock {
+impl Clock for HtmlClock {
     fn start_time(&self) -> Option<f64> {
         self.start_time.clone()
     }
@@ -110,10 +123,10 @@ impl Clock for WebClock {
 
         let previous_time = Rc::clone(&self.previous_time);
         let performance = self.performance.clone();
-        let notifier = self.notifier.clone();
+        let sender = self.channel.0.clone();
         let handler = Some(Closure::new(move || {
             let current_time = performance.now();
-            notifier.borrow_mut().notify(&Tick {
+            sender.send(&Tick {
                 start_time,
                 previous_time: previous_time.borrow().clone(),
                 current_time,
@@ -145,15 +158,8 @@ impl Clock for WebClock {
         self.stop_time = Some(self.performance.now());
     }
 
-    fn on_tick<N>(&mut self, notifiee: N) -> Notifying<Tick>
-    where
-        N: Notifiee<Tick> + 'static,
-    {
-        self.notifier.borrow_mut().register(notifiee)
-    }
-
-    fn un_tick(&mut self, key: usize) {
-        self.notifier.borrow_mut().unregister(key);
+    fn ticking(&self) -> Receiver<Tick> {
+        self.channel.1.clone()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -165,7 +171,7 @@ impl Clock for WebClock {
     }
 }
 
-impl WebClock {
+impl HtmlClock {
     pub fn new() -> Self {
         let window = window();
         Self {
@@ -178,8 +184,7 @@ impl WebClock {
 
             handle: None,
             handler: None,
-
-            notifier: Rc::new(RefCell::new(Notifier::new())),
+            channel: channel(),
         }
     }
 

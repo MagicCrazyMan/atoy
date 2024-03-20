@@ -3,19 +3,13 @@ use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 use log::warn;
 
 use crate::{
-    clock::Tick,
-    error::Error,
-    loader::{Loader, LoaderStatus},
-    notify::Notifiee,
-    renderer::webgl::{
+    channel::Executor, clock::Tick, error::Error, loader::{Loader, LoaderStatus}, renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         texture::{Texture, Texture2D, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
-    },
-    share::{Share, WeakShare},
-    value::Readonly,
+    }, share::{Share, WeakShare}, value::Readonly
 };
 
 use super::{StandardMaterial, Transparency};
@@ -56,7 +50,7 @@ impl TextureMaterial {
         let mut loader = self.albedo_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             loader.load();
-            loader.notifier().borrow_mut().register(WaitLoader {
+            loader.success().on(WaitLoader {
                 unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
                 target: Rc::downgrade(&self.albedo),
@@ -76,7 +70,7 @@ impl TextureMaterial {
         let mut loader = normal_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             loader.load();
-            loader.notifier().borrow_mut().register(WaitLoader {
+            loader.success().on(WaitLoader {
                 unit: TextureUnit::TEXTURE1,
                 loader: Rc::downgrade(normal_loader),
                 target: Rc::downgrade(&self.normal),
@@ -96,7 +90,7 @@ impl TextureMaterial {
         let mut loader = parallax_loader.borrow_mut();
         if LoaderStatus::Unload == loader.status() {
             loader.load();
-            loader.notifier().borrow_mut().register(WaitLoader {
+            loader.success().on(WaitLoader {
                 unit: TextureUnit::TEXTURE2,
                 loader: Rc::downgrade(parallax_loader),
                 target: Rc::downgrade(&self.parallax),
@@ -287,8 +281,10 @@ struct WaitLoader {
     target: WeakShare<Option<(Texture<Texture2D>, TextureUnit)>>,
 }
 
-impl Notifiee<LoaderStatus> for WaitLoader {
-    fn notify(&mut self, status: &LoaderStatus) {
+impl Executor for WaitLoader {
+    type Message = LoaderStatus;
+
+    fn execute(&mut self, status: &Self::Message) {
         match status {
             LoaderStatus::Unload => unreachable!(),
             LoaderStatus::Loading => {}

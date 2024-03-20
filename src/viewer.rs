@@ -8,7 +8,6 @@ use web_sys::Element;
 use crate::{
     camera::Camera,
     cancel_animation_frame,
-    clock::WebClock,
     controller::Controller,
     entity::Entity,
     error::Error,
@@ -24,7 +23,7 @@ pub const DEFAULT_RENDER_LOOP_INTERRUPTED_WHEN_ERROR: bool = true;
 
 pub struct Viewer {
     mount: Option<Element>,
-    scene: Share<Scene<WebClock>>,
+    scene: Share<Scene>,
     camera: Share<dyn Camera + 'static>,
     renderer: Share<WebGL2Renderer>,
     controllers: Share<Vec<Box<dyn Controller>>>,
@@ -51,7 +50,7 @@ impl Drop for Viewer {
 }
 
 impl Viewer {
-    pub fn new<C>(scene: Scene<WebClock>, camera: C) -> Result<Self, Error>
+    pub fn new<C>(scene: Scene, camera: C) -> Result<Self, Error>
     where
         C: Camera + 'static,
     {
@@ -109,7 +108,7 @@ impl Viewer {
         &self.camera
     }
 
-    pub fn scene(&self) -> &Share<Scene<WebClock>> {
+    pub fn scene(&self) -> &Share<Scene> {
         &self.scene
     }
 

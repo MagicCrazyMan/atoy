@@ -7,7 +7,8 @@ use web_sys::{
 };
 
 use crate::{
-    clock::{Clock, Tick, WebClock},
+    channel::{channel, Aborter, Executor, Receiver, Sender},
+    clock::{Clock, HtmlClock, Tick},
     document,
     entity::{Group, SimpleGroup},
     error::Error,
@@ -15,7 +16,6 @@ use crate::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
-    notify::{Notifiee, Notifier, Notifying},
     share::Share,
 };
 
@@ -36,16 +36,14 @@ pub const MAX_SPOT_LIGHTS: usize = 12;
 pub(crate) const MAX_SPOT_LIGHTS_STRING: &'static str = "12";
 pub(crate) const SPOT_LIGHTS_COUNT_DEFINE: &'static str = "SPOT_LIGHTS_COUNT";
 
-pub struct Scene<C>
-where
-    C: Clock,
-{
+pub struct Scene {
     canvas: HtmlCanvasElement,
-    canvas_handler: SceneCanvasHandler,
+    canvas_handler: CanvasHandler,
     _select_start_callback: Closure<dyn Fn() -> bool>,
 
-    clock: C,
-    clock_ticking: Notifying<Tick>,
+    clock: HtmlClock,
+    _clock_aborter: Aborter<Tick>,
+
     entities: Share<SimpleGroup>,
     light_attenuation: Attenuation,
     ambient_light: Option<AmbientLight>,
@@ -55,16 +53,13 @@ where
     area_lights: Vec<AreaLight>,
 }
 
-impl<C> Drop for Scene<C>
-where
-    C: Clock,
-{
+impl Drop for Scene {
     fn drop(&mut self) {
-        self.clock.un_tick(self.clock_ticking.key());
+        self.canvas.set_onselectstart(None);
     }
 }
 
-impl Scene<WebClock> {
+impl Scene {
     /// Constructs a new scene using initialization options.
     pub fn new() -> Result<Self, Error> {
         let canvas = document()
@@ -84,16 +79,18 @@ impl Scene<WebClock> {
 
         let entities = Rc::new(RefCell::new(SimpleGroup::new()));
 
-        let mut clock = WebClock::new();
-        let clock_ticking = clock.on_tick(ClockTicking::new(Rc::clone(&entities)));
+        let clock = HtmlClock::new();
+        let mut clock_aborter = clock.ticking().on(ClockTicking::new(Rc::clone(&entities)));
+        clock_aborter.set_off_when_dropped(true);
 
         Ok(Self {
-            canvas_handler: SceneCanvasHandler::new(canvas.clone())?,
+            canvas_handler: CanvasHandler::new(canvas.clone())?,
             _select_start_callback: select_start_callback,
             canvas,
 
             clock,
-            clock_ticking,
+            _clock_aborter: clock_aborter,
+
             entities,
             light_attenuation: Attenuation::new(0.0, 1.0, 0.0),
             ambient_light: None,
@@ -103,28 +100,23 @@ impl Scene<WebClock> {
             area_lights: Vec::new(),
         })
     }
-}
 
-impl<C> Scene<C>
-where
-    C: Clock,
-{
     /// Returns [`HtmlCanvasElement`].
     pub fn canvas(&self) -> &HtmlCanvasElement {
         &self.canvas
     }
 
-    pub fn canvas_handler(&mut self) -> &mut SceneCanvasHandler {
+    pub fn canvas_handler(&mut self) -> &mut CanvasHandler {
         &mut self.canvas_handler
     }
 
     /// Returns [`Clock`](crate::clock::Clock) associated with this scene.
-    pub fn clock(&self) -> &C {
+    pub fn clock(&self) -> &HtmlClock {
         &self.clock
     }
 
     /// Returns mutable [`Clock`](crate::clock::Clock) associated with this scene.
-    pub fn clock_mut(&mut self) -> &mut C {
+    pub fn clock_mut(&mut self) -> &mut HtmlClock {
         &mut self.clock
     }
 
@@ -292,106 +284,149 @@ where
     }
 }
 
-pub struct SceneCanvasHandler {
+pub struct CanvasHandler {
     canvas: HtmlCanvasElement,
     canvas_resize: (
-        Share<Notifier<HtmlCanvasElement>>,
+        Sender<HtmlCanvasElement>,
+        Receiver<HtmlCanvasElement>,
         ResizeObserver,
         Closure<dyn FnMut(Vec<ResizeObserverEntry>)>,
     ),
-    click: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    double_click: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_down: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_enter: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_leave: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_move: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_out: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_over: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    mouse_up: (Share<Notifier<MouseEvent>>, Closure<dyn FnMut(MouseEvent)>),
-    wheel: (Share<Notifier<WheelEvent>>, Closure<dyn FnMut(WheelEvent)>),
+    click: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    double_click: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_down: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_enter: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_leave: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_move: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_out: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_over: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    mouse_up: (
+        Sender<MouseEvent>,
+        Receiver<MouseEvent>,
+        Closure<dyn FnMut(MouseEvent)>,
+    ),
+    wheel: (
+        Sender<WheelEvent>,
+        Receiver<WheelEvent>,
+        Closure<dyn FnMut(WheelEvent)>,
+    ),
     key_down: (
-        Share<Notifier<KeyboardEvent>>,
+        Sender<KeyboardEvent>,
+        Receiver<KeyboardEvent>,
         Closure<dyn FnMut(KeyboardEvent)>,
     ),
     key_up: (
-        Share<Notifier<KeyboardEvent>>,
+        Sender<KeyboardEvent>,
+        Receiver<KeyboardEvent>,
         Closure<dyn FnMut(KeyboardEvent)>,
     ),
 }
 
-impl Drop for SceneCanvasHandler {
+impl Drop for CanvasHandler {
     fn drop(&mut self) {
-        self.canvas_resize.1.disconnect();
+        self.canvas_resize.2.disconnect();
 
         let _ = self
             .canvas
-            .remove_event_listener_with_callback("click", self.click.1.as_ref().unchecked_ref());
+            .remove_event_listener_with_callback("click", self.click.2.as_ref().unchecked_ref());
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "dbclick",
-            self.double_click.1.as_ref().unchecked_ref(),
+            self.double_click.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mousedown",
-            self.mouse_down.1.as_ref().unchecked_ref(),
+            self.mouse_down.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mouseenter",
-            self.mouse_enter.1.as_ref().unchecked_ref(),
+            self.mouse_enter.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mouseleave",
-            self.mouse_leave.1.as_ref().unchecked_ref(),
+            self.mouse_leave.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mousemove",
-            self.mouse_move.1.as_ref().unchecked_ref(),
+            self.mouse_move.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mouseout",
-            self.mouse_out.1.as_ref().unchecked_ref(),
+            self.mouse_out.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mouseover",
-            self.mouse_over.1.as_ref().unchecked_ref(),
+            self.mouse_over.2.as_ref().unchecked_ref(),
         );
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "mouseup",
-            self.mouse_up.1.as_ref().unchecked_ref(),
+            self.mouse_up.2.as_ref().unchecked_ref(),
         );
 
         let _ = self
             .canvas
-            .remove_event_listener_with_callback("wheel", self.wheel.1.as_ref().unchecked_ref());
+            .remove_event_listener_with_callback("wheel", self.wheel.2.as_ref().unchecked_ref());
 
         let _ = self.canvas.remove_event_listener_with_callback(
             "keydown",
-            self.key_down.1.as_ref().unchecked_ref(),
+            self.key_down.2.as_ref().unchecked_ref(),
         );
 
         let _ = self
             .canvas
-            .remove_event_listener_with_callback("keyup", self.key_up.1.as_ref().unchecked_ref());
+            .remove_event_listener_with_callback("keyup", self.key_up.2.as_ref().unchecked_ref());
     }
 }
 
-impl SceneCanvasHandler {
+impl CanvasHandler {
     pub fn new(canvas: HtmlCanvasElement) -> Result<Self, Error> {
-        let resize_observer_notifier = Rc::new(RefCell::new(Notifier::new()));
-        let resize_observer_notifier_cloned = Rc::clone(&resize_observer_notifier);
+        let (resize_observer_sender, resize_observer_receiver) = channel();
+        let resize_observer_sender_cloned = resize_observer_sender.clone();
         let resize_observer_callback = Closure::new(move |entries: Vec<ResizeObserverEntry>| {
             // should have only one entry
             let Some(target) = entries.get(0).map(|entry| entry.target()) else {
                 return;
             };
-            let Ok(mut canvas) = target.dyn_into::<HtmlCanvasElement>() else {
+            let Ok(canvas) = target.dyn_into::<HtmlCanvasElement>() else {
                 return;
             };
 
@@ -399,9 +434,7 @@ impl SceneCanvasHandler {
             let height = canvas.client_height() as u32;
             canvas.set_width(width);
             canvas.set_height(height);
-            resize_observer_notifier_cloned
-                .borrow_mut()
-                .notify(&mut canvas);
+            resize_observer_sender_cloned.send(&canvas);
         });
         let resize_observer =
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref())
@@ -409,11 +442,11 @@ impl SceneCanvasHandler {
         resize_observer.observe(&canvas);
 
         macro_rules! io_events {
-            ($(($name:ident, $name_cloned:ident, $callback:ident, $event:expr))+) => {
+            ($(($tx:ident, $rx:ident, $tx_cloned:ident, $callback:ident, $event:expr))+) => {
                 $(
-                    let $name = Rc::new(RefCell::new(Notifier::new()));
-                    let $name_cloned = Rc::clone(&$name);
-                    let $callback = Closure::new(move |mut e| $name_cloned.borrow_mut().notify(&mut e));
+                    let ($tx, $rx) = channel();
+                    let $tx_cloned = $tx.clone();
+                    let $callback = Closure::new(move |e| $tx_cloned.send(& e));
                     canvas
                         .add_event_listener_with_callback($event, $callback.as_ref().unchecked_ref())
                         .or_else(|err| Err(Error::AddEventCallbackFailure($event, err.as_string())))?;
@@ -422,92 +455,105 @@ impl SceneCanvasHandler {
         }
 
         io_events! {
-            (click_notifier, click_notifier_cloned, click_callback, "click")
-            (double_click_notifier, double_click_notifier_cloned, double_click_callback, "dbclick")
-            (mouse_down_notifier, mouse_down_notifier_cloned, mouse_down_callback, "mousedown")
-            (mouse_enter_notifier, mouse_enter_notifier_cloned, mouse_enter_callback, "mouseenter")
-            (mouse_leave_notifier, mouse_leave_notifier_cloned, mouse_leave_callback, "mouseleave")
-            (mouse_move_notifier, mouse_move_notifier_cloned, mouse_move_callback, "mousemove")
-            (mouse_out_notifier, mouse_out_notifier_cloned, mouse_out_callback, "mouseout")
-            (mouse_over_notifier, mouse_over_notifier_cloned, mouse_over_callback, "mouseover")
-            (mouse_up_notifier, mouse_up_notifier_cloned, mouse_up_callback, "mouseup")
-            (wheel_notifier, wheel_notifier_cloned, wheel_callback, "wheel")
-            (key_down_notifier, key_down_notifier_cloned, key_down_callback, "keydown")
-            (key_up_notifier, key_up_notifier_cloned, key_up_callback, "keyup")
+            (click_sender, click_receiver, click_sender_cloned, click_callback, "click")
+            (double_click_sender, double_click_receiver, double_click_sender_cloned, double_click_callback, "dbclick")
+            (mouse_down_sender, mouse_down_receiver, mouse_down_sender_cloned, mouse_down_callback, "mousedown")
+            (mouse_enter_sender, mouse_enter_receiver, mouse_enter_sender_cloned, mouse_enter_callback, "mouseenter")
+            (mouse_leave_sender, mouse_leave_receiver, mouse_leave_sender_cloned, mouse_leave_callback, "mouseleave")
+            (mouse_move_sender, mouse_move_receiver, mouse_move_sender_cloned, mouse_move_callback, "mousemove")
+            (mouse_out_sender, mouse_out_receiver, mouse_out_sender_cloned, mouse_out_callback, "mouseout")
+            (mouse_over_sender, mouse_over_receiver, mouse_over_sender_cloned, mouse_over_callback, "mouseover")
+            (mouse_up_sender, mouse_up_receiver, mouse_up_sender_cloned, mouse_up_callback, "mouseup")
+            (wheel_sender, wheel_receiver, wheel_sender_cloned, wheel_callback, "wheel")
+            (key_down_sender, key_down_receiver, key_down_sender_cloned, key_down_callback, "keydown")
+            (key_up_sender, key_up_receiver, key_up_sender_cloned, key_up_callback, "keyup")
         };
 
         Ok(Self {
             canvas,
             canvas_resize: (
-                resize_observer_notifier,
+                resize_observer_sender,
+                resize_observer_receiver,
                 resize_observer,
                 resize_observer_callback,
             ),
-            click: (click_notifier, click_callback),
-            double_click: (double_click_notifier, double_click_callback),
-            mouse_down: (mouse_down_notifier, mouse_down_callback),
-            mouse_enter: (mouse_enter_notifier, mouse_enter_callback),
-            mouse_leave: (mouse_leave_notifier, mouse_leave_callback),
-            mouse_move: (mouse_move_notifier, mouse_move_callback),
-            mouse_out: (mouse_out_notifier, mouse_out_callback),
-            mouse_over: (mouse_over_notifier, mouse_over_callback),
-            mouse_up: (mouse_up_notifier, mouse_up_callback),
-            wheel: (wheel_notifier, wheel_callback),
-            key_down: (key_down_notifier, key_down_callback),
-            key_up: (key_up_notifier, key_up_callback),
+            click: (click_sender, click_receiver, click_callback),
+            double_click: (
+                double_click_sender,
+                double_click_receiver,
+                double_click_callback,
+            ),
+            mouse_down: (mouse_down_sender, mouse_down_receiver, mouse_down_callback),
+            mouse_enter: (
+                mouse_enter_sender,
+                mouse_enter_receiver,
+                mouse_enter_callback,
+            ),
+            mouse_leave: (
+                mouse_leave_sender,
+                mouse_leave_receiver,
+                mouse_leave_callback,
+            ),
+            mouse_move: (mouse_move_sender, mouse_move_receiver, mouse_move_callback),
+            mouse_out: (mouse_out_sender, mouse_out_receiver, mouse_out_callback),
+            mouse_over: (mouse_over_sender, mouse_over_receiver, mouse_over_callback),
+            mouse_up: (mouse_up_sender, mouse_up_receiver, mouse_up_callback),
+            wheel: (wheel_sender, wheel_receiver, wheel_callback),
+            key_down: (key_down_sender, key_down_receiver, key_down_callback),
+            key_up: (key_up_sender, key_up_receiver, key_up_callback),
         })
     }
 
-    pub fn canvas_resize(&mut self) -> &Share<Notifier<HtmlCanvasElement>> {
-        &mut self.canvas_resize.0
+    pub fn canvas_resize(&self) -> Receiver<HtmlCanvasElement> {
+        self.canvas_resize.1.clone()
     }
 
-    pub fn click(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.click.0
+    pub fn click(&self) -> Receiver<MouseEvent> {
+        self.click.1.clone()
     }
 
-    pub fn double_click(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.double_click.0
+    pub fn double_click(&self) -> Receiver<MouseEvent> {
+        self.double_click.1.clone()
     }
 
-    pub fn mouse_down(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_down.0
+    pub fn mouse_down(&self) -> Receiver<MouseEvent> {
+        self.mouse_down.1.clone()
     }
 
-    pub fn mouse_enter(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_enter.0
+    pub fn mouse_enter(&self) -> Receiver<MouseEvent> {
+        self.mouse_enter.1.clone()
     }
 
-    pub fn mouse_leave(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_leave.0
+    pub fn mouse_leave(&self) -> Receiver<MouseEvent> {
+        self.mouse_leave.1.clone()
     }
 
-    pub fn mouse_move(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_move.0
+    pub fn mouse_move(&self) -> Receiver<MouseEvent> {
+        self.mouse_move.1.clone()
     }
 
-    pub fn mouse_out(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_out.0
+    pub fn mouse_out(&self) -> Receiver<MouseEvent> {
+        self.mouse_out.1.clone()
     }
 
-    pub fn mouse_over(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_over.0
+    pub fn mouse_over(&self) -> Receiver<MouseEvent> {
+        self.mouse_over.1.clone()
     }
 
-    pub fn mouse_up(&mut self) -> &Share<Notifier<MouseEvent>> {
-        &mut self.mouse_up.0
+    pub fn mouse_up(&self) -> Receiver<MouseEvent> {
+        self.mouse_up.1.clone()
     }
 
-    pub fn wheel(&mut self) -> &Share<Notifier<WheelEvent>> {
-        &mut self.wheel.0
+    pub fn wheel(&self) -> Receiver<WheelEvent> {
+        self.wheel.1.clone()
     }
 
-    pub fn key_down(&mut self) -> &Share<Notifier<KeyboardEvent>> {
-        &mut self.key_down.0
+    pub fn key_down(&self) -> Receiver<KeyboardEvent> {
+        self.key_down.1.clone()
     }
 
-    pub fn key_up(&mut self) -> &Share<Notifier<KeyboardEvent>> {
-        &mut self.key_up.0
+    pub fn key_up(&self) -> Receiver<KeyboardEvent> {
+        self.key_up.1.clone()
     }
 }
 
@@ -519,8 +565,14 @@ impl ClockTicking {
     }
 }
 
-impl Notifiee<Tick> for ClockTicking {
-    fn notify(&mut self, msg: &Tick) {
+impl Executor for ClockTicking {
+    type Message = Tick;
+
+    fn execute(&mut self, msg: &Tick) {
         (*self.0).borrow_mut().tick(msg);
+    }
+
+    fn abort(&self) -> bool {
+        false
     }
 }

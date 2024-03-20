@@ -1,19 +1,18 @@
-use std::{borrow::Cow, cell::RefCell, fmt::Display, rc::Rc};
+use std::{borrow::Cow, fmt::Display};
 
 use js_sys::{Function, Promise};
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{AddEventListenerOptions, HtmlImageElement};
 
 use crate::{
+    channel::{channel, Receiver, Sender},
     error::{AsJsError, Error},
-    notify::Notifier,
     renderer::webgl::texture::{
         Builder, SamplerParameter, Texture, Texture2D, TextureData, TextureInternalFormat,
         TextureParameter, TexturePixelStorage, TextureSource, TextureUncompressedData,
         TextureUncompressedInternalFormat, TextureUncompressedPixelDataType,
         TextureUncompressedPixelFormat,
     },
-    share::Share,
 };
 
 use super::{Loader, LoaderStatus};
@@ -47,7 +46,7 @@ impl Display for ImageCrossOrigin {
 pub struct TextureLoader {
     url: String,
     status: *mut LoaderStatus,
-    notifier: Share<Notifier<LoaderStatus>>,
+    channel: (Sender<LoaderStatus>, Receiver<LoaderStatus>),
     cross_origin: Option<ImageCrossOrigin>,
     image: *mut Option<HtmlImageElement>,
     error: *mut Option<Error>,
@@ -103,7 +102,7 @@ impl TextureLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Rc::new(RefCell::new(Notifier::new())),
+            channel: channel(),
             cross_origin: None,
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
@@ -141,7 +140,7 @@ impl TextureLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Rc::new(RefCell::new(Notifier::new())),
+            channel: channel(),
             cross_origin: None,
             image: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
@@ -179,7 +178,7 @@ impl TextureLoader {
             let promise_reject = self.promise_reject;
 
             let img = image.clone();
-            let notifier = Rc::downgrade(&self.notifier);
+            let sender = self.channel.0.clone();
             *self.load_callback = Some(Closure::new(move || {
                 *status = LoaderStatus::Loaded;
                 if let Err(err) = img.remove_event_listener_with_callback(
@@ -195,9 +194,7 @@ impl TextureLoader {
                     );
                 }
 
-                if let Some(notifier) = notifier.upgrade() {
-                    notifier.borrow_mut().notify(&mut *status);
-                };
+                sender.send(&mut *status);
 
                 if let Some(resolve) = &*promise_resolve {
                     resolve.call0(&JsValue::undefined()).unwrap();
@@ -227,7 +224,7 @@ impl TextureLoader {
                 })?;
 
             let img = image.clone();
-            let notifier = Rc::downgrade(&self.notifier);
+            let sender = self.channel.0.clone();
             *self.error_callback = Some(Closure::new(move |err: js_sys::Error| {
                 let msg = err.as_error().and_then(|e| e.message().as_string());
                 log::error!(
@@ -249,9 +246,7 @@ impl TextureLoader {
                     );
                 }
 
-                if let Some(notifier) = notifier.upgrade() {
-                    notifier.borrow_mut().notify(&mut *status);
-                };
+                sender.send(&mut *status);
 
                 if let Some(reject) = &*promise_reject {
                     reject.call0(&JsValue::undefined()).unwrap();
@@ -283,7 +278,7 @@ impl TextureLoader {
 
             *self.status = LoaderStatus::Loading;
             *self.image = Some(image);
-            self.notifier.borrow_mut().notify(&mut *self.status);
+            self.channel.0.send(&mut *self.status);
         }
 
         Ok(())
@@ -297,7 +292,7 @@ impl TextureLoader {
                 if let Err(err) = self.load_inner(None, None) {
                     *self.status = LoaderStatus::Errored;
                     *self.error = Some(err);
-                    self.notifier.borrow_mut().notify(&*self.status);
+                    self.channel.0.send(&*self.status);
                 }
             }
         }
@@ -318,7 +313,7 @@ impl TextureLoader {
                 if let Err(err) = self.load_inner(None, None) {
                     *self.status = LoaderStatus::Errored;
                     *self.error = Some(err);
-                    self.notifier.borrow_mut().notify(&*self.status);
+                    self.channel.0.send(&*self.status);
                     (*promise_reject)
                         .as_ref()
                         .unwrap()
@@ -405,8 +400,8 @@ impl Loader<Texture<Texture2D>> for TextureLoader {
         }
     }
 
-    fn notifier(&self) -> &Share<Notifier<LoaderStatus>> {
-        &self.notifier
+    fn success(&self) -> Receiver<LoaderStatus> {
+        self.channel.1.clone()
     }
 }
 

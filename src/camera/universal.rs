@@ -1,9 +1,9 @@
 use std::{any::Any, cell::RefCell, f64::consts::PI, ops::Neg, rc::Rc};
 
 use crate::{
+    channel::{Aborter, Executor},
     controller::Controller,
     frustum::ViewFrustum,
-    notify::{Notifiee, Notifying},
     plane::Plane,
     renderer::webgl::RenderEvent,
     share::Share,
@@ -27,12 +27,12 @@ struct Control {
     previous_timestamp: *mut Option<f64>,
     previous_mouse_event: *mut Option<MouseEvent>,
 
-    canvas_resize: Notifying<HtmlCanvasElement>,
-    key_down: Notifying<KeyboardEvent>,
-    key_up: Notifying<KeyboardEvent>,
-    mouse_move: Notifying<MouseEvent>,
-    wheel: Notifying<WheelEvent>,
-    pre_render: Notifying<RenderEvent>,
+    canvas_resize: Aborter<HtmlCanvasElement>,
+    key_down: Aborter<KeyboardEvent>,
+    key_up: Aborter<KeyboardEvent>,
+    mouse_move: Aborter<MouseEvent>,
+    wheel: Aborter<WheelEvent>,
+    pre_render: Aborter<RenderEvent>,
 }
 
 struct Inner {
@@ -493,8 +493,10 @@ impl Camera for UniversalCamera {
 
 struct ControllerCanvasResize(Share<Inner>);
 
-impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
-    fn notify(&mut self, canvas: &HtmlCanvasElement) {
+impl Executor for ControllerCanvasResize {
+    type Message = HtmlCanvasElement;
+
+    fn execute(&mut self, canvas: &Self::Message) {
         let mut inner = self.0.borrow_mut();
 
         let aspect = canvas.width() as f64 / canvas.height() as f64;
@@ -506,8 +508,10 @@ impl Notifiee<HtmlCanvasElement> for ControllerCanvasResize {
 
 struct ControllerKeyDown(*mut HashSet<String>);
 
-impl Notifiee<KeyboardEvent> for ControllerKeyDown {
-    fn notify(&mut self, event: &KeyboardEvent) {
+impl Executor for ControllerKeyDown {
+    type Message = KeyboardEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         unsafe {
             let key = event.key();
             match key.as_str() {
@@ -525,8 +529,10 @@ impl Notifiee<KeyboardEvent> for ControllerKeyDown {
 
 struct ControllerKeyUp(*mut HashSet<String>);
 
-impl Notifiee<KeyboardEvent> for ControllerKeyUp {
-    fn notify(&mut self, event: &KeyboardEvent) {
+impl Executor for ControllerKeyUp {
+    type Message = KeyboardEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         unsafe {
             let key = event.key();
             match key.as_str() {
@@ -544,8 +550,10 @@ impl Notifiee<KeyboardEvent> for ControllerKeyUp {
 
 struct ControllerMouseMove(Share<Inner>, *mut Option<MouseEvent>);
 
-impl Notifiee<MouseEvent> for ControllerMouseMove {
-    fn notify(&mut self, event: &MouseEvent) {
+impl Executor for ControllerMouseMove {
+    type Message = MouseEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         unsafe {
             let previous_mouse_event = &mut *self.1;
 
@@ -591,8 +599,10 @@ impl Notifiee<MouseEvent> for ControllerMouseMove {
 
 struct ControllerWheel(Share<Inner>);
 
-impl Notifiee<WheelEvent> for ControllerWheel {
-    fn notify(&mut self, event: &WheelEvent) {
+impl Executor for ControllerWheel {
+    type Message = WheelEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         let mut inner = self.0.borrow_mut();
 
         let forward_movement = inner.forward_movement;
@@ -609,8 +619,10 @@ impl Notifiee<WheelEvent> for ControllerWheel {
 
 struct ControllerPreRender(Share<Inner>, *mut HashSet<String>, *mut Option<f64>);
 
-impl Notifiee<RenderEvent> for ControllerPreRender {
-    fn notify(&mut self, event: &RenderEvent) {
+impl Executor for ControllerPreRender {
+    type Message = RenderEvent;
+
+    fn execute(&mut self, event: &Self::Message) {
         unsafe {
             let current = event.state().timestamp();
 
@@ -672,29 +684,25 @@ impl Controller for UniversalCamera {
             .borrow_mut()
             .canvas_handler()
             .canvas_resize()
-            .borrow_mut()
-            .register(ControllerCanvasResize(Rc::clone(&self.inner)));
+            .on(ControllerCanvasResize(Rc::clone(&self.inner)));
         let key_down = viewer
             .scene()
             .borrow_mut()
             .canvas_handler()
             .key_down()
-            .borrow_mut()
-            .register(ControllerKeyDown(pressed_keys));
+            .on(ControllerKeyDown(pressed_keys));
         let key_up = viewer
             .scene()
             .borrow_mut()
             .canvas_handler()
             .key_up()
-            .borrow_mut()
-            .register(ControllerKeyUp(pressed_keys));
+            .on(ControllerKeyUp(pressed_keys));
         let mouse_move = viewer
             .scene()
             .borrow_mut()
             .canvas_handler()
             .mouse_move()
-            .borrow_mut()
-            .register(ControllerMouseMove(
+            .on(ControllerMouseMove(
                 Rc::clone(&self.inner),
                 previous_mouse_event,
             ));
@@ -703,13 +711,12 @@ impl Controller for UniversalCamera {
             .borrow_mut()
             .canvas_handler()
             .wheel()
-            .borrow_mut()
-            .register(ControllerWheel(Rc::clone(&self.inner)));
+            .on(ControllerWheel(Rc::clone(&self.inner)));
         let pre_render = viewer
             .renderer()
             .borrow_mut()
             .pre_render()
-            .register(ControllerPreRender(
+            .on(ControllerPreRender(
                 Rc::clone(&self.inner),
                 pressed_keys,
                 previous_timestamp,
@@ -734,12 +741,12 @@ impl Controller for UniversalCamera {
             return;
         };
 
-        control.canvas_resize.unregister();
-        control.key_down.unregister();
-        control.key_up.unregister();
-        control.mouse_move.unregister();
-        control.wheel.unregister();
-        control.pre_render.unregister();
+        control.canvas_resize.off();
+        control.key_down.off();
+        control.key_up.off();
+        control.mouse_move.off();
+        control.wheel.off();
+        control.pre_render.off();
         unsafe {
             drop(Box::from_raw(control.pressed_keys));
             drop(Box::from_raw(control.previous_mouse_event));

@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use js_sys::Promise;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -9,14 +7,13 @@ use web_sys::{
 };
 
 use crate::{
+    channel::{channel, Receiver, Sender},
     error::Error,
-    notify::Notifier,
     renderer::webgl::texture::{
         Builder, SamplerParameter, Texture, Texture2D, TextureCompressedData,
         TextureCompressedFormat, TextureData, TextureInternalFormat, TextureParameter,
         TextureSource,
     },
-    share::Share,
     window,
 };
 
@@ -436,7 +433,7 @@ impl DirectDrawSurface {
 pub struct DirectDrawSurfaceLoader {
     url: String,
     status: *mut LoaderStatus,
-    notifier: Share<Notifier<LoaderStatus>>,
+    channel: (Sender<LoaderStatus>, Receiver<LoaderStatus>),
     dds: *mut Option<DirectDrawSurface>,
     error: *mut Option<Error>,
 
@@ -473,7 +470,7 @@ impl DirectDrawSurfaceLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Rc::new(RefCell::new(Notifier::new())),
+            channel: channel(),
             dds: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
 
@@ -506,7 +503,7 @@ impl DirectDrawSurfaceLoader {
         Self {
             url: url.into(),
             status: Box::leak(Box::new(LoaderStatus::Unload)),
-            notifier: Rc::new(RefCell::new(Notifier::new())),
+            channel: channel(),
             dds: Box::leak(Box::new(None)),
             error: Box::leak(Box::new(None)),
 
@@ -549,7 +546,7 @@ impl DirectDrawSurfaceLoader {
             let dds = self.dds;
             let error = self.error;
 
-            let notifier = Rc::downgrade(&self.notifier);
+            let sender = self.channel.0.clone();
             *self.promise_resolve = Some(Closure::new(move |array_buffer: JsValue| {
                 match DirectDrawSurface::from_array_buffer(
                     array_buffer.dyn_into::<ArrayBuffer>().unwrap(),
@@ -557,30 +554,21 @@ impl DirectDrawSurfaceLoader {
                     Ok(parsed) => {
                         (*status) = LoaderStatus::Loaded;
                         (*dds) = Some(parsed);
-
-                        if let Some(notifier) = notifier.upgrade() {
-                            notifier.borrow_mut().notify(&*status);
-                        }
+                        sender.send(&*status);
                     }
                     Err(err) => {
                         (*status) = LoaderStatus::Errored;
                         (*error) = Some(err);
-
-                        if let Some(notifier) = notifier.upgrade() {
-                            notifier.borrow_mut().notify(&*status);
-                        }
+                        sender.send(&*status);
                     }
                 }
             }));
 
-            let notifier = Rc::downgrade(&self.notifier);
+            let sender = self.channel.0.clone();
             *self.promise_reject = Some(Closure::new(move |err: JsValue| {
                 (*status) = LoaderStatus::Errored;
                 (*error) = Some(Error::JsError(err.dyn_into::<js_sys::Error>().unwrap()));
-
-                if let Some(notifier) = notifier.upgrade() {
-                    notifier.borrow_mut().notify(&*status);
-                }
+                sender.send(&*status);
             }));
 
             (*self.status) = LoaderStatus::Loading;
@@ -668,7 +656,7 @@ impl Loader<Texture<Texture2D>> for DirectDrawSurfaceLoader {
         }
     }
 
-    fn notifier(&self) -> &Share<Notifier<LoaderStatus>> {
-        &self.notifier
+    fn success(&self) -> Receiver<LoaderStatus> {
+        self.channel.1.clone()
     }
 }

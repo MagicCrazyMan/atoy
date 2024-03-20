@@ -1,4 +1,4 @@
-use crate::{notify::Notifier, share::Share};
+use crate::channel::Receiver;
 
 pub mod dds;
 pub mod texture;
@@ -37,6 +37,5 @@ pub trait Loader<Success> {
     /// This method should only be called when loader status is [`LoaderStatus::Loaded`] already.
     fn loaded(&self) -> Result<Success, Self::Failure>;
 
-    /// A [`Notifier`] notifying loader status.
-    fn notifier(&self) -> &Share<Notifier<LoaderStatus>>;
+    fn success(&self) -> Receiver<LoaderStatus>;
 }
