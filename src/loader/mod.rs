@@ -1,4 +1,4 @@
-use crate::channel::Receiver;
+use crate::message::Receiver;
 
 pub mod dds;
 pub mod texture;

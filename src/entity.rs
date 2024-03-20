@@ -7,8 +7,9 @@ use uuid::Uuid;
 use crate::{
     bounding::{merge_bounding_volumes, CullingBoundingVolume},
     clock::Tick,
-    geometry::Geometry,
-    material::webgl::StandardMaterial,
+    geometry::{Geometry, GeometryMessage},
+    material::webgl::{MaterialMessage, StandardMaterial},
+    message::{channel, Aborter, Executor, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         uniform::{UniformBlockValue, UniformValue},
@@ -16,6 +17,15 @@ use crate::{
     share::Share,
     value::Readonly,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EntityMessage {
+    Changed,
+    GeometryChanged,
+    MaterialChanged,
+    ModelMatrixChanged,
+    BoundingVolumeChanged,
+}
 
 pub trait Entity {
     fn id(&self) -> &Uuid;
@@ -40,17 +50,32 @@ pub trait Entity {
 
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue<'_>>;
 
-    fn tick(&mut self, tick: &Tick) -> bool;
+    fn tick(&mut self, tick: &Tick);
+
+    fn changed(&self) -> Receiver<EntityMessage>;
 
     fn should_update(&self) -> bool;
 
-    fn mark_update(&mut self);
+    // fn mark_update(&mut self);
 
-    fn update(&mut self, group: &dyn Group) -> bool;
+    fn update(&mut self, group: &dyn Group);
 
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GroupMessage {
+    Changed,
+    ModelMatrixChanged,
+    BoundingVolumeChanged,
+    EntityChanged,
+    SubGroupChanged,
+    AddEntity,
+    RemoveEntity,
+    AddSubGroup,
+    RemoveSubGroup,
 }
 
 pub trait Group {
@@ -82,13 +107,15 @@ pub trait Group {
         HierarchyGroupsIter::new(self)
     }
 
-    fn tick(&mut self, tick: &Tick) -> bool;
+    fn tick(&mut self, tick: &Tick);
+
+    fn changed(&self) -> Receiver<GroupMessage>;
 
     fn should_update(&self) -> bool;
 
-    fn mark_update(&mut self);
+    // fn mark_update(&mut self);
 
-    fn update(&mut self, parent: Option<&dyn Group>) -> bool;
+    fn update(&mut self, parent: Option<&dyn Group>);
 
     fn as_any(&self) -> &dyn Any;
 
@@ -163,13 +190,17 @@ pub struct SimpleEntity {
     compose_model_matrix: Mat4,
     compose_normal_matrix: Mat4,
 
-    geometry: Option<Box<dyn Geometry>>,
-    material: Option<Box<dyn StandardMaterial>>,
+    geometry: Option<(Box<dyn Geometry>, Aborter<GeometryMessage>)>,
+    material: Option<(Box<dyn StandardMaterial>, Aborter<MaterialMessage>)>,
 
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
 
-    should_update: bool,
+    channel: (Sender<EntityMessage>, Receiver<EntityMessage>),
+
+    should_update: Rc<RefCell<bool>>,
+    should_recalculate_matrices: Rc<RefCell<bool>>,
+    should_recalculate_bounding: Rc<RefCell<bool>>,
 }
 
 impl SimpleEntity {
@@ -184,7 +215,10 @@ impl SimpleEntity {
             material: None,
             enable_bounding: true,
             bounding_volume: None,
-            should_update: true,
+            channel: channel(),
+            should_update: Rc::new(RefCell::new(true)),
+            should_recalculate_matrices: Rc::new(RefCell::new(true)),
+            should_recalculate_bounding: Rc::new(RefCell::new(true)),
         }
     }
 
@@ -194,23 +228,105 @@ impl SimpleEntity {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.mark_update();
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_matrices.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
+        self.channel.0.send(EntityMessage::ModelMatrixChanged);
+        self.channel.0.send(EntityMessage::Changed);
     }
 
-    pub fn set_geometry<G>(&mut self, geometry: Option<G>)
+    pub fn set_geometry<G>(&mut self, geometry: Option<G>) -> Option<Box<dyn Geometry>>
     where
         G: Geometry + 'static,
     {
-        self.geometry = geometry.map(|geometry| Box::new(geometry) as Box<dyn Geometry>);
-        self.mark_update();
+        let old_geometry = match self.geometry.take() {
+            Some((geometry, aborter)) => {
+                aborter.off();
+                Some(geometry)
+            }
+            None => None,
+        };
+
+        self.geometry = geometry.map(|geometry| {
+            struct GeometryChanged {
+                sender: Sender<EntityMessage>,
+                should_update: Rc<RefCell<bool>>,
+                should_recalculate_bounding: Rc<RefCell<bool>>,
+            }
+
+            impl Executor for GeometryChanged {
+                type Message = GeometryMessage;
+
+                fn execute(&mut self, msg: &Self::Message) {
+                    *self.should_update.borrow_mut() = true;
+                    self.sender.send(EntityMessage::GeometryChanged);
+
+                    if *msg == GeometryMessage::BoundingVolumeChanged {
+                        *self.should_recalculate_bounding.borrow_mut() = true;
+                        self.sender.send(EntityMessage::BoundingVolumeChanged);
+                    }
+
+                    self.sender.send(EntityMessage::Changed);
+                }
+            }
+
+            let aborter = geometry.changed().on(GeometryChanged {
+                sender: self.channel.0.clone(),
+                should_update: Rc::clone(&self.should_update),
+                should_recalculate_bounding: Rc::clone(&self.should_recalculate_bounding),
+            });
+            let geometry = Box::new(geometry) as Box<dyn Geometry>;
+            (geometry, aborter)
+        });
+
+        *self.should_update.borrow_mut() = true;
+        self.channel.0.send(EntityMessage::GeometryChanged);
+        self.channel.0.send(EntityMessage::Changed);
+
+        old_geometry
     }
 
-    pub fn set_material<M>(&mut self, material: Option<M>)
+    pub fn set_material<M>(&mut self, material: Option<M>) -> Option<Box<dyn StandardMaterial>>
     where
         M: StandardMaterial + 'static,
     {
-        self.material = material.map(|material| Box::new(material) as Box<dyn StandardMaterial>);
-        self.mark_update();
+        let old_material = match self.material.take() {
+            Some((material, aborter)) => {
+                aborter.off();
+                Some(material)
+            }
+            None => None,
+        };
+
+        self.material = material.map(|material| {
+            struct MaterialChanged {
+                sender: Sender<EntityMessage>,
+                should_update: Rc<RefCell<bool>>,
+            }
+
+            impl Executor for MaterialChanged {
+                type Message = MaterialMessage;
+
+                fn execute(&mut self, _: &Self::Message) {
+                    *self.should_update.borrow_mut() = true;
+                    self.sender.send(EntityMessage::MaterialChanged);
+                    self.sender.send(EntityMessage::Changed);
+                }
+            }
+
+            let aborter = material.changed().on(MaterialChanged {
+                sender: self.channel.0.clone(),
+                should_update: Rc::clone(&self.should_update),
+            });
+            let material = Box::new(material) as Box<dyn StandardMaterial>;
+            (material, aborter)
+        });
+
+        *self.should_update.borrow_mut() = true;
+        self.channel.0.send(EntityMessage::MaterialChanged);
+        self.channel.0.send(EntityMessage::Changed);
+
+        old_material
     }
 
     pub fn bounding_enabled(&self) -> bool {
@@ -220,13 +336,15 @@ impl SimpleEntity {
     pub fn enable_bounding(&mut self) {
         self.enable_bounding = true;
         self.bounding_volume = None;
-        self.mark_update();
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
     }
 
     pub fn disable_bounding(&mut self) {
         self.enable_bounding = false;
         self.bounding_volume = None;
-        self.mark_update();
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
     }
 
     fn update_matrices(&mut self, group: &dyn Group) {
@@ -240,11 +358,6 @@ impl SimpleEntity {
     }
 
     fn update_bounding_volume(&mut self) {
-        if !self.enable_bounding {
-            self.bounding_volume = None;
-            return;
-        }
-
         let compose_model_matrix = self.compose_model_matrix;
         self.bounding_volume =
             self.geometry()
@@ -275,23 +388,27 @@ impl Entity for SimpleEntity {
     }
 
     fn geometry(&self) -> Option<&dyn Geometry> {
-        self.geometry.as_deref()
+        self.geometry
+            .as_ref()
+            .map(|(geometry, _)| geometry.as_ref())
     }
 
     fn geometry_mut(&mut self) -> Option<&mut dyn Geometry> {
         match self.geometry.as_mut() {
-            Some(geometry) => Some(&mut **geometry),
+            Some((geometry, _)) => Some(geometry.as_mut()),
             None => None,
         }
     }
 
     fn material(&self) -> Option<&dyn StandardMaterial> {
-        self.material.as_deref()
+        self.material
+            .as_ref()
+            .map(|(material, _)| material.as_ref())
     }
 
     fn material_mut(&mut self) -> Option<&mut dyn StandardMaterial> {
         match self.material.as_mut() {
-            Some(material) => Some(&mut **material),
+            Some((material, _)) => Some(material.as_mut()),
             None => None,
         }
     }
@@ -308,43 +425,57 @@ impl Entity for SimpleEntity {
         None
     }
 
-    fn tick(&mut self, tick: &Tick) -> bool {
-        let mut mutated = false;
-
-        if let Some(geometry) = self.geometry.as_mut() {
-            mutated = geometry.tick(tick) || mutated;
+    fn tick(&mut self, tick: &Tick) {
+        if let Some((geometry, _)) = self.geometry.as_mut() {
+            geometry.tick(tick);
         }
-        if let Some(material) = self.material.as_mut() {
-            mutated = material.tick(tick) || mutated;
+        if let Some((material, _)) = self.material.as_mut() {
+            material.tick(tick);
         }
+    }
 
-        if mutated {
-            self.mark_update();
-        }
-
-        mutated
+    fn changed(&self) -> Receiver<EntityMessage> {
+        self.channel.1.clone()
     }
 
     fn should_update(&self) -> bool {
-        self.should_update
+        *self.should_update.borrow()
     }
 
-    fn mark_update(&mut self) {
-        self.should_update = true;
-    }
+    // fn mark_update(&mut self) {
+    //     *self.should_update_matrices.borrow_mut() = true;
+    // }
 
-    fn update(&mut self, group: &dyn Group) -> bool {
-        let should_update = self.should_update
-            || group.compose_model_matrix().as_ref() != &self.parent_compose_model_matrix;
+    fn update(&mut self, group: &dyn Group) {
+        let should_update = *self.should_update.borrow();
+        let should_recalculate_matrices = *self.should_recalculate_matrices.borrow();
+        let should_recalculate_bounding = *self.should_recalculate_bounding.borrow();
+        let enable_bounding = self.enable_bounding;
 
         if should_update {
-            self.update_matrices(group);
-            self.update_bounding_volume();
+            if should_recalculate_matrices {
+                self.update_matrices(group);
+                *self.should_recalculate_matrices.borrow_mut() = false;
+            }
 
-            self.should_update = false;
-            true
-        } else {
-            false
+            match (enable_bounding, should_recalculate_bounding) {
+                (true, true) => {
+                    self.update_bounding_volume();
+                    *self.should_recalculate_bounding.borrow_mut() = false;
+                }
+                (true, false) => {
+                    // do nothing
+                }
+                (false, true) => {
+                    self.bounding_volume = None;
+                    *self.should_recalculate_bounding.borrow_mut() = false;
+                }
+                (false, false) => {
+                    // do nothing
+                }
+            }
+
+            *self.should_update.borrow_mut() = false;
         }
     }
 
@@ -364,13 +495,17 @@ pub struct SimpleGroup {
     parent_compose_model_matrix: Mat4,
     compose_model_matrix: Mat4,
 
-    entities: IndexMap<Uuid, Share<dyn Entity>>,
-    sub_groups: IndexMap<Uuid, Share<dyn Group>>,
+    entities: IndexMap<Uuid, (Share<dyn Entity>, Aborter<EntityMessage>)>,
+    sub_groups: IndexMap<Uuid, (Share<dyn Group>, Aborter<GroupMessage>)>,
 
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
 
-    should_update: bool,
+    channel: (Sender<GroupMessage>, Receiver<GroupMessage>),
+
+    should_update: Rc<RefCell<bool>>,
+    should_recalculate_matrices: Rc<RefCell<bool>>,
+    should_recalculate_bounding: Rc<RefCell<bool>>,
 }
 
 impl SimpleGroup {
@@ -384,7 +519,10 @@ impl SimpleGroup {
             sub_groups: IndexMap::new(),
             enable_bounding: true,
             bounding_volume: None,
-            should_update: true,
+            channel: channel(),
+            should_update: Rc::new(RefCell::new(true)),
+            should_recalculate_matrices: Rc::new(RefCell::new(true)),
+            should_recalculate_bounding: Rc::new(RefCell::new(true)),
         }
     }
 
@@ -394,7 +532,11 @@ impl SimpleGroup {
 
     pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
         self.model_matrix = model_matrix;
-        self.mark_update();
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_matrices.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
+        self.channel.0.send(GroupMessage::ModelMatrixChanged);
+        self.channel.0.send(GroupMessage::Changed);
     }
 
     pub fn add_entity<E>(&mut self, entity: E)
@@ -405,14 +547,57 @@ impl SimpleGroup {
     }
 
     pub fn add_entity_shared(&mut self, entity: Share<dyn Entity>) {
-        self.mark_update();
-        let id = entity.borrow().id().clone();
-        self.entities.insert(id, entity);
+        struct EntityChanged {
+            sender: Sender<GroupMessage>,
+            should_update: Rc<RefCell<bool>>,
+            should_recalculate_bounding: Rc<RefCell<bool>>,
+        }
+
+        impl Executor for EntityChanged {
+            type Message = EntityMessage;
+
+            fn execute(&mut self, msg: &Self::Message) {
+                *self.should_update.borrow_mut() = true;
+                self.sender.send(GroupMessage::EntityChanged);
+
+                if *msg == EntityMessage::BoundingVolumeChanged {
+                    *self.should_recalculate_bounding.borrow_mut() = true;
+                    self.sender.send(GroupMessage::BoundingVolumeChanged);
+                }
+
+                self.sender.send(GroupMessage::Changed);
+            }
+        }
+
+        let entity_ref = entity.borrow();
+        let aborter = entity_ref.changed().on(EntityChanged {
+            sender: self.channel.0.clone(),
+            should_update: Rc::clone(&self.should_update),
+            should_recalculate_bounding: Rc::clone(&self.should_recalculate_bounding),
+        });
+        let id = *entity_ref.id();
+        drop(entity_ref);
+
+        self.entities.insert(id, (entity, aborter));
+
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
+        self.channel.0.send(GroupMessage::AddEntity);
+        self.channel.0.send(GroupMessage::Changed);
     }
 
     pub fn remove_entity(&mut self, id: &Uuid) -> Option<Share<dyn Entity>> {
-        self.mark_update();
-        self.entities.swap_remove(id)
+        match self.entities.swap_remove(id) {
+            Some((entity, aborter)) => {
+                aborter.off();
+                *self.should_update.borrow_mut() = true;
+                *self.should_recalculate_bounding.borrow_mut() = true;
+                self.channel.0.send(GroupMessage::RemoveEntity);
+                self.channel.0.send(GroupMessage::Changed);
+                Some(entity)
+            }
+            None => None,
+        }
     }
 
     pub fn add_sub_group<G>(&mut self, group: G)
@@ -423,14 +608,57 @@ impl SimpleGroup {
     }
 
     pub fn add_sub_group_shared(&mut self, group: Share<dyn Group>) {
-        self.mark_update();
-        let id = group.borrow().id().clone();
-        self.sub_groups.insert(id, group);
+        struct SubGroupChanged {
+            sender: Sender<GroupMessage>,
+            should_update: Rc<RefCell<bool>>,
+            should_recalculate_bounding: Rc<RefCell<bool>>,
+        }
+
+        impl Executor for SubGroupChanged {
+            type Message = GroupMessage;
+
+            fn execute(&mut self, msg: &Self::Message) {
+                *self.should_update.borrow_mut() = true;
+                self.sender.send(GroupMessage::SubGroupChanged);
+
+                if *msg == GroupMessage::BoundingVolumeChanged {
+                    *self.should_recalculate_bounding.borrow_mut() = true;
+                    self.sender.send(GroupMessage::BoundingVolumeChanged);
+                }
+
+                self.sender.send(GroupMessage::Changed);
+            }
+        }
+
+        let group_ref = group.borrow_mut();
+        let aborter = group_ref.changed().on(SubGroupChanged {
+            sender: self.channel.0.clone(),
+            should_update: Rc::clone(&self.should_update),
+            should_recalculate_bounding: Rc::clone(&self.should_recalculate_bounding),
+        });
+        let id = *group_ref.id();
+        drop(group_ref);
+
+        self.sub_groups.insert(id, (group, aborter));
+
+        *self.should_update.borrow_mut() = true;
+        *self.should_recalculate_bounding.borrow_mut() = true;
+        self.channel.0.send(GroupMessage::AddSubGroup);
+        self.channel.0.send(GroupMessage::Changed);
     }
 
     pub fn remove_sub_group(&mut self, id: &Uuid) -> Option<Share<dyn Group>> {
-        self.mark_update();
-        self.sub_groups.swap_remove(id)
+        match self.sub_groups.swap_remove(id) {
+            Some((sub_group, aborter)) => {
+                aborter.off();
+                *self.should_update.borrow_mut() = true;
+                *self.should_recalculate_bounding.borrow_mut() = true;
+                self.channel.0.send(GroupMessage::RemoveSubGroup);
+                self.channel.0.send(GroupMessage::Changed);
+                Some(sub_group)
+            }
+            None => None,
+        }
     }
 
     fn update_matrices(&mut self, parent: Option<&dyn Group>) {
@@ -463,18 +691,14 @@ impl SimpleGroup {
             .map(|bounding| CullingBoundingVolume::new(bounding));
     }
 
-    fn update_children(&mut self) -> bool {
-        let mut mutated = false;
-
+    fn update_children(&mut self) {
         for entity in self.entities() {
-            mutated = entity.borrow_mut().update(self) || mutated;
+            entity.borrow_mut().update(self);
         }
 
         for sub_group in self.sub_groups() {
-            mutated = sub_group.borrow_mut().update(Some(self)) || mutated;
+            sub_group.borrow_mut().update(Some(self));
         }
-
-        mutated
     }
 }
 
@@ -494,92 +718,77 @@ impl Group for SimpleGroup {
     }
 
     fn entity(&self, id: &Uuid) -> Option<Share<dyn Entity>> {
-        self.entities.get(id).map(|entity| Rc::clone(entity))
+        self.entities.get(id).map(|(entity, _)| Rc::clone(entity))
     }
 
     fn entities(&self) -> Box<dyn Iterator<Item = Share<dyn Entity>> + '_> {
-        Box::new(self.entities.values().map(|entity| Rc::clone(entity)))
+        Box::new(self.entities.values().map(|(entity, _)| Rc::clone(entity)))
     }
 
     fn sub_group(&self, id: &Uuid) -> Option<Share<dyn Group>> {
         self.sub_groups
             .get(id)
-            .map(|sub_group| Rc::clone(sub_group))
+            .map(|(sub_group, _)| Rc::clone(sub_group))
     }
 
     fn sub_groups(&self) -> Box<dyn Iterator<Item = Share<dyn Group>> + '_> {
         Box::new(
             self.sub_groups
                 .values()
-                .map(|sub_group| Rc::clone(sub_group)),
+                .map(|(sub_group, _)| Rc::clone(sub_group)),
         )
     }
 
-    fn tick(&mut self, tick: &Tick) -> bool {
-        let mut mutated = false;
-
-        for (_, entity) in &mut self.entities {
-            mutated = entity.borrow_mut().tick(tick) || mutated;
+    fn tick(&mut self, tick: &Tick) {
+        for (_, (entity, _)) in &mut self.entities {
+            entity.borrow_mut().tick(tick);
         }
 
-        for (_, sub_group) in &mut self.sub_groups {
-            mutated = sub_group.borrow_mut().tick(tick) || mutated;
+        for (_, (sub_group, _)) in &mut self.sub_groups {
+            sub_group.borrow_mut().tick(tick);
         }
+    }
 
-        mutated
+    fn changed(&self) -> Receiver<GroupMessage> {
+        self.channel.1.clone()
     }
 
     fn should_update(&self) -> bool {
-        if self.should_update {
-            return true;
-        }
-
-        if self
-            .entities
-            .values()
-            .any(|entity| entity.borrow().should_update())
-        {
-            return true;
-        }
-
-        if self
-            .sub_groups
-            .values()
-            .any(|sub_group| sub_group.borrow().should_update())
-        {
-            return true;
-        }
-
-        false
+        *self.should_update.borrow()
     }
 
-    fn mark_update(&mut self) {
-        self.should_update = true;
-    }
+    // fn mark_update(&mut self) {
+    //     self.should_update = true;
+    // }
 
-    fn update(&mut self, parent: Option<&dyn Group>) -> bool {
-        let should_update = self.should_update
-            || parent
-                .map(|parent| parent.compose_model_matrix())
-                .map(|parent_compose_model_matrix| {
-                    parent_compose_model_matrix.as_ref() != &self.parent_compose_model_matrix
-                })
-                .unwrap_or(false);
+    fn update(&mut self, parent: Option<&dyn Group>) {
+        let should_update = *self.should_update.borrow();
+        let should_recalculate_matrices = *self.should_recalculate_matrices.borrow();
+        let should_recalculate_bounding = *self.should_recalculate_bounding.borrow();
+        let enable_bounding = self.enable_bounding;
 
         if should_update {
-            self.update_matrices(parent);
-
-            if self.enable_bounding {
-                self.update_children_and_bounding_volume();
-            } else {
-                self.update_children();
-                self.bounding_volume = None;
+            if should_recalculate_matrices {
+                self.update_matrices(parent);
+                *self.should_recalculate_matrices.borrow_mut() = false;
             }
 
-            self.should_update = false;
-            true
-        } else {
-            self.update_children()
+            match (enable_bounding, should_recalculate_bounding) {
+                (true, true) => {
+                    self.update_children_and_bounding_volume();
+                    *self.should_recalculate_bounding.borrow_mut() = false;
+                }
+                (true, false) => self.update_children(),
+                (false, true) => {
+                    self.update_children();
+                    self.bounding_volume = None;
+                }
+                (false, false) => {
+                    // do nothing
+                }
+            };
+
+            *self.should_update.borrow_mut() = false;
         }
     }
 

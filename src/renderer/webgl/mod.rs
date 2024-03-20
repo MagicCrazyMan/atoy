@@ -5,7 +5,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
     camera::Camera,
-    channel::{channel, Receiver, Sender},
+    message::{channel, Receiver, Sender},
     pipeline::Pipeline,
     scene::Scene,
 };
@@ -241,13 +241,11 @@ impl Renderer for WebGL2Renderer {
             &mut self.capabilities,
         );
 
-        self.pre_render_channel
-            .0
-            .send(&mut RenderEvent::new(&mut state));
+        self.pre_render_channel.0.send(RenderEvent::new(&mut state));
         pipeline.execute(&mut state, scene)?;
         self.post_render_channel
             .0
-            .send(&mut RenderEvent::new(&mut state));
+            .send(RenderEvent::new(&mut state));
 
         Ok(())
     }

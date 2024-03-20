@@ -42,7 +42,7 @@ pub struct StandardEntitiesCollector {
     enable_distance_sorting: bool,
 
     last_view_frustum: Option<ViewFrustum>,
-    last_scene_id: Option<Uuid>,
+    last_entities_group_id: Option<Uuid>,
     last_entities: Vec<WeakShare<dyn Entity>>,
     last_opaque_entities: Vec<WeakShare<dyn Entity>>,
     last_transparent_entities: Vec<WeakShare<dyn Entity>>,
@@ -57,7 +57,7 @@ impl StandardEntitiesCollector {
             enable_distance_sorting: true,
 
             last_view_frustum: None,
-            last_scene_id: None,
+            last_entities_group_id: None,
             last_entities: Vec::new(),
             last_opaque_entities: Vec::new(),
             last_transparent_entities: Vec::new(),
@@ -68,7 +68,7 @@ impl StandardEntitiesCollector {
     /// Clears previous collected result.
     pub fn clear(&mut self) {
         self.last_view_frustum = None;
-        self.last_scene_id = None;
+        self.last_entities_group_id = None;
         self.last_entities.clear();
         self.last_opaque_entities.clear();
         self.last_transparent_entities.clear();
@@ -139,13 +139,14 @@ impl StandardEntitiesCollector {
             distance: f64,
         }
 
+        let mut group = scene.entities().borrow_mut();
         let view_frustum = state.camera().view_frustum();
 
-        let should_recollect = scene.entities().borrow_mut().update(None)
+        let should_recollect = group.should_update()
             || self
-                .last_scene_id
+                .last_entities_group_id
                 .as_ref()
-                .map(|last_scene_id| last_scene_id != scene.entities().borrow().id())
+                .map(|last_entities_group_id| last_entities_group_id != group.id())
                 .unwrap_or(true)
             || self
                 .last_view_frustum
@@ -163,13 +164,14 @@ impl StandardEntitiesCollector {
 
         self.clear();
 
+        group.update(None);
         let view_position = state.camera().position();
         let culling = self.culling_enabled();
         let distance_sorting = self.distance_sorting_enabled();
         let mut entities = Vec::new();
 
         if culling {
-            for entity in scene.entities().borrow().entities() {
+            for entity in group.entities() {
                 let distance = match entity.borrow().bounding_volume() {
                     Some(entity_bounding) => match entity_bounding.cull(&view_frustum) {
                         Culling::Outside => continue,
@@ -191,7 +193,7 @@ impl StandardEntitiesCollector {
                 });
             }
 
-            for group in scene.entities().borrow().sub_groups_hierarchy() {
+            for group in group.sub_groups_hierarchy() {
                 // culling group bounding
                 if let Some(group_bounding) = group.borrow().bounding_volume() {
                     if let Culling::Outside = group_bounding.cull(&view_frustum) {
@@ -222,7 +224,7 @@ impl StandardEntitiesCollector {
                 }
             }
         } else {
-            for entity in scene.entities().borrow().entities_hierarchy() {
+            for entity in group.entities_hierarchy() {
                 let transparency = entity
                     .borrow()
                     .material()
@@ -262,7 +264,6 @@ impl StandardEntitiesCollector {
                 if let Some(material) = entity.material_mut() {
                     if !material.ready() {
                         material.prepare(state);
-                        entity.mark_update();
                         continue;
                     }
                 }
@@ -281,7 +282,7 @@ impl StandardEntitiesCollector {
             }
         }
 
-        self.last_scene_id = Some(scene.entities().borrow().id().clone());
+        self.last_entities_group_id = Some(*group.id());
         self.last_view_frustum = Some(view_frustum);
 
         CollectedEntities {

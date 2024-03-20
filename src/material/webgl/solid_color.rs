@@ -4,6 +4,7 @@ use gl_matrix4rust::{vec3::Vec3, GLF32};
 
 use crate::{
     clock::Tick,
+    message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
@@ -12,7 +13,7 @@ use crate::{
     },
 };
 
-use super::{StandardMaterial, Transparency};
+use super::{MaterialMessage, StandardMaterial, Transparency};
 
 /// A Phong Shading based solid color material,
 /// with ambient, diffuse and specular light colors all to be the same one.
@@ -20,6 +21,7 @@ pub struct SolidColorMaterial {
     color: Vec3<f32>,
     specular_shininess: f32,
     transparency: Transparency,
+    channel: (Sender<MaterialMessage>, Receiver<MaterialMessage>),
 }
 
 impl SolidColorMaterial {
@@ -38,6 +40,7 @@ impl SolidColorMaterial {
             color,
             specular_shininess,
             transparency,
+            channel: channel(),
         }
     }
 
@@ -50,6 +53,7 @@ impl SolidColorMaterial {
     pub fn set_color(&mut self, color: Vec3<f32>, transparency: Transparency) {
         self.color = color;
         self.transparency = transparency;
+        self.channel.0.send(MaterialMessage::Changed);
     }
 }
 
@@ -76,8 +80,10 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn prepare(&mut self, _: &mut FrameState) {}
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<MaterialMessage> {
+        self.channel.1.clone()
     }
 
     fn transparency(&self) -> Transparency {

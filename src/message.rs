@@ -77,12 +77,12 @@ impl<T> Clone for Sender<T> {
 
 impl<T> Sender<T> {
     /// Sends a new message to channel.
-    pub fn send(&self, msg: &T) {
+    pub fn send(&self, msg: T) {
         let mut executors = self.executors.borrow_mut();
         let mut aborts = self.aborts.borrow_mut();
 
         for (id, executor) in executors.iter_mut() {
-            executor.execute(msg);
+            executor.execute(&msg);
             if executor.abort() {
                 aborts.push(*id);
             }

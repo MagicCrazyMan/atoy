@@ -4,7 +4,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Performance, Window};
 
 use crate::{
-    channel::{channel, Receiver, Sender},
+    message::{channel, Receiver, Sender},
     window,
 };
 
@@ -126,7 +126,7 @@ impl Clock for HtmlClock {
         let sender = self.channel.0.clone();
         let handler = Some(Closure::new(move || {
             let current_time = performance.now();
-            sender.send(&Tick {
+            sender.send(Tick {
                 start_time,
                 previous_time: previous_time.borrow().clone(),
                 current_time,

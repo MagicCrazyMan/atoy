@@ -6,6 +6,7 @@ use web_sys::js_sys::Float32Array;
 use crate::{
     bounding::BoundingVolume,
     clock::Tick,
+    message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{self, Buffer, BufferComponentSize, BufferDataType, BufferUsage},
@@ -15,7 +16,7 @@ use crate::{
     value::Readonly,
 };
 
-use super::Geometry;
+use super::{Geometry, GeometryMessage};
 
 pub struct Sphere {
     radius: f64,
@@ -25,6 +26,7 @@ pub struct Sphere {
     positions: Buffer,
     normals: Buffer,
     bounding_volume: BoundingVolume,
+    channel: (Sender<GeometryMessage>, Receiver<GeometryMessage>),
 }
 
 impl Sphere {
@@ -55,6 +57,7 @@ impl Sphere {
                 center: Vec3::<f64>::new(0.0, 0.0, 0.0),
                 radius,
             },
+            channel: channel(),
         }
     }
 }
@@ -76,6 +79,9 @@ impl Sphere {
             center: Vec3::<f64>::new(0.0, 0.0, 0.0),
             radius,
         };
+
+        self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
+        self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
@@ -142,8 +148,10 @@ impl Geometry for Sphere {
         None
     }
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<GeometryMessage> {
+        self.channel.1.clone()
     }
 
     fn as_any(&self) -> &dyn Any {

@@ -5,6 +5,7 @@ use std::{any::Any, borrow::Cow};
 
 use crate::{
     clock::Tick,
+    message::Receiver,
     renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
@@ -26,7 +27,9 @@ pub trait StandardMaterial {
     /// Prepares material.
     fn prepare(&mut self, state: &mut FrameState);
 
-    fn tick(&mut self, tick: &Tick) -> bool;
+    fn tick(&mut self, tick: &Tick);
+
+    fn changed(&self) -> Receiver<MaterialMessage>;
 
     /// Returns transparency of this material.
     fn transparency(&self) -> Transparency;
@@ -109,4 +112,9 @@ pub trait StandardMaterial {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MaterialMessage {
+    Changed,
 }

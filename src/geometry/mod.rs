@@ -8,6 +8,7 @@ use std::any::Any;
 use crate::{
     bounding::BoundingVolume,
     clock::Tick,
+    message::Receiver,
     renderer::webgl::{
         attribute::AttributeValue,
         draw::{CullFace, Draw},
@@ -39,9 +40,17 @@ pub trait Geometry {
 
     fn uniform_block_value(&self, name: &str) -> Option<UniformBlockValue<'_>>;
 
-    fn tick(&mut self, tick: &Tick) -> bool;
+    fn tick(&mut self, tick: &Tick);
+
+    fn changed(&self) -> Receiver<GeometryMessage>;
 
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GeometryMessage {
+    Changed,
+    BoundingVolumeChanged,
 }

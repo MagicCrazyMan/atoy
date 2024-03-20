@@ -5,8 +5,8 @@ use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{AddEventListenerOptions, HtmlImageElement};
 
 use crate::{
-    channel::{channel, Receiver, Sender},
     error::{AsJsError, Error},
+    message::{channel, Receiver, Sender},
     renderer::webgl::texture::{
         Builder, SamplerParameter, Texture, Texture2D, TextureData, TextureInternalFormat,
         TextureParameter, TexturePixelStorage, TextureSource, TextureUncompressedData,
@@ -194,7 +194,7 @@ impl TextureLoader {
                     );
                 }
 
-                sender.send(&mut *status);
+                sender.send(*status);
 
                 if let Some(resolve) = &*promise_resolve {
                     resolve.call0(&JsValue::undefined()).unwrap();
@@ -246,7 +246,7 @@ impl TextureLoader {
                     );
                 }
 
-                sender.send(&mut *status);
+                sender.send(*status);
 
                 if let Some(reject) = &*promise_reject {
                     reject.call0(&JsValue::undefined()).unwrap();
@@ -278,7 +278,7 @@ impl TextureLoader {
 
             *self.status = LoaderStatus::Loading;
             *self.image = Some(image);
-            self.channel.0.send(&mut *self.status);
+            self.channel.0.send(*self.status);
         }
 
         Ok(())
@@ -292,7 +292,7 @@ impl TextureLoader {
                 if let Err(err) = self.load_inner(None, None) {
                     *self.status = LoaderStatus::Errored;
                     *self.error = Some(err);
-                    self.channel.0.send(&*self.status);
+                    self.channel.0.send(*self.status);
                 }
             }
         }
@@ -313,7 +313,7 @@ impl TextureLoader {
                 if let Err(err) = self.load_inner(None, None) {
                     *self.status = LoaderStatus::Errored;
                     *self.error = Some(err);
-                    self.channel.0.send(&*self.status);
+                    self.channel.0.send(*self.status);
                     (*promise_reject)
                         .as_ref()
                         .unwrap()

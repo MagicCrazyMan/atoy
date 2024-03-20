@@ -5,6 +5,7 @@ use gl_matrix4rust::vec3::Vec3;
 use crate::{
     bounding::BoundingVolume,
     clock::Tick,
+    message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -17,7 +18,7 @@ use crate::{
     value::{Readonly, Value},
 };
 
-use super::Geometry;
+use super::{Geometry, GeometryMessage};
 
 pub struct Cube {
     size: f64,
@@ -25,6 +26,7 @@ pub struct Cube {
     positions: Value<'static, Buffer>,
     normals_and_textures: Value<'static, Buffer>,
     bounding_volume: BoundingVolume,
+    channel: (Sender<GeometryMessage>, Receiver<GeometryMessage>),
 }
 
 impl Cube {
@@ -52,6 +54,7 @@ impl Cube {
             positions_shared,
             normals_and_textures,
             bounding_volume: build_bounding_volume(size),
+            channel: channel(),
         }
     }
 
@@ -86,6 +89,8 @@ impl Cube {
 
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
+        self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
+        self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
@@ -159,8 +164,10 @@ impl Geometry for Cube {
         None
     }
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<GeometryMessage> {
+        self.channel.1.clone()
     }
 
     fn as_any(&self) -> &dyn Any {

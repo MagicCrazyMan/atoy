@@ -1,9 +1,9 @@
 use std::{any::Any, cell::RefCell, f64::consts::PI, ops::Neg, rc::Rc};
 
 use crate::{
-    channel::{Aborter, Executor},
     controller::Controller,
     frustum::ViewFrustum,
+    message::{Aborter, Executor},
     plane::Plane,
     renderer::webgl::RenderEvent,
     share::Share,

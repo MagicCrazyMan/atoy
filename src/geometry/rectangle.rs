@@ -5,6 +5,7 @@ use gl_matrix4rust::vec2::Vec2;
 use crate::{
     bounding::BoundingVolume,
     clock::Tick,
+    message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -17,7 +18,7 @@ use crate::{
     value::Readonly,
 };
 
-use super::Geometry;
+use super::{Geometry, GeometryMessage};
 
 /// A 2-Dimensions plane on XY space
 pub struct Rectangle {
@@ -29,6 +30,7 @@ pub struct Rectangle {
     texture_scale_t: f64,
     buffer: Buffer,
     bounding: BoundingVolume,
+    channel: (Sender<GeometryMessage>, Receiver<GeometryMessage>),
 }
 
 impl Rectangle {
@@ -69,6 +71,7 @@ impl Rectangle {
             texture_scale_t,
             buffer,
             bounding,
+            channel: channel(),
         }
     }
 
@@ -181,8 +184,10 @@ impl Geometry for Rectangle {
         None
     }
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<GeometryMessage> {
+        self.channel.1.clone()
     }
 
     fn as_any(&self) -> &dyn Any {

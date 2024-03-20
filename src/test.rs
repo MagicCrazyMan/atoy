@@ -23,7 +23,6 @@ use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
-use crate::channel::Executor;
 use crate::clock::{Clock, HtmlClock, Tick};
 use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
@@ -39,8 +38,9 @@ use crate::light::spot_light::SpotLight;
 use crate::loader::dds::{DirectDrawSurface, DirectDrawSurfaceLoader, DDS_DXT1, DDS_DXT3};
 use crate::loader::texture::TextureLoader;
 use crate::material::webgl::texture::TextureMaterial;
-use crate::material::webgl::StandardMaterial;
+use crate::material::webgl::{MaterialMessage, StandardMaterial};
 use crate::material::{self, Transparency};
+use crate::message::{Executor, Receiver};
 use crate::pipeline::webgl::{HdrToneMappingType, StandardPipelineShading};
 use crate::renderer::webgl::attribute::AttributeValue;
 use crate::renderer::webgl::buffer::{
@@ -145,7 +145,7 @@ impl StandardMaterial for TickSolidColorMaterial {
         self.0.prepare(state)
     }
 
-    fn tick(&mut self, tick: &Tick) -> bool {
+    fn tick(&mut self, tick: &Tick) {
         unsafe {
             if RANDOM_COLOR_ON_TICK {
                 self.0.tick(tick);
@@ -153,11 +153,12 @@ impl StandardMaterial for TickSolidColorMaterial {
                     Vec3::new(rand::random(), rand::random(), rand::random()),
                     Transparency::Opaque,
                 );
-                true
-            } else {
-                self.0.tick(tick)
             }
         }
+    }
+
+    fn changed(&self) -> Receiver<MaterialMessage> {
+        self.0.changed()
     }
 
     fn transparency(&self) -> Transparency {
@@ -586,14 +587,10 @@ fn create_viewer(scene: Scene, camera: UniversalCamera, render_callback: &Functi
         .borrow_mut()
         .pre_render()
         .on(PreRender(Rc::clone(&start_timestamp)));
-    viewer
-        .renderer()
-        .borrow_mut()
-        .post_render()
-        .on(PostRender(
-            Rc::clone(&start_timestamp),
-            render_callback.clone(),
-        ));
+    viewer.renderer().borrow_mut().post_render().on(PostRender(
+        Rc::clone(&start_timestamp),
+        render_callback.clone(),
+    ));
 
     viewer
 }
@@ -815,7 +812,6 @@ impl Executor for ViewerPicker {
             {
                 geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
             }
-            entity.mark_update();
             console_log!("pick entity {}", entity.id());
         };
 

@@ -3,6 +3,7 @@ use std::{any::Any, cell::OnceCell};
 use crate::{
     bounding::BoundingVolume,
     clock::Tick,
+    message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{
@@ -15,7 +16,7 @@ use crate::{
     value::{Readonly, Value},
 };
 
-use super::{cube::build_bounding_volume, Geometry};
+use super::{cube::build_bounding_volume, Geometry, GeometryMessage};
 
 pub struct IndexedCube {
     size: f64,
@@ -24,6 +25,7 @@ pub struct IndexedCube {
     normals_and_textures: Value<'static, Buffer>,
 
     bounding_volume: BoundingVolume,
+    channel: (Sender<GeometryMessage>, Receiver<GeometryMessage>),
 }
 
 impl IndexedCube {
@@ -52,6 +54,7 @@ impl IndexedCube {
             positions,
             normals_and_textures,
             bounding_volume: build_bounding_volume(size),
+            channel: channel(),
         }
     }
 }
@@ -78,6 +81,8 @@ impl IndexedCube {
 
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
+        self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
+        self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
@@ -153,8 +158,10 @@ impl Geometry for IndexedCube {
         None
     }
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<GeometryMessage> {
+        self.channel.1.clone()
     }
 
     fn as_any(&self) -> &dyn Any {

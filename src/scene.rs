@@ -7,7 +7,6 @@ use web_sys::{
 };
 
 use crate::{
-    channel::{channel, Aborter, Executor, Receiver, Sender},
     clock::{Clock, HtmlClock, Tick},
     document,
     entity::{Group, SimpleGroup},
@@ -16,6 +15,7 @@ use crate::{
         ambient_light::AmbientLight, area_light::AreaLight, attenuation::Attenuation,
         directional_light::DirectionalLight, point_light::PointLight, spot_light::SpotLight,
     },
+    message::{channel, Aborter, Executor, Receiver, Sender},
     share::Share,
 };
 
@@ -434,7 +434,7 @@ impl CanvasHandler {
             let height = canvas.client_height() as u32;
             canvas.set_width(width);
             canvas.set_height(height);
-            resize_observer_sender_cloned.send(&canvas);
+            resize_observer_sender_cloned.send(canvas);
         });
         let resize_observer =
             ResizeObserver::new(resize_observer_callback.as_ref().unchecked_ref())
@@ -446,7 +446,7 @@ impl CanvasHandler {
                 $(
                     let ($tx, $rx) = channel();
                     let $tx_cloned = $tx.clone();
-                    let $callback = Closure::new(move |e| $tx_cloned.send(& e));
+                    let $callback = Closure::new(move |e| $tx_cloned.send(e));
                     canvas
                         .add_event_listener_with_callback($event, $callback.as_ref().unchecked_ref())
                         .or_else(|err| Err(Error::AddEventCallbackFailure($event, err.as_string())))?;

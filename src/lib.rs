@@ -2,7 +2,6 @@ use wasm_bindgen::{closure::Closure, JsCast};
 
 pub mod bounding;
 pub mod camera;
-pub mod channel;
 pub mod clock;
 pub mod controller;
 pub mod entity;
@@ -13,6 +12,7 @@ pub mod light;
 pub mod loader;
 pub mod lru;
 pub mod material;
+pub mod message;
 pub mod pipeline;
 pub mod plane;
 pub mod renderer;

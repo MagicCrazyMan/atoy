@@ -3,16 +3,22 @@ use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 use log::warn;
 
 use crate::{
-    channel::Executor, clock::Tick, error::Error, loader::{Loader, LoaderStatus}, renderer::webgl::{
+    clock::Tick,
+    error::Error,
+    loader::{Loader, LoaderStatus},
+    message::{channel, Executor, Receiver, Sender},
+    renderer::webgl::{
         attribute::AttributeValue,
         program::{CustomBinding, Define},
         state::FrameState,
         texture::{Texture, Texture2D, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
-    }, share::{Share, WeakShare}, value::Readonly
+    },
+    share::{Share, WeakShare},
+    value::Readonly,
 };
 
-use super::{StandardMaterial, Transparency};
+use super::{MaterialMessage, StandardMaterial, Transparency};
 
 pub struct TextureMaterial {
     transparency: Transparency,
@@ -25,6 +31,8 @@ pub struct TextureMaterial {
 
     parallax_loader: Option<Share<dyn Loader<Texture<Texture2D>, Failure = Error>>>,
     parallax: Share<Option<(Texture<Texture2D>, TextureUnit)>>,
+
+    channel: (Sender<MaterialMessage>, Receiver<MaterialMessage>),
 }
 
 impl TextureMaterial {
@@ -43,6 +51,8 @@ impl TextureMaterial {
 
             parallax_loader: None,
             parallax: Rc::new(RefCell::new(None)),
+
+            channel: channel(),
         }
     }
 
@@ -54,6 +64,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE0,
                 loader: Rc::downgrade(&self.albedo_loader),
                 target: Rc::downgrade(&self.albedo),
+                sender: self.channel.0.clone(),
             });
         }
     }
@@ -74,6 +85,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE1,
                 loader: Rc::downgrade(normal_loader),
                 target: Rc::downgrade(&self.normal),
+                sender: self.channel.0.clone(),
             });
         }
     }
@@ -94,6 +106,7 @@ impl TextureMaterial {
                 unit: TextureUnit::TEXTURE2,
                 loader: Rc::downgrade(parallax_loader),
                 target: Rc::downgrade(&self.parallax),
+                sender: self.channel.0.clone(),
             });
         }
     }
@@ -127,8 +140,10 @@ impl StandardMaterial for TextureMaterial {
         }
     }
 
-    fn tick(&mut self, _: &Tick) -> bool {
-        false
+    fn tick(&mut self, _: &Tick) {}
+
+    fn changed(&self) -> Receiver<MaterialMessage> {
+        self.channel.1.clone()
     }
 
     fn transparency(&self) -> Transparency {
@@ -279,6 +294,7 @@ struct WaitLoader {
     unit: TextureUnit,
     loader: WeakShare<dyn Loader<Texture<Texture2D>, Failure = Error>>,
     target: WeakShare<Option<(Texture<Texture2D>, TextureUnit)>>,
+    sender: Sender<MaterialMessage>,
 }
 
 impl Executor for WaitLoader {
@@ -296,6 +312,7 @@ impl Executor for WaitLoader {
 
                 let texture = loader.borrow().loaded().unwrap();
                 *target.borrow_mut() = Some((texture, self.unit));
+                self.sender.send(MaterialMessage::Changed);
             }
             LoaderStatus::Errored => {
                 let Some(loader) = self.loader.upgrade() else {
@@ -364,6 +381,7 @@ impl Builder {
             normal: Rc::new(RefCell::new(None)),
             parallax_loader: self.parallax_loader,
             parallax: Rc::new(RefCell::new(None)),
+            channel: channel(),
         }
     }
 }

@@ -7,8 +7,8 @@ use web_sys::{
 };
 
 use crate::{
-    channel::{channel, Receiver, Sender},
     error::Error,
+    message::{channel, Receiver, Sender},
     renderer::webgl::texture::{
         Builder, SamplerParameter, Texture, Texture2D, TextureCompressedData,
         TextureCompressedFormat, TextureData, TextureInternalFormat, TextureParameter,
@@ -554,12 +554,12 @@ impl DirectDrawSurfaceLoader {
                     Ok(parsed) => {
                         (*status) = LoaderStatus::Loaded;
                         (*dds) = Some(parsed);
-                        sender.send(&*status);
+                        sender.send(*status);
                     }
                     Err(err) => {
                         (*status) = LoaderStatus::Errored;
                         (*error) = Some(err);
-                        sender.send(&*status);
+                        sender.send(*status);
                     }
                 }
             }));
@@ -568,7 +568,7 @@ impl DirectDrawSurfaceLoader {
             *self.promise_reject = Some(Closure::new(move |err: JsValue| {
                 (*status) = LoaderStatus::Errored;
                 (*error) = Some(Error::JsError(err.dyn_into::<js_sys::Error>().unwrap()));
-                sender.send(&*status);
+                sender.send(*status);
             }));
 
             (*self.status) = LoaderStatus::Loading;
