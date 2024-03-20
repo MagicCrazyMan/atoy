@@ -53,4 +53,10 @@ pub trait Geometry {
 pub enum GeometryMessage {
     Changed,
     BoundingVolumeChanged,
+    PositionsChanged,
+    TextureCoordinatesChanged,
+    NormalsChanged,
+    TangentsChanged,
+    BitangentsChanged,
+    VertexArrayObjectChanged,
 }

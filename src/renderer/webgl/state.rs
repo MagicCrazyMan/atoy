@@ -12,15 +12,21 @@ use web_sys::{
 use crate::{camera::Camera, entity::Entity, value::Readonly};
 
 use super::{
-    attribute::{AttributeInternalBinding, AttributeValue}, buffer::{BufferStore, BufferTarget}, capabilities::Capabilities, conversion::ToGlEnum, draw::Draw, error::Error, framebuffer::{
+    attribute::{AttributeInternalBinding, AttributeValue, VertexAttributeArrayUnbinder},
+    buffer::{BufferStore, BufferTarget},
+    capabilities::Capabilities,
+    conversion::ToGlEnum,
+    draw::Draw,
+    error::Error,
+    framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
         FramebufferBuilder, FramebufferTarget, OperableBuffer, SizePolicy,
-    }, params::GetWebGlParameters, program::{CustomBinding, Program, ProgramStore}, texture::{TextureStore, TextureUnbinder, TextureUnit}, uniform::{UniformBlockValue, UniformInternalBinding, UniformValue}
+    },
+    params::GetWebGlParameters,
+    program::{CustomBinding, Program, ProgramStore},
+    texture::{TextureStore, TextureUnbinder, TextureUnit},
+    uniform::{UniformBlockValue, UniformInternalBinding, UniformValue},
 };
-
-pub struct BoundAttribute {
-    location: u32,
-}
 
 pub struct FrameState {
     timestamp: f64,
@@ -125,7 +131,7 @@ impl FrameState {
         &mut self,
         program: &Program,
         entity: &dyn Entity,
-    ) -> Result<Vec<BoundAttribute>, Error> {
+    ) -> Result<Vec<VertexAttributeArrayUnbinder>, Error> {
         let internal_bindings = program.attribute_internal_bindings();
         let custom_bindings = entity
             .material()
@@ -222,7 +228,7 @@ impl FrameState {
         &mut self,
         location: u32,
         value: &AttributeValue,
-    ) -> Result<Vec<BoundAttribute>, Error> {
+    ) -> Result<Vec<VertexAttributeArrayUnbinder>, Error> {
         let mut bounds = Vec::new();
         match value {
             AttributeValue::ArrayBuffer {
@@ -248,7 +254,7 @@ impl FrameState {
 
                 buffer.unbind(BufferTarget::ARRAY_BUFFER)?;
 
-                bounds.push(BoundAttribute { location });
+                bounds.push(VertexAttributeArrayUnbinder::new(location, self.gl.clone()));
             }
             AttributeValue::InstancedBuffer {
                 buffer,
@@ -280,9 +286,7 @@ impl FrameState {
                     self.gl
                         .vertex_attrib_divisor(offset_location, *divisor as u32);
 
-                    bounds.push(BoundAttribute {
-                        location: offset_location,
-                    });
+                    bounds.push(VertexAttributeArrayUnbinder::new(offset_location, self.gl.clone()));
                 }
 
                 buffer.unbind(BufferTarget::ARRAY_BUFFER)?;
@@ -319,21 +323,11 @@ impl FrameState {
         program: &Program,
         variable_name: &str,
         value: &AttributeValue,
-    ) -> Result<Vec<BoundAttribute>, Error> {
+    ) -> Result<Vec<VertexAttributeArrayUnbinder>, Error> {
         let Some(location) = program.attribute_locations().get(variable_name) else {
             return Err(Error::NoSuchAttribute(variable_name.to_string()));
         };
         self.bind_attribute_value(*location, value)
-    }
-
-    /// Unbinds all attributes.
-    ///
-    /// If you bind buffer attributes ever,
-    /// remember to unbind them by yourself or use this function.
-    pub fn unbind_attributes(&mut self, bounds: Vec<BoundAttribute>) {
-        for BoundAttribute { location } in bounds {
-            self.gl.disable_vertex_attrib_array(location);
-        }
     }
 
     /// Binds uniform values from a entity.
@@ -842,7 +836,6 @@ impl FrameState {
     where
         I: IntoIterator<Item = (&'a WebGlTexture, TextureUnit)>,
     {
-
         let sampler = self.capabilities().computation_sampler()?;
         let mut states = Vec::new();
         for (texture, unit) in textures {

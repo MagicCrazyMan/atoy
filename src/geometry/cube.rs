@@ -89,7 +89,9 @@ impl Cube {
 
         self.size = size;
         self.bounding_volume = build_bounding_volume(size);
+        self.channel.0.send(GeometryMessage::PositionsChanged);
         self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
+        self.channel.0.send(GeometryMessage::VertexArrayObjectChanged);
         self.channel.0.send(GeometryMessage::Changed);
     }
 }

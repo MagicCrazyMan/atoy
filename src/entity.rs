@@ -3,6 +3,7 @@ use std::{any::Any, cell::RefCell, collections::VecDeque, rc::Rc};
 use gl_matrix4rust::mat4::Mat4;
 use indexmap::IndexMap;
 use uuid::Uuid;
+use web_sys::WebGlVertexArrayObject;
 
 use crate::{
     bounding::{merge_bounding_volumes, CullingBoundingVolume},
@@ -62,6 +63,16 @@ pub trait Entity {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    fn as_vertex_array_object_entity(&self) -> Option<&dyn VertexArrayObjectEntity>;
+
+    fn as_vertex_array_object_entity_mut(&mut self) -> Option<&mut dyn VertexArrayObjectEntity>;
+}
+
+pub trait VertexArrayObjectEntity {
+    fn vertex_array_object(&self) -> Option<WebGlVertexArrayObject>;
+
+    fn store_vertex_array_object(&mut self, vao: WebGlVertexArrayObject);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -195,6 +206,8 @@ pub struct SimpleEntity {
     enable_bounding: bool,
     bounding_volume: Option<CullingBoundingVolume>,
 
+    vao: Rc<RefCell<Option<WebGlVertexArrayObject>>>,
+
     channel: (Sender<EntityMessage>, Receiver<EntityMessage>),
 
     should_update: Rc<RefCell<bool>>,
@@ -206,15 +219,22 @@ impl SimpleEntity {
     pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
+
             model_matrix: Mat4::<f64>::new_identity(),
             parent_compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_model_matrix: Mat4::<f64>::new_identity(),
             compose_normal_matrix: Mat4::<f64>::new_identity(),
+
             geometry: None,
             material: None,
+
             enable_bounding: true,
             bounding_volume: None,
+
+            vao: Rc::new(RefCell::new(None)),
+
             channel: channel(),
+
             should_update: Rc::new(RefCell::new(true)),
             should_recalculate_matrices: Rc::new(RefCell::new(true)),
             should_recalculate_bounding: Rc::new(RefCell::new(true)),
@@ -249,6 +269,7 @@ impl SimpleEntity {
         self.geometry = geometry.map(|geometry| {
             struct GeometryChanged {
                 sender: Sender<EntityMessage>,
+                vao: Rc<RefCell<Option<WebGlVertexArrayObject>>>,
                 should_update: Rc<RefCell<bool>>,
                 should_recalculate_bounding: Rc<RefCell<bool>>,
             }
@@ -258,19 +279,22 @@ impl SimpleEntity {
 
                 fn execute(&mut self, msg: &Self::Message) {
                     *self.should_update.borrow_mut() = true;
-                    self.sender.send(EntityMessage::GeometryChanged);
 
                     if *msg == GeometryMessage::BoundingVolumeChanged {
                         *self.should_recalculate_bounding.borrow_mut() = true;
                         self.sender.send(EntityMessage::BoundingVolumeChanged);
+                    } else if *msg == GeometryMessage::VertexArrayObjectChanged {
+                        self.vao.borrow_mut().take();
                     }
 
+                    self.sender.send(EntityMessage::GeometryChanged);
                     self.sender.send(EntityMessage::Changed);
                 }
             }
 
             let aborter = geometry.changed().on(GeometryChanged {
                 sender: self.channel.0.clone(),
+                vao: Rc::clone(&self.vao),
                 should_update: Rc::clone(&self.should_update),
                 should_recalculate_bounding: Rc::clone(&self.should_recalculate_bounding),
             });
@@ -300,14 +324,20 @@ impl SimpleEntity {
         self.material = material.map(|material| {
             struct MaterialChanged {
                 sender: Sender<EntityMessage>,
+                vao: Rc<RefCell<Option<WebGlVertexArrayObject>>>,
                 should_update: Rc<RefCell<bool>>,
             }
 
             impl Executor for MaterialChanged {
                 type Message = MaterialMessage;
 
-                fn execute(&mut self, _: &Self::Message) {
+                fn execute(&mut self, msg: &Self::Message) {
                     *self.should_update.borrow_mut() = true;
+
+                    if *msg == MaterialMessage::VertexArrayObjectChanged {
+                        self.vao.borrow_mut().take();
+                    };
+                    
                     self.sender.send(EntityMessage::MaterialChanged);
                     self.sender.send(EntityMessage::Changed);
                 }
@@ -315,6 +345,7 @@ impl SimpleEntity {
 
             let aborter = material.changed().on(MaterialChanged {
                 sender: self.channel.0.clone(),
+                vao: Rc::clone(&self.vao),
                 should_update: Rc::clone(&self.should_update),
             });
             let material = Box::new(material) as Box<dyn StandardMaterial>;
@@ -485,6 +516,24 @@ impl Entity for SimpleEntity {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn as_vertex_array_object_entity(&self) -> Option<&dyn VertexArrayObjectEntity> {
+        Some(self)
+    }
+
+    fn as_vertex_array_object_entity_mut(&mut self) -> Option<&mut dyn VertexArrayObjectEntity> {
+        Some(self)
+    }
+}
+
+impl VertexArrayObjectEntity for SimpleEntity {
+    fn vertex_array_object(&self) -> Option<WebGlVertexArrayObject> {
+        self.vao.borrow().clone()
+    }
+
+    fn store_vertex_array_object(&mut self, vao: WebGlVertexArrayObject) {
+        self.vao.borrow_mut().replace(vao);
+    }
 }
 
 pub struct SimpleGroup {
@@ -557,13 +606,13 @@ impl SimpleGroup {
 
             fn execute(&mut self, msg: &Self::Message) {
                 *self.should_update.borrow_mut() = true;
-                self.sender.send(GroupMessage::EntityChanged);
 
                 if *msg == EntityMessage::BoundingVolumeChanged {
                     *self.should_recalculate_bounding.borrow_mut() = true;
                     self.sender.send(GroupMessage::BoundingVolumeChanged);
                 }
 
+                self.sender.send(GroupMessage::EntityChanged);
                 self.sender.send(GroupMessage::Changed);
             }
         }
@@ -618,13 +667,13 @@ impl SimpleGroup {
 
             fn execute(&mut self, msg: &Self::Message) {
                 *self.should_update.borrow_mut() = true;
-                self.sender.send(GroupMessage::SubGroupChanged);
 
                 if *msg == GroupMessage::BoundingVolumeChanged {
                     *self.should_recalculate_bounding.borrow_mut() = true;
                     self.sender.send(GroupMessage::BoundingVolumeChanged);
                 }
 
+                self.sender.send(GroupMessage::SubGroupChanged);
                 self.sender.send(GroupMessage::Changed);
             }
         }

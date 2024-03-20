@@ -142,13 +142,13 @@ impl StandardPicking {
                 &UniformValue::UnsignedInteger1((index + 1) as u32),
             )?;
 
-            let bound_attributes = state.bind_attribute_value_by_variable_name(
+            let vertex_attrib_array_unbinders = state.bind_attribute_value_by_variable_name(
                 program,
                 POSITION_ATTRIBUTE_NAME,
                 &geometry.positions(),
             )?;
             state.draw(&geometry.draw())?;
-            state.unbind_attributes(bound_attributes);
+            vertex_attrib_array_unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
         }
 
         self.framebuffer(&state).unbind();

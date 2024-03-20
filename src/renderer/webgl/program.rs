@@ -164,13 +164,13 @@ impl ProgramStore {
     }
 
     /// Constructs a new program store with GLSL code snippets.
-    pub fn with_snippets<'a, I: IntoIterator<Item = (Cow<'a, str>, Cow<'a, str>)>>(
-        gl: WebGl2RenderingContext,
-        snippet: I,
-    ) -> Self {
-        let snippets = snippet
+    pub fn with_snippets<'a, I>(gl: WebGl2RenderingContext, snippets: I) -> Self
+    where
+        I: IntoIterator<Item = (Cow<'a, str>, Cow<'a, str>)>,
+    {
+        let snippets = snippets
             .into_iter()
-            .map(|(n, s)| (n.into_owned(), s.into_owned()));
+            .map(|(name, snippet)| (name.into_owned(), snippet.into_owned()));
 
         Self {
             gl,
@@ -317,7 +317,10 @@ impl ProgramStore {
 
     /// Uses a program from a program source.
     /// Program will be compiled if it is used for the first time.
-    pub fn use_program<'a, 'b, 'c, S>(&'a mut self, provider: &'b S) -> Result<&'c mut Program, Error>
+    pub fn use_program<'a, 'b, 'c, S>(
+        &'a mut self,
+        provider: &'b S,
+    ) -> Result<&'c mut Program, Error>
     where
         S: ShaderProvider + ?Sized,
     {

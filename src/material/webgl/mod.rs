@@ -117,4 +117,6 @@ pub trait StandardMaterial {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MaterialMessage {
     Changed,
+    TransparencyChanged,
+    VertexArrayObjectChanged,
 }

@@ -1,3 +1,5 @@
+use web_sys::WebGl2RenderingContext;
+
 use crate::value::Readonly;
 
 use super::buffer::{Buffer, BufferComponentSize, BufferDataType};
@@ -66,5 +68,22 @@ impl AttributeInternalBinding {
             "a_Bitangent" => Some(AttributeInternalBinding::GeometryBitangent),
             _ => None,
         }
+    }
+}
+
+/// Unbinder to unbind vertex attribute array.
+#[derive(Debug, Clone)]
+pub struct VertexAttributeArrayUnbinder {
+    gl: WebGl2RenderingContext,
+    location: u32,
+}
+
+impl VertexAttributeArrayUnbinder {
+    pub(crate) fn new(location: u32, gl: WebGl2RenderingContext) -> Self {
+        Self { gl, location }
+    }
+
+    pub fn unbind(self) {
+        self.gl.disable_vertex_attrib_array(self.location)
     }
 }

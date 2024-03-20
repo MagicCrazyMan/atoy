@@ -18,6 +18,7 @@ pub enum Error {
     CreateVertexShaderFailure,
     CreateFragmentShaderFailure,
     CreateFenceSyncFailure,
+    CreateVertexArrayObjectFailure,
     ExtensionUnsupported(&'static str),
     ReadPixelsFailure(Option<String>),
     ClientWaitFailure(Option<String>),

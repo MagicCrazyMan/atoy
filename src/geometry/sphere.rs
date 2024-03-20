@@ -80,7 +80,10 @@ impl Sphere {
             radius,
         };
 
+        self.channel.0.send(GeometryMessage::PositionsChanged);
+        self.channel.0.send(GeometryMessage::NormalsChanged);
         self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
+        self.channel.0.send(GeometryMessage::VertexArrayObjectChanged);
         self.channel.0.send(GeometryMessage::Changed);
     }
 }

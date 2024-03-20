@@ -153,13 +153,33 @@ fn draw_entity(
     should_cull_face: bool,
     entity: Rc<RefCell<dyn Entity>>,
 ) -> Result<(), Error> {
-    let entity = entity.borrow();
+    // tries vertex array object entity
+    let vao = match entity.borrow_mut().as_vertex_array_object_entity_mut() {
+        Some(entity) => {
+            let vao = entity.vertex_array_object();
+            match vao {
+                Some(vao) => Some((vao, false)),
+                None => {
+                    let vao = state
+                        .gl()
+                        .create_vertex_array()
+                        .ok_or(Error::CreateVertexArrayObjectFailure)?;
+                    entity.store_vertex_array_object(vao.clone());
+
+                    Some((vao, true))
+                }
+            }
+        }
+        None => None,
+    };
+
+    let entity = entity.borrow_mut();
     let geometry = entity.geometry().unwrap();
     let material = entity.material().unwrap();
 
     // culls face
     if should_cull_face {
-        if let Some(cull_face) = entity.geometry().unwrap().cull_face() {
+        if let Some(cull_face) = geometry.cull_face() {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
             state.gl().cull_face(cull_face.gl_enum());
         } else {
@@ -171,11 +191,32 @@ fn draw_entity(
 
     let program = prepare_program(state, draw_state, material)?;
 
-    let bound_attributes = state.bind_attributes(program, &*entity)?;
-    let unbinders = state.bind_uniforms(program, &*entity)?;
-    state.draw(&geometry.draw())?;
-    state.unbind_attributes(bound_attributes);
-    unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
+    match &vao {
+        Some((vao, is_new)) => {
+            state.gl().bind_vertex_array(Some(vao));
+
+            if *is_new {
+                state.bind_attributes(program, &*entity)?;
+            }
+
+            let unbinders = state.bind_uniforms(program, &*entity)?;
+            state.draw(&geometry.draw())?;
+            unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
+
+            state.gl().bind_vertex_array(None);
+        }
+        None => {
+            let vertex_attrib_array_unbinders = state.bind_attributes(program, &*entity)?;
+            let textxure_unbinders = state.bind_uniforms(program, &*entity)?;
+            state.draw(&geometry.draw())?;
+            vertex_attrib_array_unbinders
+                .into_iter()
+                .for_each(|unbinder| unbinder.unbind());
+            textxure_unbinders
+                .into_iter()
+                .for_each(|unbinder| unbinder.unbind());
+        }
+    };
 
     Ok(())
 }
