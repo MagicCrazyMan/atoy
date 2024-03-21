@@ -103,34 +103,6 @@ impl FrameState {
         unsafe { self.capabilities.as_ref() }
     }
 
-    pub fn draw(&mut self, draw: &Draw) -> Result<(), Error> {
-        match draw {
-            Draw::Arrays { mode, first, count } => {
-                self.gl.draw_arrays(mode.gl_enum(), *first, *count)
-            }
-            Draw::Elements {
-                mode,
-                count,
-                offset,
-                indices,
-                indices_data_type,
-            } => {
-                self.buffer_store().register(&indices)?;
-
-                indices.bind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
-                self.gl.draw_elements_with_i32(
-                    mode.gl_enum(),
-                    *count,
-                    indices_data_type.gl_enum(),
-                    *offset,
-                );
-                indices.unbind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn create_framebuffer<P>(
         &self,
         size_policy: SizePolicy,
