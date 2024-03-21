@@ -1,6 +1,6 @@
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use gl_matrix4rust::{vec3::Vec3, GLF32};
+use gl_matrix4rust::vec3::Vec3;
 use log::warn;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
@@ -8,7 +8,10 @@ use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 use crate::{
     entity::Entity,
     material::Transparency,
-    pipeline::webgl::collector::CollectedEntities,
+    pipeline::webgl::{
+        collector::CollectedEntities, UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING,
+        UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
+    },
     renderer::webgl::{
         error::Error,
         framebuffer::{
@@ -22,7 +25,7 @@ use crate::{
             TextureUncompressedInternalFormat, TextureUncompressedPixelDataType,
             TextureUncompressedPixelFormat,
         },
-        uniform::UniformValue,
+        uniform::{UniformBinding, UniformValue},
     },
 };
 
@@ -62,7 +65,7 @@ impl StandardPicking {
         })
     }
 
-    pub unsafe fn draw(
+    pub fn draw(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
@@ -86,18 +89,13 @@ impl StandardPicking {
             );
         }
 
-        // prepare material
         let program = state
             .program_store_mut()
-            .use_program(&PickingShaderProvider)?;
-
-        state.bind_uniform_value_by_variable_name(
-            program,
-            VIEW_PROJ_MATRIX_UNIFORM_NAME,
-            &UniformValue::Matrix4 {
-                data: state.camera().view_proj_matrix().gl_f32(),
-                transpose: false,
-            },
+            .get_or_compile_program(&PickingShaderProvider)?;
+        program.use_program()?;
+        program.mount_uniform_block_by_binding(
+            &UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING,
+            UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
         )?;
 
         // render each entity by picking material
@@ -126,32 +124,21 @@ impl StandardPicking {
                 }
             } else {
                 continue;
-            }
+            };
 
-            state.bind_uniform_value_by_variable_name(
-                program,
-                MODEL_MATRIX_UNIFORM_NAME,
-                &UniformValue::Matrix4 {
-                    data: entity.compose_model_matrix().gl_f32(),
-                    transpose: false,
-                },
-            )?;
-            state.bind_uniform_value_by_variable_name(
-                program,
-                INDEX_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &INDEX_UNIFORM_BINDING,
                 &UniformValue::UnsignedInteger1((index + 1) as u32),
+                None,
             )?;
-
-            let vertex_attrib_array_unbinders = state.bind_attribute_value_by_variable_name(
-                program,
-                POSITION_ATTRIBUTE_NAME,
-                &geometry.positions(),
-            )?;
+            program.bind_uniforms(Some(&state), Some(&*entity), Some(geometry), None)?;
+            program.bind_attributes(Some(&state), Some(&*entity), Some(geometry), None)?;
             state.draw(&geometry.draw())?;
-            vertex_attrib_array_unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
+            program.unbind_attributes()?;
         }
 
         self.framebuffer(&state).unbind();
+        program.unuse_program()?;
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
         self.gl = Some(state.gl().clone());
@@ -160,7 +147,7 @@ impl StandardPicking {
     }
 
     /// Returns picked entity.
-    pub unsafe fn pick_entity(
+    pub fn pick_entity(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -207,7 +194,7 @@ impl StandardPicking {
     }
 
     /// Returns picked position.
-    pub unsafe fn pick_position(
+    pub fn pick_position(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -261,10 +248,9 @@ impl StandardPicking {
     }
 }
 
-const POSITION_ATTRIBUTE_NAME: &'static str = "a_Position";
 const INDEX_UNIFORM_NAME: &'static str = "u_Index";
-const MODEL_MATRIX_UNIFORM_NAME: &'static str = "u_ModelMatrix";
-const VIEW_PROJ_MATRIX_UNIFORM_NAME: &'static str = "u_ViewProjMatrix";
+const INDEX_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(INDEX_UNIFORM_NAME));
 
 struct PickingShaderProvider;
 

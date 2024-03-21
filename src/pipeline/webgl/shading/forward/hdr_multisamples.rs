@@ -5,22 +5,18 @@ use crate::{
         collector::CollectedEntities,
         shading::{
             draw_entities, BloomBlendMapping, DrawState, GaussianBlurMapping,
-            HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_NAME,
-            BLOOM_BLUR_TEXTURE_UNIFORM_NAME, HDR_EXPOSURE_UNIFORM_NAME, HDR_TEXTURE_UNIFORM_NAME,
+            HdrExposureToneMapping, HdrReinhardToneMapping, BASE_TEXTURE_UNIFORM_BINDING,
+            BLOOM_BLUR_TEXTURE_UNIFORM_BINDING, HDR_EXPOSURE_UNIFORM_BINDING,
+            HDR_TEXTURE_UNIFORM_BINDING,
         },
-        HdrToneMappingType, UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT, UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+        HdrToneMappingType, UBO_GAUSSIAN_BLUR_UNIFORM_BLOCK_MOUNT_POINT,
+        UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
     },
     renderer::webgl::{
-        buffer::Buffer,
-        error::Error,
-        framebuffer::{
+        buffer::Buffer, error::Error, framebuffer::{
             AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
             FramebufferBuilder, FramebufferTarget, OperableBuffer,
-        },
-        renderbuffer::RenderbufferInternalFormat,
-        state::FrameState,
-        texture::{TextureUncompressedInternalFormat, TextureUnit},
-        uniform::{UniformBlockValue, UniformValue},
+        }, program::Program, renderbuffer::RenderbufferInternalFormat, state::FrameState, texture::{TextureUncompressedInternalFormat, TextureUnit}, uniform::{UniformBlockValue, UniformValue}
     },
     value::Readonly,
 };
@@ -231,30 +227,37 @@ impl StandardMultisamplesHdrShading {
         &mut self,
         state: &mut FrameState,
         tone_mapping_type: HdrToneMappingType,
-    ) -> Result<(), Error> {
+    ) -> Result<Program, Error> {
         let program = match tone_mapping_type {
-            HdrToneMappingType::Reinhard => state
-                .program_store_mut()
-                .use_program(&HdrReinhardToneMapping)?,
+            HdrToneMappingType::Reinhard => {
+                let program = state
+                    .program_store_mut()
+                    .get_or_compile_program(&HdrReinhardToneMapping)?;
+                program.use_program()?;
+
+                program
+            }
             HdrToneMappingType::Exposure(exposure) => {
                 let program = state
                     .program_store_mut()
-                    .use_program(&HdrExposureToneMapping)?;
-                state.bind_uniform_value_by_variable_name(
-                    program,
-                    HDR_EXPOSURE_UNIFORM_NAME,
+                    .get_or_compile_program(&HdrExposureToneMapping)?;
+                program.use_program()?;
+                program.bind_uniform_value_by_binding(
+                    &HDR_EXPOSURE_UNIFORM_BINDING,
                     &UniformValue::Float1(exposure),
+                    None,
                 )?;
+
                 program
             }
         };
-        state.bind_uniform_value_by_variable_name(
-            program,
-            HDR_TEXTURE_UNIFORM_NAME,
+        program.bind_uniform_value_by_binding(
+            &HDR_TEXTURE_UNIFORM_BINDING,
             &UniformValue::Integer1(0),
+            None,
         )?;
 
-        Ok(())
+        Ok(program)
     }
 
     fn tone_mapping(
@@ -262,7 +265,7 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         tone_mapping_type: HdrToneMappingType,
     ) -> Result<(), Error> {
-        self.prepare_tone_mapping(state, tone_mapping_type)?;
+        let program = self.prepare_tone_mapping(state, tone_mapping_type)?;
 
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -276,6 +279,8 @@ impl StandardMultisamplesHdrShading {
         )])?;
         self.framebuffer(state).unbind();
 
+        program.unuse_program()?;
+
         Ok(())
     }
 
@@ -284,7 +289,7 @@ impl StandardMultisamplesHdrShading {
         state: &mut FrameState,
         tone_mapping_type: HdrToneMappingType,
     ) -> Result<(), Error> {
-        self.prepare_tone_mapping(state, tone_mapping_type)?;
+        let program = self.prepare_tone_mapping(state, tone_mapping_type)?;
 
         self.framebuffer(state)
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -297,6 +302,8 @@ impl StandardMultisamplesHdrShading {
             TextureUnit::TEXTURE0,
         )])?;
         self.framebuffer(state).unbind();
+
+        program.unuse_program()?;
 
         Ok(())
     }
@@ -357,19 +364,19 @@ impl StandardMultisamplesHdrShading {
 
             let program = state
                 .program_store_mut()
-                .use_program(&GaussianBlurMapping)?;
-
+                .get_or_compile_program(&GaussianBlurMapping)?;
+            program.use_program()?;
             for i in 0..bloom_blur_epoch {
                 let (from, from_attachment, to) = if i % 2 == 0 {
                     if i == 0 {
                         // first epoch, do some initialization
-                        state.bind_uniform_block_value_by_block_name(
-                            program,
-                            UBO_GAUSSIAN_KERNEL_BLOCK_NAME,
+                        program.bind_uniform_block_value_by_binding(
+                            &UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
                             &UniformBlockValue::BufferBase {
                                 buffer: Readonly::Borrowed(gaussian_kernel_ubo),
-                                mount_point: UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT,
+                                mount_point: UBO_GAUSSIAN_BLUR_UNIFORM_BLOCK_MOUNT_POINT,
                             },
+                            None,
                         )?;
 
                         (
@@ -398,7 +405,9 @@ impl StandardMultisamplesHdrShading {
                 )])?;
                 to.unbind();
             }
+            program.unuse_program()?;
         }
+
         Ok(())
     }
 
@@ -436,16 +445,19 @@ impl StandardMultisamplesHdrShading {
             let hdr_bloom_blend_framebuffer: *mut Framebuffer =
                 self.hdr_bloom_blend_framebuffer(state);
 
-            let program = state.program_store_mut().use_program(&BloomBlendMapping)?;
-            state.bind_uniform_value_by_variable_name(
-                program,
-                BASE_TEXTURE_UNIFORM_NAME,
+            let program = state
+                .program_store_mut()
+                .get_or_compile_program(&BloomBlendMapping)?;
+            program.use_program()?;
+            program.bind_uniform_value_by_binding(
+                &BASE_TEXTURE_UNIFORM_BINDING,
                 &UniformValue::Integer1(0),
+                None,
             )?;
-            state.bind_uniform_value_by_variable_name(
-                program,
-                BLOOM_BLUR_TEXTURE_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &BLOOM_BLUR_TEXTURE_UNIFORM_BINDING,
                 &UniformValue::Integer1(1),
+                None,
             )?;
 
             (*hdr_bloom_blend_framebuffer).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -454,6 +466,8 @@ impl StandardMultisamplesHdrShading {
                 (&*hdr_bloom_blur_texture, TextureUnit::TEXTURE1),
             ])?;
             (*hdr_bloom_blend_framebuffer).unbind();
+
+            program.unuse_program()?;
         }
 
         Ok(())

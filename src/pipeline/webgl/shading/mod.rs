@@ -10,7 +10,7 @@ use crate::{
         error::Error,
         program::{Define, Program, ShaderProvider},
         state::FrameState,
-        uniform::UniformValue,
+        uniform::{UniformBinding, UniformValue},
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
@@ -20,20 +20,34 @@ use crate::{
 };
 
 use super::{
-    collector::CollectedEntities, UBO_LIGHTS_BINDING_MOUNT_POINT, UBO_LIGHTS_BLOCK_NAME,
-    UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+    collector::CollectedEntities, UBO_LIGHTS_BLOCK_BINDING, UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
+    UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING, UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
 };
 
 pub mod deferred;
 pub mod forward;
 pub mod picking;
 
-const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
 const BLOOM_THRESHOLD_VALUES: [f32; 3] = [0.2126, 0.7152, 0.0722];
+const BLOOM_THRESHOLD_UNIFORM_NAME: &'static str = "u_BloomThreshold";
+const BLOOM_THRESHOLD_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(BLOOM_THRESHOLD_UNIFORM_NAME));
+
 const BASE_TEXTURE_UNIFORM_NAME: &'static str = "u_BaseTexture";
+const BASE_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(BASE_TEXTURE_UNIFORM_NAME));
+
 const BLOOM_BLUR_TEXTURE_UNIFORM_NAME: &'static str = "u_BloomBlurTexture";
+const BLOOM_BLUR_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(BLOOM_BLUR_TEXTURE_UNIFORM_NAME));
+
 const HDR_TEXTURE_UNIFORM_NAME: &'static str = "u_HdrTexture";
+const HDR_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(HDR_TEXTURE_UNIFORM_NAME));
+
 const HDR_EXPOSURE_UNIFORM_NAME: &'static str = "u_HdrExposure";
+const HDR_EXPOSURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(HDR_EXPOSURE_UNIFORM_NAME));
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(self) enum DrawState {
@@ -41,7 +55,7 @@ pub(self) enum DrawState {
     GBuffer,
 }
 
-pub(self) unsafe fn draw_entities(
+pub(self) fn draw_entities(
     state: &mut FrameState,
     draw_state: DrawState,
     collected_entities: &CollectedEntities,
@@ -51,7 +65,7 @@ pub(self) unsafe fn draw_entities(
     Ok(())
 }
 
-unsafe fn draw_opaque_entities(
+fn draw_opaque_entities(
     state: &mut FrameState,
     draw_state: DrawState,
     collected_entities: &CollectedEntities,
@@ -74,7 +88,7 @@ unsafe fn draw_opaque_entities(
     Ok(())
 }
 
-unsafe fn draw_translucent_entities(
+fn draw_translucent_entities(
     state: &mut FrameState,
     draw_state: DrawState,
     collected_entities: &CollectedEntities,
@@ -113,33 +127,33 @@ fn prepare_program<'a, 'b, 'c>(
     state: &'a mut FrameState,
     draw_state: DrawState,
     material: &'b dyn StandardMaterial,
-) -> Result<&'c Program, Error> {
+) -> Result<Program, Error> {
     let provider = StandardMaterialShaderProvider::new(material, draw_state);
-    let program = state.program_store_mut().use_program(&provider)?;
-
-    // binds atoy_UniversalUniforms
-    state.bind_uniform_block_index_by_block_name(
-        program,
-        UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-        UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT,
+    let program = state
+        .program_store_mut()
+        .get_or_compile_program(&provider)?;
+    program.use_program()?;
+    // binds atoy_Universal
+    program.mount_uniform_block_by_binding(
+        &UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING,
+        UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
     )?;
 
     if let DrawState::Draw { lighting, bloom } = draw_state {
         // binds atoy_Lights
         if lighting {
-            state.bind_uniform_block_index_by_block_name(
-                program,
-                UBO_LIGHTS_BLOCK_NAME,
-                UBO_LIGHTS_BINDING_MOUNT_POINT,
+            program.mount_uniform_block_by_binding(
+                &UBO_LIGHTS_BLOCK_BINDING,
+                UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
             )?;
         }
 
         // binds bloom blur threshold
         if bloom {
-            state.bind_uniform_value_by_variable_name(
-                program,
-                BLOOM_THRESHOLD_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &BLOOM_THRESHOLD_UNIFORM_BINDING,
                 &UniformValue::FloatVector3(BLOOM_THRESHOLD_VALUES),
+                None,
             )?;
         }
     }
@@ -190,33 +204,31 @@ fn draw_entity(
     }
 
     let program = prepare_program(state, draw_state, material)?;
-
-    match &vao {
+    match vao {
         Some((vao, is_new)) => {
-            state.gl().bind_vertex_array(Some(vao));
-
-            if *is_new {
-                state.bind_attributes(program, &*entity)?;
+            program.bind_vertex_array_object(vao)?;
+            if is_new {
+                program.bind_attributes(
+                    Some(&state),
+                    Some(&*entity),
+                    Some(geometry),
+                    Some(material),
+                )?;
             }
-
-            let unbinders = state.bind_uniforms(program, &*entity)?;
-            state.draw(&geometry.draw())?;
-            unbinders.into_iter().for_each(|unbinder| unbinder.unbind());
-
-            state.gl().bind_vertex_array(None);
         }
         None => {
-            let vertex_attrib_array_unbinders = state.bind_attributes(program, &*entity)?;
-            let textxure_unbinders = state.bind_uniforms(program, &*entity)?;
-            state.draw(&geometry.draw())?;
-            vertex_attrib_array_unbinders
-                .into_iter()
-                .for_each(|unbinder| unbinder.unbind());
-            textxure_unbinders
-                .into_iter()
-                .for_each(|unbinder| unbinder.unbind());
+            program.bind_attributes(
+                Some(&state),
+                Some(&*entity),
+                Some(geometry),
+                Some(material),
+            )?;
         }
     };
+    program.bind_uniforms(Some(&state), Some(&*entity), Some(geometry), Some(material))?;
+    program.bind_uniform_blocks(Some(&state), Some(&*entity), Some(geometry), Some(material))?;
+    state.draw(&geometry.draw())?;
+    program.unuse_program()?;
 
     Ok(())
 }

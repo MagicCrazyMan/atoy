@@ -49,7 +49,7 @@ impl StandardDeferredTransparentShading {
             .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
     }
 
-    pub unsafe fn draw(
+    pub fn draw(
         &mut self,
         state: &mut FrameState,
         depth_stencil: &WebGlRenderbuffer,

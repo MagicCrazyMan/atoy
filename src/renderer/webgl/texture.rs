@@ -1324,10 +1324,9 @@ impl TextureRuntime {
                 let (texture, sampler) = self.texture.insert((texture, sampler));
 
                 if let Some(registered) = registered {
-                    registered
-                        .store
-                        .borrow_mut()
-                        .increase_used_memory(self.byte_length);
+                    if let Some(store) = registered.store.upgrade() {
+                        store.borrow_mut().increase_used_memory(self.byte_length);
+                    }
                 }
 
                 Ok((texture.clone(), sampler.clone()))
@@ -2071,8 +2070,7 @@ impl TextureRuntime {
 }
 
 struct TextureRegistered {
-    store: Rc<RefCell<StoreShared>>,
-    store_id: Uuid,
+    store: Weak<RefCell<StoreShared>>,
     lru_node: *mut LruNode<Uuid>,
 }
 
@@ -2115,13 +2113,15 @@ impl Drop for TextureShared {
             }
 
             if let Some(registered) = self.registered.as_mut() {
-                registered.store.borrow_mut().unregister(
-                    &self.id,
-                    registered.lru_node,
-                    runtime.byte_length,
-                    self.layout.target,
-                    runtime.bindings.iter(),
-                );
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().unregister(
+                        &self.id,
+                        registered.lru_node,
+                        runtime.byte_length,
+                        self.layout.target,
+                        runtime.bindings.iter(),
+                    );
+                }
             }
         }
     }
@@ -2169,12 +2169,10 @@ impl TextureShared {
         let target = self.layout.target();
 
         if let Some(registered) = self.registered.as_mut() {
-            if registered
-                .store
-                .borrow()
-                .is_occupied(unit, target, &self.id)
-            {
-                return Err(Error::TextureTargetOccupied(unit, target));
+            if let Some(store) = registered.store.upgrade() {
+                if store.borrow().is_occupied(unit, target, &self.id) {
+                    return Err(Error::TextureTargetOccupied(unit, target));
+                }
             }
         }
 
@@ -2182,9 +2180,11 @@ impl TextureShared {
             runtime.upload(&self.layout, &mut self.queue)?;
 
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.update_lru(registered.lru_node);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.update_lru(registered.lru_node);
+                    store.free();
+                }
             }
         } else {
             let (texture, sampler) = runtime.get_or_create_texture(
@@ -2210,10 +2210,12 @@ impl TextureShared {
             }
 
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.add_binding(unit, target, self.id);
-                store.update_lru(registered.lru_node);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.add_binding(unit, target, self.id);
+                    store.update_lru(registered.lru_node);
+                    store.free();
+                }
             }
         }
 
@@ -2240,8 +2242,9 @@ impl TextureShared {
             }
 
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.remove_binding(unit, target);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding(unit, target);
+                }
             }
         }
 
@@ -2263,8 +2266,9 @@ impl TextureShared {
             runtime.gl.bind_texture(target.gl_enum(), None);
 
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.remove_binding(unit, target);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding(unit, target);
+                }
             }
         }
 
@@ -2416,10 +2420,10 @@ impl TextureShared {
 
         if let Some((texture, sampler)) = runtime.texture.take() {
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.decrease_used_memory(runtime.byte_length);
-                unsafe {
-                    store.lru.remove(registered.lru_node);
+                if let Some(store) = registered.store.upgrade() {
+                    store
+                        .borrow_mut()
+                        .remove(runtime.byte_length, registered.lru_node);
                 }
             }
 
@@ -3949,6 +3953,7 @@ impl<T> MemoryPolicy<T> {
 
 struct StoreShared {
     gl: WebGl2RenderingContext,
+    id: Uuid,
 
     available_memory: usize,
     used_memory: usize,
@@ -3956,6 +3961,17 @@ struct StoreShared {
     lru: Lru<Uuid>,
     textures: HashMap<Uuid, Weak<RefCell<TextureShared>>>,
     bindings: HashMap<(TextureUnit, TextureTarget), Uuid>,
+}
+
+impl Drop for StoreShared {
+    fn drop(&mut self) {
+        for texture in self.textures.values_mut() {
+            let Some(texture) = texture.upgrade() else {
+                continue;
+            };
+            texture.borrow_mut().registered = None;
+        }
+    }
 }
 
 impl StoreShared {
@@ -3979,6 +3995,13 @@ impl StoreShared {
 
     fn remove_binding(&mut self, unit: TextureUnit, target: TextureTarget) {
         self.bindings.remove(&(unit, target));
+    }
+
+    fn remove(&mut self, byte_length: usize, lru_node: *mut LruNode<Uuid>) {
+        self.decrease_used_memory(byte_length);
+        unsafe {
+            self.lru.remove(lru_node);
+        }
     }
 
     fn is_occupied(&self, unit: TextureUnit, target: TextureTarget, id: &Uuid) -> bool {
@@ -4047,20 +4070,7 @@ impl StoreShared {
 }
 
 pub struct TextureStore {
-    id: Uuid,
     shared: Rc<RefCell<StoreShared>>,
-}
-
-impl Drop for TextureStore {
-    fn drop(&mut self) {
-        let mut shared = self.shared.borrow_mut();
-        for texture in shared.textures.values_mut() {
-            let Some(texture) = texture.upgrade() else {
-                continue;
-            };
-            texture.borrow_mut().registered = None;
-        }
-    }
 }
 
 impl TextureStore {
@@ -4074,6 +4084,7 @@ impl TextureStore {
     pub fn with_available_memory(gl: WebGl2RenderingContext, available_memory: usize) -> Self {
         let shared = StoreShared {
             gl,
+            id: Uuid::new_v4(),
 
             available_memory,
             used_memory: 0,
@@ -4084,14 +4095,13 @@ impl TextureStore {
         };
 
         Self {
-            id: Uuid::new_v4(),
             shared: Rc::new(RefCell::new(shared)),
         }
     }
 
     /// Returns store id.
     pub fn id(&self) -> Uuid {
-        self.id
+        self.shared.borrow().id
     }
 
     /// Returns the maximum available memory in bytes.
@@ -4106,15 +4116,24 @@ impl TextureStore {
     }
 
     /// Registers a texture to store, and initializes the texture.
-    pub fn register<L>(&mut self, texture: &Texture<L>) -> Result<(), Error> {
+    pub fn register<L>(&self, texture: &Texture<L>) -> Result<(), Error> {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();
             let mut texture_shared = texture.shared.borrow_mut();
 
-            if let Some(registered) = texture_shared.registered.as_ref() {
-                if &registered.store_id != &self.id {
-                    return Err(Error::RegisterTextureToMultipleStore);
+            if let Some(store) = texture_shared
+                .registered
+                .as_ref()
+                .and_then(|registered| registered.store.upgrade())
+            {
+                if let Ok(store) = store.try_borrow() {
+                    if &store.id != &store_shared.id {
+                        return Err(Error::RegisterTextureToMultipleStore);
+                    } else {
+                        return Ok(());
+                    }
                 } else {
+                    // if store is borrowed, it means that store of registered is the same store as self.
                     return Ok(());
                 }
             }
@@ -4133,8 +4152,7 @@ impl TextureStore {
             }
 
             texture_shared.registered = Some(TextureRegistered {
-                store: Rc::clone(&self.shared),
-                store_id: self.id,
+                store: Rc::downgrade(&self.shared),
                 lru_node: LruNode::new(texture_shared.id),
             });
 
@@ -4147,7 +4165,7 @@ impl TextureStore {
     }
 
     /// Unregisters a texture from store.
-    pub fn unregister<L>(&mut self, texture: &Texture<L>) {
+    pub fn unregister<L>(&self, texture: &Texture<L>) {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();
             let mut texture_shared = texture.shared.borrow_mut();

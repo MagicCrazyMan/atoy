@@ -353,6 +353,7 @@ struct BufferRuntime {
     buffer_byte_length: usize,
     bindings: HashSet<BufferTarget>,
     binding_ubos: HashSet<u32>,
+    // binding_vertex_attribute_arrays: HashSet<u32>,
 }
 
 impl BufferRuntime {
@@ -607,8 +608,7 @@ impl BufferRuntime {
 }
 
 struct BufferRegistered {
-    store: Rc<RefCell<StoreShared>>,
-    store_id: Uuid,
+    store: Weak<RefCell<StoreShared>>,
     lru_node: *mut LruNode<Uuid>,
 }
 
@@ -642,13 +642,15 @@ impl Drop for BufferShared {
             }
 
             if let Some(registered) = self.registered.as_mut() {
-                registered.store.borrow_mut().unregister(
-                    &self.id,
-                    registered.lru_node,
-                    runtime.buffer_byte_length,
-                    runtime.bindings.iter(),
-                    runtime.binding_ubos.iter(),
-                );
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().unregister(
+                        &self.id,
+                        registered.lru_node,
+                        runtime.buffer_byte_length,
+                        runtime.bindings.iter(),
+                        runtime.binding_ubos.iter(),
+                    );
+                }
             }
         }
     }
@@ -701,8 +703,10 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered.store.borrow().is_occupied(target, &self.id) {
-                return Err(Error::BufferTargetOccupied(target));
+            if let Some(store) = registered.store.upgrade() {
+                if store.borrow().is_occupied(target, &self.id) {
+                    return Err(Error::BufferTargetOccupied(target));
+                }
             }
         }
 
@@ -711,10 +715,12 @@ impl BufferShared {
                 runtime.upload(target, self.usage, &mut self.queue);
 
             if let Some(registered) = &mut self.registered {
-                let mut store = registered.store.borrow_mut();
-                store.update_lru(registered.lru_node);
-                store.update_used_memory(new_byte_length, old_byte_length);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.update_lru(registered.lru_node);
+                    store.update_used_memory(new_byte_length, old_byte_length);
+                    store.free();
+                }
             }
         } else {
             let buffer = runtime.get_or_create_buffer()?;
@@ -724,11 +730,13 @@ impl BufferShared {
             runtime.bindings.insert(target);
 
             if let Some(registered) = &mut self.registered {
-                let mut store = registered.store.borrow_mut();
-                store.update_lru(registered.lru_node);
-                store.update_used_memory(new_byte_length, old_byte_length);
-                store.add_binding(target, self.id);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.update_lru(registered.lru_node);
+                    store.update_used_memory(new_byte_length, old_byte_length);
+                    store.add_binding(target, self.id);
+                    store.free();
+                }
             }
         }
 
@@ -739,12 +747,10 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered
-                .store
-                .borrow()
-                .is_occupied_ubo(mount_point, &self.id)
-            {
-                return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
+            if let Some(store) = registered.store.upgrade() {
+                if store.borrow().is_occupied_ubo(mount_point, &self.id) {
+                    return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
+                }
             }
         }
 
@@ -764,10 +770,12 @@ impl BufferShared {
 
         if runtime.binding_ubos.contains(&mount_point) {
             if let Some(registered) = &self.registered {
-                let mut store = registered.store.borrow_mut();
-                store.update_lru(registered.lru_node);
-                store.update_used_memory(new_byte_length, old_byte_length);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.update_lru(registered.lru_node);
+                    store.update_used_memory(new_byte_length, old_byte_length);
+                    store.free();
+                }
             }
         } else {
             runtime.gl.bind_buffer_base(
@@ -778,11 +786,13 @@ impl BufferShared {
             runtime.binding_ubos.insert(mount_point);
 
             if let Some(registered) = &self.registered {
-                let mut store = registered.store.borrow_mut();
-                store.update_lru(registered.lru_node);
-                store.update_used_memory(new_byte_length, old_byte_length);
-                store.add_binding_ubo(mount_point, self.id);
-                store.free();
+                if let Some(store) = registered.store.upgrade() {
+                    let mut store = store.borrow_mut();
+                    store.update_lru(registered.lru_node);
+                    store.update_used_memory(new_byte_length, old_byte_length);
+                    store.add_binding_ubo(mount_point, self.id);
+                    store.free();
+                }
             }
         }
 
@@ -797,12 +807,10 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if let Some(registered) = &self.registered {
-            if registered
-                .store
-                .borrow()
-                .is_occupied_ubo(mount_point, &self.id)
-            {
-                return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
+            if let Some(store) = registered.store.upgrade() {
+                if store.borrow().is_occupied_ubo(mount_point, &self.id) {
+                    return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
+                }
             }
         }
 
@@ -829,11 +837,13 @@ impl BufferShared {
         runtime.binding_ubos.insert(mount_point);
 
         if let Some(registered) = &self.registered {
-            let mut store = registered.store.borrow_mut();
-            store.update_lru(registered.lru_node);
-            store.update_used_memory(new_byte_length, old_byte_length);
-            store.add_binding_ubo(mount_point, self.id);
-            store.free();
+            if let Some(store) = registered.store.upgrade() {
+                let mut store = store.borrow_mut();
+                store.update_lru(registered.lru_node);
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.add_binding_ubo(mount_point, self.id);
+                store.free();
+            }
         }
 
         runtime
@@ -850,7 +860,9 @@ impl BufferShared {
             runtime.gl.bind_buffer(target.gl_enum(), None);
 
             if let Some(registered) = &self.registered {
-                registered.store.borrow_mut().remove_binding(target);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding(target);
+                }
             }
         }
 
@@ -866,7 +878,9 @@ impl BufferShared {
                 .bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
 
             if let Some(registered) = self.registered.as_mut() {
-                registered.store.borrow_mut().remove_binding_ubo(index);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding_ubo(index);
+                }
             }
         }
 
@@ -881,14 +895,18 @@ impl BufferShared {
             gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
 
             if let Some(registered) = &self.registered {
-                registered.store.borrow_mut().remove_binding_ubo(index);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding_ubo(index);
+                }
             }
         }
         for target in runtime.bindings.drain() {
             gl.bind_buffer(target.gl_enum(), None);
 
             if let Some(registered) = &self.registered {
-                registered.store.borrow_mut().remove_binding(target);
+                if let Some(store) = registered.store.upgrade() {
+                    store.borrow_mut().remove_binding(target);
+                }
             }
         }
 
@@ -913,9 +931,11 @@ impl BufferShared {
             runtime.upload(BufferTarget::ARRAY_BUFFER, self.usage, &mut self.queue);
 
         if let Some(registered) = &self.registered {
-            let mut store = registered.store.borrow_mut();
-            store.update_used_memory(new_byte_length, old_byte_length);
-            store.free();
+            if let Some(store) = registered.store.upgrade() {
+                let mut store = store.borrow_mut();
+                store.update_used_memory(new_byte_length, old_byte_length);
+                store.free();
+            }
         }
 
         runtime
@@ -948,14 +968,18 @@ impl BufferShared {
                     gl.bind_buffer_base(WebGl2RenderingContext::UNIFORM_BUFFER, index, None);
 
                     if let Some(registered) = &self.registered {
-                        registered.store.borrow_mut().remove_binding_ubo(index);
+                        if let Some(store) = registered.store.upgrade() {
+                            store.borrow_mut().remove_binding_ubo(index);
+                        }
                     }
                 }
                 for target in runtime.bindings.drain() {
                     gl.bind_buffer(target.gl_enum(), None);
 
                     if let Some(registered) = &self.registered {
-                        registered.store.borrow_mut().remove_binding(target);
+                        if let Some(store) = registered.store.upgrade() {
+                            store.borrow_mut().remove_binding(target);
+                        }
                     }
                 }
                 gl.delete_buffer(Some(&buffer))
@@ -963,10 +987,11 @@ impl BufferShared {
             runtime.buffer_byte_length = new_byte_length;
 
             if let Some(registered) = &self.registered {
-                registered
-                    .store
-                    .borrow_mut()
-                    .update_used_memory(new_byte_length, old_byte_length);
+                if let Some(store) = registered.store.upgrade() {
+                    store
+                        .borrow_mut()
+                        .update_used_memory(new_byte_length, old_byte_length);
+                }
             }
         }
     }
@@ -1048,10 +1073,10 @@ impl BufferShared {
         // free
         if let Some(buffer) = runtime.buffer.take() {
             if let Some(registered) = self.registered.as_mut() {
-                let mut store = registered.store.borrow_mut();
-                store.update_used_memory(0, runtime.buffer_byte_length);
-                unsafe {
-                    store.lru.remove(registered.lru_node);
+                if let Some(store) = registered.store.upgrade() {
+                    store
+                        .borrow_mut()
+                        .remove(runtime.buffer_byte_length, registered.lru_node);
                 }
             }
 
@@ -1416,6 +1441,7 @@ impl Builder {
 
 struct StoreShared {
     gl: WebGl2RenderingContext,
+    id: Uuid,
 
     available_memory: usize,
     used_memory: usize,
@@ -1424,6 +1450,17 @@ struct StoreShared {
     items: HashMap<Uuid, Weak<RefCell<BufferShared>>>,
     bindings: HashMap<BufferTarget, Uuid>,
     binding_ubos: HashMap<u32, Uuid>,
+}
+
+impl Drop for StoreShared {
+    fn drop(&mut self) {
+        for item in self.items.values_mut() {
+            let Some(item) = item.upgrade() else {
+                continue;
+            };
+            item.borrow_mut().registered = None;
+        }
+    }
 }
 
 impl StoreShared {
@@ -1451,6 +1488,13 @@ impl StoreShared {
 
     fn remove_binding_ubo(&mut self, index: u32) {
         self.binding_ubos.remove(&index);
+    }
+
+    fn remove(&mut self, byte_length: usize, lru_node: *mut LruNode<Uuid>) {
+        self.used_memory -= byte_length;
+        unsafe {
+            self.lru.remove(lru_node);
+        }
     }
 
     fn is_occupied(&self, target: BufferTarget, id: &Uuid) -> bool {
@@ -1527,21 +1571,9 @@ impl StoreShared {
     }
 }
 
+#[derive(Clone)]
 pub struct BufferStore {
-    id: Uuid,
     shared: Rc<RefCell<StoreShared>>,
-}
-
-impl Drop for BufferStore {
-    fn drop(&mut self) {
-        let mut shared = self.shared.borrow_mut();
-        for item in shared.items.values_mut() {
-            let Some(item) = item.upgrade() else {
-                continue;
-            };
-            item.borrow_mut().registered = None;
-        }
-    }
 }
 
 impl BufferStore {
@@ -1555,6 +1587,7 @@ impl BufferStore {
     pub fn with_available_memory(gl: WebGl2RenderingContext, available_memory: usize) -> Self {
         let stored = StoreShared {
             gl,
+            id: Uuid::new_v4(),
 
             available_memory: available_memory.min(i32::MAX as usize),
             used_memory: 0,
@@ -1566,14 +1599,13 @@ impl BufferStore {
         };
 
         Self {
-            id: Uuid::new_v4(),
             shared: Rc::new(RefCell::new(stored)),
         }
     }
 
     /// Returns store id.
     pub fn id(&self) -> Uuid {
-        self.id
+        self.shared.borrow().id
     }
 
     /// Returns the maximum available memory in bytes.
@@ -1588,15 +1620,24 @@ impl BufferStore {
     }
 
     /// Registers a buffer to store, and initializes the buffer.
-    pub fn register(&mut self, buffer: &Buffer) -> Result<(), Error> {
+    pub fn register(&self, buffer: &Buffer) -> Result<(), Error> {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();
             let mut buffer_shared = buffer.shared.borrow_mut();
 
-            if let Some(registered) = buffer_shared.registered.as_ref() {
-                if &registered.store_id != &self.id {
-                    return Err(Error::RegisterBufferToMultipleStore);
+            if let Some(store) = buffer_shared
+                .registered
+                .as_ref()
+                .and_then(|registered| registered.store.upgrade())
+            {
+                if let Ok(store) = store.try_borrow() {
+                    if &store.id != &store_shared.id {
+                        return Err(Error::RegisterBufferToMultipleStore);
+                    } else {
+                        return Ok(());
+                    }
                 } else {
+                    // if store is borrowed, it means that store of registered is the same store as self.
                     return Ok(());
                 }
             }
@@ -1619,8 +1660,7 @@ impl BufferStore {
             }
 
             buffer_shared.registered = Some(BufferRegistered {
-                store: Rc::clone(&self.shared),
-                store_id: self.id,
+                store: Rc::downgrade(&self.shared),
                 lru_node: LruNode::new(buffer_shared.id),
             });
 
@@ -1633,7 +1673,7 @@ impl BufferStore {
     }
 
     /// Unregisters a buffer from store.
-    pub fn unregister(&mut self, buffer: &Buffer) {
+    pub fn unregister(&self, buffer: &Buffer) {
         unsafe {
             let mut store_shared = self.shared.borrow_mut();
             let mut buffer_shared = buffer.shared.borrow_mut();

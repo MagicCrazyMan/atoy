@@ -1,9 +1,11 @@
 use wasm_bindgen::JsValue;
 
 use super::{
+    attribute::AttributeBinding,
     buffer::BufferTarget,
     framebuffer::FramebufferTarget,
     texture::{TextureInternalFormat, TextureTarget, TextureUnit},
+    uniform::{UniformBinding, UniformBlockBinding},
 };
 
 #[derive(Debug, Clone)]
@@ -24,8 +26,12 @@ pub enum Error {
     ClientWaitFailure(Option<String>),
     CompileShaderFailure(Option<String>),
     CompileProgramFailure(Option<String>),
-    NoSuchAttribute(String),
-    NoSuchUniform(String),
+    ProgramOccupied,
+    ProgramUnused,
+    VertexArrayObjectOccupied,
+    NoSuchAttribute(AttributeBinding),
+    NoSuchUniform(UniformBinding),
+    NoSuchUniformBlock(UniformBlockBinding),
     BufferUninitialized,
     BufferAlreadyInitialized,
     BufferTargetOccupied(BufferTarget),

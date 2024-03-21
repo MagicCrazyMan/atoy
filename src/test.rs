@@ -47,7 +47,7 @@ use crate::renderer::webgl::buffer::{
     Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::renderer::webgl::draw::{Draw, DrawMode};
-use crate::renderer::webgl::program::{CustomBinding, Define};
+use crate::renderer::webgl::program::Define;
 use crate::renderer::webgl::state::FrameState;
 use crate::renderer::webgl::texture::{SamplerParameter, TextureParameter, TexturePixelStorage};
 use crate::renderer::webgl::uniform::{UniformBlockValue, UniformValue};
@@ -186,18 +186,6 @@ impl StandardMaterial for TickSolidColorMaterial {
 
     fn snippet(&self, name: &str) -> Option<Cow<'_, str>> {
         self.0.snippet(name)
-    }
-
-    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        self.0.attribute_custom_bindings()
-    }
-
-    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        self.0.uniform_custom_bindings()
-    }
-
-    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        self.0.uniform_block_custom_bindings()
     }
 
     fn use_position_eye_space(&self) -> bool {

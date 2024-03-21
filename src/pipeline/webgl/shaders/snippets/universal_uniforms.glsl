@@ -12,7 +12,7 @@
  * - `u_ProjMatrix`: Proj matrix.
  * - `u_ViewProjMatrix`: View-Proj matrix.
  */
-layout(std140) uniform atoy_UniversalUniforms {
+layout(std140) uniform atoy_Universal {
                                     // base alignment (bytes) // offset alignment (bytes)
     float u_RenderTime;             // 16                     // 0
     vec3 u_CameraPosition;          // 16                     // 16

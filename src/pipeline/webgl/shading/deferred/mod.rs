@@ -7,8 +7,8 @@ use web_sys::WebGlTexture;
 
 use crate::{
     pipeline::webgl::{
-        UBO_LIGHTS_BINDING_MOUNT_POINT, UBO_LIGHTS_BLOCK_NAME,
-        UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
+        UBO_LIGHTS_BLOCK_BINDING, UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
+        UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING, UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
     },
     renderer::webgl::{
         error::Error,
@@ -19,7 +19,7 @@ use crate::{
         program::{Define, ShaderProvider},
         state::FrameState,
         texture::{TextureUncompressedInternalFormat, TextureUnit},
-        uniform::UniformValue,
+        uniform::{UniformBinding, UniformValue},
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
@@ -69,42 +69,46 @@ impl StandardDeferredShading {
 
         let program = if lighting {
             self.shader.lighting = true;
-            let program = state.program_store_mut().use_program(&self.shader)?;
-
+            let program = state
+                .program_store_mut()
+                .get_or_compile_program(&self.shader)?;
+            program.use_program()?;
             // binds atoy_Lights
-            state.bind_uniform_block_index_by_block_name(
-                program,
-                UBO_LIGHTS_BLOCK_NAME,
-                UBO_LIGHTS_BINDING_MOUNT_POINT,
+            program.mount_uniform_block_by_binding(
+                &UBO_LIGHTS_BLOCK_BINDING,
+                UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
             )?;
-            state.bind_uniform_value_by_variable_name(
-                program,
-                POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_BINDING,
                 &UniformValue::Integer1(0),
+                None,
             )?;
-            state.bind_uniform_value_by_variable_name(
-                program,
-                NORMALS_TEXTURE_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &NORMALS_TEXTURE_UNIFORM_BINDING,
                 &UniformValue::Integer1(1),
+                None,
             )?;
 
             program
         } else {
             self.shader.lighting = false;
-            state.program_store_mut().use_program(&self.shader)?
+            let program = state
+                .program_store_mut()
+                .get_or_compile_program(&self.shader)?;
+            program.use_program()?;
+
+            program
         };
 
-        // binds atoy_UniversalUniforms
-        state.bind_uniform_block_index_by_block_name(
-            program,
-            UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME,
-            UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT,
+        // binds atoy_Universal
+        program.mount_uniform_block_by_binding(
+            &UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING,
+            UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
         )?;
-
-        state.bind_uniform_value_by_variable_name(
-            program,
-            ALBEDO_TEXTURE_UNIFORM_NAME,
+        program.bind_uniform_value_by_binding(
+            &ALBEDO_TEXTURE_UNIFORM_BINDING,
             &UniformValue::Integer1(2),
+            None,
         )?;
 
         state.do_computation([
@@ -118,14 +122,26 @@ impl StandardDeferredShading {
 
         self.framebuffer(state).unbind();
 
+        program.unuse_program()?;
+
         Ok(())
     }
 }
 
 const POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME: &'static str =
     "u_PositionsAndSpecularShininessTexture";
+const POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(
+        POSITIONS_AND_SPECULAR_SHININESS_TEXTURE_UNIFORM_NAME,
+    ));
+
 const NORMALS_TEXTURE_UNIFORM_NAME: &'static str = "u_NormalsTexture";
+const NORMALS_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(NORMALS_TEXTURE_UNIFORM_NAME));
+
 const ALBEDO_TEXTURE_UNIFORM_NAME: &'static str = "u_AlbedoTexture";
+const ALBEDO_TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(ALBEDO_TEXTURE_UNIFORM_NAME));
 
 struct DeferredShader {
     lighting: bool,

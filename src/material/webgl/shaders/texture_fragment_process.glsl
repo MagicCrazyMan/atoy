@@ -2,17 +2,17 @@
  * Texture Frgament Process Snippet.
  */
 
-uniform sampler2D u_AlbedoMap;
-uniform float u_Transparency;
-uniform float u_SpecularShininess;
+uniform sampler2D u_Material_AlbedoMap;
+uniform float u_Material_Transparency;
+uniform float u_Material_SpecularShininess;
 
 #ifdef USE_NORMAL_MAP
-uniform sampler2D u_NormalMap;
+uniform sampler2D u_Material_NormalMap;
 #endif
 
 #ifdef USE_PARALLAX_MAP
-uniform sampler2D u_ParallaxMap;
-uniform float u_ParallaxHeightScale;
+uniform sampler2D u_Material_ParallaxMap;
+uniform float u_Material_ParallaxHeightScale;
 #endif
 
 atoy_Fragment fragment_process() {
@@ -21,7 +21,7 @@ atoy_Fragment fragment_process() {
 
     #ifdef USE_PARALLAX_MAP
     vec3 to_camera = normalize(v_TBNInvert * u_CameraPosition - v_TBNInvert * v_Position);
-    float height = texture(u_ParallaxMap, v_TexCoord).r * u_ParallaxHeightScale;
+    float height = texture(u_Material_ParallaxMap, v_TexCoord).r * u_Material_ParallaxHeightScale;
     vec2 offset = to_camera.xy / to_camera.z * height;
     tex_coord = v_TexCoord - offset;
     if(tex_coord.x > 1.0f || tex_coord.y > 1.0f || tex_coord.x < 0.0f || tex_coord.y < 0.0f)
@@ -31,7 +31,7 @@ atoy_Fragment fragment_process() {
     #endif
 
     #ifdef USE_NORMAL_MAP
-    normal = texture(u_NormalMap, tex_coord).xyz;
+    normal = texture(u_Material_NormalMap, tex_coord).xyz;
     normal.xy = normal.xy * 2.0f - 1.0f;
     normal.z = (normal.z - 0.5f) * 2.0f;
     normal = normalize(v_TBN * normal);
@@ -43,7 +43,7 @@ atoy_Fragment fragment_process() {
         #endif
     #endif
 
-    vec3 albedo = texture(u_AlbedoMap, tex_coord).xyz;
+    vec3 albedo = texture(u_Material_AlbedoMap, tex_coord).xyz;
 
-    return atoy_Fragment(v_Position, normal, albedo, u_SpecularShininess, u_Transparency);
+    return atoy_Fragment(v_Position, normal, albedo, u_Material_SpecularShininess, u_Material_Transparency);
 }

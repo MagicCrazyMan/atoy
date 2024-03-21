@@ -14,7 +14,7 @@ use crate::{
     message::{channel, Executor, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
-        program::{CustomBinding, Define},
+        program::Define,
         state::FrameState,
         texture::{Texture, Texture2D, TextureUnit},
         uniform::{UniformBlockValue, UniformValue},
@@ -154,52 +154,13 @@ impl StandardMaterial for TextureMaterial {
         self.transparency
     }
 
-    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        &[]
-    }
-
-    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        match (self.has_normal_map(), self.has_parallax_map()) {
-            (true, true) => &[
-                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-            ],
-            (true, false) => &[
-                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_NormalMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-            ],
-            (false, true) => &[
-                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_ParallaxHeightScale")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-            ],
-            (false, false) => &[
-                CustomBinding::FromMaterial(Cow::Borrowed("u_AlbedoMap")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-                CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-            ],
-        }
-    }
-
-    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        &[]
-    }
-
     fn attribute_value(&self, _: &str) -> Option<AttributeValue<'_>> {
         None
     }
 
     fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>> {
         match name {
-            "u_AlbedoMap" => {
+            "u_Material_AlbedoMap" => {
                 let texture = self.albedo.borrow();
                 match &*texture {
                     Some((texture, unit)) => Some(UniformValue::Texture2D {
@@ -209,7 +170,7 @@ impl StandardMaterial for TextureMaterial {
                     None => None,
                 }
             }
-            "u_NormalMap" => {
+            "u_Material_NormalMap" => {
                 let texture = self.normal.borrow();
                 match &*texture {
                     Some((texture, unit)) => Some(UniformValue::Texture2D {
@@ -219,8 +180,8 @@ impl StandardMaterial for TextureMaterial {
                     None => None,
                 }
             }
-            "u_ParallaxHeightScale" => Some(UniformValue::Float1(0.1)),
-            "u_ParallaxMap" => {
+            "u_Material_ParallaxHeightScale" => Some(UniformValue::Float1(0.1)),
+            "u_Material_ParallaxMap" => {
                 let texture = self.parallax.borrow();
                 match &*texture {
                     Some((texture, unit)) => Some(UniformValue::Texture2D {
@@ -230,8 +191,8 @@ impl StandardMaterial for TextureMaterial {
                     None => None,
                 }
             }
-            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
-            "u_SpecularShininess" => Some(UniformValue::Float1(128.0)),
+            "u_Material_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
+            "u_Material_SpecularShininess" => Some(UniformValue::Float1(128.0)),
             _ => None,
         }
     }

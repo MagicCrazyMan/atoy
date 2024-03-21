@@ -17,11 +17,11 @@ use crate::{
 use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_BINDING_MOUNT_POINT,
+    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
     UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH,
     UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH,
     UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
+    UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
     UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET, UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET,
@@ -58,7 +58,7 @@ impl StandardPreparation {
         universal_ubo: &mut Buffer,
         state: &mut FrameState,
     ) -> Result<(), Error> {
-        state.buffer_store_mut().register(universal_ubo)?;
+        state.buffer_store().register(universal_ubo)?;
 
         // u_RenderTime
         Float32Array::new_with_byte_offset_and_length(
@@ -101,7 +101,7 @@ impl StandardPreparation {
         .copy_from(&state.camera().view_proj_matrix().gl_f32());
 
         universal_ubo.buffer_sub_data(self.universal_uniforms.clone(), 0);
-        universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT)?;
+        universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT)?;
 
         Ok(())
     }
@@ -112,7 +112,7 @@ impl StandardPreparation {
         state: &mut FrameState,
         scene: &mut Scene,
     ) -> Result<(), Error> {
-        state.buffer_store_mut().register(lights_ubo)?;
+        state.buffer_store().register(lights_ubo)?;
 
         // u_Attenuations
         if self
@@ -210,7 +210,7 @@ impl StandardPreparation {
             (last_area_lights, area_lights, MAX_AREA_LIGHTS, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET)
         }
 
-        lights_ubo.bind_ubo(UBO_LIGHTS_BINDING_MOUNT_POINT)?;
+        lights_ubo.bind_ubo(UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT)?;
 
         Ok(())
     }

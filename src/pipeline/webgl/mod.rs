@@ -4,7 +4,7 @@ pub mod composer;
 pub mod preparation;
 pub mod shading;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,7 @@ use crate::{
         },
         error::Error,
         state::FrameState,
+        uniform::UniformBlockBinding,
     },
     scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
 };
@@ -41,19 +42,30 @@ use self::{
 
 use super::Pipeline;
 
-/// Uniform Buffer Object `atoy_UniversalUniforms`.
-pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_UniversalUniforms";
+/// Uniform Buffer Object `atoy_Universal`.
+pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME: &'static str = "atoy_Universal";
+/// [`UniformBlockBinding`] Uniform Buffer Object `atoy_Universal`.
+pub const UBO_UNIVERSAL_UNIFORMS_BLOCK_BINDING: UniformBlockBinding =
+    UniformBlockBinding::Custom(Cow::Borrowed(UBO_UNIVERSAL_UNIFORMS_BLOCK_NAME));
+
 /// Uniform Buffer Object `atoy_Lights`.
 pub const UBO_LIGHTS_BLOCK_NAME: &'static str = "atoy_Lights";
+/// [`UniformBlockBinding`] Uniform Buffer Object `atoy_Lights`.
+pub const UBO_LIGHTS_BLOCK_BINDING: UniformBlockBinding =
+    UniformBlockBinding::Custom(Cow::Borrowed(UBO_LIGHTS_BLOCK_NAME));
+
 /// Uniform Buffer Object `atoy_GaussianKernel`.
 pub const UBO_GAUSSIAN_KERNEL_BLOCK_NAME: &'static str = "atoy_GaussianKernel";
+/// [`UniformBlockBinding`] Uniform Buffer Object `atoy_GaussianKernel`.
+pub const UBO_GAUSSIAN_KERNEL_BLOCK_BINDING: UniformBlockBinding =
+    UniformBlockBinding::Custom(Cow::Borrowed(UBO_GAUSSIAN_KERNEL_BLOCK_NAME));
 
-/// Uniform Buffer Object mount point for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
-pub const UBO_UNIVERSAL_UNIFORMS_BINDING_MOUNT_POINT: u32 = 0;
+/// Uniform Buffer Object mount point for `atoy_UniversalVert` and `atoy_UniversalFrag`.
+pub const UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT: u32 = 0;
 /// Uniform Buffer Object mount point for `atoy_Lights`.
-pub const UBO_LIGHTS_BINDING_MOUNT_POINT: u32 = 1;
+pub const UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT: u32 = 1;
 /// Uniform Buffer Object mount point for gaussian blur.
-pub const UBO_GAUSSIAN_BLUR_BINDING_MOUNT_POINT: u32 = 2;
+pub const UBO_GAUSSIAN_BLUR_UNIFORM_BLOCK_MOUNT_POINT: u32 = 2;
 
 /// Uniform Buffer Object bytes length for `u_RenderTime`.
 pub const UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH: usize = 16;
@@ -66,7 +78,7 @@ pub const UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 /// Uniform Buffer Object bytes length for `u_ViewProjMatrix`.
 pub const UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_LENGTH: usize = 64;
 
-/// Uniform Buffer Object bytes length for `atoy_UniversalUniformsVert` and `atoy_UniversalUniformsFrag`.
+/// Uniform Buffer Object bytes length for `atoy_UniversalVert` and `atoy_UniversalFrag`.
 pub const UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH: usize = UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_LENGTH
     + UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_LENGTH
     + UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_LENGTH
@@ -490,7 +502,7 @@ impl StandardPipeline {
 
     /// Returns picked entity index.
     /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
-    pub unsafe fn pick_entity(
+    pub fn pick_entity(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -504,7 +516,7 @@ impl StandardPipeline {
 
     /// Returns picked position.
     /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
-    pub unsafe fn pick_position(
+    pub fn pick_position(
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
@@ -580,46 +592,41 @@ impl StandardPipeline {
 
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
-        unsafe {
-            // deferred shading on opaque entities
-            self.gbuffer.collect(state, &collected_entities)?;
-            let (
-                positions_and_specular_shininess_texture,
-                normals_texture,
-                albedo_texture,
-                depth_stencil,
-            ) = self.gbuffer.deferred_shading_textures().unwrap();
-            self.deferred_shading.draw(
-                state,
-                positions_and_specular_shininess_texture,
-                normals_texture,
-                albedo_texture,
-                lighting,
-            )?;
+        // deferred shading on opaque entities
+        self.gbuffer.collect(state, &collected_entities)?;
+        let (
+            positions_and_specular_shininess_texture,
+            normals_texture,
+            albedo_texture,
+            depth_stencil,
+        ) = self.gbuffer.deferred_shading_textures().unwrap();
+        self.deferred_shading.draw(
+            state,
+            positions_and_specular_shininess_texture,
+            normals_texture,
+            albedo_texture,
+            lighting,
+        )?;
 
-            // then forward shading on translucent entities
-            self.deferred_translucent_shading.draw(
-                state,
-                &depth_stencil,
-                &collected_entities,
-                lighting,
-            )?;
+        // then forward shading on translucent entities
+        self.deferred_translucent_shading.draw(
+            state,
+            &depth_stencil,
+            &collected_entities,
+            lighting,
+        )?;
 
-            let opaque_textures = self.deferred_shading.draw_texture().unwrap();
-            let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
-            self.composer
-                .draw(state, [opaque_textures, translucent_texture])?;
-        }
+        let opaque_textures = self.deferred_shading.draw_texture().unwrap();
+        let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
+        self.composer
+            .draw(state, [opaque_textures, translucent_texture])?;
 
         Ok(())
     }
 
     fn picking(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let collected_entities = self.entities_collector.collect_entities(state, scene);
-
-        unsafe {
-            self.picking.draw(state, &collected_entities)?;
-        }
+        self.picking.draw(state, &collected_entities)?;
 
         Ok(())
     }
@@ -631,36 +638,26 @@ impl Pipeline for StandardPipeline {
     type Error = Error;
 
     fn execute(&mut self, state: &mut Self::State, scene: &mut Scene) -> Result<(), Self::Error> {
+        self.preparation
+            .prepare(state, scene, &mut self.universal_ubo, &mut self.lights_ubo)?;
+
         match self.pipeline_shading {
             StandardPipelineShading::Picking => {
                 self.picking(state, scene)?;
             }
-            _ => {
-                self.preparation.prepare(
-                    state,
-                    scene,
-                    &mut self.universal_ubo,
-                    &mut self.lights_ubo,
-                )?;
-
-                {
-                    match self.pipeline_shading {
-                        StandardPipelineShading::ForwardShading => {
-                            self.forward_shading(state, scene)?;
-                        }
-                        StandardPipelineShading::DeferredShading => {
-                            if state.capabilities().color_buffer_float_supported() {
-                                self.deferred_shading(state, scene)?;
-                            } else {
-                                // fallback to forward shading if color buffer float not supported
-                                self.forward_shading(state, scene)?;
-                                self.pipeline_shading = StandardPipelineShading::ForwardShading;
-                            }
-                        }
-                        StandardPipelineShading::Picking => unreachable!(),
-                    };
-                };
-
+            StandardPipelineShading::ForwardShading => {
+                self.forward_shading(state, scene)?;
+                self.cleanup
+                    .cleanup(&self.universal_ubo, &self.lights_ubo)?;
+            }
+            StandardPipelineShading::DeferredShading => {
+                if state.capabilities().color_buffer_float_supported() {
+                    self.deferred_shading(state, scene)?;
+                } else {
+                    // fallback to forward shading if color buffer float not supported
+                    self.forward_shading(state, scene)?;
+                    self.pipeline_shading = StandardPipelineShading::ForwardShading;
+                }
                 self.cleanup
                     .cleanup(&self.universal_ubo, &self.lights_ubo)?;
             }

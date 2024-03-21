@@ -1,7 +1,12 @@
+use std::{borrow::Cow, sync::OnceLock};
+
+use regex::Regex;
+
 use crate::value::Readonly;
 
 use super::{
-    buffer::Buffer, texture::{Texture, Texture2D, Texture2DArray, Texture3D, TextureCubeMap, TextureUnit},
+    buffer::Buffer,
+    texture::{Texture, Texture2D, Texture2DArray, Texture3D, TextureCubeMap, TextureUnit},
 };
 
 /// Available uniform values.
@@ -75,10 +80,10 @@ pub enum UniformBlockValue<'a> {
     },
 }
 
-/// Uniform internal bindings.
-#[derive(Clone, PartialEq, Eq, Hash)]
+/// Available internal and custom uniform bindings.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum UniformInternalBinding {
+pub enum UniformBinding {
     RenderTime,
     CanvasSize,
     DrawingBufferSize,
@@ -88,37 +93,134 @@ pub enum UniformInternalBinding {
     ProjMatrix,
     ViewProjMatrix,
     CameraPosition,
+    FromEntity(Cow<'static, str>),
+    FromGeometry(Cow<'static, str>),
+    FromMaterial(Cow<'static, str>),
+    Custom(Cow<'static, str>),
 }
 
-impl UniformInternalBinding {
+impl UniformBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
-            UniformInternalBinding::RenderTime => "u_RenderTime",
-            UniformInternalBinding::CanvasSize => "u_CanvasSize",
-            UniformInternalBinding::DrawingBufferSize => "u_DrawingBufferSize",
-            UniformInternalBinding::ModelMatrix => "u_ModelMatrix",
-            UniformInternalBinding::NormalMatrix => "u_NormalMatrix",
-            UniformInternalBinding::ViewMatrix => "u_ViewMatrix",
-            UniformInternalBinding::ProjMatrix => "u_ProjMatrix",
-            UniformInternalBinding::ViewProjMatrix => "u_ViewProjMatrix",
-            UniformInternalBinding::CameraPosition => "u_CameraPosition",
+            UniformBinding::RenderTime => "u_RenderTime",
+            UniformBinding::CanvasSize => "u_CanvasSize",
+            UniformBinding::DrawingBufferSize => "u_DrawingBufferSize",
+            UniformBinding::ModelMatrix => "u_ModelMatrix",
+            UniformBinding::NormalMatrix => "u_NormalMatrix",
+            UniformBinding::ViewMatrix => "u_ViewMatrix",
+            UniformBinding::ProjMatrix => "u_ProjMatrix",
+            UniformBinding::ViewProjMatrix => "u_ViewProjMatrix",
+            UniformBinding::CameraPosition => "u_CameraPosition",
+            UniformBinding::FromEntity(name)
+            | UniformBinding::FromGeometry(name)
+            | UniformBinding::FromMaterial(name)
+            | UniformBinding::Custom(name) => &name,
         }
     }
+}
 
-    /// Tries to find uniform internal binding from a variable name.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "u_RenderTime" => Some(UniformInternalBinding::RenderTime),
-            "u_CanvasSize" => Some(UniformInternalBinding::CanvasSize),
-            "u_DrawingBufferSize" => Some(UniformInternalBinding::DrawingBufferSize),
-            "u_ModelMatrix" => Some(UniformInternalBinding::ModelMatrix),
-            "u_NormalMatrix" => Some(UniformInternalBinding::NormalMatrix),
-            "u_ViewMatrix" => Some(UniformInternalBinding::ViewMatrix),
-            "u_ProjMatrix" => Some(UniformInternalBinding::ProjMatrix),
-            "u_ViewProjMatrix" => Some(UniformInternalBinding::ViewProjMatrix),
-            "u_CameraPosition" => Some(UniformInternalBinding::CameraPosition),
-            _ => None,
+/// Regular expression to find where to get value for a uniform.
+const GLSL_UNIFORM_REGEX_STRING: &'static str = "u_(.*)_(.*)";
+
+static GLSL_UNIFORM_REGEX: OnceLock<Regex> = OnceLock::new();
+
+impl<T> From<T> for UniformBinding
+where
+    T: AsRef<str>,
+{
+    fn from(value: T) -> Self {
+        let value = value.as_ref();
+        match value {
+            "u_RenderTime" => UniformBinding::RenderTime,
+            "u_CanvasSize" => UniformBinding::CanvasSize,
+            "u_DrawingBufferSize" => UniformBinding::DrawingBufferSize,
+            "u_ModelMatrix" => UniformBinding::ModelMatrix,
+            "u_NormalMatrix" => UniformBinding::NormalMatrix,
+            "u_ViewMatrix" => UniformBinding::ViewMatrix,
+            "u_ProjMatrix" => UniformBinding::ProjMatrix,
+            "u_ViewProjMatrix" => UniformBinding::ViewProjMatrix,
+            "u_CameraPosition" => UniformBinding::CameraPosition,
+            _ => {
+                let regex = GLSL_UNIFORM_REGEX
+                    .get_or_init(|| Regex::new(GLSL_UNIFORM_REGEX_STRING).unwrap());
+
+                let name = Cow::Owned(value.to_string());
+
+                // when regular expression capture nothing, fallback to FromMaterial
+                let Some(captures) = regex.captures(value) else {
+                    return UniformBinding::Custom(name);
+                };
+                let Some(c1) = captures.get(1) else {
+                    return UniformBinding::Custom(name);
+                };
+
+                match c1.as_str() {
+                    "Entity" => UniformBinding::FromEntity(name),
+                    "Geometry" => UniformBinding::FromGeometry(name),
+                    "Material" => UniformBinding::FromMaterial(name),
+                    _ => UniformBinding::Custom(name),
+                }
+            }
+        }
+    }
+}
+
+/// Available custom uniform block bindings.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum UniformBlockBinding {
+    FromEntity(Cow<'static, str>),
+    FromGeometry(Cow<'static, str>),
+    FromMaterial(Cow<'static, str>),
+    Custom(Cow<'static, str>),
+}
+
+impl UniformBlockBinding {
+    /// Returns variable name.
+    pub fn variable_name(&self) -> &str {
+        match self {
+            UniformBlockBinding::FromEntity(name)
+            | UniformBlockBinding::FromGeometry(name)
+            | UniformBlockBinding::FromMaterial(name)
+            | UniformBlockBinding::Custom(name) => &name,
+        }
+    }
+}
+
+/// Regular expression to find where to get value for a uniform block.
+const GLSL_UNIFORM_BLOCK_REGEX_STRING: &'static str = "ub_(.*)_(.*)";
+
+static GLSL_UNIFORM_BLOCK_REGEX: OnceLock<Regex> = OnceLock::new();
+
+impl<T> From<T> for UniformBlockBinding
+where
+    T: AsRef<str>,
+{
+    fn from(value: T) -> Self {
+        let value = value.as_ref();
+        match value {
+            _ => {
+                let regex = GLSL_UNIFORM_BLOCK_REGEX
+                    .get_or_init(|| Regex::new(GLSL_UNIFORM_BLOCK_REGEX_STRING).unwrap());
+
+                let name = Cow::Owned(value.to_string());
+
+                // when regular expression capture nothing, fallback to FromMaterial
+                let Some(captures) = regex.captures(value) else {
+                    return UniformBlockBinding::Custom(name);
+                };
+                let Some(c1) = captures.get(1) else {
+                    return UniformBlockBinding::Custom(name);
+                };
+
+                match c1.as_str() {
+                    "Entity" => UniformBlockBinding::FromEntity(name),
+                    "Geometry" => UniformBlockBinding::FromGeometry(name),
+                    "Material" => UniformBlockBinding::FromMaterial(name),
+                    _ => UniformBlockBinding::Custom(name),
+                }
+            }
         }
     }
 }

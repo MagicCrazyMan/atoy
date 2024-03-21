@@ -7,7 +7,7 @@ use crate::{
     message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
-        program::{CustomBinding, Define},
+        program::Define,
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
     },
@@ -96,9 +96,9 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>> {
         match name {
-            "u_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
-            "u_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
-            "u_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
+            "u_Material_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
+            "u_Material_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
+            "u_Material_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
             _ => None,
         }
     }
@@ -109,22 +109,6 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn snippet(&self, _: &str) -> Option<Cow<'_, str>> {
         None
-    }
-
-    fn attribute_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        &[]
-    }
-
-    fn uniform_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        &[
-            CustomBinding::FromMaterial(Cow::Borrowed("u_Color")),
-            CustomBinding::FromMaterial(Cow::Borrowed("u_Transparency")),
-            CustomBinding::FromMaterial(Cow::Borrowed("u_SpecularShininess")),
-        ]
-    }
-
-    fn uniform_block_custom_bindings(&self) -> &[CustomBinding<'_>] {
-        &[]
     }
 
     fn use_position_eye_space(&self) -> bool {

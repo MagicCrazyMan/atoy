@@ -1,8 +1,14 @@
-use web_sys::WebGl2RenderingContext;
+use std::{borrow::Cow, sync::OnceLock};
+
+use regex::Regex;
+use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject};
 
 use crate::value::Readonly;
 
-use super::buffer::{Buffer, BufferComponentSize, BufferDataType};
+use super::{
+    buffer::{Buffer, BufferComponentSize, BufferDataType},
+    error::Error,
+};
 
 /// Available attribute values.
 pub enum AttributeValue<'a> {
@@ -37,36 +43,74 @@ pub enum AttributeValue<'a> {
 }
 
 /// Attribute internal bindings.
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub enum AttributeInternalBinding {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AttributeBinding {
     GeometryPosition,
     GeometryTextureCoordinate,
     GeometryNormal,
     GeometryTangent,
     GeometryBitangent,
+    FromEntity(Cow<'static, str>),
+    FromGeometry(Cow<'static, str>),
+    FromMaterial(Cow<'static, str>),
+    Custom(Cow<'static, str>),
 }
 
-impl AttributeInternalBinding {
+impl AttributeBinding {
     /// Returns variable name.
     pub fn variable_name(&self) -> &str {
         match self {
-            AttributeInternalBinding::GeometryPosition => "a_Position",
-            AttributeInternalBinding::GeometryTextureCoordinate => "a_TexCoord",
-            AttributeInternalBinding::GeometryNormal => "a_Normal",
-            AttributeInternalBinding::GeometryTangent => "a_Tangent",
-            AttributeInternalBinding::GeometryBitangent => "a_Bitangent",
+            AttributeBinding::GeometryPosition => "a_Position",
+            AttributeBinding::GeometryTextureCoordinate => "a_TexCoord",
+            AttributeBinding::GeometryNormal => "a_Normal",
+            AttributeBinding::GeometryTangent => "a_Tangent",
+            AttributeBinding::GeometryBitangent => "a_Bitangent",
+            AttributeBinding::FromEntity(name)
+            | AttributeBinding::FromGeometry(name)
+            | AttributeBinding::FromMaterial(name)
+            | AttributeBinding::Custom(name) => name.as_ref(),
         }
     }
+}
 
-    /// Tries to find attribute internal binding from a variable name.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "a_Position" => Some(AttributeInternalBinding::GeometryPosition),
-            "a_TexCoord" => Some(AttributeInternalBinding::GeometryTextureCoordinate),
-            "a_Normal" => Some(AttributeInternalBinding::GeometryNormal),
-            "a_Tangent" => Some(AttributeInternalBinding::GeometryTangent),
-            "a_Bitangent" => Some(AttributeInternalBinding::GeometryBitangent),
-            _ => None,
+/// Regular expression to find where to get value for a attribute.
+const GLSL_ATTRIBUTE_REGEX_STRING: &'static str = "a_(.*)_(.*)";
+
+static GLSL_ATTRIBUTE_REGEX: OnceLock<Regex> = OnceLock::new();
+
+impl<T> From<T> for AttributeBinding
+where
+    T: AsRef<str>,
+{
+    fn from(value: T) -> Self {
+        let value = value.as_ref();
+        match value {
+            "a_Position" => AttributeBinding::GeometryPosition,
+            "a_TexCoord" => AttributeBinding::GeometryTextureCoordinate,
+            "a_Normal" => AttributeBinding::GeometryNormal,
+            "a_Tangent" => AttributeBinding::GeometryTangent,
+            "a_Bitangent" => AttributeBinding::GeometryBitangent,
+            _ => {
+                let regex = GLSL_ATTRIBUTE_REGEX
+                    .get_or_init(|| Regex::new(GLSL_ATTRIBUTE_REGEX_STRING).unwrap());
+
+                let name = Cow::Owned(value.to_string());
+
+                // when regular expression capture nothing, fallback to FromMaterial
+                let Some(captures) = regex.captures(value) else {
+                    return AttributeBinding::Custom(name);
+                };
+                let Some(c1) = captures.get(1) else {
+                    return AttributeBinding::Custom(name);
+                };
+
+                match c1.as_str() {
+                    "Entity" => AttributeBinding::FromEntity(name),
+                    "Geometry" => AttributeBinding::FromGeometry(name),
+                    "Material" => AttributeBinding::FromMaterial(name),
+                    _ => AttributeBinding::Custom(name),
+                }
+            }
         }
     }
 }
@@ -85,5 +129,30 @@ impl VertexAttributeArrayUnbinder {
 
     pub fn unbind(self) {
         self.gl.disable_vertex_attrib_array(self.location)
+    }
+}
+
+/// A wrapper for vertex array object.
+#[derive(Debug, Clone)]
+pub struct VertexArray {
+    gl: WebGl2RenderingContext,
+    vao: WebGlVertexArrayObject,
+}
+
+impl VertexArray {
+    /// Constructs a new vertex array object wrapper.
+    pub fn new(gl: WebGl2RenderingContext) -> Result<Self, Error> {
+        let vao = gl
+            .create_vertex_array()
+            .ok_or(Error::CreateVertexArrayObjectFailure)?;
+        Ok(Self { gl, vao })
+    }
+
+    pub fn bind(&self) {
+        self.gl.bind_vertex_array(Some(&self.vao))
+    }
+
+    pub fn unbind(&self) {
+        self.gl.bind_vertex_array(None)
     }
 }

@@ -12,11 +12,16 @@ use crate::renderer::webgl::{
     program::{Define, ShaderProvider},
     state::FrameState,
     texture::{TextureUncompressedInternalFormat, TextureUnit},
-    uniform::UniformValue,
+    uniform::{UniformBinding, UniformValue},
 };
 
 const TEXTURE_UNIFORM_NAME: &'static str = "u_Texture";
+const TEXTURE_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(TEXTURE_UNIFORM_NAME));
+
 const GAMMA_UNIFORM_NAME: &'static str = "u_Gamma";
+const GAMMA_UNIFORM_BINDING: UniformBinding =
+    UniformBinding::Custom(Cow::Borrowed(GAMMA_UNIFORM_NAME));
 
 pub const DEFAULT_CLEAR_COLOR: Vec4<f32> = Vec4::<f32>::new_zero();
 pub const DEFAULT_ENABLE_GAMMA_CORRECTION: bool = true;
@@ -78,11 +83,9 @@ impl StandardComposer {
 impl StandardComposer {
     fn composed_framebuffer(&mut self, state: &mut FrameState) -> &mut Framebuffer {
         self.composed_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new().set_color_attachment0(AttachmentProvider::new_texture(
-                    TextureUncompressedInternalFormat::RGBA8,
-                )),
-            )
+            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
+                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
+            ))
         })
     }
 
@@ -114,11 +117,13 @@ impl StandardComposer {
         self.shader_provider.enable_gamma_correction = false;
         let program = state
             .program_store_mut()
-            .use_program(&self.shader_provider)?;
-        state.bind_uniform_value_by_variable_name(
-            program,
-            TEXTURE_UNIFORM_NAME,
+            .get_or_compile_program(&self.shader_provider)?;
+
+        program.use_program()?;
+        program.bind_uniform_value_by_binding(
+            &TEXTURE_UNIFORM_BINDING,
             &UniformValue::Integer1(0),
+            None,
         )?;
 
         for texture in textures {
@@ -131,6 +136,7 @@ impl StandardComposer {
             .blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ZERO);
 
         self.composed_framebuffer(state).unbind();
+        program.unuse_program()?;
 
         Ok(())
     }
@@ -148,12 +154,13 @@ impl StandardComposer {
         self.shader_provider.enable_gamma_correction = self.enable_gamma_correction;
         let program = state
             .program_store_mut()
-            .use_program(&self.shader_provider)?;
+            .get_or_compile_program(&self.shader_provider)?;
+        program.use_program()?;
         if self.shader_provider.enable_gamma_correction {
-            state.bind_uniform_value_by_variable_name(
-                program,
-                GAMMA_UNIFORM_NAME,
+            program.bind_uniform_value_by_binding(
+                &GAMMA_UNIFORM_BINDING,
                 &UniformValue::Float1(self.gamma),
+                None,
             )?;
         }
 
@@ -165,6 +172,8 @@ impl StandardComposer {
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )])?;
+        
+        program.unuse_program()?;
 
         Ok(())
     }
