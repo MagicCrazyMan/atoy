@@ -60,8 +60,8 @@ impl<'a> Define<'a> {
     }
 }
 
-/// Source providing basic data for compiling a [`WebGlProgram`].
-pub trait ShaderProvider {
+/// A source providing data for compiling a [`WebGlProgram`].
+pub trait ProgramSource {
     /// Global unique name for the program source.
     fn name(&self) -> Cow<'_, str>;
 
@@ -110,21 +110,6 @@ impl Program {
     /// Returns program source name.
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    /// Returns [`WebGlProgram`].
-    pub fn gl_program(&self) -> &WebGlProgram {
-        &self.program
-    }
-
-    /// Returns vertex shader.
-    pub fn gl_vertex_shader(&self) -> &WebGlShader {
-        &self.vertex_shader
-    }
-
-    /// Returns fragment shader.
-    pub fn gl_fragment_shader(&self) -> &WebGlShader {
-        &self.fragment_shader
     }
 
     /// Returns `true` if this program is using.
@@ -917,21 +902,14 @@ impl ProgramStore {
         self.snippets.clear();
     }
 
-    fn replace_snippets<'a, 'b, S>(&self, provider: &'b S, is_vertex: bool) -> String
+    fn replace_snippets<'a, 'b, S>(&self, source: &'b S, is_vertex: bool) -> String
     where
-        S: ShaderProvider + ?Sized,
+        S: ProgramSource + ?Sized,
     {
-        let (code, universal_defines, defines) = match is_vertex {
-            true => (
-                provider.vertex_source(),
-                provider.universal_defines(),
-                provider.vertex_defines(),
-            ),
-            false => (
-                provider.fragment_source(),
-                provider.universal_defines(),
-                provider.fragment_defines(),
-            ),
+        let universal_defines = source.universal_defines();
+        let (code, defines) = match is_vertex {
+            true => (source.vertex_source(), source.vertex_defines()),
+            false => (source.fragment_source(), source.fragment_defines()),
         };
 
         // evaluated output code length
@@ -967,8 +945,8 @@ impl ProgramStore {
                     output.push('\n');
                 }
             } else {
-                // finds snippet, finds from provider-associated first, otherwise finds from store
-                let Some(snippet) = provider.snippet(name).map(|snippet| snippet).or_else(|| {
+                // finds snippet, finds from source first, finds from store otherwise
+                let Some(snippet) = source.snippet(name).or_else(|| {
                     self.snippets
                         .get(name)
                         .map(|snippet| Cow::Borrowed(snippet.as_str()))
@@ -989,14 +967,14 @@ impl ProgramStore {
         output
     }
 
-    fn compile<'a, 'b, S>(&'a mut self, name: String, provider: &'b S) -> Result<Program, Error>
+    fn compile<'a, 'b, S>(&'a mut self, name: String, source: &'b S) -> Result<Program, Error>
     where
-        S: ShaderProvider + ?Sized,
+        S: ProgramSource + ?Sized,
     {
-        let vertex_code = self.replace_snippets(provider, true);
+        let vertex_code = self.replace_snippets(source, true);
         let vertex_shader = compile_shader(&self.gl, true, &vertex_code)?;
 
-        let fragment_code = self.replace_snippets(provider, false);
+        let fragment_code = self.replace_snippets(source, false);
         let fragment_shader: WebGlShader = compile_shader(&self.gl, false, &fragment_code)?;
 
         let program = create_program(&self.gl, &vertex_shader, &fragment_shader)?;
@@ -1027,12 +1005,12 @@ impl ProgramStore {
     /// Program will be compiled if it is used for the first time.
     pub fn get_or_compile_program<'a, 'b, 'c, S>(
         &'a mut self,
-        provider: &'b S,
+        source: &'b S,
     ) -> Result<Program, Error>
     where
-        S: ShaderProvider + ?Sized,
+        S: ProgramSource + ?Sized,
     {
-        let name = provider.name();
+        let name = source.name();
 
         // checks cache
         if let Some(program) = self.store.get(name.as_ref()) {
@@ -1040,7 +1018,7 @@ impl ProgramStore {
         }
 
         let name = name.to_string();
-        let program = self.compile(name.clone(), provider)?;
+        let program = self.compile(name.clone(), source)?;
         self.store.insert_unique_unchecked(name, program.clone());
 
         Ok(program)

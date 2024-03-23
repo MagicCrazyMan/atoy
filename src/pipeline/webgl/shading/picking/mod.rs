@@ -19,7 +19,7 @@ use crate::{
             AttachmentProvider, ClearPolicy, Framebuffer, FramebufferBuilder, FramebufferTarget,
             OperableBuffer,
         },
-        program::{Define, ShaderProvider},
+        program::{Define, ProgramSource},
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
         texture::{
@@ -255,7 +255,7 @@ const INDEX_UNIFORM_BINDING: UniformBinding =
 
 struct PickingShaderProvider;
 
-impl ShaderProvider for PickingShaderProvider {
+impl ProgramSource for PickingShaderProvider {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("Picking")
     }

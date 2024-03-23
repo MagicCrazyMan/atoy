@@ -9,7 +9,7 @@ use crate::{
         conversion::ToGlEnum,
         draw::Draw,
         error::Error,
-        program::{Define, Program, ShaderProvider},
+        program::{Define, Program, ProgramSource},
         state::FrameState,
         uniform::{UniformBinding, UniformValue},
     },
@@ -129,10 +129,10 @@ fn prepare_program<'a, 'b, 'c>(
     draw_state: DrawState,
     material: &'b dyn StandardMaterial,
 ) -> Result<Program, Error> {
-    let provider = StandardMaterialShaderProvider::new(material, draw_state);
+    let source = StandardMaterialProgramSource::new(material, draw_state);
     let program = state
         .program_store_mut()
-        .get_or_compile_program(&provider)?;
+        .get_or_compile_program(&source)?;
     program.use_program()?;
     // binds atoy_Universal
     program.mount_uniform_block_by_binding(
@@ -234,12 +234,12 @@ fn draw_entity(
     Ok(())
 }
 
-struct StandardMaterialShaderProvider<'a> {
+struct StandardMaterialProgramSource<'a> {
     material: &'a dyn StandardMaterial,
     draw_state: DrawState,
 }
 
-impl<'a> StandardMaterialShaderProvider<'a> {
+impl<'a> StandardMaterialProgramSource<'a> {
     fn new(material: &'a dyn StandardMaterial, draw_state: DrawState) -> Self {
         Self {
             material,
@@ -248,7 +248,7 @@ impl<'a> StandardMaterialShaderProvider<'a> {
     }
 }
 
-impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
+impl<'a> ProgramSource for StandardMaterialProgramSource<'a> {
     fn name(&self) -> Cow<'_, str> {
         const DEFINE_NAME_VALUE_SEPARATOR: &'static str = "!!";
         const DEFINE_SEPARATOR: &'static str = "##";
@@ -393,7 +393,7 @@ impl<'a> ShaderProvider for StandardMaterialShaderProvider<'a> {
 
 pub(self) struct HdrReinhardToneMapping;
 
-impl ShaderProvider for HdrReinhardToneMapping {
+impl ProgramSource for HdrReinhardToneMapping {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("HdrReinhardToneMapping")
     }
@@ -425,7 +425,7 @@ impl ShaderProvider for HdrReinhardToneMapping {
 
 pub(self) struct HdrExposureToneMapping;
 
-impl ShaderProvider for HdrExposureToneMapping {
+impl ProgramSource for HdrExposureToneMapping {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("HdrExposureToneMapping")
     }
@@ -457,7 +457,7 @@ impl ShaderProvider for HdrExposureToneMapping {
 
 pub(self) struct BloomMapping;
 
-impl ShaderProvider for BloomMapping {
+impl ProgramSource for BloomMapping {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("BloomMapping")
     }
@@ -489,7 +489,7 @@ impl ShaderProvider for BloomMapping {
 
 struct GaussianBlurMapping;
 
-impl ShaderProvider for GaussianBlurMapping {
+impl ProgramSource for GaussianBlurMapping {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("GaussianBlurMapping")
     }
@@ -521,7 +521,7 @@ impl ShaderProvider for GaussianBlurMapping {
 
 struct BloomBlendMapping;
 
-impl ShaderProvider for BloomBlendMapping {
+impl ProgramSource for BloomBlendMapping {
     fn name(&self) -> Cow<'_, str> {
         Cow::Borrowed("BloomBlendMapping")
     }

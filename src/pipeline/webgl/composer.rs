@@ -9,7 +9,7 @@ use crate::renderer::webgl::{
         AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
         FramebufferTarget,
     },
-    program::{Define, ShaderProvider},
+    program::{Define, ProgramSource},
     state::FrameState,
     texture::{TextureUncompressedInternalFormat, TextureUnit},
     uniform::{UniformBinding, UniformValue},
@@ -191,7 +191,7 @@ impl ComposerShaderProvider {
     }
 }
 
-impl ShaderProvider for ComposerShaderProvider {
+impl ProgramSource for ComposerShaderProvider {
     fn name(&self) -> Cow<'_, str> {
         match self.enable_gamma_correction {
             true => Cow::Borrowed("Composer_Gamma"),

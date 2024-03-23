@@ -16,7 +16,7 @@ use crate::{
             AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
             FramebufferTarget,
         },
-        program::{Define, ShaderProvider},
+        program::{Define, ProgramSource},
         state::FrameState,
         texture::{TextureUncompressedInternalFormat, TextureUnit},
         uniform::{UniformBinding, UniformValue},
@@ -153,7 +153,7 @@ impl DeferredShader {
     }
 }
 
-impl ShaderProvider for DeferredShader {
+impl ProgramSource for DeferredShader {
     fn name(&self) -> Cow<'_, str> {
         if self.lighting {
             Cow::Borrowed("DeferredShader")
