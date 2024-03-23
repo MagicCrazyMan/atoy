@@ -7,6 +7,7 @@ use crate::{
     material::webgl::StandardMaterial,
     renderer::webgl::{
         conversion::ToGlEnum,
+        draw::Draw,
         error::Error,
         program::{Define, Program, ShaderProvider},
         state::FrameState,
@@ -227,7 +228,7 @@ fn draw_entity(
     };
     program.bind_uniforms(Some(&state), Some(&*entity), Some(geometry), Some(material))?;
     program.bind_uniform_blocks(Some(&state), Some(&*entity), Some(geometry), Some(material))?;
-    state.draw(&geometry.draw())?;
+    Draw::from_geometry(geometry).draw(state.gl(), Some(state.buffer_store()))?;
     program.unuse_program()?;
 
     Ok(())

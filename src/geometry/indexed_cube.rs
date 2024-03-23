@@ -1,4 +1,4 @@
-use std::{any::Any, cell::OnceCell};
+use std::{any::Any, cell::OnceCell, ops::Range, sync::OnceLock};
 
 use crate::{
     bounding::BoundingVolume,
@@ -10,17 +10,17 @@ use crate::{
             self, Buffer, BufferComponentSize, BufferData, BufferDataType, BufferSource,
             BufferUsage, MemoryPolicy,
         },
-        draw::{CullFace, Draw, DrawMode, ElementIndicesDataType},
+        draw::{CullFace, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::{Readonly, Value},
 };
 
-use super::{cube::build_bounding_volume, Geometry, GeometryMessage};
+use super::{cube::build_bounding_volume, Geometry, GeometryMessage, IndexedGeometry};
 
 pub struct IndexedCube {
     size: f64,
-    indices: Value<'static, Buffer>,
+    indices: &'static Buffer,
     positions: Value<'static, Buffer>,
     normals_and_textures: Value<'static, Buffer>,
 
@@ -83,20 +83,20 @@ impl IndexedCube {
         self.bounding_volume = build_bounding_volume(size);
         self.channel.0.send(GeometryMessage::PositionsChanged);
         self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
-        self.channel.0.send(GeometryMessage::VertexArrayObjectChanged);
+        self.channel
+            .0
+            .send(GeometryMessage::VertexArrayObjectChanged);
         self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
 impl Geometry for IndexedCube {
-    fn draw(&self) -> Draw {
-        Draw::Elements {
-            mode: DrawMode::TRIANGLES,
-            count: 36,
-            offset: 0,
-            indices: self.indices.value(),
-            indices_data_type: ElementIndicesDataType::UNSIGNED_BYTE,
-        }
+    fn draw_mode(&self) -> DrawMode {
+        DrawMode::TRIANGLES
+    }
+
+    fn draw_range(&self) -> Range<usize> {
+        0..36
     }
 
     fn cull_face(&self) -> Option<CullFace> {
@@ -107,15 +107,15 @@ impl Geometry for IndexedCube {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::ArrayBuffer {
+    fn positions(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::ArrayBuffer {
             buffer: self.positions.value(),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             byte_offset: 0,
-        }
+        })
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
@@ -166,12 +166,30 @@ impl Geometry for IndexedCube {
         self.channel.1.clone()
     }
 
+    fn as_indexed_geometry(&self) -> Option<&dyn IndexedGeometry> {
+        Some(self)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+impl IndexedGeometry for IndexedCube {
+    fn indices(&self) -> Readonly<'_, Buffer> {
+        Readonly::Borrowed(self.indices)
+    }
+
+    fn indices_data_type(&self) -> ElementIndicesDataType {
+        ElementIndicesDataType::UNSIGNED_BYTE
+    }
+
+    fn indices_range(&self) -> Option<Range<usize>> {
+        None
     }
 }
 
@@ -256,8 +274,8 @@ const INDICES: [u8; 36] = [
    20, 21, 22, 20, 22, 23, // right
 ];
 
-static mut INDICES_BUFFER: OnceCell<Buffer> = OnceCell::new();
-fn indices_buffer_descriptor() -> Value<'static, Buffer> {
+static mut INDICES_BUFFER: OnceLock<Buffer> = OnceLock::new();
+fn indices_buffer_descriptor() -> &'static Buffer {
     unsafe {
         let buffer = match INDICES_BUFFER.get_mut() {
             Some(buffer) => buffer,
@@ -270,7 +288,7 @@ fn indices_buffer_descriptor() -> Value<'static, Buffer> {
                 INDICES_BUFFER.get_mut().unwrap()
             }
         };
-        Value::Borrowed(buffer)
+        buffer
     }
 }
 

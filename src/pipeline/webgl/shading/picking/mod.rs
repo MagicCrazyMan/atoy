@@ -13,6 +13,7 @@ use crate::{
         UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
     },
     renderer::webgl::{
+        draw::Draw,
         error::Error,
         framebuffer::{
             AttachmentProvider, ClearPolicy, Framebuffer, FramebufferBuilder, FramebufferTarget,
@@ -133,7 +134,7 @@ impl StandardPicking {
             )?;
             program.bind_uniforms(Some(&state), Some(&*entity), Some(geometry), None)?;
             program.bind_attributes(Some(&state), Some(&*entity), Some(geometry), None)?;
-            state.draw(&geometry.draw())?;
+            Draw::from_geometry(geometry).draw(state.gl(), Some(state.buffer_store()))?;
             program.unbind_attributes()?;
         }
 

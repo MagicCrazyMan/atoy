@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, ops::Range};
 
 use gl_matrix4rust::vec2::Vec2;
 
@@ -12,13 +12,13 @@ use crate::{
             self, Buffer, BufferComponentSize, BufferData, BufferDataType, BufferSource,
             BufferUsage, MemoryPolicy,
         },
-        draw::{CullFace, Draw, DrawMode},
+        draw::{CullFace, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::Readonly,
 };
 
-use super::{Geometry, GeometryMessage};
+use super::{Geometry, GeometryMessage, IndexedGeometry};
 
 /// A 2-Dimensions plane on XY space
 pub struct Rectangle {
@@ -101,12 +101,12 @@ impl Rectangle {
 }
 
 impl Geometry for Rectangle {
-    fn draw(&self) -> Draw {
-        Draw::Arrays {
-            mode: DrawMode::TRIANGLE_FAN,
-            first: 0,
-            count: 4,
-        }
+    fn draw_mode(&self) -> DrawMode {
+        DrawMode::TRIANGLE_FAN
+    }
+
+    fn draw_range(&self) -> Range<usize> {
+        0..4
     }
 
     fn cull_face(&self) -> Option<CullFace> {
@@ -117,15 +117,15 @@ impl Geometry for Rectangle {
         Some(Readonly::Borrowed(&self.bounding))
     }
 
-    fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::ArrayBuffer {
+    fn positions(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::ArrayBuffer {
             buffer: Readonly::Borrowed(&self.buffer),
             component_size: BufferComponentSize::Two,
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             byte_offset: 0,
-        }
+        })
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
@@ -188,6 +188,10 @@ impl Geometry for Rectangle {
 
     fn changed(&self) -> Receiver<GeometryMessage> {
         self.channel.1.clone()
+    }
+
+    fn as_indexed_geometry(&self) -> Option<&dyn IndexedGeometry> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {

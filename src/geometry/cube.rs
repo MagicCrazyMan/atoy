@@ -1,4 +1,4 @@
-use std::{any::Any, cell::OnceCell};
+use std::{any::Any, cell::OnceCell, ops::Range};
 
 use gl_matrix4rust::vec3::Vec3;
 
@@ -12,13 +12,13 @@ use crate::{
             self, Buffer, BufferComponentSize, BufferData, BufferDataType, BufferSource,
             BufferUsage, MemoryPolicy,
         },
-        draw::{CullFace, Draw, DrawMode},
+        draw::{CullFace, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::{Readonly, Value},
 };
 
-use super::{Geometry, GeometryMessage};
+use super::{Geometry, GeometryMessage, IndexedGeometry};
 
 pub struct Cube {
     size: f64,
@@ -91,18 +91,20 @@ impl Cube {
         self.bounding_volume = build_bounding_volume(size);
         self.channel.0.send(GeometryMessage::PositionsChanged);
         self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
-        self.channel.0.send(GeometryMessage::VertexArrayObjectChanged);
+        self.channel
+            .0
+            .send(GeometryMessage::VertexArrayObjectChanged);
         self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
 impl Geometry for Cube {
-    fn draw(&self) -> Draw {
-        Draw::Arrays {
-            mode: DrawMode::TRIANGLES,
-            first: 0,
-            count: 36,
-        }
+    fn draw_mode(&self) -> DrawMode {
+        DrawMode::TRIANGLES
+    }
+
+    fn draw_range(&self) -> Range<usize> {
+        0..36
     }
 
     fn cull_face(&self) -> Option<CullFace> {
@@ -113,15 +115,15 @@ impl Geometry for Cube {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::ArrayBuffer {
+    fn positions(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::ArrayBuffer {
             buffer: self.positions.value(),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             byte_offset: 0,
-        }
+        })
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
@@ -170,6 +172,10 @@ impl Geometry for Cube {
 
     fn changed(&self) -> Receiver<GeometryMessage> {
         self.channel.1.clone()
+    }
+
+    fn as_indexed_geometry(&self) -> Option<&dyn IndexedGeometry> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {

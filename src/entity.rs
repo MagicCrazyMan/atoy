@@ -60,13 +60,13 @@ pub trait Entity {
 
     fn update(&mut self, group: &dyn Group);
 
-    fn as_any(&self) -> &dyn Any;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-
     fn as_vertex_array_object_entity(&self) -> Option<&dyn VertexArrayObjectEntity>;
 
     fn as_vertex_array_object_entity_mut(&mut self) -> Option<&mut dyn VertexArrayObjectEntity>;
+
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 pub trait VertexArrayObjectEntity {
@@ -337,7 +337,7 @@ impl SimpleEntity {
                     if *msg == MaterialMessage::VertexArrayObjectChanged {
                         self.vao.borrow_mut().take();
                     };
-                    
+
                     self.sender.send(EntityMessage::MaterialChanged);
                     self.sender.send(EntityMessage::Changed);
                 }
@@ -509,20 +509,20 @@ impl Entity for SimpleEntity {
         }
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
     fn as_vertex_array_object_entity(&self) -> Option<&dyn VertexArrayObjectEntity> {
         Some(self)
     }
 
     fn as_vertex_array_object_entity_mut(&mut self) -> Option<&mut dyn VertexArrayObjectEntity> {
         Some(self)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

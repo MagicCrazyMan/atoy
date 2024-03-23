@@ -330,7 +330,9 @@ impl Program {
     ) -> Result<(), Error> {
         for (binding, location) in self.attribute_locations.iter() {
             let value = match binding {
-                AttributeBinding::GeometryPosition => geometry.map(|geometry| geometry.positions()),
+                AttributeBinding::GeometryPosition => {
+                    geometry.and_then(|geometry| geometry.positions())
+                }
                 AttributeBinding::GeometryTextureCoordinate => {
                     geometry.and_then(|geometry| geometry.texture_coordinates())
                 }

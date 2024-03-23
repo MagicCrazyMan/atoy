@@ -9,10 +9,9 @@ use web_sys::{
 use crate::camera::Camera;
 
 use super::{
-    buffer::{BufferStore, BufferTarget},
+    buffer::BufferStore,
     capabilities::Capabilities,
     conversion::ToGlEnum,
-    draw::Draw,
     error::Error,
     framebuffer::{
         AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,

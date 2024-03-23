@@ -3,7 +3,7 @@ pub mod indexed_cube;
 pub mod rectangle;
 pub mod sphere;
 
-use std::any::Any;
+use std::{any::Any, ops::Range};
 
 use crate::{
     bounding::BoundingVolume,
@@ -11,20 +11,23 @@ use crate::{
     message::Receiver,
     renderer::webgl::{
         attribute::AttributeValue,
-        draw::{CullFace, Draw},
+        buffer::Buffer,
+        draw::{CullFace, DrawMode, ElementIndicesDataType},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::Readonly,
 };
 
 pub trait Geometry {
-    fn draw(&self) -> Draw<'_>;
+    fn draw_mode(&self) -> DrawMode;
+
+    fn draw_range(&self) -> Range<usize>;
 
     fn cull_face(&self) -> Option<CullFace>;
 
     fn bounding_volume(&self) -> Option<Readonly<'_, BoundingVolume>>;
 
-    fn positions(&self) -> AttributeValue<'_>;
+    fn positions(&self) -> Option<AttributeValue<'_>>;
 
     fn normals(&self) -> Option<AttributeValue<'_>>;
 
@@ -44,9 +47,19 @@ pub trait Geometry {
 
     fn changed(&self) -> Receiver<GeometryMessage>;
 
+    fn as_indexed_geometry(&self) -> Option<&dyn IndexedGeometry>;
+
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+pub trait IndexedGeometry: Geometry {
+    fn indices(&self) -> Readonly<'_, Buffer>;
+
+    fn indices_data_type(&self) -> ElementIndicesDataType;
+
+    fn indices_range(&self) -> Option<Range<usize>>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

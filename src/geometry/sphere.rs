@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, ops::Range};
 
 use gl_matrix4rust::vec3::Vec3;
 use web_sys::js_sys::Float32Array;
@@ -10,13 +10,13 @@ use crate::{
     renderer::webgl::{
         attribute::AttributeValue,
         buffer::{self, Buffer, BufferComponentSize, BufferDataType, BufferUsage},
-        draw::{CullFace, Draw, DrawMode},
+        draw::{CullFace, DrawMode},
         uniform::{UniformBlockValue, UniformValue},
     },
     value::Readonly,
 };
 
-use super::{Geometry, GeometryMessage};
+use super::{Geometry, GeometryMessage, IndexedGeometry};
 
 pub struct Sphere {
     radius: f64,
@@ -83,18 +83,20 @@ impl Sphere {
         self.channel.0.send(GeometryMessage::PositionsChanged);
         self.channel.0.send(GeometryMessage::NormalsChanged);
         self.channel.0.send(GeometryMessage::BoundingVolumeChanged);
-        self.channel.0.send(GeometryMessage::VertexArrayObjectChanged);
+        self.channel
+            .0
+            .send(GeometryMessage::VertexArrayObjectChanged);
         self.channel.0.send(GeometryMessage::Changed);
     }
 }
 
 impl Geometry for Sphere {
-    fn draw(&self) -> Draw {
-        Draw::Arrays {
-            mode: DrawMode::TRIANGLES,
-            first: 0,
-            count: self.num_positions as i32,
-        }
+    fn draw_mode(&self) -> DrawMode {
+        DrawMode::TRIANGLES
+    }
+
+    fn draw_range(&self) -> Range<usize> {
+        0..self.num_positions
     }
 
     fn cull_face(&self) -> Option<CullFace> {
@@ -105,15 +107,15 @@ impl Geometry for Sphere {
         Some(Readonly::Borrowed(&self.bounding_volume))
     }
 
-    fn positions(&self) -> AttributeValue<'_> {
-        AttributeValue::ArrayBuffer {
+    fn positions(&self) -> Option<AttributeValue<'_>> {
+        Some(AttributeValue::ArrayBuffer {
             buffer: Readonly::Borrowed(&self.positions),
             component_size: BufferComponentSize::Three,
             data_type: BufferDataType::FLOAT,
             normalized: false,
             bytes_stride: 0,
             byte_offset: 0,
-        }
+        })
     }
 
     fn normals(&self) -> Option<AttributeValue<'_>> {
@@ -155,6 +157,10 @@ impl Geometry for Sphere {
 
     fn changed(&self) -> Receiver<GeometryMessage> {
         self.channel.1.clone()
+    }
+
+    fn as_indexed_geometry(&self) -> Option<&dyn IndexedGeometry> {
+        None
     }
 
     fn as_any(&self) -> &dyn Any {
