@@ -6,10 +6,11 @@ use crate::{
         shading::{draw_entities, DrawState},
     },
     renderer::webgl::{
+        blit::{BlitFlilter, BlitMask},
         error::Error,
         framebuffer::{
-            AttachmentSource, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachmentTarget,
-            FramebufferBuilder, FramebufferTarget,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
+            FramebufferTarget,
         },
         renderbuffer::RenderbufferInternalFormat,
         state::FrameState,
@@ -29,7 +30,7 @@ impl StandardMultisamplesSimpleShading {
                 .set_color_attachment0(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::RGBA8,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),

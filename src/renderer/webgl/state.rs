@@ -9,14 +9,7 @@ use web_sys::{
 use crate::camera::Camera;
 
 use super::{
-    buffer::BufferStore,
-    capabilities::Capabilities,
-    conversion::ToGlEnum,
-    error::Error,
-    framebuffer::{BlitFlilter, BlitMask, Framebuffer, FramebufferTarget, OperableBuffer},
-    params::GetWebGlParameters,
-    program::ProgramStore,
-    texture::{TextureStore, TextureUnit},
+    blit::{BlitFlilter, BlitMask}, buffer::BufferStore, capabilities::Capabilities, conversion::ToGlEnum, error::Error, framebuffer::{Framebuffer, FramebufferTarget, OperableBuffer}, params::GetWebGlParameters, program::ProgramStore, texture::{TextureStore, TextureUnit}
 };
 
 pub struct FrameState {

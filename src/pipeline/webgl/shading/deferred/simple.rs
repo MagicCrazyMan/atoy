@@ -1,4 +1,4 @@
-use web_sys::{WebGlRenderbuffer, WebGlTexture};
+use web_sys::WebGlTexture;
 
 use crate::{
     pipeline::webgl::{
@@ -8,8 +8,8 @@ use crate::{
     renderer::webgl::{
         error::Error,
         framebuffer::{
-            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
-            FramebufferTarget,
+            AttachmentSource, ClearPolicy, Framebuffer, FramebufferAttachmentTarget,
+            FramebufferBuilder, FramebufferTarget,
         },
         state::FrameState,
         texture::TextureUncompressedInternalFormat,
@@ -39,14 +39,18 @@ impl StandardDeferredTransparentShading {
     pub fn draw(
         &mut self,
         state: &mut FrameState,
-        depth_stencil: &WebGlRenderbuffer,
+        depth_stencil: &WebGlTexture,
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
         self.framebuffer.init(state.gl())?;
         self.framebuffer.set_attachment(
             FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT,
-            Some(AttachmentSource::from_renderbuffer(depth_stencil.clone())),
+            Some(AttachmentSource::from_texture(
+                depth_stencil.clone(),
+                0,
+                ClearPolicy::DepthStencil(1.0, 0),
+            )),
         )?;
         self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         // do not clear depth buffer!!!
@@ -60,7 +64,8 @@ impl StandardDeferredTransparentShading {
             },
             collected_entities,
         )?;
-        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 }

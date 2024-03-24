@@ -49,7 +49,7 @@ impl StandardPicking {
                     TextureUncompressedInternalFormat::RGBA32UI,
                     ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
                 ))
-                .with_depth_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH_COMPONENT24,
                 ))
                 .build(),

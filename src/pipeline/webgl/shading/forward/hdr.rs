@@ -49,7 +49,7 @@ impl StandardHdrShading {
                 .set_color_attachment0(AttachmentSource::new_texture(
                     TextureUncompressedInternalFormat::RGBA32F,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),
@@ -60,7 +60,7 @@ impl StandardHdrShading {
                 .set_color_attachment1(AttachmentSource::new_texture(
                     TextureUncompressedInternalFormat::RGBA32F,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),

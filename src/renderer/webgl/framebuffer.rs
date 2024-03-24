@@ -156,34 +156,6 @@ impl FramebufferAttachmentTarget {
             FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT => "DEPTH_STENCIL_ATTACHMENT",
         }
     }
-
-    fn default_clear_policy(&self) -> &ClearPolicy {
-        match self {
-            FramebufferAttachmentTarget::COLOR_ATTACHMENT0
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT1
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT2
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT3
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT4
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT5
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT6
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT7
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT8
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT9
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT10
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT11
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT12
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT13
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT14
-            | FramebufferAttachmentTarget::COLOR_ATTACHMENT15 => {
-                &ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
-            }
-            FramebufferAttachmentTarget::DEPTH_ATTACHMENT => &ClearPolicy::Depth(1.0),
-            FramebufferAttachmentTarget::STENCIL_ATTACHMENT => &ClearPolicy::Stencil(0),
-            FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT => {
-                &ClearPolicy::DepthStencil(1.0, 0)
-            }
-        }
-    }
 }
 
 /// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
@@ -210,23 +182,6 @@ pub enum OperableBuffer {
     COLOR_ATTACHMENT13,
     COLOR_ATTACHMENT14,
     COLOR_ATTACHMENT15,
-}
-
-/// Available blit framebuffer masks mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlitMask {
-    COLOR_BUFFER_BIT,
-    DEPTH_BUFFER_BIT,
-    STENCIL_BUFFER_BIT,
-}
-
-/// Available blit framebuffer filters mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum BlitFlilter {
-    NEAREST,
-    LINEAR,
 }
 
 /// Available framebuffer size policies.
@@ -310,50 +265,230 @@ impl ClearPolicy {
 pub enum AttachmentSource {
     FromNewTexture {
         internal_format: TextureUncompressedInternalFormat,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
     },
     FromExistingTexture {
         texture: WebGlTexture,
         level: usize,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
     },
     FromNewRenderbuffer {
         internal_format: RenderbufferInternalFormat,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
     },
     FromExistingRenderbuffer {
         renderbuffer: WebGlRenderbuffer,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
     },
 }
 
 impl AttachmentSource {
     pub fn new_texture(internal_format: TextureUncompressedInternalFormat) -> Self {
+        let clear_policy = match internal_format {
+            TextureUncompressedInternalFormat::RGBA32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGBA32UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGBA16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGBA16UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGBA8 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGBA8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGBA8UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::SRGB8_ALPHA8 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB10_A2 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB10_A2UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGBA4 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB5_A1 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB8 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB565 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RG32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RG32UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RG16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RG16UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RG8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            TextureUncompressedInternalFormat::RG8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RG8UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::R32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::R32UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::R16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::R16UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::R8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            TextureUncompressedInternalFormat::R8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::R8UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGBA32F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGBA16F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGBA8_SNORM => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB32F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGB32UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGB16F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGB16UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::RGB8_SNORM => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            TextureUncompressedInternalFormat::RGB8UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            TextureUncompressedInternalFormat::SRGB8 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::R11F_G11F_B10F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RGB9_E5 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RG32F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RG16F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::RG8_SNORM => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::R32F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::R16F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::R8_SNORM => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT32F => ClearPolicy::Depth(1.0),
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT24 => ClearPolicy::Depth(1.0),
+            TextureUncompressedInternalFormat::DEPTH_COMPONENT16 => ClearPolicy::Depth(1.0),
+            TextureUncompressedInternalFormat::DEPTH32F_STENCIL8 => {
+                ClearPolicy::DepthStencil(1.0, 0)
+            }
+            TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => {
+                ClearPolicy::DepthStencil(1.0, 0)
+            }
+        };
+
         Self::FromNewTexture {
             internal_format,
-            clear_policy: None,
+            clear_policy,
         }
     }
 
     pub fn new_renderbuffer(internal_format: RenderbufferInternalFormat) -> Self {
+        let clear_policy = match internal_format {
+            RenderbufferInternalFormat::RGBA32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RGBA32UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RGBA16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RGBA16UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RGBA8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGBA8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RGBA8UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::SRGB8_ALPHA8 => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+            RenderbufferInternalFormat::RGB10_A2 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGB10_A2UI => {
+                ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0])
+            }
+            RenderbufferInternalFormat::RGBA4 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGB5_A1 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGB8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGB565 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RG32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RG32UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RG16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RG16UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RG8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RG8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::RG8UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R32I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R32UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R16I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R16UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R8 => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::R8I => ClearPolicy::ColorInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::R8UI => ClearPolicy::ColorUnsignedInteger([0, 0, 0, 0]),
+            RenderbufferInternalFormat::DEPTH_COMPONENT32F => ClearPolicy::Depth(1.0),
+            RenderbufferInternalFormat::DEPTH_COMPONENT24 => ClearPolicy::Depth(1.0),
+            RenderbufferInternalFormat::DEPTH_COMPONENT16 => ClearPolicy::Depth(1.0),
+            RenderbufferInternalFormat::DEPTH32F_STENCIL8 => ClearPolicy::DepthStencil(1.0, 0),
+            RenderbufferInternalFormat::DEPTH24_STENCIL8 => ClearPolicy::DepthStencil(1.0, 0),
+            RenderbufferInternalFormat::R16F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RG16F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGBA16F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::R32F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RG32F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::RGBA32F => ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0]),
+            RenderbufferInternalFormat::R11F_G11F_B10F => {
+                ClearPolicy::ColorFloat([0.0, 0.0, 0.0, 0.0])
+            }
+        };
+
         Self::FromNewRenderbuffer {
             internal_format,
-            clear_policy: None,
+            clear_policy,
         }
     }
 
-    pub fn from_texture(texture: WebGlTexture, level: usize) -> Self {
+    pub fn from_texture(texture: WebGlTexture, level: usize, clear_policy: ClearPolicy) -> Self {
         Self::FromExistingTexture {
             texture,
             level,
-            clear_policy: None,
+            clear_policy,
         }
     }
 
-    pub fn from_renderbuffer(renderbuffer: WebGlRenderbuffer) -> Self {
+    pub fn from_renderbuffer(renderbuffer: WebGlRenderbuffer, clear_policy: ClearPolicy) -> Self {
         Self::FromExistingRenderbuffer {
             renderbuffer,
-            clear_policy: None,
+            clear_policy,
         }
     }
 
@@ -363,7 +498,7 @@ impl AttachmentSource {
     ) -> Self {
         Self::FromNewTexture {
             internal_format,
-            clear_policy: Some(clear_policy),
+            clear_policy,
         }
     }
 
@@ -373,29 +508,7 @@ impl AttachmentSource {
     ) -> Self {
         Self::FromNewRenderbuffer {
             internal_format,
-            clear_policy: Some(clear_policy),
-        }
-    }
-
-    pub fn from_texture_with_clear_policy(
-        texture: WebGlTexture,
-        level: usize,
-        clear_policy: ClearPolicy,
-    ) -> Self {
-        Self::FromExistingTexture {
-            texture,
-            level,
-            clear_policy: Some(clear_policy),
-        }
-    }
-
-    pub fn from_renderbuffer_with_clear_policy(
-        renderbuffer: WebGlRenderbuffer,
-        clear_policy: ClearPolicy,
-    ) -> Self {
-        Self::FromExistingRenderbuffer {
-            renderbuffer,
-            clear_policy: Some(clear_policy),
+            clear_policy,
         }
     }
 }
@@ -494,22 +607,22 @@ impl AttachmentSource {
 enum Attachment {
     Texture {
         texture: WebGlTexture,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
         level: usize,
         owned: bool,
     },
     Renderbuffer {
         renderbuffer: WebGlRenderbuffer,
-        clear_policy: Option<ClearPolicy>,
+        clear_policy: ClearPolicy,
         owned: bool,
     },
 }
 
 impl Attachment {
-    fn clear_policy(&self) -> Option<&ClearPolicy> {
+    fn clear_policy(&self) -> &ClearPolicy {
         match self {
             Attachment::Texture { clear_policy, .. }
-            | Attachment::Renderbuffer { clear_policy, .. } => clear_policy.as_ref(),
+            | Attachment::Renderbuffer { clear_policy, .. } => clear_policy,
         }
     }
 
@@ -830,7 +943,6 @@ impl Framebuffer {
             if let Some(attachment) = attach.attachments.get(&attachment_target) {
                 attachment
                     .clear_policy()
-                    .unwrap_or(attachment_target.default_clear_policy())
                     .clear(&runtime.gl, attachment_target.to_draw_buffer_index());
             }
         }
@@ -853,7 +965,6 @@ impl Framebuffer {
                 .for_each(|(attachment_target, attachment)| {
                     attachment
                         .clear_policy()
-                        .unwrap_or(attachment_target.default_clear_policy())
                         .clear(&runtime.gl, attachment_target.to_draw_buffer_index());
                 });
         }
@@ -1109,7 +1220,7 @@ framebuffer_build_attachments! {
     (FramebufferAttachmentTarget::COLOR_ATTACHMENT13, set_color_attachment13),
     (FramebufferAttachmentTarget::COLOR_ATTACHMENT14, set_color_attachment14),
     (FramebufferAttachmentTarget::COLOR_ATTACHMENT15, set_color_attachment15),
-    (FramebufferAttachmentTarget::DEPTH_ATTACHMENT, with_depth_attachment),
-    (FramebufferAttachmentTarget::STENCIL_ATTACHMENT, with_stencil_attachment),
-    (FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT, with_depth_stencil_attachment)
+    (FramebufferAttachmentTarget::DEPTH_ATTACHMENT, set_depth_attachment),
+    (FramebufferAttachmentTarget::STENCIL_ATTACHMENT, set_stencil_attachment),
+    (FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT, set_depth_stencil_attachment)
 }

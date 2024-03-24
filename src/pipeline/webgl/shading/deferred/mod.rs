@@ -29,14 +29,14 @@ use crate::{
 };
 
 pub struct StandardDeferredShading {
-    shader: DeferredShader,
+    shader: DeferredShading,
     framebuffer: Framebuffer,
 }
 
 impl StandardDeferredShading {
     pub fn new() -> Self {
         Self {
-            shader: DeferredShader::new(),
+            shader: DeferredShading::new(),
             framebuffer: FramebufferBuilder::new()
                 .set_color_attachment0(AttachmentSource::new_texture(
                     TextureUncompressedInternalFormat::RGBA8,
@@ -138,22 +138,22 @@ const ALBEDO_TEXTURE_UNIFORM_NAME: &'static str = "u_AlbedoTexture";
 const ALBEDO_TEXTURE_UNIFORM_BINDING: UniformBinding =
     UniformBinding::Custom(Cow::Borrowed(ALBEDO_TEXTURE_UNIFORM_NAME));
 
-struct DeferredShader {
+struct DeferredShading {
     lighting: bool,
 }
 
-impl DeferredShader {
+impl DeferredShading {
     pub fn new() -> Self {
         Self { lighting: false }
     }
 }
 
-impl ProgramSource for DeferredShader {
+impl ProgramSource for DeferredShading {
     fn name(&self) -> Cow<'_, str> {
         if self.lighting {
-            Cow::Borrowed("DeferredShader")
+            Cow::Borrowed("DeferredShading")
         } else {
-            Cow::Borrowed("DeferredShader_Lighting")
+            Cow::Borrowed("DeferredShading_Lighting")
         }
     }
 

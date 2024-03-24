@@ -589,17 +589,23 @@ impl StandardPipeline {
 
     fn deferred_shading(&mut self, state: &mut FrameState, scene: &mut Scene) -> Result<(), Error> {
         let lighting = self.lighting_enabled();
+        let multisamples = if self.multisamples_enabled() {
+            Some(self.multisamples_count())
+        } else {
+            None
+        };
 
         let collected_entities = self.entities_collector.collect_entities(state, scene);
 
         // deferred shading on opaque entities
-        self.gbuffer.collect(state, &collected_entities)?;
         let (
             positions_and_specular_shininess_texture,
             normals_texture,
             albedo_texture,
             depth_stencil,
-        ) = self.gbuffer.deferred_shading_textures()?.unwrap();
+        ) = self
+            .gbuffer
+            .collect(state, &collected_entities, multisamples)?;
         self.deferred_shading.draw(
             state,
             positions_and_specular_shininess_texture,

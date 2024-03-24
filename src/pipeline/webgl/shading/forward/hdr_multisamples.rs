@@ -13,11 +13,12 @@ use crate::{
         UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
     },
     renderer::webgl::{
+        blit::{BlitFlilter, BlitMask},
         buffer::Buffer,
         error::Error,
         framebuffer::{
-            AttachmentSource, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachmentTarget,
-            FramebufferBuilder, FramebufferTarget, OperableBuffer,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
+            FramebufferTarget, OperableBuffer,
         },
         program::Program,
         renderbuffer::RenderbufferInternalFormat,
@@ -46,7 +47,7 @@ impl StandardMultisamplesHdrShading {
                 .set_color_attachment0(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::RGBA32F,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),
@@ -62,7 +63,7 @@ impl StandardMultisamplesHdrShading {
                 .set_color_attachment1(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::RGBA32F,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),
@@ -134,7 +135,8 @@ impl StandardMultisamplesHdrShading {
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        self.hdr_multisamples_framebuffer.set_renderbuffer_samples(Some(samples));
+        self.hdr_multisamples_framebuffer
+            .set_renderbuffer_samples(Some(samples));
         self.hdr_multisamples_framebuffer.init(state.gl())?;
         self.hdr_multisamples_framebuffer
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -159,7 +161,8 @@ impl StandardMultisamplesHdrShading {
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        self.hdr_multisamples_bloom_framebuffer.set_renderbuffer_samples(Some(samples));
+        self.hdr_multisamples_bloom_framebuffer
+            .set_renderbuffer_samples(Some(samples));
         self.hdr_multisamples_bloom_framebuffer.init(state.gl())?;
         self.hdr_multisamples_bloom_framebuffer
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
@@ -229,7 +232,8 @@ impl StandardMultisamplesHdrShading {
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )])?;
-        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         program.unuse_program()?;
 

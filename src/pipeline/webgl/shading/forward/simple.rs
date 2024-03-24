@@ -28,7 +28,7 @@ impl StandardSimpleShading {
                 .set_color_attachment0(AttachmentSource::new_texture(
                     TextureUncompressedInternalFormat::RGBA8,
                 ))
-                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                .set_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::DEPTH32F_STENCIL8,
                 ))
                 .build(),

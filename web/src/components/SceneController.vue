@@ -126,7 +126,7 @@
           ></v-select>
         </div>
 
-        <div class="controller" v-if="shadingType.type === 'ForwardShading'">
+        <div class="controller">
           Enable Multisamples
           <v-switch
             hide-details
@@ -137,7 +137,7 @@
           ></v-switch>
         </div>
 
-        <div class="controller" v-if="multisamples && shadingType.type === 'ForwardShading'">
+        <div class="controller">
           Multisamples Count
           <v-slider
             show-ticks="always"
