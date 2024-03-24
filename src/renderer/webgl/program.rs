@@ -902,7 +902,7 @@ impl ProgramStore {
         self.snippets.clear();
     }
 
-    fn replace_snippets<'a, 'b, S>(&self, source: &'b S, is_vertex: bool) -> String
+    fn replace_snippets<S>(&self, source: &S, is_vertex: bool) -> String
     where
         S: ProgramSource + ?Sized,
     {
@@ -967,7 +967,7 @@ impl ProgramStore {
         output
     }
 
-    fn compile<'a, 'b, S>(&'a mut self, name: String, source: &'b S) -> Result<Program, Error>
+    fn compile<S>(&self, name: String, source: &S) -> Result<Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -1003,10 +1003,7 @@ impl ProgramStore {
 
     /// Uses a program from a program source.
     /// Program will be compiled if it is used for the first time.
-    pub fn get_or_compile_program<'a, 'b, 'c, S>(
-        &'a mut self,
-        source: &'b S,
-    ) -> Result<Program, Error>
+    pub fn get_or_compile_program<S>(&mut self, source: &S) -> Result<Program, Error>
     where
         S: ProgramSource + ?Sized,
     {
@@ -1049,7 +1046,7 @@ fn delete_program(gl: &WebGl2RenderingContext, program: Program) {
 }
 
 /// Compiles [`WebGlShader`] by [`ShaderSource`].
-pub fn compile_shader(
+fn compile_shader(
     gl: &WebGl2RenderingContext,
     is_vertex: bool,
     code: &str,
@@ -1082,7 +1079,7 @@ pub fn compile_shader(
 }
 
 /// Creates a [`WebGlProgram`], and links compiled [`WebGlShader`] to the program.
-pub fn create_program(
+fn create_program(
     gl: &WebGl2RenderingContext,
     vertex_shader: &WebGlShader,
     fragment_shader: &WebGlShader,
@@ -1111,7 +1108,7 @@ pub fn create_program(
 }
 
 /// Collects active attribute locations and bindings.
-pub fn collects_attributes(
+fn collects_attributes(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
 ) -> HashMap<AttributeBinding, u32> {
@@ -1136,7 +1133,7 @@ pub fn collects_attributes(
 }
 
 /// Collects active uniform locations and bindings.
-pub fn collects_uniforms(
+fn collects_uniforms(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
 ) -> HashMap<UniformBinding, WebGlUniformLocation> {
@@ -1166,7 +1163,7 @@ pub fn collects_uniforms(
 }
 
 /// Collects active uniform block indices.
-pub fn collects_uniform_block_indices(
+fn collects_uniform_block_indices(
     gl: &WebGl2RenderingContext,
     program: &WebGlProgram,
 ) -> HashMap<UniformBlockBinding, u32> {
