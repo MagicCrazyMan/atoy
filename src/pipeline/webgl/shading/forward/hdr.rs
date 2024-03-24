@@ -16,7 +16,7 @@ use crate::{
         buffer::Buffer,
         error::Error,
         framebuffer::{
-            AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
             FramebufferTarget,
         },
         program::Program,
@@ -29,96 +29,65 @@ use crate::{
 };
 
 pub struct StandardHdrShading {
-    framebuffer: Option<Framebuffer>,
-    hdr_framebuffer: Option<Framebuffer>,
-    hdr_bloom_framebuffer: Option<Framebuffer>,
-    hdr_bloom_blur_even_framebuffer: Option<Framebuffer>,
-    hdr_bloom_blur_odd_framebuffer: Option<Framebuffer>,
-    hdr_bloom_blend_framebuffer: Option<Framebuffer>,
+    framebuffer: Framebuffer,
+    hdr_framebuffer: Framebuffer,
+    hdr_bloom_framebuffer: Framebuffer,
+    hdr_bloom_blur_even_framebuffer: Framebuffer,
+    hdr_bloom_blur_odd_framebuffer: Framebuffer,
+    hdr_bloom_blend_framebuffer: Framebuffer,
 }
 
 impl StandardHdrShading {
     pub fn new() -> Self {
         Self {
-            framebuffer: None,
-            hdr_framebuffer: None,
-            hdr_bloom_framebuffer: None,
-            hdr_bloom_blur_even_framebuffer: None,
-            hdr_bloom_blur_odd_framebuffer: None,
-            hdr_bloom_blend_framebuffer: None,
+            framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .build(),
+            hdr_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                ))
+                .build(),
+            hdr_bloom_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .set_color_attachment1(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                ))
+                .build(),
+            hdr_bloom_blur_even_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .build(),
+            hdr_bloom_blur_odd_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .build(),
+            hdr_bloom_blend_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA32F,
+                ))
+                .build(),
         }
     }
 
-    fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
-            ))
-        })
-    }
-
-    fn hdr_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.hdr_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new()
-                    .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureUncompressedInternalFormat::RGBA32F,
-                    ))
-                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                    )),
-            )
-        })
-    }
-
-    fn hdr_bloom_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.hdr_bloom_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new()
-                    .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureUncompressedInternalFormat::RGBA32F,
-                    ))
-                    .set_color_attachment1(AttachmentProvider::new_texture(
-                        TextureUncompressedInternalFormat::RGBA32F,
-                    ))
-                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                    )),
-            )
-        })
-    }
-
-    fn hdr_bloom_blur_even_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.hdr_bloom_blur_even_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
-            ))
-        })
-    }
-
-    fn hdr_bloom_blur_odd_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.hdr_bloom_blur_odd_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
-            ))
-        })
-    }
-
-    fn hdr_bloom_blend_framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.hdr_bloom_blend_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA32F),
-            ))
-        })
-    }
-
-    pub fn draw_texture(&self) -> Option<&WebGlTexture> {
+    pub fn draw_texture(&self) -> Result<Option<&WebGlTexture>, Error> {
         self.framebuffer
-            .as_ref()
-            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)
     }
 
-    pub unsafe fn draw(
+    pub fn draw(
         &mut self,
         state: &mut FrameState,
         bloom: bool,
@@ -140,15 +109,16 @@ impl StandardHdrShading {
         Ok(())
     }
 
-    unsafe fn draw_hdr(
+    fn draw_hdr(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        let fbo = self.hdr_framebuffer(state);
-        fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        fbo.clear_buffers()?;
+        self.hdr_framebuffer.init(state.gl())?;
+        self.hdr_framebuffer
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.hdr_framebuffer.clear_buffers()?;
         draw_entities(
             state,
             DrawState::Draw {
@@ -157,19 +127,21 @@ impl StandardHdrShading {
             },
             collected_entities,
         )?;
-        fbo.unbind();
+        self.hdr_framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 
-    unsafe fn draw_hdr_bloom(
+    fn draw_hdr_bloom(
         &mut self,
         state: &mut FrameState,
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        let fbo = self.hdr_bloom_framebuffer(state);
-        fbo.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        fbo.clear_buffers()?;
+        self.hdr_bloom_framebuffer.init(state.gl())?;
+        self.hdr_bloom_framebuffer
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.hdr_bloom_framebuffer.clear_buffers()?;
         draw_entities(
             state,
             DrawState::Draw {
@@ -178,7 +150,8 @@ impl StandardHdrShading {
             },
             collected_entities,
         )?;
-        fbo.unbind();
+        self.hdr_bloom_framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 
@@ -226,17 +199,15 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let program = self.prepare_tone_mapping(state, tone_mapping_type)?;
 
-        self.framebuffer(state)
-            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer.init(state.gl())?;
+        self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         state.do_computation([(
             self.hdr_framebuffer
-                .as_ref()
-                .unwrap()
-                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )])?;
-        self.framebuffer(state).unbind();
+        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         program.unuse_program()?;
 
@@ -250,17 +221,15 @@ impl StandardHdrShading {
     ) -> Result<(), Error> {
         let program = self.prepare_tone_mapping(state, tone_mapping_type)?;
 
-        self.framebuffer(state)
-            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer.init(state.gl())?;
+        self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         state.do_computation([(
             self.hdr_bloom_blend_framebuffer
-                .as_ref()
-                .unwrap()
-                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )])?;
-        self.framebuffer(state).unbind();
+        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         program.unuse_program()?;
 
@@ -273,61 +242,57 @@ impl StandardHdrShading {
         bloom_blur_epoch: usize,
         gaussian_kernel_ubo: &Buffer,
     ) -> Result<(), Error> {
-        unsafe {
-            let hdr_bloom_blur_first_framebuffer: *mut Framebuffer =
-                self.hdr_bloom_framebuffer.as_mut().unwrap();
-            let hdr_bloom_blur_even_framebuffer: *mut Framebuffer =
-                self.hdr_bloom_blur_even_framebuffer(state);
-            let hdr_bloom_blur_odd_framebuffer: *mut Framebuffer =
-                self.hdr_bloom_blur_odd_framebuffer(state);
+        self.hdr_bloom_framebuffer.init(state.gl())?;
+        self.hdr_bloom_blur_even_framebuffer.init(state.gl())?;
+        self.hdr_bloom_blur_odd_framebuffer.init(state.gl())?;
 
-            let program = state
-                .program_store_mut()
-                .get_or_compile_program(&GaussianBlurMapping)?;
-            program.use_program()?;
+        let program = state
+            .program_store_mut()
+            .get_or_compile_program(&GaussianBlurMapping)?;
+        program.use_program()?;
 
-            for i in 0..bloom_blur_epoch {
-                let (from, from_texture_index, to) = if i % 2 == 0 {
-                    if i == 0 {
-                        // first epoch, do some initialization
-                        program.bind_uniform_block_value_by_binding(
-                            &UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
-                            &UniformBlockValue::BufferBase {
-                                buffer: Readonly::Borrowed(gaussian_kernel_ubo),
-                                mount_point: UBO_GAUSSIAN_BLUR_UNIFORM_BLOCK_MOUNT_POINT,
-                            },
-                            None,
-                        )?;
+        for i in 0..bloom_blur_epoch {
+            let (from, from_texture_index, to) = if i % 2 == 0 {
+                if i == 0 {
+                    // first epoch, do some initialization
+                    program.bind_uniform_block_value_by_binding(
+                        &UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
+                        &UniformBlockValue::BufferBase {
+                            buffer: Readonly::Borrowed(gaussian_kernel_ubo),
+                            mount_point: UBO_GAUSSIAN_BLUR_UNIFORM_BLOCK_MOUNT_POINT,
+                        },
+                        None,
+                    )?;
 
-                        (
-                            &mut *hdr_bloom_blur_first_framebuffer,
-                            FramebufferAttachment::COLOR_ATTACHMENT1,
-                            &mut *hdr_bloom_blur_odd_framebuffer,
-                        )
-                    } else {
-                        (
-                            &mut *hdr_bloom_blur_even_framebuffer,
-                            FramebufferAttachment::COLOR_ATTACHMENT0,
-                            &mut *hdr_bloom_blur_odd_framebuffer,
-                        )
-                    }
+                    (
+                        &mut self.hdr_bloom_framebuffer,
+                        FramebufferAttachmentTarget::COLOR_ATTACHMENT1,
+                        &mut self.hdr_bloom_blur_odd_framebuffer,
+                    )
                 } else {
                     (
-                        &mut *hdr_bloom_blur_odd_framebuffer,
-                        FramebufferAttachment::COLOR_ATTACHMENT0,
-                        &mut *hdr_bloom_blur_even_framebuffer,
+                        &mut self.hdr_bloom_blur_even_framebuffer,
+                        FramebufferAttachmentTarget::COLOR_ATTACHMENT0,
+                        &mut self.hdr_bloom_blur_odd_framebuffer,
                     )
-                };
-                to.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-                state.do_computation([(
-                    from.texture(from_texture_index).unwrap(),
-                    TextureUnit::TEXTURE0,
-                )])?;
-                to.unbind();
-            }
-
-            program.unuse_program()?;
+                }
+            } else {
+                (
+                    &mut self.hdr_bloom_blur_odd_framebuffer,
+                    FramebufferAttachmentTarget::COLOR_ATTACHMENT0,
+                    &mut self.hdr_bloom_blur_even_framebuffer,
+                )
+            };
+            to.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+            state.do_computation([(
+                from.texture(from_texture_index)?.unwrap(),
+                TextureUnit::TEXTURE0,
+            )])?;
+            to.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         }
+
+        program.unuse_program()?;
+
         Ok(())
     }
 
@@ -336,59 +301,51 @@ impl StandardHdrShading {
         state: &mut FrameState,
         bloom_blur_epoch: usize,
     ) -> Result<(), Error> {
-        unsafe {
-            let hdr_base_texture: *const WebGlTexture = self
-                .hdr_bloom_framebuffer
-                .as_ref()
+        let hdr_base_texture = self
+            .hdr_bloom_framebuffer
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
+            .unwrap();
+        let hdr_bloom_blur_texture = if bloom_blur_epoch == 0 {
+            self.hdr_bloom_framebuffer
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT1)?
                 .unwrap()
-                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
-                .unwrap();
-            let hdr_bloom_blur_texture: *const WebGlTexture = if bloom_blur_epoch == 0 {
-                self.hdr_bloom_framebuffer
-                    .as_ref()
-                    .unwrap()
-                    .texture(FramebufferAttachment::COLOR_ATTACHMENT1)
-                    .unwrap()
-            } else if bloom_blur_epoch % 2 == 0 {
-                self.hdr_bloom_blur_even_framebuffer
-                    .as_ref()
-                    .unwrap()
-                    .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
-                    .unwrap()
-            } else {
-                self.hdr_bloom_blur_odd_framebuffer
-                    .as_ref()
-                    .unwrap()
-                    .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
-                    .unwrap()
-            };
-            let hdr_bloom_blend_framebuffer: *mut Framebuffer =
-                self.hdr_bloom_blend_framebuffer(state);
+        } else if bloom_blur_epoch % 2 == 0 {
+            self.hdr_bloom_blur_even_framebuffer
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
+                .unwrap()
+        } else {
+            self.hdr_bloom_blur_odd_framebuffer
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
+                .unwrap()
+        };
 
-            let program = state
-                .program_store_mut()
-                .get_or_compile_program(&BloomBlendMapping)?;
-            program.use_program()?;
-            program.bind_uniform_value_by_binding(
-                &BASE_TEXTURE_UNIFORM_BINDING,
-                &UniformValue::Integer1(0),
-                None,
-            )?;
-            program.bind_uniform_value_by_binding(
-                &BLOOM_BLUR_TEXTURE_UNIFORM_BINDING,
-                &UniformValue::Integer1(1),
-                None,
-            )?;
+        self.hdr_bloom_blend_framebuffer.init(state.gl())?;
 
-            (*hdr_bloom_blend_framebuffer).bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-            state.do_computation([
-                (&*hdr_base_texture, TextureUnit::TEXTURE0),
-                (&*hdr_bloom_blur_texture, TextureUnit::TEXTURE1),
-            ])?;
-            (*hdr_bloom_blend_framebuffer).unbind();
-            
-            program.unuse_program()?;
-        }
+        let program = state
+            .program_store_mut()
+            .get_or_compile_program(&BloomBlendMapping)?;
+        program.use_program()?;
+        program.bind_uniform_value_by_binding(
+            &BASE_TEXTURE_UNIFORM_BINDING,
+            &UniformValue::Integer1(0),
+            None,
+        )?;
+        program.bind_uniform_value_by_binding(
+            &BLOOM_BLUR_TEXTURE_UNIFORM_BINDING,
+            &UniformValue::Integer1(1),
+            None,
+        )?;
+
+        self.hdr_bloom_blend_framebuffer
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        state.do_computation([
+            (hdr_base_texture, TextureUnit::TEXTURE0),
+            (hdr_bloom_blur_texture, TextureUnit::TEXTURE1),
+        ])?;
+        self.hdr_bloom_blend_framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+
+        program.unuse_program()?;
 
         Ok(())
     }

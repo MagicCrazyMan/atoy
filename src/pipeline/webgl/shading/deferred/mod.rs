@@ -13,7 +13,7 @@ use crate::{
     renderer::webgl::{
         error::Error,
         framebuffer::{
-            AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
             FramebufferTarget,
         },
         program::{Define, ProgramSource},
@@ -30,29 +30,24 @@ use crate::{
 
 pub struct StandardDeferredShading {
     shader: DeferredShader,
-    framebuffer: Option<Framebuffer>,
+    framebuffer: Framebuffer,
 }
 
 impl StandardDeferredShading {
     pub fn new() -> Self {
         Self {
             shader: DeferredShader::new(),
-            framebuffer: None,
+            framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .build(),
         }
     }
 
-    fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
-            ))
-        })
-    }
-
-    pub fn draw_texture(&self) -> Option<&WebGlTexture> {
+    pub fn draw_texture(&self) -> Result<Option<&WebGlTexture>, Error> {
         self.framebuffer
-            .as_ref()
-            .and_then(|fbo| fbo.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)
     }
 
     pub fn draw(
@@ -63,9 +58,9 @@ impl StandardDeferredShading {
         albedo_texture: &WebGlTexture,
         lighting: bool,
     ) -> Result<(), Error> {
-        self.framebuffer(state)
-            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        self.framebuffer(state).clear_buffers()?;
+        self.framebuffer.init(state.gl())?;
+        self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer.clear_buffers()?;
 
         let program = if lighting {
             self.shader.lighting = true;
@@ -120,7 +115,7 @@ impl StandardDeferredShading {
             (albedo_texture, TextureUnit::TEXTURE2),
         ])?;
 
-        self.framebuffer(state).unbind();
+        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         program.unuse_program()?;
 

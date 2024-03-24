@@ -8,7 +8,7 @@ use crate::{
     renderer::webgl::{
         error::Error,
         framebuffer::{
-            AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
             FramebufferTarget,
         },
         state::FrameState,
@@ -17,36 +17,23 @@ use crate::{
 };
 
 pub struct StandardDeferredTransparentShading {
-    framebuffer: Option<Framebuffer>,
+    framebuffer: Framebuffer,
 }
 
 impl StandardDeferredTransparentShading {
     pub fn new() -> Self {
-        Self { framebuffer: None }
+        Self {
+            framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .build(),
+        }
     }
 
-    fn framebuffer(
-        &mut self,
-        state: &FrameState,
-        depth_stencil: &WebGlRenderbuffer,
-    ) -> &mut Framebuffer {
-        self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new()
-                    .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureUncompressedInternalFormat::RGBA8,
-                    ))
-                    .with_depth_stencil_attachment(AttachmentProvider::from_renderbuffer(
-                        depth_stencil.clone(),
-                    )),
-            )
-        })
-    }
-
-    pub fn draw_texture(&self) -> Option<&WebGlTexture> {
+    pub fn draw_texture(&self) -> Result<Option<&WebGlTexture>, Error> {
         self.framebuffer
-            .as_ref()
-            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)
     }
 
     pub fn draw(
@@ -56,14 +43,15 @@ impl StandardDeferredTransparentShading {
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        let framebuffer = self.framebuffer(state, depth_stencil);
-        framebuffer.set_attachment(
-            FramebufferAttachment::DEPTH_STENCIL_ATTACHMENT,
-            Some(AttachmentProvider::from_renderbuffer(depth_stencil.clone())),
+        self.framebuffer.init(state.gl())?;
+        self.framebuffer.set_attachment(
+            FramebufferAttachmentTarget::DEPTH_STENCIL_ATTACHMENT,
+            Some(AttachmentSource::from_renderbuffer(depth_stencil.clone())),
         )?;
-        framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         // do not clear depth buffer!!!
-        framebuffer.clear_buffers_of_attachments([FramebufferAttachment::COLOR_ATTACHMENT0])?;
+        self.framebuffer
+            .clear_buffer(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?;
         draw_translucent_entities(
             state,
             DrawState::Draw {
@@ -72,7 +60,7 @@ impl StandardDeferredTransparentShading {
             },
             collected_entities,
         )?;
-        framebuffer.unbind();
+        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 }

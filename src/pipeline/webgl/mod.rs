@@ -240,7 +240,7 @@ pub enum StandardPipelineShading {
 pub const DEFAULT_SHADING: StandardPipelineShading = StandardPipelineShading::DeferredShading;
 pub const DEFAULT_LIGHTING_ENABLED: bool = true;
 pub const DEFAULT_MULTISAMPLES_ENABLED: bool = true;
-pub const DEFAULT_MULTISAMPLES_COUNT: i32 = 4;
+pub const DEFAULT_MULTISAMPLES_COUNT: usize = 4;
 pub const DEFAULT_HDR_ENABLED: bool = true;
 pub const DEFAULT_HDR_TONE_MAPPING_TYPE: HdrToneMappingType = HdrToneMappingType::Reinhard;
 pub const DEFAULT_BLOOM_ENABLED: bool = false;
@@ -269,7 +269,7 @@ pub struct StandardPipeline {
 
     lighting: bool,
     multisamples: bool,
-    multisamples_count: i32,
+    multisamples_count: usize,
     hdr: bool,
     hdr_tone_mapping_type: HdrToneMappingType,
     bloom: bool,
@@ -491,11 +491,11 @@ impl StandardPipeline {
         self.set_dirty();
     }
 
-    pub fn multisamples_count(&self) -> i32 {
+    pub fn multisamples_count(&self) -> usize {
         self.multisamples_count
     }
 
-    pub fn set_multisamples_count(&mut self, count: i32) {
+    pub fn set_multisamples_count(&mut self, count: usize) {
         self.multisamples_count = count;
         self.set_dirty();
     }
@@ -551,7 +551,7 @@ impl StandardPipeline {
                         lighting,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    self.hdr_shading.draw_texture().unwrap()
+                    self.hdr_shading.draw_texture()?.unwrap()
                 }
                 (true, true) => {
                     self.multisamples_hdr_shading.draw(
@@ -564,12 +564,12 @@ impl StandardPipeline {
                         lighting,
                         &self.gaussian_kernel_ubo,
                     )?;
-                    self.multisamples_hdr_shading.draw_texture().unwrap()
+                    self.multisamples_hdr_shading.draw_texture()?.unwrap()
                 }
                 (false, false) => {
                     self.simple_shading
                         .draw(state, &collected_entities, lighting)?;
-                    self.simple_shading.draw_texture().unwrap()
+                    self.simple_shading.draw_texture()?.unwrap()
                 }
                 (false, true) => {
                     self.multisamples_simple_shading.draw(
@@ -578,7 +578,7 @@ impl StandardPipeline {
                         &collected_entities,
                         lighting,
                     )?;
-                    self.multisamples_simple_shading.draw_texture().unwrap()
+                    self.multisamples_simple_shading.draw_texture()?.unwrap()
                 }
             };
             self.composer.draw(state, [compose_textures])?;
@@ -599,7 +599,7 @@ impl StandardPipeline {
             normals_texture,
             albedo_texture,
             depth_stencil,
-        ) = self.gbuffer.deferred_shading_textures().unwrap();
+        ) = self.gbuffer.deferred_shading_textures()?.unwrap();
         self.deferred_shading.draw(
             state,
             positions_and_specular_shininess_texture,
@@ -616,8 +616,8 @@ impl StandardPipeline {
             lighting,
         )?;
 
-        let opaque_textures = self.deferred_shading.draw_texture().unwrap();
-        let translucent_texture = self.deferred_translucent_shading.draw_texture().unwrap();
+        let opaque_textures = self.deferred_shading.draw_texture()?.unwrap();
+        let translucent_texture = self.deferred_translucent_shading.draw_texture()?.unwrap();
         self.composer
             .draw(state, [opaque_textures, translucent_texture])?;
 

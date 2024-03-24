@@ -53,8 +53,10 @@ pub enum Error {
         value: usize,
     },
     FramebufferUninitialized,
-    FramebufferUnbound,
-    FramebufferBinding(FramebufferTarget),
+    FramebufferAlreadyInitialized,
+    FramebufferTargetOccupied(FramebufferTarget),
+    FramebufferUnboundAsRead,
+    FramebufferUnboundAsDraw,
     CommonWebGLError(Option<String>),
 }
 

@@ -13,10 +13,7 @@ use super::{
     capabilities::Capabilities,
     conversion::ToGlEnum,
     error::Error,
-    framebuffer::{
-        AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
-        FramebufferBuilder, FramebufferTarget, OperableBuffer, SizePolicy,
-    },
+    framebuffer::{BlitFlilter, BlitMask, Framebuffer, FramebufferTarget, OperableBuffer},
     params::GetWebGlParameters,
     program::ProgramStore,
     texture::{TextureStore, TextureUnit},
@@ -102,27 +99,6 @@ impl FrameState {
         unsafe { self.capabilities.as_ref() }
     }
 
-    pub fn create_framebuffer<P>(
-        &self,
-        size_policy: SizePolicy,
-        providers: P,
-        renderbuffer_samples: Option<i32>,
-    ) -> Framebuffer
-    where
-        P: IntoIterator<Item = (FramebufferAttachment, AttachmentProvider)>,
-    {
-        Framebuffer::new(
-            self.gl.clone(),
-            size_policy,
-            providers,
-            renderbuffer_samples,
-        )
-    }
-
-    pub fn create_framebuffer_with_builder(&self, builder: FramebufferBuilder) -> Framebuffer {
-        builder.build(self.gl.clone())
-    }
-
     /// Reads pixels from current binding framebuffer.
     pub fn read_pixels(
         &mut self,
@@ -200,18 +176,18 @@ impl FrameState {
         self.gl.blit_framebuffer(
             0,
             0,
-            src_width,
-            src_height,
+            src_width as i32,
+            src_height as i32,
             0,
             0,
-            dst_width,
-            dst_height,
+            dst_width as i32,
+            dst_height as i32,
             mask.gl_enum(),
             filter.gl_enum(),
         );
 
-        read_framebuffer.unbind();
-        draw_framebuffer.unbind();
+        read_framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        draw_framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         Ok(())
     }
@@ -249,18 +225,18 @@ impl FrameState {
         self.gl.blit_framebuffer(
             0,
             0,
-            src_width,
-            src_height,
+            src_width as i32,
+            src_height as i32,
             0,
             0,
-            dst_width,
-            dst_height,
+            dst_width as i32,
+            dst_height as i32,
             mask.gl_enum(),
             filter.gl_enum(),
         );
 
-        draw_framebuffer.unbind();
-        read_framebuffer.unbind();
+        draw_framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        read_framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
 
         Ok(())
     }

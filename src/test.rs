@@ -695,11 +695,11 @@ impl ViewerWasm {
         self.0.borrow_mut().disable_multisamples()
     }
 
-    pub fn multisamples_count(&self) -> i32 {
+    pub fn multisamples_count(&self) -> usize {
         self.0.borrow().multisamples_count()
     }
 
-    pub fn set_multisamples_count(&mut self, count: i32) {
+    pub fn set_multisamples_count(&mut self, count: usize) {
         self.0.borrow_mut().set_multisamples_count(count)
     }
 

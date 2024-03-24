@@ -8,7 +8,7 @@ use crate::{
     renderer::webgl::{
         error::Error,
         framebuffer::{
-            AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+            AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
             FramebufferTarget,
         },
         renderbuffer::RenderbufferInternalFormat,
@@ -18,32 +18,26 @@ use crate::{
 };
 
 pub struct StandardSimpleShading {
-    framebuffer: Option<Framebuffer>,
+    framebuffer: Framebuffer,
 }
 
 impl StandardSimpleShading {
     pub fn new() -> Self {
-        Self { framebuffer: None }
+        Self {
+            framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                ))
+                .build(),
+        }
     }
 
-    fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new()
-                    .set_color_attachment0(AttachmentProvider::new_texture(
-                        TextureUncompressedInternalFormat::RGBA8,
-                    ))
-                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                    )),
-            )
-        })
-    }
-
-    pub fn draw_texture(&self) -> Option<&WebGlTexture> {
+    pub fn draw_texture(&self) -> Result<Option<&WebGlTexture>, Error> {
         self.framebuffer
-            .as_ref()
-            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)
     }
 
     pub unsafe fn draw(
@@ -52,9 +46,9 @@ impl StandardSimpleShading {
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        let framebuffer = self.framebuffer(state);
-        framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        framebuffer.clear_buffers()?;
+        self.framebuffer.init(state.gl())?;
+        self.framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer.clear_buffers()?;
         draw_entities(
             state,
             DrawState::Draw {
@@ -63,7 +57,7 @@ impl StandardSimpleShading {
             },
             collected_entities,
         )?;
-        framebuffer.unbind();
+        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 }

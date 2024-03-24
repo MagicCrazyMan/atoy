@@ -1157,6 +1157,9 @@ pub struct Texture2DArray;
 pub struct Texture3D;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextureCubeMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCubeMapFace {
     PositiveX,
     NegativeX,
@@ -1164,14 +1167,6 @@ pub enum TextureCubeMapFace {
     NegativeY,
     PositiveZ,
     NegativeZ,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TextureCubeMap {
-    internal_format: TextureInternalFormat,
-    levels: usize,
-    width: usize,
-    height: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -2141,26 +2136,22 @@ impl Debug for TextureShared {
 
 impl TextureShared {
     fn init(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-        match self.runtime.as_ref() {
-            Some(runtime) => {
-                if &runtime.gl != gl {
-                    Err(Error::TextureAlreadyInitialized)
-                } else {
-                    Ok(())
-                }
-            }
-            None => {
-                self.runtime = Some(TextureRuntime {
-                    capabilities: Capabilities::new(gl.clone()),
-                    gl: gl.clone(),
-                    byte_length: 0,
-                    texture: None,
-                    bindings: HashSet::new(),
-                });
-
-                Ok(())
+        if let Some(runtime) = self.runtime.as_ref() {
+            if &runtime.gl != gl {
+                return Err(Error::TextureAlreadyInitialized);
+            } else {
+                return Ok(());
             }
         }
+
+        self.runtime = Some(TextureRuntime {
+            capabilities: Capabilities::new(gl.clone()),
+            gl: gl.clone(),
+            byte_length: 0,
+            texture: None,
+            bindings: HashSet::new(),
+        });
+        Ok(())
     }
 
     fn bind(&mut self, unit: TextureUnit) -> Result<(), Error> {

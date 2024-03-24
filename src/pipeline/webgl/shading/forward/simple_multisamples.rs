@@ -8,7 +8,7 @@ use crate::{
     renderer::webgl::{
         error::Error,
         framebuffer::{
-            AttachmentProvider, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachment,
+            AttachmentSource, BlitFlilter, BlitMask, Framebuffer, FramebufferAttachmentTarget,
             FramebufferBuilder, FramebufferTarget,
         },
         renderbuffer::RenderbufferInternalFormat,
@@ -18,53 +18,38 @@ use crate::{
 };
 
 pub struct StandardMultisamplesSimpleShading {
-    multisample_framebuffer: Option<Framebuffer>,
-    framebuffer: Option<Framebuffer>,
+    multisample_framebuffer: Framebuffer,
+    framebuffer: Framebuffer,
 }
 
 impl StandardMultisamplesSimpleShading {
     pub fn new() -> Self {
         Self {
-            multisample_framebuffer: None,
-            framebuffer: None,
+            multisample_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_renderbuffer(
+                    RenderbufferInternalFormat::RGBA8,
+                ))
+                .with_depth_stencil_attachment(AttachmentSource::new_renderbuffer(
+                    RenderbufferInternalFormat::DEPTH32F_STENCIL8,
+                ))
+                .build(),
+            framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .build(),
         }
     }
 
-    fn framebuffer(&mut self, state: &FrameState) -> &mut Framebuffer {
-        self.framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
-            ))
-        })
-    }
-
-    fn multisample_framebuffer(&mut self, state: &FrameState, samples: i32) -> &mut Framebuffer {
-        let fbo = self.multisample_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(
-                FramebufferBuilder::new()
-                    .set_color_attachment0(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::RGBA8,
-                    ))
-                    .with_depth_stencil_attachment(AttachmentProvider::new_renderbuffer(
-                        RenderbufferInternalFormat::DEPTH32F_STENCIL8,
-                    ))
-                    .set_renderbuffer_samples(samples),
-            )
-        });
-        fbo.set_renderbuffer_samples(Some(samples)).unwrap();
-        fbo
-    }
-
-    pub fn draw_texture(&self) -> Option<&WebGlTexture> {
+    pub fn draw_texture(&self) -> Result<Option<&WebGlTexture>, Error> {
         self.framebuffer
-            .as_ref()
-            .and_then(|f| f.texture(FramebufferAttachment::COLOR_ATTACHMENT0))
+            .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)
     }
 
-    pub unsafe fn draw(
+    pub fn draw(
         &mut self,
         state: &mut FrameState,
-        samples: i32,
+        samples: usize,
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
@@ -73,16 +58,19 @@ impl StandardMultisamplesSimpleShading {
         Ok(())
     }
 
-    unsafe fn draw_multisamples(
+    fn draw_multisamples(
         &mut self,
         state: &mut FrameState,
-        samples: i32,
+        samples: usize,
         collected_entities: &CollectedEntities,
         lighting: bool,
     ) -> Result<(), Error> {
-        let multisample_framebuffer = self.multisample_framebuffer(state, samples);
-        multisample_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        multisample_framebuffer.clear_buffers()?;
+        self.multisample_framebuffer.init(state.gl())?;
+        self.multisample_framebuffer
+            .set_renderbuffer_samples(Some(samples));
+        self.multisample_framebuffer
+            .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.multisample_framebuffer.clear_buffers()?;
         draw_entities(
             state,
             DrawState::Draw {
@@ -91,22 +79,20 @@ impl StandardMultisamplesSimpleShading {
             },
             collected_entities,
         )?;
-        multisample_framebuffer.unbind();
+        self.multisample_framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         Ok(())
     }
 
     fn blit(&mut self, state: &mut FrameState) -> Result<(), Error> {
-        unsafe {
-            let framebuffer: *mut Framebuffer = self.framebuffer(state);
-            let multisample_framebuffer: *mut Framebuffer =
-                self.multisample_framebuffer.as_mut().unwrap();
-            state.blit_framebuffers(
-                &mut *multisample_framebuffer,
-                &mut *framebuffer,
-                BlitMask::COLOR_BUFFER_BIT,
-                BlitFlilter::LINEAR,
-            )?;
-        }
+        self.framebuffer.init(state.gl())?;
+        state.blit_framebuffers(
+            &mut self.multisample_framebuffer,
+            &mut self.framebuffer,
+            BlitMask::COLOR_BUFFER_BIT,
+            BlitFlilter::LINEAR,
+        )?;
+
         Ok(())
     }
 }

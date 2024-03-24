@@ -256,11 +256,11 @@ impl Viewer {
         unsafe { (*self.standard_pipeline).disable_multisamples() }
     }
 
-    pub fn multisamples_count(&self) -> i32 {
+    pub fn multisamples_count(&self) -> usize {
         unsafe { (*self.standard_pipeline).multisamples_count() }
     }
 
-    pub fn set_multisamples_count(&mut self, count: i32) {
+    pub fn set_multisamples_count(&mut self, count: usize) {
         unsafe {
             (*self.standard_pipeline).set_multisamples_count(count);
         }

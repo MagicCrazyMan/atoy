@@ -353,12 +353,11 @@ struct BufferRuntime {
     buffer_byte_length: usize,
     bindings: HashSet<BufferTarget>,
     binding_ubos: HashSet<u32>,
-    // binding_vertex_attribute_arrays: HashSet<u32>,
 }
 
 impl BufferRuntime {
     fn get_or_create_buffer(&mut self) -> Result<WebGlBuffer, Error> {
-        match self.buffer.as_mut() {
+        match self.buffer.as_ref() {
             Some(buffer) => Ok(buffer.clone()),
             None => {
                 let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
@@ -678,25 +677,22 @@ impl Debug for BufferShared {
 
 impl BufferShared {
     fn init(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-        match &self.runtime {
-            Some(runtime) => {
-                if &runtime.gl == gl {
-                    Ok(())
-                } else {
-                    Err(Error::BufferAlreadyInitialized)
-                }
-            }
-            None => {
-                self.runtime = Some(BufferRuntime {
-                    gl: gl.clone(),
-                    buffer: None,
-                    buffer_byte_length: 0,
-                    bindings: HashSet::new(),
-                    binding_ubos: HashSet::new(),
-                });
-                Ok(())
+        if let Some(runtime) = self.runtime.as_ref() {
+            if &runtime.gl != gl {
+                return Err(Error::BufferAlreadyInitialized);
+            } else {
+                return Ok(());
             }
         }
+
+        self.runtime = Some(BufferRuntime {
+            gl: gl.clone(),
+            buffer: None,
+            buffer_byte_length: 0,
+            bindings: HashSet::new(),
+            binding_ubos: HashSet::new(),
+        });
+        Ok(())
     }
 
     fn bind(&mut self, target: BufferTarget) -> Result<(), Error> {
@@ -1125,22 +1121,6 @@ impl BufferShared {
         }
 
         true
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BufferUnbinder {
-    target: BufferTarget,
-    shared: Weak<RefCell<BufferShared>>,
-}
-
-impl BufferUnbinder {
-    /// Unbinds buffer.
-    pub fn unbind(self) {
-        let Some(shared) = self.shared.upgrade() else {
-            return;
-        };
-        let _ = shared.borrow_mut().unbind(self.target);
     }
 }
 

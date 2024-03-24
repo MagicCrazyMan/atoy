@@ -6,7 +6,7 @@ use web_sys::{WebGl2RenderingContext, WebGlTexture};
 use crate::renderer::webgl::{
     error::Error,
     framebuffer::{
-        AttachmentProvider, Framebuffer, FramebufferAttachment, FramebufferBuilder,
+        AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
         FramebufferTarget,
     },
     program::{Define, ProgramSource},
@@ -31,7 +31,7 @@ pub const DEFAULT_ENABLE_GAMMA: f32 = 2.2;
 /// Composes all textures into canvas framebuffer.
 pub struct StandardComposer {
     shader_provider: ComposerShaderProvider,
-    composed_framebuffer: Option<Framebuffer>,
+    composed_framebuffer: Framebuffer,
     clear_color: Vec4<f32>,
 
     enable_gamma_correction: bool,
@@ -43,7 +43,11 @@ impl StandardComposer {
         Self {
             shader_provider: ComposerShaderProvider::new(false),
 
-            composed_framebuffer: None,
+            composed_framebuffer: FramebufferBuilder::new()
+                .set_color_attachment0(AttachmentSource::new_texture(
+                    TextureUncompressedInternalFormat::RGBA8,
+                ))
+                .build(),
             clear_color: DEFAULT_CLEAR_COLOR,
 
             enable_gamma_correction: DEFAULT_ENABLE_GAMMA_CORRECTION,
@@ -81,14 +85,6 @@ impl StandardComposer {
 }
 
 impl StandardComposer {
-    fn composed_framebuffer(&mut self, state: &mut FrameState) -> &mut Framebuffer {
-        self.composed_framebuffer.get_or_insert_with(|| {
-            state.create_framebuffer_with_builder(FramebufferBuilder::new().set_color_attachment0(
-                AttachmentProvider::new_texture(TextureUncompressedInternalFormat::RGBA8),
-            ))
-        })
-    }
-
     pub fn draw<'a, I>(&mut self, state: &mut FrameState, textures: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a WebGlTexture>,
@@ -102,9 +98,10 @@ impl StandardComposer {
     where
         I: IntoIterator<Item = &'a WebGlTexture>,
     {
-        self.composed_framebuffer(state)
+        self.composed_framebuffer.init(state.gl())?;
+        self.composed_framebuffer
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        self.composed_framebuffer(state).clear_buffers()?;
+        self.composed_framebuffer.clear_buffers()?;
 
         state.gl().enable(WebGl2RenderingContext::BLEND);
         state.gl().blend_equation(WebGl2RenderingContext::FUNC_ADD);
@@ -135,7 +132,8 @@ impl StandardComposer {
             .gl()
             .blend_func(WebGl2RenderingContext::ONE, WebGl2RenderingContext::ZERO);
 
-        self.composed_framebuffer(state).unbind();
+        self.composed_framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         program.unuse_program()?;
 
         Ok(())
@@ -166,13 +164,11 @@ impl StandardComposer {
 
         state.do_computation([(
             self.composed_framebuffer
-                .as_ref()
-                .unwrap()
-                .texture(FramebufferAttachment::COLOR_ATTACHMENT0)
+                .texture(FramebufferAttachmentTarget::COLOR_ATTACHMENT0)?
                 .unwrap(),
             TextureUnit::TEXTURE0,
         )])?;
-        
+
         program.unuse_program()?;
 
         Ok(())
