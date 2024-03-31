@@ -6,7 +6,7 @@ use crate::{
         shading::{draw_entities, DrawState},
     },
     renderer::webgl::{
-        blit::{BlitFlilter, BlitMask},
+        blit::{Blit, BlitFlilter, BlitMask},
         error::Error,
         framebuffer::{
             AttachmentSource, Framebuffer, FramebufferAttachmentTarget, FramebufferBuilder,
@@ -87,12 +87,14 @@ impl StandardMultisamplesSimpleShading {
 
     fn blit(&mut self, state: &mut FrameState) -> Result<(), Error> {
         self.framebuffer.init(state.gl())?;
-        state.blit_framebuffers(
+        Blit::new(
+            state.gl(),
             &mut self.multisample_framebuffer,
             &mut self.framebuffer,
             BlitMask::COLOR_BUFFER_BIT,
             BlitFlilter::LINEAR,
-        )?;
+        )
+        .blit()?;
 
         Ok(())
     }

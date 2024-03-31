@@ -13,7 +13,7 @@ use crate::{
         UBO_GAUSSIAN_KERNEL_BLOCK_BINDING,
     },
     renderer::webgl::{
-        blit::{BlitFlilter, BlitMask},
+        blit::{Blit, BlitFlilter, BlitMask},
         buffer::Buffer,
         error::Error,
         framebuffer::{
@@ -265,33 +265,39 @@ impl StandardMultisamplesHdrShading {
 
     fn blit(&mut self, state: &mut FrameState) -> Result<(), Error> {
         self.hdr_framebuffer.init(state.gl())?;
-        state.blit_framebuffers(
+        Blit::new(
+            state.gl(),
             &mut self.hdr_multisamples_framebuffer,
             &mut self.hdr_framebuffer,
             BlitMask::COLOR_BUFFER_BIT,
             BlitFlilter::LINEAR,
-        )?;
+        )
+        .blit()?;
         Ok(())
     }
 
     fn blit_bloom(&mut self, state: &mut FrameState) -> Result<(), Error> {
         self.hdr_bloom_framebuffer.init(state.gl())?;
-        state.blit_framebuffers_with_buffers(
+        Blit::with_buffers(
+            state.gl(),
             &mut self.hdr_multisamples_bloom_framebuffer,
             OperableBuffer::COLOR_ATTACHMENT0,
             &mut self.hdr_bloom_framebuffer,
-            [OperableBuffer::COLOR_ATTACHMENT0, OperableBuffer::NONE],
+            vec![OperableBuffer::COLOR_ATTACHMENT0],
             BlitMask::COLOR_BUFFER_BIT,
             BlitFlilter::LINEAR,
-        )?;
-        state.blit_framebuffers_with_buffers(
+        )
+        .blit()?;
+        Blit::with_buffers(
+            state.gl(),
             &mut self.hdr_multisamples_bloom_framebuffer,
             OperableBuffer::COLOR_ATTACHMENT1,
             &mut self.hdr_bloom_framebuffer,
-            [OperableBuffer::NONE, OperableBuffer::COLOR_ATTACHMENT1],
+            vec![OperableBuffer::NONE, OperableBuffer::COLOR_ATTACHMENT1],
             BlitMask::COLOR_BUFFER_BIT,
             BlitFlilter::LINEAR,
-        )?;
+        )
+        .blit()?;
 
         Ok(())
     }

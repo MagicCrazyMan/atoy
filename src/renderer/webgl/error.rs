@@ -28,6 +28,7 @@ pub enum Error {
     CompileProgramFailure(Option<String>),
     ProgramOccupied,
     ProgramUnused,
+    ProgramUsing,
     VertexArrayObjectOccupied,
     NoSuchAttribute(AttributeBinding),
     NoSuchUniform(UniformBinding),

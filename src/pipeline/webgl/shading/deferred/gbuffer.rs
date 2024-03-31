@@ -19,14 +19,14 @@ use crate::{
 };
 
 pub struct StandardGBufferCollector {
-    multisamples_fbo: Framebuffer,
+    fbo_ms: Framebuffer,
     fbo: Framebuffer,
 }
 
 impl StandardGBufferCollector {
     pub fn new() -> Self {
         Self {
-            multisamples_fbo: FramebufferBuilder::new()
+            fbo_ms: FramebufferBuilder::new()
                 // positions and specular shininess
                 .set_color_attachment0(AttachmentSource::new_renderbuffer(
                     RenderbufferInternalFormat::RGBA32F,
@@ -69,20 +69,20 @@ impl StandardGBufferCollector {
         collected_entities: &CollectedEntities,
         multisamples: Option<usize>,
     ) -> Result<(&WebGlTexture, &WebGlTexture, &WebGlTexture, &WebGlTexture), Error> {
-        self.multisamples_fbo.init(state.gl())?;
+        self.fbo_ms.init(state.gl())?;
         self.fbo.init(state.gl())?;
 
-        self.multisamples_fbo.set_renderbuffer_samples(multisamples);
-        self.multisamples_fbo
+        self.fbo_ms.set_renderbuffer_samples(multisamples);
+        self.fbo_ms
             .bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        self.multisamples_fbo.clear_buffers()?;
+        self.fbo_ms.clear_buffers()?;
         draw_opaque_entities(state, DrawState::GBuffer, collected_entities)?;
-        self.multisamples_fbo
+        self.fbo_ms
             .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
 
         Blit::with_buffers(
             state.gl(),
-            &mut self.multisamples_fbo,
+            &mut self.fbo_ms,
             OperableBuffer::COLOR_ATTACHMENT0,
             &mut self.fbo,
             vec![OperableBuffer::COLOR_ATTACHMENT0],
@@ -92,7 +92,7 @@ impl StandardGBufferCollector {
         .blit()?;
         Blit::with_buffers(
             state.gl(),
-            &mut self.multisamples_fbo,
+            &mut self.fbo_ms,
             OperableBuffer::COLOR_ATTACHMENT1,
             &mut self.fbo,
             vec![OperableBuffer::NONE, OperableBuffer::COLOR_ATTACHMENT1],
@@ -102,7 +102,7 @@ impl StandardGBufferCollector {
         .blit()?;
         Blit::with_buffers(
             state.gl(),
-            &mut self.multisamples_fbo,
+            &mut self.fbo_ms,
             OperableBuffer::COLOR_ATTACHMENT2,
             &mut self.fbo,
             vec![
@@ -111,12 +111,12 @@ impl StandardGBufferCollector {
                 OperableBuffer::COLOR_ATTACHMENT2,
             ],
             BlitMask::COLOR_BUFFER_BIT,
-            BlitFlilter::NEAREST,
+            BlitFlilter::LINEAR,
         )
         .blit()?;
         Blit::with_params(
             state.gl(),
-            &mut self.multisamples_fbo,
+            &mut self.fbo_ms,
             None,
             &mut self.fbo,
             None,
@@ -134,7 +134,7 @@ impl StandardGBufferCollector {
         .blit()?;
         Blit::with_params(
             state.gl(),
-            &mut self.multisamples_fbo,
+            &mut self.fbo_ms,
             None,
             &mut self.fbo,
             None,

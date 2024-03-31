@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::RefCell, iter::FromIterator, rc::Rc};
 
 use gl_matrix4rust::GLF32;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::EntryRef, HashMap, HashSet};
 use log::warn;
 use regex::Regex;
 use web_sys::{
@@ -1023,26 +1023,31 @@ impl ProgramStore {
 
     /// Unuses and then deletes a cached program by unique name.
     pub fn delete_program(&mut self, name: &str) -> Result<(), Error> {
-        let removed = self.store.remove(name);
-        if let Some(program) = removed {
-            program.unuse_program()?;
-            delete_program(&self.gl, program);
+        match self.store.entry_ref(name) {
+            EntryRef::Occupied(o) => {
+                let program = o.get();
+                if program.is_using() {
+                    Err(Error::ProgramUsing)
+                } else {
+                    delete_program(&self.gl, program);
+                    Ok(())
+                }
+            }
+            EntryRef::Vacant(_) => Ok(()),
         }
-
-        Ok(())
     }
 }
 
-fn delete_program(gl: &WebGl2RenderingContext, program: Program) {
+fn delete_program(gl: &WebGl2RenderingContext, program: &Program) {
     let Program {
         program,
         vertex_shader,
         fragment_shader,
         ..
     } = program;
-    gl.delete_shader(Some(&vertex_shader));
-    gl.delete_shader(Some(&fragment_shader));
-    gl.delete_program(Some(&program));
+    gl.delete_shader(Some(vertex_shader));
+    gl.delete_shader(Some(fragment_shader));
+    gl.delete_program(Some(program));
 }
 
 /// Compiles [`WebGlShader`] by [`ShaderSource`].

@@ -1,15 +1,17 @@
-use std::{iter::FromIterator, ptr::NonNull};
+use std::ptr::NonNull;
 
-use wasm_bindgen::JsValue;
-use web_sys::{
-    js_sys::{Array, Object},
-    HtmlCanvasElement, WebGl2RenderingContext, WebGlFramebuffer, WebGlTexture,
-};
+use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlTexture};
 
 use crate::camera::Camera;
 
 use super::{
-    blit::{BlitFlilter, BlitMask}, buffer::BufferStore, capabilities::Capabilities, conversion::ToGlEnum, error::Error, framebuffer::{Framebuffer, FramebufferTarget, OperableBuffer}, params::GetWebGlParameters, program::ProgramStore, texture::{TextureStore, TextureUnit}
+    buffer::BufferStore,
+    capabilities::Capabilities,
+    conversion::ToGlEnum,
+    error::Error,
+    params::GetWebGlParameters,
+    program::ProgramStore,
+    texture::{TextureStore, TextureUnit},
 };
 
 pub struct FrameState {
@@ -26,7 +28,7 @@ pub struct FrameState {
 
 impl FrameState {
     /// Constructs a new rendering state.
-    pub(crate) fn new(
+    pub fn new(
         timestamp: f64,
         camera: &mut (dyn Camera + 'static),
         gl: WebGl2RenderingContext,
@@ -92,26 +94,6 @@ impl FrameState {
         unsafe { self.capabilities.as_ref() }
     }
 
-    /// Reads pixels from current binding framebuffer.
-    pub fn read_pixels(
-        &mut self,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-        format: u32,
-        type_: u32,
-        dst_data: &Object,
-        dst_offset: u32,
-    ) -> Result<(), Error> {
-        self.gl
-            .read_pixels_with_array_buffer_view_and_dst_offset(
-                x, y, width, height, format, type_, dst_data, dst_offset,
-            )
-            .or_else(|err| Err(Error::ReadPixelsFailure(err.as_string())))?;
-        Ok(())
-    }
-
     /// Applies computation using current binding framebuffer and program.
     pub fn do_computation<'a, I>(&self, textures: I) -> Result<(), Error>
     where
@@ -138,167 +120,6 @@ impl FrameState {
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
             self.gl.bind_sampler(unit.unit_index() as u32, None);
         }
-
-        Ok(())
-    }
-
-    /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].
-    pub fn blit_framebuffers(
-        &self,
-        read_framebuffer: &mut Framebuffer,
-        draw_framebuffer: &mut Framebuffer,
-        mask: BlitMask,
-        filter: BlitFlilter,
-    ) -> Result<(), Error> {
-        draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        let dst_width = draw_framebuffer
-            .width()
-            .ok_or(Error::FramebufferUninitialized)?;
-        let dst_height = draw_framebuffer
-            .height()
-            .ok_or(Error::FramebufferUninitialized)?;
-
-        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        let src_width = read_framebuffer
-            .width()
-            .ok_or(Error::FramebufferUninitialized)?;
-        let src_height = read_framebuffer
-            .height()
-            .ok_or(Error::FramebufferUninitialized)?;
-
-        self.gl.blit_framebuffer(
-            0,
-            0,
-            src_width as i32,
-            src_height as i32,
-            0,
-            0,
-            dst_width as i32,
-            dst_height as i32,
-            mask.gl_enum(),
-            filter.gl_enum(),
-        );
-
-        read_framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        draw_framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-
-        Ok(())
-    }
-
-    /// Blits between read [`Framebuffer`] and draw [`Framebuffer`].
-    pub fn blit_framebuffers_with_buffers<I>(
-        &self,
-        read_framebuffer: &mut Framebuffer,
-        read_buffer: OperableBuffer,
-        draw_framebuffer: &mut Framebuffer,
-        draw_buffers: I,
-        mask: BlitMask,
-        filter: BlitFlilter,
-    ) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = OperableBuffer>,
-    {
-        draw_framebuffer.bind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        draw_framebuffer.set_draw_buffers(draw_buffers)?;
-        read_framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        read_framebuffer.set_read_buffer(read_buffer)?;
-        let dst_width = draw_framebuffer
-            .width()
-            .ok_or(Error::FramebufferUninitialized)?;
-        let dst_height = draw_framebuffer
-            .height()
-            .ok_or(Error::FramebufferUninitialized)?;
-        let src_width = read_framebuffer
-            .width()
-            .ok_or(Error::FramebufferUninitialized)?;
-        let src_height = read_framebuffer
-            .height()
-            .ok_or(Error::FramebufferUninitialized)?;
-
-        self.gl.blit_framebuffer(
-            0,
-            0,
-            src_width as i32,
-            src_height as i32,
-            0,
-            0,
-            dst_width as i32,
-            dst_height as i32,
-            mask.gl_enum(),
-            filter.gl_enum(),
-        );
-
-        draw_framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
-        read_framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
-
-        Ok(())
-    }
-
-    /// Blits between read [`WebGlFramebuffer`](WebGlFramebuffer) and draw [`WebGlFramebuffer`](WebGlFramebuffer).
-    pub fn blit_framebuffers_native<I1, I2>(
-        &self,
-        read_framebuffer: &WebGlFramebuffer,
-        read_buffer: OperableBuffer,
-        draw_framebuffer: &WebGlFramebuffer,
-        draw_buffers: I1,
-        reset_draw_buffers: I2,
-        src_x0: i32,
-        src_y0: i32,
-        src_x1: i32,
-        src_y1: i32,
-        dst_x0: i32,
-        dst_y0: i32,
-        dst_x1: i32,
-        dst_y1: i32,
-        mask: BlitMask,
-        filter: BlitFlilter,
-    ) -> Result<(), Error>
-    where
-        I1: IntoIterator<Item = OperableBuffer>,
-        I2: IntoIterator<Item = OperableBuffer>,
-    {
-        self.gl.bind_framebuffer(
-            WebGl2RenderingContext::DRAW_FRAMEBUFFER,
-            Some(draw_framebuffer),
-        );
-        self.gl.bind_framebuffer(
-            WebGl2RenderingContext::READ_FRAMEBUFFER,
-            Some(read_framebuffer),
-        );
-
-        let draw_buffers = Array::from_iter(
-            draw_buffers
-                .into_iter()
-                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
-        );
-        self.gl.draw_buffers(&draw_buffers);
-        self.gl.read_buffer(read_buffer.gl_enum());
-
-        self.gl.blit_framebuffer(
-            src_x0,
-            src_y0,
-            src_x1,
-            src_y1,
-            dst_x0,
-            dst_y0,
-            dst_x1,
-            dst_y1,
-            mask.gl_enum(),
-            filter.gl_enum(),
-        );
-
-        let draw_buffers = Array::from_iter(
-            reset_draw_buffers
-                .into_iter()
-                .map(|v| JsValue::from_f64(v.gl_enum() as f64)),
-        );
-        self.gl.draw_buffers(&draw_buffers);
-        self.gl
-            .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
-
-        self.gl
-            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
-        self.gl.read_buffer(WebGl2RenderingContext::BACK);
 
         Ok(())
     }

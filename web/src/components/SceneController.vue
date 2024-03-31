@@ -137,7 +137,7 @@
           ></v-switch>
         </div>
 
-        <div class="controller">
+        <div class="controller" v-if="multisamples">
           Multisamples Count
           <v-slider
             show-ticks="always"
