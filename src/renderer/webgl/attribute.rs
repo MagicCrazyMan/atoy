@@ -1,14 +1,11 @@
 use std::{borrow::Cow, sync::OnceLock};
 
 use regex::Regex;
-use web_sys::{WebGl2RenderingContext, WebGlVertexArrayObject};
+use web_sys::WebGl2RenderingContext;
 
 use crate::value::Readonly;
 
-use super::{
-    buffer::{Buffer, BufferComponentSize, BufferDataType},
-    error::Error,
-};
+use super::buffer::{Buffer, BufferComponentSize, BufferDataType};
 
 /// Available attribute values.
 pub enum AttributeValue<'a> {
@@ -129,30 +126,5 @@ impl VertexAttributeArrayUnbinder {
 
     pub fn unbind(self) {
         self.gl.disable_vertex_attrib_array(self.location)
-    }
-}
-
-/// A wrapper for vertex array object.
-#[derive(Debug, Clone)]
-pub struct VertexArray {
-    gl: WebGl2RenderingContext,
-    vao: WebGlVertexArrayObject,
-}
-
-impl VertexArray {
-    /// Constructs a new vertex array object wrapper.
-    pub fn new(gl: WebGl2RenderingContext) -> Result<Self, Error> {
-        let vao = gl
-            .create_vertex_array()
-            .ok_or(Error::CreateVertexArrayObjectFailure)?;
-        Ok(Self { gl, vao })
-    }
-
-    pub fn bind(&self) {
-        self.gl.bind_vertex_array(Some(&self.vao))
-    }
-
-    pub fn unbind(&self) {
-        self.gl.bind_vertex_array(None)
     }
 }

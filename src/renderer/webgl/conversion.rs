@@ -8,7 +8,7 @@ use super::{
     blit::{BlitFlilter, BlitMask},
     buffer::{BufferDataType, BufferTarget, BufferUsage},
     client_wait::ClientWaitFlags,
-    draw::{CullFace, DrawMode, ElementIndicesDataType},
+    draw::{CullFace, DepthFunction, DrawMode, ElementIndicesDataType},
     framebuffer::{FramebufferAttachmentTarget, FramebufferTarget, OperableBuffer},
     renderbuffer::RenderbufferInternalFormat,
     stencil::{StencilFunction, StencilOp},
@@ -114,6 +114,22 @@ impl ToGlEnum for CullFace {
             CullFace::FRONT => WebGl2RenderingContext::FRONT,
             CullFace::BACK => WebGl2RenderingContext::BACK,
             CullFace::FRONT_AND_BACK => WebGl2RenderingContext::FRONT_AND_BACK,
+        }
+    }
+}
+
+impl ToGlEnum for DepthFunction {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            DepthFunction::NEVER => WebGl2RenderingContext::NEVER,
+            DepthFunction::LESS => WebGl2RenderingContext::LESS,
+            DepthFunction::EQUAL => WebGl2RenderingContext::EQUAL,
+            DepthFunction::LEQUAL => WebGl2RenderingContext::LEQUAL,
+            DepthFunction::GREATER => WebGl2RenderingContext::GREATER,
+            DepthFunction::NOTEQUAL => WebGl2RenderingContext::NOTEQUAL,
+            DepthFunction::GEQUAL => WebGl2RenderingContext::GEQUAL,
+            DepthFunction::ALWAYS => WebGl2RenderingContext::ALWAYS,
         }
     }
 }

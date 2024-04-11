@@ -72,15 +72,15 @@ pub trait ProgramSource {
     fn fragment_source(&self) -> Cow<'_, str>;
 
     /// Returns universal defines macros for both vertex and fragment shaders.
-    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
+    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in vertex and fragment shader source code to make this work.
     fn universal_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns defines macros for vertex shader.
-    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of vertex shader to make this work.
+    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in vertex shader source code to make this work.
     fn vertex_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns defines macros for fragment shader.
-    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in source code of fragment shader to make this work.
+    /// [`GLSL_REPLACEMENT_DEFINES`] should be placed once and only once in fragment shader source code to make this work.
     fn fragment_defines(&self) -> Cow<'_, [Define<'_>]>;
 
     /// Returns self-associated GLSL code snippet by name.
@@ -840,7 +840,7 @@ pub struct ProgramStore {
     gl: WebGl2RenderingContext,
     store: HashMap<String, Program>,
 
-    replacement_regex: Regex,
+    include_regex: Regex,
     snippets: HashMap<String, String>,
 
     using: Rc<RefCell<Option<WebGlProgram>>>,
@@ -865,7 +865,7 @@ impl ProgramStore {
             gl,
             store: HashMap::new(),
 
-            replacement_regex: Regex::new(GLSL_REPLACEMENT_DERIVATIVE_REGEX).unwrap(),
+            include_regex: Regex::new(GLSL_REPLACEMENT_DERIVATIVE_REGEX).unwrap(),
             snippets: HashMap::from_iter(snippets),
 
             using: Rc::new(RefCell::new(None)),
@@ -923,14 +923,12 @@ impl ProgramStore {
         let mut appended_snippets = HashSet::new();
         for line in code.lines() {
             let Some(matched) = self
-                .replacement_regex
+                .include_regex
                 .captures(line)
                 .and_then(|captures| captures.get(1))
             else {
                 output.push_str(line);
-                if !line.ends_with("\n") {
-                    output.push('\n');
-                }
+                output.push('\n');
                 continue;
             };
 

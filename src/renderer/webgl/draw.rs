@@ -1,13 +1,20 @@
 use std::ops::Range;
 
+use hashbrown::HashMap;
 use web_sys::WebGl2RenderingContext;
 
-use crate::{geometry::Geometry, value::Readonly};
+use crate::{
+    entity::Entity, geometry::Geometry, material::webgl::StandardMaterial, value::Readonly,
+};
 
 use super::{
+    attribute::AttributeValue,
     buffer::{Buffer, BufferStore, BufferTarget},
     conversion::ToGlEnum,
     error::Error,
+    framebuffer::{Framebuffer, OperableBuffer},
+    program::Program,
+    uniform::{UniformBlockValue, UniformValue},
 };
 
 #[allow(non_camel_case_types)]
@@ -16,6 +23,19 @@ pub enum CullFace {
     FRONT,
     BACK,
     FRONT_AND_BACK,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DepthFunction {
+    NEVER,
+    LESS,
+    EQUAL,
+    LEQUAL,
+    GREATER,
+    NOTEQUAL,
+    GEQUAL,
+    ALWAYS,
 }
 
 #[allow(non_camel_case_types)]
@@ -38,71 +58,111 @@ pub enum DrawMode {
     TRIANGLE_FAN,
 }
 
-#[derive(Debug)]
-pub struct Draw<'a> {
-    mode: DrawMode,
-    range: Range<usize>,
-    indices: Option<(
+enum DrawParams<'a> {
+    FromGeometry(&'a dyn Geometry),
+    Custom {
+        mode: DrawMode,
+        range: Range<usize>,
+        indices: Option<(
+            Readonly<'a, Buffer>,
+            ElementIndicesDataType,
+            Option<Range<usize>>,
+        )>,
+    },
+}
+
+impl<'a> DrawParams<'a> {
+    fn mode(&self) -> DrawMode {
+        match self {
+            Self::FromGeometry(geometry) => geometry.draw_mode(),
+            Self::Custom { mode, .. } => *mode,
+        }
+    }
+
+    fn range(&self) -> Range<usize> {
+        match self {
+            Self::FromGeometry(geometry) => geometry.draw_range(),
+            Self::Custom { range, .. } => range.clone(),
+        }
+    }
+
+    fn indices(
+        &self,
+    ) -> Option<(
         Readonly<'a, Buffer>,
         ElementIndicesDataType,
         Option<Range<usize>>,
-    )>,
+    )> {
+        match self {
+            Self::FromGeometry(geometry) => {
+                let indexed_geometry = geometry.as_indexed_geometry()?;
+                Some((
+                    indexed_geometry.indices(),
+                    indexed_geometry.indices_data_type(),
+                    indexed_geometry.indices_range(),
+                ))
+            }
+            Self::Custom { indices, .. } => match indices {
+                Some((buffer, data_type, indices_range)) => {
+                    Some((Readonly::Owned(buffer.as_ref().clone()), *data_type, indices_range.clone()))
+                }
+                None => None,
+            },
+        }
+    }
+}
+
+pub struct Draw<'a> {
+    // framebuffer: Option<&'a Framebuffer>,
+    // draw_buffers: Option<Vec<OperableBuffer>>,
+    // program: Option<&'a Program>,
+    params: DrawParams<'a>,
+    // entity: Option<&'a dyn Entity>,
+    // geometry: Option<&'a dyn Geometry>,
+    // material: Option<&'a dyn StandardMaterial>,
+    // custom_attributes: Option<HashMap<&'a str, AttributeValue<'a>>>,
+    // custom_uniforms: Option<HashMap<&'a str, UniformValue<'a>>>,
+    // custom_uniform_blocks: Option<HashMap<&'a str, UniformBlockValue<'a>>>,
+    // cull_face: Option<CullFace>,
+    // depth_test: Option<bool>,
+    // depth_func: Option<DepthFunction>,
+    // depth_mask: Option<bool>,
+    // depth_range: Option<Range<f32>>,
+    // add more options in the future
 }
 
 impl<'a> Draw<'a> {
-    /// Construct a new draw command using [`WebGl2RenderingContext::draw_arrays`].
-    pub fn new_draw_arrays(mode: DrawMode, range: Range<usize>) -> Self {
-        Self {
-            mode,
-            range,
-            indices: None,
-        }
-    }
+    // /// Construct a new draw command using [`WebGl2RenderingContext::draw_arrays`].
+    // pub fn new_draw_arrays(mode: DrawMode, range: Range<usize>) -> Self {
+    //     let params = DrawParams::Custom {
+    //         mode,
+    //         range,
+    //         indices: None,
+    //     };
 
-    /// Construct a new draw command using [`WebGl2RenderingContext::draw_elements_with_i32`].
-    pub fn new_draw_elements(
-        mode: DrawMode,
-        range: Range<usize>,
-        indices: Readonly<'a, Buffer>,
-        indices_data_type: ElementIndicesDataType,
-    ) -> Self {
-        Self {
-            mode,
-            range,
-            indices: Some((indices, indices_data_type, None)),
-        }
-    }
+    //     Self { params }
+    // }
 
-    /// Construct a new draw command using [`WebGl2RenderingContext::draw_range_elements_with_i32`].
-    pub fn new_draw_range_elements(
-        mode: DrawMode,
-        range: Range<usize>,
-        indices: Readonly<'a, Buffer>,
-        indices_data_type: ElementIndicesDataType,
-        indices_range: Option<Range<usize>>,
-    ) -> Self {
-        Self {
-            mode,
-            range,
-            indices: Some((indices, indices_data_type, indices_range)),
-        }
-    }
+    // /// Construct a new draw command using [`WebGl2RenderingContext::draw_elements_with_i32`].
+    // pub fn new_draw_elements(
+    //     mode: DrawMode,
+    //     range: Range<usize>,
+    //     indices: Readonly<'a, Buffer>,
+    //     indices_data_type: ElementIndicesDataType,
+    //     indices_range: Option<Range<usize>>,
+    // ) -> Self {
+    //     let params = DrawParams::Custom {
+    //         mode,
+    //         range,
+    //         indices: Some((indices, indices_data_type, indices_range)),
+    //     };
+    //     Self { params }
+    // }
 
     /// Constructs a new draw command from a [`Geometry`].
-    pub fn from_geometry<G>(geometry: &'a G) -> Self
-    where
-        G: Geometry + ?Sized,
-    {
-        let mode = geometry.draw_mode();
-        let range = geometry.draw_range();
-        let indices = geometry
-            .as_indexed_geometry()
-            .map(|g| (g.indices(), g.indices_data_type(), g.indices_range()));
-
+    pub fn from_geometry(geometry: &'a dyn Geometry) -> Self {
         Self {
-            mode,
-            range,
-            indices,
+            params: DrawParams::FromGeometry(geometry),
         }
     }
 
@@ -112,10 +172,11 @@ impl<'a> Draw<'a> {
         gl: &WebGl2RenderingContext,
         buffer_store: Option<&BufferStore>,
     ) -> Result<(), Error> {
-        let mode = self.mode.gl_enum();
-        let offset = self.range.start as i32;
-        let count = self.range.clone().count() as i32;
-        match self.indices.as_ref() {
+        let mode = self.params.mode().gl_enum();
+        let range = self.params.range();
+        let offset = range.start as i32;
+        let count = range.count() as i32;
+        match self.params.indices() {
             Some((indices, indices_type, indices_range)) => {
                 match buffer_store {
                     Some(store) => {
@@ -125,9 +186,7 @@ impl<'a> Draw<'a> {
                         indices.init(gl)?;
                     }
                 };
-
                 indices.bind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
-
                 let indices_type = indices_type.gl_enum();
                 match indices_range {
                     Some(indices_range) => {
