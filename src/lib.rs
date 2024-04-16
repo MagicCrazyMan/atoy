@@ -1,9 +1,11 @@
 use wasm_bindgen::{closure::Closure, JsCast};
 
+pub mod app;
 pub mod bounding;
 pub mod camera;
 pub mod clock;
 pub mod controller;
+pub mod core;
 pub mod entity;
 pub mod error;
 pub mod frustum;
