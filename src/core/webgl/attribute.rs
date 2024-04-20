@@ -1,29 +1,27 @@
-use std::borrow::Cow;
-
 use uuid::Uuid;
 
-use super::buffer::BufferData;
+use super::buffer::Buffer;
 
 pub enum AttributeBufferData {}
 
 /// Available attribute values.
-pub enum AttributeValue<'a> {
+pub enum AttributeValue {
     ArrayBuffer {
-        data: BufferData<'a>,
+        buffer: Buffer,
         component_size: ArrayBufferComponentSize,
         data_type: ArrayBufferDataType,
         normalized: bool,
         bytes_stride: usize,
         byte_offset: usize,
     },
-    // InstancedBuffer {
-    //     data: BufferData<'a>,
-    //     component_size: BufferComponentSize,
-    //     data_type: BufferDataType,
-    //     normalized: bool,
-    //     component_count_per_instance: usize,
-    //     divisor: usize,
-    // },
+    InstancedBuffer {
+        buffer: Buffer,
+        component_size: ArrayBufferComponentSize,
+        data_type: ArrayBufferDataType,
+        normalized: bool,
+        component_count_per_instance: usize,
+        divisor: usize,
+    },
     Vertex1f(f32),
     Vertex2f(f32, f32),
     Vertex3f(f32, f32, f32),
@@ -91,8 +89,34 @@ pub enum IndicesDataType {
     UNSIGNED_INT,
 }
 
-pub struct Attribute<'a> {
+pub struct Attribute {
     id: Uuid,
-    variable_name: Cow<'a, str>,
-    value: AttributeValue<'a>,
+    version: usize,
+    value: AttributeValue,
+}
+
+impl Attribute {
+    pub fn new(value: AttributeValue) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            version: usize::MIN,
+            value,
+        }
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn version(&self) -> usize {
+        self.version
+    }
+
+    pub fn next_version(&mut self) {
+        self.version = self.version.saturating_add(1);
+    }
+
+    pub fn value(&self) -> &AttributeValue {
+        &self.value
+    }
 }
