@@ -8,6 +8,7 @@ use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     entity::Entity,
@@ -498,6 +499,25 @@ impl StandardPipeline {
     pub fn set_multisamples_count(&mut self, count: usize) {
         self.multisamples_count = count;
         self.set_dirty();
+    }
+
+    /// Returns picked entity index.
+    /// Executes [`StandardPipeline::picking`] before calling this method, or the result maybe incorrect.
+    pub async fn pick_entity_async(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<Uuid>, Error> {
+        self.picking
+            .pick_entity_async(
+                window_position_x,
+                window_position_y,
+                self.entities_collector
+                    .last_collected_entities()
+                    .entities()
+                    .to_vec(),
+            )
+            .await
     }
 
     /// Returns picked entity index.

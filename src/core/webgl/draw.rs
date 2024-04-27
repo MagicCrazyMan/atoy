@@ -1,32 +1,29 @@
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CullFace {
-    FRONT,
-    BACK,
-    FRONT_AND_BACK,
+    Front,
+    Back,
+    FrontAndBack,
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DepthFunction {
-    NEVER,
-    LESS,
-    EQUAL,
-    LEQUAL,
-    GREATER,
-    NOTEQUAL,
-    GEQUAL,
-    ALWAYS,
+    Never,
+    Less,
+    Equal,
+    LessEqual,
+    Greater,
+    NotEqual,
+    GreaterEqual,
+    Always,
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DrawMode {
-    POINTS,
-    LINES,
-    LINE_LOOP,
-    LINE_STRIP,
-    TRIANGLES,
-    TRIANGLE_STRIP,
-    TRIANGLE_FAN,
+    Points,
+    Lines,
+    LineLoop,
+    LineStrip,
+    Triangles,
+    TriangleStrip,
+    TriangleFan,
 }

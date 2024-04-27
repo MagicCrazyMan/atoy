@@ -1,6 +1,9 @@
 pub mod attribute;
 pub mod buffer;
+pub mod client_wait;
+pub mod context;
 pub mod conversion;
 pub mod draw;
 pub mod error;
 pub mod uniform;
+pub mod texture;

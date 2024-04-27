@@ -1,11 +1,6 @@
-use std::{borrow::Cow, sync::OnceLock};
+use std::ops::Range;
 
-use regex::Regex;
-use uuid::Uuid;
-
-use crate::value::Readonly;
-
-use super::buffer::{Buffer, BufferData};
+use super::buffer::Buffer;
 
 /// Available uniform values.
 pub enum UniformValue {
@@ -34,18 +29,9 @@ pub enum UniformValue {
     UnsignedIntegerVector2([u32; 2]),
     UnsignedIntegerVector3([u32; 3]),
     UnsignedIntegerVector4([u32; 4]),
-    Matrix2 {
-        data: [f32; 4],
-        transpose: bool,
-    },
-    Matrix3 {
-        data: [f32; 9],
-        transpose: bool,
-    },
-    Matrix4 {
-        data: [f32; 16],
-        transpose: bool,
-    },
+    Matrix2 { data: [f32; 4], transpose: bool },
+    Matrix3 { data: [f32; 9], transpose: bool },
+    Matrix4 { data: [f32; 16], transpose: bool },
     // Texture2D {
     //     texture: Readonly<'a, Texture<Texture2D>>,
     //     unit: TextureUnit,
@@ -68,19 +54,13 @@ pub enum UniformValue {
 pub enum UniformBlockValue {
     BufferBase {
         buffer: Buffer,
-        mount_point: u32,
+        mount_point: usize,
     },
     BufferRange {
         buffer: Buffer,
-        mount_point: u32,
-        offset: i32,
-        size: i32,
+        mount_point: usize,
+        range: Range<usize>,
     },
-}
-
-pub struct Uniform {
-    id: Uuid,
-    value: UniformValue,
 }
 
 // /// Regular expression to find where to get value for a uniform.

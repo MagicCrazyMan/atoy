@@ -1,17 +1,20 @@
-use std::ops::Range;
+use std::{any::Any, ops::Range};
 
 use super::webgl::{
-    attribute::{Attribute, IndicesDataType},
+    attribute::{AttributeValue, IndicesDataType},
     buffer::BufferData,
-    draw::DrawMode, uniform::Uniform,
+    draw::DrawMode,
+    uniform::{UniformBlockValue, UniformValue},
 };
 
 pub trait EntityComponent {
-    fn attributes(&self, name: &str) -> &Attribute;
+    fn attribute(&self, name: &str) -> Option<AttributeValue>;
 
-    fn uniforms(&self, name: &str) -> &Uniform;
+    fn uniform(&self, name: &str) -> Option<UniformValue>;
 
-    fn properties(&self, name: &str) -> &Property;
+    fn uniform_block(&self, name: &str) -> Option<UniformBlockValue>;
+
+    fn property(&self, name: &str) -> Option<&dyn Any>;
 }
 
 pub trait Entity {

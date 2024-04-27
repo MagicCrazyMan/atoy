@@ -1,11 +1,17 @@
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
 use gl_matrix4rust::vec3::Vec3;
 use log::warn;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
+    core::webgl::client_wait::ClientWaitAsync,
     entity::Entity,
     material::Transparency,
     pipeline::webgl::{
@@ -131,7 +137,8 @@ impl StandardPicking {
             program.unbind_attributes()?;
         }
 
-        self.framebuffer.unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
+        self.framebuffer
+            .unbind(FramebufferTarget::DRAW_FRAMEBUFFER)?;
         program.unuse_program()?;
         state.gl().disable(WebGl2RenderingContext::DEPTH_TEST);
 
@@ -171,7 +178,8 @@ impl StandardPicking {
             &self.pixel,
             0,
         )?;
-        self.framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        self.framebuffer
+            .unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
 
         let index = self.pixel.get_index(0) as usize;
         if index >= 1 {
@@ -179,6 +187,53 @@ impl StandardPicking {
                 .entities()
                 .get(index - 1)
                 .and_then(|entity| entity.upgrade()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns picked entity.
+    pub async fn pick_entity_async(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+        last_entities: Vec<Weak<RefCell<dyn Entity>>>,
+    ) -> Result<Option<Uuid>, Error> {
+        if last_entities.len() == 0 {
+            return Ok(None);
+        }
+        let Some(gl) = self.gl.as_ref() else {
+            return Ok(None);
+        };
+        let Some(canvas) = gl
+            .canvas()
+            .and_then(|canvas| canvas.dyn_into::<HtmlCanvasElement>().ok())
+        else {
+            return Ok(None);
+        };
+
+        let client_await = ClientWaitAsync::new(gl.clone(), 0, 10, 5);
+        client_await.wait().await.unwrap();
+        self.framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        self.framebuffer.read_pixels(
+            window_position_x,
+            canvas.height() as i32 - window_position_y,
+            1,
+            1,
+            TextureUncompressedPixelFormat::RED_INTEGER,
+            TextureUncompressedPixelDataType::UNSIGNED_INT,
+            &self.pixel,
+            0,
+        )?;
+        self.framebuffer
+            .unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
+
+        let index = self.pixel.get_index(0) as usize;
+        if index >= 1 {
+            Ok(last_entities
+                .get(index - 1)
+                .and_then(|entity| entity.upgrade())
+                .map(|entity| entity.borrow().id().clone()))
         } else {
             Ok(None)
         }
@@ -205,7 +260,8 @@ impl StandardPicking {
         };
 
         self.framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
-        self.framebuffer.set_read_buffer(OperableBuffer::COLOR_ATTACHMENT1)?;
+        self.framebuffer
+            .set_read_buffer(OperableBuffer::COLOR_ATTACHMENT1)?;
         self.framebuffer.read_pixels(
             window_position_x,
             canvas.height() as i32 - window_position_y,
@@ -216,7 +272,8 @@ impl StandardPicking {
             &self.pixel,
             0,
         )?;
-        self.framebuffer.unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
+        self.framebuffer
+            .unbind(FramebufferTarget::READ_FRAMEBUFFER)?;
 
         let position = [
             f32::from_ne_bytes(self.pixel.get_index(0).to_ne_bytes()),

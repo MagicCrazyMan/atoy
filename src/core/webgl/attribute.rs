@@ -1,8 +1,4 @@
-use uuid::Uuid;
-
 use super::buffer::Buffer;
-
-pub enum AttributeBufferData {}
 
 /// Available attribute values.
 pub enum AttributeValue {
@@ -48,75 +44,23 @@ pub enum ArrayBufferComponentSize {
 }
 
 /// Available buffer data types mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ArrayBufferDataType {
-    FLOAT,
-    BYTE,
-    SHORT,
-    INT,
-    UNSIGNED_BYTE,
-    UNSIGNED_SHORT,
-    UNSIGNED_INT,
-    HALF_FLOAT,
-    INT_2_10_10_10_REV,
-    UNSIGNED_INT_2_10_10_10_REV,
+    Float,
+    Byte,
+    Short,
+    Int,
+    UnsignedByte,
+    UnsignedShort,
+    UnsignedInt,
+    HalfFloat,
+    Int2_10_10_10Rev,
+    UnsignedInt2_10_10_10Rev,
 }
 
-// impl ArrayBufferDataType {
-//     /// Gets bytes length of a data type.
-//     pub fn byte_length(&self) -> usize {
-//         match self {
-//             ArrayBufferDataType::FLOAT => 4,
-//             ArrayBufferDataType::BYTE => 1,
-//             ArrayBufferDataType::SHORT => 2,
-//             ArrayBufferDataType::INT => 4,
-//             ArrayBufferDataType::UNSIGNED_BYTE => 1,
-//             ArrayBufferDataType::UNSIGNED_SHORT => 2,
-//             ArrayBufferDataType::UNSIGNED_INT => 4,
-//             ArrayBufferDataType::HALF_FLOAT => 2,
-//             ArrayBufferDataType::INT_2_10_10_10_REV => 4,
-//             ArrayBufferDataType::UNSIGNED_INT_2_10_10_10_REV => 4,
-//         }
-//     }
-// }
-
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IndicesDataType {
-    UNSIGNED_BYTE,
-    UNSIGNED_SHORT,
-    UNSIGNED_INT,
-}
-
-pub struct Attribute {
-    id: Uuid,
-    version: usize,
-    value: AttributeValue,
-}
-
-impl Attribute {
-    pub fn new(value: AttributeValue) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            version: usize::MIN,
-            value,
-        }
-    }
-
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
-    pub fn version(&self) -> usize {
-        self.version
-    }
-
-    pub fn next_version(&mut self) {
-        self.version = self.version.saturating_add(1);
-    }
-
-    pub fn value(&self) -> &AttributeValue {
-        &self.value
-    }
+    UnsignedByte,
+    UnsignedShort,
+    UnsignedInt,
 }

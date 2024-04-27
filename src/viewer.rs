@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use gl_matrix4rust::{vec3::Vec3, vec4::Vec4};
 use log::{error, warn};
+use uuid::Uuid;
 use wasm_bindgen::closure::Closure;
 use web_sys::Element;
 
@@ -346,6 +347,37 @@ impl Viewer {
 
         controller.on_remove(self);
         Some(controller)
+    }
+
+    pub async fn pick_entity_async(
+        &mut self,
+        window_position_x: i32,
+        window_position_y: i32,
+    ) -> Result<Option<Uuid>, Error> {
+        unsafe {
+            let timestamp = *self.timestamp;
+            let mut scene = self.scene.borrow_mut();
+            let mut camera = self.camera.borrow_mut();
+            let mut renderer = self.renderer.borrow_mut();
+            let pipeline = &mut *self.standard_pipeline;
+
+            let previous_pipeline_shading = pipeline.pipeline_shading();
+            pipeline.set_pipeline_shading(StandardPipelineShading::Picking);
+            renderer.render(pipeline, &mut *camera, &mut *scene, timestamp)?;
+            pipeline.set_pipeline_shading(previous_pipeline_shading);
+
+            drop(scene);
+            drop(camera);
+            drop(renderer);
+
+            match pipeline
+                .pick_entity_async(window_position_x, window_position_y)
+                .await?
+            {
+                Some(entity) => Ok(Some(entity)),
+                None => Ok(None),
+            }
+        }
     }
 
     pub fn pick_entity(

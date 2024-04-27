@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::ops::Mul;
 use std::rc::Weak;
+use std::str::FromStr;
 use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
@@ -12,6 +13,8 @@ use gl_matrix4rust::quat::Quat;
 use gl_matrix4rust::vec2::Vec2;
 use gl_matrix4rust::vec3::Vec3;
 use gl_matrix4rust::vec4::Vec4;
+use log::log;
+use uuid::Uuid;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -765,6 +768,56 @@ impl ViewerWasm {
 struct ViewerPicker {
     viewer: Weak<RefCell<Viewer>>,
     pick_callback: Function,
+
+    async_handler: Closure<dyn FnMut(JsValue)>,
+}
+
+impl ViewerPicker {
+    fn new(viewer: Rc<RefCell<Viewer>>, pick_callback: Function) -> Self {
+        let viewer_cloned = Rc::downgrade(&viewer);
+        let async_handler = Closure::new(move |id: JsValue| {
+            let Some(viewer) = viewer_cloned.upgrade() else {
+                return;
+            };
+
+            let id = id.as_string().unwrap();
+            let id = Uuid::from_str(&id).unwrap();
+            let entity = viewer
+                .borrow()
+                .scene()
+                .borrow()
+                .entities()
+                .borrow()
+                .entities_hierarchy()
+                .find(|entity| entity.borrow().id() == &id);
+
+            if let Some(entity) = entity {
+                let mut entity = entity.borrow_mut();
+                if let Some(material) = entity
+                    .material_mut()
+                    .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+                {
+                    material.set_color(
+                        Vec3::new(rand::random(), rand::random(), rand::random()),
+                        Transparency::Opaque,
+                    );
+                }
+                if let Some(geometry) = entity
+                    .geometry_mut()
+                    .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
+                {
+                    geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
+                }
+                console_log!("pick entity {}", entity.id());
+            }
+        });
+
+        Self {
+            viewer: Rc::downgrade(&viewer),
+            pick_callback,
+            async_handler,
+        }
+    }
 }
 
 impl Executor for ViewerPicker {
@@ -774,6 +827,7 @@ impl Executor for ViewerPicker {
         let Some(viewer) = self.viewer.upgrade() else {
             return;
         };
+        let viewer_cloned = viewer.clone();
         let mut viewer = viewer.borrow_mut();
 
         let x = event.page_x();
@@ -782,30 +836,46 @@ impl Executor for ViewerPicker {
         let start = window().performance().unwrap().now();
 
         // pick entity
-        if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
-            let mut entity = entity.borrow_mut();
-            if let Some(material) = entity
-                .material_mut()
-                .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
-            {
-                material.set_color(
-                    Vec3::new(rand::random(), rand::random(), rand::random()),
-                    Transparency::Opaque,
-                );
-            }
-            if let Some(geometry) = entity
-                .geometry_mut()
-                .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
-            {
-                geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
-            }
-            console_log!("pick entity {}", entity.id());
+        let future = async move {
+            let id = viewer_cloned
+                .borrow_mut()
+                .pick_entity_async(x, y)
+                .await
+                .unwrap();
+            let id = match id {
+                Some(id) => JsValue::from_str(&id.to_string()),
+                None => JsValue::null(),
+            };
+            Ok(id)
         };
+        let promise = wasm_bindgen_futures::future_to_promise(future);
+        let _ = promise.then(&self.async_handler);
 
-        // pick position
-        if let Some(position) = viewer.pick_position(x, y).unwrap() {
-            console_log!("pick position {}", position);
-        };
+        // // pick entity
+        // if let Some(entity) = viewer.pick_entity(x, y).unwrap() {
+        //     let mut entity = entity.borrow_mut();
+        //     if let Some(material) = entity
+        //         .material_mut()
+        //         .and_then(|material| material.as_any_mut().downcast_mut::<SolidColorMaterial>())
+        //     {
+        //         material.set_color(
+        //             Vec3::new(rand::random(), rand::random(), rand::random()),
+        //             Transparency::Opaque,
+        //         );
+        //     }
+        //     if let Some(geometry) = entity
+        //         .geometry_mut()
+        //         .and_then(|geometry| geometry.as_any_mut().downcast_mut::<Cube>())
+        //     {
+        //         geometry.set_size(rand::random::<f64>() + 0.5 * 3.0);
+        //     }
+        //     console_log!("pick entity {}", entity.id());
+        // };
+
+        // // pick position
+        // if let Some(position) = viewer.pick_position(x, y).unwrap() {
+        //     console_log!("pick position {}", position);
+        // };
 
         let end = window().performance().unwrap().now();
         self.pick_callback
@@ -1216,10 +1286,7 @@ pub fn test_cube(
         .borrow_mut()
         .canvas_handler()
         .click()
-        .on(ViewerPicker {
-            viewer: Rc::downgrade(&viewer),
-            pick_callback: pick_callback.clone(),
-        });
+        .on(ViewerPicker::new(viewer.clone(), pick_callback.clone()));
 
     viewer.borrow_mut().start_render_loop();
 
@@ -1581,10 +1648,7 @@ pub fn test_pick(
         .borrow_mut()
         .canvas_handler()
         .click()
-        .on(ViewerPicker {
-            viewer: Rc::downgrade(&viewer),
-            pick_callback: pick_callback.clone(),
-        });
+        .on(ViewerPicker::new(viewer.clone(), pick_callback.clone()));
 
     viewer.borrow_mut().start_render_loop();
 

@@ -7,7 +7,10 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    RouterLink: typeof import('vue-router')['RouterLink']
+    RouterView: typeof import('vue-router')['RouterView']
     SceneController: typeof import('./src/components/SceneController.vue')['default']
+    SceneDebugger: typeof import('./src/components/SceneDebugger.vue')['default']
     SceneViewer: typeof import('./src/components/SceneViewer.vue')['default']
   }
 }

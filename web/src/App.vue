@@ -1,10 +1,8 @@
 <template>
-  <SceneViewer />
+  <RouterView> </RouterView>
 </template>
 
-<script setup lang="ts">
-import SceneViewer from "./components/SceneViewer.vue";
-</script>
+<script setup lang="ts"></script>
 
 <style lang="less">
 html,
