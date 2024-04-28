@@ -4,28 +4,38 @@ use hashbrown::HashMap;
 use web_sys::WebGl2RenderingContext;
 
 use super::{
-    buffer::{Buffer, BufferRepository, BufferTarget},
+    buffer::{Buffer, BufferRegistry, BufferTarget},
     conversion::ToGlEnum,
     error::Error,
-    texture::TextureRepository,
+    texture::TextureRegistry,
 };
 
 pub struct Context {
     gl: WebGl2RenderingContext,
-    buffer_repository: BufferRepository,
-    texture_repository: TextureRepository,
+    buffer_registry: BufferRegistry,
+    texture_registry: TextureRegistry,
 
     uniform_buffer_objects: HashMap<usize, Buffer>,
 }
 
 impl Context {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
+        let buffer_registry = BufferRegistry::new(gl.clone());
+        let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.bounds());
         Self {
-            buffer_repository: BufferRepository::new(gl.clone()),
-            texture_repository: TextureRepository::new(gl.clone()),
+            buffer_registry,
+            texture_registry,
             uniform_buffer_objects: HashMap::new(),
             gl,
         }
+    }
+
+    pub fn buffer_registry(&self) -> &BufferRegistry {
+        &self.buffer_registry
+    }
+
+    pub fn texture_registry(&self) -> &TextureRegistry {
+        &self.texture_registry
     }
 
     pub fn mount_uniform_buffer_object(
@@ -36,14 +46,14 @@ impl Context {
     ) -> Result<(), Error> {
         if let Some(buffer) = self.uniform_buffer_objects.get(&mount_point) {
             if buffer.id() == buffer.id() {
-                buffer.flush()?;
+                buffer.upload()?;
                 return Ok(());
             } else {
                 return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));
             }
         }
 
-        self.buffer_repository.register(&buffer)?;
+        self.buffer_registry.register(&buffer)?;
         let gl_buffer = buffer.gl_buffer().unwrap();
         self.gl
             .bind_buffer(BufferTarget::UniformBuffer.gl_enum(), Some(&gl_buffer));

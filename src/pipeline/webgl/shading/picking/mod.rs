@@ -212,7 +212,7 @@ impl StandardPicking {
             return Ok(None);
         };
 
-        let client_await = ClientWaitAsync::new(gl.clone(), 0, 10, 5);
+        let client_await = ClientWaitAsync::new(gl.clone(), 0, 10, None);
         client_await.wait().await.unwrap();
         self.framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
         self.framebuffer.read_pixels(

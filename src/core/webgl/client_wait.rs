@@ -82,7 +82,7 @@ pub struct ClientWaitAsync {
     flags: usize,
     timeout_ns: usize,
     interval_ms: usize,
-    max_retries: usize,
+    max_retries: Option<usize>,
 
     set_timeout_handler: Rc<RefCell<Option<Closure<dyn FnMut()>>>>,
 }
@@ -92,7 +92,7 @@ impl ClientWaitAsync {
         gl: WebGl2RenderingContext,
         timeout_ns: usize,
         interval_ms: usize,
-        max_retries: usize,
+        max_retries: Option<usize>,
     ) -> Self {
         Self {
             gl,
@@ -113,7 +113,7 @@ impl ClientWaitAsync {
             .ok_or(Error::CreateFenceSyncFailure)?;
         self.gl.flush();
 
-        for _ in 0..self.max_retries {
+        for _ in 0..self.max_retries.unwrap_or(usize::MAX) {
             let fence_sync_cloned = fence_sync.clone();
             let gl = self.gl.clone();
             let flags = self.flags;

@@ -18,11 +18,13 @@ pub trait EntityComponent {
 }
 
 pub trait Entity {
+    type Component: ?Sized;
+
     fn draw_mode(&self) -> DrawMode;
 
     fn draw_range(&self) -> Range<usize>;
 
-    fn components(&self) -> &[&dyn EntityComponent];
+    fn components(&self) -> &[&Self::Component];
 }
 
 pub trait IndexedEntity: Entity {

@@ -135,10 +135,10 @@ impl ToGlEnum for TextureTarget {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureTarget::Texture2d => WebGl2RenderingContext::TEXTURE_2D,
+            TextureTarget::Texture2D => WebGl2RenderingContext::TEXTURE_2D,
             TextureTarget::TextureCubeMap => WebGl2RenderingContext::TEXTURE_CUBE_MAP,
-            TextureTarget::Texture2dArray => WebGl2RenderingContext::TEXTURE_2D_ARRAY,
-            TextureTarget::Texture3d => WebGl2RenderingContext::TEXTURE_3D,
+            TextureTarget::Texture2DArray => WebGl2RenderingContext::TEXTURE_2D_ARRAY,
+            TextureTarget::Texture3D => WebGl2RenderingContext::TEXTURE_3D,
         }
     }
 }

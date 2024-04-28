@@ -1,5 +1,10 @@
 use wasm_bindgen::JsValue;
 
+use super::{
+    buffer::BufferTarget,
+    texture::{TextureTarget, TextureUnit},
+};
+
 #[derive(Debug, Clone)]
 pub enum Error {
     WebGL2Unsupported,
@@ -26,20 +31,18 @@ pub enum Error {
     // NoSuchAttribute(AttributeBinding),
     // NoSuchUniform(UniformBinding),
     // NoSuchUniformBlock(UniformBlockBinding),
-    // BufferUninitialized,
-    // BufferAlreadyInitialized,
-    // BufferTargetOccupied(BufferTarget),
+    BufferUnregistered,
+    BufferTargetOccupied(BufferTarget),
     UniformBufferObjectMountPointOccupied(usize),
     RegisterBufferToMultipleRepositoryUnsupported,
-    DataOutOfBufferCapacity { data_size: usize, capacity: usize },
     BufferUnexpectedDropped,
-    // TextureUninitialized,
-    // TextureAlreadyInitialized,
-    // TextureTargetOccupied(TextureUnit, TextureTarget),
+    TextureUnregistered,
+    TextureTargetOccupied(TextureUnit, TextureTarget),
     // TextureInternalFormatMismatched,
     // TextureInternalFormatUnsupported(TextureInternalFormat),
-    // TextureUploadImageFailure(Option<String>),
+    UploadTextureDataFailure,
     RegisterTextureToMultipleRepositoryUnsupported,
+    TextureUnexpectedDropped,
     // TextureSizeOverflowed {
     //     max: (usize, usize),
     //     value: (usize, usize),
