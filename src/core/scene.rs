@@ -1,5 +1,5 @@
-use super::entity::Entity;
+use super::entity::Collection;
 
-pub struct Scene<Component> {
-    entities: Vec<Box<dyn Entity<Component = Component>>>
+pub struct Scene<RenderType> {
+    entity_collection: Collection<RenderType>,
 }

@@ -1,7 +1,7 @@
-use super::scene::Scene;
+use super::{scene::Scene, AsAny};
 
-pub trait RenderEngine {
-    type Component;
+pub trait RenderEngine: AsAny {
+    type RenderType;
 
-    fn render(&self, scene: &Scene<Self::Component>);
+    fn render(&self, scene: &Scene<Self::RenderType>);
 }
