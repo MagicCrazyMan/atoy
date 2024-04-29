@@ -52,7 +52,7 @@ pub enum Error {
     //     max: usize,
     //     value: usize,
     // },
-    FramebufferRegistered,
+    FramebufferUnregistered,
     RegisterFramebufferToMultipleRepositoryUnsupported,
     // FramebufferAlreadyInitialized,
     FramebufferTargetOccupied(FramebufferTarget),

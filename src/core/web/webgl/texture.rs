@@ -105,7 +105,7 @@ impl TextureUnit {
 
 /// Available texture pixel data types mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureUncompressedPixelDataType {
+pub enum TexturePixelDataType {
     Float,
     HalfFloat,
     Byte,
@@ -403,7 +403,7 @@ impl SamplerParameter {
 
 /// Available texture formats mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureUncompressedPixelFormat {
+pub enum TexturePixelFormat {
     Red,
     RedInteger,
     Rg,
@@ -799,8 +799,8 @@ impl TextureInternalFormat for TextureCompressedFormat {
 #[derive(Debug, Clone)]
 pub enum TextureUncompressedData {
     PixelBufferObject {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         buffer: WebGlBuffer,
@@ -808,8 +808,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Int8Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Int8Array,
@@ -817,8 +817,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Uint8Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Uint8Array,
@@ -826,8 +826,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Uint8ClampedArray {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Uint8ClampedArray,
@@ -835,8 +835,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Int16Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Int16Array,
@@ -844,8 +844,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Uint16Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Uint16Array,
@@ -853,8 +853,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Int32Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Int32Array,
@@ -862,8 +862,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Uint32Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Uint32Array,
@@ -871,8 +871,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     Float32Array {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: Float32Array,
@@ -880,8 +880,8 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     DataView {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         width: usize,
         height: usize,
         data: DataView,
@@ -889,32 +889,32 @@ pub enum TextureUncompressedData {
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     HtmlCanvasElement {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         data: HtmlCanvasElement,
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     HtmlImageElement {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         data: HtmlImageElement,
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     HtmlVideoElement {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         data: HtmlVideoElement,
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     ImageData {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         data: ImageData,
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
     ImageBitmap {
-        pixel_format: TextureUncompressedPixelFormat,
-        pixel_data_type: TextureUncompressedPixelDataType,
+        pixel_format: TexturePixelFormat,
+        pixel_data_type: TexturePixelDataType,
         data: ImageBitmap,
         pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
     },
@@ -2354,7 +2354,7 @@ impl TextureRegistered {
         self.gl_active_unit.insert(unit);
         self.reg_texture_bounds
             .borrow_mut()
-            .insert((unit, self.texture_target), self.gl_texture.clone());
+            .insert_unique_unchecked((unit, self.texture_target), self.gl_texture.clone());
         self.gl
             .active_texture(self.reg_active_unit.borrow().gl_enum());
 

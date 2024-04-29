@@ -507,8 +507,8 @@ impl Buffer {
     }
 
     pub fn read_with_offset(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
-        let registered = self.registered.borrow();
-        let downloaded = match registered.as_ref() {
+        let mut registered = self.registered.borrow_mut();
+        let downloaded = match registered.as_mut() {
             Some(registered) => registered.download(src_byte_offset)?,
             None => ArrayBuffer::new(self.capacity as u32),
         };
@@ -526,8 +526,8 @@ impl Buffer {
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
-        let registered = self.registered.borrow();
-        let downloaded = match registered.as_ref() {
+        let mut registered = self.registered.borrow_mut();
+        let downloaded = match registered.as_mut() {
             Some(registered) => {
                 registered
                     .download_async(src_byte_offset, max_retries)
@@ -602,10 +602,10 @@ impl Buffer {
         write_offset: Option<usize>,
         size: Option<usize>,
     ) -> Result<(), Error> {
-        let binding_from = self.registered.borrow();
+        let mut binding_from = self.registered.borrow_mut();
         let binding_to = to.registered.borrow();
         let (from, to) = (
-            binding_from.as_ref().ok_or(Error::BufferUnregistered)?,
+            binding_from.as_mut().ok_or(Error::BufferUnregistered)?,
             binding_to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
@@ -738,7 +738,9 @@ impl BufferRegistered {
         Ok(())
     }
 
-    fn download(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+    fn download(&mut self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+        self.upload()?;
+
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.copy_to_buffer(&tmp, None, None, None)?;
 
@@ -759,10 +761,12 @@ impl BufferRegistered {
     }
 
     async fn download_async(
-        &self,
+        &mut self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
+        self.upload()?;
+
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.copy_to_buffer(&tmp, None, None, None)?;
 
@@ -787,12 +791,14 @@ impl BufferRegistered {
     }
 
     fn copy_to_buffer(
-        &self,
+        &mut self,
         to: &WebGlBuffer,
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
     ) -> Result<(), Error> {
+        self.upload()?;
+
         let read_offset = read_offset.unwrap_or(0);
         let write_offset = write_offset.unwrap_or(0);
         let size = size.unwrap_or(self.buffer_capacity);
@@ -840,11 +846,11 @@ impl BufferRegistry {
             used_memory: Rc::new(RefCell::new(usize::MIN)),
         }
     }
-    
+
     pub fn id(&self) -> &Uuid {
         &self.id
     }
-    
+
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
     }

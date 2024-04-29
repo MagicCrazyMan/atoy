@@ -4,10 +4,9 @@ use web_sys::{
     WebglCompressedTextureS3tc, WebglCompressedTextureS3tcSrgb,
 };
 
-use crate::renderer::webgl::blit::{BlitFlilter, BlitMask};
-
 use super::{
     attribute::{ArrayBufferDataType, IndicesDataType},
+    blit::{BlitFilter, BlitMask},
     buffer::{BufferTarget, BufferUsage},
     client_wait::{ClientWaitFlag, ClientWaitStatus, FenceSyncFlag},
     cullface::CullFace,
@@ -20,7 +19,7 @@ use super::{
         SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
         TextureMagnificationFilter, TextureMinificationFilter, TexturePackPixelStorage,
         TextureParameter, TextureTarget, TextureUncompressedInternalFormat,
-        TextureUncompressedPixelDataType, TextureUncompressedPixelFormat, TextureUnit,
+        TexturePixelDataType, TexturePixelFormat, TextureUnit,
         TextureUnpackColorSpaceConversion, TextureUnpackPixelStorage, TextureWrapMethod,
     },
 };
@@ -378,67 +377,67 @@ impl ToGlEnum for TextureCompressedFormat {
     }
 }
 
-impl ToGlEnum for TextureUncompressedPixelFormat {
+impl ToGlEnum for TexturePixelFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureUncompressedPixelFormat::Red => WebGl2RenderingContext::RED,
-            TextureUncompressedPixelFormat::RedInteger => WebGl2RenderingContext::RED_INTEGER,
-            TextureUncompressedPixelFormat::Rg => WebGl2RenderingContext::RG,
-            TextureUncompressedPixelFormat::RgInteger => WebGl2RenderingContext::RG_INTEGER,
-            TextureUncompressedPixelFormat::Rgb => WebGl2RenderingContext::RGB,
-            TextureUncompressedPixelFormat::RgbInteger => WebGl2RenderingContext::RGB_INTEGER,
-            TextureUncompressedPixelFormat::Rgba => WebGl2RenderingContext::RGBA,
-            TextureUncompressedPixelFormat::RgbaInteger => WebGl2RenderingContext::RGBA_INTEGER,
-            TextureUncompressedPixelFormat::Luminance => WebGl2RenderingContext::LUMINANCE,
-            TextureUncompressedPixelFormat::LuminanceAlpha => {
+            TexturePixelFormat::Red => WebGl2RenderingContext::RED,
+            TexturePixelFormat::RedInteger => WebGl2RenderingContext::RED_INTEGER,
+            TexturePixelFormat::Rg => WebGl2RenderingContext::RG,
+            TexturePixelFormat::RgInteger => WebGl2RenderingContext::RG_INTEGER,
+            TexturePixelFormat::Rgb => WebGl2RenderingContext::RGB,
+            TexturePixelFormat::RgbInteger => WebGl2RenderingContext::RGB_INTEGER,
+            TexturePixelFormat::Rgba => WebGl2RenderingContext::RGBA,
+            TexturePixelFormat::RgbaInteger => WebGl2RenderingContext::RGBA_INTEGER,
+            TexturePixelFormat::Luminance => WebGl2RenderingContext::LUMINANCE,
+            TexturePixelFormat::LuminanceAlpha => {
                 WebGl2RenderingContext::LUMINANCE_ALPHA
             }
-            TextureUncompressedPixelFormat::Alpha => WebGl2RenderingContext::ALPHA,
-            TextureUncompressedPixelFormat::DepthComponent => {
+            TexturePixelFormat::Alpha => WebGl2RenderingContext::ALPHA,
+            TexturePixelFormat::DepthComponent => {
                 WebGl2RenderingContext::DEPTH_COMPONENT
             }
-            TextureUncompressedPixelFormat::DepthStencil => WebGl2RenderingContext::DEPTH_STENCIL,
+            TexturePixelFormat::DepthStencil => WebGl2RenderingContext::DEPTH_STENCIL,
         }
     }
 }
 
-impl ToGlEnum for TextureUncompressedPixelDataType {
+impl ToGlEnum for TexturePixelDataType {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureUncompressedPixelDataType::Float => WebGl2RenderingContext::FLOAT,
-            TextureUncompressedPixelDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            TextureUncompressedPixelDataType::Byte => WebGl2RenderingContext::BYTE,
-            TextureUncompressedPixelDataType::Short => WebGl2RenderingContext::SHORT,
-            TextureUncompressedPixelDataType::Int => WebGl2RenderingContext::INT,
-            TextureUncompressedPixelDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            TextureUncompressedPixelDataType::UnsignedShort => {
+            TexturePixelDataType::Float => WebGl2RenderingContext::FLOAT,
+            TexturePixelDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
+            TexturePixelDataType::Byte => WebGl2RenderingContext::BYTE,
+            TexturePixelDataType::Short => WebGl2RenderingContext::SHORT,
+            TexturePixelDataType::Int => WebGl2RenderingContext::INT,
+            TexturePixelDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
+            TexturePixelDataType::UnsignedShort => {
                 WebGl2RenderingContext::UNSIGNED_SHORT
             }
-            TextureUncompressedPixelDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            TextureUncompressedPixelDataType::UnsignedShort5_6_5 => {
+            TexturePixelDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            TexturePixelDataType::UnsignedShort5_6_5 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5
             }
-            TextureUncompressedPixelDataType::UnsignedShort4_4_4_4 => {
+            TexturePixelDataType::UnsignedShort4_4_4_4 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_4_4_4_4
             }
-            TextureUncompressedPixelDataType::UnsignedShort5_5_5_1 => {
+            TexturePixelDataType::UnsignedShort5_5_5_1 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_5_5_5_1
             }
-            TextureUncompressedPixelDataType::UnsignedInt2_10_10_10Rev => {
+            TexturePixelDataType::UnsignedInt2_10_10_10Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
-            TextureUncompressedPixelDataType::UnsignedInt10F_11F_11F_Rev => {
+            TexturePixelDataType::UnsignedInt10F_11F_11F_Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_10F_11F_11F_REV
             }
-            TextureUncompressedPixelDataType::UnsignedInt5_9_9_9Rev => {
+            TexturePixelDataType::UnsignedInt5_9_9_9Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_5_9_9_9_REV
             }
-            TextureUncompressedPixelDataType::UnsignedInt24_8 => {
+            TexturePixelDataType::UnsignedInt24_8 => {
                 WebGl2RenderingContext::UNSIGNED_INT_24_8
             }
-            TextureUncompressedPixelDataType::Float32UnsignedInt24_8Rev => {
+            TexturePixelDataType::Float32UnsignedInt24_8Rev => {
                 WebGl2RenderingContext::FLOAT_32_UNSIGNED_INT_24_8_REV
             }
         }
@@ -813,19 +812,19 @@ impl ToGlEnum for BlitMask {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            BlitMask::COLOR_BUFFER_BIT => WebGl2RenderingContext::COLOR_BUFFER_BIT,
-            BlitMask::DEPTH_BUFFER_BIT => WebGl2RenderingContext::DEPTH_BUFFER_BIT,
-            BlitMask::STENCIL_BUFFER_BIT => WebGl2RenderingContext::STENCIL_BUFFER_BIT,
+            BlitMask::ColorBufferBit => WebGl2RenderingContext::COLOR_BUFFER_BIT,
+            BlitMask::DepthBufferBit => WebGl2RenderingContext::DEPTH_BUFFER_BIT,
+            BlitMask::StencilBufferBit => WebGl2RenderingContext::STENCIL_BUFFER_BIT,
         }
     }
 }
 
-impl ToGlEnum for BlitFlilter {
+impl ToGlEnum for BlitFilter {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            BlitFlilter::NEAREST => WebGl2RenderingContext::NEAREST,
-            BlitFlilter::LINEAR => WebGl2RenderingContext::LINEAR,
+            BlitFilter::Nearest => WebGl2RenderingContext::NEAREST,
+            BlitFilter::Linear => WebGl2RenderingContext::LINEAR,
         }
     }
 }
