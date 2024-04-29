@@ -6,6 +6,7 @@ pub mod property;
 pub mod scene;
 pub mod viewer;
 pub mod webgl;
+pub mod web;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn std::any::Any;

@@ -1,4 +1,5 @@
 use wasm_bindgen::{closure::Closure, JsCast};
+use web_sys::{Document, Performance, Window};
 
 pub mod app;
 pub mod bounding;
@@ -24,14 +25,20 @@ pub mod utils;
 pub mod value;
 pub mod viewer;
 
-pub(crate) fn window() -> web_sys::Window {
+pub(crate) fn window() -> Window {
     web_sys::window().expect("failed to get window instance")
 }
 
-pub(crate) fn document() -> web_sys::Document {
+pub(crate) fn document() -> Document {
     window()
         .document()
         .expect("failed to get document from window")
+}
+
+pub(crate) fn performance() -> Performance {
+    window()
+        .performance()
+        .expect("failed to get performance instance from window")
 }
 
 pub(crate) fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) -> i32 {
