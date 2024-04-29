@@ -1,5 +1,5 @@
 use super::{
-    channel::MessageChannel, clock::Clock, engine::RenderEngine, scene::Scene, webgl::WebGl,
+    channel::MessageChannel, clock::Clock, engine::RenderEngine, scene::Scene, web::webgl::WebGl,
 };
 
 pub struct Viewer<RenderType> {

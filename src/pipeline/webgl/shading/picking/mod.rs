@@ -11,7 +11,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
-    core::webgl::client_wait::ClientWaitAsync,
+    core::web::webgl::client_wait::ClientWaitAsync,
     entity::Entity,
     material::Transparency,
     pipeline::webgl::{

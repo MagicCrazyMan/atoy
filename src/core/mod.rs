@@ -5,7 +5,6 @@ pub mod entity;
 pub mod property;
 pub mod scene;
 pub mod viewer;
-pub mod webgl;
 pub mod web;
 
 pub trait AsAny {
