@@ -1900,7 +1900,6 @@ enum QueueItem {
 
 #[derive(Debug, Clone)]
 pub struct Texture<Layout, InternalFormat> {
-    id: Uuid,
     layout: Layout,
     internal_format: InternalFormat,
 
@@ -1914,7 +1913,6 @@ pub struct Texture<Layout, InternalFormat> {
 impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
     pub fn new(layout: Layout, internal_format: InternalFormat) -> Self {
         Self {
-            id: Uuid::new_v4(),
             layout,
             internal_format,
 
@@ -1924,10 +1922,6 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
 
             registered: Rc::new(RefCell::new(None)),
         }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
     }
 
     pub fn layout(&self) -> &Layout {
@@ -2306,10 +2300,10 @@ struct TextureRegistered {
     gl: WebGl2RenderingContext,
     gl_texture: WebGlTexture,
     gl_sampler: WebGlSampler,
-    gl_actived_unit: HashSet<TextureUnit>,
+    gl_active_unit: HashSet<TextureUnit>,
 
     reg_id: Uuid,
-    reg_actived_unit: Rc<RefCell<TextureUnit>>,
+    reg_active_unit: Rc<RefCell<TextureUnit>>,
     reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     reg_used_memory: Weak<RefCell<usize>>,
@@ -2353,23 +2347,23 @@ impl TextureRegistered {
         self.gl
             .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
         self.gl.bind_sampler(unit.gl_enum(), Some(&self.gl_sampler));
-        self.gl_actived_unit.insert(unit);
+        self.gl_active_unit.insert(unit);
         self.reg_texture_bounds
             .borrow_mut()
             .insert((unit, self.texture_target), self.gl_texture.clone());
         self.gl
-            .active_texture(self.reg_actived_unit.borrow().gl_enum());
+            .active_texture(self.reg_active_unit.borrow().gl_enum());
 
         Ok(())
     }
 
     fn unbind(&mut self, unit: TextureUnit) {
-        if self.gl_actived_unit.remove(&unit) {
+        if self.gl_active_unit.remove(&unit) {
             self.gl.active_texture(unit.gl_enum());
             self.gl.bind_texture(self.texture_target.gl_enum(), None);
             self.gl.bind_sampler(unit.gl_enum(), None);
             self.gl
-                .active_texture(self.reg_actived_unit.borrow().gl_enum());
+                .active_texture(self.reg_active_unit.borrow().gl_enum());
             self.reg_texture_bounds
                 .borrow_mut()
                 .remove(&(unit, self.texture_target));
@@ -2377,7 +2371,7 @@ impl TextureRegistered {
     }
 
     fn unbind_all(&mut self) {
-        for unit in self.gl_actived_unit.drain() {
+        for unit in self.gl_active_unit.drain() {
             self.gl.active_texture(unit.gl_enum());
             self.gl.bind_texture(self.texture_target.gl_enum(), None);
             self.gl.bind_sampler(unit.gl_enum(), None);
@@ -2386,7 +2380,7 @@ impl TextureRegistered {
                 .remove(&(unit, self.texture_target));
         }
         self.gl
-            .active_texture(self.reg_actived_unit.borrow().gl_enum());
+            .active_texture(self.reg_active_unit.borrow().gl_enum());
     }
 
     fn upload(&self) -> Result<(), Error> {
@@ -2482,7 +2476,7 @@ impl TextureRegistered {
                 .get(&(TEXTURE_UNIT, self.texture_target)),
         );
         self.gl
-            .active_texture(self.reg_actived_unit.borrow().gl_enum());
+            .active_texture(self.reg_active_unit.borrow().gl_enum());
 
         Ok(())
     }
@@ -2492,7 +2486,7 @@ impl TextureRegistered {
 pub struct TextureRegistry {
     id: Uuid,
     gl: WebGl2RenderingContext,
-    actived_unit: Rc<RefCell<TextureUnit>>,
+    active_unit: Rc<RefCell<TextureUnit>>,
     texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
     used_memory: Rc<RefCell<usize>>,
@@ -2506,7 +2500,7 @@ impl TextureRegistry {
         Self {
             id: Uuid::new_v4(),
             gl,
-            actived_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
+            active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
             texture_bounds: Rc::new(RefCell::new(HashMap::new())),
             buffer_bounds,
             used_memory: Rc::new(RefCell::new(usize::MIN)),
@@ -2525,8 +2519,8 @@ impl TextureRegistry {
         *self.used_memory.borrow()
     }
 
-    pub fn actived_unit(&self) -> Rc<RefCell<TextureUnit>> {
-        Rc::clone(&self.actived_unit)
+    pub fn active_unit(&self) -> Rc<RefCell<TextureUnit>> {
+        Rc::clone(&self.active_unit)
     }
 
     pub fn bounds(&self) -> Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>> {
@@ -2543,7 +2537,7 @@ macro_rules! register_functions {
                     texture: &Texture<$layout, TextureUncompressedInternalFormat>,
                 ) -> Result<(), Error> {
                     if let Some(registered) = &*texture.registered.borrow() {
-                        if registered.reg_id != self.id {
+                        if &registered.reg_id != &self.id {
                             return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
                         } else {
                             registered.upload()?;
@@ -2571,9 +2565,9 @@ macro_rules! register_functions {
                         gl: self.gl.clone(),
                         gl_texture,
                         gl_sampler,
-                        gl_actived_unit: HashSet::new(),
+                        gl_active_unit: HashSet::new(),
                         reg_id: self.id,
-                        reg_actived_unit: Rc::clone(&self.actived_unit),
+                        reg_active_unit: Rc::clone(&self.active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),
@@ -2623,9 +2617,9 @@ macro_rules! register_functions {
                         gl: self.gl.clone(),
                         gl_texture,
                         gl_sampler,
-                        gl_actived_unit: HashSet::new(),
+                        gl_active_unit: HashSet::new(),
                         reg_id: self.id,
-                        reg_actived_unit: Rc::clone(&self.actived_unit),
+                        reg_active_unit: Rc::clone(&self.active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),

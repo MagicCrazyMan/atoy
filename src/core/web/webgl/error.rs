@@ -2,6 +2,7 @@ use wasm_bindgen::JsValue;
 
 use super::{
     buffer::BufferTarget,
+    framebuffer::FramebufferTarget,
     texture::{TextureTarget, TextureUnit},
 };
 
@@ -51,9 +52,10 @@ pub enum Error {
     //     max: usize,
     //     value: usize,
     // },
-    // FramebufferUninitialized,
+    FramebufferRegistered,
+    RegisterFramebufferToMultipleRepositoryUnsupported,
     // FramebufferAlreadyInitialized,
-    // FramebufferTargetOccupied(FramebufferTarget),
+    FramebufferTargetOccupied(FramebufferTarget),
     // FramebufferUnboundAsRead,
     // FramebufferUnboundAsDraw,
     // CommonWebGLError(Option<String>),

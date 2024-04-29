@@ -440,7 +440,6 @@ impl QueueItem {
 
 #[derive(Debug, Clone)]
 pub struct Buffer {
-    id: Uuid,
     capacity: usize,
     usage: BufferUsage,
 
@@ -453,7 +452,6 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(capacity: usize, usage: BufferUsage) -> Self {
         Self {
-            id: Uuid::new_v4(),
             capacity,
             usage,
 
@@ -466,7 +464,6 @@ impl Buffer {
 
     pub fn with_buffer_data(buffer_data: BufferData, usage: BufferUsage) -> Self {
         Self {
-            id: Uuid::new_v4(),
             capacity: buffer_data.byte_length(),
             usage,
 
@@ -475,10 +472,6 @@ impl Buffer {
 
             registered: Rc::new(RefCell::new(None)),
         }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
     }
 
     pub fn capacity(&self) -> usize {
@@ -859,7 +852,7 @@ impl BufferRegistry {
 
     pub fn register(&self, buffer: &Buffer) -> Result<(), Error> {
         if let Some(registered) = &*buffer.registered.borrow() {
-            if registered.reg_id != self.id {
+            if &registered.reg_id != &self.id {
                 return Err(Error::RegisterBufferToMultipleRepositoryUnsupported);
             } else {
                 registered.upload()?;
