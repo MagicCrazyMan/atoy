@@ -1900,6 +1900,7 @@ enum QueueItem {
 
 #[derive(Debug, Clone)]
 pub struct Texture<Layout, InternalFormat> {
+    id: Uuid,
     layout: Layout,
     internal_format: InternalFormat,
 
@@ -1913,6 +1914,7 @@ pub struct Texture<Layout, InternalFormat> {
 impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
     pub fn new(layout: Layout, internal_format: InternalFormat) -> Self {
         Self {
+            id: Uuid::new_v4(),
             layout,
             internal_format,
 
@@ -1922,6 +1924,10 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
 
             registered: Rc::new(RefCell::new(None)),
         }
+    }
+
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     pub fn layout(&self) -> &Layout {
@@ -2293,8 +2299,6 @@ impl Texture<Texture3D, TextureCompressedFormat> {
     }
 }
 
-const TEXTURE_UNIT: TextureUnit = TextureUnit::Texture7;
-
 #[derive(Debug)]
 struct TextureRegistered {
     gl: WebGl2RenderingContext,
@@ -2388,8 +2392,6 @@ impl TextureRegistered {
             return Err(Error::TextureUnexpectedDropped);
         };
 
-        self.gl.active_texture(TEXTURE_UNIT.gl_enum());
-
         // update sampler parameters
         for sampler_param in self.sampler_params.borrow().iter() {
             sampler_param.sampler_parameter(&self.gl, &self.gl_sampler);
@@ -2473,10 +2475,8 @@ impl TextureRegistered {
             self.texture_target.gl_enum(),
             self.reg_texture_bounds
                 .borrow()
-                .get(&(TEXTURE_UNIT, self.texture_target)),
+                .get(&(*self.reg_active_unit.borrow(), self.texture_target)),
         );
-        self.gl
-            .active_texture(self.reg_active_unit.borrow().gl_enum());
 
         Ok(())
     }
@@ -2497,6 +2497,7 @@ impl TextureRegistry {
         gl: WebGl2RenderingContext,
         buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
     ) -> Self {
+        gl.active_texture(TextureUnit::Texture0.gl_enum());
         Self {
             id: Uuid::new_v4(),
             gl,
@@ -2554,7 +2555,6 @@ macro_rules! register_functions {
                         .create_sampler()
                         .ok_or(Error::CreateSamplerFailure)?;
 
-                    self.gl.active_texture(TEXTURE_UNIT.gl_enum());
                     self.gl
                         .bind_texture($target.gl_enum(), Some(&gl_texture));
                     texture.$tex_storage(&self.gl, $target);
@@ -2566,18 +2566,20 @@ macro_rules! register_functions {
                         gl_texture,
                         gl_sampler,
                         gl_active_unit: HashSet::new(),
+
                         reg_id: self.id,
                         reg_active_unit: Rc::clone(&self.active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),
+
                         texture_target: $target,
                         texture_memory,
                         texture_params: Rc::clone(&texture.texture_params),
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
                     };
-                    registered.upload()?;
+                    registered.upload()?; // texture unbind after uploading
 
                     *texture.registered.borrow_mut() = Some(registered);
 
@@ -2606,7 +2608,6 @@ macro_rules! register_functions {
                         .create_sampler()
                         .ok_or(Error::CreateSamplerFailure)?;
 
-                    self.gl.active_texture(TEXTURE_UNIT.gl_enum());
                     self.gl
                         .bind_texture($target.gl_enum(), Some(&gl_texture));
                     texture.$tex_storage(&self.gl, $target);
@@ -2618,18 +2619,20 @@ macro_rules! register_functions {
                         gl_texture,
                         gl_sampler,
                         gl_active_unit: HashSet::new(),
+
                         reg_id: self.id,
                         reg_active_unit: Rc::clone(&self.active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),
+
                         texture_target: $target,
                         texture_memory,
                         texture_params: Rc::clone(&texture.texture_params),
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
                     };
-                    registered.upload()?;
+                    registered.upload()?; // texture unbind after uploading
 
                     *texture.registered.borrow_mut() = Some(registered);
 

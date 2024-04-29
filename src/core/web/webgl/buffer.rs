@@ -440,6 +440,7 @@ impl QueueItem {
 
 #[derive(Debug, Clone)]
 pub struct Buffer {
+    id: Uuid,
     capacity: usize,
     usage: BufferUsage,
 
@@ -452,6 +453,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new(capacity: usize, usage: BufferUsage) -> Self {
         Self {
+            id: Uuid::new_v4(),
             capacity,
             usage,
 
@@ -464,6 +466,7 @@ impl Buffer {
 
     pub fn with_buffer_data(buffer_data: BufferData, usage: BufferUsage) -> Self {
         Self {
+            id: Uuid::new_v4(),
             capacity: buffer_data.byte_length(),
             usage,
 
@@ -472,6 +475,10 @@ impl Buffer {
 
             registered: Rc::new(RefCell::new(None)),
         }
+    }
+
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     pub fn capacity(&self) -> usize {

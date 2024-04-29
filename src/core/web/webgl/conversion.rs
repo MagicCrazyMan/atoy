@@ -14,7 +14,7 @@ use super::{
     depth::DepthFunction,
     draw::DrawMode,
     framebuffer::{FramebufferAttachment, FramebufferTarget, OperableBuffer},
-    renderbuffer::RenderbufferInternalFormat,
+    renderbuffer::{RenderbufferInternalFormat, RenderbufferTarget},
     stencil::{StencilFunction, StencilOp},
     texture::{
         SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
@@ -677,6 +677,15 @@ impl ToGlEnum for StencilOp {
     }
 }
 
+impl ToGlEnum for RenderbufferTarget {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            RenderbufferTarget::Renderbuffer => WebGl2RenderingContext::RENDERBUFFER,
+        }
+    }
+}
+
 impl ToGlEnum for RenderbufferInternalFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
@@ -749,63 +758,27 @@ impl ToGlEnum for FramebufferAttachment {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            FramebufferAttachment::ColorAttachment0 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT0
-            }
-            FramebufferAttachment::ColorAttachment1 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT1
-            }
-            FramebufferAttachment::ColorAttachment2 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT2
-            }
-            FramebufferAttachment::ColorAttachment3 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT3
-            }
-            FramebufferAttachment::ColorAttachment4 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT4
-            }
-            FramebufferAttachment::ColorAttachment5 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT5
-            }
-            FramebufferAttachment::ColorAttachment6 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT6
-            }
-            FramebufferAttachment::ColorAttachment7 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT7
-            }
-            FramebufferAttachment::ColorAttachment8 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT8
-            }
-            FramebufferAttachment::ColorAttachment9 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT9
-            }
-            FramebufferAttachment::ColorAttachment10 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT10
-            }
-            FramebufferAttachment::ColorAttachment11 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT11
-            }
-            FramebufferAttachment::ColorAttachment12 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT12
-            }
-            FramebufferAttachment::ColorAttachment13 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT13
-            }
-            FramebufferAttachment::ColorAttachment14 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT14
-            }
-            FramebufferAttachment::ColorAttachment15 => {
-                WebGl2RenderingContext::COLOR_ATTACHMENT15
-            }
-            FramebufferAttachment::DepthAttachment => {
-                WebGl2RenderingContext::DEPTH_ATTACHMENT
-            }
+            FramebufferAttachment::ColorAttachment0 => WebGl2RenderingContext::COLOR_ATTACHMENT0,
+            FramebufferAttachment::ColorAttachment1 => WebGl2RenderingContext::COLOR_ATTACHMENT1,
+            FramebufferAttachment::ColorAttachment2 => WebGl2RenderingContext::COLOR_ATTACHMENT2,
+            FramebufferAttachment::ColorAttachment3 => WebGl2RenderingContext::COLOR_ATTACHMENT3,
+            FramebufferAttachment::ColorAttachment4 => WebGl2RenderingContext::COLOR_ATTACHMENT4,
+            FramebufferAttachment::ColorAttachment5 => WebGl2RenderingContext::COLOR_ATTACHMENT5,
+            FramebufferAttachment::ColorAttachment6 => WebGl2RenderingContext::COLOR_ATTACHMENT6,
+            FramebufferAttachment::ColorAttachment7 => WebGl2RenderingContext::COLOR_ATTACHMENT7,
+            FramebufferAttachment::ColorAttachment8 => WebGl2RenderingContext::COLOR_ATTACHMENT8,
+            FramebufferAttachment::ColorAttachment9 => WebGl2RenderingContext::COLOR_ATTACHMENT9,
+            FramebufferAttachment::ColorAttachment10 => WebGl2RenderingContext::COLOR_ATTACHMENT10,
+            FramebufferAttachment::ColorAttachment11 => WebGl2RenderingContext::COLOR_ATTACHMENT11,
+            FramebufferAttachment::ColorAttachment12 => WebGl2RenderingContext::COLOR_ATTACHMENT12,
+            FramebufferAttachment::ColorAttachment13 => WebGl2RenderingContext::COLOR_ATTACHMENT13,
+            FramebufferAttachment::ColorAttachment14 => WebGl2RenderingContext::COLOR_ATTACHMENT14,
+            FramebufferAttachment::ColorAttachment15 => WebGl2RenderingContext::COLOR_ATTACHMENT15,
+            FramebufferAttachment::DepthAttachment => WebGl2RenderingContext::DEPTH_ATTACHMENT,
             FramebufferAttachment::DepthStencilAttachment => {
                 WebGl2RenderingContext::DEPTH_STENCIL_ATTACHMENT
             }
-            FramebufferAttachment::StencilAttachment => {
-                WebGl2RenderingContext::STENCIL_ATTACHMENT
-            }
+            FramebufferAttachment::StencilAttachment => WebGl2RenderingContext::STENCIL_ATTACHMENT,
         }
     }
 }

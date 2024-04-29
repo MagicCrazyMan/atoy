@@ -1,3 +1,9 @@
+/// Available render buffer targets mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RenderbufferTarget {
+    Renderbuffer,
+}
+
 /// Available render buffer storages mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
