@@ -16,7 +16,12 @@ use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
-use super::{buffer::BufferTarget, conversion::ToGlEnum, error::Error};
+use super::{
+    buffer::BufferTarget,
+    conversion::ToGlEnum,
+    error::Error,
+    pixel::{PixelDataType, PixelUnpackStorage},
+};
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -99,151 +104,6 @@ impl TextureUnit {
             TextureUnit::Texture29 => 29,
             TextureUnit::Texture30 => 30,
             TextureUnit::Texture31 => 31,
-        }
-    }
-}
-
-/// Available texture pixel data types mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TexturePixelDataType {
-    Float,
-    HalfFloat,
-    Byte,
-    Short,
-    Int,
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
-    UnsignedShort5_6_5,
-    UnsignedShort4_4_4_4,
-    UnsignedShort5_5_5_1,
-    UnsignedInt2_10_10_10Rev,
-    #[allow(non_camel_case_types)]
-    UnsignedInt10F_11F_11F_Rev,
-    UnsignedInt5_9_9_9Rev,
-    UnsignedInt24_8,
-    Float32UnsignedInt24_8Rev,
-}
-
-/// Available texture unpack color space conversions for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureUnpackColorSpaceConversion {
-    None,
-    BrowserDefault,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum TexturePixelAlignment {
-    One = 1,
-    Two = 2,
-    Four = 4,
-    Eight = 8,
-}
-
-/// Available texture pixel storages for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TexturePackPixelStorage {
-    PackAlignment(TexturePixelAlignment),
-    PackRowLength(i32),
-    PackSkipPixels(i32),
-    PackSkipRows(i32),
-}
-
-// impl TexturePackPixelStorage {
-//     fn pixel_store(&self, gl: &WebGl2RenderingContext) -> TexturePackPixelStorage {
-//         match self {
-//             TexturePackPixelStorage::PackAlignment(v) => {
-//                 gl.pixel_storei(WebGl2RenderingContext::PACK_ALIGNMENT, *v as i32);
-//                 TexturePackPixelStorage::PackAlignment(TexturePixelAlignment::Four)
-//             }
-//             TexturePackPixelStorage::PackRowLength(v) => {
-//                 gl.pixel_storei(WebGl2RenderingContext::PACK_ROW_LENGTH, *v);
-//                 TexturePackPixelStorage::PackRowLength(0)
-//             }
-//             TexturePackPixelStorage::PackSkipPixels(v) => {
-//                 gl.pixel_storei(WebGl2RenderingContext::PACK_SKIP_PIXELS, *v);
-//                 TexturePackPixelStorage::PackSkipPixels(0)
-//             }
-//             TexturePackPixelStorage::PackSkipRows(v) => {
-//                 gl.pixel_storei(WebGl2RenderingContext::PACK_SKIP_ROWS, *v);
-//                 TexturePackPixelStorage::PackSkipRows(0)
-//             }
-//         }
-//     }
-// }
-
-/// Available texture pixel storages for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureUnpackPixelStorage {
-    UnpackAlignment(TexturePixelAlignment),
-    UnpackFlipY(bool),
-    UnpackPremultiplyAlpha(bool),
-    UnpackColorSpaceConversion(TextureUnpackColorSpaceConversion),
-    UnpackRowLength(i32),
-    UnpackImageHeight(i32),
-    UnpackSkipPixels(i32),
-    UnpackSkipRows(i32),
-    UnpackSkipImages(i32),
-}
-
-impl TextureUnpackPixelStorage {
-    fn pixel_store(&self, gl: &WebGl2RenderingContext) -> TextureUnpackPixelStorage {
-        match self {
-            TextureUnpackPixelStorage::UnpackAlignment(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_ALIGNMENT, *v as i32);
-                TextureUnpackPixelStorage::UnpackAlignment(TexturePixelAlignment::Four)
-            }
-            TextureUnpackPixelStorage::UnpackFlipY(v) => {
-                gl.pixel_storei(
-                    WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL,
-                    if *v { 1 } else { 0 },
-                );
-                TextureUnpackPixelStorage::UnpackFlipY(false)
-            }
-            TextureUnpackPixelStorage::UnpackPremultiplyAlpha(v) => {
-                gl.pixel_storei(
-                    WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL,
-                    if *v { 1 } else { 0 },
-                );
-                TextureUnpackPixelStorage::UnpackPremultiplyAlpha(false)
-            }
-            TextureUnpackPixelStorage::UnpackColorSpaceConversion(v) => {
-                gl.pixel_storei(
-                    WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL,
-                    match v {
-                        TextureUnpackColorSpaceConversion::None => {
-                            WebGl2RenderingContext::NONE as i32
-                        }
-                        TextureUnpackColorSpaceConversion::BrowserDefault => {
-                            WebGl2RenderingContext::BROWSER_DEFAULT_WEBGL as i32
-                        }
-                    },
-                );
-                TextureUnpackPixelStorage::UnpackColorSpaceConversion(
-                    TextureUnpackColorSpaceConversion::BrowserDefault,
-                )
-            }
-            TextureUnpackPixelStorage::UnpackRowLength(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_ROW_LENGTH, *v);
-                TextureUnpackPixelStorage::UnpackRowLength(0)
-            }
-            TextureUnpackPixelStorage::UnpackImageHeight(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT, *v);
-                TextureUnpackPixelStorage::UnpackImageHeight(0)
-            }
-            TextureUnpackPixelStorage::UnpackSkipPixels(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_PIXELS, *v);
-                TextureUnpackPixelStorage::UnpackSkipPixels(0)
-            }
-            TextureUnpackPixelStorage::UnpackSkipRows(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_ROWS, *v);
-                TextureUnpackPixelStorage::UnpackSkipRows(0)
-            }
-            TextureUnpackPixelStorage::UnpackSkipImages(v) => {
-                gl.pixel_storei(WebGl2RenderingContext::UNPACK_SKIP_IMAGES, *v);
-                TextureUnpackPixelStorage::UnpackSkipImages(0)
-            }
         }
     }
 }
@@ -800,162 +660,189 @@ impl TextureInternalFormat for TextureCompressedFormat {
 pub enum TextureUncompressedData {
     PixelBufferObject {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         buffer: WebGlBuffer,
         pbo_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Int8Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Int8Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Uint8Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Uint8Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Uint8ClampedArray {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Uint8ClampedArray,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Int16Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Int16Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Uint16Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Uint16Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Int32Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Int32Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Uint32Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Uint32Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     Float32Array {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: Float32Array,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     DataView {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         width: usize,
         height: usize,
         data: DataView,
         src_element_offset: Option<usize>,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     HtmlCanvasElement {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         data: HtmlCanvasElement,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     HtmlImageElement {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         data: HtmlImageElement,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     HtmlVideoElement {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         data: HtmlVideoElement,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     ImageData {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         data: ImageData,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
     ImageBitmap {
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
         data: ImageBitmap,
-        pixel_storages: Option<Vec<TextureUnpackPixelStorage>>,
+        pixel_unpack_storages: Option<Vec<PixelUnpackStorage>>,
     },
 }
 
 impl TextureUncompressedData {
-    fn pixel_storages(&self) -> Option<&[TextureUnpackPixelStorage]> {
+    fn pixel_unpack_storages(&self) -> Option<&[PixelUnpackStorage]> {
         match self {
-            TextureUncompressedData::PixelBufferObject { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::Int8Array { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::Uint8Array { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::Uint8ClampedArray { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::Int16Array { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::Uint16Array { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::Int32Array { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::Uint32Array { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::Float32Array { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::DataView { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::HtmlCanvasElement { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::HtmlImageElement { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::HtmlVideoElement { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
-            TextureUncompressedData::ImageData { pixel_storages, .. } => pixel_storages.as_deref(),
-            TextureUncompressedData::ImageBitmap { pixel_storages, .. } => {
-                pixel_storages.as_deref()
-            }
+            TextureUncompressedData::PixelBufferObject {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Int8Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Uint8Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Uint8ClampedArray {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Int16Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Uint16Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Int32Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Uint32Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::Float32Array {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::DataView {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::HtmlCanvasElement {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::HtmlImageElement {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::HtmlVideoElement {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::ImageData {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
+            TextureUncompressedData::ImageBitmap {
+                pixel_unpack_storages,
+                ..
+            } => pixel_unpack_storages.as_deref(),
         }
     }
 
@@ -2405,7 +2292,7 @@ impl TextureRegistered {
             texture_param.texture_parameter(&self.gl, self.texture_target);
         }
 
-        let mut initial_pixel_storages = HashSet::new();
+        let mut initial_pixel_unpack_storages = HashSet::new();
         for item in texture_queue.borrow_mut().drain(..) {
             match item {
                 QueueItem::Uncompressed {
@@ -2418,10 +2305,10 @@ impl TextureRegistered {
                     z_offset,
                     generate_mipmaps,
                 } => {
-                    if let Some(pixel_storages) = data.pixel_storages() {
-                        for pixel_storage in pixel_storages {
-                            let init = pixel_storage.pixel_store(&self.gl);
-                            initial_pixel_storages.insert(init);
+                    if let Some(pixel_unpack_storages) = data.pixel_unpack_storages() {
+                        for pixel_unpack_storage in pixel_unpack_storages {
+                            let default = pixel_unpack_storage.pixel_store(&self.gl);
+                            initial_pixel_unpack_storages.insert(default);
                         }
                     }
 
@@ -2441,8 +2328,8 @@ impl TextureRegistered {
                         self.gl.generate_mipmap(self.texture_target.gl_enum());
                     }
 
-                    for pixel_storage in initial_pixel_storages.drain() {
-                        pixel_storage.pixel_store(&self.gl);
+                    for pixel_unpack_storage in initial_pixel_unpack_storages.drain() {
+                        pixel_unpack_storage.pixel_store(&self.gl);
                     }
                 }
                 QueueItem::Compressed {

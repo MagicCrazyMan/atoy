@@ -13,14 +13,17 @@ use super::{
     depth::DepthFunction,
     draw::DrawMode,
     framebuffer::{FramebufferAttachment, FramebufferTarget, OperableBuffer},
+    pixel::{
+        PixelPackStorage, PixelDataType, UnpackColorSpaceConversion,
+        PixelUnpackStorage,
+    },
     renderbuffer::{RenderbufferInternalFormat, RenderbufferTarget},
     stencil::{StencilFunction, StencilOp},
     texture::{
         SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
-        TextureMagnificationFilter, TextureMinificationFilter, TexturePackPixelStorage,
-        TextureParameter, TextureTarget, TextureUncompressedInternalFormat,
-        TexturePixelDataType, TexturePixelFormat, TextureUnit,
-        TextureUnpackColorSpaceConversion, TextureUnpackPixelStorage, TextureWrapMethod,
+        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
+        TexturePixelFormat, TextureTarget, TextureUncompressedInternalFormat, TextureUnit,
+        TextureWrapMethod,
     },
 };
 
@@ -390,54 +393,46 @@ impl ToGlEnum for TexturePixelFormat {
             TexturePixelFormat::Rgba => WebGl2RenderingContext::RGBA,
             TexturePixelFormat::RgbaInteger => WebGl2RenderingContext::RGBA_INTEGER,
             TexturePixelFormat::Luminance => WebGl2RenderingContext::LUMINANCE,
-            TexturePixelFormat::LuminanceAlpha => {
-                WebGl2RenderingContext::LUMINANCE_ALPHA
-            }
+            TexturePixelFormat::LuminanceAlpha => WebGl2RenderingContext::LUMINANCE_ALPHA,
             TexturePixelFormat::Alpha => WebGl2RenderingContext::ALPHA,
-            TexturePixelFormat::DepthComponent => {
-                WebGl2RenderingContext::DEPTH_COMPONENT
-            }
+            TexturePixelFormat::DepthComponent => WebGl2RenderingContext::DEPTH_COMPONENT,
             TexturePixelFormat::DepthStencil => WebGl2RenderingContext::DEPTH_STENCIL,
         }
     }
 }
 
-impl ToGlEnum for TexturePixelDataType {
+impl ToGlEnum for PixelDataType {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TexturePixelDataType::Float => WebGl2RenderingContext::FLOAT,
-            TexturePixelDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
-            TexturePixelDataType::Byte => WebGl2RenderingContext::BYTE,
-            TexturePixelDataType::Short => WebGl2RenderingContext::SHORT,
-            TexturePixelDataType::Int => WebGl2RenderingContext::INT,
-            TexturePixelDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
-            TexturePixelDataType::UnsignedShort => {
-                WebGl2RenderingContext::UNSIGNED_SHORT
-            }
-            TexturePixelDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            TexturePixelDataType::UnsignedShort5_6_5 => {
+            PixelDataType::Float => WebGl2RenderingContext::FLOAT,
+            PixelDataType::HalfFloat => WebGl2RenderingContext::HALF_FLOAT,
+            PixelDataType::Byte => WebGl2RenderingContext::BYTE,
+            PixelDataType::Short => WebGl2RenderingContext::SHORT,
+            PixelDataType::Int => WebGl2RenderingContext::INT,
+            PixelDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
+            PixelDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
+            PixelDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
+            PixelDataType::UnsignedShort5_6_5 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5
             }
-            TexturePixelDataType::UnsignedShort4_4_4_4 => {
+            PixelDataType::UnsignedShort4_4_4_4 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_4_4_4_4
             }
-            TexturePixelDataType::UnsignedShort5_5_5_1 => {
+            PixelDataType::UnsignedShort5_5_5_1 => {
                 WebGl2RenderingContext::UNSIGNED_SHORT_5_5_5_1
             }
-            TexturePixelDataType::UnsignedInt2_10_10_10Rev => {
+            PixelDataType::UnsignedInt2_10_10_10Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
-            TexturePixelDataType::UnsignedInt10F_11F_11F_Rev => {
+            PixelDataType::UnsignedInt10F_11F_11F_Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_10F_11F_11F_REV
             }
-            TexturePixelDataType::UnsignedInt5_9_9_9Rev => {
+            PixelDataType::UnsignedInt5_9_9_9Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_5_9_9_9_REV
             }
-            TexturePixelDataType::UnsignedInt24_8 => {
-                WebGl2RenderingContext::UNSIGNED_INT_24_8
-            }
-            TexturePixelDataType::Float32UnsignedInt24_8Rev => {
+            PixelDataType::UnsignedInt24_8 => WebGl2RenderingContext::UNSIGNED_INT_24_8,
+            PixelDataType::Float32UnsignedInt24_8Rev => {
                 WebGl2RenderingContext::FLOAT_32_UNSIGNED_INT_24_8_REV
             }
         }
@@ -484,59 +479,59 @@ impl ToGlEnum for TextureUnit {
     }
 }
 
-impl ToGlEnum for TextureUnpackColorSpaceConversion {
+impl ToGlEnum for UnpackColorSpaceConversion {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureUnpackColorSpaceConversion::None => WebGl2RenderingContext::NONE,
-            TextureUnpackColorSpaceConversion::BrowserDefault => {
+            UnpackColorSpaceConversion::None => WebGl2RenderingContext::NONE,
+            UnpackColorSpaceConversion::BrowserDefault => {
                 WebGl2RenderingContext::BROWSER_DEFAULT_WEBGL
             }
         }
     }
 }
 
-impl ToGlEnum for TexturePackPixelStorage {
+impl ToGlEnum for PixelPackStorage {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TexturePackPixelStorage::PackAlignment(_) => WebGl2RenderingContext::PACK_ALIGNMENT,
-            TexturePackPixelStorage::PackRowLength(_) => WebGl2RenderingContext::PACK_ROW_LENGTH,
-            TexturePackPixelStorage::PackSkipPixels(_) => WebGl2RenderingContext::PACK_SKIP_PIXELS,
-            TexturePackPixelStorage::PackSkipRows(_) => WebGl2RenderingContext::PACK_SKIP_ROWS,
+            PixelPackStorage::PackAlignment(_) => WebGl2RenderingContext::PACK_ALIGNMENT,
+            PixelPackStorage::PackRowLength(_) => WebGl2RenderingContext::PACK_ROW_LENGTH,
+            PixelPackStorage::PackSkipPixels(_) => WebGl2RenderingContext::PACK_SKIP_PIXELS,
+            PixelPackStorage::PackSkipRows(_) => WebGl2RenderingContext::PACK_SKIP_ROWS,
         }
     }
 }
 
-impl ToGlEnum for TextureUnpackPixelStorage {
+impl ToGlEnum for PixelUnpackStorage {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureUnpackPixelStorage::UnpackAlignment(_) => {
+            PixelUnpackStorage::UnpackAlignment(_) => {
                 WebGl2RenderingContext::UNPACK_ALIGNMENT
             }
-            TextureUnpackPixelStorage::UnpackFlipY(_) => {
+            PixelUnpackStorage::UnpackFlipY(_) => {
                 WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL
             }
-            TextureUnpackPixelStorage::UnpackPremultiplyAlpha(_) => {
+            PixelUnpackStorage::UnpackPremultiplyAlpha(_) => {
                 WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL
             }
-            TextureUnpackPixelStorage::UnpackColorSpaceConversion(_) => {
+            PixelUnpackStorage::UnpackColorSpaceConversion(_) => {
                 WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL
             }
-            TextureUnpackPixelStorage::UnpackRowLength(_) => {
+            PixelUnpackStorage::UnpackRowLength(_) => {
                 WebGl2RenderingContext::UNPACK_ROW_LENGTH
             }
-            TextureUnpackPixelStorage::UnpackImageHeight(_) => {
+            PixelUnpackStorage::UnpackImageHeight(_) => {
                 WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT
             }
-            TextureUnpackPixelStorage::UnpackSkipPixels(_) => {
+            PixelUnpackStorage::UnpackSkipPixels(_) => {
                 WebGl2RenderingContext::UNPACK_SKIP_PIXELS
             }
-            TextureUnpackPixelStorage::UnpackSkipRows(_) => {
+            PixelUnpackStorage::UnpackSkipRows(_) => {
                 WebGl2RenderingContext::UNPACK_SKIP_ROWS
             }
-            TextureUnpackPixelStorage::UnpackSkipImages(_) => {
+            PixelUnpackStorage::UnpackSkipImages(_) => {
                 WebGl2RenderingContext::UNPACK_SKIP_IMAGES
             }
         }

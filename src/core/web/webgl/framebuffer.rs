@@ -16,11 +16,9 @@ use super::{
     buffer::BufferTarget,
     conversion::ToGlEnum,
     error::Error,
+    pixel::{PixelPackStorage, PixelDataType},
     renderbuffer::RenderbufferInternalFormat,
-    texture::{
-        TextureTarget, TextureUncompressedInternalFormat, TexturePixelDataType,
-        TexturePixelFormat, TextureUnit,
-    },
+    texture::{TexturePixelFormat, TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -853,8 +851,8 @@ impl Framebuffer {
         Ok(())
     }
 
-    pub fn blit(&self, to: &Self) -> Result<(), Error> {
-        self.blit_with_params(
+    pub fn blit_to(&self, to: &Self) -> Result<(), Error> {
+        self.blit_to_with_params(
             None,
             None,
             None,
@@ -871,7 +869,7 @@ impl Framebuffer {
         )
     }
 
-    pub fn blit_with_params(
+    pub fn blit_to_with_params(
         &self,
         read_buffer: Option<OperableBuffer>,
         src_x0: Option<usize>,
@@ -894,7 +892,7 @@ impl Framebuffer {
             to.as_mut().ok_or(Error::FramebufferUnregistered)?,
         );
 
-        from.blit(
+        from.blit_to(
             read_buffer,
             src_x0,
             src_y0,
@@ -1311,8 +1309,8 @@ impl FramebufferRegistered {
         }
         // binds draw buffers
         else if target == FramebufferTarget::DrawFramebuffer {
-            if let Some(draw_buffers) = draw_buffers {
-                self.gl.draw_buffers(&draw_buffers);
+            if let Some(draw_buffers) = &draw_buffers {
+                self.gl.draw_buffers(draw_buffers);
             }
         }
 
@@ -1485,7 +1483,74 @@ impl FramebufferRegistered {
         }
     }
 
-    fn blit(
+    fn temp_bind(
+        &mut self,
+        target: FramebufferTarget,
+        read_buffer: &Option<OperableBuffer>,
+        draw_buffers: &Option<Vec<OperableBuffer>>,
+    ) {
+        self.gl
+            .bind_framebuffer(target.gl_enum(), Some(&self.gl_framebuffer));
+
+        if target == FramebufferTarget::DrawFramebuffer {
+            if let Some(draw_buffers) = draw_buffers {
+                self.gl.draw_buffers(&draw_buffers.to_array());
+            }
+        } else if target == FramebufferTarget::ReadFramebuffer {
+            if let Some(read_buffer) = read_buffer {
+                self.gl.read_buffer(read_buffer.gl_enum());
+            }
+        }
+    }
+
+    fn temp_unbind(
+        &mut self,
+        target: FramebufferTarget,
+        read_buffer: &Option<OperableBuffer>,
+        draw_buffers: &Option<Vec<OperableBuffer>>,
+    ) {
+        if target == FramebufferTarget::DrawFramebuffer {
+            if draw_buffers.is_some() {
+                self.gl.draw_buffers(&self.gl_origin_write_buffers);
+            }
+
+            if let Some((gl_framebuffer, _, draw_buffers)) = self
+                .reg_framebuffer_bounds
+                .borrow()
+                .get(&FramebufferTarget::DrawFramebuffer)
+            {
+                self.gl.bind_framebuffer(
+                    FramebufferTarget::DrawFramebuffer.gl_enum(),
+                    Some(gl_framebuffer),
+                );
+                self.gl.draw_buffers(draw_buffers);
+            } else {
+                self.gl
+                    .bind_framebuffer(FramebufferTarget::DrawFramebuffer.gl_enum(), None);
+            }
+        } else if target == FramebufferTarget::ReadFramebuffer {
+            if read_buffer.is_some() {
+                self.gl.read_buffer(self.gl_origin_read_buffer);
+            }
+
+            if let Some((gl_framebuffer, read_buffer, _)) = self
+                .reg_framebuffer_bounds
+                .borrow()
+                .get(&FramebufferTarget::ReadFramebuffer)
+            {
+                self.gl.bind_framebuffer(
+                    FramebufferTarget::ReadFramebuffer.gl_enum(),
+                    Some(gl_framebuffer),
+                );
+                self.gl.read_buffer(*read_buffer);
+            } else {
+                self.gl
+                    .bind_framebuffer(FramebufferTarget::ReadFramebuffer.gl_enum(), None);
+            }
+        }
+    }
+
+    fn blit_to(
         &mut self,
         read_buffer: Option<OperableBuffer>,
         src_x0: Option<usize>,
@@ -1501,20 +1566,8 @@ impl FramebufferRegistered {
         mask: BlitMask,
         filter: BlitFilter,
     ) -> Result<(), Error> {
-        self.gl.bind_framebuffer(
-            FramebufferTarget::ReadFramebuffer.gl_enum(),
-            Some(&self.gl_framebuffer),
-        );
-        self.gl.bind_framebuffer(
-            FramebufferTarget::DrawFramebuffer.gl_enum(),
-            Some(&to.gl_framebuffer),
-        );
-        if let Some(read_buffer) = read_buffer {
-            self.gl.read_buffer(read_buffer.gl_enum());
-        }
-        if let Some(draw_buffers) = draw_buffers {
-            self.gl.draw_buffers(&draw_buffers.to_array());
-        }
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+        to.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &draw_buffers);
 
         let src_x0 = src_x0.unwrap_or(0);
         let src_y0 = src_y0.unwrap_or(0);
@@ -1538,37 +1591,8 @@ impl FramebufferRegistered {
             filter.gl_enum(),
         );
 
-        self.gl.read_buffer(self.gl_origin_read_buffer);
-        self.gl.draw_buffers(&to.gl_origin_write_buffers);
-
-        if let Some((gl_framebuffer, read_buffer, _)) = self
-            .reg_framebuffer_bounds
-            .borrow()
-            .get(&FramebufferTarget::ReadFramebuffer)
-        {
-            self.gl.bind_framebuffer(
-                FramebufferTarget::ReadFramebuffer.gl_enum(),
-                Some(gl_framebuffer),
-            );
-            self.gl.read_buffer(*read_buffer);
-        } else {
-            self.gl
-                .bind_framebuffer(FramebufferTarget::ReadFramebuffer.gl_enum(), None);
-        }
-        if let Some((gl_framebuffer, _, draw_buffers)) = self
-            .reg_framebuffer_bounds
-            .borrow()
-            .get(&FramebufferTarget::DrawFramebuffer)
-        {
-            self.gl.bind_framebuffer(
-                FramebufferTarget::DrawFramebuffer.gl_enum(),
-                Some(gl_framebuffer),
-            );
-            self.gl.draw_buffers(draw_buffers);
-        } else {
-            self.gl
-                .bind_framebuffer(FramebufferTarget::DrawFramebuffer.gl_enum(), None);
-        }
+        self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+        to.temp_unbind(FramebufferTarget::DrawFramebuffer, &None, &draw_buffers);
 
         Ok(())
     }
@@ -1576,41 +1600,24 @@ impl FramebufferRegistered {
     fn read_pixels(
         &mut self,
         pixel_format: TexturePixelFormat,
-        pixel_data_type: TexturePixelDataType,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
         read_buffer: Option<OperableBuffer>,
         x: Option<usize>,
         y: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
-        dst_offset: Option<usize>
+        dst_offset: Option<usize>,
     ) -> Result<(), Error> {
-        self.gl.bind_framebuffer(
-            FramebufferTarget::ReadFramebuffer.gl_enum(),
-            Some(&self.gl_framebuffer),
-        );
-        if let Some(read_buffer) = read_buffer {
-            self.gl.read_buffer(read_buffer.gl_enum());
-        }
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
 
-        todo!();
+        let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.gl
+            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&buffer));
+        // self.gl.copy_tex_image_2d(target, level, internalformat, x, y, width, height, border);
 
-        
-        self.gl.read_buffer(self.gl_origin_read_buffer);
-        if let Some((gl_framebuffer, read_buffer, _)) = self
-            .reg_framebuffer_bounds
-            .borrow()
-            .get(&FramebufferTarget::ReadFramebuffer)
-        {
-            self.gl.bind_framebuffer(
-                FramebufferTarget::ReadFramebuffer.gl_enum(),
-                Some(gl_framebuffer),
-            );
-            self.gl.read_buffer(*read_buffer);
-        } else {
-            self.gl
-                .bind_framebuffer(FramebufferTarget::ReadFramebuffer.gl_enum(), None);
-        }
-        
+        self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+
         Ok(())
     }
 }
@@ -1619,7 +1626,7 @@ impl FramebufferRegistered {
 pub struct FramebufferRegistry {
     id: Uuid,
     gl: WebGl2RenderingContext,
-    framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, WebGlFramebuffer>>>,
+    framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, (WebGlFramebuffer, u32, Array)>>>,
     active_unit: Rc<RefCell<TextureUnit>>,
     texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
