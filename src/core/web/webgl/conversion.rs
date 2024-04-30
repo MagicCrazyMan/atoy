@@ -14,16 +14,15 @@ use super::{
     draw::DrawMode,
     framebuffer::{FramebufferAttachment, FramebufferTarget, OperableBuffer},
     pixel::{
-        PixelPackStorage, PixelDataType, UnpackColorSpaceConversion,
-        PixelUnpackStorage,
+        PixelDataType, PixelPackStorage, PixelUnpackStorage, PixelFormat,
+        UnpackColorSpaceConversion,
     },
     renderbuffer::{RenderbufferInternalFormat, RenderbufferTarget},
     stencil::{StencilFunction, StencilOp},
     texture::{
         SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
-        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter,
-        TexturePixelFormat, TextureTarget, TextureUncompressedInternalFormat, TextureUnit,
-        TextureWrapMethod,
+        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter, TextureTarget,
+        TextureUncompressedInternalFormat, TextureUnit, TextureWrapMethod,
     },
 };
 
@@ -380,23 +379,23 @@ impl ToGlEnum for TextureCompressedFormat {
     }
 }
 
-impl ToGlEnum for TexturePixelFormat {
+impl ToGlEnum for PixelFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TexturePixelFormat::Red => WebGl2RenderingContext::RED,
-            TexturePixelFormat::RedInteger => WebGl2RenderingContext::RED_INTEGER,
-            TexturePixelFormat::Rg => WebGl2RenderingContext::RG,
-            TexturePixelFormat::RgInteger => WebGl2RenderingContext::RG_INTEGER,
-            TexturePixelFormat::Rgb => WebGl2RenderingContext::RGB,
-            TexturePixelFormat::RgbInteger => WebGl2RenderingContext::RGB_INTEGER,
-            TexturePixelFormat::Rgba => WebGl2RenderingContext::RGBA,
-            TexturePixelFormat::RgbaInteger => WebGl2RenderingContext::RGBA_INTEGER,
-            TexturePixelFormat::Luminance => WebGl2RenderingContext::LUMINANCE,
-            TexturePixelFormat::LuminanceAlpha => WebGl2RenderingContext::LUMINANCE_ALPHA,
-            TexturePixelFormat::Alpha => WebGl2RenderingContext::ALPHA,
-            TexturePixelFormat::DepthComponent => WebGl2RenderingContext::DEPTH_COMPONENT,
-            TexturePixelFormat::DepthStencil => WebGl2RenderingContext::DEPTH_STENCIL,
+            PixelFormat::Red => WebGl2RenderingContext::RED,
+            PixelFormat::RedInteger => WebGl2RenderingContext::RED_INTEGER,
+            PixelFormat::Rg => WebGl2RenderingContext::RG,
+            PixelFormat::RgInteger => WebGl2RenderingContext::RG_INTEGER,
+            PixelFormat::Rgb => WebGl2RenderingContext::RGB,
+            PixelFormat::RgbInteger => WebGl2RenderingContext::RGB_INTEGER,
+            PixelFormat::Rgba => WebGl2RenderingContext::RGBA,
+            PixelFormat::RgbaInteger => WebGl2RenderingContext::RGBA_INTEGER,
+            PixelFormat::Luminance => WebGl2RenderingContext::LUMINANCE,
+            PixelFormat::LuminanceAlpha => WebGl2RenderingContext::LUMINANCE_ALPHA,
+            PixelFormat::Alpha => WebGl2RenderingContext::ALPHA,
+            PixelFormat::DepthComponent => WebGl2RenderingContext::DEPTH_COMPONENT,
+            PixelFormat::DepthStencil => WebGl2RenderingContext::DEPTH_STENCIL,
         }
     }
 }
@@ -413,15 +412,9 @@ impl ToGlEnum for PixelDataType {
             PixelDataType::UnsignedByte => WebGl2RenderingContext::UNSIGNED_BYTE,
             PixelDataType::UnsignedShort => WebGl2RenderingContext::UNSIGNED_SHORT,
             PixelDataType::UnsignedInt => WebGl2RenderingContext::UNSIGNED_INT,
-            PixelDataType::UnsignedShort5_6_5 => {
-                WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5
-            }
-            PixelDataType::UnsignedShort4_4_4_4 => {
-                WebGl2RenderingContext::UNSIGNED_SHORT_4_4_4_4
-            }
-            PixelDataType::UnsignedShort5_5_5_1 => {
-                WebGl2RenderingContext::UNSIGNED_SHORT_5_5_5_1
-            }
+            PixelDataType::UnsignedShort5_6_5 => WebGl2RenderingContext::UNSIGNED_SHORT_5_6_5,
+            PixelDataType::UnsignedShort4_4_4_4 => WebGl2RenderingContext::UNSIGNED_SHORT_4_4_4_4,
+            PixelDataType::UnsignedShort5_5_5_1 => WebGl2RenderingContext::UNSIGNED_SHORT_5_5_5_1,
             PixelDataType::UnsignedInt2_10_10_10Rev => {
                 WebGl2RenderingContext::UNSIGNED_INT_2_10_10_10_REV
             }
@@ -507,33 +500,19 @@ impl ToGlEnum for PixelUnpackStorage {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            PixelUnpackStorage::UnpackAlignment(_) => {
-                WebGl2RenderingContext::UNPACK_ALIGNMENT
-            }
-            PixelUnpackStorage::UnpackFlipY(_) => {
-                WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL
-            }
+            PixelUnpackStorage::UnpackAlignment(_) => WebGl2RenderingContext::UNPACK_ALIGNMENT,
+            PixelUnpackStorage::UnpackFlipY(_) => WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL,
             PixelUnpackStorage::UnpackPremultiplyAlpha(_) => {
                 WebGl2RenderingContext::UNPACK_PREMULTIPLY_ALPHA_WEBGL
             }
             PixelUnpackStorage::UnpackColorSpaceConversion(_) => {
                 WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL
             }
-            PixelUnpackStorage::UnpackRowLength(_) => {
-                WebGl2RenderingContext::UNPACK_ROW_LENGTH
-            }
-            PixelUnpackStorage::UnpackImageHeight(_) => {
-                WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT
-            }
-            PixelUnpackStorage::UnpackSkipPixels(_) => {
-                WebGl2RenderingContext::UNPACK_SKIP_PIXELS
-            }
-            PixelUnpackStorage::UnpackSkipRows(_) => {
-                WebGl2RenderingContext::UNPACK_SKIP_ROWS
-            }
-            PixelUnpackStorage::UnpackSkipImages(_) => {
-                WebGl2RenderingContext::UNPACK_SKIP_IMAGES
-            }
+            PixelUnpackStorage::UnpackRowLength(_) => WebGl2RenderingContext::UNPACK_ROW_LENGTH,
+            PixelUnpackStorage::UnpackImageHeight(_) => WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT,
+            PixelUnpackStorage::UnpackSkipPixels(_) => WebGl2RenderingContext::UNPACK_SKIP_PIXELS,
+            PixelUnpackStorage::UnpackSkipRows(_) => WebGl2RenderingContext::UNPACK_SKIP_ROWS,
+            PixelUnpackStorage::UnpackSkipImages(_) => WebGl2RenderingContext::UNPACK_SKIP_IMAGES,
         }
     }
 }

@@ -1,5 +1,43 @@
 use web_sys::WebGl2RenderingContext;
 
+/// Available pixel formats mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PixelFormat {
+    Red,
+    RedInteger,
+    Rg,
+    RgInteger,
+    Rgb,
+    RgbInteger,
+    Rgba,
+    RgbaInteger,
+    Luminance,
+    LuminanceAlpha,
+    Alpha,
+    DepthComponent,
+    DepthStencil,
+}
+
+impl PixelFormat {
+    pub(crate) fn channels_per_pixel(&self) -> usize {
+        match self {
+            PixelFormat::Red => 1,
+            PixelFormat::RedInteger => 1,
+            PixelFormat::Rg => 2,
+            PixelFormat::RgInteger => 2,
+            PixelFormat::Rgb => 3,
+            PixelFormat::RgbInteger => 3,
+            PixelFormat::Rgba => 4,
+            PixelFormat::RgbaInteger => 4,
+            PixelFormat::Luminance => 1,
+            PixelFormat::LuminanceAlpha => 2,
+            PixelFormat::Alpha => 1,
+            PixelFormat::DepthComponent => 1,
+            PixelFormat::DepthStencil => 1,
+        }
+    }
+}
+
 /// Available pixel data types mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PixelDataType {
@@ -20,6 +58,29 @@ pub enum PixelDataType {
     UnsignedInt5_9_9_9Rev,
     UnsignedInt24_8,
     Float32UnsignedInt24_8Rev,
+}
+
+impl PixelDataType {
+    pub(crate) fn bytes_per_channel(&self) -> usize {
+        match self {
+            PixelDataType::Float => 4,
+            PixelDataType::HalfFloat => 2,
+            PixelDataType::Byte => 1,
+            PixelDataType::Short => 2,
+            PixelDataType::Int => 4,
+            PixelDataType::UnsignedByte => 1,
+            PixelDataType::UnsignedShort => 2,
+            PixelDataType::UnsignedInt => 4,
+            PixelDataType::UnsignedShort5_6_5 => 2,
+            PixelDataType::UnsignedShort4_4_4_4 => 2,
+            PixelDataType::UnsignedShort5_5_5_1 => 2,
+            PixelDataType::UnsignedInt2_10_10_10Rev => 4,
+            PixelDataType::UnsignedInt10F_11F_11F_Rev => 4,
+            PixelDataType::UnsignedInt5_9_9_9Rev => 4,
+            PixelDataType::UnsignedInt24_8 => 4,
+            PixelDataType::Float32UnsignedInt24_8Rev => 4,
+        }
+    }
 }
 
 /// Available unpack color space conversions for [`WebGl2RenderingContext`].

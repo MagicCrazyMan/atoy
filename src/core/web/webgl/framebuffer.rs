@@ -1,6 +1,7 @@
 use std::{cell::RefCell, iter::FromIterator, rc::Rc};
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use js_sys::{ArrayBuffer, Uint8Array};
 use log::warn;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
@@ -13,12 +14,13 @@ use crate::core::web::webgl::{renderbuffer::RenderbufferTarget, texture::Texture
 
 use super::{
     blit::{BlitFilter, BlitMask},
-    buffer::BufferTarget,
+    buffer::{Buffer, BufferTarget},
+    client_wait::ClientWaitAsync,
     conversion::ToGlEnum,
     error::Error,
-    pixel::{PixelPackStorage, PixelDataType},
+    pixel::{PixelDataType, PixelFormat, PixelPackStorage},
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TexturePixelFormat, TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
+    texture::{TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -457,316 +459,6 @@ impl AttachmentSource {
     }
 }
 
-// impl AttachmentSource {
-//     fn create_attachment(
-//         &self,
-//         gl: &WebGl2RenderingContext,
-//         width: usize,
-//         height: usize,
-//         renderbuffer_samples: Option<usize>,
-//     ) -> Result<Attachment, Error> {
-//         let attach = match self {
-//             AttachmentSource::CreateTexture {
-//                 internal_format,
-//                 clear_policy,
-//             } => {
-//                 let binding = gl.texture_binding_2d();
-
-//                 let texture = gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-//                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-//                 gl.tex_storage_2d(
-//                     WebGl2RenderingContext::TEXTURE_2D,
-//                     1,
-//                     internal_format.gl_enum(),
-//                     width as i32,
-//                     height as i32,
-//                 );
-//                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
-
-//                 Attachment::Texture {
-//                     texture,
-//                     level: 0,
-//                     clear_policy: *clear_policy,
-//                     owned: true,
-//                 }
-//             }
-//             AttachmentSource::FromTexture {
-//                 texture,
-//                 level,
-//                 clear_policy,
-//             } => Attachment::Texture {
-//                 texture: texture.clone(),
-//                 level: *level,
-//                 clear_policy: *clear_policy,
-//                 owned: false,
-//             },
-//             AttachmentSource::CreateRenderbuffer {
-//                 internal_format,
-//                 clear_policy,
-//             } => {
-//                 let binding = gl.renderbuffer_binding();
-
-//                 let renderbuffer = gl
-//                     .create_renderbuffer()
-//                     .ok_or(Error::CreateRenderbufferFailure)?;
-//                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(&renderbuffer));
-//                 match renderbuffer_samples {
-//                     Some(samples) => gl.renderbuffer_storage_multisample(
-//                         WebGl2RenderingContext::RENDERBUFFER,
-//                         samples as i32,
-//                         internal_format.gl_enum(),
-//                         width as i32,
-//                         height as i32,
-//                     ),
-//                     None => gl.renderbuffer_storage(
-//                         WebGl2RenderingContext::RENDERBUFFER,
-//                         internal_format.gl_enum(),
-//                         width as i32,
-//                         height as i32,
-//                     ),
-//                 };
-//                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, binding.as_ref());
-
-//                 Attachment::Renderbuffer {
-//                     renderbuffer,
-//                     clear_policy: *clear_policy,
-//                     owned: true,
-//                 }
-//             }
-//             AttachmentSource::FromRenderbuffer {
-//                 renderbuffer,
-//                 clear_policy,
-//             } => Attachment::Renderbuffer {
-//                 renderbuffer: renderbuffer.clone(),
-//                 clear_policy: *clear_policy,
-//                 owned: false,
-//             },
-//         };
-
-//         Ok(attach)
-//     }
-// }
-
-// #[derive(Debug)]
-// enum Attachment {
-//     Texture {
-//         texture: WebGlTexture,
-//         clear_policy: ClearPolicy,
-//         level: usize,
-//         owned: bool,
-//     },
-//     Renderbuffer {
-//         renderbuffer: WebGlRenderbuffer,
-//         clear_policy: ClearPolicy,
-//         owned: bool,
-//     },
-// }
-
-// impl Attachment {
-//     fn clear_policy(&self) -> &ClearPolicy {
-//         match self {
-//             Attachment::Texture { clear_policy, .. }
-//             | Attachment::Renderbuffer { clear_policy, .. } => clear_policy,
-//         }
-//     }
-
-//     fn is_owned(&self) -> bool {
-//         match self {
-//             Attachment::Texture { owned, .. } => *owned,
-//             Attachment::Renderbuffer { owned, .. } => *owned,
-//         }
-//     }
-
-//     fn attach(
-//         &self,
-//         gl: &WebGl2RenderingContext,
-//         target: FramebufferTarget,
-//         attachment_target: FramebufferAttachment,
-//     ) {
-//         match self {
-//             Attachment::Texture { texture, level, .. } => {
-//                 let binding = gl.texture_binding_2d();
-//                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
-//                 gl.framebuffer_texture_2d(
-//                     target.gl_enum(),
-//                     attachment_target.gl_enum(),
-//                     WebGl2RenderingContext::TEXTURE_2D,
-//                     Some(texture),
-//                     *level as i32,
-//                 );
-//                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
-//             }
-//             Attachment::Renderbuffer { renderbuffer, .. } => {
-//                 let binding = gl.renderbuffer_binding();
-//                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
-//                 gl.framebuffer_renderbuffer(
-//                     target.gl_enum(),
-//                     attachment_target.gl_enum(),
-//                     WebGl2RenderingContext::RENDERBUFFER,
-//                     Some(renderbuffer),
-//                 );
-//                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, binding.as_ref());
-//             }
-//         }
-//     }
-
-//     fn delete(&self, gl: &WebGl2RenderingContext) {
-//         if self.is_owned() {
-//             match self {
-//                 Attachment::Texture { texture, .. } => {
-//                     gl.delete_texture(Some(texture));
-//                 }
-//                 Attachment::Renderbuffer { renderbuffer, .. } => {
-//                     gl.delete_renderbuffer(Some(renderbuffer));
-//                 }
-//             }
-//         }
-//     }
-// }
-
-// #[derive(Debug)]
-// struct Attach {
-//     width: usize,
-//     height: usize,
-//     framebuffer: WebGlFramebuffer,
-//     attachments: HashMap<FramebufferAttachment, Attachment>,
-//     default_draw_buffers: Array,
-//     default_read_buffer: u32,
-// }
-
-// #[derive(Debug)]
-// struct Runtime {
-//     gl: WebGl2RenderingContext,
-
-//     attach: Option<Attach>,
-//     bindings: HashSet<FramebufferTarget>,
-// }
-
-// impl Runtime {
-//     fn bind(
-//         &mut self,
-//         target: FramebufferTarget,
-//         size_policy: &SizePolicy,
-//         renderbuffer_samples: &Option<usize>,
-//         sources: &HashMap<FramebufferAttachment, AttachmentSource>,
-//     ) -> Result<(), Error> {
-//         let (width, height) = size_policy.size(&self.gl);
-//         if let Some(attach) = self.attach.as_ref() {
-//             // recreates attach if size changed
-//             if attach.width != width || attach.height != height {
-//                 self.delete();
-//             } else {
-//                 if self.bindings.contains(&target) {
-//                     return Ok(());
-//                 } else {
-//                     self.gl
-//                         .bind_framebuffer(target.gl_enum(), Some(&attach.framebuffer));
-
-//                     if target == FramebufferTarget::DrawFramebuffer {
-//                         self.gl.draw_buffers(&attach.default_draw_buffers);
-//                     } else if target == FramebufferTarget::ReadFramebuffer {
-//                         self.gl.read_buffer(attach.default_read_buffer);
-//                     }
-
-//                     self.bindings.insert(target);
-//                     return Ok(());
-//                 }
-//             }
-//         }
-
-//         let framebuffer = self
-//             .gl
-//             .create_framebuffer()
-//             .ok_or(Error::CreateFramebufferFailure)?;
-//         self.gl
-//             .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
-//         let (attachments, default_draw_buffers) = sources
-//             .iter()
-//             .try_fold(
-//                 (HashMap::new(), Array::new()),
-//                 |(mut attachements, default_draw_buffers), (attachment_target, source)| {
-//                     let attachment =
-//                         source.create_attachment(&self.gl, width, height, *renderbuffer_samples)?;
-//                     attachment.attach(&self.gl, target, *attachment_target);
-//                     attachements.insert(*attachment_target, attachment);
-
-//                     if let Some(operable_buffer) = attachment_target.to_operable_buffer() {
-//                         default_draw_buffers
-//                             .push(&JsValue::from_f64(operable_buffer.gl_enum() as f64));
-//                     }
-
-//                     Ok((attachements, default_draw_buffers))
-//                 },
-//             )
-//             .or_else(|err| {
-//                 self.gl.bind_framebuffer(target.gl_enum(), None);
-//                 Err(err)
-//             })?;
-//         default_draw_buffers.sort();
-//         let default_read_buffer = default_draw_buffers
-//             .get(0)
-//             .as_f64()
-//             .map(|b| b as u32)
-//             .unwrap_or(WebGl2RenderingContext::NONE);
-
-//         if target == FramebufferTarget::DrawFramebuffer {
-//             self.gl.draw_buffers(&default_draw_buffers);
-//         } else if target == FramebufferTarget::ReadFramebuffer {
-//             self.gl.read_buffer(default_read_buffer);
-//         }
-
-//         self.attach = Some(Attach {
-//             width,
-//             height,
-//             framebuffer,
-//             attachments,
-//             default_draw_buffers,
-//             default_read_buffer,
-//         });
-
-//         self.bindings.insert(target);
-
-//         Ok(())
-//     }
-
-//     fn unbind(&mut self, target: FramebufferTarget) {
-//         if self.bindings.remove(&target) {
-//             self.gl.bind_framebuffer(target.gl_enum(), None);
-//         }
-//     }
-
-//     fn unbind_all(&mut self) {
-//         self.unbind(FramebufferTarget::DrawFramebuffer);
-//         self.unbind(FramebufferTarget::ReadFramebuffer);
-//     }
-
-//     fn delete(&mut self) {
-//         if let Some(attach) = self.attach.take() {
-//             self.gl.delete_framebuffer(Some(&attach.framebuffer));
-//             attach
-//                 .attachments
-//                 .iter()
-//                 .for_each(|(_, attachment)| attachment.delete(&self.gl));
-//         }
-//     }
-
-//     fn is_bound_as_draw(&self) -> Result<(), Error> {
-//         if !self.bindings.contains(&FramebufferTarget::DrawFramebuffer) {
-//             return Err(Error::FramebufferUnboundAsDraw);
-//         }
-
-//         Ok(())
-//     }
-
-//     fn is_bound_as_read(&self) -> Result<(), Error> {
-//         if !self.bindings.contains(&FramebufferTarget::ReadFramebuffer) {
-//             return Err(Error::FramebufferUnboundAsRead);
-//         }
-
-//         Ok(())
-//     }
-// }
-
 #[derive(Debug)]
 pub struct Framebuffer {
     id: Uuid,
@@ -851,6 +543,16 @@ impl Framebuffer {
         Ok(())
     }
 
+    pub fn size(&self) -> Result<(usize, usize), Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        registered.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &None)?;
+        registered.build(FramebufferTarget::DrawFramebuffer)?;
+        registered.temp_unbind(FramebufferTarget::DrawFramebuffer, &None, &None);
+
+        Ok(registered.framebuffer_size.unwrap().clone())
+    }
+
     pub fn blit_to(&self, to: &Self) -> Result<(), Error> {
         self.blit_to_with_params(
             None,
@@ -909,323 +611,135 @@ impl Framebuffer {
         )
     }
 
-    //     /// Initializes framebuffer.
-    //     pub fn init(&mut self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
-    //         if let Some(runtime) = self.runtime.as_ref() {
-    //             if &runtime.gl != gl {
-    //                 return Err(Error::FramebufferAlreadyInitialized);
-    //             } else {
-    //                 return Ok(());
-    //             }
-    //         }
+    pub fn read_pixels_to_array_buffer(
+        &self,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+    ) -> Result<(), Error> {
+        self.read_pixels_to_array_buffer_with_params(
+            pixel_format,
+            pixel_data_type,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
 
-    //         self.runtime = Some(Runtime {
-    //             gl: gl.clone(),
-    //             attach: None,
-    //             bindings: HashSet::new(),
-    //         });
-    //         Ok(())
-    //     }
+    pub fn read_pixels_to_array_buffer_with_params(
+        &self,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+    ) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels(
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+            )
+    }
 
-    //     /// Binds framebuffer.
-    //     pub fn bind(&mut self, target: FramebufferTarget) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_mut().ok_or(Error::FramebufferRegistered)?;
+    pub async fn read_pixels_to_array_buffer_async(
+        &self,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+    ) -> Result<(), Error> {
+        self.read_pixels_to_array_buffer_with_params_async(
+            pixel_format,
+            pixel_data_type,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+    }
 
-    //         runtime.bind(
-    //             target,
-    //             &self.size_policy,
-    //             &self.renderbuffer_samples,
-    //             &self.sources,
-    //         )?;
+    pub async fn read_pixels_to_array_buffer_with_params_async(
+        &self,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+        max_retries: Option<usize>,
+    ) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels_async(
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+                max_retries,
+            )
+            .await
+    }
 
-    //         Ok(())
-    //     }
-
-    //     /// Unbinds framebuffer.
-    //     pub fn unbind(&mut self, target: FramebufferTarget) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_mut().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.unbind(target);
-    //         Ok(())
-    //     }
-
-    //     pub fn unbind_all(&mut self) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_mut().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.unbind_all();
-    //         Ok(())
-    //     }
-
-    //     /// Clear specified attached buffer.
-    //     pub fn clear_buffer(&self, attachment_target: FramebufferAttachment) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_ref().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.is_bound_as_draw()?;
-
-    //         if let Some(attach) = runtime.attach.as_ref() {
-    //             if let Some(attachment) = attach.attachments.get(&attachment_target) {
-    //                 attachment
-    //                     .clear_policy()
-    //                     .clear(&runtime.gl, attachment_target.to_draw_buffer_index());
-    //             }
-    //         }
-
-    //         Ok(())
-    //     }
-
-    //     /// Clears all attached buffers.
-    //     pub fn clear_buffers(&self) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_ref().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.is_bound_as_draw()?;
-
-    //         if let Some(attach) = runtime.attach.as_ref() {
-    //             attach
-    //                 .attachments
-    //                 .iter()
-    //                 .for_each(|(attachment_target, attachment)| {
-    //                     attachment
-    //                         .clear_policy()
-    //                         .clear(&runtime.gl, attachment_target.to_draw_buffer_index());
-    //                 });
-    //         }
-
-    //         Ok(())
-    //     }
-
-    //     pub fn set_read_buffer(&mut self, read_buffer: OperableBuffer) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_mut().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.is_bound_as_read()?;
-    //         runtime.gl.read_buffer(read_buffer.gl_enum());
-
-    //         Ok(())
-    //     }
-
-    //     pub fn set_draw_buffers<I>(&mut self, draw_buffers: I) -> Result<(), Error>
-    //     where
-    //         I: IntoIterator<Item = OperableBuffer>,
-    //     {
-    //         let runtime = self.runtime.as_mut().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.is_bound_as_draw()?;
-
-    //         let draw_buffers = Array::from_iter(
-    //             draw_buffers
-    //                 .into_iter()
-    //                 .map(|b| JsValue::from_f64(b.gl_enum() as f64)),
-    //         );
-    //         runtime.gl.draw_buffers(&draw_buffers);
-
-    //         Ok(())
-    //     }
-
-    //     /// Reads pixels.
-    //     pub fn read_pixels(
-    //         &mut self,
-    //         x: i32,
-    //         y: i32,
-    //         width: i32,
-    //         height: i32,
-    //         pixel_format: TextureUncompressedPixelFormat,
-    //         data_type: TextureUncompressedPixelDataType,
-    //         dst_data: &Object,
-    //         dst_offset: u32,
-    //     ) -> Result<(), Error> {
-    //         let runtime = self.runtime.as_ref().ok_or(Error::FramebufferRegistered)?;
-    //         runtime.is_bound_as_read()?;
-    //         runtime
-    //             .gl
-    //             .read_pixels_with_array_buffer_view_and_dst_offset(
-    //                 x,
-    //                 y,
-    //                 width,
-    //                 height,
-    //                 pixel_format.gl_enum(),
-    //                 data_type.gl_enum(),
-    //                 dst_data,
-    //                 dst_offset,
-    //             )
-    //             .or_else(|err| Err(Error::ReadPixelsFailure(err.as_string())))?;
-
-    //         Ok(())
-    //     }
-
-    //     /// Returns number of sample of the render buffers if multisample is enabled.
-    //     pub fn renderbuffer_samples(&self) -> usize {
-    //         self.renderbuffer_samples
-    //     }
-
-    //     /// Returns framebuffer width.
-    //     pub fn width(&self) -> Option<usize> {
-    //         self.runtime
-    //             .as_ref()
-    //             .and_then(|runtime| runtime.attach.as_ref())
-    //             .map(|attach| attach.width)
-    //     }
-
-    //     /// Returns framebuffer height.
-    //     pub fn height(&self) -> Option<usize> {
-    //         self.runtime
-    //             .as_ref()
-    //             .and_then(|runtime| runtime.attach.as_ref())
-    //             .map(|attach| attach.height)
-    //     }
-
-    //     /// Returns [`WebGlTexture`] by [`FramebufferAttachmentTarget`].
-    //     /// Returns `None` if [`FramebufferAttachmentTarget`] does not attach with a texture (even it is attached with a renderbuffer).
-    //     pub fn texture(
-    //         &self,
-    //         attachment_target: FramebufferAttachment,
-    //     ) -> Result<Option<&WebGlTexture>, Error> {
-    //         let runtime = self.runtime.as_ref().ok_or(Error::FramebufferRegistered)?;
-    //         let Some(attach) = runtime.attach.as_ref() else {
-    //             return Ok(None);
-    //         };
-
-    //         let texture = attach
-    //             .attachments
-    //             .get(&attachment_target)
-    //             .and_then(|attachment| match attachment {
-    //                 Attachment::Texture { texture, .. } => Some(texture),
-    //                 Attachment::Renderbuffer { .. } => None,
-    //             });
-    //         Ok(texture)
-    //     }
-
-    //     /// Returns a [`WebGlRenderbuffer`] by [`FramebufferAttachmentTarget`].
-    //     /// Returns `None` if [`FramebufferAttachmentTarget`] does not attach with a renderbuffer (even it is attached with a texture).
-    //     pub fn renderbuffer(
-    //         &self,
-    //         attachment_target: FramebufferAttachment,
-    //     ) -> Result<Option<&WebGlRenderbuffer>, Error> {
-    //         let runtime = self.runtime.as_ref().ok_or(Error::FramebufferRegistered)?;
-    //         let Some(attach) = runtime.attach.as_ref() else {
-    //             return Ok(None);
-    //         };
-
-    //         let renderbuffer = attach
-    //             .attachments
-    //             .get(&attachment_target)
-    //             .and_then(|attachment| match attachment {
-    //                 Attachment::Texture { .. } => None,
-    //                 Attachment::Renderbuffer { renderbuffer, .. } => Some(renderbuffer),
-    //             });
-    //         Ok(renderbuffer)
-    //     }
-
-    //     /// Sets render buffer samples. Disabling multisamples by providing `0` or `None`.
-    //     pub fn set_renderbuffer_samples(&mut self, samples: Option<usize>) {
-    //         let samples = samples.and_then(|samples| if samples == 0 { None } else { Some(samples) });
-
-    //         if samples == self.renderbuffer_samples {
-    //             return;
-    //         }
-
-    //         self.renderbuffer_samples = samples;
-    //         if let Some(runtime) = self.runtime.as_mut() {
-    //             runtime.delete();
-    //         }
-    //     }
-
-    //     pub fn set_attachment(
-    //         &mut self,
-    //         attachment_target: FramebufferAttachment,
-    //         source: Option<AttachmentSource>,
-    //     ) -> Result<(), Error> {
-    //         let rebuild = match source {
-    //             Some(source) => match self.sources.entry(attachment_target) {
-    //                 Entry::Occupied(o) => {
-    //                     if o.get() == &source {
-    //                         false
-    //                     } else {
-    //                         o.replace_entry(source);
-    //                         true
-    //                     }
-    //                 }
-    //                 Entry::Vacant(v) => {
-    //                     v.insert(source);
-    //                     true
-    //                 }
-    //             },
-    //             None => self.sources.remove(&attachment_target).is_some(),
-    //         };
-
-    //         if rebuild {
-    //             if let Some(runtime) = self.runtime.as_mut() {
-    //                 runtime.delete();
-    //             }
-    //         }
-
-    //         Ok(())
-    //     }
-    // }
-
-    // pub struct FramebufferBuilder {
-    //     size_policy: SizePolicy,
-    //     sources: HashMap<FramebufferAttachment, AttachmentSource>,
-    //     renderbuffer_samples: Option<usize>,
-    // }
-
-    // impl FramebufferBuilder {
-    //     pub fn new() -> Self {
-    //         Self {
-    //             size_policy: SizePolicy::FollowDrawingBuffer,
-    //             sources: HashMap::new(),
-    //             renderbuffer_samples: None,
-    //         }
-    //     }
-
-    //     pub fn set_size_policy(mut self, size_policy: SizePolicy) -> Self {
-    //         self.size_policy = size_policy;
-    //         self
-    //     }
-
-    //     pub fn set_renderbuffer_samples(mut self, samples: usize) -> Self {
-    //         let samples = if samples == 0 { None } else { Some(samples) };
-    //         self.renderbuffer_samples = samples;
-    //         self
-    //     }
-
-    //     pub fn build(self) -> Framebuffer {
-    //         Framebuffer {
-    //             size_policy: self.size_policy,
-    //             sources: self.sources,
-    //             renderbuffer_samples: self.renderbuffer_samples,
-
-    //             runtime: None,
-    //         }
-    //     }
-    // }
-
-    // macro_rules! framebuffer_build_attachments {
-    //     ($(($attachment:expr, $func: ident)),+) => {
-    //        impl FramebufferBuilder {
-    //         $(
-    //             pub fn $func(mut self, source: AttachmentSource) -> Self {
-    //                 self.sources.insert($attachment, source);
-    //                 self
-    //             }
-    //         )+
-    //        }
-    //     };
+    pub fn read_pixels_to_pbo_with_params(
+        &self,
+        to: &Buffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+    ) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels(
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+            )
+    }
 }
-
-// framebuffer_build_attachments! {
-//     (FramebufferAttachment::ColorAttachment0, set_color_attachment0),
-//     (FramebufferAttachment::ColorAttachment1, set_color_attachment1),
-//     (FramebufferAttachment::ColorAttachment2, set_color_attachment2),
-//     (FramebufferAttachment::ColorAttachment3, set_color_attachment3),
-//     (FramebufferAttachment::ColorAttachment4, set_color_attachment4),
-//     (FramebufferAttachment::ColorAttachment5, set_color_attachment5),
-//     (FramebufferAttachment::ColorAttachment6, set_color_attachment6),
-//     (FramebufferAttachment::ColorAttachment7, set_color_attachment7),
-//     (FramebufferAttachment::ColorAttachment8, set_color_attachment8),
-//     (FramebufferAttachment::ColorAttachment9, set_color_attachment9),
-//     (FramebufferAttachment::ColorAttachment10, set_color_attachment10),
-//     (FramebufferAttachment::ColorAttachment11, set_color_attachment11),
-//     (FramebufferAttachment::ColorAttachment12, set_color_attachment12),
-//     (FramebufferAttachment::ColorAttachment13, set_color_attachment13),
-//     (FramebufferAttachment::ColorAttachment14, set_color_attachment14),
-//     (FramebufferAttachment::ColorAttachment15, set_color_attachment15),
-//     (FramebufferAttachment::DepthAttachment, set_depth_attachment),
-//     (FramebufferAttachment::StencilAttachment, set_stencil_attachment),
-//     (FramebufferAttachment::DepthStencilAttachment, set_depth_stencil_attachment)
-// }
 
 trait ToArray {
     fn to_array(&self) -> Array;
@@ -1282,24 +796,12 @@ impl FramebufferRegistered {
             }
         }
 
-        let (width, height) = match self.framebuffer_size {
-            Some((width, height)) => {
-                let (twidth, theight) = self.framebuffer_size_policy.size(&self.gl);
-                if twidth != width || theight != height {
-                    (twidth, theight)
-                } else {
-                    return Ok(());
-                }
-            }
-            None => {
-                return Ok(());
-            }
-        };
-
         self.gl
             .bind_framebuffer(target.gl_enum(), Some(&self.gl_framebuffer));
 
-        // bind read buffers and draw buffers
+        self.build(target)?;
+
+        // bind read buffers
         let read_buffer = read_buffer.map(|read_buffer| read_buffer.gl_enum());
         let draw_buffers = draw_buffers.map(|draw_buffers| draw_buffers.to_array());
         if target == FramebufferTarget::ReadFramebuffer {
@@ -1313,6 +815,36 @@ impl FramebufferRegistered {
                 self.gl.draw_buffers(draw_buffers);
             }
         }
+
+        self.gl_bounds.insert_unique_unchecked(target);
+        self.reg_framebuffer_bounds
+            .borrow_mut()
+            .insert_unique_unchecked(
+                target,
+                (
+                    self.gl_framebuffer.clone(),
+                    read_buffer.unwrap_or(self.gl_origin_read_buffer),
+                    draw_buffers.unwrap_or(self.gl_origin_write_buffers.clone()),
+                ),
+            );
+
+        Ok(())
+    }
+
+    fn build(&mut self, target: FramebufferTarget) -> Result<(), Error> {
+        let (width, height) = match self.framebuffer_size {
+            Some((width, height)) => {
+                let (twidth, theight) = self.framebuffer_size_policy.size(&self.gl);
+                if twidth != width || theight != height {
+                    (twidth, theight)
+                } else {
+                    return Ok(());
+                }
+            }
+            None => {
+                return Ok(());
+            }
+        };
 
         for (attachment, source) in self.framebuffer_sources.iter() {
             enum Attach {
@@ -1440,18 +972,6 @@ impl FramebufferRegistered {
             }
         }
 
-        self.gl_bounds.insert_unique_unchecked(target);
-        self.reg_framebuffer_bounds
-            .borrow_mut()
-            .insert_unique_unchecked(
-                target,
-                (
-                    self.gl_framebuffer.clone(),
-                    read_buffer.unwrap_or(self.gl_origin_read_buffer),
-                    draw_buffers.unwrap_or(self.gl_origin_write_buffers.clone()),
-                ),
-            );
-
         Ok(())
     }
 
@@ -1488,9 +1008,11 @@ impl FramebufferRegistered {
         target: FramebufferTarget,
         read_buffer: &Option<OperableBuffer>,
         draw_buffers: &Option<Vec<OperableBuffer>>,
-    ) {
+    ) -> Result<(), Error> {
         self.gl
             .bind_framebuffer(target.gl_enum(), Some(&self.gl_framebuffer));
+
+        self.build(target)?;
 
         if target == FramebufferTarget::DrawFramebuffer {
             if let Some(draw_buffers) = draw_buffers {
@@ -1501,6 +1023,8 @@ impl FramebufferRegistered {
                 self.gl.read_buffer(read_buffer.gl_enum());
             }
         }
+
+        Ok(())
     }
 
     fn temp_unbind(
@@ -1566,8 +1090,8 @@ impl FramebufferRegistered {
         mask: BlitMask,
         filter: BlitFilter,
     ) -> Result<(), Error> {
-        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
-        to.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &draw_buffers);
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
+        to.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &draw_buffers)?;
 
         let src_x0 = src_x0.unwrap_or(0);
         let src_y0 = src_y0.unwrap_or(0);
@@ -1577,7 +1101,6 @@ impl FramebufferRegistered {
         let dst_y0 = dst_y0.unwrap_or(0);
         let dst_x1 = dst_x1.unwrap_or(to.framebuffer_size.as_ref().unwrap().0);
         let dst_y1 = dst_y1.unwrap_or(to.framebuffer_size.as_ref().unwrap().1);
-
         self.gl.blit_framebuffer(
             src_x0 as i32,
             src_y0 as i32,
@@ -1597,9 +1120,23 @@ impl FramebufferRegistered {
         Ok(())
     }
 
+    fn copy_to_texture_2d(&mut self, read_buffer: Option<OperableBuffer>) -> Result<(), Error> {
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
+
+        self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+        Ok(())
+    }
+
+    /// Reads pixels to PBO or ArrayBuffer.
+    /// If [`WebGl2RenderingContext::PIXEL_PACK_BUFFER`] is bound with a buffer,
+    /// this method reads pixels into PBO.
+    /// otherwise, an ArrayBuffer is created and reads pixels into it.
+    ///
+    /// Attenuation, this method determine [`WebGl2RenderingContext::PIXEL_PACK_BUFFER`]
+    /// by `reg_buffer_bounds` only, not from WebGl runtime.
     fn read_pixels(
         &mut self,
-        pixel_format: TexturePixelFormat,
+        pixel_format: PixelFormat,
         pixel_data_type: PixelDataType,
         pixel_pack_storages: Option<Vec<PixelPackStorage>>,
         read_buffer: Option<OperableBuffer>,
@@ -1609,16 +1146,120 @@ impl FramebufferRegistered {
         height: Option<usize>,
         dst_offset: Option<usize>,
     ) -> Result<(), Error> {
-        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
 
-        let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.gl
-            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&buffer));
-        // self.gl.copy_tex_image_2d(target, level, internalformat, x, y, width, height, border);
+        let default_storages = if let Some(pixel_pack_storages) = pixel_pack_storages {
+            let defaults = pixel_pack_storages
+                .into_iter()
+                .map(|storage| storage.pixel_store(&self.gl));
+            Some(defaults)
+        } else {
+            None
+        };
+
+        let x = x.unwrap_or(0);
+        let y = y.unwrap_or(0);
+        let width = width.unwrap_or(self.framebuffer_size.as_ref().unwrap().0);
+        let height = height.unwrap_or(self.framebuffer_size.as_ref().unwrap().1);
+
+        if self
+            .reg_buffer_bounds
+            .borrow()
+            .contains_key(&BufferTarget::PixelPackBuffer)
+        {
+            // reads into pbo
+            let dst_offset = dst_offset.unwrap_or(0);
+            self.gl
+                .read_pixels_with_i32(
+                    x as i32,
+                    y as i32,
+                    width as i32,
+                    height as i32,
+                    pixel_format.gl_enum(),
+                    pixel_data_type.gl_enum(),
+                    dst_offset as i32,
+                )
+                .or(Err(Error::ReadPixelsFailure))?;
+        } else {
+            // reads into array buffer
+            let length = width
+                * height
+                * pixel_format.channels_per_pixel()
+                * pixel_data_type.bytes_per_channel();
+
+            let array_buffer = ArrayBuffer::new(length as u32);
+            let typed_buffer = Uint8Array::new(&array_buffer);
+            match dst_offset {
+                Some(dst_offset) => {
+                    self.gl
+                        .read_pixels_with_array_buffer_view_and_dst_offset(
+                            x as i32,
+                            y as i32,
+                            width as i32,
+                            height as i32,
+                            pixel_format.gl_enum(),
+                            pixel_data_type.gl_enum(),
+                            &typed_buffer,
+                            dst_offset as u32,
+                        )
+                        .or(Err(Error::ReadPixelsFailure))?;
+                }
+                None => {
+                    self.gl
+                        .read_pixels_with_opt_array_buffer_view(
+                            x as i32,
+                            y as i32,
+                            width as i32,
+                            height as i32,
+                            pixel_format.gl_enum(),
+                            pixel_data_type.gl_enum(),
+                            Some(&typed_buffer),
+                        )
+                        .or(Err(Error::ReadPixelsFailure))?;
+                }
+            }
+        }
+
+        if let Some(defaults) = default_storages {
+            defaults.into_iter().for_each(|storage| {
+                storage.pixel_store(&self.gl);
+            });
+        }
 
         self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
 
         Ok(())
+    }
+
+    /// Asynchrony reads pixels, refers to [`read_pixels`](Self::read_pixels) for more details.
+    async fn read_pixels_async(
+        &mut self,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+        max_retries: Option<usize>,
+    ) -> Result<(), Error> {
+        ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
+            .wait()
+            .await?;
+
+        self.read_pixels(
+            pixel_format,
+            pixel_data_type,
+            pixel_pack_storages,
+            read_buffer,
+            x,
+            y,
+            width,
+            height,
+            dst_offset,
+        )
     }
 }
 

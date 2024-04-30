@@ -109,24 +109,6 @@ pub enum BufferData {
 }
 
 impl BufferData {
-    fn as_array_buffer(&self) -> ArrayBuffer {
-        match self {
-            BufferData::ArrayBuffer { data } => data.clone(),
-            BufferData::DataView { data, .. } => data.buffer(),
-            BufferData::Int8Array { data, .. } => data.buffer(),
-            BufferData::Uint8Array { data, .. } => data.buffer(),
-            BufferData::Uint8ClampedArray { data, .. } => data.buffer(),
-            BufferData::Int16Array { data, .. } => data.buffer(),
-            BufferData::Uint16Array { data, .. } => data.buffer(),
-            BufferData::Int32Array { data, .. } => data.buffer(),
-            BufferData::Uint32Array { data, .. } => data.buffer(),
-            BufferData::Float32Array { data, .. } => data.buffer(),
-            BufferData::Float64Array { data, .. } => data.buffer(),
-            BufferData::BigInt64Array { data, .. } => data.buffer(),
-            BufferData::BigUint64Array { data, .. } => data.buffer(),
-        }
-    }
-
     fn byte_per_element(&self) -> usize {
         match self {
             BufferData::ArrayBuffer { .. } => 1,
@@ -512,8 +494,6 @@ impl Buffer {
             Some(registered) => registered.download(src_byte_offset)?,
             None => ArrayBuffer::new(self.capacity as u32),
         };
-        let typed_array = Uint8Array::new(&downloaded);
-        self.read_queue_into_downloaded(&typed_array);
         Ok(downloaded)
     }
 
@@ -535,22 +515,7 @@ impl Buffer {
             }
             None => ArrayBuffer::new(self.capacity as u32),
         };
-        let typed_array = Uint8Array::new(&downloaded);
-        self.read_queue_into_downloaded(&typed_array);
         Ok(downloaded)
-    }
-
-    fn read_queue_into_downloaded(&self, typed_array: &Uint8Array) {
-        for QueueItem {
-            data,
-            dst_byte_offset,
-        } in self.queue.borrow().iter()
-        {
-            typed_array.set(
-                &Uint8Array::new(&data.as_array_buffer()),
-                *dst_byte_offset as u32,
-            );
-        }
     }
 
     pub fn gl_buffer(&self) -> Result<WebGlBuffer, Error> {
@@ -602,12 +567,15 @@ impl Buffer {
         write_offset: Option<usize>,
         size: Option<usize>,
     ) -> Result<(), Error> {
-        let mut binding_from = self.registered.borrow_mut();
-        let binding_to = to.registered.borrow();
+        let mut from = self.registered.borrow_mut();
+        let to = to.registered.borrow();
         let (from, to) = (
-            binding_from.as_mut().ok_or(Error::BufferUnregistered)?,
-            binding_to.as_ref().ok_or(Error::BufferUnregistered)?,
+            from.as_mut().ok_or(Error::BufferUnregistered)?,
+            to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
+
+        // from may upload in copy_to_buffer
+        to.upload()?;
 
         from.copy_to_buffer(
             &to.gl_buffer,
@@ -742,6 +710,13 @@ impl BufferRegistered {
         self.upload()?;
 
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.gl
+            .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
+        self.gl.buffer_data_with_i32(
+            BufferTarget::CopyWriteBuffer.gl_enum(),
+            self.buffer_capacity as i32,
+            BufferUsage::StreamRead.gl_enum(),
+        );
         self.copy_to_buffer(&tmp, None, None, None)?;
 
         let data = Uint8Array::new_with_length(self.buffer_capacity as u32);
@@ -768,6 +743,13 @@ impl BufferRegistered {
         self.upload()?;
 
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.gl
+            .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
+        self.gl.buffer_data_with_i32(
+            BufferTarget::CopyWriteBuffer.gl_enum(),
+            self.buffer_capacity as i32,
+            BufferUsage::StreamRead.gl_enum(),
+        );
         self.copy_to_buffer(&tmp, None, None, None)?;
 
         ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
