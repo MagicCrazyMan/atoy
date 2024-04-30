@@ -298,39 +298,39 @@ pub enum TextureUncompressedInternalFormat {
     R8,
     R8I,
     R8UI,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    RGBA32F,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    RGBA16F,
-    RGBA8_SNORM,
-    RGB32F,
-    RGB32I,
-    RGB32UI,
-    RGB16F,
-    RGB16I,
-    RGB16UI,
-    RGB8_SNORM,
-    RGB8I,
-    RGB8UI,
-    SRGB8,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    R11F_G11F_B10F,
-    RGB9_E5,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    RG32F,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    RG16F,
-    RG8_SNORM,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    R32F,
-    /// Color renderable when extension EXT_color_buffer_float is enabled.
-    R16F,
-    R8_SNORM,
     DEPTH_COMPONENT32F,
     DEPTH_COMPONENT24,
     DEPTH_COMPONENT16,
     DEPTH32F_STENCIL8,
     DEPTH24_STENCIL8,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    R16F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    RG16F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    RGBA16F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    R32F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    RG32F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    RGBA32F,
+    /// Color renderable when extension EXT_color_buffer_float is enabled.
+    R11F_G11F_B10F,
+    RGB8I,
+    RGB8UI,
+    RGB16I,
+    RGB16UI,
+    RGB16F,
+    RGB32I,
+    RGB32UI,
+    RGB32F,
+    R8_SNORM,
+    RG8_SNORM,
+    RGB8_SNORM,
+    RGBA8_SNORM,
+    SRGB8,
+    RGB9_E5,
 }
 
 impl TextureInternalFormat for TextureUncompressedInternalFormat {
@@ -2176,10 +2176,11 @@ struct TextureRegistered {
     gl_active_unit: HashSet<TextureUnit>,
 
     reg_id: Uuid,
-    reg_active_unit: Rc<RefCell<TextureUnit>>,
-    reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     reg_used_memory: Weak<RefCell<usize>>,
+    
+    reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
 
     texture_target: TextureTarget,
     texture_memory: usize,
@@ -2225,7 +2226,7 @@ impl TextureRegistered {
             .borrow_mut()
             .insert_unique_unchecked((unit, self.texture_target), self.gl_texture.clone());
         self.gl
-            .active_texture(self.reg_active_unit.borrow().gl_enum());
+            .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
 
         Ok(())
     }
@@ -2236,7 +2237,7 @@ impl TextureRegistered {
             self.gl.bind_texture(self.texture_target.gl_enum(), None);
             self.gl.bind_sampler(unit.gl_enum(), None);
             self.gl
-                .active_texture(self.reg_active_unit.borrow().gl_enum());
+                .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
             self.reg_texture_bounds
                 .borrow_mut()
                 .remove(&(unit, self.texture_target));
@@ -2253,7 +2254,7 @@ impl TextureRegistered {
                 .remove(&(unit, self.texture_target));
         }
         self.gl
-            .active_texture(self.reg_active_unit.borrow().gl_enum());
+            .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
     }
 
     fn upload(&self) -> Result<(), Error> {
@@ -2344,7 +2345,7 @@ impl TextureRegistered {
             self.texture_target.gl_enum(),
             self.reg_texture_bounds
                 .borrow()
-                .get(&(*self.reg_active_unit.borrow(), self.texture_target)),
+                .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
         );
 
         Ok(())
@@ -2353,12 +2354,12 @@ impl TextureRegistered {
 
 #[derive(Debug)]
 pub struct TextureRegistry {
-    id: Uuid,
-    gl: WebGl2RenderingContext,
-    active_unit: Rc<RefCell<TextureUnit>>,
-    texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    used_memory: Rc<RefCell<usize>>,
+    pub(super) id: Uuid,
+    pub(super) gl: WebGl2RenderingContext,
+    pub(super) texture_active_unit: Rc<RefCell<TextureUnit>>,
+    pub(super) texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
+    pub(super) buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) used_memory: Rc<RefCell<usize>>,
 }
 
 impl TextureRegistry {
@@ -2370,7 +2371,7 @@ impl TextureRegistry {
         Self {
             id: Uuid::new_v4(),
             gl,
-            active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
+            texture_active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
             texture_bounds: Rc::new(RefCell::new(HashMap::new())),
             buffer_bounds,
             used_memory: Rc::new(RefCell::new(usize::MIN)),
@@ -2390,7 +2391,7 @@ impl TextureRegistry {
     }
 
     pub fn active_unit(&self) -> Rc<RefCell<TextureUnit>> {
-        Rc::clone(&self.active_unit)
+        Rc::clone(&self.texture_active_unit)
     }
 
     pub fn bounds(&self) -> Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>> {
@@ -2437,7 +2438,7 @@ macro_rules! register_functions {
                         gl_active_unit: HashSet::new(),
 
                         reg_id: self.id,
-                        reg_active_unit: Rc::clone(&self.active_unit),
+                        reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),
@@ -2490,7 +2491,7 @@ macro_rules! register_functions {
                         gl_active_unit: HashSet::new(),
 
                         reg_id: self.id,
-                        reg_active_unit: Rc::clone(&self.active_unit),
+                        reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
                         reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
                         reg_used_memory: Rc::downgrade(&self.used_memory),

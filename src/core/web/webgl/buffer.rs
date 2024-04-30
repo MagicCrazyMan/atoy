@@ -40,6 +40,23 @@ pub enum BufferUsage {
     StreamCopy,
 }
 
+// impl BufferUsage {
+//     fn from_gl_enum(value: u32) -> Self {
+//         match value {
+//             WebGl2RenderingContext::STATIC_DRAW => BufferUsage::StaticDraw,
+//             WebGl2RenderingContext::DYNAMIC_DRAW => BufferUsage::DynamicDraw,
+//             WebGl2RenderingContext::STREAM_DRAW => BufferUsage::StreamDraw,
+//             WebGl2RenderingContext::STATIC_READ => BufferUsage::StaticRead,
+//             WebGl2RenderingContext::DYNAMIC_READ => BufferUsage::DynamicRead,
+//             WebGl2RenderingContext::STREAM_READ => BufferUsage::StreamRead,
+//             WebGl2RenderingContext::STATIC_COPY => BufferUsage::StaticCopy,
+//             WebGl2RenderingContext::DYNAMIC_COPY => BufferUsage::DynamicCopy,
+//             WebGl2RenderingContext::STREAM_COPY => BufferUsage::StreamCopy,
+//             _ => panic!("{} is not a valid BufferUsage enum value", value),
+//         }
+//     }
+// }
+
 /// Buffer data.
 #[derive(Debug, Clone)]
 pub enum BufferData {
@@ -406,7 +423,7 @@ impl BufferData {
 }
 
 #[derive(Debug)]
-struct QueueItem {
+pub(super) struct QueueItem {
     data: BufferData,
     dst_byte_offset: usize,
 }
@@ -422,14 +439,14 @@ impl QueueItem {
 
 #[derive(Debug, Clone)]
 pub struct Buffer {
-    id: Uuid,
-    capacity: usize,
-    usage: BufferUsage,
+    pub(super) id: Uuid,
+    pub(super) capacity: usize,
+    pub(super) usage: BufferUsage,
 
-    queue_size: Rc<RefCell<usize>>,
-    queue: Rc<RefCell<Vec<QueueItem>>>, // usize is dst_byte_offset
+    pub(super) queue_size: Rc<RefCell<usize>>,
+    pub(super) queue: Rc<RefCell<Vec<QueueItem>>>, // usize is dst_byte_offset
 
-    registered: Rc<RefCell<Option<BufferRegistered>>>,
+    pub(super) registered: Rc<RefCell<Option<BufferRegistered>>>,
 }
 
 impl Buffer {
@@ -485,10 +502,10 @@ impl Buffer {
     }
 
     pub fn read(&self) -> Result<ArrayBuffer, Error> {
-        self.read_with_offset(0)
+        self.read_with_params(0)
     }
 
-    pub fn read_with_offset(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+    pub fn read_with_params(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
         let mut registered = self.registered.borrow_mut();
         let downloaded = match registered.as_mut() {
             Some(registered) => registered.download(src_byte_offset)?,
@@ -497,11 +514,11 @@ impl Buffer {
         Ok(downloaded)
     }
 
-    pub async fn read_async(&self, max_retries: Option<usize>) -> Result<ArrayBuffer, Error> {
-        self.read_with_offset_async(0, max_retries).await
+    pub async fn read_async(&self) -> Result<ArrayBuffer, Error> {
+        self.read_with_params_async(0, None).await
     }
 
-    pub async fn read_with_offset_async(
+    pub async fn read_with_params_async(
         &self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
@@ -590,20 +607,20 @@ impl Buffer {
 const BUFFER_TARGET: BufferTarget = BufferTarget::ArrayBuffer;
 
 #[derive(Debug, Clone)]
-struct BufferRegistered {
-    gl: WebGl2RenderingContext,
-    gl_buffer: WebGlBuffer,
-    gl_bounds: HashSet<BufferTarget>,
+pub(super) struct BufferRegistered {
+    pub(super) gl: WebGl2RenderingContext,
+    pub(super) gl_buffer: WebGlBuffer,
+    pub(super) gl_bounds: HashSet<BufferTarget>,
 
-    reg_id: Uuid,
-    reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    reg_used_memory: Weak<RefCell<usize>>,
+    pub(super) reg_id: Uuid,
+    pub(super) reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) reg_used_memory: Weak<RefCell<usize>>,
 
-    buffer_capacity: usize,
-    buffer_queue: Weak<RefCell<Vec<QueueItem>>>,
-    buffer_queue_size: Weak<RefCell<usize>>,
+    pub(super) buffer_capacity: usize,
+    pub(super) buffer_queue: Weak<RefCell<Vec<QueueItem>>>,
+    pub(super) buffer_queue_size: Weak<RefCell<usize>>,
 
-    restore_when_drop: bool,
+    pub(super) restore_when_drop: bool,
 }
 
 impl Drop for BufferRegistered {
@@ -813,10 +830,10 @@ impl BufferRegistered {
 
 #[derive(Debug)]
 pub struct BufferRegistry {
-    id: Uuid,
-    gl: WebGl2RenderingContext,
-    bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    used_memory: Rc<RefCell<usize>>,
+    pub(super) id: Uuid,
+    pub(super) gl: WebGl2RenderingContext,
+    pub(super) bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) used_memory: Rc<RefCell<usize>>,
 }
 
 impl BufferRegistry {
@@ -886,4 +903,76 @@ impl BufferRegistry {
 
         Ok(())
     }
+
+    // /// Registers a native [`WebGlBuffer`] to the registry and wraps it into a [`Buffer`].
+    // ///
+    // /// Buffer size and usage are queried from WebGL context if `size` or `usage` is not provided.
+    // /// Always provides correct size and usage to avoid stalling CPU.
+    // pub fn register_gl_buffer(
+    //     &self,
+    //     gl_buffer: WebGlBuffer,
+    //     size: Option<usize>,
+    //     usage: Option<BufferUsage>,
+    // ) -> Result<Buffer, Error> {
+    //     let require_parameter = size.is_none() || usage.is_none();
+    //     if require_parameter {
+    //         self.gl
+    //             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&gl_buffer));
+    //     }
+    //     let capacity = match size {
+    //         Some(capacity) => capacity,
+    //         None => self
+    //             .gl
+    //             .get_buffer_parameter(BUFFER_TARGET.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
+    //             .as_f64()
+    //             .map(|size| size as usize)
+    //             .ok_or(Error::BufferUnexpectedDropped)?,
+    //     };
+    //     let usage = match usage {
+    //         Some(usage) => usage,
+    //         None => self
+    //             .gl
+    //             .get_buffer_parameter(
+    //                 BUFFER_TARGET.gl_enum(),
+    //                 WebGl2RenderingContext::BUFFER_USAGE,
+    //             )
+    //             .as_f64()
+    //             .map(|usage| BufferUsage::from_gl_enum(usage as u32))
+    //             .ok_or(Error::BufferUnexpectedDropped)?,
+    //     };
+    //     if require_parameter {
+    //         self.gl.bind_buffer(
+    //             BUFFER_TARGET.gl_enum(),
+    //             self.bounds.borrow().get(&BUFFER_TARGET),
+    //         );
+    //     }
+
+    //     let queue = Rc::new(RefCell::new(Vec::new()));
+    //     let queue_size = Rc::new(RefCell::new(0));
+
+    //     let registered = BufferRegistered {
+    //         gl: self.gl.clone(),
+    //         gl_buffer,
+    //         gl_bounds: HashSet::new(),
+
+    //         reg_id: self.id,
+    //         reg_bounds: Rc::clone(&self.bounds),
+    //         reg_used_memory: Rc::downgrade(&self.used_memory),
+
+    //         buffer_capacity: capacity,
+    //         buffer_queue: Rc::downgrade(&queue),
+    //         buffer_queue_size: Rc::downgrade(&queue_size),
+
+    //         restore_when_drop: false,
+    //     };
+
+    //     Ok(Buffer {
+    //         id: Uuid::new_v4(),
+    //         capacity,
+    //         usage,
+    //         queue_size,
+    //         queue,
+    //         registered: Rc::new(RefCell::new(Some(registered))),
+    //     })
+    // }
 }
