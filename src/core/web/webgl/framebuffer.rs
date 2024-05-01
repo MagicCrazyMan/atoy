@@ -1,7 +1,5 @@
 use std::{
-    cell::RefCell,
-    iter::FromIterator,
-    rc::{Rc, Weak},
+    cell::RefCell, collections::VecDeque, iter::FromIterator, rc::{Rc, Weak}
 };
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
@@ -783,7 +781,7 @@ impl Framebuffer {
                     *buffer_used_memory.borrow_mut() += size;
                 }
 
-                let queue = Rc::new(RefCell::new(Vec::new()));
+                let queue = Rc::new(RefCell::new(VecDeque::new()));
                 let queue_size = Rc::new(RefCell::new(0));
 
                 let registered = BufferRegistered {
@@ -795,18 +793,16 @@ impl Framebuffer {
                     reg_bounds: Rc::clone(&registered.reg_buffer_bounds),
                     reg_used_memory: Weak::clone(&registered.reg_buffer_used_memory),
 
-                    buffer_capacity: size,
+                    buffer_size: size,
                     buffer_queue: Rc::downgrade(&queue),
-                    buffer_queue_size: Rc::downgrade(&queue_size),
+                    buffer_async_upload: Rc::new(RefCell::new(None)),
 
                     restore_when_drop: false,
                 };
 
                 Ok(Buffer {
                     id: Uuid::new_v4(),
-                    capacity: size,
                     usage,
-                    queue_size,
                     queue,
                     registered: Rc::new(RefCell::new(Some(registered))),
                 })
