@@ -1213,7 +1213,7 @@ impl FramebufferRegistered {
 
         let gl_texture = self.gl.create_texture().ok_or(Error::CreateTextureFailure)?;
         self.gl.bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
-        self.gl.tex_storage_2d(TextureTarget::Texture2D.gl_enum(), 1, internalformat, width, height);
+        // self.gl.tex_storage_2d(TextureTarget::Texture2D.gl_enum(), 1, internalformat, width, height);
 
         self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
         Ok(())

@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::VecDeque,
     rc::{Rc, Weak},
 };
 
@@ -9,7 +10,7 @@ use js_sys::{
     Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
 };
 use uuid::Uuid;
-use web_sys::{WebGl2RenderingContext, WebGlBuffer};
+use web_sys::{Request, RequestInit, WebGl2RenderingContext, WebGlBuffer};
 
 use super::{client_wait::ClientWaitAsync, conversion::ToGlEnum, error::Error};
 
@@ -123,6 +124,14 @@ pub enum BufferData {
         src_element_offset: Option<usize>,
         src_element_length: Option<usize>,
     },
+    FromUrl {
+        url: String,
+        init: Option<RequestInit>,
+    },
+    FromRequest {
+        request: Request,
+        init: Option<RequestInit>,
+    },
 }
 
 impl BufferData {
@@ -141,6 +150,7 @@ impl BufferData {
             BufferData::Float64Array { .. } => 8,
             BufferData::BigInt64Array { .. } => 8,
             BufferData::BigUint64Array { .. } => 8,
+            BufferData::FromUrl { .. } | BufferData::FromRequest { .. } => unreachable!(),
         }
     }
 
@@ -256,6 +266,7 @@ impl BufferData {
                 *src_element_offset,
                 *src_element_length,
             ),
+            BufferData::FromUrl { .. } | BufferData::FromRequest { .. } => unreachable!(),
         };
 
         match (src_element_offset, src_element_length) {
@@ -418,6 +429,7 @@ impl BufferData {
                     &data,
                 );
             }
+            BufferData::FromUrl { .. } | BufferData::FromRequest { .. } => unreachable!(),
         };
     }
 }
@@ -440,37 +452,18 @@ impl QueueItem {
 #[derive(Debug, Clone)]
 pub struct Buffer {
     pub(super) id: Uuid,
-    pub(super) capacity: usize,
     pub(super) usage: BufferUsage,
-
-    pub(super) queue_size: Rc<RefCell<usize>>,
-    pub(super) queue: Rc<RefCell<Vec<QueueItem>>>, // usize is dst_byte_offset
+    pub(super) queue: Rc<RefCell<VecDeque<QueueItem>>>, // usize is dst_byte_offset
 
     pub(super) registered: Rc<RefCell<Option<BufferRegistered>>>,
 }
 
 impl Buffer {
-    pub fn new(capacity: usize, usage: BufferUsage) -> Self {
+    pub fn new(usage: BufferUsage) -> Self {
         Self {
             id: Uuid::new_v4(),
-            capacity,
             usage,
-
-            queue_size: Rc::new(RefCell::new(0)),
-            queue: Rc::new(RefCell::new(Vec::new())),
-
-            registered: Rc::new(RefCell::new(None)),
-        }
-    }
-
-    pub fn with_buffer_data(buffer_data: BufferData, usage: BufferUsage) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            capacity: buffer_data.byte_length(),
-            usage,
-
-            queue_size: Rc::new(RefCell::new(buffer_data.byte_length())),
-            queue: Rc::new(RefCell::new(vec![QueueItem::new(buffer_data, 0)])),
+            queue: Rc::new(RefCell::new(VecDeque::new())),
 
             registered: Rc::new(RefCell::new(None)),
         }
@@ -480,12 +473,23 @@ impl Buffer {
         &self.id
     }
 
-    pub fn capacity(&self) -> usize {
-        self.capacity
+    pub fn size(&self) -> usize {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map_or(0, |registered| registered.buffer_size)
     }
 
     pub fn usage(&self) -> BufferUsage {
         self.usage
+    }
+
+    pub fn update_to_date(&self) -> bool {
+        self.queue.borrow().is_empty()
+    }
+
+    pub fn ready(&self) -> bool {
+        self.update_to_date() && self.registered.borrow().is_some()
     }
 
     pub fn write(&self, data: BufferData) {
@@ -494,45 +498,38 @@ impl Buffer {
 
     pub fn write_with_offset(&self, data: BufferData, dst_byte_offset: usize) {
         let size = data.byte_length() + dst_byte_offset;
-        let mut current_size = self.queue_size.borrow_mut();
-        *current_size = current_size.max(size);
         self.queue
             .borrow_mut()
-            .push(QueueItem::new(data, dst_byte_offset));
+            .push_back(QueueItem::new(data, dst_byte_offset));
     }
 
-    pub fn read(&self) -> Result<ArrayBuffer, Error> {
-        self.read_with_params(0)
+    pub fn read_to_array_buffer(&self) -> Result<ArrayBuffer, Error> {
+        self.read_to_array_buffer_with_params(0)
     }
 
-    pub fn read_with_params(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+    pub fn read_to_array_buffer_with_params(
+        &self,
+        src_byte_offset: usize,
+    ) -> Result<ArrayBuffer, Error> {
         let mut registered = self.registered.borrow_mut();
-        let downloaded = match registered.as_mut() {
-            Some(registered) => registered.download(src_byte_offset)?,
-            None => ArrayBuffer::new(self.capacity as u32),
-        };
-        Ok(downloaded)
+        let registered = registered.as_mut().ok_or(Error::BufferUnregistered)?;
+        registered.read_to_array_buffer(src_byte_offset)
     }
 
-    pub async fn read_async(&self) -> Result<ArrayBuffer, Error> {
-        self.read_with_params_async(0, None).await
+    pub async fn read_to_array_buffer_async(&self) -> Result<ArrayBuffer, Error> {
+        self.read_to_array_buffer_with_params_async(0, None).await
     }
 
-    pub async fn read_with_params_async(
+    pub async fn read_to_array_buffer_with_params_async(
         &self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let mut registered = self.registered.borrow_mut();
-        let downloaded = match registered.as_mut() {
-            Some(registered) => {
-                registered
-                    .download_async(src_byte_offset, max_retries)
-                    .await?
-            }
-            None => ArrayBuffer::new(self.capacity as u32),
-        };
-        Ok(downloaded)
+        let registered = registered.as_mut().ok_or(Error::BufferUnregistered)?;
+        registered
+            .read_to_array_buffer_async(src_byte_offset, max_retries)
+            .await
     }
 
     pub fn gl_buffer(&self) -> Result<WebGlBuffer, Error> {
@@ -543,12 +540,12 @@ impl Buffer {
             .ok_or(Error::BufferUnregistered)
     }
 
-    pub fn upload(&self) -> Result<(), Error> {
+    pub fn flush(&self) -> Result<(), Error> {
         self.registered
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .upload()
+            .flush()
     }
 
     pub fn bind(&self, target: BufferTarget) -> Result<(), Error> {
@@ -591,9 +588,6 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        // from may upload in copy_to_buffer
-        to.upload()?;
-
         from.copy_to_buffer(
             &to.gl_buffer,
             read_offset,
@@ -616,9 +610,8 @@ pub(super) struct BufferRegistered {
     pub(super) reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
     pub(super) reg_used_memory: Weak<RefCell<usize>>,
 
-    pub(super) buffer_capacity: usize,
-    pub(super) buffer_queue: Weak<RefCell<Vec<QueueItem>>>,
-    pub(super) buffer_queue_size: Weak<RefCell<usize>>,
+    pub(super) buffer_size: usize,
+    pub(super) buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
 
     pub(super) restore_when_drop: bool,
 }
@@ -626,29 +619,25 @@ pub(super) struct BufferRegistered {
 impl Drop for BufferRegistered {
     fn drop(&mut self) {
         if self.restore_when_drop {
-            let (Some(buffer_queue), Some(buffer_queue_size)) = (
-                self.buffer_queue.upgrade(),
-                self.buffer_queue_size.upgrade(),
-            ) else {
+            let Some(buffer_queue) = self.buffer_queue.upgrade() else {
                 return;
             };
 
-            if let Ok(data) = self.download(0) {
+            if let Ok(data) = self.read_to_array_buffer(0) {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue
                     .borrow_mut()
                     .insert(0, QueueItem::new(buffer_data, 0));
-                *buffer_queue_size.borrow_mut() = self.buffer_capacity;
             } else {
                 log::warn!("failed to download data from WebGlBuffer");
             }
         }
 
-        self.unbind_all();
+        // self.unbind_all();
         self.gl.delete_buffer(Some(&self.gl_buffer));
         self.reg_used_memory
             .upgrade()
-            .map(|used_memory| *used_memory.borrow_mut() -= self.buffer_capacity);
+            .map(|used_memory| *used_memory.borrow_mut() -= self.buffer_size);
     }
 }
 
@@ -656,14 +645,14 @@ impl BufferRegistered {
     fn bind(&mut self, target: BufferTarget) -> Result<(), Error> {
         if let Some(gl_buffer) = self.reg_bounds.borrow().get(&target) {
             if gl_buffer == &self.gl_buffer {
-                self.upload()?;
+                self.flush()?;
                 return Ok(());
             } else {
                 return Err(Error::BufferTargetOccupied(target));
             }
         }
 
-        self.upload()?;
+        self.flush()?;
 
         self.gl.bind_buffer(target.gl_enum(), Some(&self.gl_buffer));
         self.reg_bounds
@@ -688,32 +677,26 @@ impl BufferRegistered {
         }
     }
 
-    fn upload(&self) -> Result<(), Error> {
-        let (Some(buffer_queue), Some(buffer_queue_size)) = (
-            self.buffer_queue.upgrade(),
-            self.buffer_queue_size.upgrade(),
-        ) else {
+    fn flush(&self) -> Result<(), Error> {
+        let Some(buffer_queue) = self.buffer_queue.upgrade() else {
             return Err(Error::BufferUnexpectedDropped);
         };
 
         let mut queue = buffer_queue.borrow_mut();
         if queue.is_empty() {
-            *buffer_queue_size.borrow_mut() = 0;
             return Ok(());
         }
 
         self.gl
             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
 
-        let queue = queue.drain(..);
-        for QueueItem {
+        while let Some(QueueItem {
             data,
             dst_byte_offset,
-        } in queue
+        }) = queue.pop_front()
         {
             data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
         }
-        *buffer_queue_size.borrow_mut() = 0;
 
         self.gl.bind_buffer(
             BUFFER_TARGET.gl_enum(),
@@ -723,20 +706,18 @@ impl BufferRegistered {
         Ok(())
     }
 
-    fn download(&mut self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
-        self.upload()?;
-
+    fn read_to_array_buffer(&mut self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.gl
             .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
         self.gl.buffer_data_with_i32(
             BufferTarget::CopyWriteBuffer.gl_enum(),
-            self.buffer_capacity as i32,
+            self.buffer_size as i32,
             BufferUsage::StreamRead.gl_enum(),
         );
         self.copy_to_buffer(&tmp, None, None, None)?;
 
-        let data = Uint8Array::new_with_length(self.buffer_capacity as u32);
+        let data = Uint8Array::new_with_length(self.buffer_size as u32);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
             BUFFER_TARGET.gl_enum(),
@@ -752,19 +733,17 @@ impl BufferRegistered {
         Ok(data.buffer())
     }
 
-    async fn download_async(
+    async fn read_to_array_buffer_async(
         &mut self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
-        self.upload()?;
-
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.gl
             .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
         self.gl.buffer_data_with_i32(
             BufferTarget::CopyWriteBuffer.gl_enum(),
-            self.buffer_capacity as i32,
+            self.buffer_size as i32,
             BufferUsage::StreamRead.gl_enum(),
         );
         self.copy_to_buffer(&tmp, None, None, None)?;
@@ -773,7 +752,7 @@ impl BufferRegistered {
             .wait()
             .await?;
 
-        let data = Uint8Array::new_with_length(self.buffer_capacity as u32);
+        let data = Uint8Array::new_with_length(self.buffer_size as u32);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
             BUFFER_TARGET.gl_enum(),
@@ -796,11 +775,9 @@ impl BufferRegistered {
         write_offset: Option<usize>,
         size: Option<usize>,
     ) -> Result<(), Error> {
-        self.upload()?;
-
         let read_offset = read_offset.unwrap_or(0);
         let write_offset = write_offset.unwrap_or(0);
-        let size = size.unwrap_or(self.buffer_capacity);
+        let size = size.unwrap_or(self.buffer_size);
 
         self.gl.bind_buffer(
             BufferTarget::CopyReadBuffer.gl_enum(),
@@ -867,21 +844,12 @@ impl BufferRegistry {
             if &registered.reg_id != &self.id {
                 return Err(Error::RegisterBufferToMultipleRepositoryUnsupported);
             } else {
-                registered.upload()?;
+                registered.flush()?;
                 return Ok(());
             }
         }
 
         let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.gl
-            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&gl_buffer));
-        self.gl.buffer_data_with_i32(
-            BUFFER_TARGET.gl_enum(),
-            buffer.capacity as i32,
-            buffer.usage.gl_enum(),
-        );
-        *self.used_memory.borrow_mut() += buffer.capacity;
-
         let registered = BufferRegistered {
             gl: self.gl.clone(),
             gl_buffer: gl_buffer.clone(),
@@ -891,13 +859,12 @@ impl BufferRegistry {
             reg_bounds: Rc::clone(&self.bounds),
             reg_used_memory: Rc::downgrade(&self.used_memory),
 
-            buffer_capacity: buffer.capacity,
+            buffer_size: 0,
             buffer_queue: Rc::downgrade(&buffer.queue),
-            buffer_queue_size: Rc::downgrade(&buffer.queue_size),
 
             restore_when_drop: false,
         };
-        registered.upload()?; // buffer unbind after uploading
+        registered.flush()?; // buffer unbind after uploading
 
         *buffer.registered.borrow_mut() = Some(registered);
 
