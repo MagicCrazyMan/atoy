@@ -4,6 +4,7 @@ use std::{
     collections::VecDeque,
     fmt::Debug,
     future::Future,
+    ptr::addr_of,
     rc::{Rc, Weak},
 };
 
@@ -448,25 +449,13 @@ impl BufferSourceLocal for BufferData {
     }
 }
 
-impl From<JsValue> for BufferData {
-    fn from(value: JsValue) -> Self {
-        todo!()
-    }
-}
-
-impl From<BufferData> for JsValue {
-    fn from(value: BufferData) -> Self {
-        todo!()
-    }
-}
-
-/// A local buffer source that can be uploaded to WebGL context immediately.
+/// A buffer source which can be uploaded to WebGL context immediately.
 pub trait BufferSourceLocal {
     /// Returns a [`BufferData`].
     fn load(&self) -> BufferData;
 }
 
-/// A remote buffer source that have to retrieve data from somewhere else asynchronously
+/// A remote buffer source which have to retrieve data from somewhere else asynchronously
 /// and then upload it to WebGL context after that.
 #[async_trait]
 pub trait BufferSourceRemote {
@@ -538,12 +527,19 @@ impl Buffer {
         self.usage
     }
 
-    pub fn update_to_date(&self) -> bool {
-        self.queue.borrow().is_empty()
+    pub fn flushing(&self) -> bool {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map_or(false, |registered| {
+                registered.buffer_async_upload.borrow().is_some()
+            })
     }
 
     pub fn ready(&self) -> bool {
-        self.update_to_date() && self.registered.borrow().is_some()
+        self.registered.borrow().as_ref().is_some()
+            && self.queue.borrow().is_empty()
+            && !self.flushing()
     }
 
     pub fn write<S>(&self, source: S)
@@ -653,12 +649,13 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn copy_to_buffer(
+    pub fn copy_to(
         &self,
         to: &Buffer,
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
+        reallocate: Option<bool>,
     ) -> Result<(), Error> {
         let mut from = self.registered.borrow_mut();
         let to = to.registered.borrow();
@@ -667,12 +664,7 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.copy_to_buffer(
-            &to.gl_buffer,
-            read_offset,
-            write_offset,
-            size.or(Some(from.buffer_size.min(to.buffer_size))),
-        )
+        from.copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate)
     }
 }
 
@@ -690,6 +682,7 @@ pub(super) struct BufferRegistered {
     pub(super) reg_used_memory: Weak<RefCell<usize>>,
 
     pub(super) buffer_size: usize,
+    pub(super) buffer_usage: BufferUsage,
     pub(super) buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
     pub(super) buffer_async_upload: Rc<
         RefCell<
@@ -763,7 +756,7 @@ impl BufferRegistered {
         }
     }
 
-    fn flush(&self) {
+    fn flush(&mut self) {
         // if there is an ongoing async upload, skips this flush
         if self.buffer_async_upload.borrow().is_some() {
             return;
@@ -788,47 +781,59 @@ impl BufferRegistered {
         {
             match source {
                 BufferSource::Local(source) => {
-                    source
-                        .load()
-                        .upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
+                    let data = source.load();
+                    let data_size = data.byte_length();
+                    // if data size larger than the buffer size, expands the buffer size
+                    if data_size > self.buffer_size {
+                        let tmp = self
+                            .gl
+                            .create_buffer()
+                            .ok_or(Error::CreateBufferFailure)
+                            .unwrap();
+                        self.copy_to(&tmp, None, None, None, Some(true)).unwrap();
+                        self.gl.buffer_data_with_i32(
+                            BUFFER_TARGET.gl_enum(),
+                            data_size,
+                            self.buffer_usage.gl_enum(),
+                        );
+                    }
+                    data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
                 }
                 BufferSource::Remote(source) => {
                     let promise = future_to_promise(async move {
                         let data = source.load().await;
                         match data {
-                            Ok(data) => Ok(JsValue::from(data)),
+                            Ok(data) => {
+                                let data_ptr = Box::leak(Box::new(data)) as *const _ as usize;
+                                Ok(JsValue::from(data_ptr))
+                            }
                             Err(msg) => {
-                                // just return error message as UTF-8 bytes buffer, to prevent converting between UTF-16 and UTF-8
-                                let str_array_buffer = ArrayBuffer::new(msg.len() as u32);
-                                Uint8Array::new(&str_array_buffer).copy_from(msg.as_bytes());
-                                Err(JsValue::from(str_array_buffer))
+                                let msg_ptr = Box::leak(Box::new(msg)) as *const _ as usize;
+                                Err(JsValue::from(msg_ptr))
                             }
                         }
                     });
 
-                    let me = self.clone();
-                    let resolve = Closure::once(move |value: JsValue| {
-                        let buffer_data = BufferData::from(value);
+                    let mut me = self.clone();
+                    let resolve = Closure::once(move |value: JsValue| unsafe {
+                        let buffer_data =
+                            Box::from_raw(value.as_f64().unwrap() as usize as *mut BufferData);
                         let Some(queue) = me.buffer_queue.upgrade() else {
                             return;
                         };
 
                         // adds buffer data as the first value to the queue and then continues uploading
                         queue.borrow_mut().push_front(QueueItem::new(
-                            BufferSource::Local(Box::new(buffer_data)),
+                            BufferSource::Local(buffer_data),
                             dst_byte_offset,
                         ));
                         me.buffer_async_upload.borrow_mut().as_mut().take();
                         me.flush();
                     });
-                    let me = self.clone();
-                    let reject = Closure::once(move |value: JsValue| {
+                    let mut me = self.clone();
+                    let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
-                        let str_array_buffer = ArrayBuffer::from(value);
-                        let mut str_bytes = vec![0u8; str_array_buffer.byte_length() as usize];
-                        Uint8Array::new(&str_array_buffer).copy_to(str_bytes.as_mut_slice());
-                        let msg = String::from_utf8(str_bytes).unwrap();
-
+                        let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
                         log::error!(
                             "failed to load buffer data from remote source remote: {}",
                             msg
@@ -870,14 +875,7 @@ impl BufferRegistered {
 
     fn read_to_array_buffer(&mut self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.gl
-            .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
-        self.gl.buffer_data_with_i32(
-            BufferTarget::CopyWriteBuffer.gl_enum(),
-            self.buffer_size as i32,
-            BufferUsage::StreamRead.gl_enum(),
-        );
-        self.copy_to_buffer(&tmp, None, None, None)?;
+        self.copy_to(&tmp, None, None, None, Some(true))?;
 
         let data = Uint8Array::new_with_length(self.buffer_size as u32);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
@@ -901,14 +899,7 @@ impl BufferRegistered {
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.gl
-            .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(&tmp));
-        self.gl.buffer_data_with_i32(
-            BufferTarget::CopyWriteBuffer.gl_enum(),
-            self.buffer_size as i32,
-            BufferUsage::StreamRead.gl_enum(),
-        );
-        self.copy_to_buffer(&tmp, None, None, None)?;
+        self.copy_to(&tmp, None, None, None, Some(true))?;
 
         ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
             .wait()
@@ -930,16 +921,18 @@ impl BufferRegistered {
         Ok(data.buffer())
     }
 
-    fn copy_to_buffer(
+    fn copy_to(
         &mut self,
         to: &WebGlBuffer,
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
+        reallocate: Option<bool>,
     ) -> Result<(), Error> {
         let read_offset = read_offset.unwrap_or(0);
         let write_offset = write_offset.unwrap_or(0);
         let size = size.unwrap_or(self.buffer_size);
+        let reallocate = reallocate.unwrap_or(false);
 
         self.gl.bind_buffer(
             BufferTarget::CopyReadBuffer.gl_enum(),
@@ -947,6 +940,13 @@ impl BufferRegistered {
         );
         self.gl
             .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(to));
+        if reallocate {
+            self.gl.buffer_data_with_i32(
+                BufferTarget::CopyWriteBuffer.gl_enum(),
+                size as i32,
+                BufferUsage::StreamDraw.gl_enum(),
+            );
+        }
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
             BufferTarget::CopyReadBuffer.gl_enum(),
             BufferTarget::CopyWriteBuffer.gl_enum(),
@@ -1021,6 +1021,7 @@ impl BufferRegistry {
             reg_used_memory: Rc::downgrade(&self.used_memory),
 
             buffer_size: 0,
+            buffer_usage: buffer.usage,
             buffer_queue: Rc::downgrade(&buffer.queue),
             buffer_async_upload: Rc::new(RefCell::new(None)),
 
