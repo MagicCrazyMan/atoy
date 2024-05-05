@@ -1,10 +1,7 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     collections::VecDeque,
     fmt::Debug,
-    future::Future,
-    ptr::addr_of,
     rc::{Rc, Weak},
 };
 
@@ -18,7 +15,7 @@ use js_sys::{
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
-use web_sys::{Request, RequestInit, WebGl2RenderingContext, WebGlBuffer};
+use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use super::{client_wait::ClientWaitAsync, conversion::ToGlEnum, error::Error};
 
@@ -443,48 +440,49 @@ impl BufferData {
     }
 }
 
-impl BufferSourceLocal for BufferData {
-    fn load(&self) -> BufferData {
+impl BufferSource for BufferData {
+    fn load(&mut self) -> BufferData {
         self.clone()
     }
 }
 
-/// A buffer source which can be uploaded to WebGL context immediately.
-pub trait BufferSourceLocal {
+/// A buffer source returns an available [`BufferData`] immediately
+/// and then uploads to WebGL context immediately.
+pub trait BufferSource {
     /// Returns a [`BufferData`].
-    fn load(&self) -> BufferData;
+    fn load(&mut self) -> BufferData;
 }
 
-/// A remote buffer source which have to retrieve data from somewhere else asynchronously
-/// and then upload it to WebGL context after that.
+/// A buffer source retrieves data asynchronously
+/// and then uploads it to WebGL context after that.
 #[async_trait]
-pub trait BufferSourceRemote {
+pub trait BufferSourceAsync {
     /// Returns a [`BufferData`] or an error message.
-    async fn load(&self) -> Result<BufferData, String>;
+    async fn load(&mut self) -> Result<BufferData, String>;
 }
 
-enum BufferSource {
-    Local(Box<dyn BufferSourceLocal>),
-    Remote(Box<dyn BufferSourceRemote>),
+enum BufferSourceInner {
+    Sync(Box<dyn BufferSource>),
+    Async(Box<dyn BufferSourceAsync>),
 }
 
-impl Debug for BufferSource {
+impl Debug for BufferSourceInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Local(_) => f.debug_tuple("Local").finish(),
-            Self::Remote(_) => f.debug_tuple("Remote").finish(),
+            Self::Sync(_) => f.debug_tuple("Sync").finish(),
+            Self::Async(_) => f.debug_tuple("Async").finish(),
         }
     }
 }
 
 #[derive(Debug)]
 pub(super) struct QueueItem {
-    source: BufferSource,
+    source: BufferSourceInner,
     dst_byte_offset: usize,
 }
 
 impl QueueItem {
-    fn new(source: BufferSource, dst_byte_offset: usize) -> Self {
+    fn new(source: BufferSourceInner, dst_byte_offset: usize) -> Self {
         Self {
             source,
             dst_byte_offset,
@@ -544,34 +542,34 @@ impl Buffer {
 
     pub fn write<S>(&self, source: S)
     where
-        S: BufferSourceLocal + 'static,
+        S: BufferSource + 'static,
     {
         self.write_with_offset(source, 0)
     }
 
     pub fn write_with_offset<S>(&self, source: S, dst_byte_offset: usize)
     where
-        S: BufferSourceLocal + 'static,
+        S: BufferSource + 'static,
     {
         self.queue.borrow_mut().push_back(QueueItem::new(
-            BufferSource::Local(Box::new(source)),
+            BufferSourceInner::Sync(Box::new(source)),
             dst_byte_offset,
         ));
     }
 
     pub fn write_remote<S>(&self, source: S)
     where
-        S: BufferSourceRemote + 'static,
+        S: BufferSourceAsync + 'static,
     {
         self.write_remote_with_offset(source, 0)
     }
 
     pub fn write_remote_with_offset<S>(&self, source: S, dst_byte_offset: usize)
     where
-        S: BufferSourceRemote + 'static,
+        S: BufferSourceAsync + 'static,
     {
         self.queue.borrow_mut().push_back(QueueItem::new(
-            BufferSource::Remote(Box::new(source)),
+            BufferSourceInner::Async(Box::new(source)),
             dst_byte_offset,
         ));
     }
@@ -584,9 +582,11 @@ impl Buffer {
         &self,
         src_byte_offset: usize,
     ) -> Result<ArrayBuffer, Error> {
-        let mut registered = self.registered.borrow_mut();
-        let registered = registered.as_mut().ok_or(Error::BufferUnregistered)?;
-        registered.read_to_array_buffer(src_byte_offset)
+        self.registered
+            .borrow()
+            .as_ref()
+            .ok_or(Error::BufferUnregistered)?
+            .read_to_array_buffer(src_byte_offset)
     }
 
     pub async fn read_to_array_buffer_async(&self) -> Result<ArrayBuffer, Error> {
@@ -598,9 +598,10 @@ impl Buffer {
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
-        let mut registered = self.registered.borrow_mut();
-        let registered = registered.as_mut().ok_or(Error::BufferUnregistered)?;
-        registered
+        self.registered
+            .borrow()
+            .as_ref()
+            .ok_or(Error::BufferUnregistered)?
             .read_to_array_buffer_async(src_byte_offset, max_retries)
             .await
     }
@@ -657,14 +658,16 @@ impl Buffer {
         size: Option<usize>,
         reallocate: Option<bool>,
     ) -> Result<(), Error> {
-        let mut from = self.registered.borrow_mut();
+        let from = self.registered.borrow();
         let to = to.registered.borrow();
         let (from, to) = (
-            from.as_mut().ok_or(Error::BufferUnregistered)?,
+            from.as_ref().ok_or(Error::BufferUnregistered)?,
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate)
+        from.copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate);
+
+        Ok(())
     }
 }
 
@@ -708,7 +711,7 @@ impl Drop for BufferRegistered {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue.borrow_mut().insert(
                     0,
-                    QueueItem::new(BufferSource::Local(Box::new(buffer_data)), 0),
+                    QueueItem::new(BufferSourceInner::Sync(Box::new(buffer_data)), 0),
                 );
             } else {
                 log::warn!("failed to download data from WebGlBuffer");
@@ -771,35 +774,61 @@ impl BufferRegistered {
             return;
         }
 
-        self.gl
-            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
-
         while let Some(QueueItem {
             source,
             dst_byte_offset,
         }) = queue.pop_front()
         {
             match source {
-                BufferSource::Local(source) => {
+                BufferSourceInner::Sync(mut source) => {
                     let data = source.load();
                     let data_size = data.byte_length();
+
                     // if data size larger than the buffer size, expands the buffer size
                     if data_size > self.buffer_size {
-                        let tmp = self
+                        let new_gl_buffer = self
                             .gl
                             .create_buffer()
                             .ok_or(Error::CreateBufferFailure)
                             .unwrap();
-                        self.copy_to(&tmp, None, None, None, Some(true)).unwrap();
+                        self.gl
+                            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
                         self.gl.buffer_data_with_i32(
                             BUFFER_TARGET.gl_enum(),
-                            data_size,
+                            data_size as i32,
                             self.buffer_usage.gl_enum(),
                         );
+                        self.copy_to(&new_gl_buffer, None, None, None, Some(false));
+
+                        // replaces all existing bound buffers to the new buffer
+                        for bound in self.gl_bounds.iter() {
+                            self.gl.bind_buffer(bound.gl_enum(), Some(&new_gl_buffer));
+                            self.reg_bounds
+                                .borrow_mut()
+                                .insert(*bound, new_gl_buffer.clone());
+                        }
+                        self.gl_buffer = new_gl_buffer;
+
+                        // updates used memory
+                        if let Some(used_memory) = self.reg_used_memory.upgrade() {
+                            let mut used_memory = used_memory.borrow_mut();
+                            *used_memory -= self.buffer_size;
+                            *used_memory += data_size;
+                        }
+                        self.buffer_size = data_size;
+                    } else {
+                        self.gl
+                            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
                     }
+
                     data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
+
+                    self.gl.bind_buffer(
+                        BUFFER_TARGET.gl_enum(),
+                        self.reg_bounds.borrow().get(&BUFFER_TARGET),
+                    );
                 }
-                BufferSource::Remote(source) => {
+                BufferSourceInner::Async(mut source) => {
                     let promise = future_to_promise(async move {
                         let data = source.load().await;
                         match data {
@@ -824,7 +853,7 @@ impl BufferRegistered {
 
                         // adds buffer data as the first value to the queue and then continues uploading
                         queue.borrow_mut().push_front(QueueItem::new(
-                            BufferSource::Local(buffer_data),
+                            BufferSourceInner::Sync(buffer_data),
                             dst_byte_offset,
                         ));
                         me.buffer_async_upload.borrow_mut().as_mut().take();
@@ -866,16 +895,11 @@ impl BufferRegistered {
                 }
             }
         }
-
-        self.gl.bind_buffer(
-            BUFFER_TARGET.gl_enum(),
-            self.reg_bounds.borrow().get(&BUFFER_TARGET),
-        );
     }
 
-    fn read_to_array_buffer(&mut self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+    fn read_to_array_buffer(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.copy_to(&tmp, None, None, None, Some(true))?;
+        self.copy_to(&tmp, None, None, None, Some(true));
 
         let data = Uint8Array::new_with_length(self.buffer_size as u32);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
@@ -894,12 +918,12 @@ impl BufferRegistered {
     }
 
     async fn read_to_array_buffer_async(
-        &mut self,
+        &self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.copy_to(&tmp, None, None, None, Some(true))?;
+        self.copy_to(&tmp, None, None, None, Some(true));
 
         ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
             .wait()
@@ -922,13 +946,13 @@ impl BufferRegistered {
     }
 
     fn copy_to(
-        &mut self,
+        &self,
         to: &WebGlBuffer,
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
         reallocate: Option<bool>,
-    ) -> Result<(), Error> {
+    ) {
         let read_offset = read_offset.unwrap_or(0);
         let write_offset = write_offset.unwrap_or(0);
         let size = size.unwrap_or(self.buffer_size);
@@ -962,8 +986,6 @@ impl BufferRegistered {
             BufferTarget::CopyWriteBuffer.gl_enum(),
             self.reg_bounds.borrow().get(&BufferTarget::CopyWriteBuffer),
         );
-
-        Ok(())
     }
 }
 

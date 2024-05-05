@@ -794,6 +794,7 @@ impl Framebuffer {
                     reg_used_memory: Weak::clone(&registered.reg_buffer_used_memory),
 
                     buffer_size: size,
+                    buffer_usage: todo!(),
                     buffer_queue: Rc::downgrade(&queue),
                     buffer_async_upload: Rc::new(RefCell::new(None)),
 
