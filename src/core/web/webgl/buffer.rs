@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::VecDeque,
+    f32::consts::LN_10,
     fmt::Debug,
     rc::{Rc, Weak},
 };
@@ -8,13 +9,13 @@ use std::{
 use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use js_sys::{
-    ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int8Array, Object, Promise, Uint16Array, Uint32Array, Uint8Array,
+    ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Function,
+    Int16Array, Int32Array, Int8Array, Object, Promise, Uint16Array, Uint32Array, Uint8Array,
     Uint8ClampedArray,
 };
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::future_to_promise;
+use wasm_bindgen_futures::{future_to_promise, JsFuture};
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use super::{client_wait::ClientWaitAsync, conversion::ToGlEnum, error::Error};
@@ -45,23 +46,6 @@ pub enum BufferUsage {
     DynamicCopy,
     StreamCopy,
 }
-
-// impl BufferUsage {
-//     fn from_gl_enum(value: u32) -> Self {
-//         match value {
-//             WebGl2RenderingContext::STATIC_DRAW => BufferUsage::StaticDraw,
-//             WebGl2RenderingContext::DYNAMIC_DRAW => BufferUsage::DynamicDraw,
-//             WebGl2RenderingContext::STREAM_DRAW => BufferUsage::StreamDraw,
-//             WebGl2RenderingContext::STATIC_READ => BufferUsage::StaticRead,
-//             WebGl2RenderingContext::DYNAMIC_READ => BufferUsage::DynamicRead,
-//             WebGl2RenderingContext::STREAM_READ => BufferUsage::StreamRead,
-//             WebGl2RenderingContext::STATIC_COPY => BufferUsage::StaticCopy,
-//             WebGl2RenderingContext::DYNAMIC_COPY => BufferUsage::DynamicCopy,
-//             WebGl2RenderingContext::STREAM_COPY => BufferUsage::StreamCopy,
-//             _ => panic!("{} is not a valid BufferUsage enum value", value),
-//         }
-//     }
-// }
 
 /// Buffer data.
 #[derive(Debug, Clone)]
@@ -619,7 +603,33 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .flush();
+            .flush(None);
+
+        Ok(())
+    }
+
+    pub fn flush_with_callback<F>(&self, cb: F) -> Result<(), Error>
+    where
+        F: FnMut(Result<(), Error>) + 'static,
+    {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::BufferUnregistered)?
+            .flush(Some(
+                Rc::new(RefCell::new(cb)) as Rc<RefCell<dyn FnMut(Result<(), Error>)>>
+            ));
+
+        Ok(())
+    }
+
+    pub async fn flush_async(&self) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::BufferUnregistered)?
+            .flush_async()
+            .await?;
 
         Ok(())
     }
@@ -759,7 +769,7 @@ impl BufferRegistered {
         }
     }
 
-    fn flush(&mut self) {
+    fn flush(&mut self, cb: Option<Rc<RefCell<dyn FnMut(Result<(), Error>)>>>) {
         // if there is an ongoing async upload, skips this flush
         if self.buffer_async_upload.borrow().is_some() {
             return;
@@ -774,11 +784,13 @@ impl BufferRegistered {
             return;
         }
 
-        while let Some(QueueItem {
-            source,
-            dst_byte_offset,
-        }) = queue.pop_front()
-        {
+        let mut result = Ok(());
+        while let Some(item) = queue.pop_front() {
+            let QueueItem {
+                source,
+                dst_byte_offset,
+            } = item;
+
             match source {
                 BufferSourceInner::Sync(mut source) => {
                     let data = source.load();
@@ -786,11 +798,10 @@ impl BufferRegistered {
 
                     // if data size larger than the buffer size, expands the buffer size
                     if data_size > self.buffer_size {
-                        let new_gl_buffer = self
-                            .gl
-                            .create_buffer()
-                            .ok_or(Error::CreateBufferFailure)
-                            .unwrap();
+                        let Some(new_gl_buffer) = self.gl.create_buffer() else {
+                            result = Err(Error::CreateBufferFailure);
+                            break;
+                        };
                         self.gl
                             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
                         self.gl.buffer_data_with_i32(
@@ -801,11 +812,11 @@ impl BufferRegistered {
                         self.copy_to(&new_gl_buffer, None, None, None, Some(false));
 
                         // replaces all existing bound buffers to the new buffer
-                        for bound in self.gl_bounds.iter() {
-                            self.gl.bind_buffer(bound.gl_enum(), Some(&new_gl_buffer));
+                        for target in self.gl_bounds.iter() {
+                            self.gl.bind_buffer(target.gl_enum(), Some(&new_gl_buffer));
                             self.reg_bounds
                                 .borrow_mut()
-                                .insert(*bound, new_gl_buffer.clone());
+                                .insert(*target, new_gl_buffer.clone());
                         }
                         self.gl_buffer = new_gl_buffer;
 
@@ -844,6 +855,7 @@ impl BufferRegistered {
                     });
 
                     let mut me = self.clone();
+                    let callback_clone = cb.clone();
                     let resolve = Closure::once(move |value: JsValue| unsafe {
                         let buffer_data =
                             Box::from_raw(value.as_f64().unwrap() as usize as *mut BufferData);
@@ -857,9 +869,11 @@ impl BufferRegistered {
                             dst_byte_offset,
                         ));
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        me.flush();
+                        me.flush(callback_clone);
                     });
+
                     let mut me = self.clone();
+                    let callback_clone = cb.clone();
                     let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
                         let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
@@ -870,8 +884,9 @@ impl BufferRegistered {
 
                         // continues uploading
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        me.flush();
+                        me.flush(callback_clone);
                     });
+
                     *self.buffer_async_upload.borrow_mut() =
                         Some((promise.clone(), resolve, reject));
                     let promise = promise
@@ -895,6 +910,101 @@ impl BufferRegistered {
                 }
             }
         }
+
+        match (&result, self.buffer_async_upload.borrow().is_some()) {
+            (Ok(_), true) => {
+                // async uploading, skips
+            }
+            (Err(_), true) => unreachable!(),
+            (Ok(_), false) | (Err(_), false) => {
+                if self.buffer_async_upload.borrow().is_none() {
+                    if let Some(cb) = cb {
+                        let mut cb = cb.borrow_mut();
+                        cb(result);
+                    }
+                }
+            }
+        }
+    }
+
+    async fn flush_async(&mut self) -> Result<(), Error> {
+        // if there is an ongoing async upload, skips this flush
+        if let Some((promise, _, _)) = self.buffer_async_upload.borrow().as_ref() {
+            let result = JsFuture::from(promise.clone()).await;
+        }
+
+        let resolve = Closure::once(|value: JsValue| {});
+        let reject = Closure::once(|value: JsValue| {});
+        let mut cb = move |resolve: Function, reject: Function| {};
+        let promise = Promise::new(&mut cb);
+        *self.buffer_async_upload.borrow_mut() = Some((promise, resolve, reject));
+
+        let Some(buffer_queue) = self.buffer_queue.upgrade() else {
+            return Ok(());
+        };
+
+        let mut queue = buffer_queue.borrow_mut();
+        if queue.is_empty() {
+            return Ok(());
+        }
+
+        while let Some(item) = queue.pop_front() {
+            let QueueItem {
+                source,
+                dst_byte_offset,
+            } = item;
+
+            let data = match source {
+                BufferSourceInner::Sync(mut source) => source.load(),
+                BufferSourceInner::Async(mut source) => source
+                    .load()
+                    .await
+                    .map_err(|msg| Error::AsyncLoadBufferSourceFailure(msg))?,
+            };
+            let data_size = data.byte_length();
+
+            // if data size larger than the buffer size, expands the buffer size
+            if data_size > self.buffer_size {
+                let new_gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                self.gl
+                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
+                self.gl.buffer_data_with_i32(
+                    BUFFER_TARGET.gl_enum(),
+                    data_size as i32,
+                    self.buffer_usage.gl_enum(),
+                );
+                self.copy_to(&new_gl_buffer, None, None, None, Some(false));
+
+                // replaces all existing bound buffers to the new buffer
+                for target in self.gl_bounds.iter() {
+                    self.gl.bind_buffer(target.gl_enum(), Some(&new_gl_buffer));
+                    self.reg_bounds
+                        .borrow_mut()
+                        .insert(*target, new_gl_buffer.clone());
+                }
+                self.gl_buffer = new_gl_buffer;
+
+                // updates used memory
+                if let Some(used_memory) = self.reg_used_memory.upgrade() {
+                    let mut used_memory = used_memory.borrow_mut();
+                    *used_memory -= self.buffer_size;
+                    *used_memory += data_size;
+                }
+                self.buffer_size = data_size;
+            } else {
+                self.gl
+                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
+            }
+
+            data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
+
+            self.gl.bind_buffer(
+                BUFFER_TARGET.gl_enum(),
+                self.reg_bounds.borrow().get(&BUFFER_TARGET),
+            );
+        }
+
+        Ok(())
     }
 
     fn read_to_array_buffer(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
