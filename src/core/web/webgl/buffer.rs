@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     collections::VecDeque,
-    f32::consts::LN_10,
     fmt::Debug,
     rc::{Rc, Weak},
 };
@@ -916,29 +915,16 @@ impl BufferRegistered {
                 // async uploading, skips
             }
             (Err(_), true) => unreachable!(),
-            (Ok(_), false) | (Err(_), false) => {
-                if self.buffer_async_upload.borrow().is_none() {
-                    if let Some(cb) = cb {
-                        let mut cb = cb.borrow_mut();
-                        cb(result);
-                    }
+            (_, false) => {
+                if let Some(cb) = cb {
+                    let mut cb = cb.borrow_mut();
+                    cb(result);
                 }
             }
         }
     }
 
     async fn flush_async(&mut self) -> Result<(), Error> {
-        // if there is an ongoing async upload, skips this flush
-        if let Some((promise, _, _)) = self.buffer_async_upload.borrow().as_ref() {
-            let result = JsFuture::from(promise.clone()).await;
-        }
-
-        let resolve = Closure::once(|value: JsValue| {});
-        let reject = Closure::once(|value: JsValue| {});
-        let mut cb = move |resolve: Function, reject: Function| {};
-        let promise = Promise::new(&mut cb);
-        *self.buffer_async_upload.borrow_mut() = Some((promise, resolve, reject));
-
         let Some(buffer_queue) = self.buffer_queue.upgrade() else {
             return Ok(());
         };
