@@ -438,7 +438,7 @@ pub trait BufferSource {
 
 /// A buffer source retrieves data asynchronously
 /// and then uploads it to WebGL context after that.
-#[async_trait]
+#[async_trait(?Send)]
 pub trait BufferSourceAsync {
     /// Returns a [`BufferData`] or an error message.
     async fn load(&mut self) -> Result<BufferData, String>;

@@ -107,12 +107,10 @@ impl FetchLoader<AsArrayBuffer> {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BufferSourceAsync for FetchLoader<AsArrayBuffer> {
     async fn load(&mut self) -> Result<BufferData, String> {
-        let data = FetchLoader::<AsArrayBuffer>::load(&self)
-            .await
-            .map_err(|err| err.to_string())?;
+        let data = Self::load(&self).await.map_err(|err| err.to_string())?;
         Ok(BufferData::ArrayBuffer { data })
     }
 }
