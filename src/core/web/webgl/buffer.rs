@@ -8,13 +8,13 @@ use std::{
 use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use js_sys::{
-    ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Function,
-    Int16Array, Int32Array, Int8Array, Object, Promise, Uint16Array, Uint32Array, Uint8Array,
+    ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
+    Int32Array, Int8Array, Object, Promise, Uint16Array, Uint32Array, Uint8Array,
     Uint8ClampedArray,
 };
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::{future_to_promise, JsFuture};
+use wasm_bindgen_futures::future_to_promise;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use super::{client_wait::ClientWaitAsync, conversion::ToGlEnum, error::Error};
@@ -597,29 +597,12 @@ impl Buffer {
             .ok_or(Error::BufferUnregistered)
     }
 
-    pub fn flush(&self) -> Result<(), Error> {
+    pub fn flush(&self) -> Result<bool, Error> {
         self.registered
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .flush(None);
-
-        Ok(())
-    }
-
-    pub fn flush_with_callback<F>(&self, cb: F) -> Result<(), Error>
-    where
-        F: FnMut(Result<(), Error>) + 'static,
-    {
-        self.registered
-            .borrow_mut()
-            .as_mut()
-            .ok_or(Error::BufferUnregistered)?
-            .flush(Some(
-                Rc::new(RefCell::new(cb)) as Rc<RefCell<dyn FnMut(Result<(), Error>)>>
-            ));
-
-        Ok(())
+            .flush()
     }
 
     pub async fn flush_async(&self) -> Result<(), Error> {
@@ -768,22 +751,21 @@ impl BufferRegistered {
         }
     }
 
-    fn flush(&mut self, cb: Option<Rc<RefCell<dyn FnMut(Result<(), Error>)>>>) {
+    fn flush(&mut self) -> Result<bool, Error> {
         // if there is an ongoing async upload, skips this flush
         if self.buffer_async_upload.borrow().is_some() {
-            return;
+            return Ok(false);
         }
 
         let Some(buffer_queue) = self.buffer_queue.upgrade() else {
-            return;
+            return Ok(true);
         };
 
         let mut queue = buffer_queue.borrow_mut();
         if queue.is_empty() {
-            return;
+            return Ok(true);
         }
 
-        let mut result = Ok(());
         while let Some(item) = queue.pop_front() {
             let QueueItem {
                 source,
@@ -797,10 +779,8 @@ impl BufferRegistered {
 
                     // if data size larger than the buffer size, expands the buffer size
                     if data_size > self.buffer_size {
-                        let Some(new_gl_buffer) = self.gl.create_buffer() else {
-                            result = Err(Error::CreateBufferFailure);
-                            break;
-                        };
+                        let new_gl_buffer =
+                            self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                         self.gl
                             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
                         self.gl.buffer_data_with_i32(
@@ -854,7 +834,6 @@ impl BufferRegistered {
                     });
 
                     let mut me = self.clone();
-                    let callback_clone = cb.clone();
                     let resolve = Closure::once(move |value: JsValue| unsafe {
                         let buffer_data =
                             Box::from_raw(value.as_f64().unwrap() as usize as *mut BufferData);
@@ -868,11 +847,10 @@ impl BufferRegistered {
                             dst_byte_offset,
                         ));
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        me.flush(callback_clone);
+                        let _ = me.flush();
                     });
 
                     let mut me = self.clone();
-                    let callback_clone = cb.clone();
                     let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
                         let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
@@ -883,7 +861,7 @@ impl BufferRegistered {
 
                         // continues uploading
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        me.flush(callback_clone);
+                        let _ = me.flush();
                     });
 
                     *self.buffer_async_upload.borrow_mut() =
@@ -910,18 +888,7 @@ impl BufferRegistered {
             }
         }
 
-        match (&result, self.buffer_async_upload.borrow().is_some()) {
-            (Ok(_), true) => {
-                // async uploading, skips
-            }
-            (Err(_), true) => unreachable!(),
-            (_, false) => {
-                if let Some(cb) = cb {
-                    let mut cb = cb.borrow_mut();
-                    cb(result);
-                }
-            }
-        }
+        Ok(self.buffer_async_upload.borrow().is_none())
     }
 
     async fn flush_async(&mut self) -> Result<(), Error> {
