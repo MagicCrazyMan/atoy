@@ -522,14 +522,14 @@ impl Buffer {
             && !self.flushing()
     }
 
-    pub fn write<S>(&self, source: S)
+    pub fn write_source<S>(&self, source: S)
     where
         S: BufferSource + 'static,
     {
-        self.write_with_offset(source, 0)
+        self.write_source_with_offset(source, 0)
     }
 
-    pub fn write_with_offset<S>(&self, source: S, dst_byte_offset: usize)
+    pub fn write_source_with_offset<S>(&self, source: S, dst_byte_offset: usize)
     where
         S: BufferSource + 'static,
     {
@@ -539,14 +539,14 @@ impl Buffer {
         ));
     }
 
-    pub fn write_remote<S>(&self, source: S)
+    pub fn write_async_source<S>(&self, source: S)
     where
         S: BufferSourceAsync + 'static,
     {
-        self.write_remote_with_offset(source, 0)
+        self.write_async_source_with_offset(source, 0)
     }
 
-    pub fn write_remote_with_offset<S>(&self, source: S, dst_byte_offset: usize)
+    pub fn write_async_source_with_offset<S>(&self, source: S, dst_byte_offset: usize)
     where
         S: BufferSourceAsync + 'static,
     {
