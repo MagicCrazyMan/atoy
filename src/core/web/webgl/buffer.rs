@@ -11,6 +11,7 @@ use js_sys::{
     ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
     Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
 };
+use log::error;
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
@@ -610,9 +611,7 @@ impl Buffer {
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
             .flush_async(continue_when_failed)
-            .await?;
-
-        Ok(())
+            .await
     }
 
     pub fn bind(&self, target: BufferTarget) -> Result<(), Error> {
@@ -788,10 +787,6 @@ impl BufferRegistered {
         };
 
         let mut queue = buffer_queue.borrow_mut();
-        if queue.is_empty() {
-            return Ok(true);
-        }
-
         while let Some(item) = queue.pop_front() {
             let QueueItem {
                 source,
@@ -804,9 +799,10 @@ impl BufferRegistered {
                         Ok(data) => data,
                         Err(msg) => {
                             if continue_when_failed {
+                                error!("failed to load buffer source: {msg}");
                                 continue;
                             } else {
-                                return Err(Error::LoadBufferSourceFailure(msg));
+                                return Err(Error::LoadBufferSourceFailure(Some(msg)));
                             }
                         }
                     };
@@ -863,10 +859,7 @@ impl BufferRegistered {
                     let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
                         let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
-                        log::error!(
-                            "failed to load buffer data from remote source remote: {}",
-                            msg
-                        );
+                        error!("failed to load async buffer source: {}", msg);
 
                         me.buffer_async_upload.borrow_mut().as_mut().take();
                         if continue_when_failed {
@@ -924,9 +917,10 @@ impl BufferRegistered {
                 Ok(data) => data,
                 Err(msg) => {
                     if continue_when_failed {
+                        error!("failed to load buffer source: {msg}");
                         continue;
                     } else {
-                        return Err(Error::LoadBufferSourceFailure(msg));
+                        return Err(Error::LoadBufferSourceFailure(Some(msg)));
                     }
                 }
             };

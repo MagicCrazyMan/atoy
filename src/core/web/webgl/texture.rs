@@ -1,18 +1,23 @@
 use std::{
     cell::RefCell,
+    collections::VecDeque,
     fmt::Debug,
     hash::Hash,
     rc::{Rc, Weak},
 };
 
+use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use js_sys::{
     DataView, Float32Array, Int16Array, Int32Array, Int8Array, Object, Uint16Array, Uint32Array,
     Uint8Array, Uint8ClampedArray,
 };
+use log::error;
 use uuid::Uuid;
+use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen_futures::future_to_promise;
 use web_sys::{
-    HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
+    DomException, HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
     WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
@@ -20,7 +25,7 @@ use super::{
     buffer::BufferTarget,
     conversion::ToGlEnum,
     error::Error,
-    pixel::{PixelDataType, PixelUnpackStorage, PixelFormat},
+    pixel::{PixelDataType, PixelFormat, PixelUnpackStorage},
 };
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
@@ -639,7 +644,7 @@ impl TextureInternalFormat for TextureCompressedFormat {
 }
 
 #[derive(Debug, Clone)]
-pub enum TextureUncompressedData {
+pub enum TextureDataUncompressed {
     PixelBufferObject {
         pixel_format: PixelFormat,
         pixel_data_type: PixelDataType,
@@ -762,66 +767,66 @@ pub enum TextureUncompressedData {
     },
 }
 
-impl TextureUncompressedData {
+impl TextureDataUncompressed {
     fn pixel_unpack_storages(&self) -> Option<&[PixelUnpackStorage]> {
         match self {
-            TextureUncompressedData::PixelBufferObject {
+            TextureDataUncompressed::PixelBufferObject {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Int8Array {
+            TextureDataUncompressed::Int8Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Uint8Array {
+            TextureDataUncompressed::Uint8Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Uint8ClampedArray {
+            TextureDataUncompressed::Uint8ClampedArray {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Int16Array {
+            TextureDataUncompressed::Int16Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Uint16Array {
+            TextureDataUncompressed::Uint16Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Int32Array {
+            TextureDataUncompressed::Int32Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Uint32Array {
+            TextureDataUncompressed::Uint32Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::Float32Array {
+            TextureDataUncompressed::Float32Array {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::DataView {
+            TextureDataUncompressed::DataView {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::HtmlCanvasElement {
+            TextureDataUncompressed::HtmlCanvasElement {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::HtmlImageElement {
+            TextureDataUncompressed::HtmlImageElement {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::HtmlVideoElement {
+            TextureDataUncompressed::HtmlVideoElement {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::ImageData {
+            TextureDataUncompressed::ImageData {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
-            TextureUncompressedData::ImageBitmap {
+            TextureDataUncompressed::ImageBitmap {
                 pixel_unpack_storages,
                 ..
             } => pixel_unpack_storages.as_deref(),
@@ -871,7 +876,7 @@ impl TextureUncompressedData {
         };
 
         let result = match self {
-            TextureUncompressedData::PixelBufferObject {
+            TextureDataUncompressed::PixelBufferObject {
                 buffer,
                 pbo_offset,
                 pixel_format,
@@ -916,18 +921,18 @@ impl TextureUncompressedData {
 
                 result
             }
-            TextureUncompressedData::Int8Array { .. }
-            | TextureUncompressedData::Uint8Array { .. }
-            | TextureUncompressedData::Uint8ClampedArray { .. }
-            | TextureUncompressedData::Int16Array { .. }
-            | TextureUncompressedData::Uint16Array { .. }
-            | TextureUncompressedData::Int32Array { .. }
-            | TextureUncompressedData::Uint32Array { .. }
-            | TextureUncompressedData::Float32Array { .. }
-            | TextureUncompressedData::DataView { .. } => {
+            TextureDataUncompressed::Int8Array { .. }
+            | TextureDataUncompressed::Uint8Array { .. }
+            | TextureDataUncompressed::Uint8ClampedArray { .. }
+            | TextureDataUncompressed::Int16Array { .. }
+            | TextureDataUncompressed::Uint16Array { .. }
+            | TextureDataUncompressed::Int32Array { .. }
+            | TextureDataUncompressed::Uint32Array { .. }
+            | TextureDataUncompressed::Float32Array { .. }
+            | TextureDataUncompressed::DataView { .. } => {
                 let (pixel_data_type, pixel_format, data, width, height, src_element_offset) =
                     match self {
-                        TextureUncompressedData::Int8Array {
+                        TextureDataUncompressed::Int8Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -943,7 +948,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Uint8Array {
+                        TextureDataUncompressed::Uint8Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -959,7 +964,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Uint8ClampedArray {
+                        TextureDataUncompressed::Uint8ClampedArray {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -975,7 +980,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Int16Array {
+                        TextureDataUncompressed::Int16Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -991,7 +996,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Uint16Array {
+                        TextureDataUncompressed::Uint16Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -1007,7 +1012,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Int32Array {
+                        TextureDataUncompressed::Int32Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -1023,7 +1028,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Uint32Array {
+                        TextureDataUncompressed::Uint32Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -1039,7 +1044,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::Float32Array {
+                        TextureDataUncompressed::Float32Array {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -1055,7 +1060,7 @@ impl TextureUncompressedData {
                             height,
                             src_element_offset,
                         ),
-                        TextureUncompressedData::DataView {
+                        TextureDataUncompressed::DataView {
                             pixel_data_type,
                             pixel_format,
                             data,
@@ -1105,7 +1110,7 @@ impl TextureUncompressedData {
                         )
                 }
             }
-            TextureUncompressedData::HtmlCanvasElement {
+            TextureDataUncompressed::HtmlCanvasElement {
                 pixel_data_type,
                 pixel_format,
                 data,
@@ -1142,7 +1147,7 @@ impl TextureUncompressedData {
                     )
                 }
             }
-            TextureUncompressedData::HtmlImageElement {
+            TextureDataUncompressed::HtmlImageElement {
                 pixel_data_type,
                 pixel_format,
                 data,
@@ -1179,7 +1184,7 @@ impl TextureUncompressedData {
                     )
                 }
             }
-            TextureUncompressedData::HtmlVideoElement {
+            TextureDataUncompressed::HtmlVideoElement {
                 pixel_data_type,
                 pixel_format,
                 data,
@@ -1216,7 +1221,7 @@ impl TextureUncompressedData {
                     )
                 }
             }
-            TextureUncompressedData::ImageData {
+            TextureDataUncompressed::ImageData {
                 pixel_data_type,
                 pixel_format,
                 data,
@@ -1253,7 +1258,7 @@ impl TextureUncompressedData {
                     )
                 }
             }
-            TextureUncompressedData::ImageBitmap {
+            TextureDataUncompressed::ImageBitmap {
                 pixel_data_type,
                 pixel_format,
                 data,
@@ -1292,12 +1297,20 @@ impl TextureUncompressedData {
             }
         };
 
-        result.or(Err(Error::UploadTextureDataFailure))
+        result.map_err(|err| {
+            Error::LoadTextureSourceFailure(Some(err.dyn_into::<DomException>().unwrap().message()))
+        })
     }
 }
 
-#[derive(Debug)]
-pub enum TextureCompressedData {
+impl TextureSourceUncompressed for TextureDataUncompressed {
+    fn load(&mut self) -> Result<TextureDataUncompressed, String> {
+        Ok(self.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TextureDataCompressed {
     PixelBufferObject {
         width: usize,
         height: usize,
@@ -1370,7 +1383,7 @@ pub enum TextureCompressedData {
     },
 }
 
-impl TextureCompressedData {
+impl TextureDataCompressed {
     fn upload(
         &self,
         gl: &WebGl2RenderingContext,
@@ -1415,7 +1428,7 @@ impl TextureCompressedData {
         };
 
         match self {
-            TextureCompressedData::PixelBufferObject {
+            TextureDataCompressed::PixelBufferObject {
                 width,
                 height,
                 buffer,
@@ -1456,18 +1469,18 @@ impl TextureCompressedData {
                     buffer_bounds.borrow().get(&BufferTarget::PixelUnpackBuffer),
                 );
             }
-            TextureCompressedData::Int8Array { .. }
-            | TextureCompressedData::Uint8Array { .. }
-            | TextureCompressedData::Uint8ClampedArray { .. }
-            | TextureCompressedData::Int16Array { .. }
-            | TextureCompressedData::Uint16Array { .. }
-            | TextureCompressedData::Int32Array { .. }
-            | TextureCompressedData::Uint32Array { .. }
-            | TextureCompressedData::Float32Array { .. }
-            | TextureCompressedData::DataView { .. } => {
+            TextureDataCompressed::Int8Array { .. }
+            | TextureDataCompressed::Uint8Array { .. }
+            | TextureDataCompressed::Uint8ClampedArray { .. }
+            | TextureDataCompressed::Int16Array { .. }
+            | TextureDataCompressed::Uint16Array { .. }
+            | TextureDataCompressed::Int32Array { .. }
+            | TextureDataCompressed::Uint32Array { .. }
+            | TextureDataCompressed::Float32Array { .. }
+            | TextureDataCompressed::DataView { .. } => {
                 let (width, height, data, src_element_offset, src_element_length_override) =
                     match self {
-                        TextureCompressedData::Int8Array {
+                        TextureDataCompressed::Int8Array {
                             width,
                             height,
                             data,
@@ -1480,7 +1493,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Uint8Array {
+                        TextureDataCompressed::Uint8Array {
                             width,
                             height,
                             data,
@@ -1493,7 +1506,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Uint8ClampedArray {
+                        TextureDataCompressed::Uint8ClampedArray {
                             width,
                             height,
                             data,
@@ -1506,7 +1519,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Int16Array {
+                        TextureDataCompressed::Int16Array {
                             width,
                             height,
                             data,
@@ -1519,7 +1532,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Uint16Array {
+                        TextureDataCompressed::Uint16Array {
                             width,
                             height,
                             data,
@@ -1532,7 +1545,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Int32Array {
+                        TextureDataCompressed::Int32Array {
                             width,
                             height,
                             data,
@@ -1545,7 +1558,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Uint32Array {
+                        TextureDataCompressed::Uint32Array {
                             width,
                             height,
                             data,
@@ -1558,7 +1571,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::Float32Array {
+                        TextureDataCompressed::Float32Array {
                             width,
                             height,
                             data,
@@ -1571,7 +1584,7 @@ impl TextureCompressedData {
                             src_element_offset,
                             src_element_length_override,
                         ),
-                        TextureCompressedData::DataView {
+                        TextureDataCompressed::DataView {
                             width,
                             height,
                             data,
@@ -1619,6 +1632,82 @@ impl TextureCompressedData {
             }
         }
     }
+}
+
+impl TextureSourceCompressed for TextureDataCompressed {
+    fn load(&mut self) -> Result<TextureDataCompressed, String> {
+        Ok(self.clone())
+    }
+}
+
+pub trait TextureSourceUncompressed {
+    fn load(&mut self) -> Result<TextureDataUncompressed, String>;
+}
+
+#[async_trait(?Send)]
+pub trait TextureSourceUncompressedAsync {
+    async fn load(&mut self) -> Result<TextureDataUncompressed, String>;
+}
+
+pub trait TextureSourceCompressed {
+    fn load(&mut self) -> Result<TextureDataCompressed, String>;
+}
+
+#[async_trait(?Send)]
+pub trait TextureSourceCompressedAsync {
+    async fn load(&mut self) -> Result<TextureDataCompressed, String>;
+}
+
+enum TextureSourceUncompressedInner {
+    Sync(Box<dyn TextureSourceUncompressed>),
+    Async(Box<dyn TextureSourceUncompressedAsync>),
+}
+
+impl Debug for TextureSourceUncompressedInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sync(_) => f.debug_tuple("Sync").finish(),
+            Self::Async(_) => f.debug_tuple("Async").finish(),
+        }
+    }
+}
+
+enum TextureSourceCompressedInner {
+    Sync(Box<dyn TextureSourceCompressed>),
+    Async(Box<dyn TextureSourceCompressedAsync>),
+}
+
+impl Debug for TextureSourceCompressedInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sync(_) => f.debug_tuple("Sync").finish(),
+            Self::Async(_) => f.debug_tuple("Async").finish(),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum QueueItem {
+    Uncompressed {
+        source: TextureSourceUncompressedInner,
+        face: TextureCubeMapFace,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+        generate_mipmaps: bool,
+    },
+    Compressed {
+        source: TextureSourceCompressedInner,
+        face: TextureCubeMapFace,
+        format: TextureCompressedFormat,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    },
 }
 
 pub trait TextureLayout2D {
@@ -1743,30 +1832,6 @@ impl TextureLayout2D for TextureCubeMap {
     }
 }
 
-#[derive(Debug)]
-enum QueueItem {
-    Uncompressed {
-        data: TextureUncompressedData,
-        face: TextureCubeMapFace,
-        level: usize,
-        depth: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-        generate_mipmaps: bool,
-    },
-    Compressed {
-        data: TextureCompressedData,
-        face: TextureCubeMapFace,
-        format: TextureCompressedFormat,
-        level: usize,
-        depth: usize,
-        x_offset: usize,
-        y_offset: usize,
-        z_offset: usize,
-    },
-}
-
 #[derive(Debug, Clone)]
 pub struct Texture<Layout, InternalFormat> {
     id: Uuid,
@@ -1775,7 +1840,7 @@ pub struct Texture<Layout, InternalFormat> {
 
     sampler_params: Rc<RefCell<Vec<SamplerParameter>>>,
     texture_params: Rc<RefCell<Vec<TextureParameter>>>,
-    queue: Rc<RefCell<Vec<QueueItem>>>,
+    queue: Rc<RefCell<VecDeque<QueueItem>>>,
 
     registered: Rc<RefCell<Option<TextureRegistered>>>,
 }
@@ -1789,7 +1854,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
 
             sampler_params: Rc::new(RefCell::new(Vec::new())),
             texture_params: Rc::new(RefCell::new(Vec::new())),
-            queue: Rc::new(RefCell::new(Vec::new())),
+            queue: Rc::new(RefCell::new(VecDeque::new())),
 
             registered: Rc::new(RefCell::new(None)),
         }
@@ -1805,6 +1870,38 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
 
     pub fn internal_format(&self) -> &InternalFormat {
         &self.internal_format
+    }
+
+    pub fn flushing(&self) -> bool {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map_or(false, |registered| {
+                registered.texture_async_upload.borrow().is_some()
+            })
+    }
+
+    pub fn ready(&self) -> bool {
+        self.registered.borrow().as_ref().is_some()
+            && self.queue.borrow().is_empty()
+            && !self.flushing()
+    }
+
+    pub fn flush(&self, continue_when_failed: bool) -> Result<bool, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::TextureUnregistered)?
+            .flush(continue_when_failed)
+    }
+
+    pub async fn flush_async(&self, continue_when_failed: bool) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::TextureUnregistered)?
+            .flush_async(continue_when_failed)
+            .await
     }
 
     pub fn bind(&self, unit: TextureUnit) -> Result<(), Error> {
@@ -1831,14 +1928,6 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .ok_or(Error::TextureUnregistered)?
             .unbind_all();
         Ok(())
-    }
-
-    pub fn upload(&self) -> Result<(), Error> {
-        self.registered
-            .borrow_mut()
-            .as_mut()
-            .ok_or(Error::TextureUnregistered)?
-            .upload()
     }
 }
 
@@ -1937,20 +2026,54 @@ where
 }
 
 impl Texture<Texture2D, TextureUncompressedInternalFormat> {
-    pub fn write(&self, data: TextureUncompressedData, level: usize, generate_mipmaps: bool) {
-        self.write_with_offset(data, level, 0, 0, generate_mipmaps)
+    pub fn write_source<S>(&self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, 0, 0, generate_mipmaps)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureUncompressedData,
+        source: S,
         level: usize,
         x_offset: usize,
         y_offset: usize,
         generate_mipmaps: bool,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Uncompressed {
-            data,
+    ) where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            level,
+            depth: 0,
+            x_offset,
+            y_offset,
+            z_offset: 0,
+            generate_mipmaps,
+        })
+    }
+
+    pub fn write_async_source<S>(&self, source: S, level: usize, generate_mipmaps: bool)
+    where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, 0, 0, generate_mipmaps)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             level,
             depth: 0,
@@ -1963,19 +2086,52 @@ impl Texture<Texture2D, TextureUncompressedInternalFormat> {
 }
 
 impl Texture<Texture2D, TextureCompressedFormat> {
-    pub fn write(&self, data: TextureCompressedData, level: usize) {
-        self.write_with_offset(data, level, 0, 0)
+    pub fn write_source<S>(&self, source: S, level: usize)
+    where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, 0, 0)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureCompressedData,
+        source: S,
         level: usize,
         x_offset: usize,
         y_offset: usize,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Compressed {
-            data,
+    ) where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            format: self.internal_format,
+            level,
+            depth: 0,
+            x_offset,
+            y_offset,
+            z_offset: 0,
+        })
+    }
+
+    pub fn write_async_source<S>(&self, source: S, level: usize)
+    where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, 0, 0)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             format: self.internal_format,
             level,
@@ -1988,27 +2144,66 @@ impl Texture<Texture2D, TextureCompressedFormat> {
 }
 
 impl Texture<TextureCubeMap, TextureUncompressedInternalFormat> {
-    pub fn write(
+    pub fn write_source<S>(
         &self,
-        data: TextureUncompressedData,
+        source: S,
         face: TextureCubeMapFace,
         level: usize,
         generate_mipmaps: bool,
-    ) {
-        self.write_with_offset(data, face, level, 0, 0, generate_mipmaps)
+    ) where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.write_source_with_offset(source, face, level, 0, 0, generate_mipmaps)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureUncompressedData,
+        source: S,
         face: TextureCubeMapFace,
         level: usize,
         x_offset: usize,
         y_offset: usize,
         generate_mipmaps: bool,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Uncompressed {
-            data,
+    ) where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Sync(Box::new(source)),
+            face,
+            level,
+            depth: 0,
+            x_offset,
+            y_offset,
+            z_offset: 0,
+            generate_mipmaps,
+        })
+    }
+
+    pub fn write_async_source<S>(
+        &self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, face, level, 0, 0, generate_mipmaps)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Async(Box::new(source)),
             face,
             level,
             depth: 0,
@@ -2021,20 +2216,54 @@ impl Texture<TextureCubeMap, TextureUncompressedInternalFormat> {
 }
 
 impl Texture<TextureCubeMap, TextureCompressedFormat> {
-    pub fn write(&self, data: TextureCompressedData, face: TextureCubeMapFace, level: usize) {
-        self.write_with_offset(data, face, level, 0, 0)
+    pub fn write_source<S>(&self, source: S, face: TextureCubeMapFace, level: usize)
+    where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.write_source_with_offset(source, face, level, 0, 0)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureCompressedData,
+        source: S,
         face: TextureCubeMapFace,
         level: usize,
         x_offset: usize,
         y_offset: usize,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Compressed {
-            data,
+    ) where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Sync(Box::new(source)),
+            face,
+            format: self.internal_format,
+            level,
+            depth: 0,
+            x_offset,
+            y_offset,
+            z_offset: 0,
+        })
+    }
+
+    pub fn write_async_source<S>(&self, source: S, face: TextureCubeMapFace, level: usize)
+    where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, face, level, 0, 0)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        face: TextureCubeMapFace,
+        level: usize,
+        x_offset: usize,
+        y_offset: usize,
+    ) where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Async(Box::new(source)),
             face,
             format: self.internal_format,
             level,
@@ -2047,28 +2276,63 @@ impl Texture<TextureCubeMap, TextureCompressedFormat> {
 }
 
 impl Texture<Texture2DArray, TextureUncompressedInternalFormat> {
-    pub fn write(
-        &self,
-        data: TextureUncompressedData,
-        level: usize,
-        depth: usize,
-        generate_mipmaps: bool,
-    ) {
-        self.write_with_offset(data, level, depth, 0, 0, 0, generate_mipmaps)
+    pub fn write_source<S>(&self, source: S, level: usize, depth: usize, generate_mipmaps: bool)
+    where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, depth, 0, 0, 0, generate_mipmaps)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureUncompressedData,
+        source: S,
         level: usize,
         depth: usize,
         x_offset: usize,
         y_offset: usize,
         z_offset: usize,
         generate_mipmaps: bool,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Uncompressed {
-            data,
+    ) where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            level,
+            depth,
+            x_offset,
+            y_offset,
+            z_offset,
+            generate_mipmaps,
+        })
+    }
+
+    pub fn write_async_source<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, depth, 0, 0, 0, generate_mipmaps)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             level,
             depth,
@@ -2081,21 +2345,56 @@ impl Texture<Texture2DArray, TextureUncompressedInternalFormat> {
 }
 
 impl Texture<Texture2DArray, TextureCompressedFormat> {
-    pub fn write(&self, data: TextureCompressedData, level: usize, depth: usize) {
-        self.write_with_offset(data, level, depth, 0, 0, 0)
+    pub fn write_source<S>(&self, source: S, level: usize, depth: usize)
+    where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, depth, 0, 0, 0)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureCompressedData,
+        source: S,
         level: usize,
         depth: usize,
         x_offset: usize,
         y_offset: usize,
         z_offset: usize,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Compressed {
-            data,
+    ) where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            format: self.internal_format,
+            level,
+            depth,
+            x_offset,
+            y_offset,
+            z_offset,
+        })
+    }
+
+    pub fn write_async_source<S>(&self, source: S, level: usize, depth: usize)
+    where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, depth, 0, 0, 0)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             format: self.internal_format,
             level,
@@ -2108,28 +2407,63 @@ impl Texture<Texture2DArray, TextureCompressedFormat> {
 }
 
 impl Texture<Texture3D, TextureUncompressedInternalFormat> {
-    pub fn write(
-        &self,
-        data: TextureUncompressedData,
-        level: usize,
-        depth: usize,
-        generate_mipmaps: bool,
-    ) {
-        self.write_with_offset(data, level, depth, 0, 0, 0, generate_mipmaps)
+    pub fn write_source<S>(&self, source: S, level: usize, depth: usize, generate_mipmaps: bool)
+    where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, depth, 0, 0, 0, generate_mipmaps)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureUncompressedData,
+        source: S,
         level: usize,
         depth: usize,
         x_offset: usize,
         y_offset: usize,
         z_offset: usize,
         generate_mipmaps: bool,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Uncompressed {
-            data,
+    ) where
+        S: TextureSourceUncompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            level,
+            depth,
+            x_offset,
+            y_offset,
+            z_offset,
+            generate_mipmaps,
+        })
+    }
+
+    pub fn write_async_source<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, depth, 0, 0, 0, generate_mipmaps)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+        generate_mipmaps: bool,
+    ) where
+        S: TextureSourceUncompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Uncompressed {
+            source: TextureSourceUncompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             level,
             depth,
@@ -2142,21 +2476,56 @@ impl Texture<Texture3D, TextureUncompressedInternalFormat> {
 }
 
 impl Texture<Texture3D, TextureCompressedFormat> {
-    pub fn write(&self, data: TextureCompressedData, level: usize, depth: usize) {
-        self.write_with_offset(data, level, depth, 0, 0, 0)
+    pub fn write_source<S>(&self, source: S, level: usize, depth: usize)
+    where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.write_source_with_offset(source, level, depth, 0, 0, 0)
     }
 
-    pub fn write_with_offset(
+    pub fn write_source_with_offset<S>(
         &self,
-        data: TextureCompressedData,
+        source: S,
         level: usize,
         depth: usize,
         x_offset: usize,
         y_offset: usize,
         z_offset: usize,
-    ) {
-        self.queue.borrow_mut().push(QueueItem::Compressed {
-            data,
+    ) where
+        S: TextureSourceCompressed + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Sync(Box::new(source)),
+            face: TextureCubeMapFace::NegativeX,
+            format: self.internal_format,
+            level,
+            depth,
+            x_offset,
+            y_offset,
+            z_offset,
+        })
+    }
+
+    pub fn write_async_source<S>(&self, source: S, level: usize, depth: usize)
+    where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.write_async_source_with_offset(source, level, depth, 0, 0, 0)
+    }
+
+    pub fn write_async_source_with_offset<S>(
+        &self,
+        source: S,
+        level: usize,
+        depth: usize,
+        x_offset: usize,
+        y_offset: usize,
+        z_offset: usize,
+    ) where
+        S: TextureSourceCompressedAsync + 'static,
+    {
+        self.queue.borrow_mut().push_back(QueueItem::Compressed {
+            source: TextureSourceCompressedInner::Async(Box::new(source)),
             face: TextureCubeMapFace::NegativeX,
             format: self.internal_format,
             level,
@@ -2168,7 +2537,7 @@ impl Texture<Texture3D, TextureCompressedFormat> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TextureRegistered {
     gl: WebGl2RenderingContext,
     gl_texture: WebGlTexture,
@@ -2179,14 +2548,16 @@ struct TextureRegistered {
     reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     reg_used_memory: Weak<RefCell<usize>>,
-    
+
     reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
 
     texture_target: TextureTarget,
     texture_memory: usize,
     texture_params: Rc<RefCell<Vec<TextureParameter>>>,
     sampler_params: Rc<RefCell<Vec<SamplerParameter>>>,
-    texture_queue: Weak<RefCell<Vec<QueueItem>>>,
+    texture_queue: Weak<RefCell<VecDeque<QueueItem>>>,
+    texture_async_upload:
+        Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
 }
 
 impl Drop for TextureRegistered {
@@ -2208,14 +2579,11 @@ impl TextureRegistered {
             .get(&(unit, self.texture_target))
         {
             if bound == &self.gl_texture {
-                self.upload()?;
                 return Ok(());
             } else {
                 return Err(Error::TextureTargetOccupied(unit, self.texture_target));
             }
         }
-
-        self.upload()?;
 
         self.gl.active_texture(unit.gl_enum());
         self.gl
@@ -2257,10 +2625,11 @@ impl TextureRegistered {
             .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
     }
 
-    fn upload(&self) -> Result<(), Error> {
-        let Some(texture_queue) = self.texture_queue.upgrade() else {
-            return Err(Error::TextureUnexpectedDropped);
-        };
+    fn flush(&self, continue_when_failed: bool) -> Result<bool, Error> {
+        // if there is an ongoing async upload, skips this flush
+        if self.texture_async_upload.borrow().is_some() {
+            return Ok(false);
+        }
 
         // update sampler parameters
         for sampler_param in self.sampler_params.borrow().iter() {
@@ -2275,11 +2644,22 @@ impl TextureRegistered {
             texture_param.texture_parameter(&self.gl, self.texture_target);
         }
 
+        let Some(texture_queue) = self.texture_queue.upgrade() else {
+            self.gl.bind_texture(
+                self.texture_target.gl_enum(),
+                self.reg_texture_bounds
+                    .borrow()
+                    .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
+            );
+            return Ok(true);
+        };
+
         let mut initial_pixel_unpack_storages = HashSet::new();
-        for item in texture_queue.borrow_mut().drain(..) {
+        let mut queue = texture_queue.borrow_mut();
+        while let Some(item) = queue.pop_front() {
             match item {
                 QueueItem::Uncompressed {
-                    data,
+                    source,
                     face,
                     level,
                     depth,
@@ -2288,6 +2668,93 @@ impl TextureRegistered {
                     z_offset,
                     generate_mipmaps,
                 } => {
+                    let data = match source {
+                        TextureSourceUncompressedInner::Sync(mut source) => source.load(),
+                        TextureSourceUncompressedInner::Async(mut source) => {
+                            let promise = future_to_promise(async move {
+                                let data = source.load().await;
+                                match data {
+                                    Ok(data) => {
+                                        let data_ptr =
+                                            Box::leak(Box::new(data)) as *const _ as usize;
+                                        Ok(JsValue::from(data_ptr))
+                                    }
+                                    Err(msg) => {
+                                        let msg_ptr = Box::leak(Box::new(msg)) as *const _ as usize;
+                                        Err(JsValue::from(msg_ptr))
+                                    }
+                                }
+                            });
+
+                            let me = self.clone();
+                            let resolve = Closure::once(move |value: JsValue| unsafe {
+                                let texture_data = Box::from_raw(value.as_f64().unwrap() as usize
+                                    as *mut TextureDataUncompressed);
+                                let Some(queue) = me.texture_queue.upgrade() else {
+                                    return;
+                                };
+
+                                // adds buffer data as the first value to the queue and then continues uploading
+                                queue.borrow_mut().push_front(QueueItem::Uncompressed {
+                                    source: TextureSourceUncompressedInner::Sync(texture_data),
+                                    face,
+                                    level,
+                                    depth,
+                                    x_offset,
+                                    y_offset,
+                                    z_offset,
+                                    generate_mipmaps,
+                                });
+                                me.texture_async_upload.borrow_mut().as_mut().take();
+                                let _ = me.flush(continue_when_failed);
+                            });
+
+                            let me = self.clone();
+                            let reject = Closure::once(move |value: JsValue| unsafe {
+                                // if reject, prints error message, sends error message to channel and skips this source
+                                let msg =
+                                    Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
+                                error!("failed to load async buffer source: {}", msg);
+
+                                me.texture_async_upload.borrow_mut().as_mut().take();
+                                if continue_when_failed {
+                                    // continues uploading
+                                    let _ = me.flush(continue_when_failed);
+                                }
+                            });
+
+                            *self.texture_async_upload.borrow_mut() = Some((resolve, reject));
+                            let _ = promise
+                                .then(
+                                    self.texture_async_upload
+                                        .borrow()
+                                        .as_ref()
+                                        .map(|(resolve, _)| resolve)
+                                        .unwrap(),
+                                )
+                                .catch(
+                                    self.texture_async_upload
+                                        .borrow()
+                                        .as_ref()
+                                        .map(|(_, reject)| reject)
+                                        .unwrap(),
+                                );
+
+                            break;
+                        }
+                    };
+                    let data = match data {
+                        Ok(data) => data,
+                        Err(msg) => {
+                            if continue_when_failed {
+                                error!("failed to load texture source: {msg}");
+                                continue;
+                            } else {
+                                return Err(Error::LoadTextureSourceFailure(Some(msg)));
+                            }
+                        }
+                    };
+
                     if let Some(pixel_unpack_storages) = data.pixel_unpack_storages() {
                         for pixel_unpack_storage in pixel_unpack_storages {
                             let default = pixel_unpack_storage.pixel_store(&self.gl);
@@ -2316,7 +2783,7 @@ impl TextureRegistered {
                     }
                 }
                 QueueItem::Compressed {
-                    data,
+                    source,
                     face,
                     format,
                     level,
@@ -2325,6 +2792,155 @@ impl TextureRegistered {
                     y_offset,
                     z_offset,
                 } => {
+                    let data = match source {
+                        TextureSourceCompressedInner::Sync(mut source) => source.load(),
+                        TextureSourceCompressedInner::Async(mut source) => todo!(),
+                    };
+                    let data = match data {
+                        Ok(data) => data,
+                        Err(msg) => {
+                            if continue_when_failed {
+                                error!("failed to load texture source: {msg}");
+                                continue;
+                            } else {
+                                return Err(Error::LoadTextureSourceFailure(Some(msg)));
+                            }
+                        }
+                    };
+
+                    data.upload(
+                        &self.gl,
+                        &self.reg_buffer_bounds,
+                        self.texture_target,
+                        face,
+                        format,
+                        level,
+                        depth,
+                        x_offset,
+                        y_offset,
+                        z_offset,
+                    );
+                }
+            }
+        }
+
+        self.gl.bind_texture(
+            self.texture_target.gl_enum(),
+            self.reg_texture_bounds
+                .borrow()
+                .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
+        );
+
+        Ok(self.texture_async_upload.borrow().is_none())
+    }
+
+    async fn flush_async(&self, continue_when_failed: bool) -> Result<(), Error> {
+        // update sampler parameters
+        for sampler_param in self.sampler_params.borrow().iter() {
+            sampler_param.sampler_parameter(&self.gl, &self.gl_sampler);
+        }
+
+        self.gl
+            .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
+
+        // update texture parameters
+        for texture_param in self.texture_params.borrow().iter() {
+            texture_param.texture_parameter(&self.gl, self.texture_target);
+        }
+
+        let Some(texture_queue) = self.texture_queue.upgrade() else {
+            self.gl.bind_texture(
+                self.texture_target.gl_enum(),
+                self.reg_texture_bounds
+                    .borrow()
+                    .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
+            );
+            return Ok(());
+        };
+
+        let mut initial_pixel_unpack_storages = HashSet::new();
+        let mut queue = texture_queue.borrow_mut();
+        while let Some(item) = queue.pop_front() {
+            match item {
+                QueueItem::Uncompressed {
+                    source,
+                    face,
+                    level,
+                    depth,
+                    x_offset,
+                    y_offset,
+                    z_offset,
+                    generate_mipmaps,
+                } => {
+                    let data = match source {
+                        TextureSourceUncompressedInner::Sync(mut source) => source.load(),
+                        TextureSourceUncompressedInner::Async(mut source) => source.load().await,
+                    };
+                    let data = match data {
+                        Ok(data) => data,
+                        Err(msg) => {
+                            if continue_when_failed {
+                                error!("failed to load texture source: {msg}");
+                                continue;
+                            } else {
+                                return Err(Error::LoadTextureSourceFailure(Some(msg)));
+                            }
+                        }
+                    };
+
+                    if let Some(pixel_unpack_storages) = data.pixel_unpack_storages() {
+                        for pixel_unpack_storage in pixel_unpack_storages {
+                            let default = pixel_unpack_storage.pixel_store(&self.gl);
+                            initial_pixel_unpack_storages.insert(default);
+                        }
+                    }
+
+                    data.upload(
+                        &self.gl,
+                        &self.reg_buffer_bounds,
+                        self.texture_target,
+                        face,
+                        level,
+                        depth,
+                        x_offset,
+                        y_offset,
+                        z_offset,
+                    )?;
+
+                    if generate_mipmaps {
+                        self.gl.generate_mipmap(self.texture_target.gl_enum());
+                    }
+
+                    for pixel_unpack_storage in initial_pixel_unpack_storages.drain() {
+                        pixel_unpack_storage.pixel_store(&self.gl);
+                    }
+                }
+                QueueItem::Compressed {
+                    source,
+                    face,
+                    format,
+                    level,
+                    depth,
+                    x_offset,
+                    y_offset,
+                    z_offset,
+                } => {
+                    let data = match source {
+                        TextureSourceCompressedInner::Sync(mut source) => source.load(),
+                        TextureSourceCompressedInner::Async(mut source) => source.load().await,
+                    };
+                    let data = match data {
+                        Ok(data) => data,
+                        Err(msg) => {
+                            if continue_when_failed {
+                                error!("failed to load texture source: {msg}");
+                                continue;
+                            } else {
+                                return Err(Error::LoadTextureSourceFailure(Some(msg)));
+                            }
+                        }
+                    };
+
                     data.upload(
                         &self.gl,
                         &self.reg_buffer_bounds,
@@ -2411,7 +3027,6 @@ macro_rules! register_functions {
                         if &registered.reg_id != &self.id {
                             return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
                         } else {
-                            registered.upload()?;
                             return Ok(());
                         }
                     }
@@ -2427,6 +3042,7 @@ macro_rules! register_functions {
 
                     self.gl
                         .bind_texture($target.gl_enum(), Some(&gl_texture));
+
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
                     *self.used_memory.borrow_mut() += texture_memory;
@@ -2448,8 +3064,11 @@ macro_rules! register_functions {
                         texture_params: Rc::clone(&texture.texture_params),
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
+                        texture_async_upload: Rc::new(RefCell::new(None)),
                     };
-                    registered.upload()?; // texture unbind after uploading
+
+                    self.gl
+                        .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
 
                     *texture.registered.borrow_mut() = Some(registered);
 
@@ -2464,7 +3083,6 @@ macro_rules! register_functions {
                         if registered.reg_id != self.id {
                             return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
                         } else {
-                            registered.upload()?;
                             return Ok(());
                         }
                     }
@@ -2480,6 +3098,7 @@ macro_rules! register_functions {
 
                     self.gl
                         .bind_texture($target.gl_enum(), Some(&gl_texture));
+
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
                     *self.used_memory.borrow_mut() += texture_memory;
@@ -2501,8 +3120,11 @@ macro_rules! register_functions {
                         texture_params: Rc::clone(&texture.texture_params),
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
+                        texture_async_upload: Rc::new(RefCell::new(None)),
                     };
-                    registered.upload()?; // texture unbind after uploading
+
+                    self.gl
+                        .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
 
                     *texture.registered.borrow_mut() = Some(registered);
 
