@@ -647,13 +647,17 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn copy_to(
+    pub fn copy_to(&self, to: &Buffer) -> Result<(), Error> {
+        self.copy_to_with_params(to, None, None, None, None)
+    }
+
+    pub fn copy_to_with_params(
         &self,
         to: &Buffer,
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
-        reallocate: Option<BufferUsage>,
+        reallocate: Option<bool>,
     ) -> Result<(), Error> {
         let from = self.registered.borrow();
         let to = to.registered.borrow();
@@ -662,8 +666,15 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.to_undropped()
-            .copy_to(&to.0.gl_buffer, read_offset, write_offset, size, reallocate);
+        from.to_undropped().copy_to(
+            &to.0.gl_buffer,
+            read_offset,
+            write_offset,
+            size,
+            reallocate
+                .unwrap_or(from.0.buffer_size > to.0.buffer_size)
+                .then(|| to.0.buffer_usage),
+        );
 
         Ok(())
     }
