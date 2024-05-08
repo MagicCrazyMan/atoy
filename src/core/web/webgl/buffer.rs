@@ -569,6 +569,7 @@ impl Buffer {
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .read_to_array_buffer(src_byte_offset)
     }
 
@@ -585,6 +586,7 @@ impl Buffer {
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .read_to_array_buffer_async(src_byte_offset, max_retries)
             .await
     }
@@ -602,6 +604,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .flush(continue_when_failed)
     }
 
@@ -610,6 +613,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .flush_async(continue_when_failed)
             .await
     }
@@ -619,6 +623,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .bind(target)
     }
 
@@ -627,6 +632,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .unbind(target);
         Ok(())
     }
@@ -636,6 +642,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
+            .to_undropped()
             .unbind_all();
         Ok(())
     }
@@ -655,7 +662,8 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate);
+        from.to_undropped()
+            .copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate);
 
         Ok(())
     }
@@ -690,7 +698,7 @@ impl Drop for BufferRegistered {
                 return;
             };
 
-            if let Ok(data) = self.read_to_array_buffer(0) {
+            if let Ok(data) = self.to_undropped().read_to_array_buffer(0) {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue.borrow_mut().insert(
                     0,
@@ -710,6 +718,43 @@ impl Drop for BufferRegistered {
 }
 
 impl BufferRegistered {
+    fn to_undropped(&self) -> UndroppedBufferRegistered {
+        UndroppedBufferRegistered {
+            gl: self.gl.clone(),
+            gl_buffer: self.gl_buffer.clone(),
+            gl_bounds: self.gl_bounds.clone(),
+            reg_id: self.reg_id.clone(),
+            reg_bounds: self.reg_bounds.clone(),
+            reg_used_memory: self.reg_used_memory.clone(),
+            buffer_size: self.buffer_size.clone(),
+            buffer_usage: self.buffer_usage.clone(),
+            buffer_queue: self.buffer_queue.clone(),
+            buffer_async_upload: self.buffer_async_upload.clone(),
+            restore_when_drop: self.restore_when_drop.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct UndroppedBufferRegistered {
+    gl: WebGl2RenderingContext,
+    gl_buffer: WebGlBuffer,
+    gl_bounds: HashSet<BufferTarget>,
+
+    reg_id: Uuid,
+    reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    reg_used_memory: Weak<RefCell<usize>>,
+
+    buffer_size: usize,
+    buffer_usage: BufferUsage,
+    buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
+    buffer_async_upload:
+        Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
+
+    restore_when_drop: bool,
+}
+
+impl UndroppedBufferRegistered {
     fn bind(&mut self, target: BufferTarget) -> Result<(), Error> {
         if let Some(gl_buffer) = self.reg_bounds.borrow().get(&target) {
             if gl_buffer == &self.gl_buffer {
@@ -828,7 +873,8 @@ impl BufferRegistered {
                         let data = source.load().await;
                         match data {
                             Ok(data) => {
-                                let data_ptr = Box::leak(Box::new(data)) as *const _ as usize;
+                                let data_ptr =
+                                    Box::leak(Box::new(data)) as *const _ as usize;
                                 Ok(JsValue::from(data_ptr))
                             }
                             Err(msg) => {
@@ -840,8 +886,9 @@ impl BufferRegistered {
 
                     let mut me = self.clone();
                     let resolve = Closure::once(move |value: JsValue| unsafe {
-                        let buffer_data =
-                            Box::from_raw(value.as_f64().unwrap() as usize as *mut BufferData);
+                        let buffer_data = Box::from_raw(
+                            value.as_f64().unwrap() as usize as *mut BufferData
+                        );
                         let Some(queue) = me.buffer_queue.upgrade() else {
                             return;
                         };
@@ -858,7 +905,8 @@ impl BufferRegistered {
                     let mut me = self.clone();
                     let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
-                        let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
+                        let msg =
+                            Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
                         error!("failed to load async buffer source: {}", msg);
 
                         me.buffer_async_upload.borrow_mut().as_mut().take();
