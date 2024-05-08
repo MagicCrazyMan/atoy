@@ -1,4 +1,4 @@
-use std::{fmt::Display, marker::PhantomData};
+use std::fmt::Display;
 
 use async_trait::async_trait;
 use js_sys::{ArrayBuffer, Object};
@@ -14,12 +14,11 @@ use crate::{
 };
 
 /// A loader loads resources from network using [`fetch`].
-pub struct FetchLoader<ReadAs = ()> {
+pub struct FetchLoader {
     url: Url,
-    _kind: PhantomData<ReadAs>,
 }
 
-impl<ReadAs> FetchLoader<ReadAs> {
+impl FetchLoader {
     pub async fn send(&self) -> Result<Response, Error> {
         let init = RequestInit::new();
         let request = Request::new_with_str_and_init(self.url.as_str(), &init)?;
@@ -41,6 +40,15 @@ impl<ReadAs> FetchLoader<ReadAs> {
         let resp = self.send().await?;
         let json = JsFuture::from(resp.json()?).await?.dyn_into::<Object>()?;
         Ok(json)
+    }
+
+    pub async fn load_as_json_deserialize<T>(&self) -> Result<T, Error>
+    where
+        T: DeserializeOwned,
+    {
+        let text = self.load_as_text().await?;
+        let value = serde_json::from_value::<T>(serde_json::Value::String(text))?;
+        Ok(value)
     }
 
     pub async fn load_as_form_data(&self) -> Result<FormData, Error> {
@@ -66,66 +74,16 @@ impl<ReadAs> FetchLoader<ReadAs> {
     }
 }
 
-impl FetchLoader<AsText> {
-    pub async fn load(&self) -> Result<String, Error> {
-        self.load_as_text().await
-    }
-}
-
-impl FetchLoader<AsJson> {
-    pub async fn load(&self) -> Result<Object, Error> {
-        self.load_as_json().await
-    }
-}
-
-impl FetchLoader<AsJsonDeserialize> {
-    pub async fn load<T>(&self) -> Result<T, Error>
-    where
-        T: DeserializeOwned,
-    {
-        let text = self.load_as_text().await?;
-        let value = serde_json::from_value::<T>(serde_json::Value::String(text))?;
-        Ok(value)
-    }
-}
-
-impl FetchLoader<AsFormData> {
-    pub async fn load(&self) -> Result<FormData, Error> {
-        self.load_as_form_data().await
-    }
-}
-
-impl FetchLoader<AsBlob> {
-    pub async fn load(self) -> Result<Blob, Error> {
-        self.load_as_blob().await
-    }
-}
-
-impl FetchLoader<AsArrayBuffer> {
-    pub async fn load(&self) -> Result<ArrayBuffer, Error> {
-        self.load_as_array_buffer().await
-    }
-}
-
 #[async_trait(?Send)]
-impl BufferSourceAsync for FetchLoader<AsArrayBuffer> {
+impl BufferSourceAsync for FetchLoader {
     async fn load(&mut self) -> Result<BufferData, String> {
-        let data = Self::load(&self).await.map_err(|err| err.to_string())?;
+        let data = self
+            .load_as_array_buffer()
+            .await
+            .map_err(|err| err.to_string())?;
         Ok(BufferData::ArrayBuffer { data })
     }
 }
-
-pub struct AsText;
-
-pub struct AsJson;
-
-pub struct AsJsonDeserialize;
-
-pub struct AsFormData;
-
-pub struct AsBlob;
-
-pub struct AsArrayBuffer;
 
 #[derive(Debug)]
 pub enum Error {}
