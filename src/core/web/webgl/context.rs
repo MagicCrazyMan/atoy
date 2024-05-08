@@ -46,7 +46,7 @@ impl Context {
     ) -> Result<(), Error> {
         if let Some(buffer) = self.uniform_buffer_objects.get(&mount_point) {
             if buffer.id() == buffer.id() {
-                buffer.flush()?;
+                buffer.flush(true)?;
                 return Ok(());
             } else {
                 return Err(Error::UniformBufferObjectMountPointOccupied(mount_point));

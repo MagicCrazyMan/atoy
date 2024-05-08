@@ -597,12 +597,12 @@ impl Buffer {
             .ok_or(Error::BufferUnregistered)
     }
 
-    pub fn flush(&self) -> Result<bool, Error> {
+    pub fn flush(&self, continue_when_failed: bool) -> Result<bool, Error> {
         self.registered
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .flush()
+            .flush(continue_when_failed)
     }
 
     pub async fn flush_async(&self) -> Result<(), Error> {
@@ -679,15 +679,8 @@ pub(super) struct BufferRegistered {
     pub(super) buffer_size: usize,
     pub(super) buffer_usage: BufferUsage,
     pub(super) buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
-    pub(super) buffer_async_upload: Rc<
-        RefCell<
-            Option<(
-                Promise,
-                Closure<dyn FnMut(JsValue)>,
-                Closure<dyn FnMut(JsValue)>,
-            )>,
-        >,
-    >,
+    pub(super) buffer_async_upload:
+        Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
 
     pub(super) restore_when_drop: bool,
 }
@@ -751,7 +744,7 @@ impl BufferRegistered {
         }
     }
 
-    fn flush(&mut self) -> Result<bool, Error> {
+    fn flush(&mut self, continue_when_failed: bool) -> Result<bool, Error> {
         // if there is an ongoing async upload, skips this flush
         if self.buffer_async_upload.borrow().is_some() {
             return Ok(false);
@@ -849,7 +842,7 @@ impl BufferRegistered {
                             dst_byte_offset,
                         ));
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        let _ = me.flush();
+                        let _ = me.flush(continue_when_failed);
                     });
 
                     let mut me = self.clone();
@@ -861,29 +854,29 @@ impl BufferRegistered {
                             msg
                         );
 
-                        // continues uploading
                         me.buffer_async_upload.borrow_mut().as_mut().take();
-                        let _ = me.flush();
+                        if continue_when_failed {
+                            // continues uploading
+                            let _ = me.flush(continue_when_failed);
+                        }
                     });
 
-                    *self.buffer_async_upload.borrow_mut() =
-                        Some((promise.clone(), resolve, reject));
-                    let promise = promise
+                    *self.buffer_async_upload.borrow_mut() = Some((resolve, reject));
+                    let _ = promise
                         .then(
                             self.buffer_async_upload
                                 .borrow()
                                 .as_ref()
-                                .map(|(_, resolve, _)| resolve)
+                                .map(|(resolve, _)| resolve)
                                 .unwrap(),
                         )
                         .catch(
                             self.buffer_async_upload
                                 .borrow()
                                 .as_ref()
-                                .map(|(_, _, reject)| reject)
+                                .map(|(_, reject)| reject)
                                 .unwrap(),
                         );
-                    self.buffer_async_upload.borrow_mut().as_mut().unwrap().0 = promise;
 
                     break;
                 }
