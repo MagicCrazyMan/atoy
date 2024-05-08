@@ -33,7 +33,7 @@ pub enum Error {
     // NoSuchUniform(UniformBinding),
     // NoSuchUniformBlock(UniformBlockBinding),
     BufferUnregistered,
-    AsyncLoadBufferSourceFailure(String),
+    LoadBufferSourceFailure(String),
     BufferTargetOccupied(BufferTarget),
     UniformBufferObjectMountPointOccupied(usize),
     RegisterBufferToMultipleRepositoryUnsupported,

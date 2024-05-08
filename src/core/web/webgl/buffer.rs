@@ -424,8 +424,8 @@ impl BufferData {
 }
 
 impl BufferSource for BufferData {
-    fn load(&mut self) -> BufferData {
-        self.clone()
+    fn load(&mut self) -> Result<BufferData, String> {
+        Ok(self.clone())
     }
 }
 
@@ -433,7 +433,7 @@ impl BufferSource for BufferData {
 /// and then uploads to WebGL context immediately.
 pub trait BufferSource {
     /// Returns a [`BufferData`].
-    fn load(&mut self) -> BufferData;
+    fn load(&mut self) -> Result<BufferData, String>;
 }
 
 /// A buffer source retrieves data asynchronously
@@ -774,7 +774,9 @@ impl BufferRegistered {
 
             match source {
                 BufferSourceInner::Sync(mut source) => {
-                    let data = source.load();
+                    let data = source
+                        .load()
+                        .map_err(|msg| Error::LoadBufferSourceFailure(msg))?;
                     let data_size = data.byte_length();
 
                     // if data size larger than the buffer size, expands the buffer size
@@ -909,11 +911,9 @@ impl BufferRegistered {
 
             let data = match source {
                 BufferSourceInner::Sync(mut source) => source.load(),
-                BufferSourceInner::Async(mut source) => source
-                    .load()
-                    .await
-                    .map_err(|msg| Error::AsyncLoadBufferSourceFailure(msg))?,
+                BufferSourceInner::Async(mut source) => source.load().await,
             };
+            let data = data.map_err(|msg| Error::LoadBufferSourceFailure(msg))?;
             let data_size = data.byte_length();
 
             // if data size larger than the buffer size, expands the buffer size
