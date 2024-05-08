@@ -1,22 +1,27 @@
 use std::{
-    cell::RefCell, collections::VecDeque, iter::FromIterator, rc::{Rc, Weak}
+    cell::RefCell,
+    collections::VecDeque,
+    iter::FromIterator,
+    rc::{Rc, Weak},
 };
 
-use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 use js_sys::{ArrayBuffer, Uint8Array};
-use log::warn;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use web_sys::{
-    js_sys::{Array, Object},
-    WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture,
+    js_sys::Array, WebGl2RenderingContext, WebGlBuffer, WebGlFramebuffer, WebGlRenderbuffer,
+    WebGlTexture,
 };
 
 use crate::core::web::webgl::{renderbuffer::RenderbufferTarget, texture::TextureRegistry};
 
 use super::{
     blit::{BlitFilter, BlitMask},
-    buffer::{Buffer, BufferRegistered, BufferRegistry, BufferTarget, BufferUsage},
+    buffer::{
+        Buffer, BufferRegistered, BufferRegistry, BufferTarget, BufferUsage,
+        UndroppedBufferRegistered,
+    },
     client_wait::ClientWaitAsync,
     conversion::ToGlEnum,
     error::Error,
@@ -782,9 +787,7 @@ impl Framebuffer {
                 }
 
                 let queue = Rc::new(RefCell::new(VecDeque::new()));
-                let queue_size = Rc::new(RefCell::new(0));
-
-                let registered = BufferRegistered {
+                let registered = BufferRegistered(UndroppedBufferRegistered {
                     gl: registered.gl.clone(),
                     gl_buffer,
                     gl_bounds: HashSet::new(),
@@ -794,12 +797,12 @@ impl Framebuffer {
                     reg_used_memory: Weak::clone(&registered.reg_buffer_used_memory),
 
                     buffer_size: size,
-                    buffer_usage: todo!(),
+                    buffer_usage: pixel_buffer_object_usage,
                     buffer_queue: Rc::downgrade(&queue),
                     buffer_async_upload: Rc::new(RefCell::new(None)),
 
                     restore_when_drop: false,
-                };
+                });
 
                 Ok(Buffer {
                     id: Uuid::new_v4(),
@@ -1208,8 +1211,12 @@ impl FramebufferRegistered {
     fn copy_to_texture_2d(&mut self, read_buffer: Option<OperableBuffer>) -> Result<(), Error> {
         self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
 
-        let gl_texture = self.gl.create_texture().ok_or(Error::CreateTextureFailure)?;
-        self.gl.bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
+        let gl_texture = self
+            .gl
+            .create_texture()
+            .ok_or(Error::CreateTextureFailure)?;
+        self.gl
+            .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
         // self.gl.tex_storage_2d(TextureTarget::Texture2D.gl_enum(), 1, internalformat, width, height);
 
         self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);

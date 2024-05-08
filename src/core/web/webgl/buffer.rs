@@ -501,7 +501,7 @@ impl Buffer {
         self.registered
             .borrow()
             .as_ref()
-            .map_or(0, |registered| registered.buffer_size)
+            .map_or(0, |registered| registered.0.buffer_size)
     }
 
     pub fn usage(&self) -> BufferUsage {
@@ -513,7 +513,7 @@ impl Buffer {
             .borrow()
             .as_ref()
             .map_or(false, |registered| {
-                registered.buffer_async_upload.borrow().is_some()
+                registered.0.buffer_async_upload.borrow().is_some()
             })
     }
 
@@ -595,7 +595,7 @@ impl Buffer {
         self.registered
             .borrow()
             .as_ref()
-            .map(|registered| registered.gl_buffer.clone())
+            .map(|registered| registered.0.gl_buffer.clone())
             .ok_or(Error::BufferUnregistered)
     }
 
@@ -663,7 +663,7 @@ impl Buffer {
         );
 
         from.to_undropped()
-            .copy_to(&to.gl_buffer, read_offset, write_offset, size, reallocate);
+            .copy_to(&to.0.gl_buffer, read_offset, write_offset, size, reallocate);
 
         Ok(())
     }
@@ -673,28 +673,12 @@ impl Buffer {
 const BUFFER_TARGET: BufferTarget = BufferTarget::ArrayBuffer;
 
 #[derive(Debug)]
-pub(super) struct BufferRegistered {
-    pub(super) gl: WebGl2RenderingContext,
-    pub(super) gl_buffer: WebGlBuffer,
-    pub(super) gl_bounds: HashSet<BufferTarget>,
-
-    pub(super) reg_id: Uuid,
-    pub(super) reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    pub(super) reg_used_memory: Weak<RefCell<usize>>,
-
-    pub(super) buffer_size: usize,
-    pub(super) buffer_usage: BufferUsage,
-    pub(super) buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
-    pub(super) buffer_async_upload:
-        Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
-
-    pub(super) restore_when_drop: bool,
-}
+pub(super) struct BufferRegistered(pub(super) UndroppedBufferRegistered);
 
 impl Drop for BufferRegistered {
     fn drop(&mut self) {
-        if self.restore_when_drop {
-            let Some(buffer_queue) = self.buffer_queue.upgrade() else {
+        if self.0.restore_when_drop {
+            let Some(buffer_queue) = self.0.buffer_queue.upgrade() else {
                 return;
             };
 
@@ -710,48 +694,37 @@ impl Drop for BufferRegistered {
         }
 
         // self.unbind_all();
-        self.gl.delete_buffer(Some(&self.gl_buffer));
-        self.reg_used_memory
+        self.0.gl.delete_buffer(Some(&self.0.gl_buffer));
+        self.0
+            .reg_used_memory
             .upgrade()
-            .map(|used_memory| *used_memory.borrow_mut() -= self.buffer_size);
+            .map(|used_memory| *used_memory.borrow_mut() -= self.0.buffer_size);
     }
 }
 
 impl BufferRegistered {
     fn to_undropped(&self) -> UndroppedBufferRegistered {
-        UndroppedBufferRegistered {
-            gl: self.gl.clone(),
-            gl_buffer: self.gl_buffer.clone(),
-            gl_bounds: self.gl_bounds.clone(),
-            reg_id: self.reg_id.clone(),
-            reg_bounds: self.reg_bounds.clone(),
-            reg_used_memory: self.reg_used_memory.clone(),
-            buffer_size: self.buffer_size.clone(),
-            buffer_usage: self.buffer_usage.clone(),
-            buffer_queue: self.buffer_queue.clone(),
-            buffer_async_upload: self.buffer_async_upload.clone(),
-            restore_when_drop: self.restore_when_drop.clone(),
-        }
+        self.0.clone()
     }
 }
 
 #[derive(Debug, Clone)]
-struct UndroppedBufferRegistered {
-    gl: WebGl2RenderingContext,
-    gl_buffer: WebGlBuffer,
-    gl_bounds: HashSet<BufferTarget>,
+pub(super) struct UndroppedBufferRegistered {
+    pub(super) gl: WebGl2RenderingContext,
+    pub(super) gl_buffer: WebGlBuffer,
+    pub(super) gl_bounds: HashSet<BufferTarget>,
 
-    reg_id: Uuid,
-    reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    reg_used_memory: Weak<RefCell<usize>>,
+    pub(super) reg_id: Uuid,
+    pub(super) reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) reg_used_memory: Weak<RefCell<usize>>,
 
-    buffer_size: usize,
-    buffer_usage: BufferUsage,
-    buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
-    buffer_async_upload:
+    pub(super) buffer_size: usize,
+    pub(super) buffer_usage: BufferUsage,
+    pub(super) buffer_queue: Weak<RefCell<VecDeque<QueueItem>>>,
+    pub(super) buffer_async_upload:
         Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
 
-    restore_when_drop: bool,
+    pub(super) restore_when_drop: bool,
 }
 
 impl UndroppedBufferRegistered {
@@ -873,8 +846,7 @@ impl UndroppedBufferRegistered {
                         let data = source.load().await;
                         match data {
                             Ok(data) => {
-                                let data_ptr =
-                                    Box::leak(Box::new(data)) as *const _ as usize;
+                                let data_ptr = Box::leak(Box::new(data)) as *const _ as usize;
                                 Ok(JsValue::from(data_ptr))
                             }
                             Err(msg) => {
@@ -886,9 +858,8 @@ impl UndroppedBufferRegistered {
 
                     let mut me = self.clone();
                     let resolve = Closure::once(move |value: JsValue| unsafe {
-                        let buffer_data = Box::from_raw(
-                            value.as_f64().unwrap() as usize as *mut BufferData
-                        );
+                        let buffer_data =
+                            Box::from_raw(value.as_f64().unwrap() as usize as *mut BufferData);
                         let Some(queue) = me.buffer_queue.upgrade() else {
                             return;
                         };
@@ -905,8 +876,7 @@ impl UndroppedBufferRegistered {
                     let mut me = self.clone();
                     let reject = Closure::once(move |value: JsValue| unsafe {
                         // if reject, prints error message, sends error message to channel and skips this source
-                        let msg =
-                            Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
+                        let msg = Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
                         error!("failed to load async buffer source: {}", msg);
 
                         me.buffer_async_upload.borrow_mut().as_mut().take();
@@ -1154,7 +1124,7 @@ impl BufferRegistry {
 
     pub fn register(&self, buffer: &Buffer) -> Result<(), Error> {
         if let Some(registered) = &*buffer.registered.borrow() {
-            if &registered.reg_id != &self.id {
+            if &registered.0.reg_id != &self.id {
                 return Err(Error::RegisterBufferToMultipleRepositoryUnsupported);
             } else {
                 return Ok(());
@@ -1162,7 +1132,7 @@ impl BufferRegistry {
         }
 
         let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        let registered = BufferRegistered {
+        let registered = BufferRegistered(UndroppedBufferRegistered {
             gl: self.gl.clone(),
             gl_buffer: gl_buffer.clone(),
             gl_bounds: HashSet::new(),
@@ -1177,7 +1147,7 @@ impl BufferRegistry {
             buffer_async_upload: Rc::new(RefCell::new(None)),
 
             restore_when_drop: false,
-        };
+        });
 
         *buffer.registered.borrow_mut() = Some(registered);
 
