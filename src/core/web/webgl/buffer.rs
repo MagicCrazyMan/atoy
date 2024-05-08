@@ -604,12 +604,12 @@ impl Buffer {
             .flush(continue_when_failed)
     }
 
-    pub async fn flush_async(&self) -> Result<(), Error> {
+    pub async fn flush_async(&self, continue_when_failed: bool) -> Result<(), Error> {
         self.registered
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .flush_async()
+            .flush_async(continue_when_failed)
             .await?;
 
         Ok(())
@@ -800,9 +800,16 @@ impl BufferRegistered {
 
             match source {
                 BufferSourceInner::Sync(mut source) => {
-                    let data = source
-                        .load()
-                        .map_err(|msg| Error::LoadBufferSourceFailure(msg))?;
+                    let data = match source.load() {
+                        Ok(data) => data,
+                        Err(msg) => {
+                            if continue_when_failed {
+                                continue;
+                            } else {
+                                return Err(Error::LoadBufferSourceFailure(msg));
+                            }
+                        }
+                    };
                     let data_size = data.byte_length();
 
                     // if data size larger than the buffer size, expands the buffer size
@@ -893,7 +900,7 @@ impl BufferRegistered {
         Ok(self.buffer_async_upload.borrow().is_none())
     }
 
-    async fn flush_async(&mut self) -> Result<(), Error> {
+    async fn flush_async(&mut self, continue_when_failed: bool) -> Result<(), Error> {
         let Some(buffer_queue) = self.buffer_queue.upgrade() else {
             return Ok(());
         };
@@ -913,7 +920,16 @@ impl BufferRegistered {
                 BufferSourceInner::Sync(mut source) => source.load(),
                 BufferSourceInner::Async(mut source) => source.load().await,
             };
-            let data = data.map_err(|msg| Error::LoadBufferSourceFailure(msg))?;
+            let data = match data {
+                Ok(data) => data,
+                Err(msg) => {
+                    if continue_when_failed {
+                        continue;
+                    } else {
+                        return Err(Error::LoadBufferSourceFailure(msg));
+                    }
+                }
+            };
             let data_size = data.byte_length();
 
             // if data size larger than the buffer size, expands the buffer size
