@@ -2537,7 +2537,7 @@ impl Texture<Texture3D, TextureCompressedFormat> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct TextureRegistered {
     gl: WebGl2RenderingContext,
     gl_texture: WebGlTexture,

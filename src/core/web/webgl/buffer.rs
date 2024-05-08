@@ -664,7 +664,7 @@ impl Buffer {
 /// [BufferTarget] to use when upload or download data to or from WebGlBuffer.
 const BUFFER_TARGET: BufferTarget = BufferTarget::ArrayBuffer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct BufferRegistered {
     pub(super) gl: WebGl2RenderingContext,
     pub(super) gl_buffer: WebGlBuffer,
