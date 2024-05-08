@@ -9,8 +9,7 @@ use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use js_sys::{
     ArrayBuffer, BigInt64Array, BigUint64Array, DataView, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int8Array, Object, Promise, Uint16Array, Uint32Array, Uint8Array,
-    Uint8ClampedArray,
+    Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
 };
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
@@ -648,7 +647,7 @@ impl Buffer {
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
-        reallocate: Option<bool>,
+        reallocate: Option<BufferUsage>,
     ) -> Result<(), Error> {
         let from = self.registered.borrow();
         let to = to.registered.borrow();
@@ -744,6 +743,40 @@ impl BufferRegistered {
         }
     }
 
+    fn enlarge(&mut self, new_size: usize) -> Result<(), Error> {
+        // copies existing data to a temporary buffer
+        let tmp_gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.copy_to(
+            &tmp_gl_buffer,
+            None,
+            None,
+            None,
+            Some(BufferUsage::StreamCopy),
+        );
+
+        // enlarges buffer size
+        self.gl
+            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
+        self.gl.buffer_data_with_i32(
+            BUFFER_TARGET.gl_enum(),
+            new_size as i32,
+            self.buffer_usage.gl_enum(),
+        );
+
+        // copies data back from temporary buffer
+        self.copy_from(&tmp_gl_buffer, None, None, Some(self.buffer_size));
+
+        // updates buffer size and used memory
+        if let Some(used_memory) = self.reg_used_memory.upgrade() {
+            let mut used_memory = used_memory.borrow_mut();
+            *used_memory -= self.buffer_size;
+            *used_memory += new_size;
+        }
+        self.buffer_size = new_size;
+
+        Ok(())
+    }
+
     fn flush(&mut self, continue_when_failed: bool) -> Result<bool, Error> {
         // if there is an ongoing async upload, skips this flush
         if self.buffer_async_upload.borrow().is_some() {
@@ -774,33 +807,7 @@ impl BufferRegistered {
 
                     // if data size larger than the buffer size, expands the buffer size
                     if data_size > self.buffer_size {
-                        let new_gl_buffer =
-                            self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                        self.gl
-                            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
-                        self.gl.buffer_data_with_i32(
-                            BUFFER_TARGET.gl_enum(),
-                            data_size as i32,
-                            self.buffer_usage.gl_enum(),
-                        );
-                        self.copy_to(&new_gl_buffer, None, None, None, Some(false));
-
-                        // replaces all existing bound buffers to the new buffer
-                        for target in self.gl_bounds.iter() {
-                            self.gl.bind_buffer(target.gl_enum(), Some(&new_gl_buffer));
-                            self.reg_bounds
-                                .borrow_mut()
-                                .insert(*target, new_gl_buffer.clone());
-                        }
-                        self.gl_buffer = new_gl_buffer;
-
-                        // updates used memory
-                        if let Some(used_memory) = self.reg_used_memory.upgrade() {
-                            let mut used_memory = used_memory.borrow_mut();
-                            *used_memory -= self.buffer_size;
-                            *used_memory += data_size;
-                        }
-                        self.buffer_size = data_size;
+                        self.enlarge(data_size)?; // enlarge will bind buffer to BUFFER_TARGET
                     } else {
                         self.gl
                             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
@@ -911,32 +918,7 @@ impl BufferRegistered {
 
             // if data size larger than the buffer size, expands the buffer size
             if data_size > self.buffer_size {
-                let new_gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                self.gl
-                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&new_gl_buffer));
-                self.gl.buffer_data_with_i32(
-                    BUFFER_TARGET.gl_enum(),
-                    data_size as i32,
-                    self.buffer_usage.gl_enum(),
-                );
-                self.copy_to(&new_gl_buffer, None, None, None, Some(false));
-
-                // replaces all existing bound buffers to the new buffer
-                for target in self.gl_bounds.iter() {
-                    self.gl.bind_buffer(target.gl_enum(), Some(&new_gl_buffer));
-                    self.reg_bounds
-                        .borrow_mut()
-                        .insert(*target, new_gl_buffer.clone());
-                }
-                self.gl_buffer = new_gl_buffer;
-
-                // updates used memory
-                if let Some(used_memory) = self.reg_used_memory.upgrade() {
-                    let mut used_memory = used_memory.borrow_mut();
-                    *used_memory -= self.buffer_size;
-                    *used_memory += data_size;
-                }
-                self.buffer_size = data_size;
+                self.enlarge(data_size)?; // enlarge will bind buffer to BUFFER_TARGET
             } else {
                 self.gl
                     .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
@@ -955,7 +937,7 @@ impl BufferRegistered {
 
     fn read_to_array_buffer(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.copy_to(&tmp, None, None, None, Some(true));
+        self.copy_to(&tmp, None, None, None, Some(BufferUsage::StreamRead));
 
         let data = Uint8Array::new_with_length(self.buffer_size as u32);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
@@ -979,7 +961,7 @@ impl BufferRegistered {
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        self.copy_to(&tmp, None, None, None, Some(true));
+        self.copy_to(&tmp, None, None, None, Some(BufferUsage::StreamRead));
 
         ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
             .wait()
@@ -1007,12 +989,11 @@ impl BufferRegistered {
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
-        reallocate: Option<bool>,
+        reallocate: Option<BufferUsage>,
     ) {
         let read_offset = read_offset.unwrap_or(0);
         let write_offset = write_offset.unwrap_or(0);
         let size = size.unwrap_or(self.buffer_size);
-        let reallocate = reallocate.unwrap_or(false);
 
         self.gl.bind_buffer(
             BufferTarget::CopyReadBuffer.gl_enum(),
@@ -1020,13 +1001,47 @@ impl BufferRegistered {
         );
         self.gl
             .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(to));
-        if reallocate {
+        if let Some(usage) = reallocate {
             self.gl.buffer_data_with_i32(
                 BufferTarget::CopyWriteBuffer.gl_enum(),
                 size as i32,
-                BufferUsage::StreamDraw.gl_enum(),
+                usage.gl_enum(),
             );
         }
+        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
+            BufferTarget::CopyReadBuffer.gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
+            read_offset as i32,
+            write_offset as i32,
+            size as i32,
+        );
+        self.gl.bind_buffer(
+            BufferTarget::CopyReadBuffer.gl_enum(),
+            self.reg_bounds.borrow().get(&BufferTarget::CopyReadBuffer),
+        );
+        self.gl.bind_buffer(
+            BufferTarget::CopyWriteBuffer.gl_enum(),
+            self.reg_bounds.borrow().get(&BufferTarget::CopyWriteBuffer),
+        );
+    }
+
+    fn copy_from(
+        &self,
+        from: &WebGlBuffer,
+        read_offset: Option<usize>,
+        write_offset: Option<usize>,
+        size: Option<usize>,
+    ) {
+        let read_offset = read_offset.unwrap_or(0);
+        let write_offset = write_offset.unwrap_or(0);
+        let size = size.unwrap_or(self.buffer_size);
+
+        self.gl
+            .bind_buffer(BufferTarget::CopyReadBuffer.gl_enum(), Some(from));
+        self.gl.bind_buffer(
+            BufferTarget::CopyWriteBuffer.gl_enum(),
+            Some(&self.gl_buffer),
+        );
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
             BufferTarget::CopyReadBuffer.gl_enum(),
             BufferTarget::CopyWriteBuffer.gl_enum(),
