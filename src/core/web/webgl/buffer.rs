@@ -557,38 +557,79 @@ impl Buffer {
         ));
     }
 
+    pub fn gl_buffer(&self) -> Result<WebGlBuffer, Error> {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map(|registered| registered.0.gl_buffer.clone())
+            .ok_or(Error::BufferUnregistered)
+    }
+
     pub fn read_to_array_buffer(&self) -> Result<ArrayBuffer, Error> {
-        self.read_to_array_buffer_with_params(0, None)
+        self.read_to_array_buffer_with_params(None)
     }
 
     pub fn read_to_array_buffer_with_params(
         &self,
-        src_byte_offset: usize,
-        existing_array_buffer: Option<ArrayBuffer>,
+        src_byte_offset: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         self.registered
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
             .0
-            .read_to_array_buffer(
-                existing_array_buffer
-                    .map(|array_buffer| ReadBackKind::ToArrayBuffer(array_buffer))
-                    .unwrap_or(ReadBackKind::NewArrayBuffer),
-                src_byte_offset,
-            )
+            .read_to_array_buffer(ReadBackKind::NewArrayBuffer, src_byte_offset)
+    }
+
+    pub fn read_to_new_array_buffer(&self, to: ArrayBuffer) -> Result<ArrayBuffer, Error> {
+        self.read_to_new_array_buffer_with_params(to, None)
+    }
+
+    pub fn read_to_new_array_buffer_with_params(
+        &self,
+        to: ArrayBuffer,
+        src_byte_offset: Option<usize>,
+    ) -> Result<ArrayBuffer, Error> {
+        self.registered
+            .borrow()
+            .as_ref()
+            .ok_or(Error::BufferUnregistered)?
+            .0
+            .read_to_array_buffer(ReadBackKind::ToArrayBuffer(to), src_byte_offset)
     }
 
     pub async fn read_to_array_buffer_async(&self) -> Result<ArrayBuffer, Error> {
-        self.read_to_array_buffer_with_params_async(0, None, None)
+        self.read_to_array_buffer_with_params_async(None, None)
             .await
     }
 
     pub async fn read_to_array_buffer_with_params_async(
         &self,
-        src_byte_offset: usize,
+        src_byte_offset: Option<usize>,
         max_retries: Option<usize>,
-        existing_array_buffer: Option<ArrayBuffer>,
+    ) -> Result<ArrayBuffer, Error> {
+        self.registered
+            .borrow()
+            .as_ref()
+            .ok_or(Error::BufferUnregistered)?
+            .0
+            .read_to_array_buffer_async(ReadBackKind::NewArrayBuffer, src_byte_offset, max_retries)
+            .await
+    }
+
+    pub async fn read_to_new_array_buffer_async(
+        &self,
+        to: ArrayBuffer,
+    ) -> Result<ArrayBuffer, Error> {
+        self.read_to_new_array_buffer_with_params_async(to, None, None)
+            .await
+    }
+
+    pub async fn read_to_new_array_buffer_with_params_async(
+        &self,
+        to: ArrayBuffer,
+        src_byte_offset: Option<usize>,
+        max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         self.registered
             .borrow()
@@ -596,21 +637,11 @@ impl Buffer {
             .ok_or(Error::BufferUnregistered)?
             .0
             .read_to_array_buffer_async(
-                existing_array_buffer
-                    .map(|array_buffer| ReadBackKind::ToArrayBuffer(array_buffer))
-                    .unwrap_or(ReadBackKind::NewArrayBuffer),
+                ReadBackKind::ToArrayBuffer(to),
                 src_byte_offset,
                 max_retries,
             )
             .await
-    }
-
-    pub fn gl_buffer(&self) -> Result<WebGlBuffer, Error> {
-        self.registered
-            .borrow()
-            .as_ref()
-            .map(|registered| registered.0.gl_buffer.clone())
-            .ok_or(Error::BufferUnregistered)
     }
 
     pub fn flush(&self, continue_when_failed: bool) -> Result<bool, Error> {
@@ -713,7 +744,10 @@ impl Drop for BufferRegistered {
                 return;
             };
 
-            if let Ok(data) = self.0.read_to_array_buffer(ReadBackKind::NewArrayBuffer, 0) {
+            if let Ok(data) = self
+                .0
+                .read_to_array_buffer(ReadBackKind::NewArrayBuffer, None)
+            {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue.borrow_mut().insert(
                     0,
@@ -991,11 +1025,12 @@ impl BufferRegisteredUndrop {
     fn read_to_array_buffer(
         &self,
         read_back_kind: ReadBackKind,
-        src_byte_offset: usize,
+        src_byte_offset: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.copy_to(&tmp, None, None, None, Some(BufferUsage::StreamRead));
 
+        let src_byte_offset = src_byte_offset.unwrap_or(0);
         let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
@@ -1015,7 +1050,7 @@ impl BufferRegisteredUndrop {
     async fn read_to_array_buffer_async(
         &self,
         read_back_kind: ReadBackKind,
-        src_byte_offset: usize,
+        src_byte_offset: Option<usize>,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
@@ -1025,6 +1060,7 @@ impl BufferRegisteredUndrop {
             .wait()
             .await?;
 
+        let src_byte_offset = src_byte_offset.unwrap_or(0);
         let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(

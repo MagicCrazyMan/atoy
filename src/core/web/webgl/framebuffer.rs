@@ -665,7 +665,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels(
-                ReadBackKind::ArrayBuffer,
+                ReadBackKind::NewArrayBuffer,
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -678,7 +678,67 @@ impl Framebuffer {
             )?;
         match readback {
             ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::PixelBufferObject(_, _, _) => unreachable!(),
+            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+                unreachable!()
+            }
+        }
+    }
+
+    pub fn read_pixels_to_new_array_buffer(
+        &self,
+        to: ArrayBuffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+    ) -> Result<ArrayBuffer, Error> {
+        self.read_pixels_to_new_array_buffer_with_params(
+            to,
+            pixel_format,
+            pixel_data_type,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn read_pixels_to_new_array_buffer_with_params(
+        &self,
+        to: ArrayBuffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+    ) -> Result<ArrayBuffer, Error> {
+        let readback = self
+            .registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels(
+                ReadBackKind::ToArrayBuffer(to),
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+            )?;
+        match readback {
+            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+                unreachable!()
+            }
         }
     }
 
@@ -721,7 +781,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels_async(
-                ReadBackKind::ArrayBuffer,
+                ReadBackKind::NewArrayBuffer,
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -737,17 +797,83 @@ impl Framebuffer {
 
         match readback {
             ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::PixelBufferObject(_, _, _) => unreachable!(),
+            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+                unreachable!()
+            }
         }
     }
 
-    pub fn read_pixels_to_pbo(
+    pub async fn read_pixels_to_new_array_buffer_async(
+        &self,
+        to: ArrayBuffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+    ) -> Result<ArrayBuffer, Error> {
+        self.read_pixels_to_new_array_buffer_with_params_async(
+            to,
+            pixel_format,
+            pixel_data_type,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn read_pixels_to_new_array_buffer_with_params_async(
+        &self,
+        to: ArrayBuffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+        max_retries: Option<usize>,
+    ) -> Result<ArrayBuffer, Error> {
+        let readback = self
+            .registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels_async(
+                ReadBackKind::ToArrayBuffer(to),
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+                max_retries,
+            )
+            .await?;
+
+        match readback {
+            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+                unreachable!()
+            }
+        }
+    }
+
+    pub fn read_pixels_to_new_pbo(
         &self,
         pixel_buffer_object_usage: BufferUsage,
         pixel_format: PixelFormat,
         pixel_data_type: PixelDataType,
     ) -> Result<Buffer, Error> {
-        self.read_pixels_to_pbo_with_params(
+        self.read_pixels_to_new_pbo_with_params(
             pixel_buffer_object_usage,
             pixel_format,
             pixel_data_type,
@@ -761,7 +887,7 @@ impl Framebuffer {
         )
     }
 
-    pub fn read_pixels_to_pbo_with_params(
+    pub fn read_pixels_to_new_pbo_with_params(
         &self,
         pixel_buffer_object_usage: BufferUsage,
         pixel_format: PixelFormat,
@@ -777,7 +903,7 @@ impl Framebuffer {
         let mut registered = self.registered.borrow_mut();
         let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
         let readback = registered.read_pixels(
-            ReadBackKind::PixelBufferObject(pixel_buffer_object_usage),
+            ReadBackKind::NewPixelBufferObject(pixel_buffer_object_usage),
             pixel_format,
             pixel_data_type,
             pixel_pack_storages,
@@ -790,8 +916,7 @@ impl Framebuffer {
         )?;
 
         match readback {
-            ReadBack::ArrayBuffer(_) => unreachable!(),
-            ReadBack::PixelBufferObject(gl_buffer, size, usage) => {
+            ReadBack::NewPixelBufferObject(gl_buffer, size, usage) => {
                 // wraps native WebGlBuffer to Buffer
                 if let Some(buffer_used_memory) = registered.reg_buffer_used_memory.upgrade() {
                     *buffer_used_memory.borrow_mut() += size;
@@ -822,6 +947,72 @@ impl Framebuffer {
                     registered: Rc::new(RefCell::new(Some(registered))),
                 })
             }
+            ReadBack::ArrayBuffer(_) | ReadBack::ToPixelBufferObject => unreachable!(),
+        }
+    }
+
+    pub fn read_pixels_to_pbo(
+        &self,
+        to: Buffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+    ) -> Result<Buffer, Error> {
+        self.read_pixels_to_pbo_with_params(
+            to,
+            pixel_format,
+            pixel_data_type,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn read_pixels_to_pbo_with_params(
+        &self,
+        to: Buffer,
+        pixel_format: PixelFormat,
+        pixel_data_type: PixelDataType,
+        pixel_pack_storages: Option<Vec<PixelPackStorage>>,
+        read_buffer: Option<OperableBuffer>,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        dst_offset: Option<usize>,
+    ) -> Result<Buffer, Error> {
+        let readback = self
+            .registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .read_pixels(
+                ReadBackKind::ToPixelBufferObject(
+                    to.registered
+                        .borrow_mut()
+                        .as_mut()
+                        .ok_or(Error::FramebufferUnregistered)?
+                        .0
+                        .gl_buffer
+                        .clone(),
+                ),
+                pixel_format,
+                pixel_data_type,
+                pixel_pack_storages,
+                read_buffer,
+                x,
+                y,
+                width,
+                height,
+                dst_offset,
+            )?;
+
+        match readback {
+            ReadBack::ToPixelBufferObject => Ok(to),
+            ReadBack::ArrayBuffer(_) | ReadBack::NewPixelBufferObject(_, _, _) => unreachable!(),
         }
     }
 }
@@ -845,13 +1036,16 @@ impl ToArray for Vec<OperableBuffer> {
 }
 
 enum ReadBackKind {
-    ArrayBuffer,
-    PixelBufferObject(BufferUsage),
+    NewArrayBuffer,
+    ToArrayBuffer(ArrayBuffer),
+    NewPixelBufferObject(BufferUsage),
+    ToPixelBufferObject(WebGlBuffer),
 }
 
 enum ReadBack {
     ArrayBuffer(ArrayBuffer),
-    PixelBufferObject(WebGlBuffer, usize, BufferUsage),
+    NewPixelBufferObject(WebGlBuffer, usize, BufferUsage),
+    ToPixelBufferObject,
 }
 
 #[derive(Debug)]
@@ -1339,10 +1533,13 @@ impl FramebufferRegistered {
             * pixel_data_type.bytes_per_channel();
 
         let readback = match read_back_kind {
-            ReadBackKind::ArrayBuffer => {
+            ReadBackKind::NewArrayBuffer | ReadBackKind::ToArrayBuffer(_) => {
                 // reads into array buffer
-                let array_buffer = ArrayBuffer::new(size as u32);
-                let typed_buffer = Uint8Array::new(&array_buffer);
+                let array_buffer = match read_back_kind {
+                    ReadBackKind::NewArrayBuffer => ArrayBuffer::new(size as u32),
+                    ReadBackKind::ToArrayBuffer(array_buffer) => array_buffer,
+                    _ => unreachable!(),
+                };
                 match dst_offset {
                     Some(dst_offset) => {
                         self.gl
@@ -1353,7 +1550,7 @@ impl FramebufferRegistered {
                                 height as i32,
                                 pixel_format.gl_enum(),
                                 pixel_data_type.gl_enum(),
-                                &typed_buffer,
+                                &Uint8Array::new(&array_buffer),
                                 dst_offset as u32,
                             )
                             .or(Err(Error::ReadPixelsFailure))?;
@@ -1367,7 +1564,7 @@ impl FramebufferRegistered {
                                 height as i32,
                                 pixel_format.gl_enum(),
                                 pixel_data_type.gl_enum(),
-                                Some(&typed_buffer),
+                                Some(&Uint8Array::new(&array_buffer)),
                             )
                             .or(Err(Error::ReadPixelsFailure))?;
                     }
@@ -1375,16 +1572,30 @@ impl FramebufferRegistered {
 
                 ReadBack::ArrayBuffer(array_buffer)
             }
-            ReadBackKind::PixelBufferObject(usage) => {
+            ReadBackKind::NewPixelBufferObject(_) | ReadBackKind::ToPixelBufferObject(_) => {
                 // reads into pbo
-                let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                self.gl
-                    .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
-                self.gl.buffer_data_with_i32(
-                    BufferTarget::PixelPackBuffer.gl_enum(),
-                    size as i32,
-                    usage.gl_enum(),
-                );
+                let (gl_buffer, usage) = match &read_back_kind {
+                    ReadBackKind::NewPixelBufferObject(usage) => {
+                        let gl_buffer =
+                            self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                        self.gl
+                            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
+                        self.gl.buffer_data_with_i32(
+                            BufferTarget::PixelPackBuffer.gl_enum(),
+                            size as i32,
+                            usage.gl_enum(),
+                        );
+
+                        (gl_buffer, *usage)
+                    }
+                    ReadBackKind::ToPixelBufferObject(gl_buffer) => {
+                        self.gl
+                            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
+
+                        (gl_buffer.clone(), BufferUsage::StaticDraw)
+                    }
+                    _ => unreachable!(),
+                };
 
                 let dst_offset = dst_offset.unwrap_or(0);
                 self.gl
@@ -1406,7 +1617,13 @@ impl FramebufferRegistered {
                         .get(&BufferTarget::PixelPackBuffer),
                 );
 
-                ReadBack::PixelBufferObject(gl_buffer, size, usage)
+                match read_back_kind {
+                    ReadBackKind::NewPixelBufferObject(_) => {
+                        ReadBack::NewPixelBufferObject(gl_buffer, size, usage)
+                    }
+                    ReadBackKind::ToPixelBufferObject(_) => ReadBack::ToPixelBufferObject,
+                    _ => unreachable!(),
+                }
             }
         };
 
