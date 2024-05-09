@@ -37,6 +37,17 @@ pub enum TextureTarget {
     Texture3D,
 }
 
+/// Available cube map texture faces mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureCubeMapFace {
+    PositiveX,
+    NegativeX,
+    PositiveY,
+    NegativeY,
+    PositiveZ,
+    NegativeZ,
+}
+
 /// Available texture units mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureUnit {
@@ -1799,16 +1810,6 @@ impl TextureLayout3D for Texture3D {
     fn depth(&self) -> usize {
         self.depth
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureCubeMapFace {
-    PositiveX,
-    NegativeX,
-    PositiveY,
-    NegativeY,
-    PositiveZ,
-    NegativeZ,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

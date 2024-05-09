@@ -19,15 +19,14 @@ use crate::core::web::webgl::{renderbuffer::RenderbufferTarget, texture::Texture
 use super::{
     blit::{BlitFilter, BlitMask},
     buffer::{
-        Buffer, BufferRegistered, BufferRegistry, BufferTarget, BufferUsage,
-        BufferRegisteredUndrop,
+        Buffer, BufferRegistered, BufferRegisteredUndrop, BufferRegistry, BufferTarget, BufferUsage,
     },
     client_wait::ClientWaitAsync,
     conversion::ToGlEnum,
     error::Error,
     pixel::{PixelDataType, PixelFormat, PixelPackStorage},
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
+    texture::{TextureCubeMapFace, TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -216,13 +215,25 @@ impl ClearPolicy {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AttachmentSource {
-    CreateTexture {
+    CreateTexture2D {
         internal_format: TextureUncompressedInternalFormat,
         clear_policy: ClearPolicy,
     },
-    FromTexture {
+    FromTexture2D {
         texture: WebGlTexture,
         level: usize,
+        clear_policy: ClearPolicy,
+    },
+    FromTextureCubeMap {
+        texture: WebGlTexture,
+        level: usize,
+        face: TextureCubeMapFace,
+        clear_policy: ClearPolicy,
+    },
+    FromTextureLayer {
+        texture: WebGlTexture,
+        level: usize,
+        layer: usize,
         clear_policy: ClearPolicy,
     },
     CreateRenderbuffer {
@@ -368,7 +379,7 @@ impl AttachmentSource {
             }
         };
 
-        Self::CreateTexture {
+        Self::CreateTexture2D {
             internal_format,
             clear_policy,
         }
@@ -434,7 +445,7 @@ impl AttachmentSource {
         internal_format: TextureUncompressedInternalFormat,
         clear_policy: ClearPolicy,
     ) -> Self {
-        Self::CreateTexture {
+        Self::CreateTexture2D {
             internal_format,
             clear_policy,
         }
@@ -451,7 +462,7 @@ impl AttachmentSource {
     }
 
     pub fn from_texture(texture: WebGlTexture, level: usize, clear_policy: ClearPolicy) -> Self {
-        Self::FromTexture {
+        Self::FromTexture2D {
             texture,
             level,
             clear_policy,
@@ -936,12 +947,19 @@ impl FramebufferRegistered {
 
         for (attachment, source) in self.framebuffer_sources.iter() {
             enum Attach {
-                Texture(WebGlTexture, usize, ClearPolicy, bool),
+                Texture {
+                    texture: WebGlTexture,
+                    level: usize,
+                    layer: Option<usize>,
+                    cube_map_face: Option<TextureCubeMapFace>,
+                    clear_policy: ClearPolicy,
+                    owned: bool,
+                },
                 Renderbuffer(WebGlRenderbuffer, ClearPolicy, bool),
             }
 
             let attach = match source {
-                AttachmentSource::CreateTexture {
+                AttachmentSource::CreateTexture2D {
                     internal_format,
                     clear_policy,
                 } => {
@@ -959,13 +977,53 @@ impl FramebufferRegistered {
                         height as i32,
                     );
 
-                    Attach::Texture(gl_texture, 0, *clear_policy, true)
+                    Attach::Texture {
+                        texture: gl_texture.clone(),
+                        level: 0,
+                        layer: None,
+                        cube_map_face: None,
+                        clear_policy: *clear_policy,
+                        owned: true,
+                    }
                 }
-                AttachmentSource::FromTexture {
+                AttachmentSource::FromTexture2D {
                     texture,
                     level,
                     clear_policy,
-                } => Attach::Texture(texture.clone(), *level, *clear_policy, false),
+                } => Attach::Texture {
+                    texture: texture.clone(),
+                    level: *level,
+                    layer: None,
+                    cube_map_face: None,
+                    clear_policy: *clear_policy,
+                    owned: false,
+                },
+                AttachmentSource::FromTextureCubeMap {
+                    texture,
+                    level,
+                    face,
+                    clear_policy,
+                } => Attach::Texture {
+                    texture: texture.clone(),
+                    level: *level,
+                    layer: None,
+                    cube_map_face: Some(*face),
+                    clear_policy: *clear_policy,
+                    owned: false,
+                },
+                AttachmentSource::FromTextureLayer {
+                    texture,
+                    level,
+                    layer,
+                    clear_policy,
+                } => Attach::Texture {
+                    texture: texture.clone(),
+                    level: *level,
+                    layer: Some(*layer),
+                    cube_map_face: None,
+                    clear_policy: *clear_policy,
+                    owned: false,
+                },
                 AttachmentSource::CreateRenderbuffer {
                     internal_format,
                     clear_policy,
@@ -1007,27 +1065,50 @@ impl FramebufferRegistered {
             };
 
             match attach {
-                Attach::Texture(gl_texture, level, clear_policy, owned) => {
-                    self.gl
-                        .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
-                    self.gl.framebuffer_texture_2d(
-                        target.gl_enum(),
-                        attachment.gl_enum(),
-                        TextureTarget::Texture2D.gl_enum(),
-                        Some(&gl_texture),
-                        level as i32,
-                    );
-                    self.gl.bind_texture(
-                        TextureTarget::Texture2D.gl_enum(),
-                        self.reg_texture_bounds.borrow().get(&(
-                            self.reg_texture_active_unit.borrow().clone(),
-                            TextureTarget::Texture2D,
-                        )),
-                    );
+                Attach::Texture {
+                    texture,
+                    level,
+                    layer,
+                    cube_map_face,
+                    clear_policy,
+                    owned,
+                } => {
+                    match layer {
+                        Some(layer) => {
+                            self.gl.framebuffer_texture_layer(
+                                target.gl_enum(),
+                                attachment.gl_enum(),
+                                Some(&texture),
+                                level as i32,
+                                layer as i32,
+                            );
+                        }
+                        None => {
+                            self.gl
+                                .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&texture));
+                            let textarget = cube_map_face
+                                .map(|face| face.gl_enum())
+                                .unwrap_or(TextureTarget::Texture2D.gl_enum());
+                            self.gl.framebuffer_texture_2d(
+                                target.gl_enum(),
+                                attachment.gl_enum(),
+                                textarget,
+                                Some(&texture),
+                                level as i32,
+                            );
+                            self.gl.bind_texture(
+                                TextureTarget::Texture2D.gl_enum(),
+                                self.reg_texture_bounds.borrow().get(&(
+                                    self.reg_texture_active_unit.borrow().clone(),
+                                    TextureTarget::Texture2D,
+                                )),
+                            );
+                        }
+                    }
 
                     if let Some((removed, _, owned)) = self
                         .gl_textures
-                        .insert(*attachment, (gl_texture, clear_policy, owned))
+                        .insert(*attachment, (texture, clear_policy, owned))
                     {
                         if owned {
                             self.gl.delete_texture(Some(&removed))

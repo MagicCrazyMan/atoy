@@ -14,15 +14,12 @@ use super::{
     draw::DrawMode,
     framebuffer::{FramebufferAttachment, FramebufferTarget, OperableBuffer},
     pixel::{
-        PixelDataType, PixelPackStorage, PixelUnpackStorage, PixelFormat,
-        UnpackColorSpaceConversion,
+        PixelDataType, PixelFormat, PixelPackStorage, PixelUnpackStorage, UnpackColorSpaceConversion
     },
     renderbuffer::{RenderbufferInternalFormat, RenderbufferTarget},
     stencil::{StencilFunction, StencilOp},
     texture::{
-        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat,
-        TextureMagnificationFilter, TextureMinificationFilter, TextureParameter, TextureTarget,
-        TextureUncompressedInternalFormat, TextureUnit, TextureWrapMethod,
+        SamplerParameter, TextureCompareFunction, TextureCompareMode, TextureCompressedFormat, TextureCubeMapFace, TextureMagnificationFilter, TextureMinificationFilter, TextureParameter, TextureTarget, TextureUncompressedInternalFormat, TextureUnit, TextureWrapMethod
     },
 };
 
@@ -614,6 +611,20 @@ impl ToGlEnum for SamplerParameter {
             SamplerParameter::CompareMode(_) => WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
             SamplerParameter::MaxLod(_) => WebGl2RenderingContext::TEXTURE_MAX_LOD,
             SamplerParameter::MinLod(_) => WebGl2RenderingContext::TEXTURE_MIN_LOD,
+        }
+    }
+}
+
+impl ToGlEnum for TextureCubeMapFace {
+    #[inline]
+    fn gl_enum(&self) -> u32 {
+        match self {
+            TextureCubeMapFace::PositiveX => WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X,
+            TextureCubeMapFace::NegativeX => WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X,
+            TextureCubeMapFace::PositiveY => WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y,
+            TextureCubeMapFace::NegativeY => WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            TextureCubeMapFace::PositiveZ => WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z,
+            TextureCubeMapFace::NegativeZ => WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z,
         }
     }
 }
