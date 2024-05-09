@@ -558,36 +558,50 @@ impl Buffer {
     }
 
     pub fn read_to_array_buffer(&self) -> Result<ArrayBuffer, Error> {
-        self.read_to_array_buffer_with_params(0)
+        self.read_to_array_buffer_with_params(0, None)
     }
 
     pub fn read_to_array_buffer_with_params(
         &self,
         src_byte_offset: usize,
+        existing_array_buffer: Option<ArrayBuffer>,
     ) -> Result<ArrayBuffer, Error> {
         self.registered
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
             .0
-            .read_to_array_buffer(src_byte_offset)
+            .read_to_array_buffer(
+                existing_array_buffer
+                    .map(|array_buffer| ReadBackKind::ToArrayBuffer(array_buffer))
+                    .unwrap_or(ReadBackKind::NewArrayBuffer),
+                src_byte_offset,
+            )
     }
 
     pub async fn read_to_array_buffer_async(&self) -> Result<ArrayBuffer, Error> {
-        self.read_to_array_buffer_with_params_async(0, None).await
+        self.read_to_array_buffer_with_params_async(0, None, None)
+            .await
     }
 
     pub async fn read_to_array_buffer_with_params_async(
         &self,
         src_byte_offset: usize,
         max_retries: Option<usize>,
+        existing_array_buffer: Option<ArrayBuffer>,
     ) -> Result<ArrayBuffer, Error> {
         self.registered
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
             .0
-            .read_to_array_buffer_async(src_byte_offset, max_retries)
+            .read_to_array_buffer_async(
+                existing_array_buffer
+                    .map(|array_buffer| ReadBackKind::ToArrayBuffer(array_buffer))
+                    .unwrap_or(ReadBackKind::NewArrayBuffer),
+                src_byte_offset,
+                max_retries,
+            )
             .await
     }
 
@@ -648,7 +662,7 @@ impl Buffer {
     }
 
     pub fn copy_to(&self, to: &Buffer) -> Result<(), Error> {
-        self.copy_to_with_params(to, None, None, None, None)
+        self.copy_to_with_params(to, None, None, None)
     }
 
     pub fn copy_to_with_params(
@@ -657,7 +671,6 @@ impl Buffer {
         read_offset: Option<usize>,
         write_offset: Option<usize>,
         size: Option<usize>,
-        reallocate: Option<bool>,
     ) -> Result<(), Error> {
         let from = self.registered.borrow();
         let to = to.registered.borrow();
@@ -666,15 +679,8 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.0.copy_to(
-            &to.0.gl_buffer,
-            read_offset,
-            write_offset,
-            size,
-            reallocate
-                .unwrap_or(from.0.buffer_size > to.0.buffer_size)
-                .then(|| to.0.buffer_usage),
-        );
+        from.0
+            .copy_to(&to.0.gl_buffer, read_offset, write_offset, size, None);
 
         Ok(())
     }
@@ -682,6 +688,20 @@ impl Buffer {
 
 /// [BufferTarget] to use when upload or download data to or from WebGlBuffer.
 const BUFFER_TARGET: BufferTarget = BufferTarget::ArrayBuffer;
+
+enum ReadBackKind {
+    NewArrayBuffer,
+    ToArrayBuffer(ArrayBuffer),
+}
+
+impl ReadBackKind {
+    fn into_array_buffer(self, size: usize) -> ArrayBuffer {
+        match self {
+            ReadBackKind::NewArrayBuffer => ArrayBuffer::new(size as u32),
+            ReadBackKind::ToArrayBuffer(array_buffer) => array_buffer,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(super) struct BufferRegistered(pub(super) BufferRegisteredUndrop);
@@ -693,7 +713,7 @@ impl Drop for BufferRegistered {
                 return;
             };
 
-            if let Ok(data) = self.0.read_to_array_buffer(0) {
+            if let Ok(data) = self.0.read_to_array_buffer(ReadBackKind::NewArrayBuffer, 0) {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue.borrow_mut().insert(
                     0,
@@ -968,16 +988,20 @@ impl BufferRegisteredUndrop {
         Ok(())
     }
 
-    fn read_to_array_buffer(&self, src_byte_offset: usize) -> Result<ArrayBuffer, Error> {
+    fn read_to_array_buffer(
+        &self,
+        read_back_kind: ReadBackKind,
+        src_byte_offset: usize,
+    ) -> Result<ArrayBuffer, Error> {
         let tmp = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         self.copy_to(&tmp, None, None, None, Some(BufferUsage::StreamRead));
 
-        let data = Uint8Array::new_with_length(self.buffer_size as u32);
+        let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
             BUFFER_TARGET.gl_enum(),
             src_byte_offset as i32,
-            &data,
+            &Uint8Array::new(&array_buffer),
         );
         self.gl.bind_buffer(
             BUFFER_TARGET.gl_enum(),
@@ -985,11 +1009,12 @@ impl BufferRegisteredUndrop {
         );
         self.gl.delete_buffer(Some(&tmp));
 
-        Ok(data.buffer())
+        Ok(array_buffer)
     }
 
     async fn read_to_array_buffer_async(
         &self,
+        read_back_kind: ReadBackKind,
         src_byte_offset: usize,
         max_retries: Option<usize>,
     ) -> Result<ArrayBuffer, Error> {
@@ -1000,12 +1025,12 @@ impl BufferRegisteredUndrop {
             .wait()
             .await?;
 
-        let data = Uint8Array::new_with_length(self.buffer_size as u32);
+        let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
         self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
             BUFFER_TARGET.gl_enum(),
             src_byte_offset as i32,
-            &data,
+            &Uint8Array::new(&array_buffer),
         );
         self.gl.bind_buffer(
             BUFFER_TARGET.gl_enum(),
@@ -1013,7 +1038,7 @@ impl BufferRegisteredUndrop {
         );
         self.gl.delete_buffer(Some(&tmp));
 
-        Ok(data.buffer())
+        Ok(array_buffer)
     }
 
     fn copy_to(
@@ -1158,76 +1183,4 @@ impl BufferRegistry {
 
         Ok(())
     }
-
-    // /// Registers a native [`WebGlBuffer`] to the registry and wraps it into a [`Buffer`].
-    // ///
-    // /// Buffer size and usage are queried from WebGL context if `size` or `usage` is not provided.
-    // /// Always provides correct size and usage to avoid stalling CPU.
-    // pub fn register_gl_buffer(
-    //     &self,
-    //     gl_buffer: WebGlBuffer,
-    //     size: Option<usize>,
-    //     usage: Option<BufferUsage>,
-    // ) -> Result<Buffer, Error> {
-    //     let require_parameter = size.is_none() || usage.is_none();
-    //     if require_parameter {
-    //         self.gl
-    //             .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&gl_buffer));
-    //     }
-    //     let capacity = match size {
-    //         Some(capacity) => capacity,
-    //         None => self
-    //             .gl
-    //             .get_buffer_parameter(BUFFER_TARGET.gl_enum(), WebGl2RenderingContext::BUFFER_SIZE)
-    //             .as_f64()
-    //             .map(|size| size as usize)
-    //             .ok_or(Error::BufferUnexpectedDropped)?,
-    //     };
-    //     let usage = match usage {
-    //         Some(usage) => usage,
-    //         None => self
-    //             .gl
-    //             .get_buffer_parameter(
-    //                 BUFFER_TARGET.gl_enum(),
-    //                 WebGl2RenderingContext::BUFFER_USAGE,
-    //             )
-    //             .as_f64()
-    //             .map(|usage| BufferUsage::from_gl_enum(usage as u32))
-    //             .ok_or(Error::BufferUnexpectedDropped)?,
-    //     };
-    //     if require_parameter {
-    //         self.gl.bind_buffer(
-    //             BUFFER_TARGET.gl_enum(),
-    //             self.bounds.borrow().get(&BUFFER_TARGET),
-    //         );
-    //     }
-
-    //     let queue = Rc::new(RefCell::new(Vec::new()));
-    //     let queue_size = Rc::new(RefCell::new(0));
-
-    //     let registered = BufferRegistered {
-    //         gl: self.gl.clone(),
-    //         gl_buffer,
-    //         gl_bounds: HashSet::new(),
-
-    //         reg_id: self.id,
-    //         reg_bounds: Rc::clone(&self.bounds),
-    //         reg_used_memory: Rc::downgrade(&self.used_memory),
-
-    //         buffer_capacity: capacity,
-    //         buffer_queue: Rc::downgrade(&queue),
-    //         buffer_queue_size: Rc::downgrade(&queue_size),
-
-    //         restore_when_drop: false,
-    //     };
-
-    //     Ok(Buffer {
-    //         id: Uuid::new_v4(),
-    //         capacity,
-    //         usage,
-    //         queue_size,
-    //         queue,
-    //         registered: Rc::new(RefCell::new(Some(registered))),
-    //     })
-    // }
 }

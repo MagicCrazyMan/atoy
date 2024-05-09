@@ -171,7 +171,7 @@ pub enum TextureCompareMode {
 }
 
 /// Available texture parameter kinds mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureParameterKind {
     BaseLevel,
     MaxLevel,
@@ -192,7 +192,15 @@ pub enum TextureParameter {
 }
 
 impl TextureParameter {
-    fn texture_parameter(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
+    pub fn kind(&self) -> TextureParameterKind {
+        match self {
+            TextureParameter::BaseLevel(_) => TextureParameterKind::BaseLevel,
+            TextureParameter::MaxLevel(_) => TextureParameterKind::MaxLevel,
+            TextureParameter::MaxAnisotropy(_) => TextureParameterKind::MaxAnisotropy,
+        }
+    }
+
+    fn tex_parameter(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
         match self {
             TextureParameter::BaseLevel(v) => {
                 gl.tex_parameteri(target.gl_enum(), self.gl_enum(), *v);
@@ -236,7 +244,6 @@ pub enum SamplerParameter {
 }
 
 impl SamplerParameter {
-    /// Returns sampler kind.
     pub fn kind(&self) -> SamplerParameterKind {
         match self {
             SamplerParameter::MagnificationFilter(_) => SamplerParameterKind::MagnificationFilter,
@@ -1839,8 +1846,8 @@ pub struct Texture<Layout, InternalFormat> {
     layout: Layout,
     internal_format: InternalFormat,
 
-    sampler_params: Rc<RefCell<Vec<SamplerParameter>>>,
-    texture_params: Rc<RefCell<Vec<TextureParameter>>>,
+    sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
+    texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
     queue: Rc<RefCell<VecDeque<QueueItem>>>,
 
     registered: Rc<RefCell<Option<TextureRegistered>>>,
@@ -1853,8 +1860,8 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             layout,
             internal_format,
 
-            sampler_params: Rc::new(RefCell::new(Vec::new())),
-            texture_params: Rc::new(RefCell::new(Vec::new())),
+            sampler_params: Rc::new(RefCell::new(HashMap::new())),
+            texture_params: Rc::new(RefCell::new(HashMap::new())),
             queue: Rc::new(RefCell::new(VecDeque::new())),
 
             registered: Rc::new(RefCell::new(None)),
@@ -1871,6 +1878,36 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
 
     pub fn internal_format(&self) -> &InternalFormat {
         &self.internal_format
+    }
+
+    pub fn texture_parameter(&self, kind: TextureParameterKind) -> Option<TextureParameter> {
+        self.texture_params.borrow().get(&kind).copied()
+    }
+
+    pub fn set_texture_parameter(&self, param: TextureParameter) -> Option<TextureParameter> {
+        self.texture_params.borrow_mut().insert(param.kind(), param)
+    }
+
+    pub fn sampler_parameter(&self, kind: SamplerParameterKind) -> Option<SamplerParameter> {
+        self.sampler_params.borrow().get(&kind).copied()
+    }
+
+    pub fn set_sampler_parameter(&self, param: SamplerParameter) -> Option<SamplerParameter> {
+        self.sampler_params.borrow_mut().insert(param.kind(), param)
+    }
+
+    pub fn gl_texture(&self) -> Option<WebGlTexture> {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map(|registered| registered.0.gl_texture.clone())
+    }
+
+    pub fn gl_sampler(&self) -> Option<WebGlSampler> {
+        self.registered
+            .borrow()
+            .as_ref()
+            .map(|registered| registered.0.gl_sampler.clone())
     }
 
     pub fn flushing(&self) -> bool {
@@ -2574,8 +2611,8 @@ struct TextureRegisteredUndrop {
 
     texture_target: TextureTarget,
     texture_memory: usize,
-    texture_params: Rc<RefCell<Vec<TextureParameter>>>,
-    sampler_params: Rc<RefCell<Vec<SamplerParameter>>>,
+    texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
+    sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
     texture_queue: Weak<RefCell<VecDeque<QueueItem>>>,
     texture_async_upload:
         Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
@@ -2642,7 +2679,7 @@ impl TextureRegisteredUndrop {
         }
 
         // update sampler parameters
-        for sampler_param in self.sampler_params.borrow().iter() {
+        for (_, sampler_param) in self.sampler_params.borrow().iter() {
             sampler_param.sampler_parameter(&self.gl, &self.gl_sampler);
         }
 
@@ -2650,8 +2687,8 @@ impl TextureRegisteredUndrop {
             .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
 
         // update texture parameters
-        for texture_param in self.texture_params.borrow().iter() {
-            texture_param.texture_parameter(&self.gl, self.texture_target);
+        for (_, texture_param) in self.texture_params.borrow().iter() {
+            texture_param.tex_parameter(&self.gl, self.texture_target);
         }
 
         let Some(texture_queue) = self.texture_queue.upgrade() else {
@@ -2918,7 +2955,7 @@ impl TextureRegisteredUndrop {
 
     async fn flush_async(&self, continue_when_failed: bool) -> Result<(), Error> {
         // update sampler parameters
-        for sampler_param in self.sampler_params.borrow().iter() {
+        for (_, sampler_param) in self.sampler_params.borrow().iter() {
             sampler_param.sampler_parameter(&self.gl, &self.gl_sampler);
         }
 
@@ -2926,8 +2963,8 @@ impl TextureRegisteredUndrop {
             .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
 
         // update texture parameters
-        for texture_param in self.texture_params.borrow().iter() {
-            texture_param.texture_parameter(&self.gl, self.texture_target);
+        for (_, texture_param) in self.texture_params.borrow().iter() {
+            texture_param.tex_parameter(&self.gl, self.texture_target);
         }
 
         let Some(texture_queue) = self.texture_queue.upgrade() else {
