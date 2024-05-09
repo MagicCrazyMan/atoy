@@ -1877,7 +1877,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow()
             .as_ref()
             .map_or(false, |registered| {
-                registered.texture_async_upload.borrow().is_some()
+                registered.0.texture_async_upload.borrow().is_some()
             })
     }
 
@@ -1892,6 +1892,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::TextureUnregistered)?
+            .0
             .flush(continue_when_failed)
     }
 
@@ -1900,6 +1901,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::TextureUnregistered)?
+            .0
             .flush_async(continue_when_failed)
             .await
     }
@@ -1909,6 +1911,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::TextureUnregistered)?
+            .0
             .bind(unit)
     }
 
@@ -1917,6 +1920,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::TextureUnregistered)?
+            .0
             .unbind(unit);
         Ok(())
     }
@@ -1926,6 +1930,7 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::TextureUnregistered)?
+            .0
             .unbind_all();
         Ok(())
     }
@@ -2538,7 +2543,22 @@ impl Texture<Texture3D, TextureCompressedFormat> {
 }
 
 #[derive(Debug)]
-struct TextureRegistered {
+struct TextureRegistered(TextureRegisteredUndrop);
+
+impl Drop for TextureRegistered {
+    fn drop(&mut self) {
+        self.0.unbind_all();
+        self.0.gl.delete_texture(Some(&self.0.gl_texture));
+        self.0.gl.delete_sampler(Some(&self.0.gl_sampler));
+        self.0
+            .reg_used_memory
+            .upgrade()
+            .map(|used_memory| *used_memory.borrow_mut() -= self.0.texture_memory);
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TextureRegisteredUndrop {
     gl: WebGl2RenderingContext,
     gl_texture: WebGlTexture,
     gl_sampler: WebGlSampler,
@@ -2560,18 +2580,7 @@ struct TextureRegistered {
         Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
 }
 
-impl Drop for TextureRegistered {
-    fn drop(&mut self) {
-        self.unbind_all();
-        self.gl.delete_texture(Some(&self.gl_texture));
-        self.gl.delete_sampler(Some(&self.gl_sampler));
-        self.reg_used_memory
-            .upgrade()
-            .map(|used_memory| *used_memory.borrow_mut() -= self.texture_memory);
-    }
-}
-
-impl TextureRegistered {
+impl TextureRegisteredUndrop {
     fn bind(&mut self, unit: TextureUnit) -> Result<(), Error> {
         if let Some(bound) = self
             .reg_texture_bounds
@@ -2794,7 +2803,79 @@ impl TextureRegistered {
                 } => {
                     let data = match source {
                         TextureSourceCompressedInner::Sync(mut source) => source.load(),
-                        TextureSourceCompressedInner::Async(mut source) => todo!(),
+                        TextureSourceCompressedInner::Async(mut source) => {
+                            let promise = future_to_promise(async move {
+                                let data = source.load().await;
+                                match data {
+                                    Ok(data) => {
+                                        let data_ptr =
+                                            Box::leak(Box::new(data)) as *const _ as usize;
+                                        Ok(JsValue::from(data_ptr))
+                                    }
+                                    Err(msg) => {
+                                        let msg_ptr = Box::leak(Box::new(msg)) as *const _ as usize;
+                                        Err(JsValue::from(msg_ptr))
+                                    }
+                                }
+                            });
+
+                            let me = self.clone();
+                            let resolve = Closure::once(move |value: JsValue| unsafe {
+                                let texture_data =
+                                    Box::from_raw(value.as_f64().unwrap() as usize
+                                        as *mut TextureDataCompressed);
+                                let Some(queue) = me.texture_queue.upgrade() else {
+                                    return;
+                                };
+
+                                // adds buffer data as the first value to the queue and then continues uploading
+                                queue.borrow_mut().push_front(QueueItem::Compressed {
+                                    source: TextureSourceCompressedInner::Sync(texture_data),
+                                    face,
+                                    format,
+                                    level,
+                                    depth,
+                                    x_offset,
+                                    y_offset,
+                                    z_offset,
+                                });
+                                me.texture_async_upload.borrow_mut().as_mut().take();
+                                let _ = me.flush(continue_when_failed);
+                            });
+
+                            let me = self.clone();
+                            let reject = Closure::once(move |value: JsValue| unsafe {
+                                // if reject, prints error message, sends error message to channel and skips this source
+                                let msg =
+                                    Box::from_raw(value.as_f64().unwrap() as usize as *mut String);
+                                error!("failed to load async buffer source: {}", msg);
+
+                                me.texture_async_upload.borrow_mut().as_mut().take();
+                                if continue_when_failed {
+                                    // continues uploading
+                                    let _ = me.flush(continue_when_failed);
+                                }
+                            });
+
+                            *self.texture_async_upload.borrow_mut() = Some((resolve, reject));
+                            let _ = promise
+                                .then(
+                                    self.texture_async_upload
+                                        .borrow()
+                                        .as_ref()
+                                        .map(|(resolve, _)| resolve)
+                                        .unwrap(),
+                                )
+                                .catch(
+                                    self.texture_async_upload
+                                        .borrow()
+                                        .as_ref()
+                                        .map(|(_, reject)| reject)
+                                        .unwrap(),
+                                );
+
+                            break;
+                        }
                     };
                     let data = match data {
                         Ok(data) => data,
@@ -3024,7 +3105,7 @@ macro_rules! register_functions {
                     texture: &Texture<$layout, TextureUncompressedInternalFormat>,
                 ) -> Result<(), Error> {
                     if let Some(registered) = &*texture.registered.borrow() {
-                        if &registered.reg_id != &self.id {
+                        if &registered.0.reg_id != &self.id {
                             return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
                         } else {
                             return Ok(());
@@ -3047,7 +3128,7 @@ macro_rules! register_functions {
                     let texture_memory = texture.byte_length();
                     *self.used_memory.borrow_mut() += texture_memory;
 
-                    let registered = TextureRegistered {
+                    let registered = TextureRegistered(TextureRegisteredUndrop {
                         gl: self.gl.clone(),
                         gl_texture,
                         gl_sampler,
@@ -3065,7 +3146,7 @@ macro_rules! register_functions {
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
                         texture_async_upload: Rc::new(RefCell::new(None)),
-                    };
+                    });
 
                     self.gl
                         .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
@@ -3080,7 +3161,7 @@ macro_rules! register_functions {
                     texture: &Texture<$layout, TextureCompressedFormat>,
                 ) -> Result<(), Error> {
                     if let Some(registered) = &*texture.registered.borrow() {
-                        if registered.reg_id != self.id {
+                        if &registered.0.reg_id != &self.id {
                             return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
                         } else {
                             return Ok(());
@@ -3103,7 +3184,7 @@ macro_rules! register_functions {
                     let texture_memory = texture.byte_length();
                     *self.used_memory.borrow_mut() += texture_memory;
 
-                    let registered = TextureRegistered {
+                    let registered = TextureRegistered(TextureRegisteredUndrop {
                         gl: self.gl.clone(),
                         gl_texture,
                         gl_sampler,
@@ -3121,7 +3202,7 @@ macro_rules! register_functions {
                         sampler_params: Rc::clone(&texture.sampler_params),
                         texture_queue: Rc::downgrade(&texture.queue),
                         texture_async_upload: Rc::new(RefCell::new(None)),
-                    };
+                    });
 
                     self.gl
                         .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));

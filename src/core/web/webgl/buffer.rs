@@ -569,7 +569,7 @@ impl Buffer {
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .read_to_array_buffer(src_byte_offset)
     }
 
@@ -586,7 +586,7 @@ impl Buffer {
             .borrow()
             .as_ref()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .read_to_array_buffer_async(src_byte_offset, max_retries)
             .await
     }
@@ -604,7 +604,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .flush(continue_when_failed)
     }
 
@@ -613,7 +613,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .flush_async(continue_when_failed)
             .await
     }
@@ -623,7 +623,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .bind(target)
     }
 
@@ -632,7 +632,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .unbind(target);
         Ok(())
     }
@@ -642,7 +642,7 @@ impl Buffer {
             .borrow_mut()
             .as_mut()
             .ok_or(Error::BufferUnregistered)?
-            .to_undropped()
+            .0
             .unbind_all();
         Ok(())
     }
@@ -666,7 +666,7 @@ impl Buffer {
             to.as_ref().ok_or(Error::BufferUnregistered)?,
         );
 
-        from.to_undropped().copy_to(
+        from.0.copy_to(
             &to.0.gl_buffer,
             read_offset,
             write_offset,
@@ -684,7 +684,7 @@ impl Buffer {
 const BUFFER_TARGET: BufferTarget = BufferTarget::ArrayBuffer;
 
 #[derive(Debug)]
-pub(super) struct BufferRegistered(pub(super) UndroppedBufferRegistered);
+pub(super) struct BufferRegistered(pub(super) BufferRegisteredUndrop);
 
 impl Drop for BufferRegistered {
     fn drop(&mut self) {
@@ -693,7 +693,7 @@ impl Drop for BufferRegistered {
                 return;
             };
 
-            if let Ok(data) = self.to_undropped().read_to_array_buffer(0) {
+            if let Ok(data) = self.0.read_to_array_buffer(0) {
                 let buffer_data = BufferData::ArrayBuffer { data };
                 buffer_queue.borrow_mut().insert(
                     0,
@@ -713,14 +713,8 @@ impl Drop for BufferRegistered {
     }
 }
 
-impl BufferRegistered {
-    fn to_undropped(&self) -> UndroppedBufferRegistered {
-        self.0.clone()
-    }
-}
-
 #[derive(Debug, Clone)]
-pub(super) struct UndroppedBufferRegistered {
+pub(super) struct BufferRegisteredUndrop {
     pub(super) gl: WebGl2RenderingContext,
     pub(super) gl_buffer: WebGlBuffer,
     pub(super) gl_bounds: HashSet<BufferTarget>,
@@ -738,7 +732,7 @@ pub(super) struct UndroppedBufferRegistered {
     pub(super) restore_when_drop: bool,
 }
 
-impl UndroppedBufferRegistered {
+impl BufferRegisteredUndrop {
     fn bind(&mut self, target: BufferTarget) -> Result<(), Error> {
         if let Some(gl_buffer) = self.reg_bounds.borrow().get(&target) {
             if gl_buffer == &self.gl_buffer {
@@ -1143,7 +1137,7 @@ impl BufferRegistry {
         }
 
         let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        let registered = BufferRegistered(UndroppedBufferRegistered {
+        let registered = BufferRegistered(BufferRegisteredUndrop {
             gl: self.gl.clone(),
             gl_buffer: gl_buffer.clone(),
             gl_bounds: HashSet::new(),

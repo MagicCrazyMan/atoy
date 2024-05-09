@@ -20,7 +20,7 @@ use super::{
     blit::{BlitFilter, BlitMask},
     buffer::{
         Buffer, BufferRegistered, BufferRegistry, BufferTarget, BufferUsage,
-        UndroppedBufferRegistered,
+        BufferRegisteredUndrop,
     },
     client_wait::ClientWaitAsync,
     conversion::ToGlEnum,
@@ -787,7 +787,7 @@ impl Framebuffer {
                 }
 
                 let queue = Rc::new(RefCell::new(VecDeque::new()));
-                let registered = BufferRegistered(UndroppedBufferRegistered {
+                let registered = BufferRegistered(BufferRegisteredUndrop {
                     gl: registered.gl.clone(),
                     gl_buffer,
                     gl_bounds: HashSet::new(),
