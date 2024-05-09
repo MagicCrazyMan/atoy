@@ -14,7 +14,10 @@ use web_sys::{
     WebGlTexture,
 };
 
-use crate::core::web::webgl::{renderbuffer::RenderbufferTarget, texture::TextureRegistry};
+use crate::core::web::webgl::{
+    renderbuffer::RenderbufferTarget,
+    texture::{TextureRegistered, TextureRegisteredUndrop, TextureRegistry},
+};
 
 use super::{
     blit::{BlitFilter, BlitMask},
@@ -26,7 +29,10 @@ use super::{
     error::Error,
     pixel::{PixelDataType, PixelFormat, PixelPackStorage},
     renderbuffer::RenderbufferInternalFormat,
-    texture::{TextureCubeMapFace, TextureTarget, TextureUncompressedInternalFormat, TextureUnit},
+    texture::{
+        Texture, Texture2D, TextureCubeMapFace, TextureInternalFormat, TextureTarget,
+        TextureUncompressedInternalFormat, TextureUnit,
+    },
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -665,7 +671,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels(
-                ReadBackKind::NewArrayBuffer,
+                ReadPixelsKind::NewArrayBuffer,
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -677,8 +683,8 @@ impl Framebuffer {
                 dst_offset,
             )?;
         match readback {
-            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+            ReadPixels::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadPixels::NewPixelBufferObject(_, _, _) | ReadPixels::ToPixelBufferObject => {
                 unreachable!()
             }
         }
@@ -723,7 +729,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels(
-                ReadBackKind::ToArrayBuffer(to),
+                ReadPixelsKind::ToArrayBuffer(to),
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -735,8 +741,8 @@ impl Framebuffer {
                 dst_offset,
             )?;
         match readback {
-            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+            ReadPixels::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadPixels::NewPixelBufferObject(_, _, _) | ReadPixels::ToPixelBufferObject => {
                 unreachable!()
             }
         }
@@ -781,7 +787,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels_async(
-                ReadBackKind::NewArrayBuffer,
+                ReadPixelsKind::NewArrayBuffer,
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -796,8 +802,8 @@ impl Framebuffer {
             .await?;
 
         match readback {
-            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+            ReadPixels::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadPixels::NewPixelBufferObject(_, _, _) | ReadPixels::ToPixelBufferObject => {
                 unreachable!()
             }
         }
@@ -845,7 +851,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels_async(
-                ReadBackKind::ToArrayBuffer(to),
+                ReadPixelsKind::ToArrayBuffer(to),
                 pixel_format,
                 pixel_data_type,
                 pixel_pack_storages,
@@ -860,8 +866,8 @@ impl Framebuffer {
             .await?;
 
         match readback {
-            ReadBack::ArrayBuffer(array_buffer) => Ok(array_buffer),
-            ReadBack::NewPixelBufferObject(_, _, _) | ReadBack::ToPixelBufferObject => {
+            ReadPixels::ArrayBuffer(array_buffer) => Ok(array_buffer),
+            ReadPixels::NewPixelBufferObject(_, _, _) | ReadPixels::ToPixelBufferObject => {
                 unreachable!()
             }
         }
@@ -903,7 +909,7 @@ impl Framebuffer {
         let mut registered = self.registered.borrow_mut();
         let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
         let readback = registered.read_pixels(
-            ReadBackKind::NewPixelBufferObject(pixel_buffer_object_usage),
+            ReadPixelsKind::NewPixelBufferObject(pixel_buffer_object_usage),
             pixel_format,
             pixel_data_type,
             pixel_pack_storages,
@@ -916,7 +922,7 @@ impl Framebuffer {
         )?;
 
         match readback {
-            ReadBack::NewPixelBufferObject(gl_buffer, size, usage) => {
+            ReadPixels::NewPixelBufferObject(gl_buffer, size, usage) => {
                 // wraps native WebGlBuffer to Buffer
                 if let Some(buffer_used_memory) = registered.reg_buffer_used_memory.upgrade() {
                     *buffer_used_memory.borrow_mut() += size;
@@ -947,7 +953,7 @@ impl Framebuffer {
                     registered: Rc::new(RefCell::new(Some(registered))),
                 })
             }
-            ReadBack::ArrayBuffer(_) | ReadBack::ToPixelBufferObject => unreachable!(),
+            ReadPixels::ArrayBuffer(_) | ReadPixels::ToPixelBufferObject => unreachable!(),
         }
     }
 
@@ -990,7 +996,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
             .read_pixels(
-                ReadBackKind::ToPixelBufferObject(
+                ReadPixelsKind::ToPixelBufferObject(
                     to.registered
                         .borrow_mut()
                         .as_mut()
@@ -1011,41 +1017,311 @@ impl Framebuffer {
             )?;
 
         match readback {
-            ReadBack::ToPixelBufferObject => Ok(to),
-            ReadBack::ArrayBuffer(_) | ReadBack::NewPixelBufferObject(_, _, _) => unreachable!(),
+            ReadPixels::ToPixelBufferObject => Ok(to),
+            ReadPixels::ArrayBuffer(_) | ReadPixels::NewPixelBufferObject(_, _, _) => {
+                unreachable!()
+            }
+        }
+    }
+
+    pub fn copy_to_new_texture_2d(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_new_texture_2d_with_params(
+            internal_format,
+            x,
+            y,
+            width,
+            height,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn copy_to_new_texture_2d_with_params(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::NewTexture2D { internal_format },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
+
+        match result {
+            CopyTexture::NewTexture2D {
+                gl_texture,
+                levels,
+                width,
+                height,
+            } => {
+                let layout = Texture2D::new(levels, width, height);
+                let texture_params = Rc::new(RefCell::new(HashMap::new()));
+                let sampler_params = Rc::new(RefCell::new(HashMap::new()));
+                let queue = Rc::new(RefCell::new(VecDeque::new()));
+                let mut registered = TextureRegistered(TextureRegisteredUndrop {
+                    gl: registered.gl.clone(),
+                    gl_texture,
+                    gl_sampler: registered
+                        .gl
+                        .create_sampler()
+                        .ok_or(Error::CreateSamplerFailure)?,
+                    gl_active_unit: HashSet::new(),
+
+                    reg_id: self.id,
+                    reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
+                    reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
+                    reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
+                    reg_used_memory: Weak::clone(&registered.reg_texture_used_memory),
+
+                    texture_target: TextureTarget::Texture2D,
+                    texture_memory: 0,
+                    texture_params: Rc::clone(&texture_params),
+                    sampler_params: Rc::clone(&sampler_params),
+                    texture_queue: Rc::downgrade(&queue),
+                    texture_async_upload: Rc::new(RefCell::new(None)),
+                });
+                let texture = Texture {
+                    id: Uuid::new_v4(),
+                    layout,
+                    internal_format,
+                    sampler_params,
+                    texture_params,
+                    queue,
+                    registered: Rc::new(RefCell::new(None)),
+                };
+                registered.0.texture_memory = texture.byte_length();
+                *texture.registered.borrow_mut() = Some(registered);
+
+                Ok(texture)
+            }
+            _ => unreachable!(),
         }
     }
 }
 
-trait ToArray {
-    fn to_array(&self) -> Array;
-}
+// macro_rules! copy_to_texture_helpers {
+//     ($(($name: ident, $long_name: ident, $layout: tt, $kind: tt))+) => {
+//         impl Framebuffer {
+//             $(
+//                 pub fn $name(
+//                     &self,
+//                     internal_format: TextureUncompressedInternalFormat,
+//                     x: usize,
+//                     y: usize,
+//                     width: usize,
+//                     height: usize,
+//                 ) -> Result<Texture<$layout, TextureUncompressedInternalFormat>, Error> {
+//                     self.$long_name(
+//                         internal_format,
+//                         x,
+//                         y,
+//                         width,
+//                         height,
+//                         None,
+//                         None,
+//                         None,
+//                         None,
+//                     )
+//                 }
 
-impl ToArray for Vec<OperableBuffer> {
-    fn to_array(&self) -> Array {
-        let array = Array::new_with_length(self.len() as u32);
-        for (index, draw_buffer) in self.iter().enumerate() {
-            array.set(
-                index as u32,
-                JsValue::from_f64(draw_buffer.gl_enum() as f64),
-            );
-        }
+//                 pub fn $long_name(
+//                     &self,
+//                     internal_format: TextureUncompressedInternalFormat,
+//                     x: usize,
+//                     y: usize,
+//                     width: usize,
+//                     height: usize,
+//                     read_buffer: Option<OperableBuffer>,
+//                     level: Option<usize>,
+//                     x_offset: Option<usize>,
+//                     y_offset: Option<usize>,
+//                 ) -> Result<Texture<$layout, TextureUncompressedInternalFormat>, Error> {
+//                     let mut registered = self.registered.borrow_mut();
+//                     let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+//                     let result = registered.copy_to_texture(
+//                         CopyTextureKind::NewTexture2D { internal_format },
+//                         x,
+//                         y,
+//                         width,
+//                         height,
+//                         read_buffer,
+//                         level,
+//                         x_offset,
+//                         y_offset,
+//                         None,
+//                     )?;
 
-        array
+//                     match result {
+//                         CopyTexture::NewTexture2D {
+//                             gl_texture,
+//                             levels,
+//                             width,
+//                             height,
+//                         } => {
+//                             let layout = Texture2D::new(levels, width, height);
+//                             let texture_params = Rc::new(RefCell::new(HashMap::new()));
+//                             let sampler_params = Rc::new(RefCell::new(HashMap::new()));
+//                             let queue = Rc::new(RefCell::new(VecDeque::new()));
+//                             let mut registered = TextureRegistered(TextureRegisteredUndrop {
+//                                 gl: registered.gl.clone(),
+//                                 gl_texture,
+//                                 gl_sampler: registered
+//                                     .gl
+//                                     .create_sampler()
+//                                     .ok_or(Error::CreateSamplerFailure)?,
+//                                 gl_active_unit: HashSet::new(),
+
+//                                 reg_id: self.id,
+//                                 reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
+//                                 reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
+//                                 reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
+//                                 reg_used_memory: Weak::clone(&registered.reg_texture_used_memory),
+
+//                                 texture_target: TextureTarget::Texture2D,
+//                                 texture_memory: 0,
+//                                 texture_params: Rc::clone(&texture_params),
+//                                 sampler_params: Rc::clone(&sampler_params),
+//                                 texture_queue: Rc::downgrade(&queue),
+//                                 texture_async_upload: Rc::new(RefCell::new(None)),
+//                             });
+//                             let texture = Texture {
+//                                 id: Uuid::new_v4(),
+//                                 layout,
+//                                 internal_format,
+//                                 sampler_params,
+//                                 texture_params,
+//                                 queue,
+//                                 registered: Rc::new(RefCell::new(None)),
+//                             };
+//                             registered.0.texture_memory = texture.byte_length();
+//                             *texture.registered.borrow_mut() = Some(registered);
+
+//                             Ok(texture)
+//                         }
+//                         _ => unreachable!(),
+//                     }
+//                 }
+//             )+
+//         }
+//     };
+// }
+
+// copy_to_texture_helpers! {
+//     (copy_to_new_texture_2d, copy_to_new_texture_2d_with_params, Texture2D)
+// }
+
+fn operable_buffers_to_array(operable_buffers: &[OperableBuffer]) -> Array {
+    let array = Array::new_with_length(operable_buffers.len() as u32);
+    for (index, draw_buffer) in operable_buffers.iter().enumerate() {
+        array.set(
+            index as u32,
+            JsValue::from_f64(draw_buffer.gl_enum() as f64),
+        );
     }
+
+    array
 }
 
-enum ReadBackKind {
+enum ReadPixelsKind {
     NewArrayBuffer,
     ToArrayBuffer(ArrayBuffer),
     NewPixelBufferObject(BufferUsage),
     ToPixelBufferObject(WebGlBuffer),
 }
 
-enum ReadBack {
+enum ReadPixels {
     ArrayBuffer(ArrayBuffer),
     NewPixelBufferObject(WebGlBuffer, usize, BufferUsage),
     ToPixelBufferObject,
+}
+
+enum CopyTextureKind {
+    NewTexture2D {
+        internal_format: TextureUncompressedInternalFormat,
+    },
+    ToTexture2D {
+        gl_texture: WebGlTexture,
+    },
+    NewTextureCubeMap {
+        face: TextureCubeMapFace,
+        internal_format: TextureUncompressedInternalFormat,
+    },
+    ToTextureCubeMap {
+        face: TextureCubeMapFace,
+        gl_texture: WebGlTexture,
+    },
+    NewTexture3D {
+        internal_format: TextureUncompressedInternalFormat,
+    },
+    ToTexture3D {
+        gl_texture: WebGlTexture,
+    },
+    NewTexture2DArray {
+        internal_format: TextureUncompressedInternalFormat,
+    },
+    ToTexture2DArray {
+        gl_texture: WebGlTexture,
+    },
+}
+
+enum CopyTexture {
+    NewTexture2D {
+        gl_texture: WebGlTexture,
+        levels: usize,
+        width: usize,
+        height: usize,
+    },
+    ToTexture2D,
+    NewTextureCubeMap {
+        gl_texture: WebGlTexture,
+        levels: usize,
+        width: usize,
+        height: usize,
+    },
+    ToTextureCubeMap,
+    NewTexture3D {
+        gl_texture: WebGlTexture,
+        levels: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+    },
+    ToTexture3D,
+    NewTexture2DArray {
+        gl_texture: WebGlTexture,
+        levels: usize,
+        width: usize,
+        height: usize,
+        depth: usize,
+    },
+    ToTexture2DArray,
 }
 
 #[derive(Debug)]
@@ -1067,6 +1343,7 @@ struct FramebufferRegistered {
 
     reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
+    reg_texture_used_memory: Weak<RefCell<usize>>,
 
     framebuffer_size_policy: SizePolicy,
     framebuffer_size: Option<(usize, usize)>,
@@ -1096,7 +1373,8 @@ impl FramebufferRegistered {
 
         // bind read buffers
         let read_buffer = read_buffer.map(|read_buffer| read_buffer.gl_enum());
-        let draw_buffers = draw_buffers.map(|draw_buffers| draw_buffers.to_array());
+        let draw_buffers =
+            draw_buffers.map(|draw_buffers| operable_buffers_to_array(&draw_buffers));
         if target == FramebufferTarget::ReadFramebuffer {
             if let Some(read_buffer) = read_buffer {
                 self.gl.read_buffer(read_buffer);
@@ -1379,7 +1657,8 @@ impl FramebufferRegistered {
 
         if target == FramebufferTarget::DrawFramebuffer {
             if let Some(draw_buffers) = draw_buffers {
-                self.gl.draw_buffers(&draw_buffers.to_array());
+                self.gl
+                    .draw_buffers(&operable_buffers_to_array(draw_buffers));
             }
         } else if target == FramebufferTarget::ReadFramebuffer {
             if let Some(read_buffer) = read_buffer {
@@ -1483,25 +1762,10 @@ impl FramebufferRegistered {
         Ok(())
     }
 
-    fn copy_to_texture_2d(&mut self, read_buffer: Option<OperableBuffer>) -> Result<(), Error> {
-        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
-
-        let gl_texture = self
-            .gl
-            .create_texture()
-            .ok_or(Error::CreateTextureFailure)?;
-        self.gl
-            .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
-        // self.gl.tex_storage_2d(TextureTarget::Texture2D.gl_enum(), 1, internalformat, width, height);
-
-        self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
-        Ok(())
-    }
-
     /// Reads pixels to PixelBufferObject or ArrayBuffer by [`ReadBackKind`].
     fn read_pixels(
         &mut self,
-        read_back_kind: ReadBackKind,
+        read_pixels_kind: ReadPixelsKind,
         pixel_format: PixelFormat,
         pixel_data_type: PixelDataType,
         pixel_pack_storages: Option<Vec<PixelPackStorage>>,
@@ -1511,7 +1775,7 @@ impl FramebufferRegistered {
         width: Option<usize>,
         height: Option<usize>,
         dst_offset: Option<usize>,
-    ) -> Result<ReadBack, Error> {
+    ) -> Result<ReadPixels, Error> {
         self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
 
         let default_storages = if let Some(pixel_pack_storages) = pixel_pack_storages {
@@ -1532,12 +1796,12 @@ impl FramebufferRegistered {
             * pixel_format.channels_per_pixel()
             * pixel_data_type.bytes_per_channel();
 
-        let readback = match read_back_kind {
-            ReadBackKind::NewArrayBuffer | ReadBackKind::ToArrayBuffer(_) => {
+        let readback = match read_pixels_kind {
+            ReadPixelsKind::NewArrayBuffer | ReadPixelsKind::ToArrayBuffer(_) => {
                 // reads into array buffer
-                let array_buffer = match read_back_kind {
-                    ReadBackKind::NewArrayBuffer => ArrayBuffer::new(size as u32),
-                    ReadBackKind::ToArrayBuffer(array_buffer) => array_buffer,
+                let array_buffer = match read_pixels_kind {
+                    ReadPixelsKind::NewArrayBuffer => ArrayBuffer::new(size as u32),
+                    ReadPixelsKind::ToArrayBuffer(array_buffer) => array_buffer,
                     _ => unreachable!(),
                 };
                 match dst_offset {
@@ -1570,12 +1834,12 @@ impl FramebufferRegistered {
                     }
                 };
 
-                ReadBack::ArrayBuffer(array_buffer)
+                ReadPixels::ArrayBuffer(array_buffer)
             }
-            ReadBackKind::NewPixelBufferObject(_) | ReadBackKind::ToPixelBufferObject(_) => {
+            ReadPixelsKind::NewPixelBufferObject(_) | ReadPixelsKind::ToPixelBufferObject(_) => {
                 // reads into pbo
-                let (gl_buffer, usage) = match &read_back_kind {
-                    ReadBackKind::NewPixelBufferObject(usage) => {
+                let (gl_buffer, usage) = match &read_pixels_kind {
+                    ReadPixelsKind::NewPixelBufferObject(usage) => {
                         let gl_buffer =
                             self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                         self.gl
@@ -1588,7 +1852,7 @@ impl FramebufferRegistered {
 
                         (gl_buffer, *usage)
                     }
-                    ReadBackKind::ToPixelBufferObject(gl_buffer) => {
+                    ReadPixelsKind::ToPixelBufferObject(gl_buffer) => {
                         self.gl
                             .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
 
@@ -1617,11 +1881,11 @@ impl FramebufferRegistered {
                         .get(&BufferTarget::PixelPackBuffer),
                 );
 
-                match read_back_kind {
-                    ReadBackKind::NewPixelBufferObject(_) => {
-                        ReadBack::NewPixelBufferObject(gl_buffer, size, usage)
+                match read_pixels_kind {
+                    ReadPixelsKind::NewPixelBufferObject(_) => {
+                        ReadPixels::NewPixelBufferObject(gl_buffer, size, usage)
                     }
-                    ReadBackKind::ToPixelBufferObject(_) => ReadBack::ToPixelBufferObject,
+                    ReadPixelsKind::ToPixelBufferObject(_) => ReadPixels::ToPixelBufferObject,
                     _ => unreachable!(),
                 }
             }
@@ -1641,7 +1905,7 @@ impl FramebufferRegistered {
     /// Asynchrony reads pixels, refers to [`read_pixels`](Self::read_pixels) for more details.
     async fn read_pixels_async(
         &mut self,
-        read_back_kind: ReadBackKind,
+        read_pixels_kind: ReadPixelsKind,
         pixel_format: PixelFormat,
         pixel_data_type: PixelDataType,
         pixel_pack_storages: Option<Vec<PixelPackStorage>>,
@@ -1652,13 +1916,13 @@ impl FramebufferRegistered {
         height: Option<usize>,
         dst_offset: Option<usize>,
         max_retries: Option<usize>,
-    ) -> Result<ReadBack, Error> {
+    ) -> Result<ReadPixels, Error> {
         ClientWaitAsync::new(self.gl.clone(), 0, 5, max_retries)
             .wait()
             .await?;
 
         self.read_pixels(
-            read_back_kind,
+            read_pixels_kind,
             pixel_format,
             pixel_data_type,
             pixel_pack_storages,
@@ -1669,6 +1933,180 @@ impl FramebufferRegistered {
             height,
             dst_offset,
         )
+    }
+
+    fn copy_to_texture(
+        &mut self,
+        copy_texture_kind: CopyTextureKind,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<CopyTexture, Error> {
+        self.temp_bind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None)?;
+
+        let (texture_width, texture_height) = self.framebuffer_size.as_ref().unwrap().clone();
+        let (target, is_3d) = match &copy_texture_kind {
+            CopyTextureKind::NewTexture2D { .. } | CopyTextureKind::ToTexture2D { .. } => {
+                (TextureTarget::Texture2D, false)
+            }
+            CopyTextureKind::NewTextureCubeMap { .. }
+            | CopyTextureKind::ToTextureCubeMap { .. } => (TextureTarget::TextureCubeMap, false),
+            CopyTextureKind::NewTexture3D { .. } | CopyTextureKind::ToTexture3D { .. } => {
+                (TextureTarget::Texture3D, true)
+            }
+            CopyTextureKind::NewTexture2DArray { .. }
+            | CopyTextureKind::ToTexture2DArray { .. } => (TextureTarget::Texture2DArray, true),
+        };
+
+        let gl_texture = match &copy_texture_kind {
+            CopyTextureKind::NewTexture2D {
+                internal_format, ..
+            }
+            | CopyTextureKind::NewTextureCubeMap {
+                internal_format, ..
+            }
+            | CopyTextureKind::NewTexture3D {
+                internal_format, ..
+            }
+            | CopyTextureKind::NewTexture2DArray {
+                internal_format, ..
+            } => {
+                let gl_texture = self
+                    .gl
+                    .create_texture()
+                    .ok_or(Error::CreateTextureFailure)?;
+                self.gl.bind_texture(target.gl_enum(), Some(&gl_texture));
+
+                if is_3d {
+                    self.gl.tex_storage_3d(
+                        target.gl_enum(),
+                        1,
+                        internal_format.gl_enum(),
+                        texture_width as i32,
+                        texture_height as i32,
+                        1,
+                    );
+                } else {
+                    self.gl.tex_storage_2d(
+                        target.gl_enum(),
+                        1,
+                        internal_format.gl_enum(),
+                        texture_width as i32,
+                        texture_height as i32,
+                    );
+                }
+
+                gl_texture
+            }
+            CopyTextureKind::ToTexture2D { gl_texture }
+            | CopyTextureKind::ToTextureCubeMap { gl_texture, .. }
+            | CopyTextureKind::ToTexture3D { gl_texture }
+            | CopyTextureKind::ToTexture2DArray { gl_texture, .. } => {
+                self.gl.bind_texture(target.gl_enum(), Some(&gl_texture));
+
+                gl_texture.clone()
+            }
+        };
+
+        let level = level.unwrap_or(0);
+        let x_offset = x_offset.unwrap_or(0);
+        let y_offset = y_offset.unwrap_or(0);
+        let z_offset = z_offset.unwrap_or(0);
+        match &copy_texture_kind {
+            CopyTextureKind::NewTexture2D { .. }
+            | CopyTextureKind::ToTexture2D { .. }
+            | CopyTextureKind::NewTexture3D { .. }
+            | CopyTextureKind::ToTexture3D { .. }
+            | CopyTextureKind::NewTexture2DArray { .. }
+            | CopyTextureKind::ToTexture2DArray { .. } => {
+                if is_3d {
+                    self.gl.copy_tex_sub_image_3d(
+                        target.gl_enum(),
+                        level as i32,
+                        x_offset as i32,
+                        y_offset as i32,
+                        z_offset as i32,
+                        x as i32,
+                        y as i32,
+                        width as i32,
+                        height as i32,
+                    );
+                } else {
+                    self.gl.copy_tex_sub_image_2d(
+                        target.gl_enum(),
+                        level as i32,
+                        x_offset as i32,
+                        y_offset as i32,
+                        x as i32,
+                        y as i32,
+                        width as i32,
+                        height as i32,
+                    );
+                }
+            }
+            CopyTextureKind::NewTextureCubeMap { face, .. }
+            | CopyTextureKind::ToTextureCubeMap { face, .. } => {
+                self.gl.copy_tex_sub_image_2d(
+                    face.gl_enum(),
+                    level as i32,
+                    x_offset as i32,
+                    y_offset as i32,
+                    x as i32,
+                    y as i32,
+                    width as i32,
+                    height as i32,
+                );
+            }
+        }
+
+        self.gl.bind_texture(
+            target.gl_enum(),
+            self.reg_texture_bounds
+                .borrow()
+                .get(&(self.reg_texture_active_unit.borrow().clone(), target)),
+        );
+
+        self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
+
+        let result = match copy_texture_kind {
+            CopyTextureKind::NewTexture2D { .. } => CopyTexture::NewTexture2D {
+                gl_texture,
+                levels: 1,
+                width: texture_width,
+                height: texture_height,
+            },
+            CopyTextureKind::ToTexture2D { .. } => CopyTexture::ToTexture2D,
+            CopyTextureKind::NewTextureCubeMap { .. } => CopyTexture::NewTextureCubeMap {
+                gl_texture,
+                levels: 1,
+                width: texture_width,
+                height: texture_height,
+            },
+            CopyTextureKind::ToTextureCubeMap { .. } => CopyTexture::ToTextureCubeMap,
+            CopyTextureKind::NewTexture3D { .. } => CopyTexture::NewTexture3D {
+                gl_texture,
+                levels: 1,
+                width: texture_width,
+                height: texture_height,
+                depth: 1,
+            },
+            CopyTextureKind::ToTexture3D { .. } => CopyTexture::ToTexture3D,
+            CopyTextureKind::NewTexture2DArray { .. } => CopyTexture::NewTexture2DArray {
+                gl_texture,
+                levels: 1,
+                width: texture_width,
+                height: texture_height,
+                depth: 1,
+            },
+            CopyTextureKind::ToTexture2DArray { .. } => CopyTexture::ToTexture2DArray,
+        };
+        Ok(result)
     }
 }
 
@@ -1754,6 +2192,7 @@ impl FramebufferRegistry {
 
             reg_texture_active_unit: Rc::clone(&self.reg_texture_active_unit),
             reg_texture_bounds: Rc::clone(&self.reg_texture_bounds),
+            reg_texture_used_memory: Weak::clone(&self.reg_texture_used_memory),
 
             reg_buffer_id: self.reg_buffer_id,
             reg_buffer_bounds: Rc::clone(&self.reg_buffer_bounds),

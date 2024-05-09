@@ -1676,7 +1676,7 @@ pub trait TextureSourceCompressedAsync {
     async fn load(&mut self) -> Result<TextureDataCompressed, String>;
 }
 
-enum TextureSourceUncompressedInner {
+pub(super) enum TextureSourceUncompressedInner {
     Sync(Box<dyn TextureSourceUncompressed>),
     Async(Box<dyn TextureSourceUncompressedAsync>),
 }
@@ -1690,7 +1690,7 @@ impl Debug for TextureSourceUncompressedInner {
     }
 }
 
-enum TextureSourceCompressedInner {
+pub(super) enum TextureSourceCompressedInner {
     Sync(Box<dyn TextureSourceCompressed>),
     Async(Box<dyn TextureSourceCompressedAsync>),
 }
@@ -1705,7 +1705,7 @@ impl Debug for TextureSourceCompressedInner {
 }
 
 #[derive(Debug)]
-enum QueueItem {
+pub(super) enum QueueItem {
     Uncompressed {
         source: TextureSourceUncompressedInner,
         face: TextureCubeMapFace,
@@ -1753,6 +1753,16 @@ pub struct Texture2D {
     height: usize,
 }
 
+impl Texture2D {
+    pub fn new(levels: usize, width: usize, height: usize) -> Self {
+        Self {
+            levels,
+            width,
+            height,
+        }
+    }
+}
+
 impl TextureLayout2D for Texture2D {
     fn levels(&self) -> usize {
         self.levels
@@ -1773,6 +1783,17 @@ pub struct Texture2DArray {
     width: usize,
     height: usize,
     length: usize,
+}
+
+impl Texture2DArray {
+    pub fn new(levels: usize, width: usize, height: usize, length: usize) -> Self {
+        Self {
+            levels,
+            width,
+            height,
+            length,
+        }
+    }
 }
 
 impl TextureLayout3D for Texture2DArray {
@@ -1801,6 +1822,17 @@ pub struct Texture3D {
     depth: usize,
 }
 
+impl Texture3D {
+    pub fn new(levels: usize, width: usize, height: usize, depth: usize) -> Self {
+        Self {
+            levels,
+            width,
+            height,
+            depth,
+        }
+    }
+}
+
 impl TextureLayout3D for Texture3D {
     fn levels(&self) -> usize {
         self.levels
@@ -1826,6 +1858,16 @@ pub struct TextureCubeMap {
     height: usize,
 }
 
+impl TextureCubeMap {
+    pub fn new(levels: usize, width: usize, height: usize) -> Self {
+        Self {
+            levels,
+            width,
+            height,
+        }
+    }
+}
+
 impl TextureLayout2D for TextureCubeMap {
     fn levels(&self) -> usize {
         self.levels
@@ -1842,15 +1884,15 @@ impl TextureLayout2D for TextureCubeMap {
 
 #[derive(Debug, Clone)]
 pub struct Texture<Layout, InternalFormat> {
-    id: Uuid,
-    layout: Layout,
-    internal_format: InternalFormat,
+    pub(super) id: Uuid,
+    pub(super) layout: Layout,
+    pub(super) internal_format: InternalFormat,
 
-    sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
-    texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
-    queue: Rc<RefCell<VecDeque<QueueItem>>>,
+    pub(super) sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
+    pub(super) texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
+    pub(super) queue: Rc<RefCell<VecDeque<QueueItem>>>,
 
-    registered: Rc<RefCell<Option<TextureRegistered>>>,
+    pub(super) registered: Rc<RefCell<Option<TextureRegistered>>>,
 }
 
 impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
@@ -2581,7 +2623,7 @@ impl Texture<Texture3D, TextureCompressedFormat> {
 }
 
 #[derive(Debug)]
-struct TextureRegistered(TextureRegisteredUndrop);
+pub(super) struct TextureRegistered(pub(super) TextureRegisteredUndrop);
 
 impl Drop for TextureRegistered {
     fn drop(&mut self) {
@@ -2596,25 +2638,25 @@ impl Drop for TextureRegistered {
 }
 
 #[derive(Debug, Clone)]
-struct TextureRegisteredUndrop {
-    gl: WebGl2RenderingContext,
-    gl_texture: WebGlTexture,
-    gl_sampler: WebGlSampler,
-    gl_active_unit: HashSet<TextureUnit>,
+pub(super) struct TextureRegisteredUndrop {
+    pub(super) gl: WebGl2RenderingContext,
+    pub(super) gl_texture: WebGlTexture,
+    pub(super) gl_sampler: WebGlSampler,
+    pub(super) gl_active_unit: HashSet<TextureUnit>,
 
-    reg_id: Uuid,
-    reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
-    reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    reg_used_memory: Weak<RefCell<usize>>,
+    pub(super) reg_id: Uuid,
+    pub(super) reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
+    pub(super) reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
+    pub(super) reg_used_memory: Weak<RefCell<usize>>,
 
-    reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
 
-    texture_target: TextureTarget,
-    texture_memory: usize,
-    texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
-    sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
-    texture_queue: Weak<RefCell<VecDeque<QueueItem>>>,
-    texture_async_upload:
+    pub(super) texture_target: TextureTarget,
+    pub(super) texture_memory: usize,
+    pub(super) texture_params: Rc<RefCell<HashMap<TextureParameterKind, TextureParameter>>>,
+    pub(super) sampler_params: Rc<RefCell<HashMap<SamplerParameterKind, SamplerParameter>>>,
+    pub(super) texture_queue: Weak<RefCell<VecDeque<QueueItem>>>,
+    pub(super) texture_async_upload:
         Rc<RefCell<Option<(Closure<dyn FnMut(JsValue)>, Closure<dyn FnMut(JsValue)>)>>>,
 }
 
