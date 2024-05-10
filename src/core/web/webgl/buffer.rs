@@ -12,16 +12,15 @@ use js_sys::{
     Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
 };
 use log::error;
-use proc::GlEnum;
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
-use super::{client_wait::ClientWaitAsync, error::Error};
+use super::{client_wait::ClientWaitAsync, conversion::ToGlEnum, error::Error};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferTarget {
     ArrayBuffer,
     ElementArrayBuffer,
@@ -34,7 +33,7 @@ pub enum BufferTarget {
 }
 
 /// Available buffer usages mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufferUsage {
     StaticDraw,
     DynamicDraw,
@@ -399,7 +398,7 @@ impl BufferData {
                     _ => unreachable!(),
                 };
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                    target.to_gl_enum(),
+                    target.gl_enum(),
                     dst_byte_offset as i32,
                     &data,
                     src_element_offset.unwrap_or(0) as u32,
@@ -408,16 +407,16 @@ impl BufferData {
             }
             BufferData::ArrayBuffer { data } => {
                 gl.buffer_sub_data_with_i32_and_array_buffer(
-                    target.to_gl_enum(),
+                    target.gl_enum(),
                     dst_byte_offset as i32,
                     &data,
                 );
             }
             BufferData::Preallocation { size } => {
                 gl.buffer_data_with_i32(
-                    target.to_gl_enum(),
+                    target.gl_enum(),
                     *size as i32,
-                    BufferUsage::StreamDraw.to_gl_enum(),
+                    BufferUsage::StreamDraw.gl_enum(),
                 );
             }
         };
@@ -762,9 +761,9 @@ impl Drop for BufferRegistered {
         // self.unbind_all();
         self.0.gl.delete_buffer(Some(&self.0.gl_buffer));
         self.0
-            .reg_used_memory
+            .reg_used_size
             .upgrade()
-            .map(|used_memory| *used_memory.borrow_mut() -= self.0.buffer_size);
+            .map(|used_size| *used_size.borrow_mut() -= self.0.buffer_size);
     }
 }
 
@@ -776,7 +775,7 @@ pub(super) struct BufferRegisteredUndrop {
 
     pub(super) reg_id: Uuid,
     pub(super) reg_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    pub(super) reg_used_memory: Weak<RefCell<usize>>,
+    pub(super) reg_used_size: Weak<RefCell<usize>>,
 
     pub(super) buffer_size: usize,
     pub(super) buffer_usage: BufferUsage,
@@ -797,8 +796,7 @@ impl BufferRegisteredUndrop {
             }
         }
 
-        self.gl
-            .bind_buffer(target.to_gl_enum(), Some(&self.gl_buffer));
+        self.gl.bind_buffer(target.gl_enum(), Some(&self.gl_buffer));
         self.reg_bounds
             .borrow_mut()
             .insert_unique_unchecked(target, self.gl_buffer.clone());
@@ -809,14 +807,14 @@ impl BufferRegisteredUndrop {
 
     fn unbind(&mut self, target: BufferTarget) {
         if self.gl_bounds.remove(&target) {
-            self.gl.bind_buffer(target.to_gl_enum(), None);
+            self.gl.bind_buffer(target.gl_enum(), None);
             self.reg_bounds.borrow_mut().remove(&target);
         }
     }
 
     fn unbind_all(&mut self) {
         for bound in self.gl_bounds.drain() {
-            self.gl.bind_buffer(bound.to_gl_enum(), None);
+            self.gl.bind_buffer(bound.gl_enum(), None);
             self.reg_bounds.borrow_mut().remove(&bound);
         }
     }
@@ -834,21 +832,21 @@ impl BufferRegisteredUndrop {
 
         // enlarges buffer size
         self.gl
-            .bind_buffer(BUFFER_TARGET.to_gl_enum(), Some(&self.gl_buffer));
+            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
         self.gl.buffer_data_with_i32(
-            BUFFER_TARGET.to_gl_enum(),
+            BUFFER_TARGET.gl_enum(),
             new_size as i32,
-            self.buffer_usage.to_gl_enum(),
+            self.buffer_usage.gl_enum(),
         );
 
         // copies data back from temporary buffer
         self.copy_from(&tmp_gl_buffer, None, None, Some(self.buffer_size));
 
         // updates buffer size and used memory
-        if let Some(used_memory) = self.reg_used_memory.upgrade() {
-            let mut used_memory = used_memory.borrow_mut();
-            *used_memory -= self.buffer_size;
-            *used_memory += new_size;
+        if let Some(used_size) = self.reg_used_size.upgrade() {
+            let mut used_size = used_size.borrow_mut();
+            *used_size -= self.buffer_size;
+            *used_size += new_size;
         }
         self.buffer_size = new_size;
 
@@ -892,13 +890,13 @@ impl BufferRegisteredUndrop {
                         self.enlarge(data_size)?; // enlarge will bind buffer to BUFFER_TARGET
                     } else {
                         self.gl
-                            .bind_buffer(BUFFER_TARGET.to_gl_enum(), Some(&self.gl_buffer));
+                            .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
                     }
 
                     data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
 
                     self.gl.bind_buffer(
-                        BUFFER_TARGET.to_gl_enum(),
+                        BUFFER_TARGET.gl_enum(),
                         self.reg_bounds.borrow().get(&BUFFER_TARGET),
                     );
                 }
@@ -1010,13 +1008,13 @@ impl BufferRegisteredUndrop {
                 self.enlarge(data_size)?; // enlarge will bind buffer to BUFFER_TARGET
             } else {
                 self.gl
-                    .bind_buffer(BUFFER_TARGET.to_gl_enum(), Some(&self.gl_buffer));
+                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&self.gl_buffer));
             }
 
             data.upload(&self.gl, BUFFER_TARGET, dst_byte_offset);
 
             self.gl.bind_buffer(
-                BUFFER_TARGET.to_gl_enum(),
+                BUFFER_TARGET.gl_enum(),
                 self.reg_bounds.borrow().get(&BUFFER_TARGET),
             );
         }
@@ -1034,14 +1032,14 @@ impl BufferRegisteredUndrop {
 
         let src_byte_offset = src_byte_offset.unwrap_or(0);
         let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
-        self.gl.bind_buffer(BUFFER_TARGET.to_gl_enum(), Some(&tmp));
+        self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-            BUFFER_TARGET.to_gl_enum(),
+            BUFFER_TARGET.gl_enum(),
             src_byte_offset as i32,
             &Uint8Array::new(&array_buffer),
         );
         self.gl.bind_buffer(
-            BUFFER_TARGET.to_gl_enum(),
+            BUFFER_TARGET.gl_enum(),
             self.reg_bounds.borrow().get(&BUFFER_TARGET),
         );
         self.gl.delete_buffer(Some(&tmp));
@@ -1064,14 +1062,14 @@ impl BufferRegisteredUndrop {
 
         let src_byte_offset = src_byte_offset.unwrap_or(0);
         let array_buffer = read_back_kind.into_array_buffer(self.buffer_size);
-        self.gl.bind_buffer(BUFFER_TARGET.to_gl_enum(), Some(&tmp));
+        self.gl.bind_buffer(BUFFER_TARGET.gl_enum(), Some(&tmp));
         self.gl.get_buffer_sub_data_with_i32_and_array_buffer_view(
-            BUFFER_TARGET.to_gl_enum(),
+            BUFFER_TARGET.gl_enum(),
             src_byte_offset as i32,
             &Uint8Array::new(&array_buffer),
         );
         self.gl.bind_buffer(
-            BUFFER_TARGET.to_gl_enum(),
+            BUFFER_TARGET.gl_enum(),
             self.reg_bounds.borrow().get(&BUFFER_TARGET),
         );
         self.gl.delete_buffer(Some(&tmp));
@@ -1092,31 +1090,31 @@ impl BufferRegisteredUndrop {
         let size = size.unwrap_or(self.buffer_size);
 
         self.gl.bind_buffer(
-            BufferTarget::CopyReadBuffer.to_gl_enum(),
+            BufferTarget::CopyReadBuffer.gl_enum(),
             Some(&self.gl_buffer),
         );
         self.gl
-            .bind_buffer(BufferTarget::CopyWriteBuffer.to_gl_enum(), Some(to));
+            .bind_buffer(BufferTarget::CopyWriteBuffer.gl_enum(), Some(to));
         if let Some(usage) = reallocate {
             self.gl.buffer_data_with_i32(
-                BufferTarget::CopyWriteBuffer.to_gl_enum(),
+                BufferTarget::CopyWriteBuffer.gl_enum(),
                 size as i32,
-                usage.to_gl_enum(),
+                usage.gl_enum(),
             );
         }
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
-            BufferTarget::CopyReadBuffer.to_gl_enum(),
-            BufferTarget::CopyWriteBuffer.to_gl_enum(),
+            BufferTarget::CopyReadBuffer.gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
             read_offset as i32,
             write_offset as i32,
             size as i32,
         );
         self.gl.bind_buffer(
-            BufferTarget::CopyReadBuffer.to_gl_enum(),
+            BufferTarget::CopyReadBuffer.gl_enum(),
             self.reg_bounds.borrow().get(&BufferTarget::CopyReadBuffer),
         );
         self.gl.bind_buffer(
-            BufferTarget::CopyWriteBuffer.to_gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
             self.reg_bounds.borrow().get(&BufferTarget::CopyWriteBuffer),
         );
     }
@@ -1133,35 +1131,35 @@ impl BufferRegisteredUndrop {
         let size = size.unwrap_or(self.buffer_size);
 
         self.gl
-            .bind_buffer(BufferTarget::CopyReadBuffer.to_gl_enum(), Some(from));
+            .bind_buffer(BufferTarget::CopyReadBuffer.gl_enum(), Some(from));
         self.gl.bind_buffer(
-            BufferTarget::CopyWriteBuffer.to_gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
             Some(&self.gl_buffer),
         );
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
-            BufferTarget::CopyReadBuffer.to_gl_enum(),
-            BufferTarget::CopyWriteBuffer.to_gl_enum(),
+            BufferTarget::CopyReadBuffer.gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
             read_offset as i32,
             write_offset as i32,
             size as i32,
         );
         self.gl.bind_buffer(
-            BufferTarget::CopyReadBuffer.to_gl_enum(),
+            BufferTarget::CopyReadBuffer.gl_enum(),
             self.reg_bounds.borrow().get(&BufferTarget::CopyReadBuffer),
         );
         self.gl.bind_buffer(
-            BufferTarget::CopyWriteBuffer.to_gl_enum(),
+            BufferTarget::CopyWriteBuffer.gl_enum(),
             self.reg_bounds.borrow().get(&BufferTarget::CopyWriteBuffer),
         );
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BufferRegistry {
     pub(super) id: Uuid,
     pub(super) gl: WebGl2RenderingContext,
     pub(super) bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    pub(super) used_memory: Rc<RefCell<usize>>,
+    pub(super) used_size: Rc<RefCell<usize>>,
 }
 
 impl BufferRegistry {
@@ -1170,7 +1168,7 @@ impl BufferRegistry {
             id: Uuid::new_v4(),
             gl,
             bounds: Rc::new(RefCell::new(HashMap::new())),
-            used_memory: Rc::new(RefCell::new(usize::MIN)),
+            used_size: Rc::new(RefCell::new(usize::MIN)),
         }
     }
 
@@ -1182,8 +1180,8 @@ impl BufferRegistry {
         &self.gl
     }
 
-    pub fn used_memory(&self) -> usize {
-        *self.used_memory.borrow()
+    pub fn used_size(&self) -> usize {
+        *self.used_size.borrow()
     }
 
     pub fn bounds(&self) -> Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>> {
@@ -1207,7 +1205,7 @@ impl BufferRegistry {
 
             reg_id: self.id,
             reg_bounds: Rc::clone(&self.bounds),
-            reg_used_memory: Rc::downgrade(&self.used_memory),
+            reg_used_size: Rc::downgrade(&self.used_size),
 
             buffer_size: 0,
             buffer_usage: buffer.usage,
@@ -1220,5 +1218,101 @@ impl BufferRegistry {
         *buffer.registered.borrow_mut() = Some(registered);
 
         Ok(())
+    }
+
+    pub fn capture(
+        &self,
+        gl_buffer: WebGlBuffer,
+        size: Option<usize>,
+        usage: Option<BufferUsage>,
+    ) -> Result<Buffer, Error> {
+        let (size, usage) = match (size, usage) {
+            (None, None) | (None, Some(_)) | (Some(_), None) => {
+                self.gl
+                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&gl_buffer));
+
+                let size = match size {
+                    Some(size) => size,
+                    None => self
+                        .gl
+                        .get_buffer_parameter(
+                            BUFFER_TARGET.gl_enum(),
+                            WebGl2RenderingContext::BUFFER_SIZE,
+                        )
+                        .as_f64()
+                        .unwrap() as usize,
+                };
+                let usage = match usage {
+                    Some(usage) => usage,
+                    None => {
+                        let e = self
+                            .gl
+                            .get_buffer_parameter(
+                                BUFFER_TARGET.gl_enum(),
+                                WebGl2RenderingContext::BUFFER_USAGE,
+                            )
+                            .as_f64()
+                            .unwrap() as usize;
+                        
+                    }
+                };
+
+                self.gl.bind_buffer(
+                    BUFFER_TARGET.gl_enum(),
+                    self.bounds.borrow().get(&BUFFER_TARGET),
+                );
+
+                (size, usage)
+            }
+            (Some(size), Some(usage)) => (size, usage),
+        };
+        let size = match size {
+            Some(size) => size,
+            None => {
+                self.gl
+                    .bind_buffer(BUFFER_TARGET.gl_enum(), Some(&gl_buffer));
+                let size = self
+                    .gl
+                    .get_buffer_parameter(
+                        BUFFER_TARGET.gl_enum(),
+                        WebGl2RenderingContext::BUFFER_SIZE,
+                    )
+                    .as_f64()
+                    .unwrap() as usize;
+                self.gl.bind_buffer(
+                    BUFFER_TARGET.gl_enum(),
+                    self.bounds.borrow().get(&BUFFER_TARGET),
+                );
+
+                size
+            }
+        };
+
+        let queue = Rc::new(RefCell::new(VecDeque::new()));
+        let registered = BufferRegistered(BufferRegisteredUndrop {
+            gl: self.gl.clone(),
+            gl_buffer,
+            gl_bounds: HashSet::new(),
+
+            reg_id: self.id,
+            reg_bounds: Rc::clone(&self.bounds),
+            reg_used_size: Weak::clone(&self.used_size),
+
+            buffer_size: size,
+            buffer_usage: pixel_buffer_object_usage,
+            buffer_queue: Rc::downgrade(&queue),
+            buffer_async_upload: Rc::new(RefCell::new(None)),
+
+            restore_when_drop: false,
+        });
+
+        *self.used_size.borrow_mut() += size;
+
+        Ok(Buffer {
+            id: Uuid::new_v4(),
+            usage,
+            queue,
+            registered: Rc::new(RefCell::new(Some(registered))),
+        })
     }
 }
