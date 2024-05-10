@@ -14,40 +14,22 @@ use super::error::Error;
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum FenceSyncFlag {
-    #[gl_enum(SYNC_GPU_COMMANDS_COMPLETE)]
     SyncGpuCommandsComplete,
 }
 
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum ClientWaitFlag {
-    #[gl_enum(SYNC_FLUSH_COMMANDS_BIT)]
     SyncFlushCommandsBit,
 }
 
 /// Available client wait status mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum ClientWaitStatus {
-    #[gl_enum(ALREADY_SIGNALED)]
     AlreadySignaled,
-    #[gl_enum(TIMEOUT_EXPIRED)]
     TimeoutExpired,
-    #[gl_enum(CONDITION_SATISFIED)]
     ConditionSatisfied,
-    #[gl_enum(WAIT_FAILED)]
     WaitFailed,
-}
-
-impl ClientWaitStatus {
-    fn from_u32(value: u32) -> Self {
-        match value {
-            WebGl2RenderingContext::ALREADY_SIGNALED => ClientWaitStatus::AlreadySignaled,
-            WebGl2RenderingContext::TIMEOUT_EXPIRED => ClientWaitStatus::TimeoutExpired,
-            WebGl2RenderingContext::CONDITION_SATISFIED => ClientWaitStatus::ConditionSatisfied,
-            WebGl2RenderingContext::WAIT_FAILED => ClientWaitStatus::WaitFailed,
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -82,7 +64,7 @@ impl ClientWait {
         );
         self.gl.delete_sync(Some(&fence_sync));
 
-        Ok(ClientWaitStatus::from_u32(status))
+        Ok(ClientWaitStatus::from_gl_enum(status).unwrap())
     }
 }
 
@@ -143,7 +125,7 @@ impl ClientWaitAsync {
                 .as_f64()
                 .unwrap() as u32;
 
-            match ClientWaitStatus::from_u32(status) {
+            match ClientWaitStatus::from_gl_enum(status).unwrap() {
                 ClientWaitStatus::AlreadySignaled | ClientWaitStatus::ConditionSatisfied => {
                     self.gl.delete_sync(Some(&fence_sync));
                     return Ok(());

@@ -3,7 +3,6 @@ use proc::GlEnum;
 /// Available render buffer targets mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum RenderbufferTarget {
-    #[gl_enum(RENDERBUFFER)]
     Renderbuffer,
 }
 

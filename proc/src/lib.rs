@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use proc_macro::{Ident, Span, TokenStream};
+use convert_case::{Case, Casing};
+use proc_macro::TokenStream;
+use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{Data, DeriveInput};
 
@@ -98,9 +100,10 @@ pub fn gl_enum_derive(input: TokenStream) -> TokenStream {
     let Data::Enum(data_enum) = ast.data else {
         panic!("GlEnum only available on enum")
     };
-    let variants = data_enum.variants.iter().filter_map(|variant| {
+    let variants = data_enum.variants.iter().map(|variant| {
         let mut target = None;
 
+        // finds the gl_enum attribute and extracts it.
         variant.attrs.iter().for_each(|attr| {
             if attr.path().is_ident(ATTRIBUTE_NAME) {
                 if target.is_some() {
@@ -126,37 +129,41 @@ pub fn gl_enum_derive(input: TokenStream) -> TokenStream {
             .unwrap();
         });
 
-        match target {
-            Some(target) => {
-                let target_str = target.to_string();
-                let target_str = target_str.as_str();
-
-                let gl_enum = if target_str == TEXTURE_MAX_ANISOTROPY_EXT {
-                    quote! { web_sys::ExtTextureFilterAnisotropic::#target }
-                } else if astc_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTextureAstc::#target }
-                } else if etc_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTextureEtc::#target }
-                } else if etc1_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTextureEtc1::#target }
-                } else if pvrtc_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTexturePvrtc::#target }
-                } else if s3tc_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTextureS3tc::#target }
-                } else if s3tc_srgb_set.contains(target_str) {
-                    quote! { web_sys::WebglCompressedTextureS3tcSrgb::#target }
-                } else if let Some(gl_enum) = bptc_map.get(target_str) {
-                    quote! { #gl_enum }
-                } else if let Some(gl_enum) = rgtc_map.get(target_str) {
-                    quote! { #gl_enum }
-                } else {
-                    quote! { web_sys::WebGl2RenderingContext::#target }
-                };
-
-                Some((&variant.ident, gl_enum))
+        // If the target is not specified, use the UPPER_SNAKE case of the variant name as the target.
+        let target = match target {
+            Some(target) => target,
+            None => {
+                let gl_enum_name = variant.ident.to_string().to_case(Case::UpperSnake);
+                Ident::new(&gl_enum_name, Span::call_site())
             }
-            None => None,
-        }
+        };
+
+        let target_str = target.to_string();
+        let target_str = target_str.as_str();
+
+        let gl_enum = if target_str == TEXTURE_MAX_ANISOTROPY_EXT {
+            quote! { web_sys::ExtTextureFilterAnisotropic::#target }
+        } else if astc_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTextureAstc::#target }
+        } else if etc_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTextureEtc::#target }
+        } else if etc1_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTextureEtc1::#target }
+        } else if pvrtc_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTexturePvrtc::#target }
+        } else if s3tc_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTextureS3tc::#target }
+        } else if s3tc_srgb_set.contains(target_str) {
+            quote! { web_sys::WebglCompressedTextureS3tcSrgb::#target }
+        } else if let Some(gl_enum) = bptc_map.get(target_str) {
+            quote! { #gl_enum }
+        } else if let Some(gl_enum) = rgtc_map.get(target_str) {
+            quote! { #gl_enum }
+        } else {
+            quote! { web_sys::WebGl2RenderingContext::#target }
+        };
+
+        (&variant.ident, gl_enum)
     });
     let variant1 = variants.clone().map(|(k, _)| k);
     let variant2 = variants.clone().map(|(k, _)| k);

@@ -38,9 +38,7 @@ use super::{
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum FramebufferTarget {
-    #[gl_enum(READ_FRAMEBUFFER)]
     ReadFramebuffer,
-    #[gl_enum(DRAW_FRAMEBUFFER)]
     DrawFramebuffer,
 }
 
@@ -79,11 +77,8 @@ pub enum FramebufferAttachment {
     ColorAttachment14,
     #[gl_enum(COLOR_ATTACHMENT15)]
     ColorAttachment15,
-    #[gl_enum(DEPTH_ATTACHMENT)]
     DepthAttachment,
-    #[gl_enum(STENCIL_ATTACHMENT)]
     StencilAttachment,
-    #[gl_enum(DEPTH_STENCIL_ATTACHMENT)]
     DepthStencilAttachment,
 }
 
@@ -116,11 +111,9 @@ impl FramebufferAttachment {
 /// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum OperableBuffer {
-    #[gl_enum(NONE)]
     None,
     /// [`WebGl2RenderingContext::BACK`] only works for Canvas Draw Buffer.
     /// Do not bind this attachment to FBO.
-    #[gl_enum(BACK)]
     Back,
     #[gl_enum(COLOR_ATTACHMENT0)]
     ColorAttachment0,

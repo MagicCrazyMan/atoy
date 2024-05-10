@@ -23,44 +23,27 @@ use super::{client_wait::ClientWaitAsync, error::Error};
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum BufferTarget {
-    #[gl_enum(ARRAY_BUFFER)]
     ArrayBuffer,
-    #[gl_enum(ELEMENT_ARRAY_BUFFER)]
     ElementArrayBuffer,
-    #[gl_enum(COPY_READ_BUFFER)]
     CopyReadBuffer,
-    #[gl_enum(COPY_WRITE_BUFFER)]
     CopyWriteBuffer,
-    #[gl_enum(TRANSFORM_FEEDBACK_BUFFER)]
     TransformFeedbackBuffer,
-    #[gl_enum(UNIFORM_BUFFER)]
     UniformBuffer,
-    #[gl_enum(PIXEL_PACK_BUFFER)]
     PixelPackBuffer,
-    #[gl_enum(PIXEL_UNPACK_BUFFER)]
     PixelUnpackBuffer,
 }
 
 /// Available buffer usages mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum BufferUsage {
-    #[gl_enum(STATIC_DRAW)]
     StaticDraw,
-    #[gl_enum(DYNAMIC_DRAW)]
     DynamicDraw,
-    #[gl_enum(STREAM_DRAW)]
     StreamDraw,
-    #[gl_enum(STATIC_READ)]
     StaticRead,
-    #[gl_enum(DYNAMIC_READ)]
     DynamicRead,
-    #[gl_enum(STREAM_READ)]
     StreamRead,
-    #[gl_enum(STATIC_COPY)]
     StaticCopy,
-    #[gl_enum(DYNAMIC_COPY)]
     DynamicCopy,
-    #[gl_enum(STREAM_COPY)]
     StreamCopy,
 }
 

@@ -33,7 +33,6 @@ use super::{
 pub enum TextureTarget {
     #[gl_enum(TEXTURE_2D)]
     Texture2D,
-    #[gl_enum(TEXTURE_CUBE_MAP)]
     TextureCubeMap,
     #[gl_enum(TEXTURE_2D_ARRAY)]
     Texture2DArray,
@@ -169,37 +168,26 @@ impl TextureUnit {
 /// Available texture magnification filters for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureMagnificationFilter {
-    #[gl_enum(LINEAR)]
     Linear,
-    #[gl_enum(NEAREST)]
     Nearest,
 }
 
 /// Available texture minification filters for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureMinificationFilter {
-    #[gl_enum(LINEAR)]
     Linear,
-    #[gl_enum(NEAREST)]
     Nearest,
-    #[gl_enum(NEAREST_MIPMAP_NEAREST)]
     NearestMipmapNearest,
-    #[gl_enum(LINEAR_MIPMAP_NEAREST)]
     LinearMipmapNearest,
-    #[gl_enum(NEAREST_MIPMAP_LINEAR)]
     NearestMipmapLinear,
-    #[gl_enum(LINEAR_MIPMAP_LINEAR)]
     LinearMipmapLinear,
 }
 
 /// Available texture wrap methods for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureWrapMethod {
-    #[gl_enum(REPEAT)]
     Repeat,
-    #[gl_enum(CLAMP_TO_EDGE)]
     ClampToEdge,
-    #[gl_enum(MIRRORED_REPEAT)]
     MirroredRepeat,
 }
 
@@ -210,26 +198,19 @@ pub enum TextureCompareFunction {
     LessEqual,
     #[gl_enum(GEQUAL)]
     GreaterEqual,
-    #[gl_enum(LESS)]
     Less,
-    #[gl_enum(GREATER)]
     Greater,
-    #[gl_enum(EQUAL)]
     Equal,
     #[gl_enum(NOTEQUAL)]
     NotEqual,
-    #[gl_enum(ALWAYS)]
     Always,
-    #[gl_enum(NEVER)]
     Never,
 }
 
 /// Available texture compare modes for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureCompareMode {
-    #[gl_enum(NONE)]
     None,
-    #[gl_enum(COMPARE_REF_TO_TEXTURE)]
     CompareRefToTexture,
 }
 
