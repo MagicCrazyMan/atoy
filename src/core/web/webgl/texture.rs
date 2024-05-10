@@ -2118,18 +2118,20 @@ impl<Layout, InternalFormat> Texture<Layout, InternalFormat> {
         self.sampler_params.borrow_mut().insert(param.kind(), param)
     }
 
-    pub fn gl_texture(&self) -> Option<WebGlTexture> {
+    pub fn gl_texture(&self) -> Result<WebGlTexture, Error> {
         self.registered
             .borrow()
             .as_ref()
             .map(|registered| registered.0.gl_texture.clone())
+            .ok_or(Error::TextureUnregistered)
     }
 
-    pub fn gl_sampler(&self) -> Option<WebGlSampler> {
+    pub fn gl_sampler(&self) -> Result<WebGlSampler, Error> {
         self.registered
             .borrow()
             .as_ref()
             .map(|registered| registered.0.gl_sampler.clone())
+            .ok_or(Error::TextureUnregistered)
     }
 
     pub fn flushing(&self) -> bool {
@@ -3310,13 +3312,13 @@ impl TextureRegisteredUndrop {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TextureRegistry {
     pub(super) id: Uuid,
     pub(super) gl: WebGl2RenderingContext,
     pub(super) buffer_registry: BufferRegistry,
-    pub(super) texture_active_unit: Rc<RefCell<TextureUnit>>,
-    pub(super) texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
+    pub(super) active_unit: Rc<RefCell<TextureUnit>>,
+    pub(super) bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
     pub(super) used_size: Rc<RefCell<usize>>,
 }
 
@@ -3327,8 +3329,8 @@ impl TextureRegistry {
             id: Uuid::new_v4(),
             gl,
             buffer_registry,
-            texture_active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
-            texture_bounds: Rc::new(RefCell::new(HashMap::new())),
+            active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
+            bounds: Rc::new(RefCell::new(HashMap::new())),
             used_size: Rc::new(RefCell::new(usize::MIN)),
         }
     }
@@ -3346,21 +3348,21 @@ impl TextureRegistry {
     }
 
     pub fn active_unit(&self) -> Rc<RefCell<TextureUnit>> {
-        Rc::clone(&self.texture_active_unit)
+        Rc::clone(&self.active_unit)
     }
 
     pub fn bounds(&self) -> Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>> {
-        Rc::clone(&self.texture_bounds)
+        Rc::clone(&self.bounds)
     }
 }
 
 macro_rules! register_functions {
-    ($(($name: ident, $name_compressed: ident, $tex_storage: ident, $target: expr, $layout: ident))+) => {
+    ($(($name: ident, $tex_storage: ident, $target: expr, $layout: ident, $format: ident))+) => {
         impl TextureRegistry {
             $(
                 pub fn $name(
                     &self,
-                    texture: &Texture<$layout, TextureUncompressedInternalFormat>,
+                    texture: &Texture<$layout, $format>,
                 ) -> Result<(), Error> {
                     if let Some(registered) = &*texture.registered.borrow() {
                         if &registered.0.reg_id != &self.id {
@@ -3393,8 +3395,8 @@ macro_rules! register_functions {
                         gl_active_unit: HashSet::new(),
 
                         reg_id: self.id,
-                        reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
-                        reg_texture_bounds: Rc::clone(&self.texture_bounds),
+                        reg_texture_active_unit: Rc::clone(&self.active_unit),
+                        reg_texture_bounds: Rc::clone(&self.bounds),
                         reg_used_size: Rc::downgrade(&self.used_size),
 
                         buffer_registry: self.buffer_registry.clone(),
@@ -3408,64 +3410,7 @@ macro_rules! register_functions {
                     });
 
                     self.gl
-                        .bind_texture($target.to_gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
-
-                    *texture.registered.borrow_mut() = Some(registered);
-
-                    Ok(())
-                }
-
-                pub fn $name_compressed(
-                    &self,
-                    texture: &Texture<$layout, TextureCompressedFormat>,
-                ) -> Result<(), Error> {
-                    if let Some(registered) = &*texture.registered.borrow() {
-                        if &registered.0.reg_id != &self.id {
-                            return Err(Error::RegisterTextureToMultipleRepositoryUnsupported);
-                        } else {
-                            return Ok(());
-                        }
-                    }
-
-                    let gl_texture = self
-                        .gl
-                        .create_texture()
-                        .ok_or(Error::CreateTextureFailure)?;
-                    let gl_sampler = self
-                        .gl
-                        .create_sampler()
-                        .ok_or(Error::CreateSamplerFailure)?;
-
-                    self.gl
-                        .bind_texture($target.to_gl_enum(), Some(&gl_texture));
-
-                    texture.$tex_storage(&self.gl, $target);
-                    let texture_memory = texture.byte_length();
-                    *self.used_size.borrow_mut() += texture_memory;
-
-                    let registered = TextureRegistered(TextureRegisteredUndrop {
-                        gl: self.gl.clone(),
-                        gl_texture,
-                        gl_sampler,
-                        gl_active_unit: HashSet::new(),
-
-                        reg_id: self.id,
-                        reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
-                        reg_texture_bounds: Rc::clone(&self.texture_bounds),
-                        reg_used_size: Rc::downgrade(&self.used_size),
-
-                        buffer_registry: self.buffer_registry.clone(),
-
-                        texture_target: $target,
-                        texture_memory,
-                        texture_params: Rc::clone(&texture.texture_params),
-                        sampler_params: Rc::clone(&texture.sampler_params),
-                        texture_queue: Rc::downgrade(&texture.queue),
-                        texture_async_upload: Rc::new(RefCell::new(None)),
-                    });
-
-                    self.gl
-                        .bind_texture($target.to_gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
+                        .bind_texture($target.to_gl_enum(), self.bounds.borrow().get(&(self.active_unit.borrow().clone(), $target)));
 
                     *texture.registered.borrow_mut() = Some(registered);
 
@@ -3477,8 +3422,78 @@ macro_rules! register_functions {
 }
 
 register_functions! {
-    (register_2d, register_2d_compressed, tex_storage_2d, TextureTarget::Texture2D, Texture2D)
-    (register_2d_array, register_2d_array_compressed, tex_storage_3d, TextureTarget::Texture2DArray, Texture2DArray)
-    (register_3d, register_3d_compressed, tex_storage_3d, TextureTarget::Texture3D, Texture3D)
-    (register_cube_map, register_cube_map_compressed, tex_storage_2d, TextureTarget::TextureCubeMap, TextureCubeMap)
+    (register_2d, tex_storage_2d, TextureTarget::Texture2D, Texture2D, TextureUncompressedInternalFormat)
+    (register_2d_compressed, tex_storage_2d, TextureTarget::Texture2D, Texture2D, TextureCompressedFormat)
+    (register_2d_array, tex_storage_3d, TextureTarget::Texture2DArray, Texture2DArray, TextureUncompressedInternalFormat)
+    (register_2d_array_compressed, tex_storage_3d, TextureTarget::Texture2DArray, Texture2DArray, TextureCompressedFormat)
+    (register_3d, tex_storage_3d, TextureTarget::Texture3D, Texture3D, TextureUncompressedInternalFormat)
+    (register_3d_compressed, tex_storage_3d, TextureTarget::Texture3D, Texture3D, TextureCompressedFormat)
+    (register_cube_map, tex_storage_2d, TextureTarget::TextureCubeMap, TextureCubeMap, TextureUncompressedInternalFormat)
+    (register_cube_map_compressed, tex_storage_2d, TextureTarget::TextureCubeMap, TextureCubeMap, TextureCompressedFormat)
+}
+
+macro_rules! capture_functions {
+    ($(($name: ident, $target: expr, $layout: ident, $format: ident))+) => {
+        impl TextureRegistry {
+            $(
+                pub fn $name(
+                    &self,
+                    gl_texture: WebGlTexture,
+                    layout: $layout,
+                    internal_format: $format,
+                ) -> Result<Texture<$layout, $format>, Error> {
+                    let texture_params = Rc::new(RefCell::new(HashMap::new()));
+                    let sampler_params = Rc::new(RefCell::new(HashMap::new()));
+                    let queue = Rc::new(RefCell::new(VecDeque::new()));
+                    let mut registered = TextureRegistered(TextureRegisteredUndrop {
+                        gl: self.gl.clone(),
+                        gl_texture,
+                        gl_sampler: self
+                            .gl
+                            .create_sampler()
+                            .ok_or(Error::CreateSamplerFailure)?,
+                        gl_active_unit: HashSet::new(),
+
+                        reg_id: self.id,
+                        reg_texture_active_unit: Rc::clone(&self.active_unit),
+                        reg_texture_bounds: Rc::clone(&self.bounds),
+                        reg_used_size: Rc::downgrade(&self.used_size),
+
+                        buffer_registry: self.buffer_registry.clone(),
+
+                        texture_target: $target,
+                        texture_memory: 0,
+                        texture_params: Rc::clone(&texture_params),
+                        sampler_params: Rc::clone(&sampler_params),
+                        texture_queue: Rc::downgrade(&queue),
+                        texture_async_upload: Rc::new(RefCell::new(None)),
+                    });
+                    let texture = Texture {
+                        id: Uuid::new_v4(),
+                        layout,
+                        internal_format,
+                        sampler_params,
+                        texture_params,
+                        queue,
+                        registered: Rc::new(RefCell::new(None)),
+                    };
+                    registered.0.texture_memory = texture.byte_length();
+                    *texture.registered.borrow_mut() = Some(registered);
+
+                    Ok(texture)
+                }
+            )+
+        }
+    };
+}
+
+capture_functions! {
+    (capture_2d, TextureTarget::Texture2D, Texture2D, TextureUncompressedInternalFormat)
+    (capture_2d_compressed, TextureTarget::Texture2D, Texture2D, TextureCompressedFormat)
+    (capture_2d_array, TextureTarget::Texture2DArray, Texture2DArray, TextureUncompressedInternalFormat)
+    (capture_2d_array_compressed, TextureTarget::Texture2DArray, Texture2DArray, TextureCompressedFormat)
+    (capture_3d, TextureTarget::Texture3D, Texture3D, TextureUncompressedInternalFormat)
+    (capture_3d_compressed, TextureTarget::Texture3D, Texture3D, TextureCompressedFormat)
+    (capture_cube_map, TextureTarget::TextureCubeMap, TextureCubeMap, TextureUncompressedInternalFormat)
+    (capture_cube_map_compressed, TextureTarget::TextureCubeMap, TextureCubeMap, TextureCompressedFormat)
 }

@@ -1110,48 +1110,60 @@ impl Framebuffer {
                 levels,
                 width,
                 height,
-            } => {
-                let layout = Texture2D::new(levels, width, height);
-                let texture_params = Rc::new(RefCell::new(HashMap::new()));
-                let sampler_params = Rc::new(RefCell::new(HashMap::new()));
-                let queue = Rc::new(RefCell::new(VecDeque::new()));
-                let mut registered = TextureRegistered(TextureRegisteredUndrop {
-                    gl: registered.gl.clone(),
-                    gl_texture,
-                    gl_sampler: registered
-                        .gl
-                        .create_sampler()
-                        .ok_or(Error::CreateSamplerFailure)?,
-                    gl_active_unit: HashSet::new(),
+            } => registered.texture_registry.capture_2d(
+                gl_texture,
+                Texture2D::new(levels, width, height),
+                internal_format,
+            ),
+            _ => unreachable!(),
+        }
+    }
 
-                    reg_id: self.id,
-                    reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
-                    reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
-                    reg_used_size: Weak::clone(&registered.reg_texture_used_size),
+    pub fn copy_to_texture_2d(
+        &self,
+        texture: Texture<Texture2D, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_texture_2d_with_params(
+            texture, x, y, width, height, None, None, None, None, None,
+        )
+    }
 
-                    buffer_registry: registered.buffer_registry.clone(),
+    pub fn copy_to_texture_2d_with_params(
+        &self,
+        texture: Texture<Texture2D, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::ToTexture2D {
+                gl_texture: texture.gl_texture()?,
+            },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
 
-                    texture_target: TextureTarget::Texture2D,
-                    texture_memory: 0,
-                    texture_params: Rc::clone(&texture_params),
-                    sampler_params: Rc::clone(&sampler_params),
-                    texture_queue: Rc::downgrade(&queue),
-                    texture_async_upload: Rc::new(RefCell::new(None)),
-                });
-                let texture = Texture {
-                    id: Uuid::new_v4(),
-                    layout,
-                    internal_format,
-                    sampler_params,
-                    texture_params,
-                    queue,
-                    registered: Rc::new(RefCell::new(None)),
-                };
-                registered.0.texture_memory = texture.byte_length();
-                *texture.registered.borrow_mut() = Some(registered);
-
-                Ok(texture)
-            }
+        match result {
+            CopyTexture::ToTexture2D => Ok(texture),
             _ => unreachable!(),
         }
     }
@@ -1230,8 +1242,8 @@ impl Framebuffer {
 //                                 gl_active_unit: HashSet::new(),
 
 //                                 reg_id: self.id,
-//                                 reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
-//                                 reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
+//                                 texture_registry.active_unit: Rc::clone(&registered.texture_registry.active_unit),
+//                                 texture_registry.bounds: Rc::clone(&registered.texture_registry.bounds),
 //                                 reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
 //                                 reg_used_size: Weak::clone(&registered.reg_texture_used_size),
 
@@ -1369,10 +1381,7 @@ struct FramebufferRegistered {
     reg_framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, (WebGlFramebuffer, u32, Array)>>>,
 
     buffer_registry: BufferRegistry,
-
-    reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
-    reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    reg_texture_used_size: Weak<RefCell<usize>>,
+    texture_registry: TextureRegistry,
 
     framebuffer_size_policy: SizePolicy,
     framebuffer_size: Option<(usize, usize)>,
@@ -1601,8 +1610,8 @@ impl FramebufferRegistered {
                             );
                             self.gl.bind_texture(
                                 TextureTarget::Texture2D.to_gl_enum(),
-                                self.reg_texture_bounds.borrow().get(&(
-                                    self.reg_texture_active_unit.borrow().clone(),
+                                self.texture_registry.bounds.borrow().get(&(
+                                    self.texture_registry.active_unit.borrow().clone(),
                                     TextureTarget::Texture2D,
                                 )),
                             );
@@ -2103,9 +2112,10 @@ impl FramebufferRegistered {
 
         self.gl.bind_texture(
             target.to_gl_enum(),
-            self.reg_texture_bounds
+            self.texture_registry
+                .bounds
                 .borrow()
-                .get(&(self.reg_texture_active_unit.borrow().clone(), target)),
+                .get(&(self.texture_registry.active_unit.borrow().clone(), target)),
         );
 
         self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
@@ -2146,24 +2156,21 @@ impl FramebufferRegistered {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FramebufferRegistry {
     id: Uuid,
     gl: WebGl2RenderingContext,
     framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, (WebGlFramebuffer, u32, Array)>>>,
 
     buffer_registry: BufferRegistry,
-
-    reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
-    reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    reg_texture_used_size: Weak<RefCell<usize>>,
+    texture_registry: TextureRegistry,
 }
 
 impl FramebufferRegistry {
     pub fn new(
         gl: WebGl2RenderingContext,
         buffer_registry: BufferRegistry,
-        texture_registry: &TextureRegistry,
+        texture_registry: TextureRegistry,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -2171,10 +2178,7 @@ impl FramebufferRegistry {
             framebuffer_bounds: Rc::new(RefCell::new(HashMap::new())),
 
             buffer_registry,
-
-            reg_texture_active_unit: Rc::clone(&texture_registry.texture_active_unit),
-            reg_texture_bounds: Rc::clone(&texture_registry.texture_bounds),
-            reg_texture_used_size: Rc::downgrade(&texture_registry.used_size),
+            texture_registry,
         }
     }
 
@@ -2222,11 +2226,8 @@ impl FramebufferRegistry {
             reg_id: self.id,
             reg_framebuffer_bounds: Rc::clone(&self.framebuffer_bounds),
 
-            reg_texture_active_unit: Rc::clone(&self.reg_texture_active_unit),
-            reg_texture_bounds: Rc::clone(&self.reg_texture_bounds),
-            reg_texture_used_size: Weak::clone(&self.reg_texture_used_size),
-
             buffer_registry: self.buffer_registry.clone(),
+            texture_registry: self.texture_registry.clone(),
 
             framebuffer_size_policy: framebuffer.size_policy,
             framebuffer_size: None,
