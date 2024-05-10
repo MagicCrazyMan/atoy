@@ -11,6 +11,8 @@ pub trait Component<RenderType>: AsAny {
 pub trait Entity<RenderType>: AsAny {
     fn components(&self) -> &[&dyn Component<RenderType>];
 
+    fn components_mut(&self) -> &[&mut dyn Component<RenderType>];
+
     fn local_matrix(&self) -> &Mat4<f64>;
 
     fn model_matrix(&self) -> &Mat4<f64>;

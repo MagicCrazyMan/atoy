@@ -1,6 +1,9 @@
 use std::ops::Range;
 
-use crate::core::entity::{Component, Entity};
+use crate::core::{
+    clock::Tick,
+    entity::{Component, Entity},
+};
 
 use super::{
     attribute::{AttributeValue, IndicesDataType},
@@ -18,9 +21,11 @@ pub trait WebGlComponent: Component<WebGl> {
 
     fn uniform_block(&self, name: &str) -> Option<UniformBlockValue>;
 
-    fn pre_render(&mut self, context: &Context) -> Result<(), String>;
+    fn tick(&mut self, ticking: &Tick);
 
-    fn post_render(&mut self, context: &Context) -> Result<(), String>;
+    fn pre_render(&mut self, context: &Context);
+
+    fn post_render(&mut self, context: &Context);
 }
 
 pub trait WebGlEntity: Entity<WebGl> {
@@ -28,9 +33,11 @@ pub trait WebGlEntity: Entity<WebGl> {
 
     fn draw_range(&self) -> Range<usize>;
 
-    fn pre_render(&mut self, context: &Context) -> Result<(), String>;
+    fn tick(&mut self, ticking: &Tick);
 
-    fn post_render(&mut self, context: &Context) -> Result<(), String>;
+    fn pre_render(&mut self, context: &Context);
+
+    fn post_render(&mut self, context: &Context);
 
     fn as_indexed_entity(&self) -> Option<&dyn WebGlIndexedEntity>;
 
