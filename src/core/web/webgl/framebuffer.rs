@@ -956,9 +956,7 @@ impl Framebuffer {
         match readback {
             ReadPixels::NewPixelBufferObject(gl_buffer, size, usage) => {
                 // wraps native WebGlBuffer to Buffer
-                if let Some(buffer_used_memory) = registered.reg_buffer_used_memory.upgrade() {
-                    *buffer_used_memory.borrow_mut() += size;
-                }
+                *registered.buffer_registry.used_size.borrow_mut() += size;
 
                 let queue = Rc::new(RefCell::new(VecDeque::new()));
                 let registered = BufferRegistered(BufferRegisteredUndrop {
@@ -966,9 +964,9 @@ impl Framebuffer {
                     gl_buffer,
                     gl_bounds: HashSet::new(),
 
-                    reg_id: registered.reg_buffer_id,
-                    reg_bounds: Rc::clone(&registered.reg_buffer_bounds),
-                    reg_used_memory: Weak::clone(&registered.reg_buffer_used_memory),
+                    reg_id: registered.buffer_registry.id,
+                    reg_bounds: Rc::clone(&registered.buffer_registry.bounds),
+                    reg_used_size: Rc::downgrade(&registered.buffer_registry.used_size),
 
                     buffer_size: size,
                     buffer_usage: pixel_buffer_object_usage,
@@ -1129,8 +1127,9 @@ impl Framebuffer {
                     reg_id: self.id,
                     reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
                     reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
-                    reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
-                    reg_used_memory: Weak::clone(&registered.reg_texture_used_memory),
+                    reg_used_size: Weak::clone(&registered.reg_texture_used_size),
+
+                    buffer_registry: registered.buffer_registry.clone(),
 
                     texture_target: TextureTarget::Texture2D,
                     texture_memory: 0,
@@ -1234,7 +1233,7 @@ impl Framebuffer {
 //                                 reg_texture_active_unit: Rc::clone(&registered.reg_texture_active_unit),
 //                                 reg_texture_bounds: Rc::clone(&registered.reg_texture_bounds),
 //                                 reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
-//                                 reg_used_memory: Weak::clone(&registered.reg_texture_used_memory),
+//                                 reg_used_size: Weak::clone(&registered.reg_texture_used_size),
 
 //                                 texture_target: TextureTarget::Texture2D,
 //                                 texture_memory: 0,
@@ -1369,13 +1368,11 @@ struct FramebufferRegistered {
     reg_id: Uuid,
     reg_framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, (WebGlFramebuffer, u32, Array)>>>,
 
-    reg_buffer_id: Uuid,
-    reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    reg_buffer_used_memory: Weak<RefCell<usize>>,
+    buffer_registry: BufferRegistry,
 
     reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    reg_texture_used_memory: Weak<RefCell<usize>>,
+    reg_texture_used_size: Weak<RefCell<usize>>,
 
     framebuffer_size_policy: SizePolicy,
     framebuffer_size: Option<(usize, usize)>,
@@ -1914,7 +1911,8 @@ impl FramebufferRegistered {
 
                 self.gl.bind_buffer(
                     BufferTarget::PixelPackBuffer.to_gl_enum(),
-                    self.reg_buffer_bounds
+                    self.buffer_registry
+                        .bounds
                         .borrow()
                         .get(&BufferTarget::PixelPackBuffer),
                 );
@@ -2154,19 +2152,17 @@ pub struct FramebufferRegistry {
     gl: WebGl2RenderingContext,
     framebuffer_bounds: Rc<RefCell<HashMap<FramebufferTarget, (WebGlFramebuffer, u32, Array)>>>,
 
-    reg_buffer_id: Uuid,
-    reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    reg_buffer_used_memory: Weak<RefCell<usize>>,
+    buffer_registry: BufferRegistry,
 
     reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    reg_texture_used_memory: Weak<RefCell<usize>>,
+    reg_texture_used_size: Weak<RefCell<usize>>,
 }
 
 impl FramebufferRegistry {
     pub fn new(
         gl: WebGl2RenderingContext,
-        buffer_registry: &BufferRegistry,
+        buffer_registry: BufferRegistry,
         texture_registry: &TextureRegistry,
     ) -> Self {
         Self {
@@ -2174,13 +2170,11 @@ impl FramebufferRegistry {
             gl,
             framebuffer_bounds: Rc::new(RefCell::new(HashMap::new())),
 
-            reg_buffer_id: buffer_registry.id,
-            reg_buffer_bounds: Rc::clone(&buffer_registry.bounds),
-            reg_buffer_used_memory: Rc::downgrade(&buffer_registry.used_memory),
+            buffer_registry,
 
             reg_texture_active_unit: Rc::clone(&texture_registry.texture_active_unit),
             reg_texture_bounds: Rc::clone(&texture_registry.texture_bounds),
-            reg_texture_used_memory: Rc::downgrade(&texture_registry.used_memory),
+            reg_texture_used_size: Rc::downgrade(&texture_registry.used_size),
         }
     }
 
@@ -2230,11 +2224,9 @@ impl FramebufferRegistry {
 
             reg_texture_active_unit: Rc::clone(&self.reg_texture_active_unit),
             reg_texture_bounds: Rc::clone(&self.reg_texture_bounds),
-            reg_texture_used_memory: Weak::clone(&self.reg_texture_used_memory),
+            reg_texture_used_size: Weak::clone(&self.reg_texture_used_size),
 
-            reg_buffer_id: self.reg_buffer_id,
-            reg_buffer_bounds: Rc::clone(&self.reg_buffer_bounds),
-            reg_buffer_used_memory: Weak::clone(&self.reg_buffer_used_memory),
+            buffer_registry: self.buffer_registry.clone(),
 
             framebuffer_size_policy: framebuffer.size_policy,
             framebuffer_size: None,

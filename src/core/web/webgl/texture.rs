@@ -23,7 +23,7 @@ use web_sys::{
 };
 
 use super::{
-    buffer::BufferTarget,
+    buffer::{BufferRegistry, BufferTarget},
     error::Error,
     pixel::{PixelDataType, PixelFormat, PixelUnpackStorage},
 };
@@ -530,10 +530,10 @@ impl TextureInternalFormat for TextureUncompressedInternalFormat {
             TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
         }
     }
-    
+
     fn to_gl_enum(&self) -> u32 {
         self.to_gl_enum()
-    }    
+    }
 }
 
 /// Available texture compressed internal and upload formats mapped from [`WebGl2RenderingContext`].
@@ -835,7 +835,7 @@ impl TextureInternalFormat for TextureCompressedFormat {
             }
         }
     }
-    
+
     fn to_gl_enum(&self) -> u32 {
         self.to_gl_enum()
     }
@@ -2811,9 +2811,9 @@ impl Drop for TextureRegistered {
         self.0.gl.delete_texture(Some(&self.0.gl_texture));
         self.0.gl.delete_sampler(Some(&self.0.gl_sampler));
         self.0
-            .reg_used_memory
+            .reg_used_size
             .upgrade()
-            .map(|used_memory| *used_memory.borrow_mut() -= self.0.texture_memory);
+            .map(|used_size| *used_size.borrow_mut() -= self.0.texture_memory);
     }
 }
 
@@ -2827,9 +2827,9 @@ pub(super) struct TextureRegisteredUndrop {
     pub(super) reg_id: Uuid,
     pub(super) reg_texture_active_unit: Rc<RefCell<TextureUnit>>,
     pub(super) reg_texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    pub(super) reg_used_memory: Weak<RefCell<usize>>,
+    pub(super) reg_used_size: Weak<RefCell<usize>>,
 
-    pub(super) reg_buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
+    pub(super) buffer_registry: BufferRegistry,
 
     pub(super) texture_target: TextureTarget,
     pub(super) texture_memory: usize,
@@ -3034,7 +3034,7 @@ impl TextureRegisteredUndrop {
 
                     data.upload(
                         &self.gl,
-                        &self.reg_buffer_bounds,
+                        &self.buffer_registry.bounds,
                         self.texture_target,
                         face,
                         level,
@@ -3152,7 +3152,7 @@ impl TextureRegisteredUndrop {
 
                     data.upload(
                         &self.gl,
-                        &self.reg_buffer_bounds,
+                        &self.buffer_registry.bounds,
                         self.texture_target,
                         face,
                         format,
@@ -3239,7 +3239,7 @@ impl TextureRegisteredUndrop {
 
                     data.upload(
                         &self.gl,
-                        &self.reg_buffer_bounds,
+                        &self.buffer_registry.bounds,
                         self.texture_target,
                         face,
                         level,
@@ -3285,7 +3285,7 @@ impl TextureRegisteredUndrop {
 
                     data.upload(
                         &self.gl,
-                        &self.reg_buffer_bounds,
+                        &self.buffer_registry.bounds,
                         self.texture_target,
                         face,
                         format,
@@ -3314,25 +3314,22 @@ impl TextureRegisteredUndrop {
 pub struct TextureRegistry {
     pub(super) id: Uuid,
     pub(super) gl: WebGl2RenderingContext,
+    pub(super) buffer_registry: BufferRegistry,
     pub(super) texture_active_unit: Rc<RefCell<TextureUnit>>,
     pub(super) texture_bounds: Rc<RefCell<HashMap<(TextureUnit, TextureTarget), WebGlTexture>>>,
-    pub(super) buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    pub(super) used_memory: Rc<RefCell<usize>>,
+    pub(super) used_size: Rc<RefCell<usize>>,
 }
 
 impl TextureRegistry {
-    pub fn new(
-        gl: WebGl2RenderingContext,
-        buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
-    ) -> Self {
+    pub fn new(gl: WebGl2RenderingContext, buffer_registry: BufferRegistry) -> Self {
         gl.active_texture(TextureUnit::Texture0.to_gl_enum());
         Self {
             id: Uuid::new_v4(),
             gl,
+            buffer_registry,
             texture_active_unit: Rc::new(RefCell::new(TextureUnit::Texture0)),
             texture_bounds: Rc::new(RefCell::new(HashMap::new())),
-            buffer_bounds,
-            used_memory: Rc::new(RefCell::new(usize::MIN)),
+            used_size: Rc::new(RefCell::new(usize::MIN)),
         }
     }
 
@@ -3344,8 +3341,8 @@ impl TextureRegistry {
         &self.gl
     }
 
-    pub fn used_memory(&self) -> usize {
-        *self.used_memory.borrow()
+    pub fn used_size(&self) -> usize {
+        *self.used_size.borrow()
     }
 
     pub fn active_unit(&self) -> Rc<RefCell<TextureUnit>> {
@@ -3387,7 +3384,7 @@ macro_rules! register_functions {
 
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
-                    *self.used_memory.borrow_mut() += texture_memory;
+                    *self.used_size.borrow_mut() += texture_memory;
 
                     let registered = TextureRegistered(TextureRegisteredUndrop {
                         gl: self.gl.clone(),
@@ -3398,8 +3395,9 @@ macro_rules! register_functions {
                         reg_id: self.id,
                         reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
-                        reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
-                        reg_used_memory: Rc::downgrade(&self.used_memory),
+                        reg_used_size: Rc::downgrade(&self.used_size),
+
+                        buffer_registry: self.buffer_registry.clone(),
 
                         texture_target: $target,
                         texture_memory,
@@ -3443,7 +3441,7 @@ macro_rules! register_functions {
 
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
-                    *self.used_memory.borrow_mut() += texture_memory;
+                    *self.used_size.borrow_mut() += texture_memory;
 
                     let registered = TextureRegistered(TextureRegisteredUndrop {
                         gl: self.gl.clone(),
@@ -3454,8 +3452,9 @@ macro_rules! register_functions {
                         reg_id: self.id,
                         reg_texture_active_unit: Rc::clone(&self.texture_active_unit),
                         reg_texture_bounds: Rc::clone(&self.texture_bounds),
-                        reg_buffer_bounds: Rc::clone(&self.buffer_bounds),
-                        reg_used_memory: Rc::downgrade(&self.used_memory),
+                        reg_used_size: Rc::downgrade(&self.used_size),
+
+                        buffer_registry: self.buffer_registry.clone(),
 
                         texture_target: $target,
                         texture_memory,

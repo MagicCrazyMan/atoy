@@ -180,10 +180,10 @@ pub fn gl_enum_derive(input: TokenStream) -> TokenStream {
             }
 
             #[inline]
-            pub fn from_gl_enum(value: u32) -> Result<Self, u32> {
-                match value {
+            pub fn from_gl_enum(gl_enum: u32) -> Result<Self, u32> {
+                match gl_enum {
                     #( #gl_enum2 => Ok(Self::#variant2), )*
-                    _ => Err(value),
+                    _ => Err(gl_enum),
                 }
             }
         }

@@ -19,7 +19,7 @@ pub struct Context {
 impl Context {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         let buffer_registry = BufferRegistry::new(gl.clone());
-        let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.bounds());
+        let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.clone());
         Self {
             buffer_registry,
             texture_registry,
