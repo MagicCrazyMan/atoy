@@ -224,7 +224,7 @@ impl Program {
                 self.gl.vertex_attrib_pointer_with_i32(
                     location,
                     *component_size as i32,
-                    data_type.gl_enum(),
+                    data_type.to_gl_enum(),
                     *normalized,
                     *bytes_stride as i32,
                     *byte_offset as i32,
@@ -262,7 +262,7 @@ impl Program {
                     self.gl.vertex_attrib_pointer_with_i32(
                         offset_location,
                         component_size as i32,
-                        data_type.gl_enum(),
+                        data_type.to_gl_enum(),
                         *normalized,
                         stride as i32,
                         offset as i32,

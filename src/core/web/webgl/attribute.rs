@@ -1,3 +1,5 @@
+use proc::GlEnum;
+
 use super::buffer::Buffer;
 
 /// Available attribute values.
@@ -43,24 +45,38 @@ pub enum ArrayBufferComponentSize {
     Four = 4,
 }
 
-/// Available buffer data types mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Available buffer data types mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum ArrayBufferDataType {
+    #[gl_enum(FLOAT)]
     Float,
+    #[gl_enum(BYTE)]
     Byte,
+    #[gl_enum(SHORT)]
     Short,
+    #[gl_enum(INT)]
     Int,
+    #[gl_enum(UNSIGNED_BYTE)]
     UnsignedByte,
+    #[gl_enum(UNSIGNED_SHORT)]
     UnsignedShort,
+    #[gl_enum(UNSIGNED_INT)]
     UnsignedInt,
+    #[gl_enum(HALF_FLOAT)]
     HalfFloat,
+    #[gl_enum(INT_2_10_10_10_REV)]
     Int2_10_10_10Rev,
+    #[gl_enum(UNSIGNED_INT_2_10_10_10_REV)]
     UnsignedInt2_10_10_10Rev,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Available elemental index buffer data types mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum IndicesDataType {
+    #[gl_enum(UNSIGNED_BYTE)]
     UnsignedByte,
+    #[gl_enum(UNSIGNED_SHORT)]
     UnsignedShort,
+    #[gl_enum(UNSIGNED_INT)]
     UnsignedInt,
 }

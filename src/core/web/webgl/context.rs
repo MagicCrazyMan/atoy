@@ -55,13 +55,13 @@ impl Context {
     //     self.buffer_registry.register(&buffer)?;
     //     let gl_buffer = buffer.gl_buffer().unwrap();
     //     self.gl
-    //         .bind_buffer(BufferTarget::UniformBuffer.gl_enum(), Some(&gl_buffer));
+    //         .bind_buffer(BufferTarget::UniformBuffer.to_gl_enum(), Some(&gl_buffer));
     //     match range {
     //         Some(range) => {
     //             let offset = range.start as i32;
     //             let size = (range.end - range.start) as i32;
     //             self.gl.bind_buffer_range_with_i32_and_i32(
-    //                 BufferTarget::UniformBuffer.gl_enum(),
+    //                 BufferTarget::UniformBuffer.to_gl_enum(),
     //                 mount_point as u32,
     //                 Some(&gl_buffer),
     //                 offset,
@@ -70,14 +70,14 @@ impl Context {
     //         }
     //         None => {
     //             self.gl.bind_buffer_base(
-    //                 BufferTarget::UniformBuffer.gl_enum(),
+    //                 BufferTarget::UniformBuffer.to_gl_enum(),
     //                 mount_point as u32,
     //                 Some(&gl_buffer),
     //             );
     //         }
     //     };
     //     self.gl
-    //         .bind_buffer(BufferTarget::UniformBuffer.gl_enum(), None);
+    //         .bind_buffer(BufferTarget::UniformBuffer.to_gl_enum(), None);
 
     //     self.uniform_buffer_objects
     //         .insert(mount_point, buffer.clone());
@@ -91,7 +91,7 @@ impl Context {
     //     };
 
     //     self.gl.bind_buffer_base(
-    //         BufferTarget::UniformBuffer.gl_enum(),
+    //         BufferTarget::UniformBuffer.to_gl_enum(),
     //         mount_point as u32,
     //         None,
     //     );

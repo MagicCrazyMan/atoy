@@ -196,7 +196,7 @@ fn draw_entity(
     if should_cull_face {
         if let Some(cull_face) = geometry.cull_face() {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
-            state.gl().cull_face(cull_face.gl_enum());
+            state.gl().cull_face(cull_face.to_gl_enum());
         } else {
             state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }

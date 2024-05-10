@@ -102,7 +102,7 @@ impl FrameState {
         let sampler = self.capabilities().computation_sampler()?;
         let mut states = Vec::new();
         for (texture, unit) in textures {
-            self.gl.active_texture(unit.gl_enum());
+            self.gl.active_texture(unit.to_gl_enum());
             let binding = self.gl.texture_binding_2d();
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
@@ -115,7 +115,7 @@ impl FrameState {
             .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
 
         for (unit, binding) in states {
-            self.gl.active_texture(unit.gl_enum());
+            self.gl.active_texture(unit.to_gl_enum());
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
             self.gl.bind_sampler(unit.unit_index() as u32, None);

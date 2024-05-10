@@ -357,14 +357,14 @@ impl TextureParameter {
         match self {
             TextureParameter::BASE_LEVEL(v) => {
                 gl.tex_parameteri(
-                    target.gl_enum(),
+                    target.to_gl_enum(),
                     WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
                     *v,
                 );
             }
             TextureParameter::MAX_LEVEL(v) => {
                 gl.tex_parameteri(
-                    target.gl_enum(),
+                    target.to_gl_enum(),
                     WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
                     *v,
                 );
@@ -375,7 +375,7 @@ impl TextureParameter {
                     return;
                 }
                 gl.tex_parameterf(
-                    target.gl_enum(),
+                    target.to_gl_enum(),
                     ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
                     *v,
                 );
@@ -433,24 +433,24 @@ impl SamplerParameter {
     fn set(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
         match self {
             SamplerParameter::MAG_FILTER(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::MIN_FILTER(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::WRAP_S(v)
             | SamplerParameter::WRAP_T(v)
             | SamplerParameter::WRAP_R(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::COMPARE_FUNC(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::COMPARE_MODE(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::MAX_LOD(v) | SamplerParameter::MIN_LOD(v) => {
-                gl.sampler_parameterf(&sampler, self.gl_enum(), *v)
+                gl.sampler_parameterf(&sampler, self.to_gl_enum(), *v)
             }
         }
     }
@@ -1281,7 +1281,7 @@ impl TextureRuntime {
                     None
                 };
 
-                self.gl.bind_texture(target.gl_enum(), Some(&texture));
+                self.gl.bind_texture(target.to_gl_enum(), Some(&texture));
 
                 // sets sampler parameters
                 for param in sampler_params {
@@ -1294,18 +1294,18 @@ impl TextureRuntime {
                 match target {
                     TextureTarget::TEXTURE_2D | TextureTarget::TEXTURE_CUBE_MAP => {
                         self.gl.tex_storage_2d(
-                            target.gl_enum(),
+                            target.to_gl_enum(),
                             layout.levels as i32,
-                            layout.internal_format.gl_enum(),
+                            layout.internal_format.to_gl_enum(),
                             layout.width as i32,
                             layout.height as i32,
                         )
                     }
                     TextureTarget::TEXTURE_2D_ARRAY | TextureTarget::TEXTURE_3D => {
                         self.gl.tex_storage_3d(
-                            target.gl_enum(),
+                            target.to_gl_enum(),
                             layout.levels as i32,
-                            layout.internal_format.gl_enum(),
+                            layout.internal_format.to_gl_enum(),
                             layout.width as i32,
                             layout.height as i32,
                             layout.depth as i32,
@@ -1313,7 +1313,7 @@ impl TextureRuntime {
                     }
                 }
 
-                self.gl.bind_texture(target.gl_enum(), binding.as_ref());
+                self.gl.bind_texture(target.to_gl_enum(), binding.as_ref());
                 self.byte_length = layout.byte_length();
 
                 let (texture, sampler) = self.texture.insert((texture, sampler));
@@ -1372,7 +1372,7 @@ impl TextureRuntime {
                     }
                 }
             } else {
-                target.gl_enum()
+                target.to_gl_enum()
             };
             let data = source.data();
             let level = level as i32;
@@ -1438,8 +1438,8 @@ impl TextureRuntime {
                                     width,
                                     height,
                                     depth,
-                                    pixel_format.gl_enum(),
-                                    data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    data_type.to_gl_enum(),
                                     Some(data.as_bytes()),
                                     src_element_offset.unwrap_or(0) as u32,
                                 )
@@ -1451,8 +1451,8 @@ impl TextureRuntime {
                                     y_offset,
                                     width,
                                     height,
-                                    pixel_format.gl_enum(),
-                                    data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    data_type.to_gl_enum(),
                                     data.as_bytes(),
                                     src_element_offset.unwrap_or(0) as u32,
                                 )
@@ -1481,8 +1481,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     pbo_offset.unwrap_or(0) as i32,
                                 )
                             } else {
@@ -1494,8 +1494,8 @@ impl TextureRuntime {
                                         y_offset as i32,
                                         width as i32,
                                         height as i32,
-                                        pixel_format.gl_enum(),
-                                        pixel_data_type.gl_enum(),
+                                        pixel_format.to_gl_enum(),
+                                        pixel_data_type.to_gl_enum(),
                                         pbo_offset.unwrap_or(0) as i32,
                                     )
                             };
@@ -1575,8 +1575,8 @@ impl TextureRuntime {
                                         width as i32,
                                         height as i32,
                                         depth as i32,
-                                        pixel_format.gl_enum(),
-                                        pixel_data_type.gl_enum(),
+                                        pixel_format.to_gl_enum(),
+                                        pixel_data_type.to_gl_enum(),
                                         Some(&data),
                                         src_element_offset.unwrap_or(0) as u32,
                                     )
@@ -1589,8 +1589,8 @@ impl TextureRuntime {
                                         y_offset as i32,
                                         width as i32,
                                         height as i32,
-                                        pixel_format.gl_enum(),
-                                        pixel_data_type.gl_enum(),
+                                        pixel_format.to_gl_enum(),
+                                        pixel_data_type.to_gl_enum(),
                                         &data,
                                         src_element_offset.unwrap_or(0) as u32,
                                     )
@@ -1607,8 +1607,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             } else {
@@ -1619,8 +1619,8 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             }
@@ -1636,8 +1636,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             } else {
@@ -1648,8 +1648,8 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             }
@@ -1665,8 +1665,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             } else {
@@ -1677,8 +1677,8 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             }
@@ -1694,8 +1694,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             } else {
@@ -1706,8 +1706,8 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             }
@@ -1723,8 +1723,8 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             } else {
@@ -1735,8 +1735,8 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
-                                    pixel_data_type.gl_enum(),
+                                    pixel_format.to_gl_enum(),
+                                    pixel_data_type.to_gl_enum(),
                                     &data,
                                 )
                             }
@@ -1815,7 +1815,7 @@ impl TextureRuntime {
                                     width,
                                     height,
                                     depth,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     data.as_bytes(),
                                     src_element_offset.unwrap_or(0) as u32,
                                     src_element_length_override.unwrap_or(0) as u32,
@@ -1828,7 +1828,7 @@ impl TextureRuntime {
                                     y_offset,
                                     width,
                                     height,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     data.as_bytes(),
                                     src_element_offset.unwrap_or(0) as u32,
                                     src_element_length_override.unwrap_or(0) as u32,
@@ -1862,7 +1862,7 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     image_size as i32,
                                     pbo_offset.unwrap_or(0) as i32,
                                 )
@@ -1874,7 +1874,7 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     image_size as i32,
                                     pbo_offset.unwrap_or(0) as i32,
                                 )
@@ -2031,7 +2031,7 @@ impl TextureRuntime {
                                     width as i32,
                                     height as i32,
                                     depth as i32,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     &data,
                                     src_element_offset.unwrap_or(0) as u32,
                                     src_element_length_override.unwrap_or(0) as u32,
@@ -2044,7 +2044,7 @@ impl TextureRuntime {
                                     y_offset as i32,
                                     width as i32,
                                     height as i32,
-                                    pixel_format.gl_enum(),
+                                    pixel_format.to_gl_enum(),
                                     &data,
                                     src_element_offset.unwrap_or(0) as u32,
                                     src_element_length_override.unwrap_or(0) as u32,
@@ -2094,9 +2094,9 @@ impl Drop for TextureShared {
                 };
 
                 for unit in runtime.bindings.iter() {
-                    runtime.gl.active_texture(unit.gl_enum());
+                    runtime.gl.active_texture(unit.to_gl_enum());
                     runtime.gl.bind_sampler(unit.unit_index(), None);
-                    runtime.gl.bind_texture(target.gl_enum(), None);
+                    runtime.gl.bind_texture(target.to_gl_enum(), None);
                 }
 
                 runtime.gl.delete_texture(Some(&texture));
@@ -2190,8 +2190,8 @@ impl TextureShared {
                 None
             };
 
-            runtime.gl.active_texture(unit.gl_enum());
-            runtime.gl.bind_texture(target.gl_enum(), Some(&texture));
+            runtime.gl.active_texture(unit.to_gl_enum());
+            runtime.gl.bind_texture(target.to_gl_enum(), Some(&texture));
             runtime.gl.bind_sampler(unit.unit_index(), Some(&sampler));
             runtime.upload(&self.layout, &mut self.queue)?;
             runtime.bindings.insert(unit);
@@ -2224,8 +2224,8 @@ impl TextureShared {
                 None
             };
 
-            runtime.gl.active_texture(unit.gl_enum());
-            runtime.gl.bind_texture(target.gl_enum(), None);
+            runtime.gl.active_texture(unit.to_gl_enum());
+            runtime.gl.bind_texture(target.to_gl_enum(), None);
             runtime.gl.bind_sampler(unit.unit_index(), None);
 
             if let Some(unit) = active_texture_unit {
@@ -2254,7 +2254,7 @@ impl TextureShared {
         let target = self.layout.target();
         for unit in runtime.bindings.drain() {
             runtime.gl.active_texture(unit.unit_index());
-            runtime.gl.bind_texture(target.gl_enum(), None);
+            runtime.gl.bind_texture(target.to_gl_enum(), None);
 
             if let Some(registered) = self.registered.as_mut() {
                 if let Some(store) = registered.store.upgrade() {
@@ -2285,9 +2285,9 @@ impl TextureShared {
         } else {
             None
         };
-        runtime.gl.bind_texture(target.gl_enum(), Some(&texture));
+        runtime.gl.bind_texture(target.to_gl_enum(), Some(&texture));
         runtime.upload(&self.layout, &mut self.queue)?;
-        runtime.gl.bind_texture(target.gl_enum(), binding.as_ref());
+        runtime.gl.bind_texture(target.to_gl_enum(), binding.as_ref());
 
         Ok(())
     }
@@ -2316,10 +2316,10 @@ impl TextureShared {
                     None
                 };
 
-                runtime.gl.bind_texture(target.gl_enum(), Some(texture));
+                runtime.gl.bind_texture(target.to_gl_enum(), Some(texture));
                 texture_param.set(&runtime.gl, target, &runtime.capabilities);
 
-                runtime.gl.bind_texture(target.gl_enum(), binding.as_ref());
+                runtime.gl.bind_texture(target.to_gl_enum(), binding.as_ref());
             }
         }
     }

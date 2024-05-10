@@ -43,7 +43,7 @@ pub async fn client_wait_async(
         let wait_cloned = Rc::clone(&wait);
         *wait.borrow_mut() = Some(Box::new(move |resolve: Function, reject: Function| {
             let flags = flags
-                .map(|flags| flags.gl_enum())
+                .map(|flags| flags.to_gl_enum())
                 .unwrap_or(WebGl2RenderingContext::NONE);
             let timeout = (wait_timeout_nanoseconds as u32)
                 .min(WebGl2RenderingContext::MAX_CLIENT_WAIT_TIMEOUT_WEBGL);

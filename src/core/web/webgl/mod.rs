@@ -11,10 +11,10 @@ pub mod engine;
 pub mod entity;
 pub mod error;
 pub mod framebuffer;
+pub mod pixel;
 pub mod renderbuffer;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
-pub mod pixel;
 
 pub struct WebGl;

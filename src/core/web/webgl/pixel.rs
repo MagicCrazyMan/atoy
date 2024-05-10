@@ -1,20 +1,34 @@
+use proc::GlEnum;
 use web_sys::WebGl2RenderingContext;
 
 /// Available pixel formats mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum PixelFormat {
+    #[gl_enum(RED)]
     Red,
+    #[gl_enum(RED_INTEGER)]
     RedInteger,
+    #[gl_enum(RG)]
     Rg,
+    #[gl_enum(RG_INTEGER)]
     RgInteger,
+    #[gl_enum(RGB)]
     Rgb,
+    #[gl_enum(RGB_INTEGER)]
     RgbInteger,
+    #[gl_enum(RGBA)]
     Rgba,
+    #[gl_enum(RGBA_INTEGER)]
     RgbaInteger,
+    #[gl_enum(LUMINANCE)]
     Luminance,
+    #[gl_enum(LUMINANCE_ALPHA)]
     LuminanceAlpha,
+    #[gl_enum(ALPHA)]
     Alpha,
+    #[gl_enum(DEPTH_COMPONENT)]
     DepthComponent,
+    #[gl_enum(DEPTH_STENCIL)]
     DepthStencil,
 }
 
@@ -39,24 +53,40 @@ impl PixelFormat {
 }
 
 /// Available pixel data types mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum PixelDataType {
+    #[gl_enum(FLOAT)]
     Float,
+    #[gl_enum(HALF_FLOAT)]
     HalfFloat,
+    #[gl_enum(BYTE)]
     Byte,
+    #[gl_enum(SHORT)]
     Short,
+    #[gl_enum(INT)]
     Int,
+    #[gl_enum(UNSIGNED_BYTE)]
     UnsignedByte,
+    #[gl_enum(UNSIGNED_SHORT)]
     UnsignedShort,
+    #[gl_enum(UNSIGNED_INT)]
     UnsignedInt,
+    #[gl_enum(UNSIGNED_SHORT_5_6_5)]
     UnsignedShort5_6_5,
+    #[gl_enum(UNSIGNED_SHORT_4_4_4_4)]
     UnsignedShort4_4_4_4,
+    #[gl_enum(UNSIGNED_SHORT_5_5_5_1)]
     UnsignedShort5_5_5_1,
+    #[gl_enum(UNSIGNED_INT_2_10_10_10_REV)]
     UnsignedInt2_10_10_10Rev,
+    #[gl_enum(UNSIGNED_INT_10F_11F_11F_REV)]
     #[allow(non_camel_case_types)]
     UnsignedInt10F_11F_11F_Rev,
+    #[gl_enum(UNSIGNED_INT_5_9_9_9_REV)]
     UnsignedInt5_9_9_9Rev,
+    #[gl_enum(UNSIGNED_INT_24_8)]
     UnsignedInt24_8,
+    #[gl_enum(FLOAT_32_UNSIGNED_INT_24_8_REV)]
     Float32UnsignedInt24_8Rev,
 }
 
@@ -84,9 +114,11 @@ impl PixelDataType {
 }
 
 /// Available unpack color space conversions for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum UnpackColorSpaceConversion {
+    #[gl_enum(NONE)]
     None,
+    #[gl_enum(BROWSER_DEFAULT_WEBGL)]
     BrowserDefault,
 }
 

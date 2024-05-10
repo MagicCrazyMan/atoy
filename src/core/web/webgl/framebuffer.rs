@@ -7,6 +7,7 @@ use std::{
 
 use hashbrown::{HashMap, HashSet};
 use js_sys::{ArrayBuffer, Uint8Array};
+use proc::GlEnum;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
 use web_sys::{
@@ -36,33 +37,54 @@ use super::{
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum FramebufferTarget {
+    #[gl_enum(READ_FRAMEBUFFER)]
     ReadFramebuffer,
+    #[gl_enum(DRAW_FRAMEBUFFER)]
     DrawFramebuffer,
 }
 
 /// Available framebuffer attachment targets mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum FramebufferAttachment {
+    #[gl_enum(COLOR_ATTACHMENT0)]
     ColorAttachment0,
+    #[gl_enum(COLOR_ATTACHMENT1)]
     ColorAttachment1,
+    #[gl_enum(COLOR_ATTACHMENT2)]
     ColorAttachment2,
+    #[gl_enum(COLOR_ATTACHMENT3)]
     ColorAttachment3,
+    #[gl_enum(COLOR_ATTACHMENT4)]
     ColorAttachment4,
+    #[gl_enum(COLOR_ATTACHMENT5)]
     ColorAttachment5,
+    #[gl_enum(COLOR_ATTACHMENT6)]
     ColorAttachment6,
+    #[gl_enum(COLOR_ATTACHMENT7)]
     ColorAttachment7,
+    #[gl_enum(COLOR_ATTACHMENT8)]
     ColorAttachment8,
+    #[gl_enum(COLOR_ATTACHMENT9)]
     ColorAttachment9,
+    #[gl_enum(COLOR_ATTACHMENT10)]
     ColorAttachment10,
+    #[gl_enum(COLOR_ATTACHMENT11)]
     ColorAttachment11,
+    #[gl_enum(COLOR_ATTACHMENT12)]
     ColorAttachment12,
+    #[gl_enum(COLOR_ATTACHMENT13)]
     ColorAttachment13,
+    #[gl_enum(COLOR_ATTACHMENT14)]
     ColorAttachment14,
+    #[gl_enum(COLOR_ATTACHMENT15)]
     ColorAttachment15,
+    #[gl_enum(DEPTH_ATTACHMENT)]
     DepthAttachment,
+    #[gl_enum(STENCIL_ATTACHMENT)]
     StencilAttachment,
+    #[gl_enum(DEPTH_STENCIL_ATTACHMENT)]
     DepthStencilAttachment,
 }
 
@@ -93,27 +115,45 @@ impl FramebufferAttachment {
 }
 
 /// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum OperableBuffer {
+    #[gl_enum(NONE)]
     None,
     /// [`WebGl2RenderingContext::BACK`] only works for Canvas Draw Buffer.
     /// Do not bind this attachment to FBO.
+    #[gl_enum(BACK)]
     Back,
+    #[gl_enum(COLOR_ATTACHMENT0)]
     ColorAttachment0,
+    #[gl_enum(COLOR_ATTACHMENT1)]
     ColorAttachment1,
+    #[gl_enum(COLOR_ATTACHMENT2)]
     ColorAttachment2,
+    #[gl_enum(COLOR_ATTACHMENT3)]
     ColorAttachment3,
+    #[gl_enum(COLOR_ATTACHMENT4)]
     ColorAttachment4,
+    #[gl_enum(COLOR_ATTACHMENT5)]
     ColorAttachment5,
+    #[gl_enum(COLOR_ATTACHMENT6)]
     ColorAttachment6,
+    #[gl_enum(COLOR_ATTACHMENT7)]
     ColorAttachment7,
+    #[gl_enum(COLOR_ATTACHMENT8)]
     ColorAttachment8,
+    #[gl_enum(COLOR_ATTACHMENT9)]
     ColorAttachment9,
+    #[gl_enum(COLOR_ATTACHMENT10)]
     ColorAttachment10,
+    #[gl_enum(COLOR_ATTACHMENT11)]
     ColorAttachment11,
+    #[gl_enum(COLOR_ATTACHMENT12)]
     ColorAttachment12,
+    #[gl_enum(COLOR_ATTACHMENT13)]
     ColorAttachment13,
+    #[gl_enum(COLOR_ATTACHMENT14)]
     ColorAttachment14,
+    #[gl_enum(COLOR_ATTACHMENT15)]
     ColorAttachment15,
 }
 
@@ -1242,7 +1282,7 @@ fn operable_buffers_to_array(operable_buffers: &[OperableBuffer]) -> Array {
     for (index, draw_buffer) in operable_buffers.iter().enumerate() {
         array.set(
             index as u32,
-            JsValue::from_f64(draw_buffer.gl_enum() as f64),
+            JsValue::from_f64(draw_buffer.to_gl_enum() as f64),
         );
     }
 
@@ -1367,12 +1407,12 @@ impl FramebufferRegistered {
         }
 
         self.gl
-            .bind_framebuffer(target.gl_enum(), Some(&self.gl_framebuffer));
+            .bind_framebuffer(target.to_gl_enum(), Some(&self.gl_framebuffer));
 
         self.build(target)?;
 
         // bind read buffers
-        let read_buffer = read_buffer.map(|read_buffer| read_buffer.gl_enum());
+        let read_buffer = read_buffer.map(|read_buffer| read_buffer.to_gl_enum());
         let draw_buffers =
             draw_buffers.map(|draw_buffers| operable_buffers_to_array(&draw_buffers));
         if target == FramebufferTarget::ReadFramebuffer {
@@ -1440,11 +1480,11 @@ impl FramebufferRegistered {
                         .create_texture()
                         .ok_or(Error::CreateTextureFailure)?;
                     self.gl
-                        .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&gl_texture));
+                        .bind_texture(TextureTarget::Texture2D.to_gl_enum(), Some(&gl_texture));
                     self.gl.tex_storage_2d(
-                        TextureTarget::Texture2D.gl_enum(),
+                        TextureTarget::Texture2D.to_gl_enum(),
                         1,
-                        internal_format.gl_enum(),
+                        internal_format.to_gl_enum(),
                         width as i32,
                         height as i32,
                     );
@@ -1505,23 +1545,23 @@ impl FramebufferRegistered {
                         .create_renderbuffer()
                         .ok_or(Error::CreateRenderbufferFailure)?;
                     self.gl.bind_renderbuffer(
-                        RenderbufferTarget::Renderbuffer.gl_enum(),
+                        RenderbufferTarget::Renderbuffer.to_gl_enum(),
                         Some(&gl_renderbuffer),
                     );
                     match self.renderbuffer_samples {
                         Some(samples) => {
                             self.gl.renderbuffer_storage_multisample(
-                                RenderbufferTarget::Renderbuffer.gl_enum(),
+                                RenderbufferTarget::Renderbuffer.to_gl_enum(),
                                 samples as i32,
-                                internal_format.gl_enum(),
+                                internal_format.to_gl_enum(),
                                 width as i32,
                                 height as i32,
                             );
                         }
                         None => {
                             self.gl.renderbuffer_storage(
-                                RenderbufferTarget::Renderbuffer.gl_enum(),
-                                internal_format.gl_enum(),
+                                RenderbufferTarget::Renderbuffer.to_gl_enum(),
+                                internal_format.to_gl_enum(),
                                 width as i32,
                                 height as i32,
                             );
@@ -1548,8 +1588,8 @@ impl FramebufferRegistered {
                     match layer {
                         Some(layer) => {
                             self.gl.framebuffer_texture_layer(
-                                target.gl_enum(),
-                                attachment.gl_enum(),
+                                target.to_gl_enum(),
+                                attachment.to_gl_enum(),
                                 Some(&texture),
                                 level as i32,
                                 layer as i32,
@@ -1557,19 +1597,19 @@ impl FramebufferRegistered {
                         }
                         None => {
                             self.gl
-                                .bind_texture(TextureTarget::Texture2D.gl_enum(), Some(&texture));
+                                .bind_texture(TextureTarget::Texture2D.to_gl_enum(), Some(&texture));
                             let textarget = cube_map_face
-                                .map(|face| face.gl_enum())
-                                .unwrap_or(TextureTarget::Texture2D.gl_enum());
+                                .map(|face| face.to_gl_enum())
+                                .unwrap_or(TextureTarget::Texture2D.to_gl_enum());
                             self.gl.framebuffer_texture_2d(
-                                target.gl_enum(),
-                                attachment.gl_enum(),
+                                target.to_gl_enum(),
+                                attachment.to_gl_enum(),
                                 textarget,
                                 Some(&texture),
                                 level as i32,
                             );
                             self.gl.bind_texture(
-                                TextureTarget::Texture2D.gl_enum(),
+                                TextureTarget::Texture2D.to_gl_enum(),
                                 self.reg_texture_bounds.borrow().get(&(
                                     self.reg_texture_active_unit.borrow().clone(),
                                     TextureTarget::Texture2D,
@@ -1589,17 +1629,17 @@ impl FramebufferRegistered {
                 }
                 Attach::Renderbuffer(gl_renderbuffer, clear_policy, owned) => {
                     self.gl.bind_renderbuffer(
-                        RenderbufferTarget::Renderbuffer.gl_enum(),
+                        RenderbufferTarget::Renderbuffer.to_gl_enum(),
                         Some(&gl_renderbuffer),
                     );
                     self.gl.framebuffer_renderbuffer(
-                        target.gl_enum(),
-                        attachment.gl_enum(),
-                        RenderbufferTarget::Renderbuffer.gl_enum(),
+                        target.to_gl_enum(),
+                        attachment.to_gl_enum(),
+                        RenderbufferTarget::Renderbuffer.to_gl_enum(),
                         Some(&gl_renderbuffer),
                     );
                     self.gl
-                        .bind_renderbuffer(RenderbufferTarget::Renderbuffer.gl_enum(), None);
+                        .bind_renderbuffer(RenderbufferTarget::Renderbuffer.to_gl_enum(), None);
 
                     if let Some((removed, _, owned)) = self
                         .gl_renderbuffers
@@ -1625,7 +1665,7 @@ impl FramebufferRegistered {
                 self.gl.read_buffer(self.gl_origin_read_buffer);
             }
 
-            self.gl.bind_framebuffer(target.gl_enum(), None);
+            self.gl.bind_framebuffer(target.to_gl_enum(), None);
             self.reg_framebuffer_bounds.borrow_mut().remove(&target);
         }
     }
@@ -1639,7 +1679,7 @@ impl FramebufferRegistered {
                 self.gl.read_buffer(self.gl_origin_read_buffer);
             }
 
-            self.gl.bind_framebuffer(target.gl_enum(), None);
+            self.gl.bind_framebuffer(target.to_gl_enum(), None);
             self.reg_framebuffer_bounds.borrow_mut().remove(&target);
         }
     }
@@ -1651,7 +1691,7 @@ impl FramebufferRegistered {
         draw_buffers: &Option<Vec<OperableBuffer>>,
     ) -> Result<(), Error> {
         self.gl
-            .bind_framebuffer(target.gl_enum(), Some(&self.gl_framebuffer));
+            .bind_framebuffer(target.to_gl_enum(), Some(&self.gl_framebuffer));
 
         self.build(target)?;
 
@@ -1662,7 +1702,7 @@ impl FramebufferRegistered {
             }
         } else if target == FramebufferTarget::ReadFramebuffer {
             if let Some(read_buffer) = read_buffer {
-                self.gl.read_buffer(read_buffer.gl_enum());
+                self.gl.read_buffer(read_buffer.to_gl_enum());
             }
         }
 
@@ -1686,13 +1726,13 @@ impl FramebufferRegistered {
                 .get(&FramebufferTarget::DrawFramebuffer)
             {
                 self.gl.bind_framebuffer(
-                    FramebufferTarget::DrawFramebuffer.gl_enum(),
+                    FramebufferTarget::DrawFramebuffer.to_gl_enum(),
                     Some(gl_framebuffer),
                 );
                 self.gl.draw_buffers(draw_buffers);
             } else {
                 self.gl
-                    .bind_framebuffer(FramebufferTarget::DrawFramebuffer.gl_enum(), None);
+                    .bind_framebuffer(FramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
             }
         } else if target == FramebufferTarget::ReadFramebuffer {
             if read_buffer.is_some() {
@@ -1705,13 +1745,13 @@ impl FramebufferRegistered {
                 .get(&FramebufferTarget::ReadFramebuffer)
             {
                 self.gl.bind_framebuffer(
-                    FramebufferTarget::ReadFramebuffer.gl_enum(),
+                    FramebufferTarget::ReadFramebuffer.to_gl_enum(),
                     Some(gl_framebuffer),
                 );
                 self.gl.read_buffer(*read_buffer);
             } else {
                 self.gl
-                    .bind_framebuffer(FramebufferTarget::ReadFramebuffer.gl_enum(), None);
+                    .bind_framebuffer(FramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
             }
         }
     }
@@ -1752,8 +1792,8 @@ impl FramebufferRegistered {
             dst_y0 as i32,
             dst_x1 as i32,
             dst_y1 as i32,
-            mask.gl_enum(),
-            filter.gl_enum(),
+            mask.to_gl_enum(),
+            filter.to_gl_enum(),
         );
 
         self.temp_unbind(FramebufferTarget::ReadFramebuffer, &read_buffer, &None);
@@ -1812,8 +1852,8 @@ impl FramebufferRegistered {
                                 y as i32,
                                 width as i32,
                                 height as i32,
-                                pixel_format.gl_enum(),
-                                pixel_data_type.gl_enum(),
+                                pixel_format.to_gl_enum(),
+                                pixel_data_type.to_gl_enum(),
                                 &Uint8Array::new(&array_buffer),
                                 dst_offset as u32,
                             )
@@ -1826,8 +1866,8 @@ impl FramebufferRegistered {
                                 y as i32,
                                 width as i32,
                                 height as i32,
-                                pixel_format.gl_enum(),
-                                pixel_data_type.gl_enum(),
+                                pixel_format.to_gl_enum(),
+                                pixel_data_type.to_gl_enum(),
                                 Some(&Uint8Array::new(&array_buffer)),
                             )
                             .or(Err(Error::ReadPixelsFailure))?;
@@ -1843,18 +1883,18 @@ impl FramebufferRegistered {
                         let gl_buffer =
                             self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                         self.gl
-                            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
+                            .bind_buffer(BufferTarget::PixelPackBuffer.to_gl_enum(), Some(&gl_buffer));
                         self.gl.buffer_data_with_i32(
-                            BufferTarget::PixelPackBuffer.gl_enum(),
+                            BufferTarget::PixelPackBuffer.to_gl_enum(),
                             size as i32,
-                            usage.gl_enum(),
+                            usage.to_gl_enum(),
                         );
 
                         (gl_buffer, *usage)
                     }
                     ReadPixelsKind::ToPixelBufferObject(gl_buffer) => {
                         self.gl
-                            .bind_buffer(BufferTarget::PixelPackBuffer.gl_enum(), Some(&gl_buffer));
+                            .bind_buffer(BufferTarget::PixelPackBuffer.to_gl_enum(), Some(&gl_buffer));
 
                         (gl_buffer.clone(), BufferUsage::StaticDraw)
                     }
@@ -1868,14 +1908,14 @@ impl FramebufferRegistered {
                         y as i32,
                         width as i32,
                         height as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         dst_offset as i32,
                     )
                     .or(Err(Error::ReadPixelsFailure))?;
 
                 self.gl.bind_buffer(
-                    BufferTarget::PixelPackBuffer.gl_enum(),
+                    BufferTarget::PixelPackBuffer.to_gl_enum(),
                     self.reg_buffer_bounds
                         .borrow()
                         .get(&BufferTarget::PixelPackBuffer),
@@ -1981,22 +2021,22 @@ impl FramebufferRegistered {
                     .gl
                     .create_texture()
                     .ok_or(Error::CreateTextureFailure)?;
-                self.gl.bind_texture(target.gl_enum(), Some(&gl_texture));
+                self.gl.bind_texture(target.to_gl_enum(), Some(&gl_texture));
 
                 if is_3d {
                     self.gl.tex_storage_3d(
-                        target.gl_enum(),
+                        target.to_gl_enum(),
                         1,
-                        internal_format.gl_enum(),
+                        internal_format.to_gl_enum(),
                         texture_width as i32,
                         texture_height as i32,
                         1,
                     );
                 } else {
                     self.gl.tex_storage_2d(
-                        target.gl_enum(),
+                        target.to_gl_enum(),
                         1,
-                        internal_format.gl_enum(),
+                        internal_format.to_gl_enum(),
                         texture_width as i32,
                         texture_height as i32,
                     );
@@ -2008,7 +2048,7 @@ impl FramebufferRegistered {
             | CopyTextureKind::ToTextureCubeMap { gl_texture, .. }
             | CopyTextureKind::ToTexture3D { gl_texture }
             | CopyTextureKind::ToTexture2DArray { gl_texture, .. } => {
-                self.gl.bind_texture(target.gl_enum(), Some(&gl_texture));
+                self.gl.bind_texture(target.to_gl_enum(), Some(&gl_texture));
 
                 gl_texture.clone()
             }
@@ -2027,7 +2067,7 @@ impl FramebufferRegistered {
             | CopyTextureKind::ToTexture2DArray { .. } => {
                 if is_3d {
                     self.gl.copy_tex_sub_image_3d(
-                        target.gl_enum(),
+                        target.to_gl_enum(),
                         level as i32,
                         x_offset as i32,
                         y_offset as i32,
@@ -2039,7 +2079,7 @@ impl FramebufferRegistered {
                     );
                 } else {
                     self.gl.copy_tex_sub_image_2d(
-                        target.gl_enum(),
+                        target.to_gl_enum(),
                         level as i32,
                         x_offset as i32,
                         y_offset as i32,
@@ -2053,7 +2093,7 @@ impl FramebufferRegistered {
             CopyTextureKind::NewTextureCubeMap { face, .. }
             | CopyTextureKind::ToTextureCubeMap { face, .. } => {
                 self.gl.copy_tex_sub_image_2d(
-                    face.gl_enum(),
+                    face.to_gl_enum(),
                     level as i32,
                     x_offset as i32,
                     y_offset as i32,
@@ -2066,7 +2106,7 @@ impl FramebufferRegistered {
         }
 
         self.gl.bind_texture(
-            target.gl_enum(),
+            target.to_gl_enum(),
             self.reg_texture_bounds
                 .borrow()
                 .get(&(self.reg_texture_active_unit.borrow().clone(), target)),
@@ -2166,7 +2206,7 @@ impl FramebufferRegistry {
         for (attachment, _) in framebuffer.sources.iter() {
             let Some(v) = attachment
                 .to_operable_buffer()
-                .map(|buffer| buffer.gl_enum())
+                .map(|buffer| buffer.to_gl_enum())
             else {
                 continue;
             };

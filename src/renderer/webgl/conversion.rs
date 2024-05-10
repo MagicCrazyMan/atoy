@@ -403,8 +403,8 @@ impl ToGlEnum for TextureInternalFormat {
     #[inline]
     fn gl_enum(&self) -> u32 {
         match self {
-            TextureInternalFormat::Uncompressed(f) => f.gl_enum(),
-            TextureInternalFormat::Compressed(f) => f.gl_enum(),
+            TextureInternalFormat::Uncompressed(f) => f.to_gl_enum(),
+            TextureInternalFormat::Compressed(f) => f.to_gl_enum(),
         }
     }
 }

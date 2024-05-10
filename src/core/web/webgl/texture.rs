@@ -203,13 +203,13 @@ impl TextureParameter {
     fn tex_parameter(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
         match self {
             TextureParameter::BaseLevel(v) => {
-                gl.tex_parameteri(target.gl_enum(), self.gl_enum(), *v);
+                gl.tex_parameteri(target.to_gl_enum(), self.to_gl_enum(), *v);
             }
             TextureParameter::MaxLevel(v) => {
-                gl.tex_parameteri(target.gl_enum(), self.gl_enum(), *v);
+                gl.tex_parameteri(target.to_gl_enum(), self.to_gl_enum(), *v);
             }
             TextureParameter::MaxAnisotropy(v) => {
-                gl.tex_parameterf(target.gl_enum(), self.gl_enum(), *v);
+                gl.tex_parameterf(target.to_gl_enum(), self.to_gl_enum(), *v);
             }
         };
     }
@@ -261,24 +261,24 @@ impl SamplerParameter {
     fn sampler_parameter(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
         match self {
             SamplerParameter::MagnificationFilter(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::MinificationFilter(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::WrapS(v)
             | SamplerParameter::WrapT(v)
             | SamplerParameter::WrapR(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::CompareFunction(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::CompareMode(v) => {
-                gl.sampler_parameteri(&sampler, self.gl_enum(), v.gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
             }
             SamplerParameter::MaxLod(v) | SamplerParameter::MinLod(v) => {
-                gl.sampler_parameterf(&sampler, self.gl_enum(), *v)
+                gl.sampler_parameterf(&sampler, self.to_gl_enum(), *v)
             }
         }
     }
@@ -868,7 +868,7 @@ impl TextureDataUncompressed {
             TextureTarget::Texture2DArray | TextureTarget::Texture3D => true,
         };
         let target = match target {
-            TextureTarget::Texture2D => TextureTarget::Texture2D.gl_enum(),
+            TextureTarget::Texture2D => TextureTarget::Texture2D.to_gl_enum(),
             TextureTarget::TextureCubeMap => match face {
                 TextureCubeMapFace::PositiveX => {
                     WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
@@ -889,8 +889,8 @@ impl TextureDataUncompressed {
                     WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
                 }
             },
-            TextureTarget::Texture2DArray => TextureTarget::Texture2DArray.gl_enum(),
-            TextureTarget::Texture3D => TextureTarget::Texture3D.gl_enum(),
+            TextureTarget::Texture2DArray => TextureTarget::Texture2DArray.to_gl_enum(),
+            TextureTarget::Texture3D => TextureTarget::Texture3D.to_gl_enum(),
         };
 
         let result = match self {
@@ -903,7 +903,7 @@ impl TextureDataUncompressed {
                 height,
                 ..
             } => {
-                gl.bind_buffer(BufferTarget::PixelUnpackBuffer.gl_enum(), Some(&buffer));
+                gl.bind_buffer(BufferTarget::PixelUnpackBuffer.to_gl_enum(), Some(&buffer));
                 let result = if is_3d {
                     gl.tex_sub_image_3d_with_i32(
                         target,
@@ -914,8 +914,8 @@ impl TextureDataUncompressed {
                         *width as i32,
                         *height as i32,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         pbo_offset.unwrap_or(0) as i32,
                     )
                 } else {
@@ -926,14 +926,14 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         *width as i32,
                         *height as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         pbo_offset.unwrap_or(0) as i32,
                     )
                 };
 
                 gl.bind_buffer(
-                    BufferTarget::PixelUnpackBuffer.gl_enum(),
+                    BufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     buffer_bounds.borrow().get(&BufferTarget::PixelUnpackBuffer),
                 );
 
@@ -1107,8 +1107,8 @@ impl TextureDataUncompressed {
                         *width as i32,
                         *height as i32,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         Some(&data),
                         src_element_offset.unwrap_or(0) as u32,
                     )
@@ -1121,8 +1121,8 @@ impl TextureDataUncompressed {
                             y_offset as i32,
                             *width as i32,
                             *height as i32,
-                            pixel_format.gl_enum(),
-                            pixel_data_type.gl_enum(),
+                            pixel_format.to_gl_enum(),
+                            pixel_data_type.to_gl_enum(),
                             &data,
                             src_element_offset.unwrap_or(0) as u32,
                         )
@@ -1147,8 +1147,8 @@ impl TextureDataUncompressed {
                         width,
                         height,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 } else {
@@ -1159,8 +1159,8 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         width,
                         height,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 }
@@ -1184,8 +1184,8 @@ impl TextureDataUncompressed {
                         width,
                         height,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 } else {
@@ -1196,8 +1196,8 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         width,
                         height,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 }
@@ -1221,8 +1221,8 @@ impl TextureDataUncompressed {
                         width,
                         height,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 } else {
@@ -1233,8 +1233,8 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         width,
                         height,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 }
@@ -1258,8 +1258,8 @@ impl TextureDataUncompressed {
                         width,
                         height,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 } else {
@@ -1270,8 +1270,8 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         width,
                         height,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 }
@@ -1295,8 +1295,8 @@ impl TextureDataUncompressed {
                         width,
                         height,
                         depth as i32,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 } else {
@@ -1307,8 +1307,8 @@ impl TextureDataUncompressed {
                         y_offset as i32,
                         width,
                         height,
-                        pixel_format.gl_enum(),
-                        pixel_data_type.gl_enum(),
+                        pixel_format.to_gl_enum(),
+                        pixel_data_type.to_gl_enum(),
                         &data,
                     )
                 }
@@ -1420,7 +1420,7 @@ impl TextureDataCompressed {
             TextureTarget::Texture2DArray | TextureTarget::Texture3D => true,
         };
         let target = match target {
-            TextureTarget::Texture2D => TextureTarget::Texture2D.gl_enum(),
+            TextureTarget::Texture2D => TextureTarget::Texture2D.to_gl_enum(),
             TextureTarget::TextureCubeMap => match face {
                 TextureCubeMapFace::PositiveX => {
                     WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
@@ -1441,8 +1441,8 @@ impl TextureDataCompressed {
                     WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
                 }
             },
-            TextureTarget::Texture2DArray => TextureTarget::Texture2DArray.gl_enum(),
-            TextureTarget::Texture3D => TextureTarget::Texture3D.gl_enum(),
+            TextureTarget::Texture2DArray => TextureTarget::Texture2DArray.to_gl_enum(),
+            TextureTarget::Texture3D => TextureTarget::Texture3D.to_gl_enum(),
         };
 
         match self {
@@ -1453,7 +1453,7 @@ impl TextureDataCompressed {
                 image_size,
                 pbo_offset,
             } => {
-                gl.bind_buffer(BufferTarget::PixelUnpackBuffer.gl_enum(), Some(&buffer));
+                gl.bind_buffer(BufferTarget::PixelUnpackBuffer.to_gl_enum(), Some(&buffer));
                 if is_3d {
                     gl.compressed_tex_sub_image_3d_with_i32_and_i32(
                         target,
@@ -1464,7 +1464,7 @@ impl TextureDataCompressed {
                         *width as i32,
                         *height as i32,
                         depth as i32,
-                        format.gl_enum(),
+                        format.to_gl_enum(),
                         *image_size as i32,
                         pbo_offset.unwrap_or(0) as i32,
                     )
@@ -1476,14 +1476,14 @@ impl TextureDataCompressed {
                         y_offset as i32,
                         *width as i32,
                         *height as i32,
-                        format.gl_enum(),
+                        format.to_gl_enum(),
                         *image_size as i32,
                         pbo_offset.unwrap_or(0) as i32,
                     )
                 };
 
                 gl.bind_buffer(
-                    BufferTarget::PixelUnpackBuffer.gl_enum(),
+                    BufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     buffer_bounds.borrow().get(&BufferTarget::PixelUnpackBuffer),
                 );
             }
@@ -1628,7 +1628,7 @@ impl TextureDataCompressed {
                         *width as i32,
                         *height as i32,
                         depth as i32,
-                        format.gl_enum(),
+                        format.to_gl_enum(),
                         &data,
                         src_element_offset.unwrap_or(0) as u32,
                         src_element_length_override.unwrap_or(0) as u32,
@@ -1641,7 +1641,7 @@ impl TextureDataCompressed {
                         y_offset as i32,
                         *width as i32,
                         *height as i32,
-                        format.gl_enum(),
+                        format.to_gl_enum(),
                         &data,
                         src_element_offset.unwrap_or(0) as u32,
                         src_element_length_override.unwrap_or(0) as u32,
@@ -2023,9 +2023,9 @@ where
 {
     fn tex_storage_2d(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
         gl.tex_storage_2d(
-            target.gl_enum(),
+            target.to_gl_enum(),
             self.layout.levels() as i32,
-            self.internal_format.gl_enum(),
+            self.internal_format.to_gl_enum(),
             self.layout.width() as i32,
             self.layout.height() as i32,
         )
@@ -2039,9 +2039,9 @@ where
 {
     fn tex_storage_3d(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
         gl.tex_storage_3d(
-            target.gl_enum(),
+            target.to_gl_enum(),
             self.layout.levels() as i32,
-            self.internal_format.gl_enum(),
+            self.internal_format.to_gl_enum(),
             self.layout.width() as i32,
             self.layout.height() as i32,
             self.layout.depth() as i32,
@@ -2674,27 +2674,27 @@ impl TextureRegisteredUndrop {
             }
         }
 
-        self.gl.active_texture(unit.gl_enum());
+        self.gl.active_texture(unit.to_gl_enum());
         self.gl
-            .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
-        self.gl.bind_sampler(unit.gl_enum(), Some(&self.gl_sampler));
+            .bind_texture(self.texture_target.to_gl_enum(), Some(&self.gl_texture));
+        self.gl.bind_sampler(unit.to_gl_enum(), Some(&self.gl_sampler));
         self.gl_active_unit.insert(unit);
         self.reg_texture_bounds
             .borrow_mut()
             .insert_unique_unchecked((unit, self.texture_target), self.gl_texture.clone());
         self.gl
-            .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
+            .active_texture(self.reg_texture_active_unit.borrow().to_gl_enum());
 
         Ok(())
     }
 
     fn unbind(&mut self, unit: TextureUnit) {
         if self.gl_active_unit.remove(&unit) {
-            self.gl.active_texture(unit.gl_enum());
-            self.gl.bind_texture(self.texture_target.gl_enum(), None);
-            self.gl.bind_sampler(unit.gl_enum(), None);
+            self.gl.active_texture(unit.to_gl_enum());
+            self.gl.bind_texture(self.texture_target.to_gl_enum(), None);
+            self.gl.bind_sampler(unit.to_gl_enum(), None);
             self.gl
-                .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
+                .active_texture(self.reg_texture_active_unit.borrow().to_gl_enum());
             self.reg_texture_bounds
                 .borrow_mut()
                 .remove(&(unit, self.texture_target));
@@ -2703,15 +2703,15 @@ impl TextureRegisteredUndrop {
 
     fn unbind_all(&mut self) {
         for unit in self.gl_active_unit.drain() {
-            self.gl.active_texture(unit.gl_enum());
-            self.gl.bind_texture(self.texture_target.gl_enum(), None);
-            self.gl.bind_sampler(unit.gl_enum(), None);
+            self.gl.active_texture(unit.to_gl_enum());
+            self.gl.bind_texture(self.texture_target.to_gl_enum(), None);
+            self.gl.bind_sampler(unit.to_gl_enum(), None);
             self.reg_texture_bounds
                 .borrow_mut()
                 .remove(&(unit, self.texture_target));
         }
         self.gl
-            .active_texture(self.reg_texture_active_unit.borrow().gl_enum());
+            .active_texture(self.reg_texture_active_unit.borrow().to_gl_enum());
     }
 
     fn flush(&self, continue_when_failed: bool) -> Result<bool, Error> {
@@ -2726,7 +2726,7 @@ impl TextureRegisteredUndrop {
         }
 
         self.gl
-            .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
+            .bind_texture(self.texture_target.to_gl_enum(), Some(&self.gl_texture));
 
         // update texture parameters
         for (_, texture_param) in self.texture_params.borrow().iter() {
@@ -2735,7 +2735,7 @@ impl TextureRegisteredUndrop {
 
         let Some(texture_queue) = self.texture_queue.upgrade() else {
             self.gl.bind_texture(
-                self.texture_target.gl_enum(),
+                self.texture_target.to_gl_enum(),
                 self.reg_texture_bounds
                     .borrow()
                     .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
@@ -2864,7 +2864,7 @@ impl TextureRegisteredUndrop {
                     )?;
 
                     if generate_mipmaps {
-                        self.gl.generate_mipmap(self.texture_target.gl_enum());
+                        self.gl.generate_mipmap(self.texture_target.to_gl_enum());
                     }
 
                     for pixel_unpack_storage in initial_pixel_unpack_storages.drain() {
@@ -2986,7 +2986,7 @@ impl TextureRegisteredUndrop {
         }
 
         self.gl.bind_texture(
-            self.texture_target.gl_enum(),
+            self.texture_target.to_gl_enum(),
             self.reg_texture_bounds
                 .borrow()
                 .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
@@ -3002,7 +3002,7 @@ impl TextureRegisteredUndrop {
         }
 
         self.gl
-            .bind_texture(self.texture_target.gl_enum(), Some(&self.gl_texture));
+            .bind_texture(self.texture_target.to_gl_enum(), Some(&self.gl_texture));
 
         // update texture parameters
         for (_, texture_param) in self.texture_params.borrow().iter() {
@@ -3011,7 +3011,7 @@ impl TextureRegisteredUndrop {
 
         let Some(texture_queue) = self.texture_queue.upgrade() else {
             self.gl.bind_texture(
-                self.texture_target.gl_enum(),
+                self.texture_target.to_gl_enum(),
                 self.reg_texture_bounds
                     .borrow()
                     .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
@@ -3069,7 +3069,7 @@ impl TextureRegisteredUndrop {
                     )?;
 
                     if generate_mipmaps {
-                        self.gl.generate_mipmap(self.texture_target.gl_enum());
+                        self.gl.generate_mipmap(self.texture_target.to_gl_enum());
                     }
 
                     for pixel_unpack_storage in initial_pixel_unpack_storages.drain() {
@@ -3119,7 +3119,7 @@ impl TextureRegisteredUndrop {
         }
 
         self.gl.bind_texture(
-            self.texture_target.gl_enum(),
+            self.texture_target.to_gl_enum(),
             self.reg_texture_bounds
                 .borrow()
                 .get(&(*self.reg_texture_active_unit.borrow(), self.texture_target)),
@@ -3144,7 +3144,7 @@ impl TextureRegistry {
         gl: WebGl2RenderingContext,
         buffer_bounds: Rc<RefCell<HashMap<BufferTarget, WebGlBuffer>>>,
     ) -> Self {
-        gl.active_texture(TextureUnit::Texture0.gl_enum());
+        gl.active_texture(TextureUnit::Texture0.to_gl_enum());
         Self {
             id: Uuid::new_v4(),
             gl,
@@ -3202,7 +3202,7 @@ macro_rules! register_functions {
                         .ok_or(Error::CreateSamplerFailure)?;
 
                     self.gl
-                        .bind_texture($target.gl_enum(), Some(&gl_texture));
+                        .bind_texture($target.to_gl_enum(), Some(&gl_texture));
 
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
@@ -3229,7 +3229,7 @@ macro_rules! register_functions {
                     });
 
                     self.gl
-                        .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
+                        .bind_texture($target.to_gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
 
                     *texture.registered.borrow_mut() = Some(registered);
 
@@ -3258,7 +3258,7 @@ macro_rules! register_functions {
                         .ok_or(Error::CreateSamplerFailure)?;
 
                     self.gl
-                        .bind_texture($target.gl_enum(), Some(&gl_texture));
+                        .bind_texture($target.to_gl_enum(), Some(&gl_texture));
 
                     texture.$tex_storage(&self.gl, $target);
                     let texture_memory = texture.byte_length();
@@ -3285,7 +3285,7 @@ macro_rules! register_functions {
                     });
 
                     self.gl
-                        .bind_texture($target.gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
+                        .bind_texture($target.to_gl_enum(), self.texture_bounds.borrow().get(&(self.texture_active_unit.borrow().clone(), $target)));
 
                     *texture.registered.borrow_mut() = Some(registered);
 

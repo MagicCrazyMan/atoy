@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
+use proc::GlEnum;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{
     js_sys::{Function, Promise},
@@ -11,21 +12,29 @@ use crate::window;
 use super::{conversion::ToGlEnum, error::Error};
 
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum FenceSyncFlag {
+    #[gl_enum(SYNC_GPU_COMMANDS_COMPLETE)]
     SyncGpuCommandsComplete,
 }
 
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum ClientWaitFlag {
+    #[gl_enum(SYNC_FLUSH_COMMANDS_BIT)]
     SyncFlushCommandsBit,
 }
 
+/// Available client wait status mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum ClientWaitStatus {
+    #[gl_enum(ALREADY_SIGNALED)]
     AlreadySignaled,
+    #[gl_enum(TIMEOUT_EXPIRED)]
     TimeoutExpired,
+    #[gl_enum(CONDITION_SATISFIED)]
     ConditionSatisfied,
+    #[gl_enum(WAIT_FAILED)]
     WaitFailed,
 }
 
@@ -41,6 +50,7 @@ impl ClientWaitStatus {
     }
 }
 
+#[derive(Debug)]
 pub struct ClientWait {
     gl: WebGl2RenderingContext,
     flag: FenceSyncFlag,
@@ -53,7 +63,7 @@ impl ClientWait {
         Self {
             gl,
             flag: FenceSyncFlag::SyncGpuCommandsComplete,
-            flags: ClientWaitFlag::SyncFlushCommandsBit.gl_enum() as usize,
+            flags: ClientWaitFlag::SyncFlushCommandsBit.to_gl_enum() as usize,
             timeout_ns,
         }
     }
@@ -61,7 +71,7 @@ impl ClientWait {
     pub fn wait(&self) -> Result<ClientWaitStatus, Error> {
         let fence_sync = self
             .gl
-            .fence_sync(self.flag.gl_enum(), 0)
+            .fence_sync(self.flag.to_gl_enum(), 0)
             .ok_or(Error::CreateFenceSyncFailure)?;
         self.gl.flush();
 
@@ -76,6 +86,7 @@ impl ClientWait {
     }
 }
 
+#[derive(Debug)]
 pub struct ClientWaitAsync {
     gl: WebGl2RenderingContext,
     flag: FenceSyncFlag,
@@ -97,7 +108,7 @@ impl ClientWaitAsync {
         Self {
             gl,
             flag: FenceSyncFlag::SyncGpuCommandsComplete,
-            flags: ClientWaitFlag::SyncFlushCommandsBit.gl_enum() as usize,
+            flags: ClientWaitFlag::SyncFlushCommandsBit.to_gl_enum() as usize,
             timeout_ns,
             interval_ms,
             max_retries,
@@ -109,7 +120,7 @@ impl ClientWaitAsync {
     pub async fn wait(&self) -> Result<(), Error> {
         let fence_sync = self
             .gl
-            .fence_sync(self.flag.gl_enum(), 0)
+            .fence_sync(self.flag.to_gl_enum(), 0)
             .ok_or(Error::CreateFenceSyncFailure)?;
         self.gl.flush();
 
@@ -195,7 +206,7 @@ impl ClientWaitAsync {
 //         let wait_cloned = Rc::clone(&wait);
 //         *wait.borrow_mut() = Some(Box::new(move |resolve: Function, reject: Function| {
 //             let flags = flags
-//                 .map(|flags| flags.gl_enum())
+//                 .map(|flags| flags.to_gl_enum())
 //                 .unwrap_or(WebGl2RenderingContext::NONE);
 //             let timeout = (wait_timeout_nanoseconds as u32)
 //                 .min(WebGl2RenderingContext::MAX_CLIENT_WAIT_TIMEOUT_WEBGL);
