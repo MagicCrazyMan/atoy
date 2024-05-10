@@ -13,6 +13,7 @@ use js_sys::{
     Uint8Array, Uint8ClampedArray,
 };
 use log::error;
+use proc::GlEnum;
 use uuid::Uuid;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::future_to_promise;
@@ -23,65 +24,106 @@ use web_sys::{
 
 use super::{
     buffer::BufferTarget,
-    conversion::ToGlEnum,
     error::Error,
     pixel::{PixelDataType, PixelFormat, PixelUnpackStorage},
 };
 
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureTarget {
+    #[gl_enum(TEXTURE_2D)]
     Texture2D,
+    #[gl_enum(TEXTURE_CUBE_MAP)]
     TextureCubeMap,
+    #[gl_enum(TEXTURE_2D_ARRAY)]
     Texture2DArray,
+    #[gl_enum(TEXTURE_3D)]
     Texture3D,
 }
 
 /// Available cube map texture faces mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureCubeMapFace {
+    #[gl_enum(TEXTURE_CUBE_MAP_POSITIVE_X)]
     PositiveX,
+    #[gl_enum(TEXTURE_CUBE_MAP_NEGATIVE_X)]
     NegativeX,
+    #[gl_enum(TEXTURE_CUBE_MAP_POSITIVE_Y)]
     PositiveY,
+    #[gl_enum(TEXTURE_CUBE_MAP_NEGATIVE_Y)]
     NegativeY,
+    #[gl_enum(TEXTURE_CUBE_MAP_POSITIVE_Z)]
     PositiveZ,
+    #[gl_enum(TEXTURE_CUBE_MAP_NEGATIVE_Z)]
     NegativeZ,
 }
 
 /// Available texture units mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureUnit {
+    #[gl_enum(TEXTURE0)]
     Texture0,
+    #[gl_enum(TEXTURE1)]
     Texture1,
+    #[gl_enum(TEXTURE2)]
     Texture2,
+    #[gl_enum(TEXTURE3)]
     Texture3,
+    #[gl_enum(TEXTURE4)]
     Texture4,
+    #[gl_enum(TEXTURE5)]
     Texture5,
+    #[gl_enum(TEXTURE6)]
     Texture6,
+    #[gl_enum(TEXTURE7)]
     Texture7,
+    #[gl_enum(TEXTURE8)]
     Texture8,
+    #[gl_enum(TEXTURE9)]
     Texture9,
+    #[gl_enum(TEXTURE10)]
     Texture10,
+    #[gl_enum(TEXTURE11)]
     Texture11,
+    #[gl_enum(TEXTURE12)]
     Texture12,
+    #[gl_enum(TEXTURE13)]
     Texture13,
+    #[gl_enum(TEXTURE14)]
     Texture14,
+    #[gl_enum(TEXTURE15)]
     Texture15,
+    #[gl_enum(TEXTURE16)]
     Texture16,
+    #[gl_enum(TEXTURE17)]
     Texture17,
+    #[gl_enum(TEXTURE18)]
     Texture18,
+    #[gl_enum(TEXTURE19)]
     Texture19,
+    #[gl_enum(TEXTURE20)]
     Texture20,
+    #[gl_enum(TEXTURE21)]
     Texture21,
+    #[gl_enum(TEXTURE22)]
     Texture22,
+    #[gl_enum(TEXTURE23)]
     Texture23,
+    #[gl_enum(TEXTURE24)]
     Texture24,
+    #[gl_enum(TEXTURE25)]
     Texture25,
+    #[gl_enum(TEXTURE26)]
     Texture26,
+    #[gl_enum(TEXTURE27)]
     Texture27,
+    #[gl_enum(TEXTURE28)]
     Texture28,
+    #[gl_enum(TEXTURE29)]
     Texture29,
+    #[gl_enum(TEXTURE30)]
     Texture30,
+    #[gl_enum(TEXTURE31)]
     Texture31,
 }
 
@@ -125,57 +167,81 @@ impl TextureUnit {
 }
 
 /// Available texture magnification filters for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureMagnificationFilter {
+    #[gl_enum(LINEAR)]
     Linear,
+    #[gl_enum(NEAREST)]
     Nearest,
 }
 
 /// Available texture minification filters for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureMinificationFilter {
+    #[gl_enum(LINEAR)]
     Linear,
+    #[gl_enum(NEAREST)]
     Nearest,
+    #[gl_enum(NEAREST_MIPMAP_NEAREST)]
     NearestMipmapNearest,
+    #[gl_enum(LINEAR_MIPMAP_NEAREST)]
     LinearMipmapNearest,
+    #[gl_enum(NEAREST_MIPMAP_LINEAR)]
     NearestMipmapLinear,
+    #[gl_enum(LINEAR_MIPMAP_LINEAR)]
     LinearMipmapLinear,
 }
 
 /// Available texture wrap methods for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureWrapMethod {
+    #[gl_enum(REPEAT)]
     Repeat,
+    #[gl_enum(CLAMP_TO_EDGE)]
     ClampToEdge,
+    #[gl_enum(MIRRORED_REPEAT)]
     MirroredRepeat,
 }
 
 /// Available texture compare function for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureCompareFunction {
+    #[gl_enum(LEQUAL)]
     LessEqual,
+    #[gl_enum(GEQUAL)]
     GreaterEqual,
+    #[gl_enum(LESS)]
     Less,
+    #[gl_enum(GREATER)]
     Greater,
+    #[gl_enum(EQUAL)]
     Equal,
+    #[gl_enum(NOTEQUAL)]
     NotEqual,
+    #[gl_enum(ALWAYS)]
     Always,
+    #[gl_enum(NEVER)]
     Never,
 }
 
 /// Available texture compare modes for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureCompareMode {
+    #[gl_enum(NONE)]
     None,
+    #[gl_enum(COMPARE_REF_TO_TEXTURE)]
     CompareRefToTexture,
 }
 
 /// Available texture parameter kinds mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureParameterKind {
+    #[gl_enum(TEXTURE_BASE_LEVEL)]
     BaseLevel,
+    #[gl_enum(TEXTURE_MAX_LEVEL)]
     MaxLevel,
     /// Available when extension `EXT_texture_filter_anisotropic` enabled.
+    #[gl_enum(TEXTURE_MAX_ANISOTROPY_EXT)]
     MaxAnisotropy,
 }
 
@@ -201,31 +267,41 @@ impl TextureParameter {
     }
 
     fn tex_parameter(&self, gl: &WebGl2RenderingContext, target: TextureTarget) {
+        let pname = self.kind().to_gl_enum();
         match self {
             TextureParameter::BaseLevel(v) => {
-                gl.tex_parameteri(target.to_gl_enum(), self.to_gl_enum(), *v);
+                gl.tex_parameteri(target.to_gl_enum(), pname, *v);
             }
             TextureParameter::MaxLevel(v) => {
-                gl.tex_parameteri(target.to_gl_enum(), self.to_gl_enum(), *v);
+                gl.tex_parameteri(target.to_gl_enum(), pname, *v);
             }
             TextureParameter::MaxAnisotropy(v) => {
-                gl.tex_parameterf(target.to_gl_enum(), self.to_gl_enum(), *v);
+                gl.tex_parameterf(target.to_gl_enum(), pname, *v);
             }
         };
     }
 }
 
 /// Available sampling kinds for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum SamplerParameterKind {
+    #[gl_enum(TEXTURE_MAG_FILTER)]
     MagnificationFilter,
+    #[gl_enum(TEXTURE_MIN_FILTER)]
     MinificationFilter,
+    #[gl_enum(TEXTURE_WRAP_S)]
     WrapS,
+    #[gl_enum(TEXTURE_WRAP_T)]
     WrapT,
+    #[gl_enum(TEXTURE_WRAP_R)]
     WrapR,
+    #[gl_enum(TEXTURE_COMPARE_FUNC)]
     CompareFunction,
+    #[gl_enum(TEXTURE_COMPARE_MODE)]
     CompareMode,
+    #[gl_enum(TEXTURE_MAX_LOD)]
     MaxLod,
+    #[gl_enum(TEXTURE_MIN_LOD)]
     MinLod,
 }
 
@@ -259,100 +335,158 @@ impl SamplerParameter {
     }
 
     fn sampler_parameter(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
+        let pname = self.kind().to_gl_enum();
         match self {
             SamplerParameter::MagnificationFilter(v) => {
-                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, pname, v.to_gl_enum() as i32)
             }
             SamplerParameter::MinificationFilter(v) => {
-                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, pname, v.to_gl_enum() as i32)
             }
             SamplerParameter::WrapS(v)
             | SamplerParameter::WrapT(v)
             | SamplerParameter::WrapR(v) => {
-                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, pname, v.to_gl_enum() as i32)
             }
             SamplerParameter::CompareFunction(v) => {
-                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, pname, v.to_gl_enum() as i32)
             }
             SamplerParameter::CompareMode(v) => {
-                gl.sampler_parameteri(&sampler, self.to_gl_enum(), v.to_gl_enum() as i32)
+                gl.sampler_parameteri(&sampler, pname, v.to_gl_enum() as i32)
             }
             SamplerParameter::MaxLod(v) | SamplerParameter::MinLod(v) => {
-                gl.sampler_parameterf(&sampler, self.to_gl_enum(), *v)
+                gl.sampler_parameterf(&sampler, pname, *v)
             }
         }
     }
 }
 
-pub trait TextureInternalFormat: ToGlEnum {
+pub trait TextureInternalFormat {
     /// Returns byte length of this internal format in specified size.
     fn byte_length(&self, width: usize, height: usize) -> usize;
+
+    /// Returns WebGL enum associated with this internal format.
+    fn to_gl_enum(&self) -> u32;
 }
 
 /// Available texture color internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureUncompressedInternalFormat {
+    #[gl_enum(RGBA32I)]
     RGBA32I,
+    #[gl_enum(RGBA32UI)]
     RGBA32UI,
+    #[gl_enum(RGBA16I)]
     RGBA16I,
+    #[gl_enum(RGBA16UI)]
     RGBA16UI,
+    #[gl_enum(RGBA8)]
     RGBA8,
+    #[gl_enum(RGBA8I)]
     RGBA8I,
+    #[gl_enum(RGBA8UI)]
     RGBA8UI,
+    #[gl_enum(SRGB8_ALPHA8)]
     SRGB8_ALPHA8,
+    #[gl_enum(RGB10_A2)]
     RGB10_A2,
+    #[gl_enum(RGB10_A2UI)]
     RGB10_A2UI,
+    #[gl_enum(RGBA4)]
     RGBA4,
+    #[gl_enum(RGB5_A1)]
     RGB5_A1,
+    #[gl_enum(RGB8)]
     RGB8,
+    #[gl_enum(RGB565)]
     RGB565,
+    #[gl_enum(RG32I)]
     RG32I,
+    #[gl_enum(RG32UI)]
     RG32UI,
+    #[gl_enum(RG16I)]
     RG16I,
+    #[gl_enum(RG16UI)]
     RG16UI,
+    #[gl_enum(RG8)]
     RG8,
+    #[gl_enum(RG8I)]
     RG8I,
+    #[gl_enum(RG8UI)]
     RG8UI,
+    #[gl_enum(R32I)]
     R32I,
+    #[gl_enum(R32UI)]
     R32UI,
+    #[gl_enum(R16I)]
     R16I,
+    #[gl_enum(R16UI)]
     R16UI,
+    #[gl_enum(R8)]
     R8,
+    #[gl_enum(R8I)]
     R8I,
+    #[gl_enum(R8UI)]
     R8UI,
+    #[gl_enum(DEPTH_COMPONENT32F)]
     DEPTH_COMPONENT32F,
+    #[gl_enum(DEPTH_COMPONENT24)]
     DEPTH_COMPONENT24,
+    #[gl_enum(DEPTH_COMPONENT16)]
     DEPTH_COMPONENT16,
+    #[gl_enum(DEPTH32F_STENCIL8)]
     DEPTH32F_STENCIL8,
+    #[gl_enum(DEPTH24_STENCIL8)]
     DEPTH24_STENCIL8,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(R16F)]
     R16F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(RG16F)]
     RG16F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(RGBA16F)]
     RGBA16F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(R32F)]
     R32F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(RG32F)]
     RG32F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(RGBA32F)]
     RGBA32F,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
+    #[gl_enum(R11F_G11F_B10F)]
     R11F_G11F_B10F,
+    #[gl_enum(RGB8I)]
     RGB8I,
+    #[gl_enum(RGB8UI)]
     RGB8UI,
+    #[gl_enum(RGB16I)]
     RGB16I,
+    #[gl_enum(RGB16UI)]
     RGB16UI,
+    #[gl_enum(RGB16F)]
     RGB16F,
+    #[gl_enum(RGB32I)]
     RGB32I,
+    #[gl_enum(RGB32UI)]
     RGB32UI,
+    #[gl_enum(RGB32F)]
     RGB32F,
+    #[gl_enum(R8_SNORM)]
     R8_SNORM,
+    #[gl_enum(RG8_SNORM)]
     RG8_SNORM,
+    #[gl_enum(RGB8_SNORM)]
     RGB8_SNORM,
+    #[gl_enum(RGBA8_SNORM)]
     RGBA8_SNORM,
+    #[gl_enum(SRGB8)]
     SRGB8,
+    #[gl_enum(RGB9_E5)]
     RGB9_E5,
 }
 
@@ -415,125 +549,186 @@ impl TextureInternalFormat for TextureUncompressedInternalFormat {
             TextureUncompressedInternalFormat::DEPTH24_STENCIL8 => width * height * 4,
         }
     }
+    
+    fn to_gl_enum(&self) -> u32 {
+        self.to_gl_enum()
+    }    
 }
 
 /// Available texture compressed internal and upload formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum TextureCompressedFormat {
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    #[gl_enum(COMPRESSED_RGB_S3TC_DXT1_EXT)]
     RGB_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_S3TC_DXT1_EXT)]
     RGBA_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_S3TC_DXT3_EXT)]
     RGBA_S3TC_DXT3,
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_S3TC_DXT5_EXT)]
     RGBA_S3TC_DXT5,
     /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    #[gl_enum(COMPRESSED_SRGB_S3TC_DXT1_EXT)]
     SRGB_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    #[gl_enum(COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT)]
     SRGB_ALPHA_S3TC_DXT1,
     /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    #[gl_enum(COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT)]
     SRGB_ALPHA_S3TC_DXT3,
     /// Available when extension `WEBGL_compressed_texture_s3tc_srgb` enabled.
+    #[gl_enum(COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT)]
     SRGB_ALPHA_S3TC_DXT5,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_R11_EAC)]
     R11_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SIGNED_R11_EAC)]
     SIGNED_R11_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_RG11_EAC)]
     RG11_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SIGNED_RG11_EAC)]
     SIGNED_RG11_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_RGB8_ETC2)]
     RGB8_ETC2,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ETC2)]
     RGBA8_ETC2_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ETC2)]
     SRGB8_ETC2,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ETC2_EAC)]
     SRGB8_ALPHA8_ETC2_EAC,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2)]
     RGB8_PUNCHTHROUGH_ALPHA1_ETC2,
     /// Available when extension `WEBGL_compressed_texture_etc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2)]
     SRGB8_PUNCHTHROUGH_ALPHA1_ETC2,
     /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    #[gl_enum(COMPRESSED_RGB_PVRTC_2BPPV1_IMG)]
     RGB_PVRTC_2BPPV1_IMG,
     /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_PVRTC_2BPPV1_IMG)]
     RGBA_PVRTC_2BPPV1_IMG,
     /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    #[gl_enum(COMPRESSED_RGB_PVRTC_4BPPV1_IMG)]
     RGB_PVRTC_4BPPV1_IMG,
     /// Available when extension `WEBGL_compressed_texture_pvrtc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_PVRTC_4BPPV1_IMG)]
     RGBA_PVRTC_4BPPV1_IMG,
     /// Available when extension `WEBGL_compressed_texture_etc1` enabled.
+    #[gl_enum(COMPRESSED_RGB_ETC1_WEBGL)]
     RGB_ETC1_WEBGL,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_4X4_KHR)]
     RGBA_ASTC_4x4,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_4X4_KHR)]
     SRGB8_ALPHA8_ASTC_4x4,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_5X4_KHR)]
     RGBA_ASTC_5x4,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_5X4_KHR)]
     SRGB8_ALPHA8_ASTC_5x4,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_5X5_KHR)]
     RGBA_ASTC_5x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_5X5_KHR)]
     SRGB8_ALPHA8_ASTC_5x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_6X5_KHR)]
     RGBA_ASTC_6x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_6X5_KHR)]
     SRGB8_ALPHA8_ASTC_6x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_6X6_KHR)]
     RGBA_ASTC_6x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_6X6_KHR)]
     SRGB8_ALPHA8_ASTC_6x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_8X5_KHR)]
     RGBA_ASTC_8x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_8X5_KHR)]
     SRGB8_ALPHA8_ASTC_8x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_8X6_KHR)]
     RGBA_ASTC_8x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_8X6_KHR)]
     SRGB8_ALPHA8_ASTC_8x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_8X8_KHR)]
     RGBA_ASTC_8x8,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_8X8_KHR)]
     SRGB8_ALPHA8_ASTC_8x8,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_10X5_KHR)]
     RGBA_ASTC_10x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_10X5_KHR)]
     SRGB8_ALPHA8_ASTC_10x5,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_10X6_KHR)]
     RGBA_ASTC_10x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_10X6_KHR)]
     SRGB8_ALPHA8_ASTC_10x6,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_10X8_KHR)]
     RGBA_ASTC_10x10,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_10X8_KHR)]
     SRGB8_ALPHA8_ASTC_10x10,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_12X10_KHR)]
     RGBA_ASTC_12x10,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_12X10_KHR)]
     SRGB8_ALPHA8_ASTC_12x10,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_ASTC_12X12_KHR)]
     RGBA_ASTC_12x12,
     /// Available when extension `WEBGL_compressed_texture_astc` enabled.
+    #[gl_enum(COMPRESSED_SRGB8_ALPHA8_ASTC_12X12_KHR)]
     SRGB8_ALPHA8_ASTC_12x12,
     /// Available when extension `EXT_texture_compression_bptc` enabled.
+    #[gl_enum(COMPRESSED_RGBA_BPTC_UNORM_EXT)]
     RGBA_BPTC_UNORM,
     /// Available when extension `EXT_texture_compression_bptc` enabled.
+    #[gl_enum(COMPRESSED_SRGB_ALPHA_BPTC_UNORM_EXT)]
     SRGB_ALPHA_BPTC_UNORM,
     /// Available when extension `EXT_texture_compression_bptc` enabled.
+    #[gl_enum(COMPRESSED_RGB_BPTC_SIGNED_FLOAT_EXT)]
     RGB_BPTC_SIGNED_FLOAT,
     /// Available when extension `EXT_texture_compression_bptc` enabled.
+    #[gl_enum(COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_EXT)]
     RGB_BPTC_UNSIGNED_FLOAT,
     /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    #[gl_enum(COMPRESSED_RED_RGTC1_EXT)]
     RED_RGTC1,
     /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    #[gl_enum(COMPRESSED_SIGNED_RED_RGTC1_EXT)]
     SIGNED_RED_RGTC1,
     /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    #[gl_enum(COMPRESSED_RED_GREEN_RGTC2_EXT)]
     RED_GREEN_RGTC2,
     /// Available when extension `EXT_texture_compression_rgtc` enabled.
+    #[gl_enum(COMPRESSED_SIGNED_RED_GREEN_RGTC2_EXT)]
     SIGNED_RED_GREEN_RGTC2,
 }
 
@@ -658,6 +853,10 @@ impl TextureInternalFormat for TextureCompressedFormat {
                 ((width + 3) / 4) * ((height + 3) / 4) * 16
             }
         }
+    }
+    
+    fn to_gl_enum(&self) -> u32 {
+        self.to_gl_enum()
     }
 }
 
@@ -2677,7 +2876,8 @@ impl TextureRegisteredUndrop {
         self.gl.active_texture(unit.to_gl_enum());
         self.gl
             .bind_texture(self.texture_target.to_gl_enum(), Some(&self.gl_texture));
-        self.gl.bind_sampler(unit.to_gl_enum(), Some(&self.gl_sampler));
+        self.gl
+            .bind_sampler(unit.to_gl_enum(), Some(&self.gl_sampler));
         self.gl_active_unit.insert(unit);
         self.reg_texture_bounds
             .borrow_mut()

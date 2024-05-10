@@ -1,9 +1,8 @@
 use web_sys::WebGl2RenderingContext;
 
 use super::{
-    conversion::ToGlEnum,
-    error::Error,
-    framebuffer::{Framebuffer, FramebufferTarget, OperableBuffer},
+    
+    conversion::ToGlEnum, error::Error, framebuffer::{Framebuffer, FramebufferTarget, OperableBuffer}
 };
 
 /// Available blit framebuffer masks mapped from [`WebGl2RenderingContext`].
@@ -152,8 +151,8 @@ impl<'a> Blit<'a> {
         let dst_y0 = self.dst_y0.unwrap_or(0) as i32;
         let dst_x1 = self.dst_x1.or_else(|| self.draw.width()).unwrap_or(0) as i32;
         let dst_y1 = self.dst_y1.or_else(|| self.draw.height()).unwrap_or(0) as i32;
-        let mask = self.mask.to_gl_enum();
-        let filter = self.filter.to_gl_enum();
+        let mask = self.mask.gl_enum();
+        let filter = self.filter.gl_enum();
         self.gl.blit_framebuffer(
             src_x0, src_y0, src_x1, src_y1, dst_x0, dst_y0, dst_x1, dst_y1, mask, filter,
         );

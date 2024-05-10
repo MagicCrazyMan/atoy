@@ -18,9 +18,9 @@ use web_sys::{
     WebGl2RenderingContext, WebGlBuffer,
 };
 
-use crate::lru::{Lru, LruNode};
+use crate::{lru::{Lru, LruNode}, renderer::webgl::conversion::ToGlEnum};
 
-use super::{conversion::ToGlEnum, error::Error, params::GetWebGlParameters};
+use super::{ error::Error, params::GetWebGlParameters};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -407,9 +407,9 @@ impl BufferRuntime {
 
             if required_byte_length > current_byte_length {
                 self.gl.buffer_data_with_i32(
-                    target.to_gl_enum(),
+                    target.gl_enum(),
                     required_byte_length as i32,
-                    usage.to_gl_enum(),
+                    usage.gl_enum(),
                 );
                 self.buffer_byte_length = required_byte_length;
             }
@@ -442,7 +442,7 @@ impl BufferRuntime {
                         };
                         self.gl
                             .buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
-                                target.to_gl_enum(),
+                                target.gl_enum(),
                                 dst_byte_offset,
                                 data,
                                 src_element_offset.unwrap_or(0) as u32,
@@ -573,7 +573,7 @@ impl BufferRuntime {
                             _ => unreachable!(),
                         };
                         self.gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
-                            target.to_gl_enum(),
+                            target.gl_enum(),
                             dst_byte_offset,
                             &data,
                             src_element_offset.unwrap_or(0) as u32,
@@ -582,7 +582,7 @@ impl BufferRuntime {
                     }
                     BufferData::ArrayBuffer { data } => {
                         self.gl.buffer_sub_data_with_i32_and_array_buffer(
-                            target.to_gl_enum(),
+                            target.gl_enum(),
                             dst_byte_offset,
                             &data,
                         )
@@ -626,7 +626,7 @@ impl Drop for BufferShared {
         if let Some(mut runtime) = self.runtime.take() {
             if let Some(buffer) = runtime.buffer.take() {
                 for binding in runtime.bindings.iter() {
-                    runtime.gl.bind_buffer(binding.to_gl_enum(), None);
+                    runtime.gl.bind_buffer(binding.gl_enum(), None);
                 }
 
                 for index in runtime.binding_ubos.iter() {
@@ -720,7 +720,7 @@ impl BufferShared {
             }
         } else {
             let buffer = runtime.get_or_create_buffer()?;
-            runtime.gl.bind_buffer(target.to_gl_enum(), Some(&buffer));
+            runtime.gl.bind_buffer(target.gl_enum(), Some(&buffer));
             let (new_byte_length, old_byte_length) =
                 runtime.upload(target, self.usage, &mut self.queue);
             runtime.bindings.insert(target);
@@ -853,7 +853,7 @@ impl BufferShared {
         let runtime = self.runtime.as_mut().ok_or(Error::BufferUninitialized)?;
 
         if runtime.bindings.remove(&target) {
-            runtime.gl.bind_buffer(target.to_gl_enum(), None);
+            runtime.gl.bind_buffer(target.gl_enum(), None);
 
             if let Some(registered) = &self.registered {
                 if let Some(store) = registered.store.upgrade() {
@@ -897,7 +897,7 @@ impl BufferShared {
             }
         }
         for target in runtime.bindings.drain() {
-            gl.bind_buffer(target.to_gl_enum(), None);
+            gl.bind_buffer(target.gl_enum(), None);
 
             if let Some(registered) = &self.registered {
                 if let Some(store) = registered.store.upgrade() {
@@ -970,7 +970,7 @@ impl BufferShared {
                     }
                 }
                 for target in runtime.bindings.drain() {
-                    gl.bind_buffer(target.to_gl_enum(), None);
+                    gl.bind_buffer(target.gl_enum(), None);
 
                     if let Some(registered) = &self.registered {
                         if let Some(store) = registered.store.upgrade() {

@@ -3,7 +3,6 @@ pub mod blit;
 pub mod buffer;
 pub mod client_wait;
 pub mod context;
-pub mod conversion;
 pub mod cullface;
 pub mod depth;
 pub mod draw;

@@ -8,13 +8,7 @@ use crate::{
 };
 
 use super::{
-    attribute::AttributeValue,
-    buffer::{Buffer, BufferStore, BufferTarget},
-    conversion::ToGlEnum,
-    error::Error,
-    framebuffer::{Framebuffer, OperableBuffer},
-    program::Program,
-    uniform::{UniformBlockValue, UniformValue},
+    attribute::AttributeValue, buffer::{Buffer, BufferStore, BufferTarget}, conversion::ToGlEnum, error::Error, framebuffer::{Framebuffer, OperableBuffer}, program::Program, uniform::{UniformBlockValue, UniformValue}
 };
 
 #[allow(non_camel_case_types)]
@@ -172,7 +166,7 @@ impl<'a> Draw<'a> {
         gl: &WebGl2RenderingContext,
         buffer_store: Option<&BufferStore>,
     ) -> Result<(), Error> {
-        let mode = self.params.mode().to_gl_enum();
+        let mode = self.params.mode().gl_enum();
         let range = self.params.range();
         let offset = range.start as i32;
         let count = range.count() as i32;
@@ -187,7 +181,7 @@ impl<'a> Draw<'a> {
                     }
                 };
                 indices.bind(BufferTarget::ELEMENT_ARRAY_BUFFER)?;
-                let indices_type = indices_type.to_gl_enum();
+                let indices_type = indices_type.gl_enum();
                 match indices_range {
                     Some(indices_range) => {
                         let start = indices_range.start as u32;

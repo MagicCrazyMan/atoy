@@ -5,7 +5,6 @@ use web_sys::WebGl2RenderingContext;
 
 use super::{
     buffer::{Buffer, BufferRegistry, BufferTarget},
-    conversion::ToGlEnum,
     error::Error,
     texture::TextureRegistry,
 };
@@ -14,7 +13,6 @@ pub struct Context {
     gl: WebGl2RenderingContext,
     buffer_registry: BufferRegistry,
     texture_registry: TextureRegistry,
-
     // uniform_buffer_objects: HashMap<usize, Buffer>,
 }
 

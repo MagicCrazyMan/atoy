@@ -5,8 +5,8 @@ use web_sys::{
 };
 
 use super::{
-    texture::{TextureTarget, TextureUnpackColorSpaceConversion},
     conversion::ToGlEnum,
+    texture::{TextureTarget, TextureUnpackColorSpaceConversion},
 };
 
 pub trait GetWebGlParameters {
@@ -115,7 +115,7 @@ impl GetWebGlParameters for WebGl2RenderingContext {
     }
 
     fn texture_binding(&self, target: TextureTarget) -> Option<WebGlTexture> {
-        self.get_parameter(target.to_gl_enum())
+        self.get_parameter(target.gl_enum())
             .unwrap()
             .cast_into_unchecked::<WebGlTexture>()
     }
@@ -247,20 +247,20 @@ impl GetWebGlParameters for WebGl2RenderingContext {
     }
 
     fn texture_parameter_base_level(&self, target: TextureTarget) -> Option<i32> {
-        self.get_tex_parameter(target.to_gl_enum(), WebGl2RenderingContext::TEXTURE_BASE_LEVEL)
+        self.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_BASE_LEVEL)
             .as_f64()
             .map(|v| v as i32)
     }
 
     fn texture_parameter_max_level(&self, target: TextureTarget) -> Option<i32> {
-        self.get_tex_parameter(target.to_gl_enum(), WebGl2RenderingContext::TEXTURE_MAX_LEVEL)
+        self.get_tex_parameter(target.gl_enum(), WebGl2RenderingContext::TEXTURE_MAX_LEVEL)
             .as_f64()
             .map(|v| v as i32)
     }
 
     fn texture_parameter_max_anisotropy(&self, target: TextureTarget) -> Option<f32> {
         self.get_tex_parameter(
-            target.to_gl_enum(),
+            target.gl_enum(),
             ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
         )
         .as_f64()

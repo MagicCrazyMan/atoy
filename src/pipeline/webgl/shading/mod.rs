@@ -6,12 +6,8 @@ use crate::{
     entity::Entity,
     material::webgl::StandardMaterial,
     renderer::webgl::{
-        conversion::ToGlEnum,
-        draw::Draw,
-        error::Error,
-        program::{Define, Program, ProgramSource},
-        state::FrameState,
-        uniform::{UniformBinding, UniformValue},
+        
+        conversion::ToGlEnum, draw::Draw, error::Error, program::{Define, Program, ProgramSource}, state::FrameState, uniform::{UniformBinding, UniformValue}
     },
     scene::{
         AREA_LIGHTS_COUNT_DEFINE, DIRECTIONAL_LIGHTS_COUNT_DEFINE, MAX_AREA_LIGHTS_STRING,
@@ -196,7 +192,7 @@ fn draw_entity(
     if should_cull_face {
         if let Some(cull_face) = geometry.cull_face() {
             state.gl().enable(WebGl2RenderingContext::CULL_FACE);
-            state.gl().cull_face(cull_face.to_gl_enum());
+            state.gl().cull_face(cull_face.gl_enum());
         } else {
             state.gl().disable(WebGl2RenderingContext::CULL_FACE);
         }

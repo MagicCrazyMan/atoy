@@ -11,4 +11,4 @@ proc-macro = true
 [dependencies]
 quote = "1.0.36"
 syn = "2.0.61"
-web-sys = { version = "0.3.69", features = ["WebGl2RenderingContext"] }
+web-sys = { version = "0.3.69", features = ["WebGl2RenderingContext", "WebglCompressedTextureAstc", "WebglCompressedTextureEtc", "WebglCompressedTextureEtc1", "WebglCompressedTexturePvrtc", "WebglCompressedTextureS3tc", "WebglCompressedTextureS3tcSrgb", "ExtTextureFilterAnisotropic"] }

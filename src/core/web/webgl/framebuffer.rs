@@ -26,7 +26,6 @@ use super::{
         Buffer, BufferRegistered, BufferRegisteredUndrop, BufferRegistry, BufferTarget, BufferUsage,
     },
     client_wait::ClientWaitAsync,
-    conversion::ToGlEnum,
     error::Error,
     pixel::{PixelDataType, PixelFormat, PixelPackStorage},
     renderbuffer::RenderbufferInternalFormat,
@@ -1596,8 +1595,10 @@ impl FramebufferRegistered {
                             );
                         }
                         None => {
-                            self.gl
-                                .bind_texture(TextureTarget::Texture2D.to_gl_enum(), Some(&texture));
+                            self.gl.bind_texture(
+                                TextureTarget::Texture2D.to_gl_enum(),
+                                Some(&texture),
+                            );
                             let textarget = cube_map_face
                                 .map(|face| face.to_gl_enum())
                                 .unwrap_or(TextureTarget::Texture2D.to_gl_enum());
@@ -1882,8 +1883,10 @@ impl FramebufferRegistered {
                     ReadPixelsKind::NewPixelBufferObject(usage) => {
                         let gl_buffer =
                             self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                        self.gl
-                            .bind_buffer(BufferTarget::PixelPackBuffer.to_gl_enum(), Some(&gl_buffer));
+                        self.gl.bind_buffer(
+                            BufferTarget::PixelPackBuffer.to_gl_enum(),
+                            Some(&gl_buffer),
+                        );
                         self.gl.buffer_data_with_i32(
                             BufferTarget::PixelPackBuffer.to_gl_enum(),
                             size as i32,
@@ -1893,8 +1896,10 @@ impl FramebufferRegistered {
                         (gl_buffer, *usage)
                     }
                     ReadPixelsKind::ToPixelBufferObject(gl_buffer) => {
-                        self.gl
-                            .bind_buffer(BufferTarget::PixelPackBuffer.to_gl_enum(), Some(&gl_buffer));
+                        self.gl.bind_buffer(
+                            BufferTarget::PixelPackBuffer.to_gl_enum(),
+                            Some(&gl_buffer),
+                        );
 
                         (gl_buffer.clone(), BufferUsage::StaticDraw)
                     }

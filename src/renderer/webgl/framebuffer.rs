@@ -533,7 +533,7 @@ impl AttachmentSource {
                 gl.tex_storage_2d(
                     WebGl2RenderingContext::TEXTURE_2D,
                     1,
-                    internal_format.to_gl_enum(),
+                    internal_format.gl_enum(),
                     width as i32,
                     height as i32,
                 );
@@ -570,13 +570,13 @@ impl AttachmentSource {
                     Some(samples) => gl.renderbuffer_storage_multisample(
                         WebGl2RenderingContext::RENDERBUFFER,
                         samples as i32,
-                        internal_format.to_gl_enum(),
+                        internal_format.gl_enum(),
                         width as i32,
                         height as i32,
                     ),
                     None => gl.renderbuffer_storage(
                         WebGl2RenderingContext::RENDERBUFFER,
-                        internal_format.to_gl_enum(),
+                        internal_format.gl_enum(),
                         width as i32,
                         height as i32,
                     ),
@@ -644,8 +644,8 @@ impl Attachment {
                 let binding = gl.texture_binding_2d();
                 gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
                 gl.framebuffer_texture_2d(
-                    target.to_gl_enum(),
-                    attachment_target.to_gl_enum(),
+                    target.gl_enum(),
+                    attachment_target.gl_enum(),
                     WebGl2RenderingContext::TEXTURE_2D,
                     Some(texture),
                     *level as i32,
@@ -656,8 +656,8 @@ impl Attachment {
                 let binding = gl.renderbuffer_binding();
                 gl.bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, Some(renderbuffer));
                 gl.framebuffer_renderbuffer(
-                    target.to_gl_enum(),
-                    attachment_target.to_gl_enum(),
+                    target.gl_enum(),
+                    attachment_target.gl_enum(),
                     WebGl2RenderingContext::RENDERBUFFER,
                     Some(renderbuffer),
                 );
@@ -716,7 +716,7 @@ impl Runtime {
                     return Ok(());
                 } else {
                     self.gl
-                        .bind_framebuffer(target.to_gl_enum(), Some(&attach.framebuffer));
+                        .bind_framebuffer(target.gl_enum(), Some(&attach.framebuffer));
 
                     if target == FramebufferTarget::DRAW_FRAMEBUFFER {
                         self.gl.draw_buffers(&attach.default_draw_buffers);
@@ -735,7 +735,7 @@ impl Runtime {
             .create_framebuffer()
             .ok_or(Error::CreateFramebufferFailure)?;
         self.gl
-            .bind_framebuffer(target.to_gl_enum(), Some(&framebuffer));
+            .bind_framebuffer(target.gl_enum(), Some(&framebuffer));
         let (attachments, default_draw_buffers) = sources
             .iter()
             .try_fold(
@@ -748,14 +748,14 @@ impl Runtime {
 
                     if let Some(operable_buffer) = attachment_target.to_operable_buffer() {
                         default_draw_buffers
-                            .push(&JsValue::from_f64(operable_buffer.to_gl_enum() as f64));
+                            .push(&JsValue::from_f64(operable_buffer.gl_enum() as f64));
                     }
 
                     Ok((attachements, default_draw_buffers))
                 },
             )
             .or_else(|err| {
-                self.gl.bind_framebuffer(target.to_gl_enum(), None);
+                self.gl.bind_framebuffer(target.gl_enum(), None);
                 Err(err)
             })?;
         default_draw_buffers.sort();
@@ -787,7 +787,7 @@ impl Runtime {
 
     fn unbind(&mut self, target: FramebufferTarget) {
         if self.bindings.remove(&target) {
-            self.gl.bind_framebuffer(target.to_gl_enum(), None);
+            self.gl.bind_framebuffer(target.gl_enum(), None);
         }
     }
 
@@ -978,7 +978,7 @@ impl Framebuffer {
             .as_mut()
             .ok_or(Error::FramebufferUninitialized)?;
         runtime.is_bound_as_read()?;
-        runtime.gl.read_buffer(read_buffer.to_gl_enum());
+        runtime.gl.read_buffer(read_buffer.gl_enum());
 
         Ok(())
     }
@@ -996,7 +996,7 @@ impl Framebuffer {
         let draw_buffers = Array::from_iter(
             draw_buffers
                 .into_iter()
-                .map(|b| JsValue::from_f64(b.to_gl_enum() as f64)),
+                .map(|b| JsValue::from_f64(b.gl_enum() as f64)),
         );
         runtime.gl.draw_buffers(&draw_buffers);
 
@@ -1027,8 +1027,8 @@ impl Framebuffer {
                 y,
                 width,
                 height,
-                pixel_format.to_gl_enum(),
-                data_type.to_gl_enum(),
+                pixel_format.gl_enum(),
+                data_type.gl_enum(),
                 dst_data,
                 dst_offset,
             )

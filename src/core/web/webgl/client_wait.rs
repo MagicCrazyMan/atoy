@@ -9,7 +9,7 @@ use web_sys::{
 
 use crate::window;
 
-use super::{conversion::ToGlEnum, error::Error};
+use super::error::Error;
 
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]

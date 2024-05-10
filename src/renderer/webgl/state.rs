@@ -5,13 +5,7 @@ use web_sys::{HtmlCanvasElement, WebGl2RenderingContext, WebGlTexture};
 use crate::camera::Camera;
 
 use super::{
-    buffer::BufferStore,
-    capabilities::Capabilities,
-    conversion::ToGlEnum,
-    error::Error,
-    params::GetWebGlParameters,
-    program::ProgramStore,
-    texture::{TextureStore, TextureUnit},
+    buffer::BufferStore, capabilities::Capabilities, conversion::ToGlEnum, error::Error, params::GetWebGlParameters, program::ProgramStore, texture::{TextureStore, TextureUnit}
 };
 
 pub struct FrameState {
@@ -102,7 +96,7 @@ impl FrameState {
         let sampler = self.capabilities().computation_sampler()?;
         let mut states = Vec::new();
         for (texture, unit) in textures {
-            self.gl.active_texture(unit.to_gl_enum());
+            self.gl.active_texture(unit.gl_enum());
             let binding = self.gl.texture_binding_2d();
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(texture));
@@ -115,7 +109,7 @@ impl FrameState {
             .draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4);
 
         for (unit, binding) in states {
-            self.gl.active_texture(unit.to_gl_enum());
+            self.gl.active_texture(unit.gl_enum());
             self.gl
                 .bind_texture(WebGl2RenderingContext::TEXTURE_2D, binding.as_ref());
             self.gl.bind_sampler(unit.unit_index() as u32, None);

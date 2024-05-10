@@ -9,7 +9,7 @@ use web_sys::{
 
 use crate::window;
 
-use super::{conversion::ToGlEnum, error::Error};
+use super::{ conversion::ToGlEnum, error::Error};
 
 /// Available client wait flags mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
@@ -43,7 +43,7 @@ pub async fn client_wait_async(
         let wait_cloned = Rc::clone(&wait);
         *wait.borrow_mut() = Some(Box::new(move |resolve: Function, reject: Function| {
             let flags = flags
-                .map(|flags| flags.to_gl_enum())
+                .map(|flags| flags.gl_enum())
                 .unwrap_or(WebGl2RenderingContext::NONE);
             let timeout = (wait_timeout_nanoseconds as u32)
                 .min(WebGl2RenderingContext::MAX_CLIENT_WAIT_TIMEOUT_WEBGL);

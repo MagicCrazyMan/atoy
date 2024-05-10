@@ -113,7 +113,7 @@ impl PixelDataType {
     }
 }
 
-/// Available unpack color space conversions for [`WebGl2RenderingContext`].
+/// Available unpack color space conversions mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum UnpackColorSpaceConversion {
     #[gl_enum(NONE)]
@@ -131,7 +131,20 @@ pub enum PixelAlignment {
     Eight = 8,
 }
 
-/// Available pixel pack storages for [`WebGl2RenderingContext`].
+/// Available pixel pack storages kind mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum PixelPackStorageKind {
+    #[gl_enum(PACK_ALIGNMENT)]
+    PackAlignment,
+    #[gl_enum(PACK_ROW_LENGTH)]
+    PackRowLength,
+    #[gl_enum(PACK_SKIP_PIXELS)]
+    PackSkipPixels,
+    #[gl_enum(PACK_SKIP_ROWS)]
+    PackSkipRows,
+}
+
+/// Available pixel pack storages mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PixelPackStorage {
     PackAlignment(PixelAlignment),
@@ -141,6 +154,15 @@ pub enum PixelPackStorage {
 }
 
 impl PixelPackStorage {
+    pub fn kind(&self) -> PixelPackStorageKind {
+        match self {
+            PixelPackStorage::PackAlignment(_) => PixelPackStorageKind::PackAlignment,
+            PixelPackStorage::PackRowLength(_) => PixelPackStorageKind::PackRowLength,
+            PixelPackStorage::PackSkipPixels(_) => PixelPackStorageKind::PackSkipPixels,
+            PixelPackStorage::PackSkipRows(_) => PixelPackStorageKind::PackSkipRows,
+        }
+    }
+
     pub(super) fn pixel_store(&self, gl: &WebGl2RenderingContext) -> PixelPackStorage {
         match self {
             PixelPackStorage::PackAlignment(v) => {
@@ -163,7 +185,7 @@ impl PixelPackStorage {
     }
 }
 
-/// Available pixel unpack storages for [`WebGl2RenderingContext`].
+/// Available pixel unpack storages mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PixelUnpackStorage {
     UnpackAlignment(PixelAlignment),
