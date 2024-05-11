@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    iter::FromIterator,
-    rc::{Rc, Weak},
-};
+use std::{cell::RefCell, collections::VecDeque, iter::FromIterator, rc::Rc};
 
 use hashbrown::{HashMap, HashSet};
 use js_sys::{ArrayBuffer, Uint8Array};
@@ -15,10 +10,7 @@ use web_sys::{
     WebGlTexture,
 };
 
-use crate::core::web::webgl::{
-    renderbuffer::RenderbufferTarget,
-    texture::{TextureRegistered, TextureRegisteredUndrop, TextureRegistry},
-};
+use crate::core::web::webgl::{renderbuffer::RenderbufferTarget, texture::TextureRegistry};
 
 use super::{
     blit::{BlitFilter, BlitMask},
@@ -30,8 +22,8 @@ use super::{
     pixel::{PixelDataType, PixelFormat, PixelPackStorage},
     renderbuffer::RenderbufferInternalFormat,
     texture::{
-        Texture, Texture2D, TextureCubeMapFace, TextureInternalFormat, TextureTarget,
-        TextureUncompressedInternalFormat, TextureUnit,
+        Texture, Texture2D, Texture2DArray, Texture3D, TextureCubeMap, TextureCubeMapFace,
+        TextureTarget, TextureUncompressedInternalFormat,
     },
 };
 
@@ -106,6 +98,30 @@ impl FramebufferAttachment {
             FramebufferAttachment::DepthStencilAttachment => None,
         }
     }
+
+    fn to_clear_index(&self) -> i32 {
+        match self {
+            FramebufferAttachment::ColorAttachment0 => 0,
+            FramebufferAttachment::ColorAttachment1 => 1,
+            FramebufferAttachment::ColorAttachment2 => 2,
+            FramebufferAttachment::ColorAttachment3 => 3,
+            FramebufferAttachment::ColorAttachment4 => 4,
+            FramebufferAttachment::ColorAttachment5 => 5,
+            FramebufferAttachment::ColorAttachment6 => 6,
+            FramebufferAttachment::ColorAttachment7 => 7,
+            FramebufferAttachment::ColorAttachment8 => 8,
+            FramebufferAttachment::ColorAttachment9 => 9,
+            FramebufferAttachment::ColorAttachment10 => 10,
+            FramebufferAttachment::ColorAttachment11 => 11,
+            FramebufferAttachment::ColorAttachment12 => 12,
+            FramebufferAttachment::ColorAttachment13 => 13,
+            FramebufferAttachment::ColorAttachment14 => 14,
+            FramebufferAttachment::ColorAttachment15 => 15,
+            FramebufferAttachment::DepthAttachment => 0,
+            FramebufferAttachment::StencilAttachment => 0,
+            FramebufferAttachment::DepthStencilAttachment => 0,
+        }
+    }
 }
 
 /// Available drawable or readable buffer attachment mapped from [`WebGl2RenderingContext`].
@@ -149,31 +165,6 @@ pub enum OperableBuffer {
     ColorAttachment15,
 }
 
-impl OperableBuffer {
-    fn to_index(&self) -> Option<usize> {
-        match self {
-            OperableBuffer::ColorAttachment0 => Some(0),
-            OperableBuffer::ColorAttachment1 => Some(1),
-            OperableBuffer::ColorAttachment2 => Some(2),
-            OperableBuffer::ColorAttachment3 => Some(3),
-            OperableBuffer::ColorAttachment4 => Some(4),
-            OperableBuffer::ColorAttachment5 => Some(5),
-            OperableBuffer::ColorAttachment6 => Some(6),
-            OperableBuffer::ColorAttachment7 => Some(7),
-            OperableBuffer::ColorAttachment8 => Some(8),
-            OperableBuffer::ColorAttachment9 => Some(9),
-            OperableBuffer::ColorAttachment10 => Some(10),
-            OperableBuffer::ColorAttachment11 => Some(11),
-            OperableBuffer::ColorAttachment12 => Some(12),
-            OperableBuffer::ColorAttachment13 => Some(13),
-            OperableBuffer::ColorAttachment14 => Some(14),
-            OperableBuffer::ColorAttachment15 => Some(15),
-            OperableBuffer::None => None,
-            OperableBuffer::Back => None,
-        }
-    }
-}
-
 /// Available framebuffer size policies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SizePolicy {
@@ -214,36 +205,29 @@ pub enum ClearPolicy {
 }
 
 impl ClearPolicy {
-    fn clear(&self, gl: &WebGl2RenderingContext, draw_buffer_index: i32) {
+    fn clear(&self, gl: &WebGl2RenderingContext, attachment: FramebufferAttachment) {
+        let index = attachment.to_clear_index();
         match self {
-            ClearPolicy::ColorFloat(values) => gl.clear_bufferfv_with_f32_array(
-                WebGl2RenderingContext::COLOR,
-                draw_buffer_index,
-                values,
-            ),
-            ClearPolicy::ColorInteger(values) => gl.clear_bufferiv_with_i32_array(
-                WebGl2RenderingContext::COLOR,
-                draw_buffer_index,
-                values,
-            ),
-            ClearPolicy::ColorUnsignedInteger(values) => gl.clear_bufferuiv_with_u32_array(
-                WebGl2RenderingContext::COLOR,
-                draw_buffer_index,
-                values,
-            ),
-            ClearPolicy::Depth(depth) => gl.clear_bufferfv_with_f32_array(
-                WebGl2RenderingContext::DEPTH,
-                draw_buffer_index,
-                &[*depth],
-            ),
+            ClearPolicy::ColorFloat(values) => {
+                gl.clear_bufferfv_with_f32_array(WebGl2RenderingContext::COLOR, index, values)
+            }
+            ClearPolicy::ColorInteger(values) => {
+                gl.clear_bufferiv_with_i32_array(WebGl2RenderingContext::COLOR, index, values)
+            }
+            ClearPolicy::ColorUnsignedInteger(values) => {
+                gl.clear_bufferuiv_with_u32_array(WebGl2RenderingContext::COLOR, index, values)
+            }
+            ClearPolicy::Depth(depth) => {
+                gl.clear_bufferfv_with_f32_array(WebGl2RenderingContext::DEPTH, index, &[*depth])
+            }
             ClearPolicy::Stencil(stencil) => gl.clear_bufferiv_with_i32_array(
                 WebGl2RenderingContext::STENCIL,
-                draw_buffer_index,
+                index,
                 &[*stencil],
             ),
             ClearPolicy::DepthStencil(depth, stencil) => gl.clear_bufferfi(
                 WebGl2RenderingContext::DEPTH_STENCIL,
-                draw_buffer_index,
+                index,
                 *depth,
                 *stencil,
             ),
@@ -513,6 +497,17 @@ impl AttachmentSource {
             clear_policy,
         }
     }
+
+    fn clear_policy(&self) -> &ClearPolicy {
+        match &self {
+            AttachmentSource::CreateTexture2D { clear_policy, .. }
+            | AttachmentSource::FromTexture2D { clear_policy, .. }
+            | AttachmentSource::FromTextureCubeMap { clear_policy, .. }
+            | AttachmentSource::FromTextureLayer { clear_policy, .. }
+            | AttachmentSource::CreateRenderbuffer { clear_policy, .. }
+            | AttachmentSource::FromRenderbuffer { clear_policy, .. } => clear_policy,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -579,12 +574,22 @@ impl Framebuffer {
             .bind(FramebufferTarget::ReadFramebuffer, read_buffer, None)
     }
 
-    pub fn unbind(&self, target: FramebufferTarget) -> Result<(), Error> {
+    pub fn unbind_as_draw(&self) -> Result<(), Error> {
         self.registered
             .borrow_mut()
             .as_mut()
             .ok_or(Error::FramebufferUnregistered)?
-            .unbind(target);
+            .unbind(FramebufferTarget::DrawFramebuffer);
+
+        Ok(())
+    }
+
+    pub fn unbind_as_read(&self) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .unbind(FramebufferTarget::ReadFramebuffer);
 
         Ok(())
     }
@@ -597,6 +602,22 @@ impl Framebuffer {
             .unbind_all();
 
         Ok(())
+    }
+
+    pub fn clear(&self, attachment: FramebufferAttachment) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .clear(attachment)
+    }
+
+    pub fn clear_all(&self) -> Result<(), Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .ok_or(Error::FramebufferUnregistered)?
+            .clear_all()
     }
 
     pub fn size(&self) -> Result<(usize, usize), Error> {
@@ -1072,7 +1093,6 @@ impl Framebuffer {
             None,
             None,
             None,
-            None,
         )
     }
 
@@ -1087,7 +1107,6 @@ impl Framebuffer {
         level: Option<usize>,
         x_offset: Option<usize>,
         y_offset: Option<usize>,
-        z_offset: Option<usize>,
     ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
         let mut registered = self.registered.borrow_mut();
         let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
@@ -1101,7 +1120,7 @@ impl Framebuffer {
             level,
             x_offset,
             y_offset,
-            z_offset,
+            None,
         )?;
 
         match result {
@@ -1127,9 +1146,7 @@ impl Framebuffer {
         width: usize,
         height: usize,
     ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
-        self.copy_to_texture_2d_with_params(
-            texture, x, y, width, height, None, None, None, None, None,
-        )
+        self.copy_to_texture_2d_with_params(texture, x, y, width, height, None, None, None, None)
     }
 
     pub fn copy_to_texture_2d_with_params(
@@ -1143,7 +1160,6 @@ impl Framebuffer {
         level: Option<usize>,
         x_offset: Option<usize>,
         y_offset: Option<usize>,
-        z_offset: Option<usize>,
     ) -> Result<Texture<Texture2D, TextureUncompressedInternalFormat>, Error> {
         let mut registered = self.registered.borrow_mut();
         let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
@@ -1159,7 +1175,7 @@ impl Framebuffer {
             level,
             x_offset,
             y_offset,
-            z_offset,
+            None,
         )?;
 
         match result {
@@ -1167,118 +1183,357 @@ impl Framebuffer {
             _ => unreachable!(),
         }
     }
+
+    pub fn copy_to_new_texture_cube_map(
+        &self,
+        face: TextureCubeMapFace,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<TextureCubeMap, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_new_texture_cube_map_with_params(
+            face,
+            internal_format,
+            x,
+            y,
+            width,
+            height,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn copy_to_new_texture_cube_map_with_params(
+        &self,
+        face: TextureCubeMapFace,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+    ) -> Result<Texture<TextureCubeMap, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::NewTextureCubeMap {
+                face,
+                internal_format,
+            },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            None,
+        )?;
+
+        match result {
+            CopyTexture::NewTextureCubeMap {
+                gl_texture,
+                levels,
+                width,
+                height,
+            } => registered.texture_registry.capture_cube_map(
+                gl_texture,
+                TextureCubeMap::new(levels, width, height),
+                internal_format,
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn copy_to_texture_cube_map(
+        &self,
+        face: TextureCubeMapFace,
+        texture: Texture<TextureCubeMap, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<TextureCubeMap, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_texture_cube_map_with_params(
+            face, texture, x, y, width, height, None, None, None, None,
+        )
+    }
+
+    pub fn copy_to_texture_cube_map_with_params(
+        &self,
+        face: TextureCubeMapFace,
+        texture: Texture<TextureCubeMap, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+    ) -> Result<Texture<TextureCubeMap, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::ToTextureCubeMap {
+                face,
+                gl_texture: texture.gl_texture()?,
+            },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            None,
+        )?;
+
+        match result {
+            CopyTexture::ToTextureCubeMap => Ok(texture),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn copy_to_new_texture_3d(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture3D, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_new_texture_3d_with_params(
+            internal_format,
+            x,
+            y,
+            width,
+            height,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn copy_to_new_texture_3d_with_params(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture3D, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::NewTexture3D { internal_format },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
+
+        match result {
+            CopyTexture::NewTexture3D {
+                gl_texture,
+                levels,
+                width,
+                height,
+                depth,
+            } => registered.texture_registry.capture_3d(
+                gl_texture,
+                Texture3D::new(levels, width, height, depth),
+                internal_format,
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn copy_to_texture_3d(
+        &self,
+        texture: Texture<Texture3D, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture3D, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_texture_3d_with_params(
+            texture, x, y, width, height, None, None, None, None, None,
+        )
+    }
+
+    pub fn copy_to_texture_3d_with_params(
+        &self,
+        texture: Texture<Texture3D, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture3D, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::ToTexture3D {
+                gl_texture: texture.gl_texture()?,
+            },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
+
+        match result {
+            CopyTexture::ToTexture3D => Ok(texture),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn copy_to_new_texture_2d_array(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture2DArray, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_new_texture_2d_array_with_params(
+            internal_format,
+            x,
+            y,
+            width,
+            height,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub fn copy_to_new_texture_2d_array_with_params(
+        &self,
+        internal_format: TextureUncompressedInternalFormat,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture2DArray, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::NewTexture2DArray { internal_format },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
+
+        match result {
+            CopyTexture::NewTexture2DArray {
+                gl_texture,
+                levels,
+                width,
+                height,
+                length,
+            } => registered.texture_registry.capture_2d_array(
+                gl_texture,
+                Texture2DArray::new(levels, width, height, length),
+                internal_format,
+            ),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn copy_to_texture_2d_array(
+        &self,
+        texture: Texture<Texture2DArray, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Texture<Texture2DArray, TextureUncompressedInternalFormat>, Error> {
+        self.copy_to_texture_2d_array_with_params(
+            texture, x, y, width, height, None, None, None, None, None,
+        )
+    }
+
+    pub fn copy_to_texture_2d_array_with_params(
+        &self,
+        texture: Texture<Texture2DArray, TextureUncompressedInternalFormat>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+        read_buffer: Option<OperableBuffer>,
+        level: Option<usize>,
+        x_offset: Option<usize>,
+        y_offset: Option<usize>,
+        z_offset: Option<usize>,
+    ) -> Result<Texture<Texture2DArray, TextureUncompressedInternalFormat>, Error> {
+        let mut registered = self.registered.borrow_mut();
+        let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
+        let result = registered.copy_to_texture(
+            CopyTextureKind::ToTexture2DArray {
+                gl_texture: texture.gl_texture()?,
+            },
+            x,
+            y,
+            width,
+            height,
+            read_buffer,
+            level,
+            x_offset,
+            y_offset,
+            z_offset,
+        )?;
+
+        match result {
+            CopyTexture::ToTexture2DArray => Ok(texture),
+            _ => unreachable!(),
+        }
+    }
 }
-
-// macro_rules! copy_to_texture_helpers {
-//     ($(($name: ident, $long_name: ident, $layout: tt, $kind: tt))+) => {
-//         impl Framebuffer {
-//             $(
-//                 pub fn $name(
-//                     &self,
-//                     internal_format: TextureUncompressedInternalFormat,
-//                     x: usize,
-//                     y: usize,
-//                     width: usize,
-//                     height: usize,
-//                 ) -> Result<Texture<$layout, TextureUncompressedInternalFormat>, Error> {
-//                     self.$long_name(
-//                         internal_format,
-//                         x,
-//                         y,
-//                         width,
-//                         height,
-//                         None,
-//                         None,
-//                         None,
-//                         None,
-//                     )
-//                 }
-
-//                 pub fn $long_name(
-//                     &self,
-//                     internal_format: TextureUncompressedInternalFormat,
-//                     x: usize,
-//                     y: usize,
-//                     width: usize,
-//                     height: usize,
-//                     read_buffer: Option<OperableBuffer>,
-//                     level: Option<usize>,
-//                     x_offset: Option<usize>,
-//                     y_offset: Option<usize>,
-//                 ) -> Result<Texture<$layout, TextureUncompressedInternalFormat>, Error> {
-//                     let mut registered = self.registered.borrow_mut();
-//                     let registered = registered.as_mut().ok_or(Error::FramebufferUnregistered)?;
-//                     let result = registered.copy_to_texture(
-//                         CopyTextureKind::NewTexture2D { internal_format },
-//                         x,
-//                         y,
-//                         width,
-//                         height,
-//                         read_buffer,
-//                         level,
-//                         x_offset,
-//                         y_offset,
-//                         None,
-//                     )?;
-
-//                     match result {
-//                         CopyTexture::NewTexture2D {
-//                             gl_texture,
-//                             levels,
-//                             width,
-//                             height,
-//                         } => {
-//                             let layout = Texture2D::new(levels, width, height);
-//                             let texture_params = Rc::new(RefCell::new(HashMap::new()));
-//                             let sampler_params = Rc::new(RefCell::new(HashMap::new()));
-//                             let queue = Rc::new(RefCell::new(VecDeque::new()));
-//                             let mut registered = TextureRegistered(TextureRegisteredUndrop {
-//                                 gl: registered.gl.clone(),
-//                                 gl_texture,
-//                                 gl_sampler: registered
-//                                     .gl
-//                                     .create_sampler()
-//                                     .ok_or(Error::CreateSamplerFailure)?,
-//                                 gl_active_unit: HashSet::new(),
-
-//                                 reg_id: self.id,
-//                                 texture_registry.active_unit: Rc::clone(&registered.texture_registry.active_unit),
-//                                 texture_registry.bounds: Rc::clone(&registered.texture_registry.bounds),
-//                                 reg_buffer_bounds: Rc::clone(&registered.reg_buffer_bounds),
-//                                 reg_used_size: Weak::clone(&registered.reg_texture_used_size),
-
-//                                 texture_target: TextureTarget::Texture2D,
-//                                 texture_memory: 0,
-//                                 texture_params: Rc::clone(&texture_params),
-//                                 sampler_params: Rc::clone(&sampler_params),
-//                                 texture_queue: Rc::downgrade(&queue),
-//                                 texture_async_upload: Rc::new(RefCell::new(None)),
-//                             });
-//                             let texture = Texture {
-//                                 id: Uuid::new_v4(),
-//                                 layout,
-//                                 internal_format,
-//                                 sampler_params,
-//                                 texture_params,
-//                                 queue,
-//                                 registered: Rc::new(RefCell::new(None)),
-//                             };
-//                             registered.0.texture_memory = texture.byte_length();
-//                             *texture.registered.borrow_mut() = Some(registered);
-
-//                             Ok(texture)
-//                         }
-//                         _ => unreachable!(),
-//                     }
-//                 }
-//             )+
-//         }
-//     };
-// }
-
-// copy_to_texture_helpers! {
-//     (copy_to_new_texture_2d, copy_to_new_texture_2d_with_params, Texture2D)
-// }
 
 fn operable_buffers_to_array(operable_buffers: &[OperableBuffer]) -> Array {
     let array = Array::new_with_length(operable_buffers.len() as u32);
@@ -1362,7 +1617,7 @@ enum CopyTexture {
         levels: usize,
         width: usize,
         height: usize,
-        depth: usize,
+        length: usize,
     },
     ToTexture2DArray,
 }
@@ -1438,6 +1693,78 @@ impl FramebufferRegistered {
             );
 
         Ok(())
+    }
+
+    fn temp_bind(
+        &mut self,
+        target: FramebufferTarget,
+        read_buffer: &Option<OperableBuffer>,
+        draw_buffers: &Option<Vec<OperableBuffer>>,
+    ) -> Result<(), Error> {
+        self.gl
+            .bind_framebuffer(target.to_gl_enum(), Some(&self.gl_framebuffer));
+
+        self.build(target)?;
+
+        if target == FramebufferTarget::DrawFramebuffer {
+            if let Some(draw_buffers) = draw_buffers {
+                self.gl
+                    .draw_buffers(&operable_buffers_to_array(draw_buffers));
+            }
+        } else if target == FramebufferTarget::ReadFramebuffer {
+            if let Some(read_buffer) = read_buffer {
+                self.gl.read_buffer(read_buffer.to_gl_enum());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn temp_unbind(
+        &mut self,
+        target: FramebufferTarget,
+        read_buffer: &Option<OperableBuffer>,
+        draw_buffers: &Option<Vec<OperableBuffer>>,
+    ) {
+        if target == FramebufferTarget::DrawFramebuffer {
+            if draw_buffers.is_some() {
+                self.gl.draw_buffers(&self.gl_origin_write_buffers);
+            }
+
+            if let Some((gl_framebuffer, _, draw_buffers)) = self
+                .reg_framebuffer_bounds
+                .borrow()
+                .get(&FramebufferTarget::DrawFramebuffer)
+            {
+                self.gl.bind_framebuffer(
+                    FramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                    Some(gl_framebuffer),
+                );
+                self.gl.draw_buffers(draw_buffers);
+            } else {
+                self.gl
+                    .bind_framebuffer(FramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
+            }
+        } else if target == FramebufferTarget::ReadFramebuffer {
+            if read_buffer.is_some() {
+                self.gl.read_buffer(self.gl_origin_read_buffer);
+            }
+
+            if let Some((gl_framebuffer, read_buffer, _)) = self
+                .reg_framebuffer_bounds
+                .borrow()
+                .get(&FramebufferTarget::ReadFramebuffer)
+            {
+                self.gl.bind_framebuffer(
+                    FramebufferTarget::ReadFramebuffer.to_gl_enum(),
+                    Some(gl_framebuffer),
+                );
+                self.gl.read_buffer(*read_buffer);
+            } else {
+                self.gl
+                    .bind_framebuffer(FramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+            }
+        }
     }
 
     fn build(&mut self, target: FramebufferTarget) -> Result<(), Error> {
@@ -1684,76 +2011,23 @@ impl FramebufferRegistered {
         }
     }
 
-    fn temp_bind(
-        &mut self,
-        target: FramebufferTarget,
-        read_buffer: &Option<OperableBuffer>,
-        draw_buffers: &Option<Vec<OperableBuffer>>,
-    ) -> Result<(), Error> {
-        self.gl
-            .bind_framebuffer(target.to_gl_enum(), Some(&self.gl_framebuffer));
-
-        self.build(target)?;
-
-        if target == FramebufferTarget::DrawFramebuffer {
-            if let Some(draw_buffers) = draw_buffers {
-                self.gl
-                    .draw_buffers(&operable_buffers_to_array(draw_buffers));
-            }
-        } else if target == FramebufferTarget::ReadFramebuffer {
-            if let Some(read_buffer) = read_buffer {
-                self.gl.read_buffer(read_buffer.to_gl_enum());
-            }
+    fn clear(&mut self, attachment: FramebufferAttachment) -> Result<(), Error> {
+        if let Some(source) = self.framebuffer_sources.get(&attachment) {
+            let clear_buffer = source.clear_policy().clone();
+            self.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &None)?;
+            clear_buffer.clear(&self.gl, attachment);
+            self.temp_unbind(FramebufferTarget::DrawFramebuffer, &None, &None);
         }
-
         Ok(())
     }
 
-    fn temp_unbind(
-        &mut self,
-        target: FramebufferTarget,
-        read_buffer: &Option<OperableBuffer>,
-        draw_buffers: &Option<Vec<OperableBuffer>>,
-    ) {
-        if target == FramebufferTarget::DrawFramebuffer {
-            if draw_buffers.is_some() {
-                self.gl.draw_buffers(&self.gl_origin_write_buffers);
-            }
-
-            if let Some((gl_framebuffer, _, draw_buffers)) = self
-                .reg_framebuffer_bounds
-                .borrow()
-                .get(&FramebufferTarget::DrawFramebuffer)
-            {
-                self.gl.bind_framebuffer(
-                    FramebufferTarget::DrawFramebuffer.to_gl_enum(),
-                    Some(gl_framebuffer),
-                );
-                self.gl.draw_buffers(draw_buffers);
-            } else {
-                self.gl
-                    .bind_framebuffer(FramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
-            }
-        } else if target == FramebufferTarget::ReadFramebuffer {
-            if read_buffer.is_some() {
-                self.gl.read_buffer(self.gl_origin_read_buffer);
-            }
-
-            if let Some((gl_framebuffer, read_buffer, _)) = self
-                .reg_framebuffer_bounds
-                .borrow()
-                .get(&FramebufferTarget::ReadFramebuffer)
-            {
-                self.gl.bind_framebuffer(
-                    FramebufferTarget::ReadFramebuffer.to_gl_enum(),
-                    Some(gl_framebuffer),
-                );
-                self.gl.read_buffer(*read_buffer);
-            } else {
-                self.gl
-                    .bind_framebuffer(FramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
-            }
+    fn clear_all(&mut self) -> Result<(), Error> {
+        self.temp_bind(FramebufferTarget::DrawFramebuffer, &None, &None)?;
+        for (attachment, source) in self.framebuffer_sources.iter() {
+            source.clear_policy().clear(&self.gl, *attachment);
         }
+        self.temp_unbind(FramebufferTarget::DrawFramebuffer, &None, &None);
+        Ok(())
     }
 
     fn blit_to(
@@ -2148,7 +2422,7 @@ impl FramebufferRegistered {
                 levels: 1,
                 width: texture_width,
                 height: texture_height,
-                depth: 1,
+                length: 1,
             },
             CopyTextureKind::ToTexture2DArray { .. } => CopyTexture::ToTexture2DArray,
         };
