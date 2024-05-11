@@ -558,6 +558,65 @@ impl Framebuffer {
         &self.sources
     }
 
+    pub fn gl_framebuffer(&self) -> Result<WebGlFramebuffer, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .map(|r| r.gl_framebuffer.clone())
+            .ok_or(Error::FramebufferUnregistered)
+    }
+
+    pub fn gl_textures(&self) -> Result<HashMap<FramebufferAttachment, WebGlTexture>, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .map(|r| {
+                r.gl_textures
+                    .iter()
+                    .map(|(attachment, (gl_texture, _, _))| (*attachment, gl_texture.clone()))
+                    .collect()
+            })
+            .ok_or(Error::FramebufferUnregistered)
+    }
+
+    pub fn gl_renderbuffers(
+        &self,
+    ) -> Result<HashMap<FramebufferAttachment, WebGlRenderbuffer>, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .map(|r| {
+                r.gl_renderbuffers
+                    .iter()
+                    .map(|(attachment, (gl_renderbuffer, _, _))| {
+                        (*attachment, gl_renderbuffer.clone())
+                    })
+                    .collect()
+            })
+            .ok_or(Error::FramebufferUnregistered)
+    }
+
+    pub fn gl_texture(&self, attachment: FramebufferAttachment) -> Result<WebGlTexture, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .and_then(|r| r.gl_textures.get(&attachment))
+            .map(|(gl_texture, _, _)| gl_texture.clone())
+            .ok_or(Error::FramebufferUnregistered)
+    }
+
+    pub fn gl_renderbuffer(
+        &self,
+        attachment: FramebufferAttachment,
+    ) -> Result<WebGlRenderbuffer, Error> {
+        self.registered
+            .borrow_mut()
+            .as_mut()
+            .and_then(|r| r.gl_renderbuffers.get(&attachment))
+            .map(|(gl_renderbuffer, _, _)| gl_renderbuffer.clone())
+            .ok_or(Error::FramebufferUnregistered)
+    }
+
     pub fn bind_as_draw(&self, draw_buffers: Option<Vec<OperableBuffer>>) -> Result<(), Error> {
         self.registered
             .borrow_mut()
