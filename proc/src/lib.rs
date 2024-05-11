@@ -6,7 +6,26 @@ use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{Data, DeriveInput};
 
-/// A procedure marco implements `to_gl_enum` and `from_gl_enum` methods for a Rust enum.
+/// A procedure macro implements
+#[proc_macro_derive(AsAny)]
+pub fn as_any_derive(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).expect("failed to parse");
+    let name = ast.ident;
+    quote! {
+        impl crate::core::AsAny for #name {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+        }
+    }
+    .into()
+}
+
+/// A procedure macro implements `to_gl_enum` and `from_gl_enum` methods for a Rust enum.
 #[proc_macro_derive(GlEnum, attributes(gl_enum))]
 pub fn gl_enum_derive(input: TokenStream) -> TokenStream {
     const ATTRIBUTE_NAME: &'static str = "gl_enum";

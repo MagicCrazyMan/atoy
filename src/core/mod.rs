@@ -1,7 +1,10 @@
+pub mod bounding;
 pub mod channel;
 pub mod clock;
 pub mod engine;
 pub mod entity;
+pub mod frustum;
+pub mod plane;
 pub mod property;
 pub mod scene;
 pub mod viewer;
