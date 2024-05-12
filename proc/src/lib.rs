@@ -6,7 +6,7 @@ use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{Data, DeriveInput};
 
-/// A procedure macro implements
+/// A procedure macro implements [`crate::core::AsAny`] trait.
 #[proc_macro_derive(AsAny)]
 pub fn as_any_derive(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).expect("failed to parse");

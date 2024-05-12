@@ -1,12 +1,8 @@
-use std::ops::Range;
-
-use hashbrown::HashMap;
 use web_sys::WebGl2RenderingContext;
 
-use super::{
-    buffer::{Buffer, BufferRegistry, BufferTarget}, error::Error, framebuffer::FramebufferRegistry, texture::TextureRegistry
-};
+use super::{buffer::BufferRegistry, framebuffer::FramebufferRegistry, texture::TextureRegistry};
 
+#[derive(Debug)]
 pub struct Context {
     gl: WebGl2RenderingContext,
     buffer_registry: BufferRegistry,
@@ -19,7 +15,11 @@ impl Context {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         let buffer_registry = BufferRegistry::new(gl.clone());
         let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.clone());
-        let framebuffer_registry = FramebufferRegistry::new(gl.clone(), buffer_registry.clone(), texture_registry.clone());
+        let framebuffer_registry = FramebufferRegistry::new(
+            gl.clone(),
+            buffer_registry.clone(),
+            texture_registry.clone(),
+        );
         Self {
             buffer_registry,
             texture_registry,
@@ -29,12 +29,20 @@ impl Context {
         }
     }
 
+    pub fn gl(&self) -> &WebGl2RenderingContext {
+        &self.gl
+    }
+
     pub fn buffer_registry(&self) -> &BufferRegistry {
         &self.buffer_registry
     }
 
     pub fn texture_registry(&self) -> &TextureRegistry {
         &self.texture_registry
+    }
+
+    pub fn framebuffer_registry(&self) -> &FramebufferRegistry {
+        &self.framebuffer_registry
     }
 
     // pub fn mount_uniform_buffer_object(

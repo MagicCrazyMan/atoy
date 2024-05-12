@@ -1,8 +1,3 @@
-use std::{
-    cell::RefCell,
-    ops::{Deref, DerefMut},
-};
-
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 
 use crate::{
@@ -11,115 +6,115 @@ use crate::{
     utils::{distance_point_and_plane, distance_point_and_plane_abs},
 };
 
-/// An bounding volume for culling detection purpose.
-/// This structure collects more information than [`BoundingVolume`]
-/// to speed up the culling detection procedure.
-pub struct CullingBoundingVolume {
-    previous_outside_plane: RefCell<Option<PlaneIndex>>,
-    bounding_volume: BoundingVolume,
-}
+// /// An bounding volume for culling detection purpose.
+// /// This structure collects more information than [`BoundingVolume`]
+// /// to speed up the culling detection procedure.
+// pub struct CullingBoundingVolume {
+//     previous_outside_plane: RefCell<Option<PlaneIndex>>,
+//     bounding_volume: BoundingVolume,
+// }
 
-impl Deref for CullingBoundingVolume {
-    type Target = BoundingVolume;
+// impl Deref for CullingBoundingVolume {
+//     type Target = BoundingVolume;
 
-    fn deref(&self) -> &Self::Target {
-        &self.bounding_volume
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.bounding_volume
+//     }
+// }
 
-impl DerefMut for CullingBoundingVolume {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.bounding_volume
-    }
-}
+// impl DerefMut for CullingBoundingVolume {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.bounding_volume
+//     }
+// }
 
-impl CullingBoundingVolume {
-    /// Constructs a new bounding volume from a [`BoundingVolume`].
-    pub fn new(bounding_volume: BoundingVolume) -> Self {
-        Self {
-            previous_outside_plane: RefCell::new(None),
-            bounding_volume,
-        }
-    }
+// impl CullingBoundingVolume {
+//     /// Constructs a new bounding volume from a [`BoundingVolume`].
+//     pub fn new(bounding_volume: BoundingVolume) -> Self {
+//         Self {
+//             previous_outside_plane: RefCell::new(None),
+//             bounding_volume,
+//         }
+//     }
 
-    /// Gets the [`BoundingVolume`] associated with this culling bounding volume.
-    pub fn bounding_volume(&self) -> BoundingVolume {
-        self.bounding_volume
-    }
+//     /// Gets the [`BoundingVolume`] associated with this culling bounding volume.
+//     pub fn bounding_volume(&self) -> BoundingVolume {
+//         self.bounding_volume
+//     }
 
-    /// Applies culling detection against a frustum.
-    pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
-        let mut planes: [(PlaneIndex, Option<&Plane>); 6] = [
-            (PlaneIndex::Top, Some(frustum.top())),
-            (PlaneIndex::Bottom, Some(frustum.bottom())),
-            (PlaneIndex::Left, Some(frustum.left())),
-            (PlaneIndex::Right, Some(frustum.right())),
-            (PlaneIndex::Near, Some(frustum.near())),
-            (PlaneIndex::Far, frustum.far()), // far plane may not exists
-        ];
-        if let Some(p) = self.previous_outside_plane.borrow().as_ref() {
-            planes.swap(0, *p as usize);
-        }
+//     /// Applies culling detection against a frustum.
+//     pub fn cull(&self, frustum: &ViewFrustum) -> Culling {
+//         let mut planes: [(PlaneIndex, Option<&Plane>); 6] = [
+//             (PlaneIndex::Top, Some(frustum.top())),
+//             (PlaneIndex::Bottom, Some(frustum.bottom())),
+//             (PlaneIndex::Left, Some(frustum.left())),
+//             (PlaneIndex::Right, Some(frustum.right())),
+//             (PlaneIndex::Near, Some(frustum.near())),
+//             (PlaneIndex::Far, frustum.far()), // far plane may not exists
+//         ];
+//         if let Some(p) = self.previous_outside_plane.borrow().as_ref() {
+//             planes.swap(0, *p as usize);
+//         }
 
-        let (culling, outside_plane_index) = match &self.bounding_volume {
-            BoundingVolume::BoundingSphere { center, radius } => {
-                cull_sphere(planes, center, *radius)
-            }
-            BoundingVolume::AxisAlignedBoundingBox {
-                min_x,
-                max_x,
-                min_y,
-                max_y,
-                min_z,
-                max_z,
-            } => cull_bb(
-                planes,
-                &Vec3::<f64>::new(
-                    (min_x + max_x) / 2.0,
-                    (min_y + max_y) / 2.0,
-                    (min_z + max_z) / 2.0,
-                ),
-                |signs| match signs {
-                    0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z), // 000
-                    0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z), // 001
-                    0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z), // 010
-                    0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z), // 011
-                    0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z), // 100
-                    0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z), // 101
-                    0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z), // 110
-                    0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z), // 111
-                    _ => unreachable!(),
-                },
-            ),
-            BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
-                let center = *center;
-                let x = *x;
-                let y = *y;
-                let z = *z;
-                cull_bb(planes, &center, |signs| match signs {
-                    0b000 => center + x + y + z, // 000
-                    0b001 => center + x + y - z, // 001
-                    0b010 => center + x - y + z, // 010
-                    0b011 => center + x - y - z, // 011
-                    0b100 => center - x + y + z, // 100
-                    0b101 => center - x + y - z, // 101
-                    0b110 => center - x - y + z, // 110
-                    0b111 => center - x - y - z, // 111
-                    _ => unreachable!(),
-                })
-            }
-        };
+//         let (culling, outside_plane_index) = match &self.bounding_volume {
+//             BoundingVolume::BoundingSphere { center, radius } => {
+//                 cull_sphere(planes, center, *radius)
+//             }
+//             BoundingVolume::AxisAlignedBoundingBox {
+//                 min_x,
+//                 max_x,
+//                 min_y,
+//                 max_y,
+//                 min_z,
+//                 max_z,
+//             } => cull_bb(
+//                 planes,
+//                 &Vec3::<f64>::new(
+//                     (min_x + max_x) / 2.0,
+//                     (min_y + max_y) / 2.0,
+//                     (min_z + max_z) / 2.0,
+//                 ),
+//                 |signs| match signs {
+//                     0b000 => Vec3::<f64>::new(*max_x, *max_y, *max_z), // 000
+//                     0b001 => Vec3::<f64>::new(*min_x, *max_y, *max_z), // 001
+//                     0b010 => Vec3::<f64>::new(*max_x, *min_y, *max_z), // 010
+//                     0b011 => Vec3::<f64>::new(*min_x, *min_y, *max_z), // 011
+//                     0b100 => Vec3::<f64>::new(*max_x, *max_y, *min_z), // 100
+//                     0b101 => Vec3::<f64>::new(*min_x, *max_y, *min_z), // 101
+//                     0b110 => Vec3::<f64>::new(*max_x, *min_y, *min_z), // 110
+//                     0b111 => Vec3::<f64>::new(*min_x, *min_y, *min_z), // 111
+//                     _ => unreachable!(),
+//                 },
+//             ),
+//             BoundingVolume::OrientedBoundingBox { center, x, y, z } => {
+//                 let center = *center;
+//                 let x = *x;
+//                 let y = *y;
+//                 let z = *z;
+//                 cull_bb(planes, &center, |signs| match signs {
+//                     0b000 => center + x + y + z, // 000
+//                     0b001 => center + x + y - z, // 001
+//                     0b010 => center + x - y + z, // 010
+//                     0b011 => center + x - y - z, // 011
+//                     0b100 => center - x + y + z, // 100
+//                     0b101 => center - x + y - z, // 101
+//                     0b110 => center - x - y + z, // 110
+//                     0b111 => center - x - y - z, // 111
+//                     _ => unreachable!(),
+//                 })
+//             }
+//         };
 
-        *self.previous_outside_plane.borrow_mut() = outside_plane_index;
+//         *self.previous_outside_plane.borrow_mut() = outside_plane_index;
 
-        culling
-    }
+//         culling
+//     }
 
-    /// Gets center of this bounding volume.
-    pub fn center(&self) -> Vec3 {
-        self.bounding_volume.center()
-    }
-}
+//     /// Gets center of this bounding volume.
+//     pub fn center(&self) -> Vec3 {
+//         self.bounding_volume.center()
+//     }
+// }
 
 /// Available bounding volumes.
 #[derive(Debug, Clone, Copy, PartialEq)]

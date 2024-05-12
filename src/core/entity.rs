@@ -1,12 +1,10 @@
-use std::any::Any;
-
 use gl_matrix4rust::mat4::Mat4;
 use proc::AsAny;
 
 use super::{bounding::BoundingVolume, AsAny};
 
 pub trait Component<RenderType>: AsAny {
-    fn property(&self, name: &str) -> Option<&dyn Any>;
+    // fn property(&self, name: &str) -> Option<&dyn Any>;
 }
 
 pub trait Entity<RenderType>: EntityMatrices + EntityBoundingVolume + AsAny {
@@ -25,6 +23,10 @@ pub trait EntityMatrices {
 
 pub trait EntityBoundingVolume {
     fn bounding_volume(&self) -> &BoundingVolume;
+}
+
+pub trait EntityTransparency {
+    fn transparency(&self) -> &BoundingVolume;
 }
 
 pub struct Collection<RenderType> {

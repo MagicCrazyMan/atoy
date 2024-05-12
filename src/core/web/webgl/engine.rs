@@ -1,20 +1,24 @@
-use std::any::Any;
+use proc::AsAny;
+use web_sys::WebGl2RenderingContext;
 
-use crate::core::{engine::RenderEngine, scene::Scene, AsAny};
+use crate::core::{engine::RenderEngine, scene::Scene};
 
 use super::{context::Context, WebGl};
 
+#[derive(Debug, AsAny)]
 pub struct WebGlRenderEngine {
     context: Context,
 }
 
-impl AsAny for WebGlRenderEngine {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl WebGlRenderEngine {
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
+        Self {
+            context: Context::new(gl),
+        }
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    pub fn context(&self) -> &Context {
+        &self.context
     }
 }
 
