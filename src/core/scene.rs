@@ -1,5 +1,28 @@
-use super::entity::Collection;
+use std::{cell::RefCell, rc::Rc};
 
-pub struct Scene<RenderType> {
-    entity_collection: Collection<RenderType>,
+use super::{
+    camera::Camera,
+    channel::Sender,
+    entity::{Collection, Entity},
+};
+
+pub struct Scene {
+    sender: Sender<SceneMessage>,
+
+    camera: Box<dyn Camera>,
+
+    entities: Vec<Rc<RefCell<dyn Entity>>>,
 }
+
+impl Scene {
+    pub fn camera(&self) -> &Box<dyn Camera> {
+        &self.camera
+    }
+
+    // pub fn entity_collection(&self) -> &Collection {
+    //     &self.entity_collection
+    // }
+}
+
+#[derive(Debug)]
+pub enum SceneMessage {}

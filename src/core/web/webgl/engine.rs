@@ -3,7 +3,7 @@ use web_sys::WebGl2RenderingContext;
 
 use crate::core::{engine::RenderEngine, scene::Scene};
 
-use super::{context::Context, WebGl};
+use super::context::Context;
 
 #[derive(Debug, AsAny)]
 pub struct WebGlRenderEngine {
@@ -23,9 +23,7 @@ impl WebGlRenderEngine {
 }
 
 impl RenderEngine for WebGlRenderEngine {
-    type RenderType = WebGl;
-
-    fn render(&self, scene: &Scene<Self::RenderType>) {
+    fn render(&mut self, scene: &mut Scene) {
         todo!()
     }
 }

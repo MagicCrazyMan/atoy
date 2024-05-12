@@ -11,10 +11,9 @@ use super::{
     context::Context,
     draw::DrawMode,
     uniform::{UniformBlockValue, UniformValue},
-    WebGl,
 };
 
-pub trait WebGlComponent: Component<WebGl> {
+pub trait WebGlComponent: Component {
     fn attribute(&self, name: &str) -> Option<AttributeValue>;
 
     fn uniform(&self, name: &str) -> Option<UniformValue>;
@@ -28,7 +27,7 @@ pub trait WebGlComponent: Component<WebGl> {
     fn post_render(&mut self, context: &Context);
 }
 
-pub trait WebGlEntity: Entity<WebGl> {
+pub trait WebGlEntity: Entity {
     fn draw_mode(&self) -> DrawMode;
 
     fn draw_range(&self) -> Range<usize>;

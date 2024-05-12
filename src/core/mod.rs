@@ -1,4 +1,6 @@
+pub mod app;
 pub mod bounding;
+pub mod camera;
 pub mod channel;
 pub mod clock;
 pub mod engine;
@@ -8,9 +10,9 @@ pub mod operator;
 pub mod plane;
 pub mod property;
 pub mod scene;
-pub mod viewer;
-pub mod web;
 pub mod transparency;
+pub mod versioning;
+pub mod web;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn std::any::Any;

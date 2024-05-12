@@ -4,7 +4,7 @@ use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
-use syn::{Data, DeriveInput};
+use syn::{parse::Parser, parse_macro_input, Data, DeriveInput};
 
 /// A procedure macro implements [`crate::core::AsAny`] trait.
 #[proc_macro_derive(AsAny)]
@@ -210,3 +210,43 @@ pub fn gl_enum_derive(input: TokenStream) -> TokenStream {
 
     gen.into()
 }
+
+// /// Implements the versioning trait for a struct.
+// #[proc_macro_attribute]
+// pub fn versioning(_args: TokenStream, input: TokenStream) -> TokenStream {
+//     let mut ast = parse_macro_input!(input as DeriveInput);
+//     let name = ast.ident.clone();
+
+//     match &mut ast.data {
+//         Data::Struct(ref mut data) => {
+//             match &mut data.fields {
+//                 syn::Fields::Named(fields) => fields.named.push(
+//                     syn::Field::parse_named
+//                         .parse2(quote! { version: usize })
+//                         .unwrap(),
+//                 ),
+//                 _ => {}
+//             };
+
+//             quote! {
+//                 #ast
+
+//                 impl crate::core::versioning::Versioning for #name {
+//                     pub fn version(&self) -> usize {
+//                         self.version
+//                     }
+
+//                     pub fn next_version(&mut self) -> usize {
+//                         self.version = self.version.wrapping_add(1);
+//                         self.version
+//                     }
+
+//                     pub fn set_version(&mut self, version: usize) {
+//                         self.version = version;
+//                     }
+//                 }
+//             }.into()
+//         }
+//         _ => panic!("versioning only available on struct"),
+//     }
+// }

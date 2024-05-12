@@ -16,5 +16,5 @@ pub mod renderbuffer;
 pub mod stencil;
 pub mod texture;
 pub mod uniform;
+pub mod operator;
 
-pub struct WebGl;
