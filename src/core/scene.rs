@@ -1,10 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{
-    camera::Camera,
-    channel::Sender,
-    entity::{Collection, Entity},
-};
+use super::{camera::Camera, channel::Sender, entity::Entity};
 
 pub struct Scene {
     sender: Sender<SceneMessage>,

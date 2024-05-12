@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{
     bounding::BoundingVolume, operator::entity_collector::EntityFiltering,
-    transparency::EntityTransparency, versioning::Versioning, web::webgl::entity::WebGlEntity,
+    transparency::{EntityTransparency, Transparency}, versioning::Versioning, web::webgl::entity::WebGlEntity,
     AsAny,
 };
 
@@ -16,65 +16,67 @@ pub trait Component: AsAny {
     // fn property(&self, name: &str) -> Option<&dyn Any>;
 }
 
-pub trait Entity: EntityMatrices + EntityBoundingVolume + Versioning + AsAny {
-    fn as_filtering(&self) -> Option<&dyn EntityFiltering>;
+pub trait Entity: Versioning + AsAny {
+    fn id(&self) -> &Uuid;
 
-    fn as_transparency(&self) -> Option<&dyn EntityTransparency>;
+    fn local_matrix(&self) -> &Mat4<f64>;
+    
+    fn bounding_volume(&self) -> Option<&BoundingVolume>;
+
+    fn child(&self, id: &Uuid) -> Option<&dyn Entity>;
+
+    fn child_mut(&mut self, id: &Uuid) -> Option<&mut dyn Entity>;
+
+    fn children(&self) -> &[&dyn Entity];
+
+    fn children_mut(&mut self) -> &[&mut dyn Entity];
+
+    fn transparency(&self) -> Option<Transparency>;
+
+    fn as_filtering(&self) -> Option<&dyn EntityFiltering>;
 
     fn as_webgl(&self) -> Option<&dyn WebGlEntity>;
 
     fn as_webgl_mut(&mut self) -> Option<&mut dyn WebGlEntity>;
-
-    // fn components(&self) -> &[&dyn Component];
-
-    // fn components_mut(&self) -> &[&mut dyn Component];
 }
 
-pub trait EntityMatrices {
-    fn local_matrix(&self) -> &Mat4<f64>;
-
-    // fn model_matrix(&self) -> &Mat4<f64>;
-
-    // fn set_model_matrix(&mut self, mat: Mat4<f64>);
+pub trait Group {
+    
 }
 
-pub trait EntityBoundingVolume {
-    fn bounding_volume(&self) -> &BoundingVolume;
-}
+// pub type EntityShared = Rc<RefCell<dyn Entity>>;
+// pub type EntitySharedWeak = Weak<RefCell<dyn Entity>>;
 
-pub type EntityShared = Rc<RefCell<dyn Entity>>;
-pub type EntitySharedWeak = Weak<RefCell<dyn Entity>>;
+// pub struct Collection {
+//     id: Uuid,
+//     entities: Vec<EntityShared>,
+//     version: usize,
+// }
 
-pub struct Collection {
-    id: Uuid,
-    entities: Vec<EntityShared>,
-    version: usize,
-}
+// impl Collection {
+//     pub fn new() -> Self {
+//         Self {
+//             id: Uuid::new_v4(),
+//             entities: Vec::new(),
+//             version: 0,
+//         }
+//     }
 
-impl Collection {
-    pub fn new() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            entities: Vec::new(),
-            version: 0,
-        }
-    }
+//     pub fn id(&self) -> &Uuid {
+//         &self.id
+//     }
 
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
+//     pub fn entities(&self) -> &Vec<EntityShared> {
+//         &self.entities
+//     }
+// }
 
-    pub fn entities(&self) -> &Vec<EntityShared> {
-        &self.entities
-    }
-}
+// impl Versioning for Collection {
+//     fn version(&self) -> usize {
+//         self.version
+//     }
 
-impl Versioning for Collection {
-    fn version(&self) -> usize {
-        self.version
-    }
-
-    fn set_version(&mut self, version: usize) {
-        self.version = version;
-    }
-}
+//     fn set_version(&mut self, version: usize) {
+//         self.version = version;
+//     }
+// }
