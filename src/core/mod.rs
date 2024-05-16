@@ -3,6 +3,7 @@ pub mod bounding;
 pub mod camera;
 pub mod channel;
 pub mod clock;
+pub mod ecs;
 pub mod engine;
 pub mod entity;
 pub mod frustum;

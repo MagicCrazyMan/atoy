@@ -1,4 +1,9 @@
-use super::{channel::MessageChannel, clock::Clock, engine::RenderEngine, scene::Scene};
+use super::{
+    channel::MessageChannel,
+    clock::{Clock, Tick},
+    engine::RenderEngine,
+    scene::Scene,
+};
 
 pub struct App {
     channel: MessageChannel,
@@ -8,10 +13,9 @@ pub struct App {
 }
 
 impl App {
-    fn init(&mut self) {
-        
+    pub fn channel(&self) -> &MessageChannel {
+        &self.channel
     }
-
 
     pub fn render(&mut self) {
         self.engine.render(&mut self.scene);

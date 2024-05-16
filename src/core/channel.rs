@@ -1,10 +1,16 @@
-use std::{any::Any, borrow::Cow, cell::RefCell, iter::FromIterator, marker::PhantomData, rc::Rc};
+use std::{
+    any::{Any, TypeId},
+    cell::RefCell,
+    iter::FromIterator,
+    marker::PhantomData,
+    rc::Rc,
+};
 
 use hashbrown::{hash_map::Entry, HashMap};
 use indexmap::IndexMap;
 use uuid::Uuid;
 
-type Ports = Rc<RefCell<HashMap<Cow<'static, str>, IndexMap<Uuid, Box<dyn Any>>>>>;
+type Ports = Rc<RefCell<HashMap<TypeId, IndexMap<Uuid, Box<dyn Any>>>>>;
 
 /// Message channel is a middleware transferring message around the App.
 #[derive(Debug, Clone)]
@@ -21,41 +27,41 @@ impl MessageChannel {
     }
 
     /// Constructs and returns a new sender from this channel.
-    pub fn sender<K>(&self) -> Sender<K>
+    pub fn sender<M>(&self) -> Sender<M>
     where
-        K: MessageKind + 'static,
+        M: 'static,
     {
-        Sender::<K>::new(Rc::clone(&self.ports))
+        Sender::<M>::new(Rc::clone(&self.ports))
     }
 
-    /// Constructs and returns a new receiver register from this channel.
-    pub fn register<K>(&self) -> Register<K>
+    /// Constructs and returns a new receiver registry from this channel.
+    pub fn registry<M>(&self) -> Registry<M>
     where
-        K: MessageKind + 'static,
+        M: 'static,
     {
-        Register::<K>::new(Rc::clone(&self.ports))
+        Registry::<M>::new(Rc::clone(&self.ports))
     }
-}
-
-/// A trait defining a message target and payload.
-pub trait MessageKind {
-    type Payload;
-
-    fn target() -> Cow<'static, str>
-    where
-        Self: Sized;
 }
 
 /// Message sender sending data to channel under specified message kind.
-#[derive(Debug, Clone)]
-pub struct Sender<K> {
+#[derive(Debug)]
+pub struct Sender<M> {
     ports: Ports,
-    _kind: PhantomData<K>,
+    _kind: PhantomData<M>,
 }
 
-impl<K> Sender<K>
+impl<M> Clone for Sender<M> {
+    fn clone(&self) -> Self {
+        Self {
+            ports: Rc::clone(&self.ports),
+            _kind: PhantomData,
+        }
+    }
+}
+
+impl<M> Sender<M>
 where
-    K: MessageKind + 'static,
+    M: 'static,
 {
     fn new(ports: Ports) -> Self {
         Self {
@@ -65,17 +71,16 @@ where
     }
 
     /// Sends a new message to channel.
-    pub fn send(&self, message: K::Payload) {
+    pub fn send(&self, message: M) {
         let mut ports = self.ports.borrow_mut();
-        let key = K::target();
-        let Some(port) = ports.get_mut(&key) else {
+        let Some(port) = ports.get_mut(&TypeId::of::<M>()) else {
             return;
         };
 
         let mut index = 0;
         while index < port.len() {
             let (_, receiver) = port.get_index(index).unwrap();
-            let Some(receiver) = receiver.downcast_ref::<Box<dyn Receiver<K>>>() else {
+            let Some(receiver) = receiver.downcast_ref::<Box<dyn Receiver<M>>>() else {
                 index += 1;
                 continue;
             };
@@ -90,27 +95,29 @@ where
 }
 
 /// Message receiver receiving data from channel under specified message kind.
-pub trait Receiver<K>
+pub trait Receiver<M>
 where
-    K: MessageKind + 'static,
+    M: 'static,
 {
     /// Executes code when receive a message.
-    fn receive(&self, message: &K::Payload);
+    fn receive(&self, message: &M);
 
     /// Returns `true` if this receiver should abort.
-    fn abort(&self) -> bool;
+    fn abort(&self) -> bool {
+        false
+    }
 }
 
 /// Message register registering a new receiver to the channel.
 #[derive(Debug, Clone)]
-pub struct Register<K> {
+pub struct Registry<M> {
     ports: Ports,
-    _kind: PhantomData<K>,
+    _kind: PhantomData<M>,
 }
 
-impl<K> Register<K>
+impl<M> Registry<M>
 where
-    K: MessageKind + 'static,
+    M: 'static,
 {
     fn new(ports: Ports) -> Self {
         Self {
@@ -120,16 +127,15 @@ where
     }
 
     /// Registers a new receiver to the channel.
-    pub fn register<R>(&self, receiver: R) -> Unregister<K>
+    pub fn register<R>(&self, receiver: R) -> Unregister<M>
     where
-        R: Receiver<K> + 'static,
+        R: Receiver<M> + 'static,
     {
         let mut ports = self.ports.borrow_mut();
-        let key = K::target();
 
         let id = uuid::Uuid::new_v4();
-        let receiver = Box::new(Box::new(receiver) as Box<dyn Receiver<K>>) as Box<dyn Any>;
-        match ports.entry(key) {
+        let receiver = Box::new(Box::new(receiver) as Box<dyn Receiver<M>>) as Box<dyn Any>;
+        match ports.entry(TypeId::of::<M>()) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(id, receiver);
             }
@@ -139,23 +145,23 @@ where
             }
         };
 
-        Unregister::<K>::new(id, Rc::clone(&self.ports))
+        Unregister::<M>::new(id, Rc::clone(&self.ports))
     }
 }
 
 /// Message unregister removing a receiver from the channel.
-pub struct Unregister<K>
+pub struct Unregister<M>
 where
-    K: MessageKind + 'static,
+    M: 'static,
 {
     id: Uuid,
     ports: Ports,
-    _kind: PhantomData<K>,
+    _kind: PhantomData<M>,
 }
 
-impl<K> Unregister<K>
+impl<M> Unregister<M>
 where
-    K: MessageKind + 'static,
+    M: 'static,
 {
     fn new(id: Uuid, ports: Ports) -> Self {
         Self {
@@ -168,8 +174,7 @@ where
     /// Removes the associated receiver from the channel.
     pub fn unregister(self) {
         let mut ports = self.ports.borrow_mut();
-        let key = K::target();
-        let Some(port) = ports.get_mut(&key) else {
+        let Some(port) = ports.get_mut(&TypeId::of::<M>()) else {
             return;
         };
         port.swap_remove(&self.id);
@@ -178,30 +183,18 @@ where
 
 // #[cfg(test)]
 // mod tests {
-//     use std::borrow::Cow;
-
-//     use crate::channel::{MessageKind, Receiver};
+//     use crate::core::channel::Receiver;
 
 //     use super::MessageChannel;
 
 //     #[test]
 //     fn test() {
-//         pub struct TestMessageKind;
-//         impl MessageKind for TestMessageKind {
-//             type Payload = i32;
-
-//             fn key() -> Cow<'static, str>
-//             where
-//                 Self: Sized,
-//             {
-//                 Cow::Borrowed("TestMessage")
-//             }
-//         }
+//         pub struct TestMessage(i32);
 
 //         pub struct TestReceiver;
-//         impl Receiver<TestMessageKind> for TestReceiver {
-//             fn receive(&self, message: &i32) {
-//                 println!("message: {}", message);
+//         impl Receiver<TestMessage> for TestReceiver {
+//             fn receive(&self, message: &TestMessage) {
+//                 println!("message: {}", message.0);
 //             }
 
 //             fn abort(&self) -> bool {
@@ -210,15 +203,15 @@ where
 //         }
 
 //         let channel = MessageChannel::new();
-//         let register = channel.register::<TestMessageKind>();
-//         let sender = channel.sender::<TestMessageKind>();
+//         let register = channel.registry::<TestMessage>();
+//         let sender = channel.sender::<TestMessage>();
 //         let unregister = register.register(TestReceiver);
-//         sender.send(10);
-//         sender.send(11);
-//         sender.send(12);
+//         sender.send(TestMessage(10));
+//         sender.send(TestMessage(11));
+//         sender.send(TestMessage(12));
 //         unregister.unregister();
-//         sender.send(13);
-//         sender.send(14);
-//         sender.send(15);
+//         sender.send(TestMessage(13));
+//         sender.send(TestMessage(14));
+//         sender.send(TestMessage(15));
 //     }
 // }

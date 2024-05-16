@@ -1,9 +1,6 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
-use super::{channel::MessageKind, AsAny};
-
-/// Clock ticking message target.
-pub const CLOCK_TICKING_MESSAGE_TARGET: &'static str = "ClockTicking";
+use super::AsAny;
 
 /// Clock tick indicating clock ticking information.
 #[derive(Clone, Copy, PartialEq)]
@@ -13,24 +10,9 @@ pub struct Tick {
     current_time: f64,
 }
 
-impl MessageKind for Tick {
-    type Payload = Tick;
-
-    fn target() -> Cow<'static, str>
-    where
-        Self: Sized,
-    {
-        Cow::Borrowed(CLOCK_TICKING_MESSAGE_TARGET)
-    }
-}
-
 impl Tick {
     /// Constructs a new clock tick.
-    pub fn new(
-        start_time: f64,
-        previous_time: Option<f64>,
-        current_time: f64,
-    ) -> Self {
+    pub fn new(start_time: f64, previous_time: Option<f64>, current_time: f64) -> Self {
         Self {
             start_time,
             previous_time,
