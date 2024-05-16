@@ -30,11 +30,10 @@ pub enum Message {
 
 pub trait Component {}
 
-#[derive(Clone)]
 pub struct Entity {
     id: Uuid,
     sender: Sender<Message>,
-    components: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
+    components: HashMap<TypeId, Box<dyn Any>>,
 
     workload: ArchetypesWorkload,
 }
@@ -61,10 +60,14 @@ pub struct Entity {
 
 impl Entity {
     fn new(archetypes: &Archetypes) -> Self {
+        Self::with_components(archetypes, HashMap::new())
+    }
+
+    fn with_components(archetypes: &Archetypes, components: HashMap<TypeId, Box<dyn Any>>) -> Self {
         Self {
             id: Uuid::new_v4(),
             sender: archetypes.sender.clone(),
-            components: Rc::new(RefCell::new(HashMap::new())),
+            components,
 
             workload: ArchetypesWorkload::new(archetypes),
         }
@@ -276,7 +279,10 @@ impl Archetypes {
         Self {
             id: Uuid::new_v4(),
 
-            archetypes: Rc::new(RefCell::new(HashMap::new())),
+            archetypes: Rc::new(RefCell::new(HashMap::from([(
+                BTreeSet::new(),
+                Archetype::new(channel.sender()),
+            )]))),
             entities: Rc::new(RefCell::new(HashMap::new())),
 
             registry: channel.registry(),
@@ -330,6 +336,12 @@ impl Archetypes {
                 true
             }
         }
+    }
+
+    fn create_empty_entity(&mut self) {
+        let entity = Entity::new(self);
+        self.entities.borrow_mut().insert(entity.id, entity);
+        self.archetypes.borrow_mut().get_mut(&BTreeSet::new(), entity);
     }
 }
 
