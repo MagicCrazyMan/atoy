@@ -2,7 +2,6 @@ use std::{
     any::{Any, TypeId},
     cell::{Ref, RefCell, RefMut},
     collections::BTreeSet,
-    iter::FromIterator,
     marker::PhantomData,
     rc::Rc,
 };
@@ -10,10 +9,9 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap};
 use uuid::Uuid;
 
-use crate::core::channel::Receiver;
+use super::channel::{MessageChannel, Sender, Unregister};
 
-use super::channel::{MessageChannel, Registry, Sender, Unregister};
-
+#[derive(Debug, Clone)]
 pub enum Message {
     AddComponent {
         entity_id: Uuid,
@@ -25,33 +23,34 @@ pub enum Message {
         old_component_types: BTreeSet<TypeId>,
         new_component_types: BTreeSet<TypeId>,
     },
-    AddEntity(Uuid),
-    RemoveEntity(Uuid),
+    AddEntity {
+        entity_id: Uuid,
+    },
+    RemoveEntity {
+        entity_id: Uuid,
+    },
 }
 
 pub trait Component {}
 
-#[derive(Clone)]
 pub struct Entity {
     id: Uuid,
     sender: Sender<Message>,
-    components: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
+    components: HashMap<TypeId, Box<dyn Any>>,
 
-    workload: ArchetypesWorkload,
+    archetypes: Rc<RefCell<HashMap<BTreeSet<TypeId>, Archetype>>>,
+    entities: Rc<RefCell<HashMap<Uuid, BTreeSet<TypeId>>>>,
 }
 
 impl Entity {
-    fn new(archetypes: &Archetypes) -> Self {
-        Self::with_components(archetypes, HashMap::new())
-    }
-
     fn with_components(archetypes: &Archetypes, components: HashMap<TypeId, Box<dyn Any>>) -> Self {
         Self {
             id: Uuid::new_v4(),
             sender: archetypes.sender.clone(),
-            components: Rc::new(RefCell::new(components)),
+            components,
 
-            workload: ArchetypesWorkload::new(archetypes),
+            archetypes: Rc::clone(&archetypes.archetypes),
+            entities: Rc::clone(&archetypes.entities),
         }
     }
 
@@ -60,40 +59,30 @@ impl Entity {
     }
 
     pub fn component_types(&self) -> BTreeSet<TypeId> {
-        self.components.borrow().keys().cloned().collect()
+        self.components.keys().cloned().collect()
     }
 
     pub fn component_len(&self) -> usize {
-        self.components.borrow().len()
+        self.components.len()
     }
 
-    pub fn component<T>(&self) -> Option<Ref<'_, T>>
+    pub fn component<T>(&self) -> Option<&T>
     where
         T: Component + 'static,
     {
-        let component = Ref::filter_map(self.components.borrow(), |components| {
-            components.get(&TypeId::of::<T>())
-        });
-        match component {
-            Ok(component) => Some(Ref::map(component, |component| {
-                component.downcast_ref::<T>().unwrap()
-            })),
-            Err(_) => None,
+        match self.components.get(&TypeId::of::<T>()) {
+            Some(component) => Some(component.downcast_ref::<T>().unwrap()),
+            None => None,
         }
     }
 
-    pub fn component_mut<T>(&mut self) -> Option<RefMut<'_, T>>
+    pub fn component_mut<T>(&mut self) -> Option<&mut T>
     where
         T: Component + 'static,
     {
-        let component = RefMut::filter_map(self.components.borrow_mut(), |components| {
-            components.get_mut(&TypeId::of::<T>())
-        });
-        match component {
-            Ok(component) => Some(RefMut::map(component, |component| {
-                component.downcast_mut::<T>().unwrap()
-            })),
-            Err(_) => None,
+        match self.components.get_mut(&TypeId::of::<T>()) {
+            Some(component) => Some(component.downcast_mut::<T>().unwrap()),
+            None => None,
         }
     }
 
@@ -101,24 +90,23 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        self.components.borrow().contains_key(&TypeId::of::<T>())
+        self.components.contains_key(&TypeId::of::<T>())
     }
 
     pub fn add_component<T>(&mut self, component: T) -> Result<(), T>
     where
         T: Component + 'static,
     {
-        let mut components = self.components.borrow_mut();
-        if components.contains_key(&TypeId::of::<T>()) {
+        if self.components.contains_key(&TypeId::of::<T>()) {
             return Err(component);
         };
 
-        let old_component_types = components.keys().cloned().collect::<BTreeSet<_>>();
-        components.insert_unique_unchecked(TypeId::of::<T>(), Box::new(component));
-        let new_component_types = components.keys().cloned().collect::<BTreeSet<_>>();
+        let old_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
+        self.components
+            .insert_unique_unchecked(TypeId::of::<T>(), Box::new(component));
+        let new_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
 
-        self.workload
-            .swap_archetype(&self.id, &old_component_types, &new_component_types);
+        self.swap_archetype(&old_component_types, &new_component_types);
         self.sender.send(Message::AddComponent {
             entity_id: self.id,
             old_component_types,
@@ -132,21 +120,20 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        let mut components = self.components.borrow_mut();
-        if components.contains_key(&TypeId::of::<T>()) {
+        if self.components.contains_key(&TypeId::of::<T>()) {
             return None;
         };
 
-        let old_component_types = components.keys().cloned().collect::<BTreeSet<_>>();
-        let removed = *components
+        let old_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
+        let removed = *self
+            .components
             .remove(&TypeId::of::<T>())
             .unwrap()
             .downcast::<T>()
             .unwrap();
-        let new_component_types = components.keys().cloned().collect::<BTreeSet<_>>();
+        let new_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
 
-        self.workload
-            .swap_archetype(&self.id, &old_component_types, &new_component_types);
+        self.swap_archetype(&old_component_types, &new_component_types);
         self.sender.send(Message::RemoveComponent {
             entity_id: self.id,
             old_component_types,
@@ -154,6 +141,38 @@ impl Entity {
         });
 
         Some(removed)
+    }
+
+    fn swap_archetype(
+        &self,
+        old_component_types: &BTreeSet<TypeId>,
+        new_component_types: &BTreeSet<TypeId>,
+    ) {
+        if old_component_types == new_component_types {
+            return;
+        }
+
+        let mut archetypes = self.archetypes.borrow_mut();
+        let Some(entity) = archetypes
+            .get_mut(old_component_types)
+            .and_then(|archetype| archetype.remove_entity(&self.id))
+        else {
+            return;
+        };
+
+        match archetypes.entry(new_component_types.clone()) {
+            Entry::Occupied(mut o) => {
+                o.get_mut().add_entity_unchecked(entity);
+            }
+            Entry::Vacant(v) => {
+                let mut archetype = Archetype::new(self.sender.clone());
+                archetype.add_entity_unchecked(entity);
+                v.insert(archetype);
+            }
+        };
+        self.entities
+            .borrow_mut()
+            .insert(self.id, new_component_types.clone());
     }
 }
 
@@ -201,16 +220,17 @@ impl Archetype {
         }
     }
 
-    fn add_entity_unchecked(&mut self, entity: Entity) {
+    fn add_entity_unchecked(&mut self, entity: Entity) -> &mut Entity {
         let id = entity.id;
-        self.entities.insert_unique_unchecked(id, entity);
-        self.sender.send(Message::AddEntity(id));
+        let (_, entity) = self.entities.insert_unique_unchecked(id, entity);
+        self.sender.send(Message::AddEntity { entity_id: id });
+        entity
     }
 
     fn remove_entity(&mut self, id: &Uuid) -> Option<Entity> {
         let removed = self.entities.remove(id);
         if let Some(removed) = &removed {
-            self.sender.send(Message::RemoveEntity(removed.id));
+            self.sender.send(Message::RemoveEntity { entity_id: removed.id });
         }
         removed
     }
@@ -220,9 +240,8 @@ pub struct Archetypes {
     id: Uuid,
 
     archetypes: Rc<RefCell<HashMap<BTreeSet<TypeId>, Archetype>>>,
-    entities: Rc<RefCell<HashMap<Uuid, Entity>>>,
+    entities: Rc<RefCell<HashMap<Uuid, BTreeSet<TypeId>>>>,
 
-    registry: Registry<Message>,
     sender: Sender<Message>,
     unregistered: Option<Unregister<Message>>,
 }
@@ -246,7 +265,6 @@ impl Archetypes {
             )]))),
             entities: Rc::new(RefCell::new(HashMap::new())),
 
-            registry: channel.registry(),
             sender: channel.sender(),
             unregistered: None,
         }
@@ -294,7 +312,7 @@ impl Archetypes {
         })
     }
 
-    fn create_entity<I>(&self, components: I) -> Entity
+    fn create_entity<I>(&self, components: I) -> RefMut<'_, Entity>
     where
         I: IntoIterator<Item = (TypeId, Box<dyn Any>)>,
     {
@@ -308,9 +326,12 @@ impl Archetypes {
         );
 
         let entity = Entity::with_components(self, components);
-        self.entities.borrow_mut().insert(entity.id, entity.clone());
-        self.archetype_or_create(component_types)
-            .add_entity_unchecked(entity.clone());
+        self.entities
+            .borrow_mut()
+            .insert_unique_unchecked(entity.id, component_types.clone());
+        let entity = RefMut::map(self.archetype_or_create(component_types), |archetype| {
+            archetype.add_entity_unchecked(entity)
+        });
         entity
     }
 
@@ -321,26 +342,19 @@ impl Archetypes {
 }
 
 impl Archetypes {
-    pub fn create_empty_entity(&self) -> Entity {
-        let entity = Entity::new(self);
-        self.entities.borrow_mut().insert(entity.id, entity.clone());
-        self.archetypes
-            .borrow_mut()
-            .get_mut(&BTreeSet::new())
-            .unwrap()
-            .add_entity_unchecked(entity.clone());
-        entity
+    pub fn create_empty_entity(&self) -> RefMut<'_, Entity> {
+        self.create_entity([])
     }
 
-    pub fn entities(&self) -> Ref<'_, HashMap<Uuid, Entity>> {
-        self.entities.borrow()
+    pub fn entities(&self) -> ArchetypesEntitiesIter {
+        ArchetypesEntitiesIter::new(self)
     }
 
-    pub fn entities_mut(&self) -> RefMut<'_, HashMap<Uuid, Entity>> {
-        self.entities.borrow_mut()
+    pub fn entities_mut(&self) -> ArchetypesEntitiesIterMut {
+        ArchetypesEntitiesIterMut::new(self)
     }
 
-    pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> Entity
+    pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> RefMut<'_, Entity>
     where
         A: Component + 'static,
         B: Component + 'static,
@@ -388,73 +402,79 @@ impl Archetypes {
     }
 }
 
-#[derive(Clone)]
-struct ArchetypesWorkload {
-    archetypes: Rc<RefCell<HashMap<BTreeSet<TypeId>, Archetype>>>,
-    entities: Rc<RefCell<HashMap<Uuid, Entity>>>,
-
-    sender: Sender<Message>,
+pub struct ArchetypesEntitiesIter<'a> {
+    archetypes: *mut Ref<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
+    entities: Box<dyn Iterator<Item = &'a Entity> + 'a>,
 }
 
-impl ArchetypesWorkload {
-    fn new(archetypes: &Archetypes) -> Self {
-        Self {
-            archetypes: Rc::clone(&archetypes.archetypes),
-            entities: Rc::clone(&archetypes.entities),
-
-            sender: archetypes.sender.clone(),
+impl<'a> Drop for ArchetypesEntitiesIter<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.archetypes);
         }
-    }
-
-    fn swap_archetype(
-        &self,
-        entity_id: &Uuid,
-        old_component_types: &BTreeSet<TypeId>,
-        new_component_types: &BTreeSet<TypeId>,
-    ) {
-        if old_component_types == new_component_types {
-            return;
-        }
-
-        let mut archetypes = self.archetypes.borrow_mut();
-        let Some(entity) = archetypes
-            .get_mut(old_component_types)
-            .and_then(|archetype| archetype.remove_entity(entity_id))
-        else {
-            return;
-        };
-
-        match archetypes.entry(new_component_types.clone()) {
-            Entry::Occupied(mut o) => {
-                o.get_mut().add_entity_unchecked(entity);
-            }
-            Entry::Vacant(v) => {
-                let mut archetype = Archetype::new(self.sender.clone());
-                archetype.add_entity_unchecked(entity);
-                v.insert(archetype);
-            }
-        };
     }
 }
 
-// impl Receiver<Message> for ArchetypesWorkload {
-//     fn receive(&self, message: &Message) {
-//         match message {
-//             Message::AddComponent {
-//                 entity_id,
-//                 old_component_types,
-//                 new_component_types,
-//             }
-//             | Message::RemoveComponent {
-//                 entity_id,
-//                 old_component_types,
-//                 new_component_types,
-//             } => self.swap_archetype(entity_id, old_component_types, new_component_types),
-//             Message::AddEntity(_) => todo!(),
-//             Message::RemoveEntity(_) => todo!(),
-//         }
-//     }
-// }
+impl<'a> ArchetypesEntitiesIter<'a> {
+    fn new(archetypes: &'a Archetypes) -> Self {
+        unsafe {
+            let archetypes: *mut Ref<HashMap<BTreeSet<TypeId>, Archetype>> =
+                Box::leak(Box::new(archetypes.archetypes.borrow()));
+            let entities = (*archetypes)
+                .iter()
+                .flat_map(|(_, archetype)| archetype.entities.iter().map(|(_, entity)| entity));
+            Self {
+                archetypes,
+                entities: Box::new(entities),
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for ArchetypesEntitiesIter<'a> {
+    type Item = &'a Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities.next()
+    }
+}
+
+pub struct ArchetypesEntitiesIterMut<'a> {
+    archetypes: *mut RefMut<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
+    entities: Box<dyn Iterator<Item = &'a mut Entity> + 'a>,
+}
+
+impl<'a> Drop for ArchetypesEntitiesIterMut<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.archetypes);
+        }
+    }
+}
+
+impl<'a> ArchetypesEntitiesIterMut<'a> {
+    fn new(archetypes: &'a Archetypes) -> Self {
+        unsafe {
+            let archetypes: *mut RefMut<HashMap<BTreeSet<TypeId>, Archetype>> =
+                Box::leak(Box::new(archetypes.archetypes.borrow_mut()));
+            let entities = (*archetypes)
+                .iter_mut()
+                .flat_map(|(_, archetype)| archetype.entities.iter_mut().map(|(_, entity)| entity));
+            Self {
+                archetypes,
+                entities: Box::new(entities),
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for ArchetypesEntitiesIterMut<'a> {
+    type Item = &'a mut Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities.next()
+    }
+}
 
 // #[test]
 // fn a() {
