@@ -2,6 +2,7 @@ use std::{
     any::{Any, TypeId},
     cell::{Ref, RefCell, RefMut},
     collections::BTreeSet,
+    iter::FromIterator,
     marker::PhantomData,
     rc::Rc,
 };
@@ -38,26 +39,6 @@ pub struct Entity {
 
     workload: ArchetypesWorkload,
 }
-
-// impl Entity {
-//     pub fn new<A, B, C, D>(a: A, b: B, c: C, d: D) -> Self
-//     where
-//         A: Component + 'static,
-//         B: Component + 'static,
-//         C: Component + 'static,
-//         D: Component + 'static,
-//     {
-//         Self {
-//             id: Uuid::new_v4(),
-//             components: HashMap::from_iter([
-//                 (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
-//                 (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
-//                 (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
-//                 (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
-//             ]),
-//         }
-//     }
-// }
 
 impl Entity {
     fn new(archetypes: &Archetypes) -> Self {
@@ -235,27 +216,6 @@ impl Archetype {
     }
 }
 
-// impl Archetype {
-//     fn new<A, B, C, D>(sender: Sender<Message>) -> Self
-//     where
-//         A: Component + 'static,
-//         B: Component + 'static,
-//         C: Component + 'static,
-//         D: Component + 'static,
-//     {
-//         // channel.registry().register(receiver)
-//         Self {
-//             component_types: HashSet::from_iter([
-//                 TypeId::of::<A>(),
-//                 TypeId::of::<B>(),
-//                 TypeId::of::<C>(),
-//                 TypeId::of::<D>(),
-//             ]),
-//             entities: HashMap::new(),
-//         }
-//     }
-// }
-
 pub struct Archetypes {
     id: Uuid,
 
@@ -325,50 +285,44 @@ impl Archetypes {
         Some(entities)
     }
 
-    fn create_archetype<I>(&mut self, component_types: I) -> bool
-    where
-        I: IntoIterator<Item = TypeId>,
-    {
-        let component_types = component_types.into_iter().collect::<BTreeSet<_>>();
-        match self.archetypes.borrow_mut().entry(component_types) {
-            Entry::Occupied(_) => false,
-            Entry::Vacant(v) => {
-                v.insert(Archetype::new(self.sender.clone()));
-                true
-            }
-        }
+    fn archetype_or_create(&self, component_types: BTreeSet<TypeId>) -> RefMut<'_, Archetype> {
+        RefMut::map(self.archetypes.borrow_mut(), |archetypes| match archetypes
+            .entry(component_types)
+        {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => v.insert(Archetype::new(self.sender.clone())),
+        })
     }
-}
 
-impl Archetypes {
-    pub fn create_empty_entity(&mut self) -> Entity {
-        let entity = Entity::new(self);
+    fn create_entity<I>(&self, components: I) -> Entity
+    where
+        I: IntoIterator<Item = (TypeId, Box<dyn Any>)>,
+    {
+        let (component_types, components) = components.into_iter().fold(
+            (BTreeSet::new(), HashMap::new()),
+            |(mut component_types, mut components), (component_type, component)| {
+                component_types.insert(component_type);
+                components.insert(component_type, component);
+                (component_types, components)
+            },
+        );
+
+        let entity = Entity::with_components(self, components);
         self.entities.borrow_mut().insert(entity.id, entity.clone());
-        self.archetypes
-            .borrow_mut()
-            .get_mut(&BTreeSet::new())
-            .unwrap()
+        self.archetype_or_create(component_types)
             .add_entity_unchecked(entity.clone());
         entity
     }
 
-    pub fn create_entity_4<A, B, C, D>(&mut self, a: A, b: B, c: C, d: D) -> Entity
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        let components = [
-            (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
-            (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
-            (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
-            (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
-        ]
-        .into_iter()
-        .collect::<HashMap<TypeId, Box<dyn Any>>>();
+    // fn remove_entity(&mut self, entity_id: &Uuid) -> HashMap<TypeId, Box<dyn Any>> {
+    //     let Some(removed) = self.entities.borrow_mut().remove(entity_id) ;
+    //     todo!()
+    // }
+}
 
-        let entity = Entity::with_components(self, components);
+impl Archetypes {
+    pub fn create_empty_entity(&self) -> Entity {
+        let entity = Entity::new(self);
         self.entities.borrow_mut().insert(entity.id, entity.clone());
         self.archetypes
             .borrow_mut()
@@ -384,6 +338,21 @@ impl Archetypes {
 
     pub fn entities_mut(&self) -> RefMut<'_, HashMap<Uuid, Entity>> {
         self.entities.borrow_mut()
+    }
+
+    pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> Entity
+    where
+        A: Component + 'static,
+        B: Component + 'static,
+        C: Component + 'static,
+        D: Component + 'static,
+    {
+        self.create_entity([
+            (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
+            (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
+            (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
+            (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
+        ])
     }
 
     pub fn entities_in_archetype_4<A, B, C, D>(&self) -> Option<Ref<'_, HashMap<Uuid, Entity>>>
@@ -411,21 +380,6 @@ impl Archetypes {
         D: Component + 'static,
     {
         self.entities_in_archetype_mut([
-            TypeId::of::<A>(),
-            TypeId::of::<B>(),
-            TypeId::of::<C>(),
-            TypeId::of::<D>(),
-        ])
-    }
-
-    pub fn create_archetype_4<A, B, C, D>(&mut self) -> bool
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        self.create_archetype([
             TypeId::of::<A>(),
             TypeId::of::<B>(),
             TypeId::of::<C>(),
