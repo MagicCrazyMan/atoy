@@ -87,6 +87,20 @@ impl Entity {
         }
     }
 
+    pub fn component_unchecked<T>(&self) -> &T
+    where
+        T: Component + 'static,
+    {
+        self.component::<T>().unwrap()
+    }
+
+    pub fn component_mut_unchecked<T>(&mut self) -> &mut T
+    where
+        T: Component + 'static,
+    {
+        self.component_mut::<T>().unwrap()
+    }
+
     pub fn has_component<T>(&self) -> bool
     where
         T: Component + 'static,
@@ -246,35 +260,6 @@ impl Archetypes {
         &self.id
     }
 
-    fn entities_in_archetype<I>(&self, component_types: I) -> Option<Ref<'_, HashMap<Uuid, Entity>>>
-    where
-        I: IntoIterator<Item = TypeId>,
-    {
-        let component_types = component_types.into_iter().collect::<BTreeSet<_>>();
-        let archetype = Ref::filter_map(self.archetypes.borrow(), |archetypes| {
-            archetypes.get(&component_types)
-        })
-        .ok()?;
-        let entities = Ref::map(archetype, |archetype| &archetype.entities);
-        Some(entities)
-    }
-
-    fn entities_in_archetype_mut<I>(
-        &self,
-        component_types: I,
-    ) -> Option<RefMut<'_, HashMap<Uuid, Entity>>>
-    where
-        I: IntoIterator<Item = TypeId>,
-    {
-        let component_types = component_types.into_iter().collect::<BTreeSet<_>>();
-        let archetype = RefMut::filter_map(self.archetypes.borrow_mut(), |archetypes| {
-            archetypes.get_mut(&component_types)
-        })
-        .ok()?;
-        let entities = RefMut::map(archetype, |archetype| &mut archetype.entities);
-        Some(entities)
-    }
-
     fn archetype_or_create(&self, component_types: BTreeSet<TypeId>) -> RefMut<'_, Archetype> {
         RefMut::map(self.archetypes.borrow_mut(), |archetypes| match archetypes
             .entry(component_types)
@@ -318,12 +303,12 @@ impl Archetypes {
         self.create_entity([])
     }
 
-    pub fn entities(&self) -> Iter {
-        Iter::new(self)
+    pub fn entities(&self) -> OverallIter {
+        OverallIter::new(self)
     }
 
-    pub fn entities_mut(&self) -> IterMut {
-        IterMut::new(self)
+    pub fn entities_mut(&self) -> OverallIterMut {
+        OverallIterMut::new(self)
     }
 
     pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> RefMut<'_, Entity>
@@ -341,64 +326,83 @@ impl Archetypes {
         ])
     }
 
-    pub fn entities_in_archetype_4<A, B, C, D>(&self) -> Option<Ref<'_, HashMap<Uuid, Entity>>>
+    pub fn entities_in_archetype_4<A, B, C, D>(&self) -> Iter<'_>
     where
         A: Component + 'static,
         B: Component + 'static,
         C: Component + 'static,
         D: Component + 'static,
     {
-        self.entities_in_archetype([
-            TypeId::of::<A>(),
-            TypeId::of::<B>(),
-            TypeId::of::<C>(),
-            TypeId::of::<D>(),
-        ])
+        Iter::new(
+            self,
+            &BTreeSet::from_iter([
+                TypeId::of::<A>(),
+                TypeId::of::<B>(),
+                TypeId::of::<C>(),
+                TypeId::of::<D>(),
+            ]),
+        )
     }
 
-    pub fn entities_in_archetype_4_mut<A, B, C, D>(
-        &self,
-    ) -> Option<RefMut<'_, HashMap<Uuid, Entity>>>
+    pub fn entities_in_archetype_4_mut<A, B, C, D>(&self) -> IterMut<'_>
     where
         A: Component + 'static,
         B: Component + 'static,
         C: Component + 'static,
         D: Component + 'static,
     {
-        self.entities_in_archetype_mut([
-            TypeId::of::<A>(),
-            TypeId::of::<B>(),
-            TypeId::of::<C>(),
-            TypeId::of::<D>(),
-        ])
+        IterMut::new(
+            self,
+            &BTreeSet::from_iter([
+                TypeId::of::<A>(),
+                TypeId::of::<B>(),
+                TypeId::of::<C>(),
+                TypeId::of::<D>(),
+            ]),
+        )
+    }
+
+    pub fn query_4_mut<A, B, C, D>(&self) -> Query<'_, A, B, C, D>
+    where
+        A: Component + 'static,
+        B: Component + 'static,
+        C: Component + 'static,
+        D: Component + 'static,
+    {
+        Query::<A, B, C, D>::new(self)
     }
 }
 
 pub struct Iter<'a> {
-    archetypes: *mut Ref<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
-    entities: Box<dyn Iterator<Item = &'a Entity> + 'a>,
+    archetype: *mut Option<Ref<'a, Archetype>>,
+    entities: Option<hashbrown::hash_map::Iter<'a, Uuid, Entity>>,
 }
 
 impl<'a> Drop for Iter<'a> {
     fn drop(&mut self) {
         unsafe {
-            let _ = Box::from_raw(self.archetypes);
+            let _ = Box::from_raw(self.archetype);
         }
     }
 }
 
 impl<'a> Iter<'a> {
-    fn new(archetypes: &'a Archetypes) -> Self {
-        unsafe {
-            let archetypes: *mut Ref<HashMap<BTreeSet<TypeId>, Archetype>> =
-                Box::leak(Box::new(archetypes.archetypes.borrow()));
-            let entities = (*archetypes)
-                .iter()
-                .flat_map(|(_, archetype)| archetype.entities.iter().map(|(_, entity)| entity));
-            Self {
-                archetypes,
-                entities: Box::new(entities),
+    fn new(archetypes: &'a Archetypes, component_types: &BTreeSet<TypeId>) -> Self {
+        let archetype = Ref::filter_map(archetypes.archetypes.borrow(), |archetypes| {
+            archetypes.get(component_types)
+        })
+        .ok();
+        let archetype = Box::into_raw(Box::new(archetype));
+        let entities = unsafe {
+            match (*archetype).as_ref() {
+                Some(archetype) => Some(archetype.entities.iter()),
+                None => None,
             }
+        };
+
+        Self {
+            archetype,
+            entities,
         }
     }
 }
@@ -407,35 +411,56 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a Entity;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.entities.next()
+        self.entities.as_mut()?.next().map(|(_, entity)| entity)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.entities.as_ref() {
+            Some(entities) => entities.size_hint(),
+            None => (0, Some(0)),
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for Iter<'a> {
+    fn len(&self) -> usize {
+        match self.entities.as_ref() {
+            Some(entities) => entities.len(),
+            None => 0,
+        }
     }
 }
 
 pub struct IterMut<'a> {
-    archetypes: *mut RefMut<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
-    entities: Box<dyn Iterator<Item = &'a mut Entity> + 'a>,
+    archetype: *mut Option<RefMut<'a, Archetype>>,
+    entities: Option<hashbrown::hash_map::IterMut<'a, Uuid, Entity>>,
 }
 
 impl<'a> Drop for IterMut<'a> {
     fn drop(&mut self) {
         unsafe {
-            let _ = Box::from_raw(self.archetypes);
+            let _ = Box::from_raw(self.archetype);
         }
     }
 }
 
 impl<'a> IterMut<'a> {
-    fn new(archetypes: &'a Archetypes) -> Self {
-        unsafe {
-            let archetypes: *mut RefMut<HashMap<BTreeSet<TypeId>, Archetype>> =
-                Box::leak(Box::new(archetypes.archetypes.borrow_mut()));
-            let entities = (*archetypes)
-                .iter_mut()
-                .flat_map(|(_, archetype)| archetype.entities.iter_mut().map(|(_, entity)| entity));
-            Self {
-                archetypes,
-                entities: Box::new(entities),
+    fn new(archetypes: &'a Archetypes, component_types: &BTreeSet<TypeId>) -> Self {
+        let archetype = RefMut::filter_map(archetypes.archetypes.borrow_mut(), |archetypes| {
+            archetypes.get_mut(component_types)
+        })
+        .ok();
+        let archetype = Box::into_raw(Box::new(archetype));
+        let entities = unsafe {
+            match (*archetype).as_mut() {
+                Some(archetype) => Some(archetype.entities.iter_mut()),
+                None => None,
             }
+        };
+
+        Self {
+            archetype,
+            entities,
         }
     }
 }
@@ -444,22 +469,131 @@ impl<'a> Iterator for IterMut<'a> {
     type Item = &'a mut Entity;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.entities.next()
+        self.entities.as_mut()?.next().map(|(_, entity)| entity)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.entities.as_ref() {
+            Some(entities) => entities.size_hint(),
+            None => (0, Some(0)),
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for IterMut<'a> {
+    fn len(&self) -> usize {
+        match self.entities.as_ref() {
+            Some(entities) => entities.len(),
+            None => 0,
+        }
+    }
+}
+
+pub struct OverallIter<'a> {
+    archetypes: *mut Ref<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
+    entities: Ref<'a, HashMap<Uuid, BTreeSet<TypeId>>>,
+    entities_iter: Box<dyn Iterator<Item = &'a Entity> + 'a>,
+}
+
+impl<'a> Drop for OverallIter<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.archetypes);
+        }
+    }
+}
+
+impl<'a> OverallIter<'a> {
+    fn new(archetypes: &'a Archetypes) -> Self {
+        unsafe {
+            let entities = archetypes.entities.borrow();
+            let archetypes: *mut Ref<HashMap<BTreeSet<TypeId>, Archetype>> =
+                Box::leak(Box::new(archetypes.archetypes.borrow()));
+            let entities_iter = (*archetypes)
+                .iter()
+                .flat_map(|(_, archetype)| archetype.entities.iter().map(|(_, entity)| entity));
+            Self {
+                archetypes,
+                entities,
+                entities_iter: Box::new(entities_iter),
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for OverallIter<'a> {
+    type Item = &'a Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities_iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.entities.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a> ExactSizeIterator for OverallIter<'a> {
+    fn len(&self) -> usize {
+        self.entities.len()
+    }
+}
+
+pub struct OverallIterMut<'a> {
+    archetypes: *mut RefMut<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
+    entities: RefMut<'a, HashMap<Uuid, BTreeSet<TypeId>>>,
+    entities_iter: Box<dyn Iterator<Item = &'a mut Entity> + 'a>,
+}
+
+impl<'a> Drop for OverallIterMut<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.archetypes);
+        }
+    }
+}
+
+impl<'a> OverallIterMut<'a> {
+    fn new(archetypes: &'a Archetypes) -> Self {
+        unsafe {
+            let entities = archetypes.entities.borrow_mut();
+            let archetypes: *mut RefMut<HashMap<BTreeSet<TypeId>, Archetype>> =
+                Box::leak(Box::new(archetypes.archetypes.borrow_mut()));
+            let entities_iter = (*archetypes)
+                .iter_mut()
+                .flat_map(|(_, archetype)| archetype.entities.iter_mut().map(|(_, entity)| entity));
+            Self {
+                archetypes,
+                entities,
+                entities_iter: Box::new(entities_iter),
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for OverallIterMut<'a> {
+    type Item = &'a mut Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities_iter.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.entities.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a> ExactSizeIterator for OverallIterMut<'a> {
+    fn len(&self) -> usize {
+        self.entities.len()
     }
 }
 
 pub struct Query<'a, A, B, C, D> {
     _component_types: PhantomData<(A, B, C, D)>,
-    archetype: *mut Option<RefMut<'a, Archetype>>,
-    entities: Option<hashbrown::hash_map::IterMut<'a, Uuid, Entity>>,
-}
-
-impl<'a, A, B, C, D> Drop for Query<'a, A, B, C, D> {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = Box::from_raw(self.archetype);
-        }
-    }
+    iter_mut: IterMut<'a>,
 }
 
 impl<'a, A, B, C, D> Query<'a, A, B, C, D>
@@ -477,37 +611,28 @@ where
             TypeId::of::<D>(),
         ]);
 
-        let archetype = RefMut::filter_map(archetypes.archetypes.borrow_mut(), |archetypes| {
-            archetypes.get_mut(&component_types)
-        })
-        .ok();
-        let archetype = Box::into_raw(Box::new(archetype));
-        let entities = unsafe {
-            match (*archetype).as_mut() {
-                Some(archetype) => Some(archetype.entities.iter_mut()),
-                None => None,
-            }
-        };
-
         Self {
             _component_types: PhantomData,
-            archetype,
-            entities,
+            iter_mut: IterMut::new(archetypes, &component_types),
         }
     }
 }
 
-impl<'a, A, B, C, D> Iterator for Query<'a, A, B, C, D>
-where
-    A: Component + 'static,
-    B: Component + 'static,
-    C: Component + 'static,
-    D: Component + 'static,
-{
+impl<'a, A, B, C, D> Iterator for Query<'a, A, B, C, D> {
     type Item = &'a mut Entity;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.entities.as_mut()?.next().map(|(_, entity)| entity)
+        self.iter_mut.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter_mut.size_hint()
+    }
+}
+
+impl<'a, A, B, C, D> ExactSizeIterator for Query<'a, A, B, C, D> {
+    fn len(&self) -> usize {
+        self.iter_mut.len()
     }
 }
 
