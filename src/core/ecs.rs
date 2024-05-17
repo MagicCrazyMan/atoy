@@ -2,6 +2,7 @@ use std::{
     any::{Any, TypeId},
     cell::{Ref, RefCell, RefMut},
     collections::BTreeSet,
+    iter::FromIterator,
     marker::PhantomData,
     rc::Rc,
 };
@@ -176,37 +177,6 @@ impl Entity {
     }
 }
 
-pub trait System<A, B, C, D> {
-    // fn event() ->
-
-    fn query() -> Query<A, B, C, D>
-    where
-        Self: Sized;
-
-    fn run(&mut self);
-}
-
-pub enum Query<A, B, C, D> {
-    All(
-        PhantomData<A>,
-        PhantomData<B>,
-        PhantomData<C>,
-        PhantomData<D>,
-    ),
-    Any(
-        PhantomData<A>,
-        PhantomData<B>,
-        PhantomData<C>,
-        PhantomData<D>,
-    ),
-    Exclude(
-        PhantomData<A>,
-        PhantomData<B>,
-        PhantomData<C>,
-        PhantomData<D>,
-    ),
-}
-
 struct Archetype {
     entities: HashMap<Uuid, Entity>,
     sender: Sender<Message>,
@@ -230,7 +200,9 @@ impl Archetype {
     fn remove_entity(&mut self, id: &Uuid) -> Option<Entity> {
         let removed = self.entities.remove(id);
         if let Some(removed) = &removed {
-            self.sender.send(Message::RemoveEntity { entity_id: removed.id });
+            self.sender.send(Message::RemoveEntity {
+                entity_id: removed.id,
+            });
         }
         removed
     }
@@ -346,12 +318,12 @@ impl Archetypes {
         self.create_entity([])
     }
 
-    pub fn entities(&self) -> ArchetypesEntitiesIter {
-        ArchetypesEntitiesIter::new(self)
+    pub fn entities(&self) -> Iter {
+        Iter::new(self)
     }
 
-    pub fn entities_mut(&self) -> ArchetypesEntitiesIterMut {
-        ArchetypesEntitiesIterMut::new(self)
+    pub fn entities_mut(&self) -> IterMut {
+        IterMut::new(self)
     }
 
     pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> RefMut<'_, Entity>
@@ -402,12 +374,12 @@ impl Archetypes {
     }
 }
 
-pub struct ArchetypesEntitiesIter<'a> {
+pub struct Iter<'a> {
     archetypes: *mut Ref<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
     entities: Box<dyn Iterator<Item = &'a Entity> + 'a>,
 }
 
-impl<'a> Drop for ArchetypesEntitiesIter<'a> {
+impl<'a> Drop for Iter<'a> {
     fn drop(&mut self) {
         unsafe {
             let _ = Box::from_raw(self.archetypes);
@@ -415,7 +387,7 @@ impl<'a> Drop for ArchetypesEntitiesIter<'a> {
     }
 }
 
-impl<'a> ArchetypesEntitiesIter<'a> {
+impl<'a> Iter<'a> {
     fn new(archetypes: &'a Archetypes) -> Self {
         unsafe {
             let archetypes: *mut Ref<HashMap<BTreeSet<TypeId>, Archetype>> =
@@ -431,7 +403,7 @@ impl<'a> ArchetypesEntitiesIter<'a> {
     }
 }
 
-impl<'a> Iterator for ArchetypesEntitiesIter<'a> {
+impl<'a> Iterator for Iter<'a> {
     type Item = &'a Entity;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -439,12 +411,12 @@ impl<'a> Iterator for ArchetypesEntitiesIter<'a> {
     }
 }
 
-pub struct ArchetypesEntitiesIterMut<'a> {
+pub struct IterMut<'a> {
     archetypes: *mut RefMut<'a, HashMap<BTreeSet<TypeId>, Archetype>>,
     entities: Box<dyn Iterator<Item = &'a mut Entity> + 'a>,
 }
 
-impl<'a> Drop for ArchetypesEntitiesIterMut<'a> {
+impl<'a> Drop for IterMut<'a> {
     fn drop(&mut self) {
         unsafe {
             let _ = Box::from_raw(self.archetypes);
@@ -452,7 +424,7 @@ impl<'a> Drop for ArchetypesEntitiesIterMut<'a> {
     }
 }
 
-impl<'a> ArchetypesEntitiesIterMut<'a> {
+impl<'a> IterMut<'a> {
     fn new(archetypes: &'a Archetypes) -> Self {
         unsafe {
             let archetypes: *mut RefMut<HashMap<BTreeSet<TypeId>, Archetype>> =
@@ -468,13 +440,84 @@ impl<'a> ArchetypesEntitiesIterMut<'a> {
     }
 }
 
-impl<'a> Iterator for ArchetypesEntitiesIterMut<'a> {
+impl<'a> Iterator for IterMut<'a> {
     type Item = &'a mut Entity;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.entities.next()
     }
 }
+
+pub struct Query<'a, A, B, C, D> {
+    _component_types: PhantomData<(A, B, C, D)>,
+    archetype: *mut Option<RefMut<'a, Archetype>>,
+    entities: Option<hashbrown::hash_map::IterMut<'a, Uuid, Entity>>,
+}
+
+impl<'a, A, B, C, D> Drop for Query<'a, A, B, C, D> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.archetype);
+        }
+    }
+}
+
+impl<'a, A, B, C, D> Query<'a, A, B, C, D>
+where
+    A: Component + 'static,
+    B: Component + 'static,
+    C: Component + 'static,
+    D: Component + 'static,
+{
+    fn new(archetypes: &'a Archetypes) -> Self {
+        let component_types = BTreeSet::from_iter([
+            TypeId::of::<A>(),
+            TypeId::of::<B>(),
+            TypeId::of::<C>(),
+            TypeId::of::<D>(),
+        ]);
+
+        let archetype = RefMut::filter_map(archetypes.archetypes.borrow_mut(), |archetypes| {
+            archetypes.get_mut(&component_types)
+        })
+        .ok();
+        let archetype = Box::into_raw(Box::new(archetype));
+        let entities = unsafe {
+            match (*archetype).as_mut() {
+                Some(archetype) => Some(archetype.entities.iter_mut()),
+                None => None,
+            }
+        };
+
+        Self {
+            _component_types: PhantomData,
+            archetype,
+            entities,
+        }
+    }
+}
+
+impl<'a, A, B, C, D> Iterator for Query<'a, A, B, C, D>
+where
+    A: Component + 'static,
+    B: Component + 'static,
+    C: Component + 'static,
+    D: Component + 'static,
+{
+    type Item = &'a mut Entity;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.entities.as_mut()?.next().map(|(_, entity)| entity)
+    }
+}
+
+pub trait System<A, B, C, D> {
+    fn execute(&mut self, query: Query<'_, A, B, C, D>);
+}
+
+// pub trait SystemAny<A, B, C, D> {
+//     fn execute(&mut self, a: Option<A>, b: Option<B>, c: Option<C>, d: Option<D>);
+// }
 
 // #[test]
 // fn a() {
