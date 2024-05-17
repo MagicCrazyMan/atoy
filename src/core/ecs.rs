@@ -30,10 +30,11 @@ pub enum Message {
 
 pub trait Component {}
 
+#[derive(Clone)]
 pub struct Entity {
     id: Uuid,
     sender: Sender<Message>,
-    components: HashMap<TypeId, Box<dyn Any>>,
+    components: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
 
     workload: ArchetypesWorkload,
 }
@@ -67,7 +68,7 @@ impl Entity {
         Self {
             id: Uuid::new_v4(),
             sender: archetypes.sender.clone(),
-            components,
+            components: Rc::new(RefCell::new(components)),
 
             workload: ArchetypesWorkload::new(archetypes),
         }
@@ -337,15 +338,46 @@ impl Archetypes {
             }
         }
     }
-
-    fn create_empty_entity(&mut self) {
-        let entity = Entity::new(self);
-        self.entities.borrow_mut().insert(entity.id, entity);
-        self.archetypes.borrow_mut().get_mut(&BTreeSet::new(), entity);
-    }
 }
 
 impl Archetypes {
+    pub fn create_empty_entity(&mut self) -> Entity {
+        let entity = Entity::new(self);
+        self.entities.borrow_mut().insert(entity.id, entity.clone());
+        self.archetypes
+            .borrow_mut()
+            .get_mut(&BTreeSet::new())
+            .unwrap()
+            .add_entity_unchecked(entity.clone());
+        entity
+    }
+
+    pub fn create_entity_4<A, B, C, D>(&mut self, a: A, b: B, c: C, d: D) -> Entity
+    where
+        A: Component + 'static,
+        B: Component + 'static,
+        C: Component + 'static,
+        D: Component + 'static,
+    {
+        let components = [
+            (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
+            (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
+            (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
+            (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
+        ]
+        .into_iter()
+        .collect::<HashMap<TypeId, Box<dyn Any>>>();
+
+        let entity = Entity::with_components(self, components);
+        self.entities.borrow_mut().insert(entity.id, entity.clone());
+        self.archetypes
+            .borrow_mut()
+            .get_mut(&BTreeSet::new())
+            .unwrap()
+            .add_entity_unchecked(entity.clone());
+        entity
+    }
+
     pub fn entities(&self) -> Ref<'_, HashMap<Uuid, Entity>> {
         self.entities.borrow()
     }
