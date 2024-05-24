@@ -10,7 +10,10 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap};
 use uuid::Uuid;
 
-use super::channel::{MessageChannel, Sender, Unregister};
+use super::{
+    channel::{MessageChannel, Sender, Unregister},
+    AsAny,
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -32,7 +35,15 @@ pub enum Message {
     },
 }
 
-pub trait Component {}
+pub trait Component {
+    #[inline]
+    fn component_type() -> TypeId
+    where
+        Self: Sized + 'static,
+    {
+        TypeId::of::<Self>()
+    }
+}
 
 pub struct Entity {
     id: Uuid,
@@ -44,14 +55,18 @@ pub struct Entity {
 }
 
 impl Entity {
-    fn with_components(archetypes: &Archetypes, components: HashMap<TypeId, Box<dyn Any>>) -> Self {
+    fn new(manager: &EntityManager) -> Self {
+        Self::with_components(manager, HashMap::new())
+    }
+
+    fn with_components(manager: &EntityManager, components: HashMap<TypeId, Box<dyn Any>>) -> Self {
         Self {
             id: Uuid::new_v4(),
-            sender: archetypes.sender.clone(),
+            sender: manager.sender.clone(),
             components,
 
-            archetypes: Rc::clone(&archetypes.archetypes),
-            entities: Rc::clone(&archetypes.entities),
+            archetypes: Rc::clone(&manager.archetypes),
+            entities: Rc::clone(&manager.entities),
         }
     }
 
@@ -71,7 +86,7 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        match self.components.get(&TypeId::of::<T>()) {
+        match self.components.get(&T::component_type()) {
             Some(component) => Some(component.downcast_ref::<T>().unwrap()),
             None => None,
         }
@@ -81,7 +96,7 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        match self.components.get_mut(&TypeId::of::<T>()) {
+        match self.components.get_mut(&T::component_type()) {
             Some(component) => Some(component.downcast_mut::<T>().unwrap()),
             None => None,
         }
@@ -105,20 +120,20 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        self.components.contains_key(&TypeId::of::<T>())
+        self.components.contains_key(&T::component_type())
     }
 
     pub fn add_component<T>(&mut self, component: T) -> Result<(), T>
     where
         T: Component + 'static,
     {
-        if self.components.contains_key(&TypeId::of::<T>()) {
+        if self.components.contains_key(&T::component_type()) {
             return Err(component);
         };
 
         let old_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
         self.components
-            .insert_unique_unchecked(TypeId::of::<T>(), Box::new(component));
+            .insert_unique_unchecked(T::component_type(), Box::new(component));
         let new_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
 
         self.swap_archetype(&old_component_types, &new_component_types);
@@ -135,14 +150,14 @@ impl Entity {
     where
         T: Component + 'static,
     {
-        if self.components.contains_key(&TypeId::of::<T>()) {
+        if self.components.contains_key(&T::component_type()) {
             return None;
         };
 
         let old_component_types = self.components.keys().cloned().collect::<BTreeSet<_>>();
         let removed = *self
             .components
-            .remove(&TypeId::of::<T>())
+            .remove(&T::component_type())
             .unwrap()
             .downcast::<T>()
             .unwrap();
@@ -222,7 +237,9 @@ impl Archetype {
     }
 }
 
-pub struct Archetypes {
+const EMPTY_ARCHETYPE: BTreeSet<TypeId> = BTreeSet::new();
+
+pub struct EntityManager {
     id: Uuid,
 
     archetypes: Rc<RefCell<HashMap<BTreeSet<TypeId>, Archetype>>>,
@@ -232,7 +249,7 @@ pub struct Archetypes {
     unregistered: Option<Unregister<Message>>,
 }
 
-impl Drop for Archetypes {
+impl Drop for EntityManager {
     fn drop(&mut self) {
         self.unregistered.take().map(|unregister| {
             unregister.unregister();
@@ -240,13 +257,13 @@ impl Drop for Archetypes {
     }
 }
 
-impl Archetypes {
+impl EntityManager {
     pub fn new(channel: MessageChannel) -> Self {
         Self {
             id: Uuid::new_v4(),
 
             archetypes: Rc::new(RefCell::new(HashMap::from([(
-                BTreeSet::new(),
+                EMPTY_ARCHETYPE,
                 Archetype::new(channel.sender()),
             )]))),
             entities: Rc::new(RefCell::new(HashMap::new())),
@@ -260,16 +277,20 @@ impl Archetypes {
         &self.id
     }
 
-    fn archetype_or_create(&self, component_types: BTreeSet<TypeId>) -> RefMut<'_, Archetype> {
-        RefMut::map(self.archetypes.borrow_mut(), |archetypes| match archetypes
-            .entry(component_types)
-        {
-            Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) => v.insert(Archetype::new(self.sender.clone())),
+    pub fn create_empty_entity(&self) -> RefMut<'_, Entity> {
+        let entity = Entity::new(self);
+        self.entities
+            .borrow_mut()
+            .insert_unique_unchecked(entity.id, EMPTY_ARCHETYPE.clone());
+        RefMut::map(self.archetypes.borrow_mut(), |archetypes| {
+            archetypes
+                .get_mut(&EMPTY_ARCHETYPE)
+                .unwrap()
+                .add_entity_unchecked(entity)
         })
     }
 
-    fn create_entity<I>(&self, components: I) -> RefMut<'_, Entity>
+    pub fn create_entity<I>(&self, components: I) -> RefMut<'_, Entity>
     where
         I: IntoIterator<Item = (TypeId, Box<dyn Any>)>,
     {
@@ -292,15 +313,15 @@ impl Archetypes {
         entity
     }
 
-    // fn remove_entity(&mut self, entity_id: &Uuid) -> HashMap<TypeId, Box<dyn Any>> {
-    //     let Some(removed) = self.entities.borrow_mut().remove(entity_id) ;
-    //     todo!()
-    // }
-}
-
-impl Archetypes {
-    pub fn create_empty_entity(&self) -> RefMut<'_, Entity> {
-        self.create_entity([])
+    pub fn remove_entity(&mut self, entity_id: &Uuid) {
+        let Some(archetype) = self.entities.borrow_mut().remove(entity_id) else {
+            return;
+        };
+        self.archetypes
+            .borrow_mut()
+            .get_mut(&archetype)
+            .unwrap()
+            .remove_entity(entity_id);
     }
 
     pub fn entities(&self) -> OverallIter {
@@ -311,69 +332,81 @@ impl Archetypes {
         OverallIterMut::new(self)
     }
 
-    pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> RefMut<'_, Entity>
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        self.create_entity([
-            (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
-            (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
-            (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
-            (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
-        ])
-    }
-
-    pub fn entities_in_archetype_4<A, B, C, D>(&self) -> Iter<'_>
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        Iter::new(
-            self,
-            &BTreeSet::from_iter([
-                TypeId::of::<A>(),
-                TypeId::of::<B>(),
-                TypeId::of::<C>(),
-                TypeId::of::<D>(),
-            ]),
-        )
-    }
-
-    pub fn entities_in_archetype_4_mut<A, B, C, D>(&self) -> IterMut<'_>
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        IterMut::new(
-            self,
-            &BTreeSet::from_iter([
-                TypeId::of::<A>(),
-                TypeId::of::<B>(),
-                TypeId::of::<C>(),
-                TypeId::of::<D>(),
-            ]),
-        )
-    }
-
-    pub fn query_4_mut<A, B, C, D>(&self) -> Query<'_, A, B, C, D>
-    where
-        A: Component + 'static,
-        B: Component + 'static,
-        C: Component + 'static,
-        D: Component + 'static,
-    {
-        Query::<A, B, C, D>::new(self)
+    fn archetype_or_create(&self, component_types: BTreeSet<TypeId>) -> RefMut<'_, Archetype> {
+        RefMut::map(self.archetypes.borrow_mut(), |archetypes| match archetypes
+            .entry(component_types)
+        {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => v.insert(Archetype::new(self.sender.clone())),
+        })
     }
 }
 
+impl EntityManager {
+    // pub fn create_entity_4<A, B, C, D>(&self, a: A, b: B, c: C, d: D) -> RefMut<'_, Entity>
+    // where
+    //     A: Component + 'static,
+    //     B: Component + 'static,
+    //     C: Component + 'static,
+    //     D: Component + 'static,
+    // {
+    //     self.create_entity([
+    //         (TypeId::of::<A>(), Box::new(a) as Box<dyn Any>),
+    //         (TypeId::of::<B>(), Box::new(b) as Box<dyn Any>),
+    //         (TypeId::of::<C>(), Box::new(c) as Box<dyn Any>),
+    //         (TypeId::of::<D>(), Box::new(d) as Box<dyn Any>),
+    //     ])
+    // }
+
+    // pub fn entities_in_archetype_4<A, B, C, D>(&self) -> Iter<'_>
+    // where
+    //     A: Component + 'static,
+    //     B: Component + 'static,
+    //     C: Component + 'static,
+    //     D: Component + 'static,
+    // {
+    //     Iter::new(
+    //         self,
+    //         BTreeSet::from_iter([
+    //             TypeId::of::<A>(),
+    //             TypeId::of::<B>(),
+    //             TypeId::of::<C>(),
+    //             TypeId::of::<D>(),
+    //         ]),
+    //     )
+    // }
+
+    // pub fn entities_in_archetype_4_mut<A, B, C, D>(&self) -> IterMut<'_>
+    // where
+    //     A: Component + 'static,
+    //     B: Component + 'static,
+    //     C: Component + 'static,
+    //     D: Component + 'static,
+    // {
+    //     IterMut::new(
+    //         self,
+    //         BTreeSet::from_iter([
+    //             TypeId::of::<A>(),
+    //             TypeId::of::<B>(),
+    //             TypeId::of::<C>(),
+    //             TypeId::of::<D>(),
+    //         ]),
+    //     )
+    // }
+
+    // pub fn query_4_mut<A, B, C, D>(&self) -> Query<'_, A, B, C, D>
+    // where
+    //     A: Component + 'static,
+    //     B: Component + 'static,
+    //     C: Component + 'static,
+    //     D: Component + 'static,
+    // {
+    //     Query::<A, B, C, D>::new(self)
+    // }
+}
+
 pub struct Iter<'a> {
+    component_types: BTreeSet<TypeId>,
     archetype: *mut Option<Ref<'a, Archetype>>,
     entities: Option<hashbrown::hash_map::Iter<'a, Uuid, Entity>>,
 }
@@ -387,9 +420,9 @@ impl<'a> Drop for Iter<'a> {
 }
 
 impl<'a> Iter<'a> {
-    fn new(archetypes: &'a Archetypes, component_types: &BTreeSet<TypeId>) -> Self {
-        let archetype = Ref::filter_map(archetypes.archetypes.borrow(), |archetypes| {
-            archetypes.get(component_types)
+    fn new(manager: &'a EntityManager, component_types: BTreeSet<TypeId>) -> Self {
+        let archetype = Ref::filter_map(manager.archetypes.borrow(), |archetypes| {
+            archetypes.get(&component_types)
         })
         .ok();
         let archetype = Box::into_raw(Box::new(archetype));
@@ -401,9 +434,14 @@ impl<'a> Iter<'a> {
         };
 
         Self {
+            component_types,
             archetype,
             entities,
         }
+    }
+
+    pub fn component_types(&self) -> &BTreeSet<TypeId> {
+        &self.component_types
     }
 }
 
@@ -432,6 +470,7 @@ impl<'a> ExactSizeIterator for Iter<'a> {
 }
 
 pub struct IterMut<'a> {
+    component_types: BTreeSet<TypeId>,
     archetype: *mut Option<RefMut<'a, Archetype>>,
     entities: Option<hashbrown::hash_map::IterMut<'a, Uuid, Entity>>,
 }
@@ -445,9 +484,9 @@ impl<'a> Drop for IterMut<'a> {
 }
 
 impl<'a> IterMut<'a> {
-    fn new(archetypes: &'a Archetypes, component_types: &BTreeSet<TypeId>) -> Self {
-        let archetype = RefMut::filter_map(archetypes.archetypes.borrow_mut(), |archetypes| {
-            archetypes.get_mut(component_types)
+    fn new(manager: &'a EntityManager, component_types: BTreeSet<TypeId>) -> Self {
+        let archetype = RefMut::filter_map(manager.archetypes.borrow_mut(), |archetypes| {
+            archetypes.get_mut(&component_types)
         })
         .ok();
         let archetype = Box::into_raw(Box::new(archetype));
@@ -459,9 +498,14 @@ impl<'a> IterMut<'a> {
         };
 
         Self {
+            component_types,
             archetype,
             entities,
         }
+    }
+
+    pub fn component_types(&self) -> &BTreeSet<TypeId> {
+        &self.component_types
     }
 }
 
@@ -504,11 +548,11 @@ impl<'a> Drop for OverallIter<'a> {
 }
 
 impl<'a> OverallIter<'a> {
-    fn new(archetypes: &'a Archetypes) -> Self {
+    fn new(manager: &'a EntityManager) -> Self {
         unsafe {
-            let entities = archetypes.entities.borrow();
+            let entities = manager.entities.borrow();
             let archetypes: *mut Ref<HashMap<BTreeSet<TypeId>, Archetype>> =
-                Box::leak(Box::new(archetypes.archetypes.borrow()));
+                Box::leak(Box::new(manager.archetypes.borrow()));
             let entities_iter = (*archetypes)
                 .iter()
                 .flat_map(|(_, archetype)| archetype.entities.iter().map(|(_, entity)| entity));
@@ -555,11 +599,11 @@ impl<'a> Drop for OverallIterMut<'a> {
 }
 
 impl<'a> OverallIterMut<'a> {
-    fn new(archetypes: &'a Archetypes) -> Self {
+    fn new(manager: &'a EntityManager) -> Self {
         unsafe {
-            let entities = archetypes.entities.borrow_mut();
+            let entities = manager.entities.borrow_mut();
             let archetypes: *mut RefMut<HashMap<BTreeSet<TypeId>, Archetype>> =
-                Box::leak(Box::new(archetypes.archetypes.borrow_mut()));
+                Box::leak(Box::new(manager.archetypes.borrow_mut()));
             let entities_iter = (*archetypes)
                 .iter_mut()
                 .flat_map(|(_, archetype)| archetype.entities.iter_mut().map(|(_, entity)| entity));
@@ -603,7 +647,7 @@ where
     C: Component + 'static,
     D: Component + 'static,
 {
-    fn new(archetypes: &'a Archetypes) -> Self {
+    fn new(manager: &'a EntityManager) -> Self {
         let component_types = BTreeSet::from_iter([
             TypeId::of::<A>(),
             TypeId::of::<B>(),
@@ -613,8 +657,12 @@ where
 
         Self {
             _component_types: PhantomData,
-            iter_mut: IterMut::new(archetypes, &component_types),
+            iter_mut: IterMut::new(manager, component_types),
         }
+    }
+
+    pub fn component_types(&self) -> &BTreeSet<TypeId> {
+        &self.iter_mut.component_types
     }
 }
 
@@ -636,13 +684,13 @@ impl<'a, A, B, C, D> ExactSizeIterator for Query<'a, A, B, C, D> {
     }
 }
 
+pub trait IntoComponentTypes {
+    fn into_component_types(&self) -> &BTreeSet<TypeId>;
+}
+
 pub trait System<A, B, C, D> {
     fn execute(&mut self, query: Query<'_, A, B, C, D>);
 }
-
-// pub trait SystemAny<A, B, C, D> {
-//     fn execute(&mut self, a: Option<A>, b: Option<B>, c: Option<C>, d: Option<D>);
-// }
 
 // #[test]
 // fn a() {
@@ -654,17 +702,7 @@ pub trait System<A, B, C, D> {
 
 //     impl Component for B {}
 
-//     let mut entity = Entity {
-//         id: Uuid::new_v4(),
-//         components: HashMap::new(),
-//         sender: todo!(),
-//     };
-
-//     entity.add_component(A {});
-//     assert_eq!(1, entity.component_len());
-//     assert_eq!(true, entity.has_component::<A>());
-//     assert_eq!(false, entity.has_component::<B>());
-
-//     entity.remove_component::<A>();
-//     assert_eq!(0, entity.component_len());
+//     println!("{:?}", TypeId::of::<A>());
+//     println!("{:?}", A {}.component_type());
+//     println!("{:?}", Box::new(A {}).component_type());
 // }
