@@ -8,6 +8,7 @@ use std::{
 };
 
 use hashbrown::{hash_map::Entry, HashMap};
+use smallvec::SmallVec;
 use uuid::Uuid;
 
 use super::{
@@ -33,6 +34,89 @@ pub enum Message {
     RemoveEntity {
         entity_id: Uuid,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ComponentTypes(SmallVec<[TypeId; 3]>);
+
+impl ComponentTypes {
+    pub fn new<I>(component_types: I) -> Self
+    where
+        I: IntoIterator<Item = TypeId>,
+    {
+        let mut component_types: SmallVec<[TypeId; 3]> = component_types.into_iter().collect();
+        component_types.sort();
+        component_types.dedup();
+        Self(component_types)
+    }
+}
+
+pub trait IntoComponentTypes {
+    fn into_component_types() -> ComponentTypes;
+}
+
+// impl<I> From<I> for ComponentTypes
+// where
+//     I: IntoIterator<Item = TypeId>,
+// {
+//     fn from(value: I) -> Self {
+//         Self::new(value)
+//     }
+// }
+
+impl<A0> IntoComponentTypes for A0
+where
+    A0: Component + 'static,
+{
+    fn into_component_types() -> ComponentTypes {
+        ComponentTypes::new([TypeId::of::<A0>()])
+    }
+}
+
+macro_rules! into_component_types {
+    ($($ct: tt),+) => {
+        impl<$($ct,)+> IntoComponentTypes for ($($ct,)+)
+        where
+            $(
+                $ct: Component + 'static,
+            )+
+        {
+            fn into_component_types() -> ComponentTypes {
+                ComponentTypes::new([
+                    $(
+                        TypeId::of::<$ct>(),
+                    )+
+                ])
+            }
+        }
+    };
+}
+
+macro_rules! into_component_types_4 {
+    ($(($($ct: tt),+))+) => {
+        $(
+            into_component_types!($($ct),+);
+        )+
+    };
+}
+
+into_component_types_4! {
+    (A0)
+    (A0, A1)
+    (A0, A1, A2)
+    (A0, A1, A2, A3)
+}
+
+fn a() {
+    struct A {
+        a: usize
+    }
+    impl Component for A {}
+
+    struct B;
+    impl Component for B {}
+
+    <(A, B)>::into_component_types();
 }
 
 pub trait Component {
@@ -682,10 +766,6 @@ impl<'a, A, B, C, D> ExactSizeIterator for Query<'a, A, B, C, D> {
     fn len(&self) -> usize {
         self.iter_mut.len()
     }
-}
-
-pub trait IntoComponentTypes {
-    fn into_component_types(&self) -> &BTreeSet<TypeId>;
 }
 
 pub trait System<A, B, C, D> {
