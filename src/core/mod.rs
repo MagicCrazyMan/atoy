@@ -15,6 +15,10 @@ pub mod transparency;
 pub mod versioning;
 pub mod web;
 
+
+pub type Rrc<T> = std::rc::Rc<std::cell::RefCell<T>>;
+pub type Wrc<T> = std::rc::Weak<std::cell::RefCell<T>>;
+
 pub trait AsAny {
     fn as_any(&self) -> &dyn std::any::Any;
 

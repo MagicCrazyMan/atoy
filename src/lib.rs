@@ -1,3 +1,8 @@
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
+
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Document, Performance, Window};
 
