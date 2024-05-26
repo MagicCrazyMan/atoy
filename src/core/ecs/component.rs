@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use gl_matrix4rust::{mat4::Mat4, quat::Quat, quat2::Quat2, vec3::Vec3};
+use gl_matrix4rust::{mat4::Mat4, quat::Quat, vec3::Vec3};
 use proc::{AsAny, Component};
 
 use crate::core::AsAny;
@@ -77,7 +77,12 @@ impl Transformation {
         self.update_model_matrix();
     }
 
-    pub fn set_translation_rotation_scale(&mut self, translation: Vec3, rotation: Quat, scale: Vec3) {
+    pub fn set_translation_rotation_scale(
+        &mut self,
+        translation: Vec3,
+        rotation: Quat,
+        scale: Vec3,
+    ) {
         self.translation = translation;
         self.rotation = rotation;
         self.scale = scale;

@@ -1,51 +1,74 @@
 use super::{
-    channel::MessageChannel,
-    clock::Clock,
-    command::{Commands, Context},
-    engine::RenderEngine,
-    looper::JobLooper,
+    carrier::Carrier,
+    clock::{Clock, Tick},
+    engine::{PostRender, PreRender, RenderEngine},
     resource::Resources,
+    runner::{Job, Runner},
     scene::Scene,
 };
 
-pub enum Message<'app, CLK, RE> {
-    PreRender(Context<'app, CLK, RE>),
-    PostRender(Context<'app, CLK, RE>),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Initialize;
+
+pub struct AppConfig {
+    pub initialize: Carrier<Initialize>,
+    pub pre_render: Carrier<PreRender>,
+    pub post_render: Carrier<PostRender>,
+    pub tick: Carrier<Tick>,
 }
 
-pub struct App<JL, CLK, RE> {
-    scene: Scene,
-    clock: CLK,
-    engine: RE,
-    channel: MessageChannel,
-
-    current_commands: Commands<CLK, RE>,
-    next_commands: Commands<CLK, RE>,
-
-    resources: Resources,
-    temp_resources: Resources,
-
-    job_looper: JL,
-}
-
-impl<JL, CLK, RE> App<JL, CLK, RE> {
-    pub fn new(job_looper: JL, scene: Scene, clock: CLK, engine: RE) -> Self {
+impl AppConfig {
+    pub fn new() -> Self {
         Self {
-            scene,
-            clock,
-            engine,
-            channel: MessageChannel::new(),
-
-            current_commands: Commands::new(),
-            next_commands: Commands::new(),
-
-            resources: Resources::new(),
-            temp_resources: Resources::new(),
-
-            job_looper,
+            initialize: Carrier::new(),
+            pre_render: Carrier::new(),
+            post_render: Carrier::new(),
+            tick: Carrier::new(),
         }
     }
 
+    pub fn build<R, CLK, RE>(self) -> App<R, CLK, RE>
+    where
+        R: Runner,
+        CLK: Clock,
+        RE: RenderEngine<CLK>,
+    {
+        App {
+            scene: Scene::new(),
+            clock: CLK::new(&self),
+            engine: RE::new(&self),
+            runner: R::new(&self),
+
+            resources: Resources::new(),
+
+            initialize: self.initialize,
+            pre_render: self.pre_render,
+            post_render: self.post_render,
+            tick: self.tick,
+        }
+    }
+}
+
+pub struct App<R, CLK, RE> {
+    scene: Scene,
+    clock: CLK,
+    engine: RE,
+    runner: R,
+
+    resources: Resources,
+
+    initialize: Carrier<Initialize>,
+    pre_render: Carrier<PreRender>,
+    post_render: Carrier<PostRender>,
+    tick: Carrier<Tick>,
+}
+
+impl<JL, CLK, RE> App<JL, CLK, RE>
+where
+    JL: Runner,
+    CLK: Clock + 'static,
+    RE: RenderEngine<CLK> + 'static,
+{
     pub fn scene(&self) -> &Scene {
         &self.scene
     }
@@ -70,18 +93,6 @@ impl<JL, CLK, RE> App<JL, CLK, RE> {
         &mut self.engine
     }
 
-    pub fn channel(&self) -> &MessageChannel {
-        &self.channel
-    }
-
-    pub fn commands(&self) -> &Commands<CLK, RE> {
-        &self.current_commands
-    }
-
-    pub fn commands_mut(&mut self) -> &mut Commands<CLK, RE> {
-        &mut self.current_commands
-    }
-
     pub fn resources(&self) -> &Resources {
         &self.resources
     }
@@ -91,80 +102,44 @@ impl<JL, CLK, RE> App<JL, CLK, RE> {
     }
 }
 
-impl<JL, CLK, RE> App<JL, CLK, RE>
-where
-    JL: JobLooper,
-    CLK: Clock + 'static,
-    RE: RenderEngine + 'static,
-{
-    pub fn start(&mut self) {
-        let mut executor = AppJob::new(self);
-        self.job_looper.start(move || unsafe {
-            executor.execute();
-        });
-    }
+// impl<JL, CLK, RE> App<JL, CLK, RE>
+// where
+//     JL: JobLooper,
+//     CLK: Clock + 'static,
+//     RE: RenderEngine<CLK> + 'static,
+// {
+//     pub fn start(&mut self) {
+//         let job = AppJob::new(self.context());
+//         self.job_looper.start(job);
+//     }
 
-    pub fn stop(&mut self) {
-        self.job_looper.stop();
-    }
-}
+//     pub fn stop(&mut self) {
+//         self.job_looper.stop();
+//     }
+// }
 
-struct AppJob<CLK, RE> {
-    scene: *mut Scene,
-    clock: *mut CLK,
-    engine: *mut RE,
-    channel: *const MessageChannel,
+// struct AppJob<CLK, RE> {
 
-    current_commands: *mut Commands<CLK, RE>,
-    next_commands: *mut Commands<CLK, RE>,
+// }
 
-    resources: *mut Resources,
-    temp_resources: *mut Resources,
-}
+// impl<CLK, RE> AppJob<CLK, RE>
+// where
+//     CLK: Clock + 'static,
+//     RE: RenderEngine<CLK> + 'static,
+// {
+//     fn new(context: Context<CLK, RE>) -> Self {
+//         Self(context)
+//     }
+// }
 
-impl<CLK, RE> AppJob<CLK, RE>
-where
-    CLK: Clock + 'static,
-    RE: RenderEngine + 'static,
-{
-    fn new<JL>(app: &mut App<JL, CLK, RE>) -> Self {
-        Self {
-            scene: &mut app.scene,
-            clock: &mut app.clock,
-            engine: &mut app.engine,
-            channel: &app.channel,
-            resources: &mut app.resources,
-            temp_resources: &mut app.temp_resources,
-
-            current_commands: &mut app.current_commands,
-            next_commands: &mut app.next_commands,
-        }
-    }
-
-    unsafe fn context<'app>(&'app mut self) -> Context<'app, CLK, RE> {
-        Context {
-            scene: &mut *self.scene,
-            clock: &mut *self.clock,
-            engine: &mut *self.engine,
-            channel: &*self.channel,
-            resources: &mut *self.resources,
-            temp_resources: &mut *self.temp_resources,
-
-            current_commands: &mut *self.current_commands,
-            next_commands: &mut *self.next_commands,
-        }
-    }
-
-    unsafe fn execute<'app>(&'app mut self) {
-        (*self.channel)
-            .sender()
-            .send(Message::PreRender(self.context()));
-
-        while let Some(mut command) = (*self.current_commands).pop_front() {
-            command.execute(self.context());
-        }
-
-        std::mem::swap(&mut *self.current_commands, &mut *self.next_commands);
-        (*self.temp_resources).clear();
-    }
-}
+// impl<CLK, RE> Job for AppJob<CLK, RE>
+// where
+//     CLK: Clock + 'static,
+//     RE: RenderEngine<CLK> + 'static,
+// {
+//     fn execute(&mut self) {
+//         self.0.pre.send(PreRender);
+//         self.0.engine_mut().render(&self.0);
+//         self.0.channel().send(PostRender, &self.0);
+//     }
+// }

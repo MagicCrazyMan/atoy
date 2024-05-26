@@ -1,6 +1,6 @@
 pub mod clock;
 pub mod loader;
-pub mod looper;
+pub mod runner;
 pub mod webgl;
 
 pub(crate) fn window() -> web_sys::Window {

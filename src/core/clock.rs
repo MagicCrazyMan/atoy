@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::AsAny;
+use super::app::AppConfig;
 
 /// Clock tick indicating clock ticking information.
 #[derive(Clone, Copy, PartialEq)]
@@ -47,18 +47,19 @@ impl Tick {
 }
 
 /// A trait defining a clock.
-pub trait Clock: AsAny {
+pub trait Clock {
+    fn new(app_config: &AppConfig) -> Self
+    where
+        Self: Sized;
+
     /// Returns the time when clock started.
     fn start_time(&self) -> Option<f64>;
 
     /// Returns the time when clock stopped.
     fn stop_time(&self) -> Option<f64>;
 
-    /// Returns previous tick time if exists.
-    fn previous_time(&self) -> Option<f64>;
-
     /// Returns `true` if this clock is ticking.
-    fn ticking(&self) -> bool;
+    fn running(&self) -> bool;
 
     /// Starts the clock.
     fn start(&mut self, interval: Duration);
