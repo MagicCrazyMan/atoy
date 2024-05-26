@@ -1,23 +1,19 @@
-use std::{
-    any::Any,
-    cell::{Ref, RefCell},
-    rc::Rc,
-    time::Duration,
-};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
+use proc::AsAny;
 use wasm_bindgen::{closure::Closure, JsCast};
 
 use crate::{
     core::{
         app::AppConfig,
         carrier::Carrier,
-        clock::{Clock, OnTick, Tick},
-        AsAny,
+        clock::{Clock, Tick},
     },
     performance, window,
 };
 
 /// A [`Clock`] implemented by [`Performance`](web_sys::Performance) from Web JavaScript.
+#[derive(AsAny)]
 pub struct WebClock {
     start_time: Option<f64>,
     stop_time: Option<f64>,
@@ -34,7 +30,6 @@ impl Drop for WebClock {
 
         unsafe {
             drop(Box::from_raw(self.handler));
-        
         }
     }
 }
@@ -49,7 +44,7 @@ impl Clock for WebClock {
             stop_time: None,
             interval: None,
 
-            tick: app_config.tick.clone(),
+            tick: app_config.on_tick().clone(),
             handle: None,
             handler: Box::into_raw(Box::new(None)),
         }
@@ -72,36 +67,37 @@ impl Clock for WebClock {
             return;
         }
 
-        let start_time = performance().now();
-        let handler = {
-            let start_time = start_time;
-            let previous_time = Rc::clone(&previous_time);
-            let channel = Rc::clone(&channel);
-            Closure::new(move || {
-                let current_time = performance().now();
-                channel.borrow().send(
-                    OnTick,
-                    &Tick::new(
-                        start_time.borrow().clone().unwrap(),
+        unsafe {
+            let start_time = performance().now();
+
+            let handler = {
+                let start_time = start_time;
+                let previous_time = Rc::new(RefCell::new(start_time));
+                let tick = self.tick.clone();
+                Closure::new(move || {
+                    let current_time = performance().now();
+                    tick.send(&Tick::new(
+                        start_time,
                         previous_time.borrow().clone(),
                         current_time,
-                    ),
-                );
-                previous_time.borrow_mut().replace(current_time);
-            })
-        };
+                    ));
+                    *previous_time.borrow_mut() = current_time;
+                })
+            };
+            (*self.handler) = Some(handler);
 
-        let handle = window()
-            .set_interval_with_callback_and_timeout_and_arguments_0(
-                self.handler.as_ref().unchecked_ref(),
-                interval.as_millis() as i32,
-            )
-            .expect("failed to set interval");
+            let handle = window()
+                .set_interval_with_callback_and_timeout_and_arguments_0(
+                    (*self.handler).as_ref().unwrap().as_ref().unchecked_ref(),
+                    interval.as_millis() as i32,
+                )
+                .expect("failed to set interval");
 
-        self.start_time = Some(start_time);
-        self.stop_time = None;
-        self.interval = Some(interval);
-        self.handle = Some(handle);
+            self.start_time = Some(start_time);
+            self.stop_time = None;
+            self.interval = Some(interval);
+            self.handle = Some(handle);
+        }
     }
 
     fn stop(&mut self) {

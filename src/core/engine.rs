@@ -1,22 +1,15 @@
-use super::{app::AppConfig, scene::Scene};
+use super::{app::AppConfig, clock::Clock, resource::Resources, scene::Scene, AsAny, Rrc};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PreRender;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PostRender;
-
-pub struct RenderContext<'a, CLK> {
-    pub scene: &'a Scene,
-    pub clock: &'a CLK,
+pub struct RenderContext {
+    pub scene: Rrc<Scene>,
+    pub clock: Rrc<dyn Clock>,
+    pub resources: Rrc<Resources>,
 }
 
-pub trait RenderEngine<CLK> {
+pub trait RenderEngine: AsAny {
     fn new(app_config: &AppConfig) -> Self
     where
         Self: Sized;
 
-    fn render(&mut self, context: &RenderContext<CLK>)
-    where
-        Self: Sized;
+    fn render(&mut self, context: RenderContext);
 }

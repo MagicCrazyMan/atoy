@@ -1,3 +1,4 @@
+use proc::AsAny;
 use wasm_bindgen::closure::Closure;
 
 use crate::core::{
@@ -7,6 +8,7 @@ use crate::core::{
 
 use super::{cancel_animation_frame, request_animation_frame};
 
+#[derive(AsAny)]
 pub struct WebRunner {
     raf_id: *mut i32,
     job: Option<*mut dyn Job>,
@@ -42,15 +44,12 @@ impl Runner for WebRunner {
         Self::new()
     }
 
-    fn start<J>(&mut self, job: J)
-    where
-        J: Job + 'static,
-    {
+    fn start(&mut self, job: Box<dyn Job>) {
         self.stop();
 
         unsafe {
             let raf_id: *mut i32 = self.raf_id;
-            let job: *mut dyn Job = Box::into_raw(Box::new(job));
+            let job: *mut dyn Job = Box::into_raw(job);
             let callback: *mut Option<Closure<dyn FnMut(f64)>> = Box::into_raw(Box::new(None));
             *self.callback = Some(Closure::new(move |_| {
                 (*job).execute();
@@ -77,7 +76,7 @@ impl Runner for WebRunner {
         }
     }
 
-    fn is_running(&self) -> bool {
+    fn running(&self) -> bool {
         unsafe { *self.raf_id != -1 }
     }
 }

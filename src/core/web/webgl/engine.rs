@@ -1,7 +1,7 @@
 use proc::AsAny;
 use web_sys::WebGl2RenderingContext;
 
-use crate::core::{app::Context, engine::RenderEngine};
+use crate::core::{app::AppConfig, engine::{RenderContext, RenderEngine}};
 
 use super::{buffer::BufferRegistry, framebuffer::FramebufferRegistry, texture::TextureRegistry};
 
@@ -14,23 +14,6 @@ pub struct WebGlRenderEngine {
 }
 
 impl WebGlRenderEngine {
-    pub fn new(gl: WebGl2RenderingContext) -> Self {
-        let buffer_registry = BufferRegistry::new(gl.clone());
-        let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.clone());
-        let framebuffer_registry = FramebufferRegistry::new(
-            gl.clone(),
-            buffer_registry.clone(),
-            texture_registry.clone(),
-        );
-        Self {
-            buffer_registry,
-            texture_registry,
-            framebuffer_registry,
-            // uniform_buffer_objects: HashMap::new(),
-            gl,
-        }
-    }
-
     pub fn gl(&self) -> &WebGl2RenderingContext {
         &self.gl
     }
@@ -48,8 +31,29 @@ impl WebGlRenderEngine {
     }
 }
 
-impl<CLK> RenderEngine<CLK> for WebGlRenderEngine {
-    fn render(&mut self, scene: &Context<CLK, Self>) {
+impl RenderEngine for WebGlRenderEngine {
+    fn new(app_config: &AppConfig) -> Self
+    where
+        Self: Sized,
+    {
+        let gl: WebGl2RenderingContext = todo!();
+        let buffer_registry = BufferRegistry::new(gl.clone());
+        let texture_registry = TextureRegistry::new(gl.clone(), buffer_registry.clone());
+        let framebuffer_registry = FramebufferRegistry::new(
+            gl.clone(),
+            buffer_registry.clone(),
+            texture_registry.clone(),
+        );
+        Self {
+            buffer_registry,
+            texture_registry,
+            framebuffer_registry,
+            // uniform_buffer_objects: HashMap::new(),
+            gl,
+        }
+    }
+
+    fn render(&mut self, context: RenderContext) {
         todo!()
     }
 }

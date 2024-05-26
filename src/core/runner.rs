@@ -1,17 +1,15 @@
-use super::app::AppConfig;
+use super::{app::AppConfig, AsAny};
 
-pub trait Runner {
+pub trait Runner: AsAny {
     fn new(app_config: &AppConfig) -> Self
     where
         Self: Sized;
 
-    fn start<J>(&mut self, job: J)
-    where
-        J: Job + 'static;
+    fn start(&mut self, job: Box<dyn Job>);
 
     fn stop(&mut self);
 
-    fn is_running(&self) -> bool;
+    fn running(&self) -> bool;
 }
 
 pub trait Job {

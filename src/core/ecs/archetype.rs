@@ -1,12 +1,8 @@
 use std::any::TypeId;
 
-use hashbrown::HashMap;
 use smallvec::SmallVec;
-use uuid::Uuid;
 
-use crate::core::{channel::Sender, Rrc};
-
-use super::{component::Component, entity::Entity, message::Message};
+use super::component::Component;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Archetype(SmallVec<[TypeId; 3]>);
@@ -59,31 +55,3 @@ as_archetype!(A0);
 as_archetype!(A0, A1);
 as_archetype!(A0, A1, A2);
 as_archetype!(A0, A1, A2, A3);
-
-pub(super) struct Chunk {
-    pub(super) entities: HashMap<Uuid, Rrc<Entity>>,
-    sender: Sender<Message>,
-}
-
-impl Chunk {
-    pub(super) fn new(sender: Sender<Message>) -> Self {
-        Self {
-            entities: HashMap::new(),
-            sender,
-        }
-    }
-
-    pub(super) fn add_entity_unchecked(&mut self, entity: Rrc<Entity>) {
-        let id = entity.borrow().id;
-        self.entities.insert_unique_unchecked(id, entity);
-        self.sender.send(Message::AddEntity { entity_id: id });
-    }
-
-    pub(super) fn remove_entity(&mut self, id: &Uuid) -> Option<Rrc<Entity>> {
-        let removed = self.entities.remove(id)?;
-        self.sender.send(Message::RemoveEntity {
-            entity_id: removed.borrow().id,
-        });
-        Some(removed)
-    }
-}

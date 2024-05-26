@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     cell::{RefCell, RefMut},
     rc::Rc,
 };
@@ -7,37 +7,42 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap};
 use uuid::Uuid;
 
-use crate::core::{
-    channel::{MessageChannel, Sender},
-    Rrc,
-};
+use crate::core::{app::AppConfig, carrier::Carrier, Rrc};
 
 use super::{
-    archetype::{Archetype, AsArchetype, Chunk},
+    archetype::{Archetype, AsArchetype},
     component::Component,
     entity::Entity,
     iter::{ArchetypeIter, Iter},
-    message::Message,
+    AddComponent, AddEntity, RemoveComponent, RemoveEntity, ReplaceComponent,
 };
 
 pub struct EntityManager {
     pub(super) id: Uuid,
 
-    pub(super) chunks: Rrc<HashMap<Archetype, Chunk>>,
+    pub(super) archetypes: Rrc<HashMap<Archetype, HashMap<Uuid, Rrc<Entity>>>>,
     pub(super) entities: Rrc<HashMap<Uuid, Rrc<Entity>>>,
 
-    pub(super) sender: Sender<Message>,
+    add_entity: Carrier<AddEntity>,
+    remove_entity: Carrier<RemoveEntity>,
+    add_component: Carrier<AddComponent>,
+    remove_component: Carrier<RemoveComponent>,
+    replace_component: Carrier<ReplaceComponent>,
 }
 
 impl EntityManager {
-    pub fn new(channel: MessageChannel) -> Self {
+    pub fn new(app_config: &AppConfig) -> Self {
         Self {
             id: Uuid::new_v4(),
 
-            chunks: Rc::new(RefCell::new(HashMap::new())),
+            archetypes: Rc::new(RefCell::new(HashMap::new())),
             entities: Rc::new(RefCell::new(HashMap::new())),
 
-            sender: channel.sender(),
+            add_entity: app_config.on_add_entity().clone(),
+            remove_entity: app_config.on_remove_entity().clone(),
+            add_component: app_config.on_add_component().clone(),
+            remove_component: app_config.on_remove_component().clone(),
+            replace_component: app_config.on_replace_component().clone(),
         }
     }
 
@@ -45,13 +50,14 @@ impl EntityManager {
         &self.id
     }
 
-    fn chunk_or_create(&self, archetype: Archetype) -> RefMut<'_, Chunk> {
-        RefMut::map(self.chunks.borrow_mut(), |chunks| {
-            match chunks.entry(archetype) {
+    fn chunk_or_create(&self, archetype: Archetype) -> RefMut<'_, HashMap<Uuid, Rrc<Entity>>> {
+        RefMut::map(
+            self.archetypes.borrow_mut(),
+            |archetypes| match archetypes.entry(archetype) {
                 Entry::Occupied(o) => o.into_mut(),
-                Entry::Vacant(v) => v.insert(Chunk::new(self.sender.clone())),
-            }
-        })
+                Entry::Vacant(v) => v.insert(HashMap::new()),
+            },
+        )
     }
 
     pub fn entity(&self, id: &Uuid) -> Option<Rrc<Entity>> {
@@ -76,27 +82,80 @@ impl EntityManager {
                 (components, component_types)
             },
         );
-        let entity = Rc::new(RefCell::new(Entity::new(self, components)));
+        let entity = Entity::new(components);
         let archetype = Archetype::new(component_types);
 
+        let id = entity.id;
+        let entity = Rc::new(RefCell::new(entity));
         self.entities
             .borrow_mut()
-            .insert_unique_unchecked(entity.borrow().id, Rc::clone(&entity));
+            .insert_unique_unchecked(id, Rc::clone(&entity));
         self.chunk_or_create(archetype)
-            .add_entity_unchecked(Rc::clone(&entity));
+            .insert(id, Rc::clone(&entity));
+
+        self.add_entity.send(&AddEntity {});
+
         entity
     }
 
-    pub fn remove_entity(&mut self, entity_id: &Uuid) {
-        let Some(entity) = self.entities.borrow_mut().remove(entity_id) else {
+    pub fn remove_entity(&mut self, id: &Uuid) {
+        let Some(entity) = self.entities.borrow_mut().remove(id) else {
             return;
         };
         let archetype = entity.borrow().archetype();
-        self.chunks
+
+        self.archetypes
             .borrow_mut()
             .get_mut(&archetype)
             .unwrap()
-            .remove_entity(entity_id);
+            .remove(id);
+
+        self.remove_entity.send(&&RemoveEntity {});
+    }
+
+    pub fn remove_component<T>(&self, id: &Uuid)
+    where
+        T: Component + 'static,
+    {
+        let Some(entity) = self.entity(id) else {
+            return;
+        };
+        let id = entity.borrow().id;
+
+        let old_archetype = entity.borrow().archetype();
+        entity.borrow_mut().components.remove(&TypeId::of::<T>());
+        let new_archetype = entity.borrow().archetype();
+
+        if old_archetype != new_archetype {
+            self.chunk_or_create(old_archetype).remove(&id);
+            self.chunk_or_create(new_archetype).insert(id, entity);
+            self.remove_component.send(&RemoveComponent {});
+        }
+    }
+
+    pub fn add_component<T>(&self, id: &Uuid, component: T)
+    where
+        T: Component + 'static,
+    {
+        let Some(entity) = self.entity(id) else {
+            return;
+        };
+        let id = entity.borrow().id;
+
+        let old_archetype = entity.borrow().archetype();
+        entity
+            .borrow_mut()
+            .components
+            .insert(TypeId::of::<T>(), Box::new(component));
+        let new_archetype = entity.borrow().archetype();
+
+        if old_archetype == new_archetype {
+            self.replace_component.send(&ReplaceComponent {});
+        } else {
+            self.chunk_or_create(old_archetype).remove(&id);
+            self.chunk_or_create(new_archetype).insert(id, entity);
+            self.add_component.send(&AddComponent {});
+        }
     }
 
     pub fn entities(&self) -> Iter {

@@ -1,18 +1,17 @@
 use std::time::Duration;
 
-use super::app::AppConfig;
+use super::{app::AppConfig, engine::RenderEngine, resource::Resources, scene::Scene, AsAny, Rrc};
 
 /// Clock tick indicating clock ticking information.
-#[derive(Clone, Copy, PartialEq)]
 pub struct Tick {
-    start_time: f64,
-    previous_time: Option<f64>,
-    current_time: f64,
+    pub start_time: f64,
+    pub previous_time: f64,
+    pub current_time: f64,
 }
 
 impl Tick {
     /// Constructs a new clock tick.
-    pub fn new(start_time: f64, previous_time: Option<f64>, current_time: f64) -> Self {
+    pub fn new(start_time: f64, previous_time: f64, current_time: f64) -> Self {
         Self {
             start_time,
             previous_time,
@@ -26,8 +25,8 @@ impl Tick {
     }
 
     /// Returns previous tick time if exists.
-    pub fn previous_time(&self) -> Option<f64> {
-        self.previous_time.clone()
+    pub fn previous_time(&self) -> f64 {
+        self.previous_time
     }
 
     /// Returns current tick time.
@@ -37,17 +36,13 @@ impl Tick {
 
     /// Returns delta time between current tick time and
     /// previous tick time if previous tick time exists.
-    pub fn delta_time(&self) -> Option<f64> {
-        if let Some(previous_time) = self.previous_time {
-            Some(self.current_time - previous_time)
-        } else {
-            None
-        }
+    pub fn delta_time(&self) -> f64 {
+        self.current_time - self.previous_time
     }
 }
 
 /// A trait defining a clock.
-pub trait Clock {
+pub trait Clock: AsAny {
     fn new(app_config: &AppConfig) -> Self
     where
         Self: Sized;

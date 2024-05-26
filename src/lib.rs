@@ -6,7 +6,6 @@ use std::{
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Document, Performance, Window};
 
-pub mod app;
 pub mod bounding;
 pub mod camera;
 pub mod clock;

@@ -2,7 +2,6 @@ pub mod app;
 pub mod bounding;
 pub mod camera;
 pub mod carrier;
-pub mod channel;
 pub mod clock;
 pub mod command;
 pub mod ecs;
