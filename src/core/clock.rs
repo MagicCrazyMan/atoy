@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use super::{app::AppConfig, engine::RenderEngine, resource::Resources, scene::Scene, AsAny, Rrc};
+use super::{app::AppConfig, carrier::Carrier, AsAny};
 
 /// Clock tick indicating clock ticking information.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Tick {
     pub start_time: f64,
     pub previous_time: f64,
@@ -61,4 +62,6 @@ pub trait Clock: AsAny {
 
     /// Stops the clock.
     fn stop(&mut self);
+
+    fn on_tick(&self) -> &Carrier<Tick>;
 }

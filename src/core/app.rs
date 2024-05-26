@@ -35,6 +35,14 @@ pub struct PostRender {
     pub resources: Rrc<Resources>,
 }
 
+pub struct Tictac {
+    pub tick: super::clock::Tick,
+    pub scene: Rrc<Scene>,
+    pub clock: Rrc<dyn Clock>,
+    pub engine: Rrc<dyn RenderEngine>,
+    pub resources: Rrc<Resources>,
+}
+
 pub struct AppConfig {
     initialize: Carrier<Initialize>,
     pre_render: Carrier<PreRender>,
@@ -45,7 +53,7 @@ pub struct AppConfig {
     add_component: Carrier<AddComponent>,
     remove_component: Carrier<RemoveComponent>,
     replace_component: Carrier<ReplaceComponent>,
-    tick: Carrier<Tick>,
+    tictac: Carrier<Tictac>,
 
     resources: Resources,
 }
@@ -56,7 +64,7 @@ impl AppConfig {
             initialize: Carrier::new(),
             pre_render: Carrier::new(),
             post_render: Carrier::new(),
-            tick: Carrier::new(),
+            tictac: Carrier::new(),
             add_entity: Carrier::new(),
             remove_entity: Carrier::new(),
             update_component: Carrier::new(),
@@ -88,8 +96,8 @@ impl AppConfig {
         &self.post_render
     }
 
-    pub fn on_tick(&self) -> &Carrier<Tick> {
-        &self.tick
+    pub fn on_tictac(&self) -> &Carrier<Tictac> {
+        &self.tictac
     }
 
     pub fn on_add_entity(&self) -> &Carrier<AddEntity> {
@@ -122,12 +130,11 @@ pub struct App {
     clock: Rrc<dyn Clock>,
     engine: Rrc<dyn RenderEngine>,
     resources: Rrc<Resources>,
-    systems: Rrc<Vec<Box<dyn System>>>,
     runner: Box<dyn Runner>,
 
     pre_render: Carrier<PreRender>,
     post_render: Carrier<PostRender>,
-    tick: Carrier<Tick>,
+    tictac: Carrier<Tictac>,
     add_entity: Carrier<AddEntity>,
     remove_entity: Carrier<RemoveEntity>,
     update_component: Carrier<UpdateComponent>,
@@ -147,14 +154,13 @@ impl App {
             scene: Rc::new(RefCell::new(Scene::new(&app_config))),
             clock: Rc::new(RefCell::new(CLK::new(&app_config))),
             engine: Rc::new(RefCell::new(RE::new(&app_config))),
-            systems: Rc::new(RefCell::new(Vec::new())),
             runner: Box::new(R::new(&app_config)),
 
             resources: Rc::new(RefCell::new(app_config.resources)),
 
             pre_render: app_config.pre_render,
             post_render: app_config.post_render,
-            tick: app_config.tick,
+            tictac: app_config.tictac,
             add_entity: app_config.add_entity,
             remove_entity: app_config.remove_entity,
             update_component: app_config.update_component,
@@ -170,9 +176,13 @@ impl App {
             resources: Rc::clone(&app.resources),
         });
 
-        app.tick.register(ApplySystems {
-            systems: Rc::clone(&app.systems),
-        });
+        app.clock
+            .borrow()
+            .on_tick()
+            .register(ClockListener::new(&app));
+
+        app.tictac.register(TestSystem);
+        app.pre_render.register(TestSystem);
 
         app
     }
@@ -193,13 +203,6 @@ impl App {
         &self.resources
     }
 
-    pub fn add_system<T>(&self, system: T)
-    where
-        T: System + 'static,
-    {
-        self.systems.borrow_mut().push(Box::new(system));
-    }
-
     pub fn on_pre_render(&self) -> &Carrier<PreRender> {
         &self.pre_render
     }
@@ -208,8 +211,8 @@ impl App {
         &self.post_render
     }
 
-    pub fn on_tick(&self) -> &Carrier<Tick> {
-        &self.tick
+    pub fn on_tictac(&self) -> &Carrier<Tictac> {
+        &self.tictac
     }
 
     pub fn on_add_entity(&self) -> &Carrier<AddEntity> {
@@ -293,12 +296,57 @@ impl Job for AppJob {
     }
 }
 
-pub struct ApplySystems {
-    systems: Rrc<Vec<Box<dyn System>>>,
+struct ClockListener {
+    tictac: Carrier<Tictac>,
+    scene: Rrc<Scene>,
+    clock: Rrc<dyn Clock>,
+    engine: Rrc<dyn RenderEngine>,
+    resources: Rrc<Resources>,
 }
 
-impl<D> Listener<D> for ApplySystems {
-    fn execute(&self, _: &D) {
+impl ClockListener {
+    fn new(app: &App) -> Self {
+        Self {
+            tictac: app.tictac.clone(),
+            scene: Rc::clone(&app.scene),
+            clock: Rc::clone(&app.clock),
+            engine: Rc::clone(&app.engine),
+            resources: Rc::clone(&app.resources),
+        }
+    }
+}
+
+impl Listener<Tick> for ClockListener {
+    fn execute(&self, tick: &Tick) {
+        self.tictac.send(&Tictac {
+            tick: *tick,
+            scene: Rc::clone(&self.scene),
+            clock: Rc::clone(&self.clock),
+            engine: Rc::clone(&self.engine),
+            resources: Rc::clone(&self.resources),
+        });
+    }
+}
+
+struct TestSystem;
+
+impl System<Tictac> for TestSystem {
+    fn execute(
+        &self,
+        Tictac {
+            tick,
+            scene,
+            clock,
+            engine,
+            resources,
+        }: &Tictac,
+    ) {
+        let entity = scene.borrow_mut().entity_manager_mut().create_empty_entity();
+    }
+}
+
+impl System<PreRender> for TestSystem {
+    fn execute(&self, message: &PreRender) {
         todo!()
     }
 }

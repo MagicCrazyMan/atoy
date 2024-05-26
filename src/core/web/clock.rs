@@ -35,7 +35,7 @@ impl Drop for WebClock {
 }
 
 impl Clock for WebClock {
-    fn new(app_config: &AppConfig) -> Self
+    fn new(_: &AppConfig) -> Self
     where
         Self: Sized,
     {
@@ -44,7 +44,7 @@ impl Clock for WebClock {
             stop_time: None,
             interval: None,
 
-            tick: app_config.on_tick().clone(),
+            tick: Carrier::new(),
             handle: None,
             handler: Box::into_raw(Box::new(None)),
         }
@@ -110,6 +110,10 @@ impl Clock for WebClock {
             self.interval = None;
             self.stop_time = Some(performance().now());
         }
+    }
+
+    fn on_tick(&self) -> &Carrier<Tick> {
+        &self.tick
     }
 }
 
