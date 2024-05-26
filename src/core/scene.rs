@@ -1,13 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{camera::Camera, channel::Sender, entity::Entity};
+use super::{camera::Camera, channel::Sender};
 
 pub struct Scene {
     sender: Sender<SceneMessage>,
 
     camera: Box<dyn Camera>,
 
-    entities: Vec<Rc<RefCell<dyn Entity>>>,
+    // entities: Vec<Rc<RefCell<dyn Entity>>>,
 }
 
 impl Scene {

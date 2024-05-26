@@ -9,7 +9,6 @@ pub mod engine;
 pub mod entity;
 pub mod frustum;
 pub mod looper;
-pub mod operator;
 pub mod plane;
 pub mod property;
 pub mod resource;

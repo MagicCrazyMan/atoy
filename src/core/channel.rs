@@ -59,10 +59,7 @@ impl<M> Clone for Sender<M> {
     }
 }
 
-impl<M> Sender<M>
-where
-    M: 'static,
-{
+impl<M: 'static> Sender<M> {
     fn new(ports: Ports) -> Self {
         Self {
             ports,
@@ -95,10 +92,7 @@ where
 }
 
 /// Message receiver receiving data from channel under specified message kind.
-pub trait Receiver<M>
-where
-    M: 'static,
-{
+pub trait Receiver<M: 'static > {
     /// Executes code when receive a message.
     fn receive(&self, message: &M);
 
@@ -115,10 +109,7 @@ pub struct Registry<M> {
     _kind: PhantomData<M>,
 }
 
-impl<M> Registry<M>
-where
-    M: 'static,
-{
+impl<M: 'static> Registry<M> {
     fn new(ports: Ports) -> Self {
         Self {
             ports,

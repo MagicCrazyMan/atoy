@@ -1,48 +1,48 @@
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+// use std::{
+//     cell::RefCell,
+//     rc::{Rc, Weak},
+// };
 
-use gl_matrix4rust::mat4::Mat4;
-use uuid::Uuid;
+// use gl_matrix4rust::mat4::Mat4;
+// use uuid::Uuid;
 
-use super::{
-    bounding::BoundingVolume, operator::entity_collector::EntityFiltering,
-    transparency::{EntityTransparency, Transparency}, versioning::Versioning, web::webgl::entity::WebGlEntity,
-    AsAny,
-};
+// use super::{
+//     bounding::BoundingVolume, command::entity_collector::EntityFiltering,
+//     transparency::{EntityTransparency, Transparency}, versioning::Versioning, web::webgl::entity::WebGlEntity,
+//     AsAny,
+// };
 
-pub trait Component: AsAny {
-    // fn property(&self, name: &str) -> Option<&dyn Any>;
-}
+// pub trait Component: AsAny {
+//     // fn property(&self, name: &str) -> Option<&dyn Any>;
+// }
 
-pub trait Entity: Versioning + AsAny {
-    fn id(&self) -> &Uuid;
+// pub trait Entity: Versioning + AsAny {
+//     fn id(&self) -> &Uuid;
 
-    fn local_matrix(&self) -> &Mat4<f64>;
+//     fn local_matrix(&self) -> &Mat4<f64>;
     
-    fn bounding_volume(&self) -> Option<&BoundingVolume>;
+//     fn bounding_volume(&self) -> Option<&BoundingVolume>;
 
-    fn child(&self, id: &Uuid) -> Option<&dyn Entity>;
+//     fn child(&self, id: &Uuid) -> Option<&dyn Entity>;
 
-    fn child_mut(&mut self, id: &Uuid) -> Option<&mut dyn Entity>;
+//     fn child_mut(&mut self, id: &Uuid) -> Option<&mut dyn Entity>;
 
-    fn children(&self) -> &[&dyn Entity];
+//     fn children(&self) -> &[&dyn Entity];
 
-    fn children_mut(&mut self) -> &[&mut dyn Entity];
+//     fn children_mut(&mut self) -> &[&mut dyn Entity];
 
-    fn transparency(&self) -> Option<Transparency>;
+//     fn transparency(&self) -> Option<Transparency>;
 
-    fn as_filtering(&self) -> Option<&dyn EntityFiltering>;
+//     fn as_filtering(&self) -> Option<&dyn EntityFiltering>;
 
-    fn as_webgl(&self) -> Option<&dyn WebGlEntity>;
+//     fn as_webgl(&self) -> Option<&dyn WebGlEntity>;
 
-    fn as_webgl_mut(&mut self) -> Option<&mut dyn WebGlEntity>;
-}
+//     fn as_webgl_mut(&mut self) -> Option<&mut dyn WebGlEntity>;
+// }
 
-pub trait Group {
+// pub trait Group {
     
-}
+// }
 
 // pub type EntityShared = Rc<RefCell<dyn Entity>>;
 // pub type EntitySharedWeak = Weak<RefCell<dyn Entity>>;

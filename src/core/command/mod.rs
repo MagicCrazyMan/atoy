@@ -21,7 +21,7 @@ pub trait Command {
 
     type RenderEngine: RenderEngine;
 
-    fn execute(&mut self, context: &Context<'_, Self::Clock, Self::RenderEngine>);
+    fn execute(&mut self, context: Context<'_, Self::Clock, Self::RenderEngine>);
 }
 
 pub struct Commands<CLK, RE>(VecDeque<Box<dyn Command<Clock = CLK, RenderEngine = RE>>>);

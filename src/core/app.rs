@@ -8,6 +8,11 @@ use super::{
     scene::Scene,
 };
 
+pub enum Message<'app, CLK, RE> {
+    PreRender(Context<'app, CLK, RE>),
+    PostRender(Context<'app, CLK, RE>),
+}
+
 pub struct App<JL, CLK, RE> {
     scene: Scene,
     clock: CLK,
@@ -93,58 +98,7 @@ where
     RE: RenderEngine + 'static,
 {
     pub fn start(&mut self) {
-        struct CommandExecutor<CLK, RE> {
-            scene: *mut Scene,
-            clock: *mut CLK,
-            engine: *mut RE,
-            channel: *mut MessageChannel,
-
-            current_commands: *mut Commands<CLK, RE>,
-            next_commands: *mut Commands<CLK, RE>,
-
-            resources: *mut Resources,
-            temp_resources: *mut Resources,
-        }
-
-        impl<CLK, RE> CommandExecutor<CLK, RE>
-        where
-            CLK: Clock + 'static,
-            RE: RenderEngine + 'static,
-        {
-            unsafe fn execute(&mut self) {
-                while let Some(mut command) = (*self.current_commands).pop_front() {
-                    let context = Context {
-                        scene: &mut *self.scene,
-                        clock: &mut *self.clock,
-                        engine: &mut *self.engine,
-                        channel: &*self.channel,
-                        resources: &mut *self.resources,
-                        temp_resources: &mut *self.temp_resources,
-
-                        current_commands: &mut *self.current_commands,
-                        next_commands: &mut *self.next_commands,
-                    };
-
-                    command.execute(&context);
-                }
-
-                std::mem::swap(&mut *self.current_commands, &mut *self.next_commands);
-                (*self.temp_resources).clear();
-            }
-        }
-
-        let mut executor = CommandExecutor {
-            scene: &mut self.scene,
-            clock: &mut self.clock,
-            engine: &mut self.engine,
-            channel: &mut self.channel,
-
-            current_commands: &mut self.current_commands,
-            next_commands: &mut self.next_commands,
-
-            resources: &mut self.resources,
-            temp_resources: &mut self.temp_resources,
-        };
+        let mut executor = AppJob::new(self);
         self.job_looper.start(move || unsafe {
             executor.execute();
         });
@@ -152,5 +106,65 @@ where
 
     pub fn stop(&mut self) {
         self.job_looper.stop();
+    }
+}
+
+struct AppJob<CLK, RE> {
+    scene: *mut Scene,
+    clock: *mut CLK,
+    engine: *mut RE,
+    channel: *const MessageChannel,
+
+    current_commands: *mut Commands<CLK, RE>,
+    next_commands: *mut Commands<CLK, RE>,
+
+    resources: *mut Resources,
+    temp_resources: *mut Resources,
+}
+
+impl<CLK, RE> AppJob<CLK, RE>
+where
+    CLK: Clock + 'static,
+    RE: RenderEngine + 'static,
+{
+    fn new<JL>(app: &mut App<JL, CLK, RE>) -> Self {
+        Self {
+            scene: &mut app.scene,
+            clock: &mut app.clock,
+            engine: &mut app.engine,
+            channel: &app.channel,
+            resources: &mut app.resources,
+            temp_resources: &mut app.temp_resources,
+
+            current_commands: &mut app.current_commands,
+            next_commands: &mut app.next_commands,
+        }
+    }
+
+    unsafe fn context<'app>(&'app mut self) -> Context<'app, CLK, RE> {
+        Context {
+            scene: &mut *self.scene,
+            clock: &mut *self.clock,
+            engine: &mut *self.engine,
+            channel: &*self.channel,
+            resources: &mut *self.resources,
+            temp_resources: &mut *self.temp_resources,
+
+            current_commands: &mut *self.current_commands,
+            next_commands: &mut *self.next_commands,
+        }
+    }
+
+    unsafe fn execute<'app>(&'app mut self) {
+        (*self.channel)
+            .sender()
+            .send(Message::PreRender(self.context()));
+
+        while let Some(mut command) = (*self.current_commands).pop_front() {
+            command.execute(self.context());
+        }
+
+        std::mem::swap(&mut *self.current_commands, &mut *self.next_commands);
+        (*self.temp_resources).clear();
     }
 }

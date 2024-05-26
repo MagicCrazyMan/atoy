@@ -25,6 +25,28 @@ pub fn as_any_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
+/// A procedure macro implements [`crate::core::ecs::component::Component`] trait.
+#[proc_macro_derive(Component)]
+pub fn component_derive(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(input).expect("failed to parse");
+    let name = ast.ident;
+    quote! {
+        impl crate::core::ecs::component::Component for #name {
+            fn component_type() -> std::any::TypeId
+            where
+                Self: Sized + 'static,
+            {
+                std::any::TypeId::of::<Self>()
+            }
+        
+            fn component_type_instanced(&self) -> std::any::TypeId {
+                std::any::TypeId::of::<Self>()
+            }
+        }
+    }
+    .into()
+}
+
 /// A procedure macro implements `to_gl_enum` and `from_gl_enum` methods for a Rust enum.
 #[proc_macro_derive(GlEnum, attributes(gl_enum))]
 pub fn gl_enum_derive(input: TokenStream) -> TokenStream {

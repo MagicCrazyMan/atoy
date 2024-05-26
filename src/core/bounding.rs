@@ -1,4 +1,5 @@
 use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
+use proc::{AsAny, Component};
 
 use crate::{
     frustum::ViewFrustum,
@@ -117,7 +118,7 @@ use crate::{
 // }
 
 /// Available bounding volumes.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, AsAny, Component)]
 pub enum BoundingVolume {
     BoundingSphere {
         center: Vec3,
