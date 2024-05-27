@@ -30,7 +30,10 @@ pub struct PostRender {
 
 pub struct Tick {
     pub context: AppContext,
-    pub tick: super::clock::Tick,
+    pub start_time: f64,
+    pub previous_time: f64,
+    pub current_time: f64,
+    pub delta_time: f64,
 }
 
 pub struct AddEntity {
@@ -176,7 +179,13 @@ pub struct App {
 }
 
 impl App {
-    pub fn new<CLK, RE, R>(app_config: AppConfig, scene: Scene, clock: CLK, engine: RE, runner: R) -> Self
+    pub fn new<CLK, RE, R>(
+        app_config: AppConfig,
+        scene: Scene,
+        clock: CLK,
+        engine: RE,
+        runner: R,
+    ) -> Self
     where
         CLK: Clock + 'static,
         RE: RenderEngine + 'static,
@@ -360,7 +369,10 @@ impl Listener<super::clock::Tick> for ClockListener {
     fn execute(&mut self, tick: &mut super::clock::Tick) {
         self.tick.send(&mut Tick {
             context: self.context.clone(),
-            tick: *tick,
+            start_time: tick.start_time,
+            previous_time: tick.previous_time,
+            current_time: tick.current_time,
+            delta_time: tick.delta_time,
         });
     }
 }
