@@ -76,7 +76,7 @@ impl Clock for WebClock {
                 let tick = self.tick.clone();
                 Closure::new(move || {
                     let current_time = performance().now();
-                    tick.send(&Tick::new(
+                    tick.send(&mut Tick::new(
                         start_time,
                         previous_time.borrow().clone(),
                         current_time,

@@ -93,7 +93,7 @@ impl EntityManager {
         self.chunk_or_create(archetype)
             .insert(id, Rc::clone(&entity));
 
-        self.add_entity.send(&AddEntity {});
+        self.add_entity.send(&mut AddEntity {});
 
         entity
     }
@@ -110,7 +110,7 @@ impl EntityManager {
             .unwrap()
             .remove(id);
 
-        self.remove_entity.send(&&RemoveEntity {});
+        self.remove_entity.send(&mut RemoveEntity {});
     }
 
     pub fn remove_component<T>(&self, id: &Uuid)
@@ -129,7 +129,7 @@ impl EntityManager {
         if old_archetype != new_archetype {
             self.chunk_or_create(old_archetype).remove(&id);
             self.chunk_or_create(new_archetype).insert(id, entity);
-            self.remove_component.send(&RemoveComponent {});
+            self.remove_component.send(&mut RemoveComponent {});
         }
     }
 
@@ -150,11 +150,11 @@ impl EntityManager {
         let new_archetype = entity.borrow().archetype();
 
         if old_archetype == new_archetype {
-            self.replace_component.send(&ReplaceComponent {});
+            self.replace_component.send(&mut ReplaceComponent {});
         } else {
             self.chunk_or_create(old_archetype).remove(&id);
             self.chunk_or_create(new_archetype).insert(id, entity);
-            self.add_component.send(&AddComponent {});
+            self.add_component.send(&mut AddComponent {});
         }
     }
 

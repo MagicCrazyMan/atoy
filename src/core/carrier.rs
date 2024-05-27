@@ -30,12 +30,12 @@ where
         }
     }
 
-    pub fn send(&self, payload: &D) {
+    pub fn send(&self, payload: &mut D) {
         let mut listeners = self.listeners.borrow_mut();
 
         let mut index = 0;
         while index < listeners.len() {
-            let (_, listener) = listeners.get_index(index).unwrap();
+            let (_, listener) = listeners.get_index_mut(index).unwrap();
 
             listener.execute(payload);
             if listener.abort() {
@@ -63,7 +63,7 @@ where
     D: ?Sized,
 {
     /// Executes code when receive a message.
-    fn execute(&self, message: &D);
+    fn execute(&mut self, message: &mut D);
 
     /// Returns `true` if this receiver should abort.
     fn abort(&self) -> bool {

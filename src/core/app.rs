@@ -1,5 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use proc::{AsAny, Component};
+
 use super::{
     carrier::{Carrier, Listener},
     clock::{Clock, Tick},
@@ -169,7 +171,7 @@ impl App {
             replace_component: app_config.replace_component,
         };
 
-        app_config.initialize.send(&Initialize {
+        app_config.initialize.send(&mut Initialize {
             scene: Rc::clone(&app.scene),
             clock: Rc::clone(&app.clock),
             engine: Rc::clone(&app.engine),
@@ -274,7 +276,7 @@ impl AppJob {
 
 impl Job for AppJob {
     fn execute(&mut self) {
-        self.pre_render.send(&PreRender {
+        self.pre_render.send(&mut PreRender {
             scene: Rc::clone(&self.scene),
             clock: Rc::clone(&self.clock),
             engine: Rc::clone(&self.engine),
@@ -287,7 +289,7 @@ impl Job for AppJob {
             resources: Rc::clone(&self.resources),
         });
 
-        self.post_render.send(&PostRender {
+        self.post_render.send(&mut PostRender {
             scene: Rc::clone(&self.scene),
             clock: Rc::clone(&self.clock),
             engine: Rc::clone(&self.engine),
@@ -317,8 +319,8 @@ impl ClockListener {
 }
 
 impl Listener<Tick> for ClockListener {
-    fn execute(&self, tick: &Tick) {
-        self.tictac.send(&Tictac {
+    fn execute(&mut self, tick: &mut Tick) {
+        self.tictac.send(&mut Tictac {
             tick: *tick,
             scene: Rc::clone(&self.scene),
             clock: Rc::clone(&self.clock),
@@ -330,23 +332,39 @@ impl Listener<Tick> for ClockListener {
 
 struct TestSystem;
 
+#[derive(AsAny, Component)]
+struct A;
+
+#[derive(AsAny, Component)]
+struct B;
+
+#[derive(AsAny, Component)]
+struct C;
+
 impl System<Tictac> for TestSystem {
+    type Query = (A, B);
+
     fn execute(
-        &self,
+        &mut self,
         Tictac {
             tick,
             scene,
             clock,
             engine,
             resources,
-        }: &Tictac,
+        }: &mut Tictac,
     ) {
-        let entity = scene.borrow_mut().entity_manager_mut().create_empty_entity();
+        let mut binding = scene.borrow_mut();
+        let entity = binding
+            .entity_manager_mut()
+            .entities_of_archetype::<Self::Query>();
     }
 }
 
 impl System<PreRender> for TestSystem {
-    fn execute(&self, message: &PreRender) {
+    type Query = (A, B, C);
+
+    fn execute(&mut self, message: &mut PreRender) {
         todo!()
     }
 }
