@@ -3,9 +3,12 @@ use std::{
     rc::Rc,
 };
 
+use uuid::Uuid;
+
 use super::{
     carrier::{Carrier, Listener},
     clock::Clock,
+    ecs::archetype::Archetype,
     engine::{RenderContext, RenderEngine},
     resource::Resources,
     runner::{Job, Runner},
@@ -32,26 +35,36 @@ pub struct Tick {
 
 pub struct AddEntity {
     pub context: AppContext,
+    pub entity_id: Uuid,
 }
 
 pub struct RemoveEntity {
     pub context: AppContext,
+    pub entity_id: Uuid,
 }
 
 pub struct UpdateComponent {
     pub context: AppContext,
+    pub entity_id: Uuid,
 }
 
 pub struct AddComponent {
     pub context: AppContext,
+    pub entity_id: Uuid,
+    pub old_archetype: Archetype,
+    pub new_archetype: Archetype,
 }
 
 pub struct RemoveComponent {
     pub context: AppContext,
+    pub entity_id: Uuid,
+    pub old_archetype: Archetype,
+    pub new_archetype: Archetype,
 }
 
 pub struct ReplaceComponent {
     pub context: AppContext,
+    pub entity_id: Uuid,
 }
 
 pub struct AppConfig {
@@ -163,17 +176,17 @@ pub struct App {
 }
 
 impl App {
-    pub fn new<R, CLK, RE>(app_config: AppConfig) -> Self
+    pub fn new<CLK, RE, R>(app_config: AppConfig, scene: Scene, clock: CLK, engine: RE, runner: R) -> Self
     where
-        R: Runner + 'static,
         CLK: Clock + 'static,
         RE: RenderEngine + 'static,
+        R: Runner + 'static,
     {
         let app: App = Self {
-            scene: Rc::new(RefCell::new(Scene::new())),
-            clock: Rc::new(RefCell::new(CLK::new(&app_config))),
-            engine: Rc::new(RefCell::new(RE::new(&app_config))),
-            runner: Box::new(R::new(&app_config)),
+            scene: Rc::new(RefCell::new(scene)),
+            clock: Rc::new(RefCell::new(clock)),
+            engine: Rc::new(RefCell::new(engine)),
+            runner: Box::new(runner),
 
             resources: Rc::new(RefCell::new(app_config.resources)),
 
@@ -370,6 +383,7 @@ impl Listener<super::ecs::manager::AddEntity> for AddEntityListener {
     fn execute(&mut self, payload: &mut super::ecs::manager::AddEntity) {
         self.add_entity.send(&mut AddEntity {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
         })
     }
 }
@@ -392,6 +406,7 @@ impl Listener<super::ecs::manager::RemoveEntity> for RemoveEntityListener {
     fn execute(&mut self, payload: &mut super::ecs::manager::RemoveEntity) {
         self.remove_entity.send(&mut RemoveEntity {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
         })
     }
 }
@@ -414,6 +429,7 @@ impl Listener<super::ecs::manager::UpdateComponent> for UpdateComponentListener 
     fn execute(&mut self, payload: &mut super::ecs::manager::UpdateComponent) {
         self.update_component.send(&mut UpdateComponent {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
         })
     }
 }
@@ -436,6 +452,9 @@ impl Listener<super::ecs::manager::AddComponent> for AddComponentListener {
     fn execute(&mut self, payload: &mut super::ecs::manager::AddComponent) {
         self.add_component.send(&mut AddComponent {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
+            old_archetype: payload.old_archetype.clone(),
+            new_archetype: payload.new_archetype.clone(),
         })
     }
 }
@@ -458,6 +477,9 @@ impl Listener<super::ecs::manager::RemoveComponent> for RemoveComponentListener 
     fn execute(&mut self, payload: &mut super::ecs::manager::RemoveComponent) {
         self.remove_component.send(&mut RemoveComponent {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
+            old_archetype: payload.old_archetype.clone(),
+            new_archetype: payload.new_archetype.clone(),
         })
     }
 }
@@ -480,6 +502,7 @@ impl Listener<super::ecs::manager::ReplaceComponent> for ReplaceComponentListene
     fn execute(&mut self, payload: &mut super::ecs::manager::ReplaceComponent) {
         self.replace_component.send(&mut ReplaceComponent {
             context: self.context.clone(),
+            entity_id: payload.entity_id,
         })
     }
 }

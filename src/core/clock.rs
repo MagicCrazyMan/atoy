@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::{app::AppConfig, carrier::Carrier, AsAny};
+use super::{carrier::Carrier, AsAny};
 
 /// Clock tick indicating clock ticking information.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -44,10 +44,6 @@ impl Tick {
 
 /// A trait defining a clock.
 pub trait Clock: AsAny {
-    fn new(app_config: &AppConfig) -> Self
-    where
-        Self: Sized;
-
     /// Returns the time when clock started.
     fn start_time(&self) -> Option<f64>;
 

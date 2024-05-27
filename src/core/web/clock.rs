@@ -5,7 +5,6 @@ use wasm_bindgen::{closure::Closure, JsCast};
 
 use crate::{
     core::{
-        app::AppConfig,
         carrier::Carrier,
         clock::{Clock, Tick},
     },
@@ -24,21 +23,8 @@ pub struct WebClock {
     handler: *mut Option<Closure<dyn FnMut()>>,
 }
 
-impl Drop for WebClock {
-    fn drop(&mut self) {
-        self.stop();
-
-        unsafe {
-            drop(Box::from_raw(self.handler));
-        }
-    }
-}
-
-impl Clock for WebClock {
-    fn new(_: &AppConfig) -> Self
-    where
-        Self: Sized,
-    {
+impl WebClock {
+    pub fn new() -> Self {
         Self {
             start_time: None,
             stop_time: None,
@@ -50,6 +36,30 @@ impl Clock for WebClock {
         }
     }
 
+    pub fn elapsed_time(&self) -> Option<f64> {
+        if let (Some(start_time), Some(stop_time)) = (self.start_time(), self.stop_time()) {
+            Some(stop_time - start_time)
+        } else {
+            None
+        }
+    }
+
+    pub fn interval(&self) -> Option<Duration> {
+        self.interval.clone()
+    }
+}
+
+impl Drop for WebClock {
+    fn drop(&mut self) {
+        self.stop();
+
+        unsafe {
+            drop(Box::from_raw(self.handler));
+        }
+    }
+}
+
+impl Clock for WebClock {
     fn start_time(&self) -> Option<f64> {
         self.start_time.clone()
     }
@@ -114,19 +124,5 @@ impl Clock for WebClock {
 
     fn on_tick(&self) -> &Carrier<Tick> {
         &self.tick
-    }
-}
-
-impl WebClock {
-    pub fn elapsed_time(&self) -> Option<f64> {
-        if let (Some(start_time), Some(stop_time)) = (self.start_time(), self.stop_time()) {
-            Some(stop_time - start_time)
-        } else {
-            None
-        }
-    }
-
-    pub fn interval(&self) -> Option<Duration> {
-        self.interval.clone()
     }
 }

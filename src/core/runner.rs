@@ -1,10 +1,6 @@
-use super::{app::AppConfig, AsAny};
+use super::AsAny;
 
 pub trait Runner: AsAny {
-    fn new(app_config: &AppConfig) -> Self
-    where
-        Self: Sized;
-
     fn start(&mut self, job: Box<dyn Job>);
 
     fn stop(&mut self);

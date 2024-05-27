@@ -2,6 +2,10 @@ use crate::core::carrier::Listener;
 
 use super::archetype::AsArchetype;
 
+// pub trait WithEntityManager {
+//     fn entity_manager(&self)
+// }
+
 pub trait System<D>
 where
     D: ?Sized,

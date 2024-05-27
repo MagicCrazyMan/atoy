@@ -16,28 +16,38 @@ use super::{
     iter::{ArchetypeIter, Iter},
 };
 
+#[derive(Clone)]
 pub struct AddEntity {
-    pub id: Uuid,
+    pub entity_id: Uuid,
 }
 
+#[derive(Clone)]
 pub struct RemoveEntity {
-    pub id: Uuid,
+    pub entity_id: Uuid,
 }
 
+#[derive(Clone)]
 pub struct UpdateComponent {
-    pub id: Uuid,
+    pub entity_id: Uuid,
 }
 
+#[derive(Clone)]
 pub struct AddComponent {
-    pub id: Uuid,
+    pub entity_id: Uuid,
+    pub old_archetype: Archetype,
+    pub new_archetype: Archetype,
 }
 
+#[derive(Clone)]
 pub struct RemoveComponent {
-    pub id: Uuid,
+    pub entity_id: Uuid,
+    pub old_archetype: Archetype,
+    pub new_archetype: Archetype,
 }
 
+#[derive(Clone)]
 pub struct ReplaceComponent {
-    pub id: Uuid,
+    pub entity_id: Uuid,
 }
 
 pub struct EntityManager {
@@ -110,7 +120,7 @@ impl EntityManager {
         self.chunk_or_create(archetype)
             .insert(id, Rc::clone(&entity));
 
-        self.add_entity.send(&mut AddEntity { id });
+        self.add_entity.send(&mut AddEntity { entity_id: id });
 
         entity
     }
@@ -127,7 +137,7 @@ impl EntityManager {
             .unwrap()
             .remove(id);
 
-        self.remove_entity.send(&mut RemoveEntity { id: *id });
+        self.remove_entity.send(&mut RemoveEntity { entity_id: *id });
     }
 
     pub fn remove_component<T>(&self, id: &Uuid)
@@ -144,9 +154,14 @@ impl EntityManager {
         let new_archetype = entity.borrow().archetype();
 
         if old_archetype != new_archetype {
-            self.chunk_or_create(old_archetype).remove(&id);
-            self.chunk_or_create(new_archetype).insert(id, entity);
-            self.remove_component.send(&mut RemoveComponent { id });
+            self.chunk_or_create(old_archetype.clone()).remove(&id);
+            self.chunk_or_create(new_archetype.clone())
+                .insert(id, entity);
+            self.remove_component.send(&mut RemoveComponent {
+                entity_id: id,
+                old_archetype,
+                new_archetype,
+            });
         }
     }
 
@@ -167,11 +182,16 @@ impl EntityManager {
         let new_archetype = entity.borrow().archetype();
 
         if old_archetype == new_archetype {
-            self.replace_component.send(&mut ReplaceComponent { id });
+            self.replace_component.send(&mut ReplaceComponent { entity_id: id });
         } else {
-            self.chunk_or_create(old_archetype).remove(&id);
-            self.chunk_or_create(new_archetype).insert(id, entity);
-            self.add_component.send(&mut AddComponent { id });
+            self.chunk_or_create(old_archetype.clone()).remove(&id);
+            self.chunk_or_create(new_archetype.clone())
+                .insert(id, entity);
+            self.add_component.send(&mut AddComponent {
+                entity_id: id,
+                old_archetype,
+                new_archetype,
+            });
         }
     }
 

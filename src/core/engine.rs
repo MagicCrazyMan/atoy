@@ -1,4 +1,4 @@
-use super::{app::AppConfig, clock::Clock, resource::Resources, scene::Scene, AsAny, Rrc};
+use super::{clock::Clock, resource::Resources, scene::Scene, AsAny, Rrc};
 
 pub struct RenderContext {
     pub scene: Rrc<Scene>,
@@ -7,9 +7,5 @@ pub struct RenderContext {
 }
 
 pub trait RenderEngine: AsAny {
-    fn new(app_config: &AppConfig) -> Self
-    where
-        Self: Sized;
-
     fn render(&mut self, context: RenderContext);
 }

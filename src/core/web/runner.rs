@@ -1,21 +1,28 @@
 use proc::AsAny;
 use wasm_bindgen::closure::Closure;
 
-use crate::core::{
-    app::AppConfig,
-    runner::{Job, Runner},
-};
+use crate::core::runner::{Job, Runner};
 
 use super::{cancel_animation_frame, request_animation_frame};
 
 #[derive(AsAny)]
-pub struct WebRunner {
+pub struct WebRafRunner {
     raf_id: *mut i32,
     job: Option<*mut dyn Job>,
     callback: *mut Option<Closure<dyn FnMut(f64)>>,
 }
 
-impl Drop for WebRunner {
+impl WebRafRunner {
+    pub fn new() -> Self {
+        Self {
+            raf_id: Box::into_raw(Box::new(-1)),
+            job: None,
+            callback: Box::into_raw(Box::new(None)),
+        }
+    }
+}
+
+impl Drop for WebRafRunner {
     fn drop(&mut self) {
         self.stop();
 
@@ -26,24 +33,7 @@ impl Drop for WebRunner {
     }
 }
 
-impl WebRunner {
-    pub fn new() -> Self {
-        Self {
-            raf_id: Box::into_raw(Box::new(-1)),
-            job: None,
-            callback: Box::into_raw(Box::new(None)),
-        }
-    }
-}
-
-impl Runner for WebRunner {
-    fn new(_: &AppConfig) -> Self
-    where
-        Self: Sized,
-    {
-        Self::new()
-    }
-
+impl Runner for WebRafRunner {
     fn start(&mut self, job: Box<dyn Job>) {
         self.stop();
 
