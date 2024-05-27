@@ -5,9 +5,9 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(app_config: &AppConfig) -> Self {
+    pub fn new() -> Self {
         Self {
-            entity_manager: EntityManager::new(app_config),
+            entity_manager: EntityManager::new(),
         }
     }
 

@@ -1,14 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
-
-use proc::{AsAny, Component};
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
 
 use super::{
     carrier::{Carrier, Listener},
-    clock::{Clock, Tick},
-    ecs::{
-        system::System, AddComponent, AddEntity, RemoveComponent, RemoveEntity, ReplaceComponent,
-        UpdateComponent,
-    },
+    clock::Clock,
     engine::{RenderContext, RenderEngine},
     resource::Resources,
     runner::{Job, Runner},
@@ -17,32 +14,44 @@ use super::{
 };
 
 pub struct Initialize {
-    pub scene: Rrc<Scene>,
-    pub clock: Rrc<dyn Clock>,
-    pub engine: Rrc<dyn RenderEngine>,
-    pub resources: Rrc<Resources>,
+    pub context: AppContext,
 }
 
 pub struct PreRender {
-    pub scene: Rrc<Scene>,
-    pub clock: Rrc<dyn Clock>,
-    pub engine: Rrc<dyn RenderEngine>,
-    pub resources: Rrc<Resources>,
+    pub context: AppContext,
 }
 
 pub struct PostRender {
-    pub scene: Rrc<Scene>,
-    pub clock: Rrc<dyn Clock>,
-    pub engine: Rrc<dyn RenderEngine>,
-    pub resources: Rrc<Resources>,
+    pub context: AppContext,
 }
 
-pub struct Tictac {
+pub struct Tick {
+    pub context: AppContext,
     pub tick: super::clock::Tick,
-    pub scene: Rrc<Scene>,
-    pub clock: Rrc<dyn Clock>,
-    pub engine: Rrc<dyn RenderEngine>,
-    pub resources: Rrc<Resources>,
+}
+
+pub struct AddEntity {
+    pub context: AppContext,
+}
+
+pub struct RemoveEntity {
+    pub context: AppContext,
+}
+
+pub struct UpdateComponent {
+    pub context: AppContext,
+}
+
+pub struct AddComponent {
+    pub context: AppContext,
+}
+
+pub struct RemoveComponent {
+    pub context: AppContext,
+}
+
+pub struct ReplaceComponent {
+    pub context: AppContext,
 }
 
 pub struct AppConfig {
@@ -55,7 +64,7 @@ pub struct AppConfig {
     add_component: Carrier<AddComponent>,
     remove_component: Carrier<RemoveComponent>,
     replace_component: Carrier<ReplaceComponent>,
-    tictac: Carrier<Tictac>,
+    tick: Carrier<Tick>,
 
     resources: Resources,
 }
@@ -66,7 +75,7 @@ impl AppConfig {
             initialize: Carrier::new(),
             pre_render: Carrier::new(),
             post_render: Carrier::new(),
-            tictac: Carrier::new(),
+            tick: Carrier::new(),
             add_entity: Carrier::new(),
             remove_entity: Carrier::new(),
             update_component: Carrier::new(),
@@ -98,8 +107,8 @@ impl AppConfig {
         &self.post_render
     }
 
-    pub fn on_tictac(&self) -> &Carrier<Tictac> {
-        &self.tictac
+    pub fn on_tick(&self) -> &Carrier<Tick> {
+        &self.tick
     }
 
     pub fn on_add_entity(&self) -> &Carrier<AddEntity> {
@@ -127,6 +136,14 @@ impl AppConfig {
     }
 }
 
+#[derive(Clone)]
+pub struct AppContext {
+    pub scene: Rrc<Scene>,
+    pub clock: Rrc<dyn Clock>,
+    pub engine: Rrc<dyn RenderEngine>,
+    pub resources: Rrc<Resources>,
+}
+
 pub struct App {
     scene: Rrc<Scene>,
     clock: Rrc<dyn Clock>,
@@ -136,7 +153,7 @@ pub struct App {
 
     pre_render: Carrier<PreRender>,
     post_render: Carrier<PostRender>,
-    tictac: Carrier<Tictac>,
+    tick: Carrier<Tick>,
     add_entity: Carrier<AddEntity>,
     remove_entity: Carrier<RemoveEntity>,
     update_component: Carrier<UpdateComponent>,
@@ -152,8 +169,8 @@ impl App {
         CLK: Clock + 'static,
         RE: RenderEngine + 'static,
     {
-        let app = Self {
-            scene: Rc::new(RefCell::new(Scene::new(&app_config))),
+        let app: App = Self {
+            scene: Rc::new(RefCell::new(Scene::new())),
             clock: Rc::new(RefCell::new(CLK::new(&app_config))),
             engine: Rc::new(RefCell::new(RE::new(&app_config))),
             runner: Box::new(R::new(&app_config)),
@@ -162,7 +179,7 @@ impl App {
 
             pre_render: app_config.pre_render,
             post_render: app_config.post_render,
-            tictac: app_config.tictac,
+            tick: app_config.tick,
             add_entity: app_config.add_entity,
             remove_entity: app_config.remove_entity,
             update_component: app_config.update_component,
@@ -172,19 +189,36 @@ impl App {
         };
 
         app_config.initialize.send(&mut Initialize {
-            scene: Rc::clone(&app.scene),
-            clock: Rc::clone(&app.clock),
-            engine: Rc::clone(&app.engine),
-            resources: Rc::clone(&app.resources),
+            context: app.context(),
         });
 
         app.clock
             .borrow()
             .on_tick()
             .register(ClockListener::new(&app));
+        let entity_manager = Ref::map(app.scene.borrow(), |scene| scene.entity_manager());
+        entity_manager
+            .on_add_entity()
+            .register(AddEntityListener::new(&app));
+        entity_manager
+            .on_remove_entity()
+            .register(RemoveEntityListener::new(&app));
+        entity_manager
+            .on_update_component()
+            .register(UpdateComponentListener::new(&app));
+        entity_manager
+            .on_add_component()
+            .register(AddComponentListener::new(&app));
+        entity_manager
+            .on_remove_component()
+            .register(RemoveComponentListener::new(&app));
+        entity_manager
+            .on_replace_component()
+            .register(ReplaceComponentListener::new(&app));
+        drop(entity_manager);
 
-        app.tictac.register(TestSystem);
-        app.pre_render.register(TestSystem);
+        // app.tick.register(TestSystem);
+        // app.pre_render.register(TestSystem);
 
         app
     }
@@ -205,6 +239,15 @@ impl App {
         &self.resources
     }
 
+    pub fn context(&self) -> AppContext {
+        AppContext {
+            scene: Rc::clone(&self.scene),
+            clock: Rc::clone(&self.clock),
+            engine: Rc::clone(&self.engine),
+            resources: Rc::clone(&self.resources),
+        }
+    }
+
     pub fn on_pre_render(&self) -> &Carrier<PreRender> {
         &self.pre_render
     }
@@ -213,8 +256,8 @@ impl App {
         &self.post_render
     }
 
-    pub fn on_tictac(&self) -> &Carrier<Tictac> {
-        &self.tictac
+    pub fn on_tick(&self) -> &Carrier<Tick> {
+        &self.tick
     }
 
     pub fn on_add_entity(&self) -> &Carrier<AddEntity> {
@@ -253,10 +296,7 @@ impl App {
 }
 
 struct AppJob {
-    scene: Rrc<Scene>,
-    clock: Rrc<dyn Clock>,
-    engine: Rrc<dyn RenderEngine>,
-    resources: Rrc<Resources>,
+    context: AppContext,
     pre_render: Carrier<PreRender>,
     post_render: Carrier<PostRender>,
 }
@@ -264,10 +304,7 @@ struct AppJob {
 impl AppJob {
     fn new(app: &App) -> Self {
         Self {
-            scene: Rc::clone(&app.scene),
-            clock: Rc::clone(&app.clock),
-            engine: Rc::clone(&app.engine),
-            resources: Rc::clone(&app.resources),
+            context: app.context(),
             pre_render: app.pre_render.clone(),
             post_render: app.post_render.clone(),
         }
@@ -277,94 +314,211 @@ impl AppJob {
 impl Job for AppJob {
     fn execute(&mut self) {
         self.pre_render.send(&mut PreRender {
-            scene: Rc::clone(&self.scene),
-            clock: Rc::clone(&self.clock),
-            engine: Rc::clone(&self.engine),
-            resources: Rc::clone(&self.resources),
+            context: self.context.clone(),
         });
 
-        self.engine.borrow_mut().render(RenderContext {
-            scene: Rc::clone(&self.scene),
-            clock: Rc::clone(&self.clock),
-            resources: Rc::clone(&self.resources),
+        self.context.engine.borrow_mut().render(RenderContext {
+            scene: Rc::clone(&self.context.scene),
+            clock: Rc::clone(&self.context.clock),
+            resources: Rc::clone(&self.context.resources),
         });
 
         self.post_render.send(&mut PostRender {
-            scene: Rc::clone(&self.scene),
-            clock: Rc::clone(&self.clock),
-            engine: Rc::clone(&self.engine),
-            resources: Rc::clone(&self.resources),
+            context: self.context.clone(),
         });
     }
 }
 
 struct ClockListener {
-    tictac: Carrier<Tictac>,
-    scene: Rrc<Scene>,
-    clock: Rrc<dyn Clock>,
-    engine: Rrc<dyn RenderEngine>,
-    resources: Rrc<Resources>,
+    context: AppContext,
+    tick: Carrier<Tick>,
 }
 
 impl ClockListener {
     fn new(app: &App) -> Self {
         Self {
-            tictac: app.tictac.clone(),
-            scene: Rc::clone(&app.scene),
-            clock: Rc::clone(&app.clock),
-            engine: Rc::clone(&app.engine),
-            resources: Rc::clone(&app.resources),
+            context: app.context(),
+            tick: app.tick.clone(),
         }
     }
 }
 
-impl Listener<Tick> for ClockListener {
-    fn execute(&mut self, tick: &mut Tick) {
-        self.tictac.send(&mut Tictac {
+impl Listener<super::clock::Tick> for ClockListener {
+    fn execute(&mut self, tick: &mut super::clock::Tick) {
+        self.tick.send(&mut Tick {
+            context: self.context.clone(),
             tick: *tick,
-            scene: Rc::clone(&self.scene),
-            clock: Rc::clone(&self.clock),
-            engine: Rc::clone(&self.engine),
-            resources: Rc::clone(&self.resources),
         });
     }
 }
 
-struct TestSystem;
+struct AddEntityListener {
+    context: AppContext,
+    add_entity: Carrier<AddEntity>,
+}
 
-#[derive(AsAny, Component)]
-struct A;
-
-#[derive(AsAny, Component)]
-struct B;
-
-#[derive(AsAny, Component)]
-struct C;
-
-impl System<Tictac> for TestSystem {
-    type Query = (A, B);
-
-    fn execute(
-        &mut self,
-        Tictac {
-            tick,
-            scene,
-            clock,
-            engine,
-            resources,
-        }: &mut Tictac,
-    ) {
-        let mut binding = scene.borrow_mut();
-        let entity = binding
-            .entity_manager_mut()
-            .entities_of_archetype::<Self::Query>();
+impl AddEntityListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            add_entity: app.add_entity.clone(),
+        }
     }
 }
 
-impl System<PreRender> for TestSystem {
-    type Query = (A, B, C);
-
-    fn execute(&mut self, message: &mut PreRender) {
-        todo!()
+impl Listener<super::ecs::manager::AddEntity> for AddEntityListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::AddEntity) {
+        self.add_entity.send(&mut AddEntity {
+            context: self.context.clone(),
+        })
     }
 }
+
+struct RemoveEntityListener {
+    context: AppContext,
+    remove_entity: Carrier<RemoveEntity>,
+}
+
+impl RemoveEntityListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            remove_entity: app.remove_entity.clone(),
+        }
+    }
+}
+
+impl Listener<super::ecs::manager::RemoveEntity> for RemoveEntityListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::RemoveEntity) {
+        self.remove_entity.send(&mut RemoveEntity {
+            context: self.context.clone(),
+        })
+    }
+}
+
+struct UpdateComponentListener {
+    context: AppContext,
+    update_component: Carrier<UpdateComponent>,
+}
+
+impl UpdateComponentListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            update_component: app.update_component.clone(),
+        }
+    }
+}
+
+impl Listener<super::ecs::manager::UpdateComponent> for UpdateComponentListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::UpdateComponent) {
+        self.update_component.send(&mut UpdateComponent {
+            context: self.context.clone(),
+        })
+    }
+}
+
+struct AddComponentListener {
+    context: AppContext,
+    add_component: Carrier<AddComponent>,
+}
+
+impl AddComponentListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            add_component: app.add_component.clone(),
+        }
+    }
+}
+
+impl Listener<super::ecs::manager::AddComponent> for AddComponentListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::AddComponent) {
+        self.add_component.send(&mut AddComponent {
+            context: self.context.clone(),
+        })
+    }
+}
+
+struct RemoveComponentListener {
+    context: AppContext,
+    remove_component: Carrier<RemoveComponent>,
+}
+
+impl RemoveComponentListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            remove_component: app.remove_component.clone(),
+        }
+    }
+}
+
+impl Listener<super::ecs::manager::RemoveComponent> for RemoveComponentListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::RemoveComponent) {
+        self.remove_component.send(&mut RemoveComponent {
+            context: self.context.clone(),
+        })
+    }
+}
+
+struct ReplaceComponentListener {
+    context: AppContext,
+    replace_component: Carrier<ReplaceComponent>,
+}
+
+impl ReplaceComponentListener {
+    fn new(app: &App) -> Self {
+        Self {
+            context: app.context(),
+            replace_component: app.replace_component.clone(),
+        }
+    }
+}
+
+impl Listener<super::ecs::manager::ReplaceComponent> for ReplaceComponentListener {
+    fn execute(&mut self, payload: &mut super::ecs::manager::ReplaceComponent) {
+        self.replace_component.send(&mut ReplaceComponent {
+            context: self.context.clone(),
+        })
+    }
+}
+
+// struct TestSystem;
+
+// #[derive(AsAny, Component)]
+// struct A;
+
+// #[derive(AsAny, Component)]
+// struct B;
+
+// #[derive(AsAny, Component)]
+// struct C;
+
+// impl System<tick> for TestSystem {
+//     type Query = (A, B);
+
+//     fn execute(
+//         &mut self,
+//         tick {
+//             tick,
+//             scene,
+//             clock,
+//             engine,
+//             resources,
+//         }: &mut tick,
+//     ) {
+//         let mut binding = scene.borrow_mut();
+//         let entity = binding
+//             .entity_manager_mut()
+//             .entities_of_archetype::<Self::Query>();
+//     }
+// }
+
+// impl System<PreRender> for TestSystem {
+//     type Query = (A, B, C);
+
+//     fn execute(&mut self, message: &mut PreRender) {
+//         todo!()
+//     }
+// }

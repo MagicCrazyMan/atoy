@@ -1,9 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
-use indexmap::IndexMap;
+use hashbrown::HashMap;
 use uuid::Uuid;
 
-type Listeners<D> = Rc<RefCell<IndexMap<Uuid, Box<dyn Listener<D>>>>>;
+type Listeners<D> = Rc<RefCell<HashMap<Uuid, Box<dyn Listener<D>>>>>;
 
 pub struct Carrier<D>
 where
@@ -26,23 +26,23 @@ where
 {
     pub fn new() -> Self {
         Self {
-            listeners: Rc::new(RefCell::new(IndexMap::new())),
+            listeners: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
     pub fn send(&self, payload: &mut D) {
         let mut listeners = self.listeners.borrow_mut();
 
-        let mut index = 0;
-        while index < listeners.len() {
-            let (_, listener) = listeners.get_index_mut(index).unwrap();
-
+        let mut removed = Vec::new();
+        for (id, listener) in listeners.iter_mut() {
             listener.execute(payload);
             if listener.abort() {
-                listeners.shift_remove_index(index);
-            } else {
-                index += 1;
+                removed.push(*id);
             }
+        }
+
+        for id in removed {
+            listeners.remove(&id);
         }
     }
 
@@ -63,7 +63,7 @@ where
     D: ?Sized,
 {
     /// Executes code when receive a message.
-    fn execute(&mut self, message: &mut D);
+    fn execute(&mut self, payload: &mut D);
 
     /// Returns `true` if this receiver should abort.
     fn abort(&self) -> bool {
@@ -90,6 +90,6 @@ where
 
     /// Removes the associated receiver from the channel.
     pub fn unregister(self) {
-        self.listeners.borrow_mut().swap_remove(&self.id);
+        self.listeners.borrow_mut().remove(&self.id);
     }
 }

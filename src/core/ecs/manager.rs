@@ -7,47 +7,64 @@ use std::{
 use hashbrown::{hash_map::Entry, HashMap};
 use uuid::Uuid;
 
-use crate::core::{app::AppConfig, carrier::Carrier, Rrc};
+use crate::core::{carrier::Carrier, Rrc};
 
 use super::{
     archetype::{Archetype, AsArchetype},
     component::Component,
     entity::Entity,
     iter::{ArchetypeIter, Iter},
-    AddComponent, AddEntity, RemoveComponent, RemoveEntity, ReplaceComponent,
 };
 
-pub struct EntityManager {
-    pub(super) id: Uuid,
+pub struct AddEntity {
+    pub id: Uuid,
+}
 
+pub struct RemoveEntity {
+    pub id: Uuid,
+}
+
+pub struct UpdateComponent {
+    pub id: Uuid,
+}
+
+pub struct AddComponent {
+    pub id: Uuid,
+}
+
+pub struct RemoveComponent {
+    pub id: Uuid,
+}
+
+pub struct ReplaceComponent {
+    pub id: Uuid,
+}
+
+pub struct EntityManager {
     pub(super) archetypes: Rrc<HashMap<Archetype, HashMap<Uuid, Rrc<Entity>>>>,
     pub(super) entities: Rrc<HashMap<Uuid, Rrc<Entity>>>,
 
     add_entity: Carrier<AddEntity>,
     remove_entity: Carrier<RemoveEntity>,
+    update_component: Carrier<UpdateComponent>,
     add_component: Carrier<AddComponent>,
     remove_component: Carrier<RemoveComponent>,
     replace_component: Carrier<ReplaceComponent>,
 }
 
 impl EntityManager {
-    pub fn new(app_config: &AppConfig) -> Self {
+    pub fn new() -> Self {
         Self {
-            id: Uuid::new_v4(),
-
             archetypes: Rc::new(RefCell::new(HashMap::new())),
             entities: Rc::new(RefCell::new(HashMap::new())),
 
-            add_entity: app_config.on_add_entity().clone(),
-            remove_entity: app_config.on_remove_entity().clone(),
-            add_component: app_config.on_add_component().clone(),
-            remove_component: app_config.on_remove_component().clone(),
-            replace_component: app_config.on_replace_component().clone(),
+            add_entity: Carrier::new(),
+            remove_entity: Carrier::new(),
+            update_component: Carrier::new(),
+            add_component: Carrier::new(),
+            remove_component: Carrier::new(),
+            replace_component: Carrier::new(),
         }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
     }
 
     fn chunk_or_create(&self, archetype: Archetype) -> RefMut<'_, HashMap<Uuid, Rrc<Entity>>> {
@@ -93,7 +110,7 @@ impl EntityManager {
         self.chunk_or_create(archetype)
             .insert(id, Rc::clone(&entity));
 
-        self.add_entity.send(&mut AddEntity {});
+        self.add_entity.send(&mut AddEntity { id });
 
         entity
     }
@@ -110,7 +127,7 @@ impl EntityManager {
             .unwrap()
             .remove(id);
 
-        self.remove_entity.send(&mut RemoveEntity {});
+        self.remove_entity.send(&mut RemoveEntity { id: *id });
     }
 
     pub fn remove_component<T>(&self, id: &Uuid)
@@ -129,7 +146,7 @@ impl EntityManager {
         if old_archetype != new_archetype {
             self.chunk_or_create(old_archetype).remove(&id);
             self.chunk_or_create(new_archetype).insert(id, entity);
-            self.remove_component.send(&mut RemoveComponent {});
+            self.remove_component.send(&mut RemoveComponent { id });
         }
     }
 
@@ -150,11 +167,11 @@ impl EntityManager {
         let new_archetype = entity.borrow().archetype();
 
         if old_archetype == new_archetype {
-            self.replace_component.send(&mut ReplaceComponent {});
+            self.replace_component.send(&mut ReplaceComponent { id });
         } else {
             self.chunk_or_create(old_archetype).remove(&id);
             self.chunk_or_create(new_archetype).insert(id, entity);
-            self.add_component.send(&mut AddComponent {});
+            self.add_component.send(&mut AddComponent { id });
         }
     }
 
@@ -167,5 +184,29 @@ impl EntityManager {
         I: AsArchetype + 'static,
     {
         ArchetypeIter::new(self, I::as_archetype())
+    }
+
+    pub fn on_add_entity(&self) -> &Carrier<AddEntity> {
+        &self.add_entity
+    }
+
+    pub fn on_remove_entity(&self) -> &Carrier<RemoveEntity> {
+        &self.remove_entity
+    }
+
+    pub fn on_update_component(&self) -> &Carrier<UpdateComponent> {
+        &self.update_component
+    }
+
+    pub fn on_add_component(&self) -> &Carrier<AddComponent> {
+        &self.add_component
+    }
+
+    pub fn on_remove_component(&self) -> &Carrier<RemoveComponent> {
+        &self.remove_component
+    }
+
+    pub fn on_replace_component(&self) -> &Carrier<ReplaceComponent> {
+        &self.replace_component
     }
 }
