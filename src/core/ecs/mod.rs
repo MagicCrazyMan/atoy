@@ -5,3 +5,5 @@ pub mod iter;
 pub mod manager;
 pub mod system;
 pub mod world;
+pub mod chunk;
+pub mod error;

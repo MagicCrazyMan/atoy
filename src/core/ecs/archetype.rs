@@ -30,6 +30,16 @@ impl Archetype {
     }
 }
 
+impl Archetype {
+    pub fn components_per_entity(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn component_id(&self, index: usize) -> Option<TypeId> {
+        self.0.get(index).cloned()
+    }
+}
+
 pub trait ToArchetype {
     fn to_archetype(&self) -> Archetype;
 }

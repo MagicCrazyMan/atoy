@@ -219,24 +219,24 @@ impl App {
             .on_tick()
             .register(ClockListener::new(&app));
         let entity_manager = Ref::map(app.scene.borrow(), |scene| scene.entity_manager());
-        entity_manager
-            .on_add_entity()
-            .register(AddEntityListener::new(&app));
-        entity_manager
-            .on_remove_entity()
-            .register(RemoveEntityListener::new(&app));
-        entity_manager
-            .on_update_component()
-            .register(UpdateComponentListener::new(&app));
-        entity_manager
-            .on_add_component()
-            .register(AddComponentListener::new(&app));
-        entity_manager
-            .on_remove_component()
-            .register(RemoveComponentListener::new(&app));
-        entity_manager
-            .on_replace_component()
-            .register(ReplaceComponentListener::new(&app));
+        // entity_manager
+        //     .on_add_entity()
+        //     .register(AddEntityListener::new(&app));
+        // entity_manager
+        //     .on_remove_entity()
+        //     .register(RemoveEntityListener::new(&app));
+        // entity_manager
+        //     .on_update_component()
+        //     .register(UpdateComponentListener::new(&app));
+        // entity_manager
+        //     .on_add_component()
+        //     .register(AddComponentListener::new(&app));
+        // entity_manager
+        //     .on_remove_component()
+        //     .register(RemoveComponentListener::new(&app));
+        // entity_manager
+        //     .on_replace_component()
+        //     .register(ReplaceComponentListener::new(&app));
         drop(entity_manager);
 
         // app.tick.register(TestSystem);

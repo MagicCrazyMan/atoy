@@ -118,7 +118,7 @@ use crate::{
 // }
 
 /// Available bounding volumes.
-#[derive(Debug, Clone, Copy, PartialEq, AsAny, Component)]
+#[derive(Debug, Clone, Copy, PartialEq, AsAny)]
 pub enum BoundingVolume {
     BoundingSphere {
         center: Vec3<f64>,

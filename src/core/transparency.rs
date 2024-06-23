@@ -1,7 +1,7 @@
 use proc::{AsAny, Component};
 
 /// Material transparency.
-#[derive(Clone, Copy, PartialEq, PartialOrd, AsAny, Component)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, AsAny)]
 pub enum Transparency {
     Transparent,
     Translucent(f64),
