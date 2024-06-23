@@ -1,13 +1,17 @@
 use std::any::TypeId;
 
 use hashbrown::HashMap;
+use smallvec::SmallVec;
 use uuid::Uuid;
 
-use super::{archetype::Archetype, component::Component};
+use super::{
+    archetype::{Archetype, ToArchetype},
+    component::Component,
+};
 
 pub struct Entity {
-    pub(super) id: Uuid,
-    pub(super) components: HashMap<TypeId, Box<dyn Component>>,
+    id: Uuid,
+    components: HashMap<TypeId, Box<dyn Component>>,
 }
 
 impl Entity {
@@ -23,7 +27,9 @@ impl Entity {
     }
 
     pub fn archetype(&self) -> Archetype {
-        Archetype::new(self.components.keys().cloned())
+        let mut compnent_types: SmallVec<[TypeId; 3]> = self.components.keys().cloned().collect();
+        compnent_types.sort();
+        Archetype::from_vec_unchecked(compnent_types)
     }
 
     pub fn component_len(&self) -> usize {
@@ -48,5 +54,12 @@ impl Entity {
             Some(component) => Some(component.as_any_mut().downcast_mut::<T>().unwrap()),
             None => None,
         }
+    }
+}
+
+impl ToArchetype for Entity {
+    #[inline]
+    fn to_archetype(&self) -> Archetype {
+        self.archetype()
     }
 }

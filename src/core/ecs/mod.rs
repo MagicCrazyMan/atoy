@@ -4,3 +4,4 @@ pub mod entity;
 pub mod iter;
 pub mod manager;
 pub mod system;
+pub mod world;

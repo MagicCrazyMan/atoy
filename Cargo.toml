@@ -15,7 +15,7 @@ rebind = []
 [dependencies]
 wasm-bindgen = { version = "0.2.92" }
 proc = { path = "./proc" }
-gl-matrix4rust = { path = "../gl-matrix4rust", features = ["gl"] }
+gl-matrix4rust = { path = "../gl-matrix4rust" }
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires

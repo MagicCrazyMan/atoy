@@ -8,7 +8,7 @@ use super::component::Component;
 pub struct Archetype(SmallVec<[TypeId; 3]>);
 
 impl Archetype {
-    pub fn new<I>(component_types: I) -> Self
+    pub(super) fn new<I>(component_types: I) -> Self
     where
         I: IntoIterator<Item = TypeId>,
     {
@@ -17,6 +17,21 @@ impl Archetype {
         component_types.dedup();
         Self(component_types)
     }
+
+    pub(super) fn new_unchecked<I>(component_types: I) -> Self
+    where
+        I: IntoIterator<Item = TypeId>,
+    {
+        Self(component_types.into_iter().collect())
+    }
+
+    pub(super) fn from_vec_unchecked(component_types: SmallVec<[TypeId; 3]>) -> Self {
+        Self(component_types)
+    }
+}
+
+pub trait ToArchetype {
+    fn to_archetype(&self) -> Archetype;
 }
 
 pub trait AsArchetype {
