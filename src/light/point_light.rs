@@ -4,7 +4,7 @@ use gl_matrix4rust::vec3::Vec3;
 #[derive(Clone, Copy, PartialEq)]
 pub struct PointLight {
     enabled: bool,
-    position: Vec3,
+    position: Vec3<f64>,
     ambient: Vec3<f32>,
     diffuse: Vec3<f32>,
     specular: Vec3<f32>,
@@ -13,7 +13,7 @@ pub struct PointLight {
 impl PointLight {
     /// Constructs a new point light.
     pub fn new(
-        position: Vec3,
+        position: Vec3<f64>,
         ambient: Vec3<f32>,
         diffuse: Vec3<f32>,
         specular: Vec3<f32>,
@@ -33,7 +33,7 @@ impl PointLight {
     }
 
     /// Returns point light position.
-    pub fn position(&self) -> Vec3 {
+    pub fn position(&self) -> Vec3<f64> {
         self.position
     }
 
@@ -63,7 +63,7 @@ impl PointLight {
     }
 
     /// Sets point light position.
-    pub fn set_position(&mut self, position: Vec3) {
+    pub fn set_position(&mut self, position: Vec3<f64>) {
         self.position = position;
     }
 

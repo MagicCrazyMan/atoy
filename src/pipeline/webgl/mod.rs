@@ -540,7 +540,7 @@ impl StandardPipeline {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<Vec3>, Error> {
+    ) -> Result<Option<Vec3<f64>>, Error> {
         self.picking.pick_position(
             window_position_x,
             window_position_y,

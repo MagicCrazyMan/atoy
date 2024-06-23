@@ -30,9 +30,9 @@ pub enum EntityMessage {
 pub trait Entity {
     fn id(&self) -> &Uuid;
 
-    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4<f64>>;
 
-    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4>;
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4<f64>>;
 
     fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>>;
 
@@ -91,7 +91,7 @@ pub enum GroupMessage {
 pub trait Group {
     fn id(&self) -> &Uuid;
 
-    fn compose_model_matrix(&self) -> Readonly<'_, Mat4>;
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4<f64>>;
 
     fn bounding_volume(&self) -> Option<Readonly<'_, CullingBoundingVolume>>;
 
@@ -195,10 +195,10 @@ impl Iterator for HierarchyEntitiesIter {
 pub struct SimpleEntity {
     id: Uuid,
 
-    model_matrix: Mat4,
-    parent_compose_model_matrix: Mat4,
-    compose_model_matrix: Mat4,
-    compose_normal_matrix: Mat4,
+    model_matrix: Mat4<f64>,
+    parent_compose_model_matrix: Mat4<f64>,
+    compose_model_matrix: Mat4<f64>,
+    compose_normal_matrix: Mat4<f64>,
 
     geometry: Option<(Box<dyn Geometry>, Aborter<GeometryMessage>)>,
     material: Option<(Box<dyn StandardMaterial>, Aborter<MaterialMessage>)>,
@@ -241,11 +241,11 @@ impl SimpleEntity {
         }
     }
 
-    pub fn model_matrix(&self) -> &Mat4 {
+    pub fn model_matrix(&self) -> &Mat4<f64> {
         &self.model_matrix
     }
 
-    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
+    pub fn set_model_matrix(&mut self, model_matrix: Mat4<f64>) {
         self.model_matrix = model_matrix;
         *self.should_update.borrow_mut() = true;
         *self.should_recalculate_matrices.borrow_mut() = true;
@@ -380,11 +380,12 @@ impl SimpleEntity {
     fn update_matrices(&mut self, group: &dyn Group) {
         self.parent_compose_model_matrix = *group.compose_model_matrix();
         self.compose_model_matrix = self.parent_compose_model_matrix * self.model_matrix;
-        self.compose_normal_matrix = self.compose_model_matrix.clone();
-        self.compose_normal_matrix
-            .invert_in_place()
-            .expect("invert a matrix with zero determinant is not allowed");
-        self.compose_normal_matrix.transpose_in_place();
+
+        self.compose_normal_matrix = self
+            .compose_model_matrix
+            .invert()
+            .expect("invert a matrix with zero determinant is not allowed")
+            .transpose();
     }
 
     fn update_bounding_volume(&mut self) {
@@ -403,11 +404,11 @@ impl Entity for SimpleEntity {
         &self.id
     }
 
-    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4<f64>> {
         Readonly::Borrowed(&self.compose_model_matrix)
     }
 
-    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4> {
+    fn compose_normal_matrix(&self) -> Readonly<'_, Mat4<f64>> {
         Readonly::Borrowed(&self.compose_normal_matrix)
     }
 
@@ -539,9 +540,9 @@ impl VertexArrayObjectEntity for SimpleEntity {
 pub struct SimpleGroup {
     id: Uuid,
 
-    model_matrix: Mat4,
-    parent_compose_model_matrix: Mat4,
-    compose_model_matrix: Mat4,
+    model_matrix: Mat4<f64>,
+    parent_compose_model_matrix: Mat4<f64>,
+    compose_model_matrix: Mat4<f64>,
 
     entities: IndexMap<Uuid, (Rc<RefCell<dyn Entity>>, Aborter<EntityMessage>)>,
     sub_groups: IndexMap<Uuid, (Rc<RefCell<dyn Group>>, Aborter<GroupMessage>)>,
@@ -574,11 +575,11 @@ impl SimpleGroup {
         }
     }
 
-    pub fn model_matrix(&self) -> &Mat4 {
+    pub fn model_matrix(&self) -> &Mat4<f64> {
         &self.model_matrix
     }
 
-    pub fn set_model_matrix(&mut self, model_matrix: Mat4) {
+    pub fn set_model_matrix(&mut self, model_matrix: Mat4<f64>) {
         self.model_matrix = model_matrix;
         *self.should_update.borrow_mut() = true;
         *self.should_recalculate_matrices.borrow_mut() = true;
@@ -755,7 +756,7 @@ impl Group for SimpleGroup {
         &self.id
     }
 
-    fn compose_model_matrix(&self) -> Readonly<'_, Mat4> {
+    fn compose_model_matrix(&self) -> Readonly<'_, Mat4<f64>> {
         Readonly::Borrowed(&self.compose_model_matrix)
     }
 

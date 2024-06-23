@@ -9,13 +9,13 @@ use gl_matrix4rust::{mat4::Mat4, vec3::Vec3};
 use crate::frustum::ViewFrustum;
 
 pub trait Camera {
-    fn position(&self) -> Vec3;
+    fn position(&self) -> Vec3<f64>;
 
-    fn view_matrix(&self) -> Mat4;
+    fn view_matrix(&self) -> Mat4<f64>;
 
-    fn proj_matrix(&self) -> Mat4;
+    fn proj_matrix(&self) -> Mat4<f64>;
 
-    fn view_proj_matrix(&self) -> Mat4;
+    fn view_proj_matrix(&self) -> Mat4<f64>;
 
     fn view_frustum(&self) -> ViewFrustum;
 

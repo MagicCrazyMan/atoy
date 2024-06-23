@@ -50,6 +50,7 @@ use crate::renderer::webgl::buffer::{
     Buffer, BufferComponentSize, BufferDataType, BufferSource, BufferTarget, BufferUsage,
 };
 use crate::renderer::webgl::draw::{Draw, DrawMode};
+use crate::renderer::webgl::matrix::GlF32;
 use crate::renderer::webgl::program::Define;
 use crate::renderer::webgl::state::FrameState;
 use crate::renderer::webgl::texture::{SamplerParameter, TextureParameter, TexturePixelStorage};
@@ -240,7 +241,7 @@ impl StandardMaterial for TickSolidColorMaterial {
 // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 // // }
 
-fn create_camera(camera_position: Vec3, camera_center: Vec3, camera_up: Vec3) -> UniversalCamera {
+fn create_camera(camera_position: Vec3<f64>, camera_center: Vec3<f64>, camera_up: Vec3<f64>) -> UniversalCamera {
     UniversalCamera::new(
         camera_position,
         camera_center,
@@ -647,7 +648,7 @@ impl ViewerWasm {
     }
 
     pub fn clear_color(&self) -> Box<[f32]> {
-        Box::new(self.0.borrow().clear_color().raw().clone())
+        Box::new(self.0.borrow().clear_color().to_f32_array())
     }
 
     pub fn set_clear_color(&mut self, r: f32, g: f32, b: f32, a: f32) {

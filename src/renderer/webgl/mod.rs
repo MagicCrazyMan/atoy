@@ -33,6 +33,7 @@ pub mod stencil;
 pub mod texture;
 pub mod uniform;
 pub mod blit;
+pub mod matrix;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all(serialize = "camelCase"))]

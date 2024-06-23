@@ -7,24 +7,24 @@ use crate::{frustum::ViewFrustum, plane::Plane};
 use super::Camera;
 
 pub struct PerspectiveCamera {
-    position: Vec3,
-    center: Vec3,
-    up: Vec3,
+    position: Vec3<f64>,
+    center: Vec3<f64>,
+    up: Vec3<f64>,
     fovy: f64,
     aspect: f64,
     near: f64,
     far: Option<f64>,
-    view: Mat4,
-    proj: Mat4,
-    view_proj: Mat4,
+    view: Mat4<f64>,
+    proj: Mat4<f64>,
+    view_proj: Mat4<f64>,
     frustum: ViewFrustum,
 }
 
 impl PerspectiveCamera {
     pub fn new(
-        position: Vec3,
-        center: Vec3,
-        up: Vec3,
+        position: Vec3<f64>,
+        center: Vec3<f64>,
+        up: Vec3<f64>,
         fovy: f64,
         aspect: f64,
         near: f64,
@@ -73,11 +73,11 @@ impl PerspectiveCamera {
         );
     }
 
-    pub fn center(&self) -> Vec3 {
+    pub fn center(&self) -> Vec3<f64> {
         self.center
     }
 
-    pub fn up(&self) -> Vec3 {
+    pub fn up(&self) -> Vec3<f64> {
         self.up
     }
 
@@ -117,37 +117,36 @@ impl PerspectiveCamera {
         self.update_proj();
     }
 
-    pub fn set_position(&mut self, position: Vec3) {
+    pub fn set_position(&mut self, position: Vec3<f64>) {
         self.position = position;
         self.update_view();
     }
 
-    pub fn set_center(&mut self, center: Vec3) {
+    pub fn set_center(&mut self, center: Vec3<f64>) {
         self.center = center;
         self.update_view();
     }
 
-    pub fn set_up(&mut self, mut up: Vec3) {
-        up.normalize_in_place();
-        self.up = up;
+    pub fn set_up(&mut self, up: Vec3<f64>) {
+        self.up = up.normalize();
         self.update_view();
     }
 }
 
 impl Camera for PerspectiveCamera {
-    fn position(&self) -> Vec3 {
+    fn position(&self) -> Vec3<f64> {
         self.position
     }
 
-    fn view_matrix(&self) -> Mat4 {
+    fn view_matrix(&self) -> Mat4<f64> {
         self.view
     }
 
-    fn proj_matrix(&self) -> Mat4 {
+    fn proj_matrix(&self) -> Mat4<f64> {
         self.proj
     }
 
-    fn view_proj_matrix(&self) -> Mat4 {
+    fn view_proj_matrix(&self) -> Mat4<f64> {
         self.view_proj
     }
 
@@ -179,9 +178,9 @@ impl Default for PerspectiveCamera {
 }
 
 pub(super) fn frustum(
-    position: Vec3,
-    center: Vec3,
-    up: Vec3,
+    position: Vec3<f64>,
+    center: Vec3<f64>,
+    up: Vec3<f64>,
     fovy: f64,
     aspect: f64,
     near: f64,

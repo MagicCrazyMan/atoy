@@ -245,7 +245,7 @@ impl StandardPicking {
         window_position_x: i32,
         window_position_y: i32,
         collected_entities: &CollectedEntities,
-    ) -> Result<Option<Vec3>, Error> {
+    ) -> Result<Option<Vec3<f64>>, Error> {
         if collected_entities.entities().len() == 0 {
             return Ok(None);
         }

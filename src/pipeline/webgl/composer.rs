@@ -23,7 +23,7 @@ const GAMMA_UNIFORM_NAME: &'static str = "u_Gamma";
 const GAMMA_UNIFORM_BINDING: UniformBinding =
     UniformBinding::Custom(Cow::Borrowed(GAMMA_UNIFORM_NAME));
 
-pub const DEFAULT_CLEAR_COLOR: Vec4<f32> = Vec4::<f32>::new_zero();
+pub const DEFAULT_CLEAR_COLOR: Vec4<f32> = Vec4::<f32>::new(0.0, 0.0, 0.0, 0.0);
 pub const DEFAULT_ENABLE_GAMMA_CORRECTION: bool = true;
 pub const DEFAULT_ENABLE_GAMMA: f32 = 2.2;
 
@@ -141,10 +141,10 @@ impl StandardComposer {
 
     fn print(&mut self, state: &mut FrameState) -> Result<(), Error> {
         state.gl().clear_color(
-            *self.clear_color.r() as f32,
-            *self.clear_color.g() as f32,
-            *self.clear_color.b() as f32,
-            *self.clear_color.a() as f32,
+            *self.clear_color.x() as f32,
+            *self.clear_color.y() as f32,
+            *self.clear_color.z() as f32,
+            *self.clear_color.w() as f32,
         );
         state.gl().clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 

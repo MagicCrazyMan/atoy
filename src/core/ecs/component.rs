@@ -18,11 +18,11 @@ pub trait Component: AsAny {
 
 #[derive(AsAny, Component)]
 pub struct Transformation {
-    translation: Vec3,
-    rotation: Quat,
-    scale: Vec3,
+    translation: Vec3<f64>,
+    rotation: Quat<f64>,
+    scale: Vec3<f64>,
 
-    model_matrix: Mat4,
+    model_matrix: Mat4<f64>,
 }
 
 impl Transformation {
@@ -36,7 +36,11 @@ impl Transformation {
         }
     }
 
-    pub fn with_translation_rotation_scale(translation: Vec3, rotation: Quat, scale: Vec3) -> Self {
+    pub fn with_translation_rotation_scale(
+        translation: Vec3<f64>,
+        rotation: Quat<f64>,
+        scale: Vec3<f64>,
+    ) -> Self {
         Self {
             model_matrix: Mat4::<f64>::from_rotation_translation_scale(
                 &rotation,
@@ -50,38 +54,38 @@ impl Transformation {
         }
     }
 
-    pub fn translation(&self) -> &Vec3 {
+    pub fn translation(&self) -> &Vec3<f64> {
         &self.translation
     }
 
-    pub fn rotation(&self) -> &Quat {
+    pub fn rotation(&self) -> &Quat<f64> {
         &self.rotation
     }
 
-    pub fn scale(&self) -> &Vec3 {
+    pub fn scale(&self) -> &Vec3<f64> {
         &self.scale
     }
 
-    pub fn set_translation(&mut self, translation: Vec3) {
+    pub fn set_translation(&mut self, translation: Vec3<f64>) {
         self.translation = translation;
         self.update_model_matrix();
     }
 
-    pub fn set_rotation(&mut self, rotation: Quat) {
+    pub fn set_rotation(&mut self, rotation: Quat<f64>) {
         self.rotation = rotation;
         self.update_model_matrix();
     }
 
-    pub fn set_scale(&mut self, scale: Vec3) {
+    pub fn set_scale(&mut self, scale: Vec3<f64>) {
         self.scale = scale;
         self.update_model_matrix();
     }
 
     pub fn set_translation_rotation_scale(
         &mut self,
-        translation: Vec3,
-        rotation: Quat,
-        scale: Vec3,
+        translation: Vec3<f64>,
+        rotation: Quat<f64>,
+        scale: Vec3<f64>,
     ) {
         self.translation = translation;
         self.rotation = rotation;
@@ -89,7 +93,7 @@ impl Transformation {
         self.update_model_matrix();
     }
 
-    pub fn model_matrix(&self) -> &Mat4 {
+    pub fn model_matrix(&self) -> &Mat4<f64> {
         &self.model_matrix
     }
 

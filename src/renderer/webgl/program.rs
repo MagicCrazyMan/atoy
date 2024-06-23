@@ -1,6 +1,5 @@
 use std::{borrow::Cow, cell::RefCell, iter::FromIterator, rc::Rc};
 
-use gl_matrix4rust::GLF32;
 use hashbrown::{hash_map::EntryRef, HashMap, HashSet};
 use log::warn;
 use regex::Regex;
@@ -11,13 +10,7 @@ use web_sys::{
 use crate::{entity::Entity, geometry::Geometry, material::webgl::StandardMaterial};
 
 use super::{
-    attribute::{AttributeBinding, AttributeValue, VertexAttributeArrayUnbinder},
-    buffer::{BufferStore, BufferTarget},
-    conversion::ToGlEnum,
-    error::Error,
-    state::FrameState,
-    texture::{TextureStore, TextureUnbinder},
-    uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue},
+    attribute::{AttributeBinding, AttributeValue, VertexAttributeArrayUnbinder}, buffer::{BufferStore, BufferTarget}, conversion::ToGlEnum, error::Error, matrix::GlF32, state::FrameState, texture::{TextureStore, TextureUnbinder}, uniform::{UniformBinding, UniformBlockBinding, UniformBlockValue, UniformValue}
 };
 
 /// Replacement derivative name for injecting [`ShaderProvider::vertex_defines`] and
@@ -568,19 +561,19 @@ impl Program {
                 | UniformBinding::ViewProjMatrix => {
                     let data = match binding {
                         UniformBinding::ModelMatrix => {
-                            entity.map(|entity| entity.compose_model_matrix().gl_f32())
+                            entity.map(|entity| entity.compose_model_matrix().to_f32_array())
                         }
                         UniformBinding::NormalMatrix => {
-                            entity.map(|entity| entity.compose_normal_matrix().gl_f32())
+                            entity.map(|entity| entity.compose_normal_matrix().to_f32_array())
                         }
                         UniformBinding::ViewMatrix => {
-                            state.map(|state| state.camera().view_matrix().gl_f32())
+                            state.map(|state| state.camera().view_matrix().to_f32_array())
                         }
                         UniformBinding::ProjMatrix => {
-                            state.map(|state| state.camera().proj_matrix().gl_f32())
+                            state.map(|state| state.camera().proj_matrix().to_f32_array())
                         }
                         UniformBinding::ViewProjMatrix => {
-                            state.map(|state| state.camera().view_proj_matrix().gl_f32())
+                            state.map(|state| state.camera().view_proj_matrix().to_f32_array())
                         }
                         _ => unreachable!(),
                     };
@@ -594,7 +587,7 @@ impl Program {
                     }
                 }
                 UniformBinding::CameraPosition => state
-                    .map(|state| UniformValue::FloatVector3(state.camera().position().gl_f32())),
+                    .map(|state| UniformValue::FloatVector3(state.camera().position().to_f32_array())),
                 UniformBinding::RenderTime => {
                     state.map(|state| UniformValue::Float1(state.timestamp() as f32))
                 }

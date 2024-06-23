@@ -4,7 +4,7 @@ use gl_matrix4rust::vec3::Vec3;
 #[derive(Clone, Copy, PartialEq)]
 pub struct AreaLight {
     enabled: bool,
-    position: Vec3,
+    position: Vec3<f64>,
     direction: Vec3<f32>,
     up: Vec3<f32>,
     right: Vec3<f32>,
@@ -22,7 +22,7 @@ impl AreaLight {
     /// Constructs a new area light.
     /// Area light. Position and direction of a area light should be in world space.
     pub fn new(
-        position: Vec3,
+        position: Vec3<f64>,
         direction: Vec3<f32>,
         up: Vec3<f32>,
         offset: f32,
@@ -61,7 +61,7 @@ impl AreaLight {
     }
 
     /// Returns area light position.
-    pub fn position(&self) -> Vec3 {
+    pub fn position(&self) -> Vec3<f64> {
         self.position
     }
 
@@ -131,7 +131,7 @@ impl AreaLight {
     }
 
     /// Sets area light position.
-    pub fn set_position(&mut self, position: Vec3) {
+    pub fn set_position(&mut self, position: Vec3<f64>) {
         self.position = position;
     }
 

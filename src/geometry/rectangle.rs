@@ -22,7 +22,7 @@ use super::{Geometry, GeometryMessage, IndexedGeometry};
 
 /// A 2-Dimensions plane on XY space
 pub struct Rectangle {
-    anchor: Vec2,
+    anchor: Vec2<f64>,
     placement: Placement,
     width: f64,
     height: f64,
@@ -35,7 +35,7 @@ pub struct Rectangle {
 
 impl Rectangle {
     pub fn new(
-        anchor: Vec2,
+        anchor: Vec2<f64>,
         placement: Placement,
         width: f64,
         height: f64,
@@ -217,7 +217,7 @@ pub enum Placement {
 }
 
 fn create_rectangle(
-    anchor: Vec2,
+    anchor: Vec2<f64>,
     placement: Placement,
     width: f64,
     height: f64,
@@ -308,7 +308,7 @@ fn create_rectangle(
 
 #[derive(Debug, Clone, Copy)]
 struct RectangleBufferSource {
-    anchor: Vec2,
+    anchor: Vec2<f64>,
     placement: Placement,
     width: f64,
     height: f64,

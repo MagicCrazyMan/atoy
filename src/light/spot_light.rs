@@ -4,7 +4,7 @@ use gl_matrix4rust::vec3::Vec3;
 #[derive(Clone, Copy, PartialEq)]
 pub struct SpotLight {
     enabled: bool,
-    position: Vec3,
+    position: Vec3<f64>,
     direction: Vec3<f32>,
     ambient: Vec3<f32>,
     diffuse: Vec3<f32>,
@@ -19,7 +19,7 @@ impl SpotLight {
     /// `inner_cutoff` and `outer_cutoff` are in radians,
     /// and `outer_cutoff` should be larger than `inner_cutoff`.
     pub fn new(
-        position: Vec3,
+        position: Vec3<f64>,
         direction: Vec3<f32>,
         ambient: Vec3<f32>,
         diffuse: Vec3<f32>,
@@ -45,7 +45,7 @@ impl SpotLight {
     }
 
     /// Returns spot light position.
-    pub fn position(&self) -> Vec3 {
+    pub fn position(&self) -> Vec3<f64> {
         self.position
     }
 
@@ -80,7 +80,7 @@ impl SpotLight {
     }
 
     /// Sets spot light position.
-    pub fn set_position(&mut self, position: Vec3) {
+    pub fn set_position(&mut self, position: Vec3<f64>) {
         self.position = position;
     }
 

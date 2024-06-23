@@ -1,4 +1,3 @@
-use gl_matrix4rust::{GLF32Borrowed, GLF32};
 use web_sys::js_sys::{ArrayBuffer, Float32Array};
 
 use crate::{
@@ -9,6 +8,7 @@ use crate::{
     renderer::webgl::{
         buffer::{Buffer, Preallocation},
         error::Error,
+        matrix::GlF32,
         state::FrameState,
     },
     scene::{Scene, MAX_AREA_LIGHTS, MAX_DIRECTIONAL_LIGHTS, MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS},
@@ -17,15 +17,14 @@ use crate::{
 use super::{
     UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_AMBIENT_LIGHT_BYTE_OFFSET,
     UBO_LIGHTS_AREA_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH,
-    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
-    UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH,
-    UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH,
-    UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET, UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH,
-    UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT, UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH,
-    UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET,
+    UBO_LIGHTS_ATTENUATIONS_BYTE_OFFSET, UBO_LIGHTS_DIRECTIONAL_LIGHTS_BYTE_OFFSET,
+    UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH, UBO_LIGHTS_POINT_LIGHTS_BYTE_OFFSET,
+    UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_SPOT_LIGHTS_BYTE_OFFSET,
+    UBO_LIGHTS_SPOT_LIGHT_BYTE_LENGTH, UBO_LIGHTS_UNIFORM_BLOCK_MOUNT_POINT,
+    UBO_UNIVERSAL_UNIFORMS_BYTE_LENGTH, UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET, UBO_UNIVERSAL_UNIFORMS_RENDER_TIME_BYTE_OFFSET,
     UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET,
-    UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET,
+    UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET, UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT,
 };
 
 pub struct StandardPreparation {
@@ -74,7 +73,7 @@ impl StandardPreparation {
             UBO_UNIVERSAL_UNIFORMS_CAMERA_POSITION_BYTE_OFFSET as u32,
             3,
         )
-        .copy_from(&state.camera().position().gl_f32());
+        .copy_from(&state.camera().position().to_f32_array());
 
         // u_ViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -82,7 +81,7 @@ impl StandardPreparation {
             UBO_UNIVERSAL_UNIFORMS_VIEW_MATRIX_BYTE_OFFSET as u32,
             16,
         )
-        .copy_from(&state.camera().view_matrix().gl_f32());
+        .copy_from(&state.camera().view_matrix().to_f32_array());
 
         // u_ProjMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -90,7 +89,7 @@ impl StandardPreparation {
             UBO_UNIVERSAL_UNIFORMS_PROJ_MATRIX_BYTE_OFFSET as u32,
             16,
         )
-        .copy_from(&state.camera().proj_matrix().gl_f32());
+        .copy_from(&state.camera().proj_matrix().to_f32_array());
 
         // u_ProjViewMatrix
         Float32Array::new_with_byte_offset_and_length(
@@ -98,7 +97,7 @@ impl StandardPreparation {
             UBO_UNIVERSAL_UNIFORMS_VIEW_PROJ_MATRIX_BYTE_OFFSET as u32,
             16,
         )
-        .copy_from(&state.camera().view_proj_matrix().gl_f32());
+        .copy_from(&state.camera().view_proj_matrix().to_f32_array());
 
         universal_ubo.buffer_sub_data(self.universal_uniforms.clone(), 0);
         universal_ubo.bind_ubo(UBO_UNIVERSAL_UNIFORM_BLOCK_MOUNT_POINT)?;
@@ -239,7 +238,7 @@ impl StandardPreparation {
 impl AmbientLight {
     fn ubo(&self) -> [u8; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH] {
         let mut ubo = [0.0f32; UBO_LIGHTS_AMBIENT_LIGHT_BYTE_LENGTH / 4];
-        ubo[0..3].copy_from_slice(self.color().gl_f32_borrowed());
+        ubo[0..3].copy_from_slice(&self.color().to_f32_array());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
 
         unsafe {
@@ -254,11 +253,11 @@ impl AmbientLight {
 impl DirectionalLight {
     fn ubo(&self) -> [u8; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH] {
         let mut ubo = [0.0f32; UBO_LIGHTS_DIRECTIONAL_LIGHT_BYTE_LENGTH / 4];
-        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[0..3].copy_from_slice(&self.direction().to_f32_array());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
-        ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
-        ubo[8..11].copy_from_slice(self.diffuse().gl_f32_borrowed());
-        ubo[12..15].copy_from_slice(self.specular().gl_f32_borrowed());
+        ubo[4..7].copy_from_slice(&self.ambient().to_f32_array());
+        ubo[8..11].copy_from_slice(&self.diffuse().to_f32_array());
+        ubo[12..15].copy_from_slice(&self.specular().to_f32_array());
 
         unsafe {
             std::mem::transmute::<
@@ -272,11 +271,11 @@ impl DirectionalLight {
 impl PointLight {
     fn ubo(&self) -> [u8; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH] {
         let mut ubo = [0.0f32; UBO_LIGHTS_POINT_LIGHT_BYTE_LENGTH / 4];
-        ubo[0..3].copy_from_slice(&self.position().gl_f32());
+        ubo[0..3].copy_from_slice(&self.position().to_f32_array());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
-        ubo[4..7].copy_from_slice(self.ambient().gl_f32_borrowed());
-        ubo[8..11].copy_from_slice(self.diffuse().gl_f32_borrowed());
-        ubo[12..15].copy_from_slice(self.specular().gl_f32_borrowed());
+        ubo[4..7].copy_from_slice(&self.ambient().to_f32_array());
+        ubo[8..11].copy_from_slice(&self.diffuse().to_f32_array());
+        ubo[12..15].copy_from_slice(&self.specular().to_f32_array());
 
         unsafe {
             std::mem::transmute::<
@@ -290,19 +289,19 @@ impl PointLight {
 impl AreaLight {
     fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH] {
         let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4];
-        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[0..3].copy_from_slice(&self.direction().to_f32_array());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
-        ubo[4..7].copy_from_slice(self.up().gl_f32_borrowed());
+        ubo[4..7].copy_from_slice(&self.up().to_f32_array());
         ubo[7] = self.inner_width();
-        ubo[8..11].copy_from_slice(self.right().gl_f32_borrowed());
+        ubo[8..11].copy_from_slice(&self.right().to_f32_array());
         ubo[11] = self.inner_height();
-        ubo[12..15].copy_from_slice(&self.position().gl_f32());
+        ubo[12..15].copy_from_slice(&self.position().to_f32_array());
         ubo[15] = self.offset();
-        ubo[16..19].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[16..19].copy_from_slice(&self.ambient().to_f32_array());
         ubo[19] = self.outer_width();
-        ubo[20..23].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[20..23].copy_from_slice(&self.diffuse().to_f32_array());
         ubo[23] = self.outer_height();
-        ubo[24..27].copy_from_slice(self.specular().gl_f32_borrowed());
+        ubo[24..27].copy_from_slice(&self.specular().to_f32_array());
 
         unsafe {
             std::mem::transmute::<
@@ -316,15 +315,15 @@ impl AreaLight {
 impl SpotLight {
     fn ubo(&self) -> [u8; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH] {
         let mut ubo = [0.0f32; UBO_LIGHTS_AREA_LIGHT_BYTE_LENGTH / 4];
-        ubo[0..3].copy_from_slice(self.direction().gl_f32_borrowed());
+        ubo[0..3].copy_from_slice(&self.direction().to_f32_array());
         ubo[3] = if self.enabled() { 1.0 } else { 0.0 };
-        ubo[4..7].copy_from_slice(&self.position().gl_f32());
+        ubo[4..7].copy_from_slice(&self.position().to_f32_array());
         ubo[7] = 0.0;
-        ubo[8..11].copy_from_slice(self.ambient().gl_f32_borrowed());
+        ubo[8..11].copy_from_slice(&self.ambient().to_f32_array());
         ubo[11] = self.inner_cutoff().cos();
-        ubo[12..15].copy_from_slice(self.diffuse().gl_f32_borrowed());
+        ubo[12..15].copy_from_slice(&self.diffuse().to_f32_array());
         ubo[15] = self.outer_cutoff().cos();
-        ubo[16..19].copy_from_slice(self.specular().gl_f32_borrowed());
+        ubo[16..19].copy_from_slice(&self.specular().to_f32_array());
 
         unsafe {
             std::mem::transmute::<

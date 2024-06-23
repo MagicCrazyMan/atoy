@@ -121,7 +121,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, AsAny, Component)]
 pub enum BoundingVolume {
     BoundingSphere {
-        center: Vec3,
+        center: Vec3<f64>,
         radius: f64,
     },
     AxisAlignedBoundingBox {
@@ -134,16 +134,16 @@ pub enum BoundingVolume {
     },
     /// XYZ axes are orthogonal half axes of the oriented bounding box.
     OrientedBoundingBox {
-        center: Vec3,
-        x: Vec3,
-        y: Vec3,
-        z: Vec3,
+        center: Vec3<f64>,
+        x: Vec3<f64>,
+        y: Vec3<f64>,
+        z: Vec3<f64>,
     },
 }
 
 impl BoundingVolume {
     /// Gets center of this bounding volume.
-    pub fn center(&self) -> Vec3 {
+    pub fn center(&self) -> Vec3<f64> {
         match self {
             BoundingVolume::BoundingSphere { center, .. } => *center,
             BoundingVolume::AxisAlignedBoundingBox {
@@ -228,7 +228,7 @@ impl BoundingVolume {
     }
 
     /// Transforms this bounding volume native by a transformation matrix.
-    pub fn transform(&self, transformation: Mat4) -> Self {
+    pub fn transform(&self, transformation: Mat4<f64>) -> Self {
         match self {
             BoundingVolume::BoundingSphere { center, radius } => {
                 let scaling = transformation.scaling();
@@ -334,7 +334,7 @@ impl BoundingVolume {
 /// by calculating distances between sphere center to each plane of frustum.
 fn cull_sphere(
     planes: [(PlaneIndex, Option<&Plane>); 6],
-    center: &Vec3,
+    center: &Vec3<f64>,
     radius: f64,
 ) -> (Culling, Option<PlaneIndex>) {
     let mut inside_count = 0u8;
@@ -389,9 +389,9 @@ fn cull_sphere(
 
 /// [Optimized View Frustum Culling Algorithms for Bounding Boxes](https://www.cse.chalmers.se/~uffe/vfc_bbox.pdf)
 /// For both AABB and OBB.
-fn cull_bb<F: Fn(u8) -> Vec3>(
+fn cull_bb<F: Fn(u8) -> Vec3<f64>>(
     planes: [(PlaneIndex, Option<&Plane>); 6],
-    center: &Vec3,
+    center: &Vec3<f64>,
     pnv_function: F,
 ) -> (Culling, Option<PlaneIndex>) {
     let mut distances = [None, None, None, None, None, None];
@@ -471,7 +471,7 @@ where
 {
     let boundings = boundings.into_iter();
 
-    let mut output: Option<(Vec3, f64)> = None;
+    let mut output: Option<(Vec3<f64>, f64)> = None;
 
     for bounding in boundings {
         let (c2, r2) = match bounding {

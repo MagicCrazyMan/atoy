@@ -1,12 +1,13 @@
 use std::{any::Any, borrow::Cow};
 
-use gl_matrix4rust::{vec3::Vec3, GLF32};
+use gl_matrix4rust::vec3::Vec3;
 
 use crate::{
     clock::Tick,
     message::{channel, Receiver, Sender},
     renderer::webgl::{
         attribute::AttributeValue,
+        matrix::GlF32,
         program::Define,
         state::FrameState,
         uniform::{UniformBlockValue, UniformValue},
@@ -96,7 +97,7 @@ impl StandardMaterial for SolidColorMaterial {
 
     fn uniform_value(&self, name: &str) -> Option<UniformValue<'_>> {
         match name {
-            "u_Material_Color" => Some(UniformValue::FloatVector3(self.color.gl_f32())),
+            "u_Material_Color" => Some(UniformValue::FloatVector3(self.color.to_f32_array())),
             "u_Material_Transparency" => Some(UniformValue::Float1(self.transparency.alpha())),
             "u_Material_SpecularShininess" => Some(UniformValue::Float1(self.specular_shininess)),
             _ => None,

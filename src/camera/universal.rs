@@ -15,11 +15,11 @@ use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 use super::Camera;
 
-const BASE_RIGHTWARD: Vec3 = Vec3::<f64>::new(1.0, 0.0, 0.0);
-const BASE_UPWARD: Vec3 = Vec3::<f64>::new(0.0, 1.0, 0.0);
+const BASE_RIGHTWARD: Vec3<f64> = Vec3::<f64>::new(1.0, 0.0, 0.0);
+const BASE_UPWARD: Vec3<f64> = Vec3::<f64>::new(0.0, 1.0, 0.0);
 // camera coordinate system is a right hand side coordinate system
 // flip z axis to convert it to left hand side
-const BASE_FORWARD: Vec3 = Vec3::<f64>::new(0.0, 0.0, -1.0);
+const BASE_FORWARD: Vec3<f64> = Vec3::<f64>::new(0.0, 0.0, -1.0);
 
 struct Control {
     pressed_keys: *mut HashSet<String>,
@@ -40,9 +40,9 @@ struct Inner {
     near: f64,
     far: Option<f64>,
 
-    view: Mat4,
-    proj: Mat4,
-    view_proj: Mat4,
+    view: Mat4<f64>,
+    proj: Mat4<f64>,
+    view_proj: Mat4<f64>,
     frustum: ViewFrustum,
 
     left_movement: f64,
@@ -88,7 +88,7 @@ impl Inner {
     }
 
     #[inline]
-    fn move_directional(&mut self, direction: Vec3, movement: f64) {
+    fn move_directional(&mut self, direction: Vec3<f64>, movement: f64) {
         let offset = direction * -movement;
         self.view = Mat4::<f64>::from_translation(&offset) * self.view;
         self.view_proj = self.proj * self.view;
@@ -196,7 +196,7 @@ impl Inner {
         self.update_proj();
     }
 
-    fn set_position(&mut self, position: Vec3) {
+    fn set_position(&mut self, position: Vec3<f64>) {
         let current = self.view.translation().neg();
         let offset = position - current;
         self.view = self.view.translate(&offset);
@@ -277,9 +277,9 @@ pub struct UniversalCamera {
 
 impl UniversalCamera {
     pub fn new(
-        position: Vec3,
-        center: Vec3,
-        up: Vec3,
+        position: Vec3<f64>,
+        center: Vec3<f64>,
+        up: Vec3<f64>,
         fovy: f64,
         aspect: f64,
         near: f64,
@@ -403,7 +403,7 @@ impl UniversalCamera {
         self.inner.borrow_mut().set_far(far)
     }
 
-    pub fn set_position(&mut self, position: Vec3) {
+    pub fn set_position(&mut self, position: Vec3<f64>) {
         self.inner.borrow_mut().set_position(position)
     }
 
@@ -461,19 +461,19 @@ impl UniversalCamera {
 }
 
 impl Camera for UniversalCamera {
-    fn position(&self) -> Vec3 {
+    fn position(&self) -> Vec3<f64> {
         self.inner.borrow().view.invert().unwrap().translation()
     }
 
-    fn view_matrix(&self) -> Mat4 {
+    fn view_matrix(&self) -> Mat4<f64> {
         self.inner.borrow().view
     }
 
-    fn proj_matrix(&self) -> Mat4 {
+    fn proj_matrix(&self) -> Mat4<f64> {
         self.inner.borrow().proj
     }
 
-    fn view_proj_matrix(&self) -> Mat4 {
+    fn view_proj_matrix(&self) -> Mat4<f64> {
         self.inner.borrow().view_proj
     }
 
@@ -776,7 +776,7 @@ impl Default for UniversalCamera {
     }
 }
 
-fn frustum(view: &Mat4, fovy: f64, aspect: f64, near: f64, far: Option<f64>) -> ViewFrustum {
+fn frustum(view: &Mat4<f64>, fovy: f64, aspect: f64, near: f64, far: Option<f64>) -> ViewFrustum {
     let x = Vec3::<f64>::new(*view.m00(), *view.m10(), *view.m20());
     let y = Vec3::<f64>::new(*view.m01(), *view.m11(), *view.m21());
     let nz = Vec3::<f64>::new(*view.m02(), *view.m12(), *view.m22());

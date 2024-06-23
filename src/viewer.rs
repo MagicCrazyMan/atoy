@@ -408,7 +408,7 @@ impl Viewer {
         &mut self,
         window_position_x: i32,
         window_position_y: i32,
-    ) -> Result<Option<Vec3>, Error> {
+    ) -> Result<Option<Vec3<f64>>, Error> {
         unsafe {
             let timestamp = *self.timestamp;
             let mut scene = self.scene.borrow_mut();
