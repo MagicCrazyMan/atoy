@@ -1,11 +1,65 @@
 use std::any::TypeId;
 
-use gl_matrix4rust::{mat4::Mat4, quat::Quat, vec3::Vec3};
-use proc::{AsAny, Component};
+use super::{archetype::Archetype, error::Error};
 
-use crate::core::AsAny;
+pub trait Component {
+    // fn type_id(&self) -> TypeId;
+}
 
-pub trait Component {}
+pub struct ComponentSet(pub(super)  Vec<(TypeId, Box<dyn Component>)>);
+
+impl ComponentSet {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Vec::with_capacity(capacity))
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn archetype(&self) -> Archetype {
+        Archetype(self.0.iter().map(|(id, _)| *id).collect())
+    }
+
+    pub fn components(self) -> Vec<Box<dyn Component>> {
+        self.0.into_iter().map(|(_, component)| component).collect()
+    }
+
+    pub fn add<C>(mut self, component: C) -> Result<Self, Error>
+    where
+        C: Component + 'static,
+    {
+        let type_id = TypeId::of::<C>();
+        let has_component = self.0.iter().any(|(id, _)| id == &type_id);
+        if has_component {
+            return Err(Error::DuplicateComponent);
+        }
+
+        self.0.push((type_id, Box::new(component)));
+        self.0.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        Ok(self)
+    }
+
+    pub fn remove<C>(mut self) -> Self
+    where
+        C: Component + 'static,
+    {
+        let type_id = TypeId::of::<C>();
+        let Some(index) = self.0.iter().position(|(id, _)| id == &type_id) else {
+            return self;
+        };
+
+        self.0.remove(index);
+        self.0.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        self
+    }
+}
 
 // #[derive(AsAny, Component)]
 // pub struct Transformation {

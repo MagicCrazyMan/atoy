@@ -1,3 +1,5 @@
+use super::archetype::Archetype;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Entity {
     pub index: usize,

@@ -377,147 +377,147 @@ impl Listener<super::clock::Tick> for ClockListener {
     }
 }
 
-struct AddEntityListener {
-    context: AppContext,
-    add_entity: Carrier<AddEntity>,
-}
+// struct AddEntityListener {
+//     context: AppContext,
+//     add_entity: Carrier<AddEntity>,
+// }
 
-impl AddEntityListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            add_entity: app.add_entity.clone(),
-        }
-    }
-}
+// impl AddEntityListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             add_entity: app.add_entity.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::AddEntity> for AddEntityListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::AddEntity) {
-        self.add_entity.send(&mut AddEntity {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-        })
-    }
-}
+// impl Listener<super::ecs::manager::AddEntity> for AddEntityListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::AddEntity) {
+//         self.add_entity.send(&mut AddEntity {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//         })
+//     }
+// }
 
-struct RemoveEntityListener {
-    context: AppContext,
-    remove_entity: Carrier<RemoveEntity>,
-}
+// struct RemoveEntityListener {
+//     context: AppContext,
+//     remove_entity: Carrier<RemoveEntity>,
+// }
 
-impl RemoveEntityListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            remove_entity: app.remove_entity.clone(),
-        }
-    }
-}
+// impl RemoveEntityListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             remove_entity: app.remove_entity.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::RemoveEntity> for RemoveEntityListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::RemoveEntity) {
-        self.remove_entity.send(&mut RemoveEntity {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-        })
-    }
-}
+// impl Listener<super::ecs::manager::RemoveEntity> for RemoveEntityListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::RemoveEntity) {
+//         self.remove_entity.send(&mut RemoveEntity {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//         })
+//     }
+// }
 
-struct UpdateComponentListener {
-    context: AppContext,
-    update_component: Carrier<UpdateComponent>,
-}
+// struct UpdateComponentListener {
+//     context: AppContext,
+//     update_component: Carrier<UpdateComponent>,
+// }
 
-impl UpdateComponentListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            update_component: app.update_component.clone(),
-        }
-    }
-}
+// impl UpdateComponentListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             update_component: app.update_component.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::UpdateComponent> for UpdateComponentListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::UpdateComponent) {
-        self.update_component.send(&mut UpdateComponent {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-        })
-    }
-}
+// impl Listener<super::ecs::manager::UpdateComponent> for UpdateComponentListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::UpdateComponent) {
+//         self.update_component.send(&mut UpdateComponent {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//         })
+//     }
+// }
 
-struct AddComponentListener {
-    context: AppContext,
-    add_component: Carrier<AddComponent>,
-}
+// struct AddComponentListener {
+//     context: AppContext,
+//     add_component: Carrier<AddComponent>,
+// }
 
-impl AddComponentListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            add_component: app.add_component.clone(),
-        }
-    }
-}
+// impl AddComponentListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             add_component: app.add_component.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::AddComponent> for AddComponentListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::AddComponent) {
-        self.add_component.send(&mut AddComponent {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-            old_archetype: payload.old_archetype.clone(),
-            new_archetype: payload.new_archetype.clone(),
-        })
-    }
-}
+// impl Listener<super::ecs::manager::AddComponent> for AddComponentListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::AddComponent) {
+//         self.add_component.send(&mut AddComponent {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//             old_archetype: payload.old_archetype.clone(),
+//             new_archetype: payload.new_archetype.clone(),
+//         })
+//     }
+// }
 
-struct RemoveComponentListener {
-    context: AppContext,
-    remove_component: Carrier<RemoveComponent>,
-}
+// struct RemoveComponentListener {
+//     context: AppContext,
+//     remove_component: Carrier<RemoveComponent>,
+// }
 
-impl RemoveComponentListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            remove_component: app.remove_component.clone(),
-        }
-    }
-}
+// impl RemoveComponentListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             remove_component: app.remove_component.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::RemoveComponent> for RemoveComponentListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::RemoveComponent) {
-        self.remove_component.send(&mut RemoveComponent {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-            old_archetype: payload.old_archetype.clone(),
-            new_archetype: payload.new_archetype.clone(),
-        })
-    }
-}
+// impl Listener<super::ecs::manager::RemoveComponent> for RemoveComponentListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::RemoveComponent) {
+//         self.remove_component.send(&mut RemoveComponent {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//             old_archetype: payload.old_archetype.clone(),
+//             new_archetype: payload.new_archetype.clone(),
+//         })
+//     }
+// }
 
-struct ReplaceComponentListener {
-    context: AppContext,
-    replace_component: Carrier<ReplaceComponent>,
-}
+// struct ReplaceComponentListener {
+//     context: AppContext,
+//     replace_component: Carrier<ReplaceComponent>,
+// }
 
-impl ReplaceComponentListener {
-    fn new(app: &App) -> Self {
-        Self {
-            context: app.context(),
-            replace_component: app.replace_component.clone(),
-        }
-    }
-}
+// impl ReplaceComponentListener {
+//     fn new(app: &App) -> Self {
+//         Self {
+//             context: app.context(),
+//             replace_component: app.replace_component.clone(),
+//         }
+//     }
+// }
 
-impl Listener<super::ecs::manager::ReplaceComponent> for ReplaceComponentListener {
-    fn execute(&mut self, payload: &mut super::ecs::manager::ReplaceComponent) {
-        self.replace_component.send(&mut ReplaceComponent {
-            context: self.context.clone(),
-            entity_id: payload.entity_id,
-        })
-    }
-}
+// impl Listener<super::ecs::manager::ReplaceComponent> for ReplaceComponentListener {
+//     fn execute(&mut self, payload: &mut super::ecs::manager::ReplaceComponent) {
+//         self.replace_component.send(&mut ReplaceComponent {
+//             context: self.context.clone(),
+//             entity_id: payload.entity_id,
+//         })
+//     }
+// }
 
 // struct TestSystem;
 

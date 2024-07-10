@@ -1,7 +1,8 @@
 use std::any::Any;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
+use std::iter::FromIterator;
 use std::ops::Mul;
 use std::rc::Weak;
 use std::str::FromStr;
@@ -13,20 +14,22 @@ use gl_matrix4rust::quat::Quat;
 use gl_matrix4rust::vec2::Vec2;
 use gl_matrix4rust::vec3::Vec3;
 use gl_matrix4rust::vec4::Vec4;
-use log::log;
+use log::{info, log};
+use rand::Rng;
 use uuid::Uuid;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::{closure::Closure, JsCast};
 use wasm_bindgen_test::console_log;
 use web_sys::js_sys::{ArrayBuffer, Date, Function, Uint8Array};
-use web_sys::{Element, HtmlImageElement, MouseEvent};
+use web_sys::{Element, HtmlImageElement, MouseEvent, PerformanceMeasure};
 
 use crate::camera::orthogonal::OrthogonalCamera;
 use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
 use crate::clock::{Clock, HtmlClock, Tick};
+use crate::core::web::performance;
 use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;
@@ -68,6 +71,48 @@ use crate::{
     scene::Scene,
     window,
 };
+
+// #[wasm_bindgen]
+// pub fn benchmark(count: usize) {
+//     let mut rn = Vec::with_capacity(count);
+//     let mut rng = rand::thread_rng();
+//     for _ in 0..count {
+//         rn.push(rng.gen::<usize>());
+//     }
+
+//     let target = rn.get(50).unwrap();
+
+//     let cloned = rn.clone();
+//     let hashset = HashSet::<usize>::from_iter(cloned);
+//     performance().mark("start_hashset").unwrap();
+//     let r = hashset.contains(target);
+//     performance()
+//         .measure_with_start_mark("measure_hashset", "start_hashset")
+//         .unwrap();
+//     let duration = performance()
+//         .get_entries_by_name("measure_hashset")
+//         .get(0)
+//         .dyn_into::<PerformanceMeasure>()
+//         .unwrap()
+//         .duration();
+//     assert_eq!(true, r);
+//     console_log!("hashset: {}ms", duration);
+
+//     let cloned = rn.clone();
+//     performance().mark("start_vec").unwrap();
+//     let r = cloned.iter().any(|num| num == target);
+//     performance()
+//         .measure_with_start_mark("measure_vec", "start_vec")
+//         .unwrap();
+//     let duration = performance()
+//         .get_entries_by_name("measure_vec")
+//         .get(0)
+//         .dyn_into::<PerformanceMeasure>()
+//         .unwrap()
+//         .duration();
+//     assert_eq!(true, r);
+//     console_log!("vec: {}ms", duration);
+// }
 
 #[wasm_bindgen]
 pub fn test_gl_matrix_4_rust() {
@@ -241,7 +286,11 @@ impl StandardMaterial for TickSolidColorMaterial {
 // //     PREALLOCATED.get().unwrap().clone().into_boxed_slice()
 // // }
 
-fn create_camera(camera_position: Vec3<f64>, camera_center: Vec3<f64>, camera_up: Vec3<f64>) -> UniversalCamera {
+fn create_camera(
+    camera_position: Vec3<f64>,
+    camera_center: Vec3<f64>,
+    camera_up: Vec3<f64>,
+) -> UniversalCamera {
     UniversalCamera::new(
         camera_position,
         camera_center,
