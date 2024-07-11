@@ -22,21 +22,21 @@ impl EntityManager {
         }
     }
 
-    fn get_or_create_chunk(&mut self, archetype: Archetype) -> &mut ChunkTable {
+    fn get_or_create_chunk<'a: 'b, 'b>(&'a mut self, archetype: Archetype) -> &'b mut ChunkTable {
         self.chunks.entry(archetype).or_insert_with(|| ChunkTable {
             components: Vec::new(),
         })
     }
 
-    fn entity_item_mut(&mut self, entity: Entity) -> Result<&mut EntityItem, Error> {
+    fn verify_entity(&self, entity: Entity) -> Result<(), Error> {
         let Entity { index, version } = entity;
-        let Some(item) = self.entities.get_mut(index) else {
+        let Some(item) = self.entities.get(index) else {
             return Err(Error::NoSuchEntity);
         };
         if item.version != version {
             return Err(Error::NoSuchEntity);
         }
-        Ok(item)
+        Ok(())
     }
 
     pub fn create_entity(&mut self, components: ComponentSet) -> Result<Entity, Error> {
@@ -64,64 +64,83 @@ impl EntityManager {
     where
         C: Component + 'static,
     {
-        let Entity { index, version } = entity;
-        let Some(item) = self.entities.get_mut(index) else {
-            return Err(Error::NoSuchEntity);
-        };
-        if item.version != version {
-            return Err(Error::NoSuchEntity);
-        }
+        self.verify_entity(entity)?;
 
-        let EntityItem {
-            archetype,
-            chunk_index,
-            ..
-        } = item;
-        let chunk = self.chunks.get_mut(archetype).unwrap();
-        let size = archetype.components_per_entity();
+        let index = entity.index;
 
-        let new_archetype = item.archetype.add_component::<C>()?;
+        let old_version = entity.version;
+        let old_archetype = &self.entities[index].archetype;
+        let old_chunk = self.chunks.get_mut(old_archetype).unwrap();
+        let old_chunk_index = self.entities[index].chunk_index;
+        let old_size = old_archetype.components_per_entity();
 
-        if chunk.components.len() == size {
-            let mut components = chunk
+        let new_version = old_version.wrapping_add(1);
+        let new_archetype = old_archetype.add_component::<C>()?;
+
+        let components = if old_chunk.components.len() == old_size {
+            let mut components = old_chunk
                 .components
                 .splice(.., [])
                 .chain([(TypeId::of::<C>(), Box::new(component) as Box<dyn Component>)])
                 .collect::<Vec<_>>();
             components.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-            let new_chunk = self.get_or_create_chunk(new_archetype.clone());
-            let new_chunk_index = new_chunk.components.len() / size;
-            new_chunk.components.extend(components);
-
-            let new_version = item.version.wrapping_add(1);
-            item.version = new_version;
-            item.archetype = new_archetype.clone();
-            item.chunk_index = new_chunk_index;
-            Ok(Entity {
-                index,
-                version: new_version,
-            })
+            components
         } else {
-            for i in 0..size {
-                let from_index = *chunk_index * size + i;
-                let to_index = chunk.components.len() - size + i;
-                chunk.components.swap(from_index, to_index);
+            let from_components_index = old_chunk_index * old_size;
+            let last_components_index = old_chunk.components.len() - old_size;
+            for i in 0..old_size {
+                old_chunk
+                    .components
+                    .swap(from_components_index + i, last_components_index + i);
             }
+            let mut components = old_chunk
+                .components
+                .splice(last_components_index.., [])
+                .chain([(TypeId::of::<C>(), Box::new(component) as Box<dyn Component>)])
+                .collect::<Vec<_>>();
+            components.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-            todo!()
-        }
+            // last entity should be updated
+            let last_chunk_index = old_chunk.components.len() / old_size - 1;
+            let index = self
+                .entities
+                .iter()
+                .position(|item| {
+                    &item.archetype == old_archetype && item.chunk_index == last_chunk_index
+                })
+                .unwrap();
+            self.entities[index].chunk_index = old_chunk_index;
+            self.entities[index].version = self.entities[index].version.wrapping_add(1);
+
+            components
+        };
+
+        let new_chunk = self.get_or_create_chunk(new_archetype.clone());
+        let new_chunk_index = new_chunk.components.len() / old_size;
+        new_chunk.components.extend(components);
+
+        self.entities[index] = EntityItem {
+            version: new_version,
+            archetype: new_archetype,
+            chunk_index: new_chunk_index,
+        };
+        Ok(Entity {
+            index,
+            version: new_version,
+        })
     }
 
     pub fn remove_component<C>(&mut self, entity: Entity) -> Result<Entity, Error>
     where
         C: Component + 'static,
     {
+        self.verify_entity(entity)?;
     }
 
     // fn swap_archetype(&mut self)
 }
 
+#[derive(Clone)]
 struct EntityItem {
     version: usize,
     archetype: Archetype,

@@ -69,6 +69,19 @@ impl Archetype {
             Err(Error::DuplicateComponent)
         }
     }
+
+    pub fn remove_component<C>(&self) -> Result<Self, Error>
+    where
+        C: Component + 'static,
+    {
+        let mut new_archetype = self.0.clone();
+        new_archetype.retain(|type_id| type_id != &TypeId::of::<C>());
+        if new_archetype.len() == self.0.len() {
+            Err(Error::NoSuchComponent)
+        } else {
+            Ok(Self(new_archetype))
+        }
+    }
 }
 
 // pub trait ToArchetype {
