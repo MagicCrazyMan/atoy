@@ -25,6 +25,7 @@
 <script setup lang="ts">
 import init, {
   LogLevel,
+  demo,
   init_with_log_level,
   test_cube,
   test_pick,
@@ -60,6 +61,7 @@ const pickTime = ref(0);
 
 onMounted(async () => {
   await init();
+  demo().run()
   init_with_log_level(LogLevel.Info);
 
   const viewer = test_cube(

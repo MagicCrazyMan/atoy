@@ -135,6 +135,7 @@ impl EntityManager {
         C: Component + 'static,
     {
         self.verify_entity(entity)?;
+        todo!()
     }
 
     // fn swap_archetype(&mut self)
