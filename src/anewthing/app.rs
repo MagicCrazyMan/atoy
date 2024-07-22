@@ -41,18 +41,18 @@ impl App {
             .map(|p| p.downcast_mut::<P>().unwrap())
     }
 
-    pub fn add_plugin<P>(&mut self, mut plugin: P) -> bool
+    pub fn add_plugin<P>(&mut self, mut plugin: P) -> Result<(), P>
     where
         P: Plugin + 'static,
     {
         let id = TypeId::of::<P>();
         if self.plugins.contains_key(&id) {
-            return false;
+            return Err(plugin);
         }
 
         plugin.plugin(self);
         self.plugins.insert_unique_unchecked(id, Box::new(plugin));
-        true
+        Ok(())
     }
 
     pub fn remove_plugin<P>(&mut self) -> Option<P>

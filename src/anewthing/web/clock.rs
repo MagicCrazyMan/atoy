@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Duration};
 
-use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
+use wasm_bindgen::{closure::Closure, JsCast};
 
 use crate::{
     anewthing::{app::App, channel::Channel, clock::Tick, plugin::Plugin},
@@ -8,8 +8,7 @@ use crate::{
 };
 
 /// A [`Clock`] implemented by [`Performance`](web_sys::Performance) from Web JavaScript.
-#[wasm_bindgen]
-pub struct WebClock {
+pub struct WebClock<T> {
     start_on_plugin: bool,
     stop_on_plugout: bool,
     start_time: Option<i64>,
@@ -19,9 +18,14 @@ pub struct WebClock {
     channel: *mut Option<Channel>,
     handler: *mut Option<Closure<dyn FnMut()>>,
     handle: Option<i32>,
+
+    _tick: PhantomData<T>,
 }
 
-impl WebClock {
+impl<T> WebClock<T>
+where
+    T: Tick + 'static,
+{
     /// Construct a new web clock based on [`Performance`](https://developer.mozilla.org/en-US/docs/Web/API/Performance).
     ///
     /// `interval` is the duration between each clock tick.
@@ -36,6 +40,8 @@ impl WebClock {
             channel: Box::into_raw(Box::new(None)),
             handler: Box::into_raw(Box::new(None)),
             handle: None,
+
+            _tick: PhantomData,
         }
     }
 
@@ -83,7 +89,7 @@ impl WebClock {
     }
 
     /// Returns the elapsed time of the clock in milliseconds.
-    /// 
+    ///
     /// - If clock is running, returns the time between start time and current time.
     /// - If clock is not running, returns the time between start time and stop time.
     pub fn elapsed_time(&self) -> Option<i64> {
@@ -123,7 +129,7 @@ impl WebClock {
                     let current_time = performance().now() as i64;
 
                     if let Some(channel) = (*channel).as_ref() {
-                        channel.send(Tick::new(
+                        channel.send(T::new(
                             start_time,
                             previous_time.borrow().clone(),
                             current_time,
@@ -161,7 +167,10 @@ impl WebClock {
     }
 }
 
-impl Plugin for WebClock {
+impl<T> Plugin for WebClock<T>
+where
+    T: Tick + 'static,
+{
     fn plugin(&mut self, app: &mut App) {
         unsafe {
             *self.channel = Some(app.channel());
@@ -183,10 +192,8 @@ impl Plugin for WebClock {
     }
 }
 
-impl Drop for WebClock {
+impl<T> Drop for WebClock<T> {
     fn drop(&mut self) {
-        self.stop();
-
         unsafe {
             drop(Box::from_raw(self.channel));
             drop(Box::from_raw(self.handler));

@@ -1,24 +1,57 @@
-/// Clock tick indicating clock ticking information.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Tick {
-    /// Start time of the clock.
-    pub start_time: i64,
-    /// Current time of the clock.
-    pub current_time: i64,
-    /// Previous tick time of the clock.
-    pub previous_time: i64,
-    /// Delta time between previous time and current time.
-    pub delta_time: i64,
+pub trait Tick {
+    /// Constructs a new clock tick.
+    fn new(start_time: i64, previous_time: i64, current_time: i64) -> Self
+    where
+        Self: Sized;
+
+    /// Returns start time of the clock.
+    fn start_time(&self) -> i64;
+
+    /// Returns current time of this tick.
+    fn current_time(&self) -> i64;
+
+    /// Returns previous time of last tick.
+    fn previous_time(&self) -> i64;
+
+    /// Returns elapsed time between previous time and current time.
+    fn elapsed_time(&self) -> i64;
 }
 
-impl Tick {
-    /// Constructs a new clock tick.
-    pub fn new(start_time: i64, previous_time: i64, current_time: i64) -> Self {
+/// Simle clock tick indicating clock ticking information.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SimpleTick {
+    start_time: i64,
+    current_time: i64,
+    previous_time: i64,
+    elapsed_time: i64,
+}
+
+impl Tick for SimpleTick {
+    fn new(start_time: i64, previous_time: i64, current_time: i64) -> Self
+    where
+        Self: Sized,
+    {
         Self {
             start_time,
             previous_time,
             current_time,
-            delta_time: current_time - previous_time,
+            elapsed_time: current_time - previous_time,
         }
+    }
+
+    fn start_time(&self) -> i64 {
+        self.start_time
+    }
+
+    fn current_time(&self) -> i64 {
+        self.current_time
+    }
+
+    fn previous_time(&self) -> i64 {
+        self.previous_time
+    }
+
+    fn elapsed_time(&self) -> i64 {
+        self.elapsed_time
     }
 }
