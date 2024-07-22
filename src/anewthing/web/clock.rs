@@ -1,100 +1,139 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
-use async_trait::async_trait;
-use wasm_bindgen::{closure::Closure, JsCast, prelude::wasm_bindgen};
+use wasm_bindgen::{closure::Closure, prelude::wasm_bindgen, JsCast};
 
 use crate::{
-    anewthing::{
-        channel::Channel,
-        clock::{Clock, Tick},
-    },
+    anewthing::{app::App, channel::Channel, clock::Tick, plugin::Plugin},
     performance, window,
 };
 
 /// A [`Clock`] implemented by [`Performance`](web_sys::Performance) from Web JavaScript.
 #[wasm_bindgen]
 pub struct WebClock {
-    start_time: Option<f64>,
-    stop_time: Option<f64>,
+    start_on_plugin: bool,
+    stop_on_plugout: bool,
+    start_time: Option<i64>,
+    stop_time: Option<i64>,
     interval: Duration,
 
-    handle: Option<i32>,
+    channel: *mut Option<Channel>,
     handler: *mut Option<Closure<dyn FnMut()>>,
+    handle: Option<i32>,
 }
 
 impl WebClock {
+    /// Construct a new web clock based on [`Performance`](https://developer.mozilla.org/en-US/docs/Web/API/Performance).
+    ///
+    /// `interval` is the duration between each clock tick.
     pub fn new(interval: Duration) -> Self {
         Self {
+            start_on_plugin: true,
+            stop_on_plugout: true,
             start_time: None,
             stop_time: None,
             interval,
 
-            handle: None,
+            channel: Box::into_raw(Box::new(None)),
             handler: Box::into_raw(Box::new(None)),
+            handle: None,
         }
     }
 
-    pub fn elapsed_time(&self) -> Option<f64> {
-        if let (Some(start_time), Some(stop_time)) = (self.start_time(), self.stop_time()) {
-            Some(stop_time - start_time)
-        } else {
-            None
-        }
+    /// Sets whether automatically start the clock when plugin.
+    pub fn set_start_on_plugin(&mut self, enable: bool) {
+        self.start_on_plugin = enable;
     }
 
+    /// Sets whether automatically stop the clock when plugout.
+    pub fn set_stop_on_plugout(&mut self, enable: bool) {
+        self.stop_on_plugout = enable;
+    }
+
+    /// Returns the interval between each clock tick.
     pub fn interval(&self) -> Duration {
         self.interval
     }
-}
 
-impl Drop for WebClock {
-    fn drop(&mut self) {
-        self.stop();
+    /// Sets the interval between each clock tick.
+    pub fn set_interval(&mut self, interval: Duration) {
+        if interval == self.interval {
+            return;
+        }
 
-        unsafe {
-            drop(Box::from_raw(self.handler));
+        self.interval = interval;
+        if self.running() {
+            self.stop();
+            self.start();
         }
     }
-}
 
-#[async_trait(?Send)]
-impl Clock for WebClock {
-    fn start_time(&self) -> Option<f64> {
+    /// Returns the time when clock started in milliseconds.
+    pub fn start_time(&self) -> Option<i64> {
         self.start_time.clone()
     }
 
-    fn stop_time(&self) -> Option<f64> {
+    /// Returns the time when clock stopped in milliseconds.
+    pub fn stop_time(&self) -> Option<i64> {
         self.stop_time.clone()
     }
 
-    fn running(&self) -> bool {
+    /// Returns current time in milliseconds.
+    pub fn current_time(&self) -> i64 {
+        performance().now() as i64
+    }
+
+    /// Returns the elapsed time of the clock in milliseconds.
+    /// 
+    /// - If clock is running, returns the time between start time and current time.
+    /// - If clock is not running, returns the time between start time and stop time.
+    pub fn elapsed_time(&self) -> Option<i64> {
+        if self.running() {
+            Some(self.current_time() - self.start_time().unwrap())
+        } else {
+            if let (Some(start_time), Some(stop_time)) = (self.start_time(), self.stop_time()) {
+                Some(stop_time - start_time)
+            } else {
+                None
+            }
+        }
+    }
+
+    /// Returns `true` if clock is ticking.
+    /// [`WebClock::start_time`] is promised to return some value when clock is running.
+    pub fn running(&self) -> bool {
         self.handle.is_some()
     }
 
-    fn start(&mut self, channel: Channel) {
+    /// Starts the clock.
+    ///
+    /// [`Tick`] message will be sent to message channel at intervals after started.
+    pub fn start(&mut self) {
         if self.running() {
             return;
         }
-        log::info!("1111");
 
         unsafe {
-            let start_time = performance().now();
+            let start_time = performance().now() as i64;
 
             let handler = {
                 let start_time = start_time;
                 let previous_time = Rc::new(RefCell::new(start_time));
+                let channel = self.channel.clone();
                 Closure::new(move || {
-                    log::info!("1111");
-                    let current_time = performance().now();
-                    channel.send(Tick::new(
-                        start_time,
-                        previous_time.borrow().clone(),
-                        current_time,
-                    ));
+                    let current_time = performance().now() as i64;
+
+                    if let Some(channel) = (*channel).as_ref() {
+                        channel.send(Tick::new(
+                            start_time,
+                            previous_time.borrow().clone(),
+                            current_time,
+                        ));
+                    }
+
                     *previous_time.borrow_mut() = current_time;
                 })
             };
-            (*self.handler) = Some(handler);
+            *self.handler = Some(handler);
 
             let handle = window()
                 .set_interval_with_callback_and_timeout_and_arguments_0(
@@ -109,14 +148,48 @@ impl Clock for WebClock {
         }
     }
 
-    fn stop(&mut self) {
+    /// Stops the clock.
+    pub fn stop(&mut self) {
         unsafe {
             if let Some(handle) = self.handle.take() {
                 window().clear_interval_with_handle(handle);
             };
 
             (*self.handler) = None;
-            self.stop_time = Some(performance().now());
+            self.stop_time = Some(performance().now() as i64);
+        }
+    }
+}
+
+impl Plugin for WebClock {
+    fn plugin(&mut self, app: &mut App) {
+        unsafe {
+            *self.channel = Some(app.channel());
+        }
+
+        if self.start_on_plugin {
+            self.start();
+        }
+    }
+
+    fn plugout(&mut self, _: &mut App) {
+        unsafe {
+            *self.channel = None;
+        }
+
+        if self.stop_on_plugout {
+            self.stop();
+        }
+    }
+}
+
+impl Drop for WebClock {
+    fn drop(&mut self) {
+        self.stop();
+
+        unsafe {
+            drop(Box::from_raw(self.channel));
+            drop(Box::from_raw(self.handler));
         }
     }
 }
