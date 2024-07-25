@@ -131,7 +131,7 @@ where
                     if let Some(channel) = (*channel).as_ref() {
                         channel.send(T::new(
                             start_time,
-                            previous_time.borrow().clone(),
+                            *previous_time.borrow(),
                             current_time,
                         ));
                     }
@@ -173,7 +173,7 @@ where
 {
     fn plugin(&mut self, app: &mut App) {
         unsafe {
-            *self.channel = Some(app.channel());
+            *self.channel = Some(app.channel().clone());
         }
 
         if self.start_on_plugin {

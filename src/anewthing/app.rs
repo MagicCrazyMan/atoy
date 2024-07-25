@@ -2,10 +2,11 @@ use std::any::{Any, TypeId};
 
 use hashbrown::HashMap;
 
-use super::{channel::Channel, plugin::Plugin};
+use super::{channel::Channel, ecs::manager::EntityManager, plugin::Plugin};
 
 pub struct App {
     channel: Channel,
+    entity_manager: EntityManager,
     plugins: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -15,12 +16,13 @@ impl App {
 
         Self {
             channel,
+            entity_manager: EntityManager::new(),
             plugins: HashMap::new(),
         }
     }
 
-    pub fn channel(&self) -> Channel {
-        self.channel.clone()
+    pub fn channel(&self) -> &Channel {
+        &self.channel
     }
 
     pub fn plugin<P>(&self) -> Option<&P>
