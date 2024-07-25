@@ -15,9 +15,9 @@ impl App {
         let channel = Channel::new();
 
         Self {
-            channel,
-            entity_manager: EntityManager::new(),
+            entity_manager: EntityManager::new(channel.clone()),
             plugins: HashMap::new(),
+            channel,
         }
     }
 
