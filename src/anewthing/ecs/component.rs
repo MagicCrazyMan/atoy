@@ -2,14 +2,20 @@ use std::any::TypeId;
 
 use super::{archetype::Archetype, error::Error};
 
-pub trait Component {
-}
+pub trait Component {}
 
 pub struct ComponentSet(pub(super) Vec<(TypeId, Box<dyn Component>)>);
 
 impl ComponentSet {
     pub fn new() -> Self {
         Self(Vec::new())
+    }
+
+    pub fn with_component<C>(component: C) -> Self
+    where
+        C: Component + 'static,
+    {
+        Self(vec![(TypeId::of::<C>(), Box::new(component))])
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
@@ -24,7 +30,7 @@ impl ComponentSet {
         Archetype(self.0.iter().map(|(id, _)| *id).collect())
     }
 
-    pub fn components(self) -> Vec<Box<dyn Component>> {
+    pub fn to_components(self) -> Vec<Box<dyn Component>> {
         self.0.into_iter().map(|(_, component)| component).collect()
     }
 

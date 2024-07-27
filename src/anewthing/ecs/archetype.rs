@@ -1,14 +1,29 @@
 use std::any::TypeId;
 
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use super::{component::Component, error::Error};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Archetype(pub(super) SmallVec<[TypeId; 3]>);
+pub struct Archetype(pub(super) SmallVec<[TypeId; 2]>);
 
 impl Archetype {
-    pub fn components_per_entity(&self) -> usize {
+    pub fn new() -> Self {
+        Self(SmallVec::new())
+    }
+
+    pub fn with_component<C>() -> Self
+    where
+        C: Component + 'static,
+    {
+        Self(smallvec![TypeId::of::<C>()])
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(SmallVec::with_capacity(capacity))
+    }
+
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 

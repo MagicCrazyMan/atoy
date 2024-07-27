@@ -40,7 +40,7 @@ impl EntityManager {
             ..
         } = self.entities.get(id).unwrap();
         let chunk_index = *chunk_index;
-        let chunk_size = archetype.components_per_entity();
+        let chunk_size = archetype.len();
         let chunk = self.chunks.get_mut(archetype).unwrap();
 
         let components = if chunk.components.len() == chunk_size {
@@ -85,7 +85,7 @@ impl EntityManager {
 
     pub fn create_entity(&mut self, components: ComponentSet) -> Result<EntityId, Error> {
         let archetype = components.archetype();
-        let size = archetype.components_per_entity();
+        let size = archetype.len();
         if size == 0 {
             return Err(Error::EmptyComponents);
         }
