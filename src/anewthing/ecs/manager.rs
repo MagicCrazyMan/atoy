@@ -1,19 +1,19 @@
 use std::any::TypeId;
 
 use hashbrown::HashMap;
+use uuid::Uuid;
 
 use crate::anewthing::channel::Channel;
 
 use super::{
     archetype::Archetype,
     component::{Component, ComponentSet},
-    entity::EntityId,
     error::Error,
 };
 
 pub struct EntityManager {
     channel: Channel,
-    entities: HashMap<EntityId, Entity>,
+    entities: HashMap<Uuid, Entity>,
     chunks: HashMap<Archetype, Chunk>,
 }
 
@@ -33,7 +33,7 @@ impl EntityManager {
         })
     }
 
-    unsafe fn swap_and_remove_entity(&mut self, id: &EntityId) -> ComponentSet {
+    unsafe fn swap_and_remove_entity(&mut self, id: &Uuid) -> ComponentSet {
         let Entity {
             archetype,
             chunk_index,
@@ -79,11 +79,11 @@ impl EntityManager {
         ComponentSet(components)
     }
 
-    pub fn has_entity(&self, id: &EntityId) -> bool {
+    pub fn has_entity(&self, id: &Uuid) -> bool {
         self.entities.contains_key(id)
     }
 
-    pub fn create_entity(&mut self, components: ComponentSet) -> Result<EntityId, Error> {
+    pub fn create_entity(&mut self, components: ComponentSet) -> Result<Uuid, Error> {
         let archetype = components.archetype();
         let size = archetype.len();
         if size == 0 {
@@ -99,16 +99,14 @@ impl EntityManager {
             archetype,
             chunk_index,
         };
-        let (id, _) = self
-            .entities
-            .insert_unique_unchecked(EntityId::new(), entity);
+        let (id, _) = self.entities.insert_unique_unchecked(Uuid::new_v4(), entity);
 
         self.channel.send(CreateEntity::new(*id));
 
         Ok(*id)
     }
 
-    pub fn remove_entity(&mut self, id: &EntityId) -> Result<ComponentSet, Error> {
+    pub fn remove_entity(&mut self, id: &Uuid) -> Result<ComponentSet, Error> {
         if !self.has_entity(&id) {
             return Err(Error::NoSuchEntity);
         }
@@ -118,7 +116,7 @@ impl EntityManager {
         unsafe { Ok(self.swap_and_remove_entity(&id)) }
     }
 
-    unsafe fn set_components(&mut self, id: &EntityId, components: ComponentSet) {
+    unsafe fn set_components(&mut self, id: &Uuid, components: ComponentSet) {
         let archetype = components.archetype();
         let chunk = self.get_or_create_chunk(archetype.clone());
         chunk.components.extend(components.0);
@@ -130,14 +128,14 @@ impl EntityManager {
             .set_archetype(archetype, chunk_index);
     }
 
-    pub fn has_component<C: Component + 'static>(&mut self, id: &EntityId) -> bool {
+    pub fn has_component<C: Component + 'static>(&mut self, id: &Uuid) -> bool {
         let Some(entity) = self.entities.get(id) else {
             return false;
         };
         entity.archetype.has_component::<C>()
     }
 
-    pub fn add_component<C>(&mut self, id: EntityId, component: C) -> Result<(), Error>
+    pub fn add_component<C>(&mut self, id: Uuid, component: C) -> Result<(), Error>
     where
         C: Component + 'static,
     {
@@ -157,7 +155,7 @@ impl EntityManager {
         Ok(())
     }
 
-    pub fn remove_component<C>(&mut self, id: EntityId) -> Result<Box<dyn Component>, Error>
+    pub fn remove_component<C>(&mut self, id: Uuid) -> Result<Box<dyn Component>, Error>
     where
         C: Component + 'static,
     {
@@ -198,48 +196,48 @@ impl Entity {
 }
 
 struct Chunk {
-    entity_ids: Vec<EntityId>,
+    entity_ids: Vec<Uuid>,
     components: Vec<(TypeId, Box<dyn Component>)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CreateEntity(EntityId);
+pub struct CreateEntity(Uuid);
 
 impl CreateEntity {
-    fn new(id: EntityId) -> Self {
+    fn new(id: Uuid) -> Self {
         Self(id)
     }
 
-    pub fn entity_id(&self) -> &EntityId {
+    pub fn entity_id(&self) -> &Uuid {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveEntity(EntityId);
+pub struct RemoveEntity(Uuid);
 
 impl RemoveEntity {
-    fn new(id: EntityId) -> Self {
+    fn new(id: Uuid) -> Self {
         Self(id)
     }
 
-    pub fn entity_id(&self) -> &EntityId {
+    pub fn entity_id(&self) -> &Uuid {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddComponent(EntityId, TypeId);
+pub struct AddComponent(Uuid, TypeId);
 
 impl AddComponent {
-    fn new<C>(id: EntityId) -> Self
+    fn new<C>(id: Uuid) -> Self
     where
         C: Component + 'static,
     {
         Self(id, TypeId::of::<C>())
     }
 
-    pub fn entity_id(&self) -> &EntityId {
+    pub fn entity_id(&self) -> &Uuid {
         &self.0
     }
 
@@ -249,17 +247,17 @@ impl AddComponent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveComponent(EntityId, TypeId);
+pub struct RemoveComponent(Uuid, TypeId);
 
 impl RemoveComponent {
-    fn new<C>(entity: EntityId) -> Self
+    fn new<C>(entity: Uuid) -> Self
     where
         C: Component + 'static,
     {
         Self(entity, TypeId::of::<C>())
     }
 
-    pub fn entity(&self) -> &EntityId {
+    pub fn entity(&self) -> &Uuid {
         &self.0
     }
 
