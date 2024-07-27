@@ -28,8 +28,54 @@ impl EntityManager {
 
     fn get_or_create_chunk<'a: 'b, 'b>(&'a mut self, archetype: Archetype) -> &'b mut ChunkTable {
         self.chunks.entry(archetype).or_insert_with(|| ChunkTable {
+            entities: Vec::new(),
             components: Vec::new(),
         })
+    }
+
+    fn swap_and_remove_entity(
+        &mut self,
+        row: &EntityTable,
+    ) -> Vec<(TypeId, Box<dyn Component>)> {
+        let EntityTable {
+            archetype,
+            chunk_index: from_chunk_index,
+            ..
+        } = row;
+        let chunk_size = archetype.components_per_entity();
+        let chunk = self.chunks.get_mut(archetype).unwrap();
+
+        if chunk.components.len() == chunk_size {
+            chunk.entities.drain(..);
+            chunk.components.drain(..).collect::<Vec<_>>()
+        } else {
+            // swaps components and removes last components
+            let from_components_index = from_chunk_index * chunk_size;
+            let last_components_index = chunk.components.len() - chunk_size;
+            for i in 0..chunk_size {
+                chunk
+                    .components
+                    .swap(from_components_index + i, last_components_index + i);
+            }
+            let components = chunk
+                .components
+                .splice(last_components_index.., [])
+                .collect::<Vec<_>>();
+
+            // swaps entity id and remove last entity
+            let swap_entity_id = *chunk.entities.last().unwrap();
+            chunk
+                .entities
+                .swap(*from_chunk_index, chunk.components.len() - 1);
+            chunk.entities.pop();
+
+            // last entity should be updated
+            let swap_entity = self.entities.get_mut(&swap_entity_id).unwrap();
+            swap_entity.chunk_index = *from_chunk_index;
+            swap_entity.version = swap_entity.version.wrapping_add(1);
+
+            components
+        }
     }
 
     pub fn create_entity(&mut self, components: ComponentSet) -> Result<Entity, Error> {
@@ -205,6 +251,7 @@ struct EntityTable {
 }
 
 struct ChunkTable {
+    entities: Vec<Entity>,
     components: Vec<(TypeId, Box<dyn Component>)>,
 }
 
