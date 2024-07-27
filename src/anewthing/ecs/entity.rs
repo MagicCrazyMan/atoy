@@ -1,9 +1,9 @@
 use uuid::Uuid;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Entity(Uuid);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EntityId(Uuid);
 
-impl Entity {
+impl EntityId {
     pub(super) fn new() -> Self {
         Self(Uuid::new_v4())
     }

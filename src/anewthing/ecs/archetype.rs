@@ -8,63 +8,31 @@ use super::{component::Component, error::Error};
 pub struct Archetype(pub(super) SmallVec<[TypeId; 3]>);
 
 impl Archetype {
-    // pub(super) fn new<I>(type_ids: I) -> Result<Self, Error>
-    // where
-    //     I: IntoIterator<Item = TypeId>,
-    // {
-    //     let type_ids: SmallVec<[TypeId; 3]> = type_ids.into_iter().collect();
-    //     let mut post_processed = type_ids.clone();
-    //     post_processed.sort();
-    //     post_processed.dedup();
-
-    //     if type_ids.len() != post_processed.len() {
-    //         return Err(Error::DuplicateComponent);
-    //     }
-
-    //     for (i, j) in type_ids.iter().zip(post_processed.iter()) {
-    //         if i != j {
-    //             return Err(Error::DuplicateComponent);
-    //         }
-    //     }
-
-    //     Ok(Self(type_ids))
-    // }
-
-    // // pub(super) fn new_unchecked<I>(component_types: I) -> Self
-    // // where
-    // //     I: IntoIterator<Item = TypeId>,
-    // // {
-    // //     Self(component_types.into_iter().collect())
-    // // }
-
-    // pub(super) fn from_components(components: &mut Vec<Box<dyn Component>>) -> Result<Self, Error> {
-    //     let archetype = Self::new(components.iter().map(|component| component.type_id()))?;
-
-    //     for (i, j) in archetype.0.iter()
-
-    //     Self(component_types)
-    // }
-}
-
-impl Archetype {
     pub fn components_per_entity(&self) -> usize {
         self.0.len()
     }
 
-    pub fn component_id(&self, index: usize) -> Option<TypeId> {
+    pub fn component_type(&self, index: usize) -> Option<TypeId> {
         self.0.get(index).cloned()
+    }
+
+    pub fn has_component<C>(&self) -> bool
+    where
+        C: Component + 'static,
+    {
+        self.0.iter().any(|id| id == &TypeId::of::<C>())
     }
 
     pub fn add_component<C>(&self) -> Result<Self, Error>
     where
         C: Component + 'static,
     {
-        let mut new_archetype = self.0.clone();
-        new_archetype.push(TypeId::of::<C>());
-        new_archetype.sort();
-        new_archetype.dedup();
-        if new_archetype.len() == self.0.len() {
-            Ok(Self(new_archetype))
+        let mut components = self.0.clone();
+        components.push(TypeId::of::<C>());
+        components.sort();
+        components.dedup();
+        if components.len() == self.0.len() {
+            Ok(Self(components))
         } else {
             Err(Error::DuplicateComponent)
         }
@@ -74,12 +42,12 @@ impl Archetype {
     where
         C: Component + 'static,
     {
-        let mut new_archetype = self.0.clone();
-        new_archetype.retain(|type_id| type_id != &TypeId::of::<C>());
-        if new_archetype.len() == self.0.len() {
+        let mut components = self.0.clone();
+        components.retain(|type_id| type_id != &TypeId::of::<C>());
+        if components.len() == self.0.len() {
             Err(Error::NoSuchComponent)
         } else {
-            Ok(Self(new_archetype))
+            Ok(Self(components))
         }
     }
 }

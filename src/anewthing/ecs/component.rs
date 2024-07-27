@@ -3,10 +3,9 @@ use std::any::TypeId;
 use super::{archetype::Archetype, error::Error};
 
 pub trait Component {
-    // fn type_id(&self) -> TypeId;
 }
 
-pub struct ComponentSet(pub(super)  Vec<(TypeId, Box<dyn Component>)>);
+pub struct ComponentSet(pub(super) Vec<(TypeId, Box<dyn Component>)>);
 
 impl ComponentSet {
     pub fn new() -> Self {
@@ -45,19 +44,37 @@ impl ComponentSet {
         Ok(self)
     }
 
-    pub fn remove<C>(mut self) -> Self
+    pub unsafe fn add_unique_unchecked<C>(mut self, component: C) -> Self
+    where
+        C: Component + 'static,
+    {
+        self.0.push((TypeId::of::<C>(), Box::new(component)));
+        self.0.sort_by(|(a, _), (b, _)| a.cmp(b));
+        self
+    }
+
+    pub unsafe fn remove_unchecked<C>(mut self) -> (Self, Box<dyn Component>)
+    where
+        C: Component + 'static,
+    {
+        let type_id = TypeId::of::<C>();
+        let index = self.0.iter().position(|(id, _)| id == &type_id).unwrap();
+        let removed = self.0.remove(index);
+        (self, removed.1)
+    }
+
+    pub fn remove<C>(mut self) -> Result<(Self, Box<dyn Component>), Error>
     where
         C: Component + 'static,
     {
         let type_id = TypeId::of::<C>();
         let Some(index) = self.0.iter().position(|(id, _)| id == &type_id) else {
-            return self;
+            return Err(Error::NoSuchComponent);
         };
 
-        self.0.remove(index);
-        self.0.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let removed = self.0.remove(index);
 
-        self
+        Ok((self, removed.1))
     }
 }
 
