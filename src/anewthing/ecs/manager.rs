@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
 use hashbrown::HashMap;
 use uuid::Uuid;
@@ -15,6 +15,7 @@ pub struct EntityManager {
     channel: Channel,
     entities: HashMap<Uuid, Entity>,
     chunks: HashMap<Archetype, Chunk>,
+    shared_components: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl EntityManager {
@@ -23,6 +24,7 @@ impl EntityManager {
             channel,
             entities: HashMap::new(),
             chunks: HashMap::new(),
+            shared_components: HashMap::new(),
         }
     }
 
@@ -55,7 +57,7 @@ impl EntityManager {
                     .components
                     .swap(from_components_index + i, swap_components_index + i);
             }
-            let components: Vec<(TypeId, Box<dyn Component>)> = chunk
+            let components = chunk
                 .components
                 .drain(swap_components_index..)
                 .collect::<Vec<_>>();
@@ -99,7 +101,9 @@ impl EntityManager {
             archetype,
             chunk_index,
         };
-        let (id, _) = self.entities.insert_unique_unchecked(Uuid::new_v4(), entity);
+        let (id, _) = self
+            .entities
+            .insert_unique_unchecked(Uuid::new_v4(), entity);
 
         self.channel.send(CreateEntity::new(*id));
 
@@ -155,7 +159,7 @@ impl EntityManager {
         Ok(())
     }
 
-    pub fn remove_component<C>(&mut self, id: Uuid) -> Result<Box<dyn Component>, Error>
+    pub fn remove_component<C>(&mut self, id: Uuid) -> Result<C, Error>
     where
         C: Component + 'static,
     {
@@ -174,6 +178,49 @@ impl EntityManager {
 
         Ok(removed)
     }
+
+    pub fn has_shared_component<C>(&self) -> bool
+    where
+        C: Component + 'static,
+    {
+        self.shared_components.contains_key(&TypeId::of::<C>())
+    }
+
+    pub fn add_shared_component<C>(&mut self, component: C) -> Result<(), Error>
+    where
+        C: Component + 'static,
+    {
+        if self.has_shared_component::<C>() {
+            return Err(Error::DuplicateComponent);
+        }
+
+        self.shared_components
+            .insert_unique_unchecked(TypeId::of::<C>(), Box::new(component));
+
+        Ok(())
+    }
+
+    pub fn remove_shared_component<C>(&mut self) -> Result<C, Error>
+    where
+        C: Component + 'static,
+    {
+        if !self.has_shared_component::<C>() {
+            return Err(Error::NoSuchComponent);
+        }
+
+        let removed = *self
+            .shared_components
+            .remove(&TypeId::of::<C>())
+            .unwrap()
+            .downcast::<C>()
+            .unwrap();
+
+        Ok(removed)
+    }
+
+    // pub fn query(&mut self) {
+    //     let archetypes = self.chunks.keys().filter(|ar| )
+    // }
 }
 
 struct Entity {
@@ -197,7 +244,7 @@ impl Entity {
 
 struct Chunk {
     entity_ids: Vec<Uuid>,
-    components: Vec<(TypeId, Box<dyn Component>)>,
+    components: Vec<(TypeId, Box<dyn Any>)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

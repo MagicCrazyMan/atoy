@@ -1,10 +1,10 @@
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
 use super::{archetype::Archetype, error::Error};
 
 pub trait Component {}
 
-pub struct ComponentSet(pub(super) Vec<(TypeId, Box<dyn Component>)>);
+pub struct ComponentSet(pub(super) Vec<(TypeId, Box<dyn Any>)>);
 
 impl ComponentSet {
     pub fn new() -> Self {
@@ -28,10 +28,6 @@ impl ComponentSet {
 
     pub fn archetype(&self) -> Archetype {
         Archetype(self.0.iter().map(|(id, _)| *id).collect())
-    }
-
-    pub fn to_components(self) -> Vec<Box<dyn Component>> {
-        self.0.into_iter().map(|(_, component)| component).collect()
     }
 
     pub fn add<C>(mut self, component: C) -> Result<Self, Error>
@@ -59,17 +55,17 @@ impl ComponentSet {
         self
     }
 
-    pub unsafe fn remove_unchecked<C>(mut self) -> (Self, Box<dyn Component>)
+    pub unsafe fn remove_unchecked<C>(mut self) -> (Self, C)
     where
         C: Component + 'static,
     {
         let type_id = TypeId::of::<C>();
         let index = self.0.iter().position(|(id, _)| id == &type_id).unwrap();
-        let removed = self.0.remove(index);
-        (self, removed.1)
+        let removed = *self.0.remove(index).1.downcast::<C>().unwrap();
+        (self, removed)
     }
 
-    pub fn remove<C>(mut self) -> Result<(Self, Box<dyn Component>), Error>
+    pub fn remove<C>(mut self) -> Result<(Self, C), Error>
     where
         C: Component + 'static,
     {
@@ -78,9 +74,9 @@ impl ComponentSet {
             return Err(Error::NoSuchComponent);
         };
 
-        let removed = self.0.remove(index);
+        let removed = *self.0.remove(index).1.downcast::<C>().unwrap();
 
-        Ok((self, removed.1))
+        Ok((self, removed))
     }
 }
 

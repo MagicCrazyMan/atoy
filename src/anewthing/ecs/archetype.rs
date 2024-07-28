@@ -5,22 +5,35 @@ use smallvec::{smallvec, SmallVec};
 use super::{component::Component, error::Error};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Archetype(pub(super) SmallVec<[TypeId; 2]>);
+pub struct Archetype(
+    pub(super) SmallVec<[TypeId; 2]>, // non-shared components
+    pub(super) SmallVec<[TypeId; 2]>, // shared components
+);
 
 impl Archetype {
     pub fn new() -> Self {
-        Self(SmallVec::new())
+        Self(SmallVec::new(), SmallVec::new())
     }
 
     pub fn with_component<C>() -> Self
     where
         C: Component + 'static,
     {
-        Self(smallvec![TypeId::of::<C>()])
+        Self(smallvec![TypeId::of::<C>()], SmallVec::new())
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(SmallVec::with_capacity(capacity))
+    pub fn with_shared_component<C>() -> Self
+    where
+        C: Component + 'static,
+    {
+        Self(SmallVec::new(), smallvec![TypeId::of::<C>()])
+    }
+
+    pub fn with_capacity(component_capacity: usize, shared_component_capacity: usize) -> Self {
+        Self(
+            SmallVec::with_capacity(component_capacity),
+            SmallVec::with_capacity(shared_component_capacity),
+        )
     }
 
     pub fn len(&self) -> usize {
@@ -47,7 +60,7 @@ impl Archetype {
         components.sort();
         components.dedup();
         if components.len() == self.0.len() {
-            Ok(Self(components))
+            Ok(Self(components, self.1.clone()))
         } else {
             Err(Error::DuplicateComponent)
         }
@@ -62,7 +75,7 @@ impl Archetype {
         if components.len() == self.0.len() {
             Err(Error::NoSuchComponent)
         } else {
-            Ok(Self(components))
+            Ok(Self(components, self.1.clone()))
         }
     }
 }
