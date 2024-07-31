@@ -1,21 +1,21 @@
 use std::any::{Any, TypeId};
 
 use hashbrown::HashMap;
-use uuid::Uuid;
 
-use crate::anewthing::channel::Channel;
+use crate::anewthing::{channel::Channel, key::Key};
 
 use super::{
     archetype::Archetype,
-    component::{Component, ComponentSet},
+    component::{Component, ComponentKey, ComponentSet, SharedComponentKey},
+    entity::EntityKey,
     error::Error,
 };
 
 pub struct EntityManager {
     channel: Channel,
-    entities: HashMap<Uuid, Entity>,
-    chunks: HashMap<Archetype, Chunk>,
-    shared_components: HashMap<TypeId, Box<dyn Any>>,
+    entities: HashMap<EntityKey, EntityItem>,
+    chunks: HashMap<Archetype, ChunkItem>,
+    shared_components: HashMap<SharedComponentKey, SharedComponentItem>,
 }
 
 impl EntityManager {
@@ -28,25 +28,36 @@ impl EntityManager {
         }
     }
 
-    fn get_or_create_chunk<'a: 'b, 'b>(&'a mut self, archetype: Archetype) -> &'b mut Chunk {
-        self.chunks.entry(archetype).or_insert_with(|| Chunk {
-            entity_ids: Vec::new(),
+    fn get_or_create_chunk<'a: 'b, 'b>(&'a mut self, archetype: Archetype) -> &'b mut ChunkItem {
+        self.chunks.entry(archetype).or_insert_with(|| ChunkItem {
+            entity_keys: Vec::new(),
             components: Vec::new(),
         })
     }
 
-    unsafe fn swap_and_remove_entity(&mut self, id: &Uuid) -> ComponentSet {
-        let Entity {
+    unsafe fn swap_and_remove_entity(&mut self, key: &EntityKey) -> ComponentSet {
+        let EntityItem {
             archetype,
             chunk_index,
             ..
-        } = self.entities.get(id).unwrap();
+        } = self.entities.get(key).unwrap();
         let chunk_index = *chunk_index;
         let chunk_size = archetype.len();
         let chunk = self.chunks.get_mut(archetype).unwrap();
 
+        // reduces count of shared components
+        for key in &archetype.1 {
+            let shared = self.shared_components.get_mut(key).unwrap();
+            shared.count -= 1;
+
+            if shared.auto_remove && shared.count == 0 {
+                self.shared_components.remove(key);
+            }
+        }
+
+        // swaps and removes components
         let components = if chunk.components.len() == chunk_size {
-            chunk.entity_ids.clear();
+            chunk.entity_keys.clear();
             chunk.components.drain(..).collect::<Vec<_>>()
         } else {
             // swaps components and removes last components
@@ -63,11 +74,11 @@ impl EntityManager {
                 .collect::<Vec<_>>();
 
             // swaps entity id and remove last one
-            let swap_entity_id = *chunk.entity_ids.last().unwrap();
+            let swap_entity_id = *chunk.entity_keys.last().unwrap();
             chunk
-                .entity_ids
+                .entity_keys
                 .swap(chunk_index, chunk.components.len() - 1);
-            chunk.entity_ids.truncate(chunk.entity_ids.len() - 1);
+            chunk.entity_keys.truncate(chunk.entity_keys.len() - 1);
 
             // updates swap entity
             self.entities
@@ -78,14 +89,26 @@ impl EntityManager {
             components
         };
 
-        ComponentSet(components, Vec::new(), Vec::new())
+        ComponentSet(
+            components
+                .into_iter()
+                .map(
+                    |ComponentItem {
+                         component,
+                         key: type_id,
+                     }| (type_id, component),
+                )
+                .collect(),
+            Vec::new(),
+            Vec::new(),
+        )
     }
 
-    pub fn has_entity(&self, id: &Uuid) -> bool {
-        self.entities.contains_key(id)
+    pub fn has_entity(&self, entity_key: &EntityKey) -> bool {
+        self.entities.contains_key(entity_key)
     }
 
-    pub fn create_entity(&mut self, components: ComponentSet) -> Result<Uuid, Error> {
+    pub fn create_entity(&mut self, components: ComponentSet) -> Result<EntityKey, Error> {
         let archetype = components.archetype();
         let size = archetype.len();
         if size == 0 {
@@ -104,133 +127,173 @@ impl EntityManager {
             }
         }
 
-        let entity_id = Uuid::new_v4();
+        let entity_key = EntityKey::new();
 
         let chunk = self.get_or_create_chunk(archetype.clone());
         let chunk_index = chunk.components.len() / size;
         // pushes entity id
-        chunk.entity_ids.push(entity_id);
+        chunk.entity_keys.push(entity_key);
         // pushes components
-        chunk.components.extend(components);
-        let entity = Entity {
+        chunk.components.extend(
+            components
+                .into_iter()
+                .map(|(type_id, component)| ComponentItem {
+                    component,
+                    key: type_id,
+                }),
+        );
+        let entity = EntityItem {
             version: 0,
             archetype,
             chunk_index,
         };
         // pushes shared components
-        shared_components.into_iter().for_each(|(id, comp)| {
-            self.shared_components.insert_unique_unchecked(id, comp);
+        shared_components.into_iter().for_each(|(id, component)| {
+            self.shared_components.insert_unique_unchecked(
+                id,
+                SharedComponentItem {
+                    component,
+                    count: 0,
+                    auto_remove: true,
+                },
+            );
         });
 
-        let (id, _) = self.entities.insert_unique_unchecked(entity_id, entity);
+        let (entity_key, _) = self.entities.insert_unique_unchecked(entity_key, entity);
 
-        self.channel.send(CreateEntity::new(*id));
+        self.channel.send(CreateEntity::new(*entity_key));
 
-        Ok(*id)
+        Ok(*entity_key)
     }
 
-    pub fn remove_entity(&mut self, id: &Uuid) -> Result<ComponentSet, Error> {
-        if !self.has_entity(&id) {
+    pub fn remove_entity(&mut self, key: &EntityKey) -> Result<ComponentSet, Error> {
+        if !self.has_entity(&key) {
             return Err(Error::NoSuchEntity);
         }
 
-        self.channel.send(RemoveEntity::new(*id));
+        self.channel.send(RemoveEntity::new(*key));
 
-        unsafe { Ok(self.swap_and_remove_entity(&id)) }
+        unsafe { Ok(self.swap_and_remove_entity(&key)) }
     }
 
-    unsafe fn set_components(&mut self, id: &Uuid, components: ComponentSet) {
+    unsafe fn set_components(&mut self, key: &EntityKey, components: ComponentSet) {
         let archetype = components.archetype();
         let chunk = self.get_or_create_chunk(archetype.clone());
-        chunk.components.extend(components.0);
-        chunk.entity_ids.push(*id);
-        let chunk_index = chunk.entity_ids.len() - 1;
+        chunk
+            .components
+            .extend(
+                components
+                    .0
+                    .into_iter()
+                    .map(|(type_id, component)| ComponentItem {
+                        component,
+                        key: type_id,
+                    }),
+            );
+        chunk.entity_keys.push(*key);
+        let chunk_index = chunk.entity_keys.len() - 1;
         self.entities
-            .get_mut(id)
+            .get_mut(key)
             .unwrap()
             .set_archetype(archetype, chunk_index);
     }
 
-    pub fn has_component<C: Component + 'static>(&mut self, id: &Uuid) -> bool {
-        let Some(entity) = self.entities.get(id) else {
+    pub fn has_component<C>(&mut self, entity_key: &EntityKey) -> bool
+    where
+        C: Component + 'static,
+    {
+        let Some(entity) = self.entities.get(entity_key) else {
             return false;
         };
         entity.archetype.has_component::<C>()
     }
 
-    pub fn add_component<C>(&mut self, id: Uuid, component: C) -> Result<(), Error>
+    pub fn add_component<C>(&mut self, entity_key: &EntityKey, component: C) -> Result<(), Error>
     where
         C: Component + 'static,
     {
-        if !self.has_entity(&id) {
+        if !self.has_entity(entity_key) {
             return Err(Error::NoSuchEntity);
         }
-        if self.has_component::<C>(&id) {
+        if self.has_component::<C>(entity_key) {
             return Err(Error::DuplicateComponent);
         }
 
-        let components = unsafe { self.swap_and_remove_entity(&id) };
-        let components = unsafe { components.add_unique_unchecked(component) };
-        unsafe { self.set_components(&id, components) };
+        unsafe {
+            let mut components = self.swap_and_remove_entity(entity_key);
+            components.add_unique_unchecked(component);
+            self.set_components(entity_key, components)
+        };
 
-        self.channel.send(AddComponent::new::<C>(id));
+        self.channel.send(AddComponent::new::<C>(*entity_key));
 
         Ok(())
     }
 
-    pub fn remove_component<C>(&mut self, id: Uuid) -> Result<C, Error>
+    pub fn remove_component<C>(&mut self, entity_key: &EntityKey) -> Result<C, Error>
     where
         C: Component + 'static,
     {
-        if !self.has_entity(&id) {
+        if !self.has_entity(entity_key) {
             return Err(Error::NoSuchEntity);
         }
-        if !self.has_component::<C>(&id) {
+        if !self.has_component::<C>(entity_key) {
             return Err(Error::NoSuchComponent);
         }
 
-        let components = unsafe { self.swap_and_remove_entity(&id) };
-        let (components, removed) = components.remove::<C>().unwrap();
-        unsafe { self.set_components(&id, components) };
+        let removed = unsafe {
+            let mut components = self.swap_and_remove_entity(entity_key);
+            let removed = components.remove::<C>().unwrap();
+            self.set_components(entity_key, components);
+            removed
+        };
 
-        self.channel.send(RemoveComponent::new::<C>(id));
+        self.channel.send(RemoveComponent::new::<C>(*entity_key));
 
         Ok(removed)
     }
 
-    pub fn has_shared_component<C>(&self) -> bool
+    pub fn has_shared_component<C>(&self, key: &Key) -> bool
     where
         C: Component + 'static,
     {
-        self.shared_components.contains_key(&TypeId::of::<C>())
+        self.shared_components
+            .contains_key(&SharedComponentKey::new::<C>(key.clone()))
     }
 
-    pub fn add_shared_component<C>(&mut self, component: C) -> Result<(), Error>
+    pub fn add_shared_component<C>(&mut self, key: Key, component: C) -> Result<(), Error>
     where
         C: Component + 'static,
     {
-        if self.has_shared_component::<C>() {
+        if self.has_shared_component::<C>(&key) {
             return Err(Error::DuplicateComponent);
         }
 
-        self.shared_components
-            .insert_unique_unchecked(TypeId::of::<C>(), Box::new(component));
+        self.shared_components.insert_unique_unchecked(
+            SharedComponentKey::new::<C>(key),
+            SharedComponentItem {
+                component: Box::new(component),
+                count: 0,
+                auto_remove: false,
+            },
+        );
 
         Ok(())
     }
 
-    pub fn remove_shared_component<C>(&mut self) -> Result<C, Error>
+    pub fn remove_shared_component<C>(&mut self, key: &Key) -> Result<C, Error>
     where
         C: Component + 'static,
     {
-        if !self.has_shared_component::<C>() {
+        if !self.has_shared_component::<C>(key) {
             return Err(Error::NoSuchComponent);
         }
 
         let removed = *self
             .shared_components
-            .remove(&TypeId::of::<C>())
+            .remove(&SharedComponentKey::new::<C>(key.clone()))
             .unwrap()
+            .component
             .downcast::<C>()
             .unwrap();
 
@@ -242,13 +305,13 @@ impl EntityManager {
     // }
 }
 
-struct Entity {
+struct EntityItem {
     version: usize,
     archetype: Archetype,
     chunk_index: usize,
 }
 
-impl Entity {
+impl EntityItem {
     fn set_archetype(&mut self, archetype: Archetype, chunk_index: usize) {
         self.archetype = archetype;
         self.chunk_index = chunk_index;
@@ -261,49 +324,66 @@ impl Entity {
     }
 }
 
-struct Chunk {
-    entity_ids: Vec<Uuid>,
-    components: Vec<(TypeId, Box<dyn Any>)>,
+struct SharedComponentItem {
+    component: Box<dyn Any>,
+    count: usize,
+    auto_remove: bool,
+}
+
+struct ComponentItem {
+    component: Box<dyn Any>,
+    key: ComponentKey,
+}
+
+// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// enum ComponentIdentifier {
+//     Component(ComponentKey),
+//     SharedComponent(SharedComponentKey),
+// }
+
+struct ChunkItem {
+    entity_keys: Vec<EntityKey>,
+    components: Vec<ComponentItem>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CreateEntity(Uuid);
+pub struct CreateEntity(EntityKey);
 
 impl CreateEntity {
-    fn new(id: Uuid) -> Self {
-        Self(id)
+    fn new(entity_key: EntityKey) -> Self {
+        Self(entity_key)
     }
 
-    pub fn entity_id(&self) -> &Uuid {
+    pub fn entity_key(&self) -> &EntityKey {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveEntity(Uuid);
+pub struct RemoveEntity(EntityKey);
 
 impl RemoveEntity {
-    fn new(id: Uuid) -> Self {
-        Self(id)
+    fn new(entity_key: EntityKey) -> Self {
+        Self(entity_key)
     }
 
-    pub fn entity_id(&self) -> &Uuid {
+    pub fn entity_key(&self) -> &EntityKey {
         &self.0
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddComponent(Uuid, TypeId);
+pub struct AddComponent(EntityKey, TypeId);
 
 impl AddComponent {
-    fn new<C>(id: Uuid) -> Self
+    fn new<C>(entity_key: EntityKey) -> Self
     where
         C: Component + 'static,
     {
-        Self(id, TypeId::of::<C>())
+        Self(entity_key, TypeId::of::<C>())
     }
 
-    pub fn entity_id(&self) -> &Uuid {
+    pub fn entity_id(&self) -> &EntityKey {
         &self.0
     }
 
@@ -313,17 +393,17 @@ impl AddComponent {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveComponent(Uuid, TypeId);
+pub struct RemoveComponent(EntityKey, TypeId);
 
 impl RemoveComponent {
-    fn new<C>(entity: Uuid) -> Self
+    fn new<C>(entity: EntityKey) -> Self
     where
         C: Component + 'static,
     {
         Self(entity, TypeId::of::<C>())
     }
 
-    pub fn entity(&self) -> &Uuid {
+    pub fn entity_key(&self) -> &EntityKey {
         &self.0
     }
 

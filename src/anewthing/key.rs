@@ -1,10 +1,10 @@
 use uuid::Uuid;
 
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Key {
-    CustomUuid(Uuid),
-    CustomUsize(usize),
-    CustomString(String),
-    CustomStr(&'static str),
+    Uuid(Uuid),
+    Usize(usize),
+    String(String),
+    Str(&'static str),
 }
