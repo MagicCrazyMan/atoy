@@ -78,7 +78,7 @@ impl EntityManager {
             components
         };
 
-        ComponentSet(components)
+        ComponentSet(components, Vec::new(), Vec::new())
     }
 
     pub fn has_entity(&self, id: &Uuid) -> bool {
@@ -92,18 +92,37 @@ impl EntityManager {
             return Err(Error::EmptyComponents);
         }
 
+        let ComponentSet(components, shared_component_types, shared_components) = components;
+
+        // checks the duplication of shared components
+        for shared in shared_component_types
+            .iter()
+            .chain(shared_components.iter().map(|(id, _)| id))
+        {
+            if self.shared_components.contains_key(shared) {
+                return Err(Error::DuplicateComponent);
+            }
+        }
+
+        let entity_id = Uuid::new_v4();
+
         let chunk = self.get_or_create_chunk(archetype.clone());
-        let total = chunk.components.len();
-        let chunk_index = total / size;
-        chunk.components.extend(components.0);
+        let chunk_index = chunk.components.len() / size;
+        // pushes entity id
+        chunk.entity_ids.push(entity_id);
+        // pushes components
+        chunk.components.extend(components);
         let entity = Entity {
             version: 0,
             archetype,
             chunk_index,
         };
-        let (id, _) = self
-            .entities
-            .insert_unique_unchecked(Uuid::new_v4(), entity);
+        // pushes shared components
+        shared_components.into_iter().for_each(|(id, comp)| {
+            self.shared_components.insert_unique_unchecked(id, comp);
+        });
+
+        let (id, _) = self.entities.insert_unique_unchecked(entity_id, entity);
 
         self.channel.send(CreateEntity::new(*id));
 
@@ -171,7 +190,7 @@ impl EntityManager {
         }
 
         let components = unsafe { self.swap_and_remove_entity(&id) };
-        let (components, removed) = unsafe { components.remove_unchecked::<C>() };
+        let (components, removed) = components.remove::<C>().unwrap();
         unsafe { self.set_components(&id, components) };
 
         self.channel.send(RemoveComponent::new::<C>(id));

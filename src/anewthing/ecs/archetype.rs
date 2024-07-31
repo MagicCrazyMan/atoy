@@ -1,39 +1,30 @@
 use std::any::TypeId;
 
-use smallvec::{smallvec, SmallVec};
-
 use super::{component::Component, error::Error};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Archetype(
-    pub(super) SmallVec<[TypeId; 2]>, // non-shared components
-    pub(super) SmallVec<[TypeId; 2]>, // shared components
+    pub(super) Vec<TypeId>, // non-shared components
+    pub(super) Vec<TypeId>, // shared components
 );
 
 impl Archetype {
     pub fn new() -> Self {
-        Self(SmallVec::new(), SmallVec::new())
+        Self(Vec::new(), Vec::new())
     }
 
     pub fn with_component<C>() -> Self
     where
         C: Component + 'static,
     {
-        Self(smallvec![TypeId::of::<C>()], SmallVec::new())
+        Self(vec![TypeId::of::<C>()], Vec::new())
     }
 
     pub fn with_shared_component<C>() -> Self
     where
         C: Component + 'static,
     {
-        Self(SmallVec::new(), smallvec![TypeId::of::<C>()])
-    }
-
-    pub fn with_capacity(component_capacity: usize, shared_component_capacity: usize) -> Self {
-        Self(
-            SmallVec::with_capacity(component_capacity),
-            SmallVec::with_capacity(shared_component_capacity),
-        )
+        Self(Vec::new(), vec![TypeId::of::<C>()])
     }
 
     pub fn len(&self) -> usize {
