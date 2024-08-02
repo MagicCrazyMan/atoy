@@ -5,12 +5,12 @@ use super::{archetype::Archetype, error::Error};
 pub trait Component {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct ComponentKey(TypeId);
+pub struct ComponentKey(TypeId);
 
 impl ComponentKey {
     /// Constructs a new shared component key by a component type and a key.
     #[inline]
-    pub(super) fn new<C>() -> Self
+    pub fn new<C>() -> Self
     where
         C: Component + 'static,
     {
@@ -19,12 +19,12 @@ impl ComponentKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct SharedComponentKey(TypeId, TypeId);
+pub struct SharedComponentKey(TypeId, TypeId);
 
 impl SharedComponentKey {
     /// Constructs a new shared component key by a component type and a key.
     #[inline]
-    pub(super) fn new<C, T>() -> Self
+    pub fn new<C, T>() -> Self
     where
         C: Component + 'static,
         T: 'static,
