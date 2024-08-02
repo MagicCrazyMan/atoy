@@ -9,7 +9,7 @@ use super::{
     component::{Component, ComponentKey, ComponentSet, SharedComponentKey},
     entity::EntityKey,
     error::Error,
-    iter::EntityComponentsIterMut,
+    iter::{EntityComponentsIter, EntityComponentsIterMut},
 };
 
 pub struct EntityManager {
@@ -318,6 +318,10 @@ impl EntityManager {
 
     pub fn iter_mut(&mut self) -> EntityComponentsIterMut {
         EntityComponentsIterMut::new(self)
+    }
+
+    pub fn iter(&mut self) -> EntityComponentsIter {
+        EntityComponentsIter::new(self)
     }
 }
 
