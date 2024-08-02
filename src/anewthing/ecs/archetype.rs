@@ -1,7 +1,3 @@
-use std::any::TypeId;
-
-use crate::anewthing::key::Key;
-
 use super::{
     component::{Component, ComponentKey, SharedComponentKey},
     error::Error,
@@ -28,11 +24,12 @@ impl Archetype {
     }
 
     /// Constructs a new archetype by a shared component.
-    pub fn with_shared_component<C>(key: Key) -> Self
+    pub fn with_shared_component<C, T>() -> Self
     where
         C: Component + 'static,
+        T: 'static,
     {
-        Self(Vec::new(), vec![(SharedComponentKey::new::<C>(key))])
+        Self(Vec::new(), vec![(SharedComponentKey::new::<C, T>())])
     }
 
     /// Returns the number of components.
@@ -49,7 +46,6 @@ impl Archetype {
         self.0.iter().position(|k| k == &key)
     }
 
-
     /// Returns true if the archetype has the component.
     pub fn has_component<C>(&self) -> bool
     where
@@ -60,14 +56,13 @@ impl Archetype {
     }
 
     /// Returns true if the archetype has the shared component.
-    pub fn has_shared_component<C>(&self, key: &Key) -> bool
+    pub fn has_shared_component<C, T>(&self) -> bool
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let type_id = TypeId::of::<C>();
-        self.1
-            .iter()
-            .any(|k| k.type_id() == &type_id && k.key() == key)
+        let key = SharedComponentKey::new::<C, T>();
+        self.1.iter().any(|k| k == &key)
     }
 
     pub fn add_component<C>(&self) -> Result<Self, Error>
@@ -100,12 +95,13 @@ impl Archetype {
         }
     }
 
-    pub fn add_shared_component<C>(&self, key: Key) -> Result<Self, Error>
+    pub fn add_shared_component<C, T>(&self) -> Result<Self, Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
         let mut components = self.1.clone();
-        components.push(SharedComponentKey::new::<C>(key));
+        components.push(SharedComponentKey::new::<C, T>());
         components.sort();
         components.dedup();
         if components.len() == self.0.len() {
@@ -115,14 +111,15 @@ impl Archetype {
         }
     }
 
-    pub fn remove_shared_component<C>(&self, key: &Key) -> Result<Self, Error>
+    pub fn remove_shared_component<C, T>(&self) -> Result<Self, Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let type_id = TypeId::of::<C>();
+        let key = SharedComponentKey::new::<C, T>();
 
         let mut components = self.1.clone();
-        components.retain(|k| k.type_id() != &type_id || k.key() != key);
+        components.retain(|k| k != &key);
         if components.len() == self.0.len() {
             Err(Error::NoSuchComponent)
         } else {

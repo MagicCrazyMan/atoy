@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 
 use hashbrown::HashMap;
 
-use crate::anewthing::{channel::Channel, key::Key};
+use crate::anewthing::channel::Channel;
 
 use super::{
     archetype::Archetype,
@@ -253,24 +253,26 @@ impl EntityManager {
         Ok(removed)
     }
 
-    pub fn has_shared_component<C>(&self, key: &Key) -> bool
+    pub fn has_shared_component<C, T>(&self) -> bool
     where
         C: Component + 'static,
+        T: 'static,
     {
         self.shared_components
-            .contains_key(&SharedComponentKey::new::<C>(key.clone()))
+            .contains_key(&SharedComponentKey::new::<C, T>())
     }
 
-    pub fn add_shared_component<C>(&mut self, key: Key, component: C) -> Result<(), Error>
+    pub fn add_shared_component<C, T>(&mut self, component: C) -> Result<(), Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        if self.has_shared_component::<C>(&key) {
+        if self.has_shared_component::<C, T>() {
             return Err(Error::DuplicateComponent);
         }
 
         self.shared_components.insert_unique_unchecked(
-            SharedComponentKey::new::<C>(key),
+            SharedComponentKey::new::<C, T>(),
             SharedComponentItem {
                 component: Box::new(component),
                 count: 0,
@@ -281,17 +283,18 @@ impl EntityManager {
         Ok(())
     }
 
-    pub fn remove_shared_component<C>(&mut self, key: &Key) -> Result<C, Error>
+    pub fn remove_shared_component<C, T>(&mut self) -> Result<C, Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        if !self.has_shared_component::<C>(key) {
+        if !self.has_shared_component::<C, T>() {
             return Err(Error::NoSuchComponent);
         }
 
         let removed = *self
             .shared_components
-            .remove(&SharedComponentKey::new::<C>(key.clone()))
+            .remove(&SharedComponentKey::new::<C, T>())
             .unwrap()
             .component
             .downcast::<C>()

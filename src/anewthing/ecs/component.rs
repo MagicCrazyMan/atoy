@@ -1,7 +1,5 @@
 use std::any::{Any, TypeId};
 
-use crate::anewthing::key::Key;
-
 use super::{archetype::Archetype, error::Error};
 
 pub trait Component {}
@@ -20,29 +18,18 @@ impl ComponentKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct SharedComponentKey(TypeId, Key);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct SharedComponentKey(TypeId, TypeId);
 
 impl SharedComponentKey {
     /// Constructs a new shared component key by a component type and a key.
     #[inline]
-    pub(super) fn new<C>(key: Key) -> Self
+    pub(super) fn new<C, T>() -> Self
     where
         C: Component + 'static,
+        T: 'static,
     {
-        Self(TypeId::of::<C>(), key)
-    }
-
-    /// Returns component type id.
-    #[inline]
-    pub(super) fn type_id(&self) -> &TypeId {
-        &self.0
-    }
-
-    /// Returns custom key.
-    #[inline]
-    pub(super) fn key(&self) -> &Key {
-        &self.1
+        Self(TypeId::of::<C>(), TypeId::of::<T>())
     }
 }
 
@@ -68,26 +55,28 @@ impl ComponentSet {
         )
     }
 
-    pub fn with_shared_component<C>(key: Key) -> Self
+    pub fn with_shared_component<C, T>() -> Self
     where
         C: Component + 'static,
+        T: 'static,
     {
         Self(
             Vec::new(),
-            vec![SharedComponentKey::new::<C>(key)],
+            vec![SharedComponentKey::new::<C, T>()],
             Vec::new(),
         )
     }
 
-    pub fn with_shared_component_instance<C>(key: Key, shared_component: C) -> Self
+    pub fn with_shared_component_instance<C, T>(shared_component: C) -> Self
     where
         C: Component + 'static,
+        T: 'static,
     {
         Self(
             Vec::new(),
             Vec::new(),
             vec![(
-                SharedComponentKey::new::<C>(key),
+                SharedComponentKey::new::<C, T>(),
                 Box::new(shared_component),
             )],
         )
@@ -146,11 +135,12 @@ impl ComponentSet {
         Ok(removed)
     }
 
-    pub fn add_shared<C>(&mut self, key: Key) -> Result<(), Error>
+    pub fn add_shared<C, T>(&mut self) -> Result<(), Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let key = SharedComponentKey::new::<C>(key);
+        let key = SharedComponentKey::new::<C, T>();
         let has_component = self
             .1
             .iter()
@@ -165,24 +155,22 @@ impl ComponentSet {
         Ok(())
     }
 
-    pub unsafe fn add_shared_unique_unchecked<C>(&mut self, key: Key)
+    pub unsafe fn add_shared_unique_unchecked<C, T>(&mut self)
     where
         C: Component + 'static,
+        T: 'static,
     {
-        self.1.push(SharedComponentKey::new::<C>(key));
+        self.1.push(SharedComponentKey::new::<C, T>());
         self.1.sort_by(|a, b| a.cmp(b));
     }
 
-    pub fn remove_shared<C>(&mut self, key: &Key) -> Result<(), Error>
+    pub fn remove_shared<C, T>(&mut self) -> Result<(), Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let type_id = TypeId::of::<C>();
-        let Some(index) = self
-            .1
-            .iter()
-            .position(|k| k.type_id() == &type_id && k.key() == key)
-        else {
+        let key = SharedComponentKey::new::<C, T>();
+        let Some(index) = self.1.iter().position(|k| k == &key) else {
             return Err(Error::NoSuchComponent);
         };
 
@@ -191,11 +179,12 @@ impl ComponentSet {
         Ok(())
     }
 
-    pub fn add_shared_instance<C>(&mut self, key: Key, shared_component: C) -> Result<(), Error>
+    pub fn add_shared_instance<C, T>(&mut self, shared_component: C) -> Result<(), Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let key = SharedComponentKey::new::<C>(key);
+        let key = SharedComponentKey::new::<C, T>();
         let has_component = self
             .1
             .iter()
@@ -211,27 +200,25 @@ impl ComponentSet {
         Ok(())
     }
 
-    pub unsafe fn add_shared_instance_unique_unchecked<C>(&mut self, key: Key, shared_component: C)
+    pub unsafe fn add_shared_instance_unique_unchecked<C, T>(&mut self, shared_component: C)
     where
         C: Component + 'static,
+        T: 'static,
     {
         self.2.push((
-            SharedComponentKey::new::<C>(key),
+            SharedComponentKey::new::<C, T>(),
             Box::new(shared_component),
         ));
         self.2.sort_by(|(a, _), (b, _)| a.cmp(b));
     }
 
-    pub fn remove_shared_instance<C>(&mut self, key: &Key) -> Result<C, Error>
+    pub fn remove_shared_instance<C, T>(&mut self) -> Result<C, Error>
     where
         C: Component + 'static,
+        T: 'static,
     {
-        let type_id = TypeId::of::<C>();
-        let Some(index) = self
-            .2
-            .iter()
-            .position(|(k, _)| k.type_id() == &type_id && k.key() == key)
-        else {
+        let key = SharedComponentKey::new::<C, T>();
+        let Some(index) = self.2.iter().position(|(k, _)| k == &key) else {
             return Err(Error::NoSuchComponent);
         };
 
