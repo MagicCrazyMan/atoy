@@ -14,10 +14,12 @@ pub struct Archetype(
 );
 
 impl Archetype {
+    /// Constructs a new empty archetype.
     pub fn new() -> Self {
         Self(Vec::new(), Vec::new())
     }
 
+    /// Constructs a new archetype by a component.
     pub fn with_component<C>() -> Self
     where
         C: Component + 'static,
@@ -25,6 +27,7 @@ impl Archetype {
         Self(vec![ComponentKey::new::<C>()], Vec::new())
     }
 
+    /// Constructs a new archetype by a shared component.
     pub fn with_shared_component<C>(key: Key) -> Self
     where
         C: Component + 'static,
@@ -32,10 +35,22 @@ impl Archetype {
         Self(Vec::new(), vec![(SharedComponentKey::new::<C>(key))])
     }
 
+    /// Returns the number of components.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.0.len() + self.1.len()
     }
 
+    /// Returns the index of the component.
+    pub fn component_index<C>(&self) -> Option<usize>
+    where
+        C: Component + 'static,
+    {
+        let key = ComponentKey::new::<C>();
+        self.0.iter().position(|k| k == &key)
+    }
+
+
+    /// Returns true if the archetype has the component.
     pub fn has_component<C>(&self) -> bool
     where
         C: Component + 'static,
@@ -44,6 +59,7 @@ impl Archetype {
         self.0.iter().any(|k| k == &key)
     }
 
+    /// Returns true if the archetype has the shared component.
     pub fn has_shared_component<C>(&self, key: &Key) -> bool
     where
         C: Component + 'static,

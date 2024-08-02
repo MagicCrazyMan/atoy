@@ -335,12 +335,6 @@ struct ComponentItem {
     key: ComponentKey,
 }
 
-// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// enum ComponentIdentifier {
-//     Component(ComponentKey),
-//     SharedComponent(SharedComponentKey),
-// }
-
 struct ChunkItem {
     entity_keys: Vec<EntityKey>,
     components: Vec<ComponentItem>,
