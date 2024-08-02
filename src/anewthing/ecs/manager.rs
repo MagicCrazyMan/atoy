@@ -9,13 +9,14 @@ use super::{
     component::{Component, ComponentKey, ComponentSet, SharedComponentKey},
     entity::EntityKey,
     error::Error,
+    iter::EntityComponentsIterMut,
 };
 
 pub struct EntityManager {
     channel: Channel,
     entities: HashMap<EntityKey, EntityItem>,
-    chunks: HashMap<Archetype, ChunkItem>,
-    shared_components: HashMap<SharedComponentKey, SharedComponentItem>,
+    pub(super) chunks: HashMap<Archetype, ChunkItem>,
+    pub(super) shared_components: HashMap<SharedComponentKey, SharedComponentItem>,
 }
 
 impl EntityManager {
@@ -42,7 +43,7 @@ impl EntityManager {
             ..
         } = self.entities.get(key).unwrap();
         let chunk_index = *chunk_index;
-        let chunk_size = archetype.len();
+        let chunk_size = archetype.components_len();
         let chunk = self.chunks.get_mut(archetype).unwrap();
 
         // reduces count of shared components
@@ -104,13 +105,25 @@ impl EntityManager {
         )
     }
 
+    pub fn archetypes(&self) -> Vec<Archetype> {
+        self.chunks.keys().cloned().collect()
+    }
+
+    pub fn entity_keys(&self) -> Vec<EntityKey> {
+        self.entities.keys().copied().collect()
+    }
+
+    pub fn shared_components_keys(&self) -> Vec<SharedComponentKey> {
+        self.shared_components.keys().copied().collect()
+    }
+
     pub fn has_entity(&self, entity_key: &EntityKey) -> bool {
         self.entities.contains_key(entity_key)
     }
 
     pub fn create_entity(&mut self, components: ComponentSet) -> Result<EntityKey, Error> {
         let archetype = components.archetype();
-        let size = archetype.len();
+        let size = archetype.components_len();
         if size == 0 {
             return Err(Error::EmptyComponents);
         }
@@ -303,9 +316,9 @@ impl EntityManager {
         Ok(removed)
     }
 
-    // pub fn query(&mut self) {
-    //     let archetypes = self.chunks.keys().filter(|ar| )
-    // }
+    pub fn iter_mut(&mut self) -> EntityComponentsIterMut {
+        EntityComponentsIterMut::new(self)
+    }
 }
 
 struct EntityItem {
@@ -327,20 +340,20 @@ impl EntityItem {
     }
 }
 
-struct SharedComponentItem {
-    component: Box<dyn Any>,
+pub(super) struct SharedComponentItem {
+    pub(super) component: Box<dyn Any>,
     count: usize,
     auto_remove: bool,
 }
 
-struct ComponentItem {
-    component: Box<dyn Any>,
-    key: ComponentKey,
+pub(super) struct ComponentItem {
+    pub(super) component: Box<dyn Any>,
+    pub(super) key: ComponentKey,
 }
 
-struct ChunkItem {
-    entity_keys: Vec<EntityKey>,
-    components: Vec<ComponentItem>,
+pub(super) struct ChunkItem {
+    pub(super) entity_keys: Vec<EntityKey>,
+    pub(super) components: Vec<ComponentItem>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

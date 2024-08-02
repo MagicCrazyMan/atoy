@@ -32,9 +32,24 @@ impl Archetype {
         Self(Vec::new(), vec![(SharedComponentKey::new::<C, T>())])
     }
 
-    /// Returns the number of components.
-    pub fn len(&self) -> usize {
-        self.0.len() + self.1.len()
+    /// Returns all component keys.
+    pub fn component_keys(&self) -> &[ComponentKey] {
+        &self.0
+    }
+
+    /// Returns all shared component keys.
+    pub fn shared_component_keys(&self) -> &[SharedComponentKey] {
+        &self.1
+    }
+
+    /// Returns the number of non-shared components.
+    pub fn components_len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns the number of shared components.
+    pub fn shared_components_len(&self) -> usize {
+        self.1.len()
     }
 
     /// Returns the index of the component.
