@@ -27,13 +27,19 @@ pub trait QueryOp {
         Self: Sized;
 }
 
+pub trait SimpleQueryOp {}
+
 /// Queries entities and components with a specific component.
 pub struct With<C>(PhantomData<C>);
+
+impl<C> SimpleQueryOp for With<C> where C: Component + 'static {}
 
 /// Queries entities and components without a specific component.
 pub struct Without<C>(PhantomData<C>)
 where
     C: Component + 'static;
+
+impl<C> SimpleQueryOp for Without<C> where C: Component + 'static {}
 
 /// Queries entities and components with or without a specific component.
 /// Do not query entities with only [`Maybe`] operators, which is meaningless.
@@ -45,9 +51,13 @@ pub struct WithShared<C>(PhantomData<C>, Key)
 where
     C: Component + 'static;
 
+impl<C> SimpleQueryOp for WithShared<C> where C: Component + 'static {}
+
 pub struct WithoutShared<C>(PhantomData<C>, Key)
 where
     C: Component + 'static;
+
+impl<C> SimpleQueryOp for WithoutShared<C> where C: Component + 'static {}
 
 pub struct MaybeShared<C>(PhantomData<C>, Key)
 where
