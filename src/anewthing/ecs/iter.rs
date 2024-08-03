@@ -20,16 +20,27 @@ pub struct EntityComponentsMut<'a> {
 }
 
 impl<'a> EntityComponentsMut<'a> {
-    pub fn entity_key(&self) -> &EntityKey {
+    pub fn entity_key<'b>(&self) -> &'b EntityKey {
         unsafe { &*self.entity_key }
     }
 
-    pub fn archetype(&self) -> &Archetype {
+    pub fn archetype<'b>(&self) -> &'b Archetype {
         unsafe { &*self.archetype }
     }
 
-    /// Returns a component with a specific component type.
-    pub fn component<C>(&mut self) -> Option<&mut C>
+    /// Returns a component by a specific component key.
+    pub fn component_by_key<'b>(&mut self, key: &ComponentKey) -> Option<&'b mut Box<dyn Any>> {
+        unsafe { Some(self.components.get_mut(key)?.as_mut().unwrap()) }
+    }
+
+    /// Returns a component by a specific component key.
+    /// Panic if no such component.
+    pub fn component_by_key_unchcecked<'b>(&mut self, key: &ComponentKey) -> &'b mut Box<dyn Any> {
+        unsafe { self.components.get_mut(key).unwrap().as_mut().unwrap() }
+    }
+
+    /// Returns a component by a specific component type.
+    pub fn component<'b, C>(&mut self) -> Option<&'b mut C>
     where
         C: Component + 'static,
     {
@@ -45,9 +56,9 @@ impl<'a> EntityComponentsMut<'a> {
         }
     }
 
-    /// Returns a component with a specific component type.
+    /// Returns a component by a specific component type.
     /// Panic if no such component.
-    pub fn component_unchecked<C>(&mut self) -> &mut C
+    pub fn component_unchecked<'b, C>(&mut self) -> &'b mut C
     where
         C: Component + 'static,
     {
@@ -62,8 +73,31 @@ impl<'a> EntityComponentsMut<'a> {
         }
     }
 
-    /// Returns a shared component with a specific component type.
-    pub fn shared_component<C, T>(&mut self) -> Option<&mut C>
+    /// Returns a shared component by a specific shared component key.
+    pub fn shared_component_by_key<'b>(
+        &mut self,
+        key: &SharedComponentKey,
+    ) -> Option<&'b mut Box<dyn Any>> {
+        unsafe { Some(self.shared_components.get_mut(key)?.as_mut().unwrap()) }
+    }
+
+    /// Returns a shared component by a specific shared component key.
+    /// Panic if no such component.
+    pub fn shared_component_by_key_unchcecked<'b>(
+        &mut self,
+        key: &SharedComponentKey,
+    ) -> &'b mut Box<dyn Any> {
+        unsafe {
+            self.shared_components
+                .get_mut(key)
+                .unwrap()
+                .as_mut()
+                .unwrap()
+        }
+    }
+
+    /// Returns a shared component by a specific component type.
+    pub fn shared_component<'b, C, T>(&mut self) -> Option<&'b mut C>
     where
         C: Component + 'static,
         T: 'static,
@@ -80,9 +114,9 @@ impl<'a> EntityComponentsMut<'a> {
         }
     }
 
-    /// Returns a shared component with a specific component type.
+    /// Returns a shared component by a specific component type.
     /// Panic if no such component.
-    pub fn shared_component_unchecked<C, T>(&mut self) -> &mut C
+    pub fn shared_component_unchecked<'b, C, T>(&mut self) -> &'b mut C
     where
         C: Component + 'static,
         T: 'static,

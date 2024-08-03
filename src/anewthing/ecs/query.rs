@@ -2,9 +2,14 @@ use std::{any::Any, marker::PhantomData};
 
 use hashbrown::HashMap;
 
+use crate::anewthing::{channel::Channel, ecs::iter::EntityComponentsMut};
+
 use super::{
     archetype::Archetype,
     component::{Component, ComponentKey, SharedComponentKey},
+    entity::EntityKey,
+    iter::EntityComponentsIterMut,
+    manager::{ChunkItem, ComponentItem, EntityManager, SharedComponentItem},
 };
 
 /// Query types.
@@ -28,7 +33,7 @@ pub trait QueryOp {
 
 /// A simple query operator MUST returns neither
 /// [`QueryType::With`] or [`QueryType::WithShared`].
-pub trait SimpleQueryOp<C>: QueryOp {}
+pub trait QueryOpSimple<C>: QueryOp {}
 
 /// Queries components with a specific component type.
 pub struct With<C>(PhantomData<C>);
@@ -48,7 +53,7 @@ where
     }
 }
 
-impl<C> SimpleQueryOp<C> for With<C> where C: Component + 'static {}
+impl<C> QueryOpSimple<C> for With<C> where C: Component + 'static {}
 
 /// Queries components without a specific component type.
 pub struct Without<C>(PhantomData<C>);
@@ -109,7 +114,7 @@ where
     }
 }
 
-impl<C, T> SimpleQueryOp<C> for WithShared<C, T>
+impl<C, T> QueryOpSimple<C> for WithShared<C, T>
 where
     C: Component + 'static,
     T: 'static,
@@ -157,77 +162,144 @@ where
     }
 }
 
-/// A simple query queries entities using [`SimpleQueryOp`] only.
-pub trait QuerySimple<'a, A> {
-    fn query_simple(
-        archetype: &Archetype,
-        components: &'a mut [Box<dyn Any>],
-        shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-    ) -> Option<A>
+/// A simple query returns a [`QuerySimpleIter`] using [`SimpleQueryOp`].
+pub trait QuerySimple<'a, A, S> {
+    fn query_simple(manager: &'a mut EntityManager) -> QuerySimpleIter<'a, A, S>
     where
         Self: Sized;
 }
 
 /// Implements simple query for all simple query operators.
-impl<'a, A, S> QuerySimple<'a, &'a mut A> for S
+impl<'a, A, S> QuerySimple<'a, A, S> for S
 where
     A: Component + 'static,
-    S: SimpleQueryOp<A> + 'static,
+    S: QueryOpSimple<A> + 'static,
 {
-    fn query_simple(
-        archetype: &Archetype,
-        components: &'a mut [Box<dyn Any>],
-        shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-    ) -> Option<&'a mut A>
+    fn query_simple(manager: &'a mut EntityManager) -> QuerySimpleIter<'a, A, S>
     where
         Self: Sized,
     {
-        match S::query(archetype) {
-            QueryType::NotMatched => None,
-            QueryType::With((_, position)) => Some(components[position].downcast_mut().unwrap()),
-            QueryType::WithShared(key) => Some(
-                shared_components
-                    .get_mut(&key)
-                    .unwrap()
-                    .downcast_mut()
-                    .unwrap(),
-            ),
-            _ => unreachable!(),
+        QuerySimpleIter::new(manager)
+    }
+}
+
+pub struct QuerySimpleIter<'a, A, S> {
+    shared_components: &'a mut HashMap<SharedComponentKey, SharedComponentItem>,
+    chunks: hashbrown::hash_map::IterMut<'a, Archetype, ChunkItem>,
+    chunk: Option<(&'a Archetype, &'a mut ChunkItem, QueryType, usize)>,
+    _k: PhantomData<(A, S)>,
+}
+
+impl<'a, A, S> QuerySimpleIter<'a, A, S> {
+    fn new(manager: &'a mut EntityManager) -> Self {
+        Self {
+            shared_components: &mut manager.shared_components,
+            chunks: manager.chunks.iter_mut(),
+            chunk: None,
+            _k: PhantomData,
         }
+    }
+}
+
+impl<'a, A, S> Iterator for QuerySimpleIter<'a, A, S>
+where
+    A: Component + 'static,
+    S: QueryOpSimple<A> + 'static,
+{
+    type Item = &'a mut A;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((_, chunk_item, _, index)) = self.chunk.as_mut() {
+            *index += 1;
+
+            if *index >= chunk_item.entity_keys.len() {
+                self.chunk = None;
+            }
+        }
+
+        if self.chunk.is_none() {
+            while let Some((archetype, chunk_item)) = self.chunks.next() {
+                let query_type = S::query(archetype);
+                match &query_type {
+                    QueryType::NotMatched => continue,
+                    QueryType::With(_) | QueryType::WithShared(_) => {
+                        self.chunk = Some((archetype, chunk_item, query_type, 0));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        let (archetype, chunk_item, query_type, index) = self.chunk.as_mut()?;
+
+        let component: *mut Box<dyn Any> = match query_type {
+            QueryType::With((_, position)) => {
+                &mut chunk_item.components[*index * archetype.components_len() + *position]
+                    .component
+            }
+            QueryType::WithShared(key) => {
+                &mut self.shared_components.get_mut(key).unwrap().component
+            }
+            _ => unreachable!(),
+        };
+
+        unsafe { Some((*component).downcast_mut::<A>().unwrap()) }
     }
 }
 
 /// A macro rule implements simple query for tuple simple query operators.
 macro_rules! query_simple {
     (
+        $query: tt,
+        $iter: tt,
         $(
             ($c: tt, $q: tt),
         )+
     ) => {
-        impl<'a, $($c, $q,)+> QuerySimple<'a, ($(&'a mut $c,)+)> for ($($q,)+)
+        pub trait $query<'a, $($c, $q,)+> {
+            fn query_simple(manager: &'a mut EntityManager) -> $iter<'a, $($c, $q,)+>
+            where
+                Self: Sized;
+        }
+
+
+        impl<'a, $($c, $q,)+> $query<'a, $($c, $q,)+> for ($($q,)+)
         where
             $(
                 $c: Component + 'static,
-                $q: SimpleQueryOp<$c> + 'static,
+                $q: QueryOpSimple<$c> + 'static,
             )+
         {
-            fn query_simple(
-                archetype: &Archetype,
-                components: &'a mut [Box<dyn Any>],
-                shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-            ) -> Option<($(&'a mut $c,)+)>
+            fn query_simple(manager: &'a mut EntityManager) -> $iter<'a, $($c, $q,)+>
             where
                 Self: Sized,
             {
+                $iter(manager.iter_mut(), PhantomData)
+            }
+        }
+
+        pub struct $iter<'a, $($c, $q,)+>(EntityComponentsIterMut<'a>, PhantomData<&'a ($($c, $q,)+)>);
+
+        impl<'a, $($c, $q,)+> Iterator for $iter<'a, $($c, $q,)+>
+        where
+            $(
+                $c: Component + 'static,
+                $q: QueryOpSimple<$c> + 'static,
+            )+
+        {
+            type Item = ($(&'a mut $c,)+);
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let mut e = self.0.next()?;
+                let archetype = e.archetype();
+
                 Some((
                     $(
-                        unsafe {
-                            match $q::query(archetype) {
-                                QueryType::NotMatched => return None,
-                                QueryType::With((_, position)) => &mut *(components[position].downcast_mut::<$c>().unwrap() as *mut $c),
-                                QueryType::WithShared(key) =>  &mut *(shared_components.get_mut(&key).unwrap().downcast_mut::<$c>().unwrap() as *mut $c),
-                                _ => unreachable!(),
-                            }
+                        match $q::query(archetype) {
+                            QueryType::NotMatched => return self.next(),
+                            QueryType::With((key, _)) => e.component_by_key_unchcecked(&key).downcast_mut::<$c>().unwrap(),
+                            QueryType::WithShared(key) => e.shared_component_by_key_unchcecked(&key).downcast_mut::<$c>().unwrap(),
+                            _ => unreachable!(),
                         },
                     )+
                 ))
@@ -236,27 +308,37 @@ macro_rules! query_simple {
     };
 }
 
-// Repeats query_simple for tuple simple query operators 16 times making it supports queries maximum 16 components at once.
+// // Repeats query_simple for tuple simple query operators 16 times making it supports queries maximum 16 components at once.
 
 query_simple! {
+    QuerySimple1,
+    QuerySimpleIter1,
     (A, S1),
 }
 query_simple! {
+    QuerySimple2,
+    QuerySimpleIter2,
     (A, S1),
     (B, S2),
 }
 query_simple! {
+    QuerySimple3,
+    QuerySimpleIter3,
     (A, S1),
     (B, S2),
     (C, S3),
 }
 query_simple! {
+    QuerySimple4,
+    QuerySimpleIter4,
     (A, S1),
     (B, S2),
     (C, S3),
     (D, S4),
 }
 query_simple! {
+    QuerySimple5,
+    QuerySimpleIter5,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -264,6 +346,8 @@ query_simple! {
     (E, S5),
 }
 query_simple! {
+    QuerySimple6,
+    QuerySimpleIter6,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -272,6 +356,8 @@ query_simple! {
     (F, S6),
 }
 query_simple! {
+    QuerySimple7,
+    QuerySimpleIter7,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -281,6 +367,8 @@ query_simple! {
     (G, S7),
 }
 query_simple! {
+    QuerySimple8,
+    QuerySimpleIter8,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -291,6 +379,8 @@ query_simple! {
     (H, S8),
 }
 query_simple! {
+    QuerySimple9,
+    QuerySimpleIter9,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -302,6 +392,8 @@ query_simple! {
     (I, S9),
 }
 query_simple! {
+    QuerySimple10,
+    QuerySimpleIter10,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -314,6 +406,8 @@ query_simple! {
     (J, S10),
 }
 query_simple! {
+    QuerySimple11,
+    QuerySimpleIter11,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -327,6 +421,8 @@ query_simple! {
     (K, S11),
 }
 query_simple! {
+    QuerySimple12,
+    QuerySimpleIter12,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -341,6 +437,8 @@ query_simple! {
     (L, S12),
 }
 query_simple! {
+    QuerySimple13,
+    QuerySimpleIter13,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -356,6 +454,8 @@ query_simple! {
     (M, S13),
 }
 query_simple! {
+    QuerySimple14,
+    QuerySimpleIter14,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -372,6 +472,8 @@ query_simple! {
     (N, S14),
 }
 query_simple! {
+    QuerySimple15,
+    QuerySimpleIter15,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -389,6 +491,8 @@ query_simple! {
     (O, S15),
 }
 query_simple! {
+    QuerySimple16,
+    QuerySimpleIter16,
     (A, S1),
     (B, S2),
     (C, S3),
@@ -406,6 +510,17 @@ query_simple! {
     (O, S15),
     (P, S16),
 }
+
+// fn a() {
+//     struct A;
+//     impl Component for A {}
+
+//     struct B;
+
+//     let mut manager = EntityManager::new(Channel::new());
+
+//     for (a, c, b) in <(With<A>, With<A>, WithShared<A, B>)>::query_simple(&mut manager) {}
+// }
 
 /// Queried components returns by [`QueryComplex`].
 pub struct Queried<'a> {
