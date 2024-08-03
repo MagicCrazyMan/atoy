@@ -858,7 +858,6 @@ macro_rules! query_complex {
 
 // Repeats query_complex for tuple query operators 16 times making it supports queries maximum 16 components at once.
 
-
 query_complex! {
     QueryComplex1,
     QueryComplexIter1,

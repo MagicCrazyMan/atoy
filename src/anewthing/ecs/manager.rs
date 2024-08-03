@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::Any;
 
 use hashbrown::HashMap;
 
@@ -293,6 +293,8 @@ impl EntityManager {
             },
         );
 
+        self.channel.send(AddSharedComponent::new::<C, T>());
+
         Ok(())
     }
 
@@ -305,6 +307,16 @@ impl EntityManager {
             return Err(Error::NoSuchComponent);
         }
 
+        if self
+            .shared_components
+            .get(&SharedComponentKey::new::<C, T>())
+            .unwrap()
+            .count
+            != 0
+        {
+            return Err(Error::ComponentInUsed);
+        }
+
         let removed = *self
             .shared_components
             .remove(&SharedComponentKey::new::<C, T>())
@@ -312,6 +324,8 @@ impl EntityManager {
             .component
             .downcast::<C>()
             .unwrap();
+
+        self.channel.send(RemoveSharedComponent::new::<C, T>());
 
         Ok(removed)
     }
@@ -387,41 +401,75 @@ impl RemoveEntity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddComponent(EntityKey, TypeId);
+pub struct AddComponent(EntityKey, ComponentKey);
 
 impl AddComponent {
     fn new<C>(entity_key: EntityKey) -> Self
     where
         C: Component + 'static,
     {
-        Self(entity_key, TypeId::of::<C>())
-    }
-
-    pub fn entity_id(&self) -> &EntityKey {
-        &self.0
-    }
-
-    pub fn component_type(&self) -> &TypeId {
-        &self.1
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveComponent(EntityKey, TypeId);
-
-impl RemoveComponent {
-    fn new<C>(entity: EntityKey) -> Self
-    where
-        C: Component + 'static,
-    {
-        Self(entity, TypeId::of::<C>())
+        Self(entity_key, ComponentKey::new::<C>())
     }
 
     pub fn entity_key(&self) -> &EntityKey {
         &self.0
     }
 
-    pub fn component_type(&self) -> &TypeId {
+    pub fn component_key(&self) -> &ComponentKey {
         &self.1
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RemoveComponent(EntityKey, ComponentKey);
+
+impl RemoveComponent {
+    fn new<C>(entity: EntityKey) -> Self
+    where
+        C: Component + 'static,
+    {
+        Self(entity, ComponentKey::new::<C>())
+    }
+
+    pub fn entity_key(&self) -> &EntityKey {
+        &self.0
+    }
+
+    pub fn component_key(&self) -> &ComponentKey {
+        &self.1
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AddSharedComponent(SharedComponentKey);
+
+impl AddSharedComponent {
+    fn new<C, T>() -> Self
+    where
+        C: Component + 'static,
+        T: 'static,
+    {
+        Self(SharedComponentKey::new::<C, T>())
+    }
+
+    pub fn shared_component_key(&self) -> &SharedComponentKey {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RemoveSharedComponent(SharedComponentKey);
+
+impl RemoveSharedComponent {
+    fn new<C, T>() -> Self
+    where
+        C: Component + 'static,
+        T: 'static,
+    {
+        Self(SharedComponentKey::new::<C, T>())
+    }
+
+    pub fn shared_component_key(&self) -> &SharedComponentKey {
+        &self.0
     }
 }

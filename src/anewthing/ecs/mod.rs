@@ -5,4 +5,3 @@ pub mod error;
 pub mod iter;
 pub mod manager;
 pub mod query;
-pub mod system;
