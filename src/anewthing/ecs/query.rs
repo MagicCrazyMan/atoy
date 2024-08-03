@@ -578,17 +578,6 @@ query_simple! {
     (15, P, S16),
 }
 
-// fn a() {
-//     struct A;
-//     impl Component for A {}
-
-//     struct B;
-
-//     let mut manager = EntityManager::new(Channel::new());
-
-//     for (a, c, b) in <(With<A>, With<A>, WithShared<A, B>)>::query_simple(&mut manager) {}
-// }
-
 /// Queried components returns by [`QueryComplex`].
 pub struct Queried<'a> {
     components: HashMap<ComponentKey, &'a mut Box<dyn Any>>,
@@ -596,13 +585,6 @@ pub struct Queried<'a> {
 }
 
 impl<'a> Queried<'a> {
-    fn new() -> Self {
-        Self {
-            components: HashMap::new(),
-            shared_components: HashMap::new(),
-        }
-    }
-
     /// Returns a component with a specific component type.
     pub fn component<C>(&'a mut self) -> Option<&'a mut C>
     where
@@ -658,99 +640,217 @@ impl<'a> Queried<'a> {
     }
 }
 
+pub struct QueryComplexIter<'a, S> {
+    shared_components: &'a mut HashMap<SharedComponentKey, SharedComponentItem>,
+    chunks: hashbrown::hash_map::IterMut<'a, Archetype, ChunkItem>,
+    chunk: Option<(&'a Archetype, &'a mut ChunkItem, QueryType, usize)>,
+    _k: PhantomData<S>,
+}
+
+impl<'a, S> QueryComplexIter<'a, S>
+where
+    S: QueryOp + 'static,
+{
+    fn new(manager: &'a mut EntityManager) -> Self {
+        Self {
+            shared_components: &mut manager.shared_components,
+            chunks: manager.chunks.iter_mut(),
+            chunk: None,
+            _k: PhantomData,
+        }
+    }
+}
+
+impl<'a, S> Iterator for QueryComplexIter<'a, S>
+    where
+    S: QueryOp + 'static,
+{
+    type Item = Queried<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((_, chunk_item, _, index)) = self.chunk.as_mut() {
+            *index += 1;
+
+            if *index >= chunk_item.entity_keys.len() {
+                self.chunk = None;
+            }
+        }
+
+        if self.chunk.is_none() {
+            // finds next chunk that matches the query
+            while let Some((archetype, chunk_item)) = self.chunks.next() {
+                let query_type = S::query(archetype);
+                match &query_type {
+                    QueryType::NotMatched => continue,
+                    _ => {
+                        self.chunk = Some((archetype, chunk_item, query_type, 0));
+                    }
+                }
+            }
+        }
+
+        let (archetype, chunk_item, query_type, index) = self.chunk.as_mut()?;
+
+        let mut components = HashMap::with_capacity(1);
+        let mut shared_components = HashMap::with_capacity(1);
+        match query_type {
+            QueryType::With((key, position)) => {
+                let component: *mut Box<dyn Any> = &mut chunk_item.components
+                    [*index * archetype.components_len() + *position]
+                    .component;
+                unsafe {
+                    components.insert_unique_unchecked(*key, &mut *component);
+                }
+            }
+            QueryType::WithShared(key) => {
+                let component: *mut Box<dyn Any> =
+                    &mut self.shared_components.get_mut(key).unwrap().component;
+                unsafe {
+                    shared_components.insert_unique_unchecked(*key, &mut *component);
+                }
+            }
+            QueryType::Without => {
+                // does nothing
+            }
+            QueryType::NotMatched => unreachable!(),
+        };
+
+        Some(Queried {
+            components,
+            shared_components,
+        })
+    }
+}
+
 /// A complex query queries components using all kinds of query operators, returns [`Queried`] as result.
-pub trait QueryComplex<'a> {
-    fn query_complex(
-        archetype: &Archetype,
-        components: &'a mut [Box<dyn Any>],
-        shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-    ) -> Option<Queried<'a>>
+pub trait QueryComplex<'a, S> {
+    fn query_complex(manager: &'a mut EntityManager) -> QueryComplexIter<'a, S>
     where
         Self: Sized;
 }
 
-impl<'a, S> QueryComplex<'a> for S
+impl<'a, S> QueryComplex<'a, S> for S
 where
     S: QueryOp + 'static,
 {
-    fn query_complex(
-        archetype: &Archetype,
-        components: &'a mut [Box<dyn Any>],
-        shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-    ) -> Option<Queried<'a>>
+    fn query_complex(manager: &'a mut EntityManager) -> QueryComplexIter<'a, S>
     where
         Self: Sized,
     {
-        let mut queried = None;
-
-        match S::query(archetype) {
-            QueryType::Without => {
-                // do nothing
-            }
-            QueryType::With((key, position)) => {
-                queried
-                    .get_or_insert_with(|| Queried::new())
-                    .components
-                    .insert_unique_unchecked(key, &mut components[position]);
-            }
-            QueryType::WithShared(key) => {
-                queried
-                    .get_or_insert_with(|| Queried::new())
-                    .shared_components
-                    .insert_unique_unchecked(key, shared_components.get_mut(&key).unwrap());
-            }
-            QueryType::NotMatched => return None,
-        };
-
-        queried
+        QueryComplexIter::new(manager)
     }
 }
 
 /// A macro rule implements complex query for tuple query operators.
 macro_rules! query_complex {
     (
+        $query: tt,
+        $iter: tt,
+        $count: tt,
         $(
-            $q: tt
-        ),+
+            ($i: tt, $q: tt),
+        )+
     ) => {
-        impl<'a, $($q,)+> QueryComplex<'a> for ($($q,)+)
+        pub trait $query<'a, $($q,)+> {
+            fn query_complex(manager: &'a mut EntityManager) -> $iter<'a, $($q,)+>
+            where
+                Self: Sized;
+        }
+
+
+        impl<'a, $($q,)+> $query<'a, $($q,)+> for ($($q,)+)
         where
             $(
                 $q: QueryOp + 'static,
             )+
         {
-            fn query_complex(
-                archetype: &Archetype,
-                components: &'a mut [Box<dyn Any>],
-                shared_components: &'a mut HashMap<SharedComponentKey, Box<dyn Any>>,
-            ) -> Option<Queried<'a>>
+            fn query_complex(manager: &'a mut EntityManager) -> $iter<'a, $($q,)+>
             where
                 Self: Sized,
             {
-                let mut queried = None;
+                $iter::new(manager)
+            }
+        }
 
+        pub struct $iter<'a, $($q,)+>{
+            shared_components: &'a mut HashMap<SharedComponentKey, SharedComponentItem>,
+            chunks: hashbrown::hash_map::IterMut<'a, Archetype, ChunkItem>,
+            chunk: Option<(&'a Archetype, &'a mut ChunkItem, [QueryType; $count], usize)>,
+            _k: PhantomData<($($q,)+)>,
+        }
+
+        impl<'a, $($q,)+> $iter<'a, $($q,)+> {
+            fn new(manager: &'a mut EntityManager) -> Self {
+                Self {
+                    shared_components: &mut manager.shared_components,
+                    chunks: manager.chunks.iter_mut(),
+                    chunk: None,
+                    _k: PhantomData,
+                }
+            }
+        }
+
+        impl<'a, $($q,)+> Iterator for $iter<'a, $($q,)+>
+        where
+            $(
+                $q: QueryOp + 'static,
+            )+
+        {
+            type Item = Queried<'a>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                if let Some((_, chunk_item, _, index)) = self.chunk.as_mut() {
+                    *index += 1;
+
+                    if *index >= chunk_item.entity_keys.len() {
+                        self.chunk = None;
+                    }
+                }
+
+                if self.chunk.is_none() {
+                    while let Some((archetype, chunk_item)) = self.chunks.next() {
+                        let mut query_types = [QueryType::NotMatched; $count];
+                        $(
+                            {
+                                let query_type = $q::query(archetype);
+                                match &query_type {
+                                    QueryType::NotMatched => continue,
+                                    _ => {
+                                        query_types[$i] = query_type;
+                                    }
+                                };
+                            }
+                        )+
+                        self.chunk = Some((archetype, chunk_item, query_types, 0));
+                    }
+                }
+
+                let (archetype, chunk_item, query_types, index) = self.chunk.as_mut()?;
+
+                let mut components = HashMap::with_capacity(1);
+                let mut shared_components = HashMap::with_capacity(1);
                 $(
-                    match $q::query(archetype) {
-                        QueryType::Without => {
-                            // do nothing
-                        }
+                    match &query_types[$i] {
                         QueryType::With((key, position)) => {
-                            queried
-                                .get_or_insert_with(|| Queried::new())
-                                .components
-                                .insert_unique_unchecked(key, unsafe { &mut *(&mut components[position] as *mut Box<dyn Any>) });
+                            let component: *mut Box<dyn Any> = &mut chunk_item.components[*index * archetype.components_len() + *position].component;
+                            unsafe {
+                                components.insert_unique_unchecked(*key, &mut *component);
+                            }
                         }
                         QueryType::WithShared(key) => {
-                            queried
-                                .get_or_insert_with(|| Queried::new())
-                                .shared_components
-                                .insert_unique_unchecked(key, unsafe { &mut *(shared_components.get_mut(&key).unwrap() as *mut Box<dyn Any>) });
+                            let component: *mut Box<dyn Any> = &mut self.shared_components.get_mut(key).unwrap().component;
+                            unsafe {
+                                shared_components.insert_unique_unchecked(*key, &mut *component);
+                            }
                         }
-                        QueryType::NotMatched => return None,
+                        QueryType::Without => {
+                            // does nothing
+                        }
+                        QueryType::NotMatched => unreachable!(),
                     };
                 )+
 
-                queried
+                Some(Queried { components, shared_components, })
             }
         }
     };
@@ -758,19 +858,221 @@ macro_rules! query_complex {
 
 // Repeats query_complex for tuple query operators 16 times making it supports queries maximum 16 components at once.
 
-query_complex!(A);
-query_complex!(A, B);
-query_complex!(A, B, C);
-query_complex!(A, B, C, D);
-query_complex!(A, B, C, D, E);
-query_complex!(A, B, C, D, E, F);
-query_complex!(A, B, C, D, E, F, G);
-query_complex!(A, B, C, D, E, F, G, H);
-query_complex!(A, B, C, D, E, F, G, H, I);
-query_complex!(A, B, C, D, E, F, G, H, I, J);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K, L);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K, L, M);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K, L, M, N);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
-query_complex!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+
+query_complex! {
+    QueryComplex1,
+    QueryComplexIter1,
+    1,
+    (0, S1),
+}
+query_complex! {
+    QueryComplex2,
+    QueryComplexIter2,
+    2,
+    (0, S1),
+    (1, S2),
+}
+query_complex! {
+    QueryComplex3,
+    QueryComplexIter3,
+    3,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+}
+query_complex! {
+    QueryComplex4,
+    QueryComplexIter4,
+    4,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+}
+query_complex! {
+    QueryComplex5,
+    QueryComplexIter5,
+    5,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+}
+query_complex! {
+    QueryComplex6,
+    QueryComplexIter6,
+    6,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+}
+query_complex! {
+    QueryComplex7,
+    QueryComplexIter7,
+    7,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+}
+query_complex! {
+    QueryComplex8,
+    QueryComplexIter8,
+    8,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+}
+query_complex! {
+    QueryComplex9,
+    QueryComplexIter9,
+    9,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+}
+query_complex! {
+    QueryComplex10,
+    QueryComplexIter10,
+    10,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+}
+query_complex! {
+    QueryComplex11,
+    QueryComplexIter11,
+    11,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+}
+query_complex! {
+    QueryComplex12,
+    QueryComplexIter12,
+    12,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+    (11, S12),
+}
+query_complex! {
+    QueryComplex13,
+    QueryComplexIter13,
+    13,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+    (11, S12),
+    (12, S13),
+}
+query_complex! {
+    QueryComplex14,
+    QueryComplexIter14,
+    14,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+    (11, S12),
+    (12, S13),
+    (13, S14),
+}
+query_complex! {
+    QueryComplex15,
+    QueryComplexIter15,
+    15,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+    (11, S12),
+    (12, S13),
+    (13, S14),
+    (14, S15),
+}
+query_complex! {
+    QueryComplex16,
+    QueryComplexIter16,
+    16,
+    (0, S1),
+    (1, S2),
+    (2, S3),
+    (3, S4),
+    (4, S5),
+    (5, S6),
+    (6, S7),
+    (7, S8),
+    (8, S9),
+    (9, S10),
+    (10, S11),
+    (11, S12),
+    (12, S13),
+    (13, S14),
+    (14, S15),
+    (15, S16),
+}
+
