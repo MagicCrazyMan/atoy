@@ -14,7 +14,7 @@ use crate::anewthing::{
     plugin::Plugin,
 };
 
-use super::clock::WebClock;
+use super::{clock::WebClock, renderer::WebGlRenderer};
 
 pub struct TickOne(SimpleTick);
 
@@ -92,7 +92,7 @@ impl WebApp {
 
 #[wasm_bindgen]
 pub fn demo() -> Result<WebApp, JsValue> {
-    let mut app = App::new();
+    let mut app = App::new(WebGlRenderer::new());
     app.add_plugin(WebClock::<TickOne>::new(Duration::from_secs(1)))
         .map_err(|_| JsValue::from_str("duplicated plugin"))?;
     app.add_plugin(WebClock::<TickTwo>::new(Duration::from_secs(2)))

@@ -2,21 +2,26 @@ use std::any::{Any, TypeId};
 
 use hashbrown::HashMap;
 
-use super::{channel::Channel, ecs::manager::EntityManager, plugin::Plugin};
+use super::{channel::Channel, ecs::manager::EntityManager, plugin::Plugin, renderer::Renderer};
 
 pub struct App {
     channel: Channel,
     entity_manager: EntityManager,
+    renderer: Box<dyn Renderer>,
     plugins: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new<S>(renderer: S) -> Self
+    where
+        S: Renderer + 'static,
+    {
         let channel = Channel::new();
 
         Self {
             entity_manager: EntityManager::new(channel.clone()),
             plugins: HashMap::new(),
+            renderer: Box::new(renderer),
             channel,
         }
     }
