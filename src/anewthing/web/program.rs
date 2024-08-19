@@ -1,15 +1,12 @@
-use std::{
-    borrow::Cow,
-    cell::LazyCell,
-    convert::TryFrom,
-    hash::{DefaultHasher, Hash, Hasher},
-    sync::LazyLock,
-};
+use std::{borrow::Cow, cell::LazyCell, hash::Hash};
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use log::warn;
 use regex::Regex;
-use web_sys::WebGl2RenderingContext;
+use serde::de;
+use web_sys::{WebGl2RenderingContext, WebGlShader};
+
+use crate::{anewthing::web::error::Error, renderer::webgl::conversion::ToGlEnum};
 
 /// Available shader types for WebGL 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,16 +17,18 @@ pub enum ShaderType {
     Fragment,
 }
 
+impl ToGlEnum for ShaderType {
+    fn gl_enum(&self) -> u32 {
+        match self {
+            ShaderType::Vertex => WebGl2RenderingContext::VERTEX_SHADER,
+            ShaderType::Fragment => WebGl2RenderingContext::FRAGMENT_SHADER,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ShaderName {
     Custom(Cow<'static, str>),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[non_exhaustive]
-enum DirectiveKind {
-    Define,
-    Pragma,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -54,128 +53,15 @@ struct ShaderCacheKey {
 }
 
 struct DefinePosition {
-    name: Cow<'static, str>,
     line_index: usize,
-    char_index: usize,
+    name_position: (usize, usize),
+    value_position: Option<(usize, usize)>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct Define<'a> {
     name: Cow<'a, str>,
-    value: Cow<'a, str>,
-}
-
-struct ShaderCache {
-    gl: WebGl2RenderingContext,
-    lines: Vec<String>,
-    define_positions: Vec<DefinePosition>,
-    variants: HashMap<Vec<Define<'static>>, Shader>,
-}
-
-impl ShaderCache {
-    // fn new<S: ShaderSource>(gl: WebGl2RenderingContext, shader_source: S) -> Self {
-    //     Self {
-    //         gl,
-    //         lines: shader_source.code().lines().collect(),
-    //         define_positions: todo!(),
-    //         variants: HashMap::new(),
-    //     }
-    // }
-
-    // fn defines(&self) -> Vec<Define> {
-    //     let mut key = Vec::with_capacity(self.define_positions.len());
-    //     self.define_positions.iter().for_each(|position| {
-    //         let DefinePosition {
-    //             name,
-    //             line_index,
-    //             char_index,
-    //         } = position;
-    //         key.push(Define {
-    //             name: name.clone(),
-    //             value: Cow::Borrowed(&self.lines[*line_index][*char_index..]),
-    //         });
-    //     });
-    //     key
-    // }
-
-    // fn defines_with_custom_defines(
-    //     &self,
-    //     defines: &HashMap<Cow<'static, str>, Cow<'static, str>>,
-    // ) -> Vec<Define> {
-    //     let mut key = Vec::with_capacity(self.define_positions.len());
-    //     self.define_positions.iter().for_each(|position| {
-    //         let DefinePosition {
-    //             name,
-    //             line_index,
-    //             char_index,
-    //         } = position;
-
-    //         match defines.get(name) {
-    //             Some(define) => key.push(Define {
-    //                 name: name.clone(),
-    //                 value: define.clone(),
-    //             }),
-    //             None => key.push(Define {
-    //                 name: name.clone(),
-    //                 value: Cow::Borrowed(&self.lines[*line_index][*char_index..]),
-    //             }),
-    //         };
-    //     });
-    //     key
-    // }
-
-    // fn build_source_code(&self) -> String {
-    //     self.lines.join("\n")
-    // }
-
-    // fn build_source_code_with_custom_defines(
-    //     &self,
-    //     defines: &HashMap<Cow<'static, str>, Cow<'static, str>>,
-    // ) -> String {
-    //     self.lines.join("\n")
-    // }
-
-    // fn get_or_compile_shader(&self) -> &Shader {
-    //     let key = self.defines();
-    //     match self.variants.get(&key) {
-    //         Some(shader) => shader,
-    //         None => {
-    //             let code = self.build_source_code();
-    //             todo!()
-    //         }
-    //     }
-    // }
-
-    // fn get_or_compile_shader_with_custom_defines(
-    //     &self,
-    //     defines: &HashMap<Cow<'static, str>, Cow<'static, str>>,
-    // ) -> &Shader {
-    //     let key = self.defines_with_custom_defines(defines);
-    //     match self.variants.get(&key) {
-    //         Some(shader) => shader,
-    //         None => {
-    //             let code = self.build_source_code_with_custom_defines(defines);
-    //             todo!()
-    //         }
-    //     }
-    // }
-
-    // fn to_source_code_with_defines(
-    //     &self,
-    //     defines: HashMap<Cow<'static, str>, Cow<'static, str>>,
-    // ) -> String {
-    //     let mut lines = self.lines.clone();
-    //     for (name, value) in defines {
-    //         let Some((line_index, char_index)) = self.defines.get(&name).copied() else {
-    //             continue;
-    //         };
-    //         let mut new_line = lines[line_index].to_string();
-    //         new_line.replace_range(char_index.., &value);
-    //         lines[line_index] = Cow::Owned(new_line);
-    //     }
-
-    //     todo!()
-    // }
+    value: Option<Cow<'a, str>>,
 }
 
 pub trait ShaderSource {
@@ -192,22 +78,177 @@ pub trait ShaderSource {
     fn define(&self, name: &str) -> Option<&str>;
 }
 
-pub struct Shader {}
+struct ShaderCache {
+    lines: Vec<String>,
+    defines: Vec<DefinePosition>,
+    variants: HashMap<Vec<Define<'static>>, WebGlShader>,
+}
+
+impl ShaderCache {
+    fn get_or_compile_variant<'a, 'b: 'a, S>(
+        &'a mut self,
+        gl: &WebGl2RenderingContext,
+        shader_type: ShaderType,
+        shader_source: &'b S,
+    ) -> Result<&'a WebGlShader, Error>
+    where
+        S: ShaderSource,
+    {
+        let lines = &self.lines;
+        let mut replaced_defines = Vec::new();
+        let defines = self
+            .defines
+            .iter()
+            .enumerate()
+            .map(|(define_index, define_position)| {
+                let DefinePosition {
+                    line_index,
+                    name_position,
+                    value_position,
+                } = define_position;
+                let line = &lines[*line_index];
+                let name = &line[name_position.0..name_position.1];
+                let value = match shader_source.define(name) {
+                    Some(value) => {
+                        replaced_defines.push((define_index, define_position));
+                        Some(value.trim())
+                    }
+                    None => match value_position {
+                        Some(value) => Some(&line[value.0..value.1]),
+                        None => None,
+                    },
+                };
+
+                Define {
+                    name: Cow::Borrowed(name),
+                    value: value.map(|value| Cow::Borrowed(value)),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(variant) = self.variants.get(&defines) {
+            unsafe {
+                let variant: *const WebGlShader = variant;
+                Ok(&*variant)
+            }
+        } else {
+            let code = self.build_code(&defines, &replaced_defines);
+            let shader = self.compile_shader(gl, shader_type, &code)?;
+            // persists string slice to String
+            let defines = defines
+                .into_iter()
+                .map(|define| Define {
+                    name: Cow::Owned(define.name.to_string()),
+                    value: define.value.map(|value| Cow::Owned(value.to_string())),
+                })
+                .collect::<Vec<_>>();
+
+            Ok(self.variants.insert_unique_unchecked(defines, shader).1)
+        }
+    }
+
+    fn build_code(
+        &self,
+        defines: &[Define],
+        replaced_defines: &[(usize, &DefinePosition)],
+    ) -> String {
+        if replaced_defines.is_empty() {
+            return self.lines.join("\n");
+        }
+
+        let mut lines = self
+            .lines
+            .iter()
+            .map(|line| Cow::Borrowed(line.as_str()))
+            .collect::<Vec<_>>();
+        replaced_defines
+            .into_iter()
+            .for_each(|(define_index, define_position)| {
+                let DefinePosition {
+                    line_index,
+                    value_position,
+                    ..
+                } = define_position;
+                let Define { value, .. } = &defines[*define_index];
+                let value = match value {
+                    Some(value) => value.as_ref(),
+                    None => "",
+                };
+
+                let mut replaced_line = lines[*line_index].to_string();
+                replaced_line.shrink_to(replaced_line.len() + value.len() + 1); // 1 for a space
+                match value_position {
+                    Some((start, end)) => replaced_line.replace_range(*start..*end, value),
+                    None => {
+                        replaced_line.push_str(" ");
+                        replaced_line.push_str(value);
+                    }
+                };
+                lines[*line_index] = Cow::Owned(replaced_line);
+            });
+        lines.join("\n")
+    }
+
+    fn compile_shader(
+        &self,
+        gl: &WebGl2RenderingContext,
+        shader_type: ShaderType,
+        code: &str,
+    ) -> Result<WebGlShader, Error> {
+        let shader = gl
+            .create_shader(shader_type.gl_enum())
+            .ok_or(Error::CreateShaderFailure(shader_type))?;
+
+        // attaches shader source
+        gl.shader_source(&shader, &code);
+        // compiles shader
+        gl.compile_shader(&shader);
+
+        let success = gl
+            .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
+            .as_bool()
+            .unwrap();
+        if !success {
+            let err = gl.get_shader_info_log(&shader).map(|err| err);
+            gl.delete_shader(Some(&shader));
+            Err(Error::CompileShaderFailure(err))
+        } else {
+            Ok(shader)
+        }
+    }
+}
 
 pub struct ShaderManager {
+    gl: WebGl2RenderingContext,
     caches: HashMap<ShaderCacheKey, ShaderCache>,
     snippets: HashMap<Cow<'static, str>, Vec<String>>,
 }
 
 impl ShaderManager {
-    pub fn get_or_compile_shader<S>(&mut self, name: ShaderName, shader_source: &S) -> &Shader
+    pub fn get_or_compile_shader<'a, 'b: 'a, S>(
+        &'a mut self,
+        name: ShaderName,
+        shader_type: ShaderType,
+        shader_source: &'b S,
+    ) -> Result<&'a WebGlShader, Error>
     where
         S: ShaderSource,
     {
-        todo!()
+        let key = ShaderCacheKey { shader_type, name };
+        let cache = match self.caches.entry(key) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                entry.insert(Self::create_cache(&self.snippets, shader_source)?)
+            }
+        };
+        cache.get_or_compile_variant(&self.gl, shader_type, shader_source)
     }
 
-    fn compile_shader<S>(&mut self, name: ShaderName, shader_source: &S) -> &Shader
+    /// Creates a shader cache from a [`ShaderSource`].
+    fn create_cache<S>(
+        snippets: &HashMap<Cow<'static, str>, Vec<String>>,
+        shader_source: &S,
+    ) -> Result<ShaderCache, Error>
     where
         S: ShaderSource,
     {
@@ -216,42 +257,32 @@ impl ShaderManager {
             .lines()
             .map(|line| line.to_string())
             .collect::<Vec<_>>();
-        self.prepare_pragmas(&mut lines, shader_source);
+        Self::prepare_pragmas(snippets, &mut lines, shader_source)?;
+        let defines = Self::collect_defines(&lines);
+        let cache = ShaderCache {
+            lines,
+            defines,
+            variants: HashMap::new(),
+        };
 
-        todo!()
+        Ok(cache)
     }
 
-    fn find_directives(&self, lines: &[String]) -> HashMap<DirectiveKind, Vec<usize>> {
-        let mut directives = HashMap::new();
-        lines.into_iter().enumerate().for_each(|(index, line)| {
-            let line = line.trim_start();
-
-            let directive;
-            if line.starts_with("#define") {
-                directive = DirectiveKind::Define;
-            } else if line.starts_with("#pragma") {
-                directive = DirectiveKind::Pragma;
-            } else {
-                return;
-            };
-            directives
-                .entry(directive)
-                .or_insert_with(|| Vec::new())
-                .push(index);
-        });
-        directives
-    }
-
-    /// Injects snippet code.
-    fn prepare_pragmas<S>(&self, lines: &mut Vec<String>, shader_source: &S)
+    /// Prepares pragmas.
+    fn prepare_pragmas<S>(
+        snippets: &HashMap<Cow<'static, str>, Vec<String>>,
+        lines: &mut Vec<String>,
+        shader_source: &S,
+    ) -> Result<(), Error>
     where
         S: ShaderSource,
     {
         /// Regex for extracting pragma operation from `#pragma <operation> <value>` directive.
-        const PRAGMA_REGEX: LazyCell<Regex> =
-            LazyCell::new(|| Regex::new(r"#pragma\s+(?P<operation>\w+)\s+(?P<value>.+)").unwrap());
+        const PRAGMA_REGEX: LazyCell<Regex> = LazyCell::new(|| {
+            Regex::new(r"^\s*#pragma\s+(?P<operation>\w+)\s+(?P<value>.+)\s*$").unwrap()
+        });
 
-        let mut injected: HashSet<Cow<'_, str>> = HashSet::new();
+        let mut injecteds: HashSet<Cow<'_, str>> = HashSet::new();
         let mut i = 0;
         while i <= lines.len() {
             let line = &mut lines[i];
@@ -278,27 +309,76 @@ impl ShaderManager {
                         continue;
                     };
 
-                    if injected.contains(name) {
+                    if injecteds.contains(name) {
                         warn!(target: "ShaderManager", "snippet '{}' inject more than once", name);
                         lines.remove(i);
                         // no need to accumulate line index
                     } else {
                         if let Some(snippet) = shader_source.snippet(name) {
-                            injected.insert_unique_unchecked(Cow::Owned(name.to_string()));
+                            injecteds.insert_unique_unchecked(Cow::Owned(name.to_string()));
                             lines.splice(i..=i, snippet.lines().map(|line| line.to_string()));
                             // no need to accumulate line index
-                        } else if let Some((name, snippet)) = self.snippets.get_key_value(name) {
-                            injected.insert_unique_unchecked(Cow::Borrowed(name));
+                        } else if let Some((name, snippet)) = snippets.get_key_value(name) {
+                            injecteds.insert_unique_unchecked(Cow::Borrowed(name));
                             lines.splice(i..=i, snippet.into_iter().map(|line| line.clone()));
                             // no need to accumulate line index
                         } else {
-                            warn!(target: "ShaderManager", "snippet '{}' not found", name);
-                            i += 1;
-                            continue;
+                            return Err(Error::SnippetNotFound(name.to_string()));
                         }
                     }
                 }
             }
         }
+
+        Ok(())
     }
+
+    /// Collects define directives from lines of shader code
+    fn collect_defines(lines: &[String]) -> Vec<DefinePosition> {
+        /// Regex for extracting defines from `#define <name> [<value>]` directive. value is optional.
+        const DEFINE_REGEX: LazyCell<Regex> = LazyCell::new(|| {
+            Regex::new(r"^\s*#define\s+(?P<name>\w+)\s*(?P<value>.*)\s*$").unwrap()
+        });
+
+        let mut defines = Vec::new();
+        lines.into_iter().enumerate().for_each(|(index, line)| {
+            let Some(captures) = DEFINE_REGEX.captures(line) else {
+                return;
+            };
+            let Some(name) = captures
+                .name("name")
+                .map(|matched| (matched.start(), matched.end()))
+            else {
+                return;
+            };
+            let value = captures
+                .name("name")
+                .map(|matched| (matched.start(), matched.end()));
+
+            defines.push(DefinePosition {
+                line_index: index,
+                name_position: name,
+                value_position: value,
+            });
+        });
+
+        defines
+    }
+}
+
+#[test]
+fn regex() {
+    const REGEX: LazyCell<Regex> =
+        LazyCell::new(|| Regex::new(r"^\s*#define\s+(?P<name>\w+)\s*(?P<value>.*)\s*$").unwrap());
+
+    let captures = REGEX.captures("#define light 1").unwrap();
+    assert_eq!("light", captures.name("name").unwrap().as_str());
+    assert_eq!("1", captures.name("value").unwrap().as_str());
+    let captures = REGEX.captures("     #define    light    0").unwrap();
+    assert_eq!("light", captures.name("name").unwrap().as_str());
+    assert_eq!("0", captures.name("value").unwrap().as_str());
+    let captures = REGEX.captures("#define light     ").unwrap();
+    assert_eq!("light", captures.name("name").unwrap().as_str());
+    assert_eq!("", captures.name("value").unwrap().as_str());
+    println!("{:?}", captures.name("value").unwrap());
 }
