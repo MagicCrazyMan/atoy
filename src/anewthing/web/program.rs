@@ -54,8 +54,8 @@ struct ShaderCacheKey {
 
 struct DefinePosition {
     line_index: usize,
-    name_position: (usize, usize),
-    value_position: Option<(usize, usize)>,
+    name_position: Range<usize>,
+    value_position: Option<Range<usize>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -107,14 +107,14 @@ impl ShaderCache {
                     value_position,
                 } = define_position;
                 let line = &lines[*line_index];
-                let name = &line[name_position.0..name_position.1];
+                let name = &line[name_position.clone()];
                 let value = match shader_source.define(name) {
                     Some(value) => {
                         replaced_defines.push((define_index, define_position));
                         Some(value.trim())
                     }
                     None => match value_position {
-                        Some(value) => Some(&line[value.0..value.1]),
+                        Some(value) => Some(&line[value.clone()]),
                         None => None,
                     },
                 };
@@ -178,7 +178,7 @@ impl ShaderCache {
                 let mut replaced_line = lines[*line_index].to_string();
                 replaced_line.shrink_to(replaced_line.len() + value.len() + 1); // 1 for a space
                 match value_position {
-                    Some((start, end)) => replaced_line.replace_range(*start..*end, value),
+                    Some(range) => replaced_line.replace_range(range.clone(), value),
                     None => {
                         replaced_line.push_str(" ");
                         replaced_line.push_str(value);
@@ -230,6 +230,15 @@ pub struct ShaderManager {
 }
 
 impl ShaderManager {
+    /// Constructs a new shader manager.
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
+        Self {
+            gl,
+            caches: HashMap::new(),
+            snippets: HashMap::new(),
+        }
+    }
+
     /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
     pub fn add_snippet(
         &mut self,
@@ -379,28 +388,41 @@ impl ShaderManager {
         });
 
         let mut defines = Vec::new();
-        lines.into_iter().enumerate().for_each(|(index, line)| {
-            let Some(captures) = DEFINE_REGEX.captures(line) else {
-                return;
-            };
-            let Some(name) = captures
-                .name("name")
-                .map(|matched| (matched.start(), matched.end()))
-            else {
-                return;
-            };
-            let value = captures
-                .name("name")
-                .map(|matched| (matched.start(), matched.end()));
+        lines
+            .into_iter()
+            .enumerate()
+            .for_each(|(line_index, line)| {
+                let Some(captures) = DEFINE_REGEX.captures(line) else {
+                    return;
+                };
+                let Some(name_position) = captures.name("name").map(|matched| matched.range())
+                else {
+                    return;
+                };
+                let value_position = captures.name("value").map(|matched| matched.range());
 
-            defines.push(DefinePosition {
-                line_index: index,
-                name_position: name,
-                value_position: value,
+                defines.push(DefinePosition {
+                    line_index,
+                    name_position,
+                    value_position,
+                });
             });
-        });
 
         defines
+    }
+}
+
+pub struct ProgramManager {
+    gl: WebGl2RenderingContext,
+    shader_manager: ShaderManager,
+}
+
+impl ProgramManager {
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
+        Self {
+            shader_manager: ShaderManager::new(gl.clone()),
+            gl,
+        }
     }
 }
 
