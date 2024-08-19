@@ -5,7 +5,6 @@ use super::program::ShaderType;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Error {
     SnippetNotFound(String),
-    SnippetExisted(Cow<'static, str>),
     CreateShaderFailure(ShaderType),
     CompileShaderFailure(Option<String>),
 }

@@ -1,9 +1,9 @@
-use std::{borrow::Cow, cell::LazyCell, hash::Hash};
+use std::{borrow::Cow, cell::LazyCell, hash::Hash, ops::Range};
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
+use line_span::LineSpanExt;
 use log::warn;
 use regex::Regex;
-use serde::de;
 use web_sys::{WebGl2RenderingContext, WebGlShader};
 
 use crate::{anewthing::web::error::Error, renderer::webgl::conversion::ToGlEnum};
@@ -66,7 +66,7 @@ struct Define<'a> {
 
 pub trait ShaderSource {
     /// Global unique name for this shader source.
-    fn name(&self) -> &str;
+    fn name(&self) -> ShaderName;
 
     /// Returns the source code of the shader.
     fn code(&self) -> &str;
@@ -85,12 +85,12 @@ struct ShaderCache {
 }
 
 impl ShaderCache {
-    fn get_or_compile_variant<'a, 'b: 'a, S>(
-        &'a mut self,
+    fn get_or_compile_variant<S>(
+        &mut self,
         gl: &WebGl2RenderingContext,
         shader_type: ShaderType,
-        shader_source: &'b S,
-    ) -> Result<&'a WebGlShader, Error>
+        shader_source: &S,
+    ) -> Result<&WebGlShader, Error>
     where
         S: ShaderSource,
     {
@@ -218,23 +218,55 @@ impl ShaderCache {
     }
 }
 
+struct ShaderSnippet {
+    code: Cow<'static, str>,
+    lines: Vec<Range<usize>>,
+}
+
 pub struct ShaderManager {
     gl: WebGl2RenderingContext,
     caches: HashMap<ShaderCacheKey, ShaderCache>,
-    snippets: HashMap<Cow<'static, str>, Vec<String>>,
+    snippets: HashMap<Cow<'static, str>, ShaderSnippet>,
 }
 
 impl ShaderManager {
-    pub fn get_or_compile_shader<'a, 'b: 'a, S>(
-        &'a mut self,
-        name: ShaderName,
+    /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
+    pub fn add_snippet(
+        &mut self,
+        name: Cow<'static, str>,
+        code: Cow<'static, str>,
+    ) -> Option<Cow<'static, str>> {
+        let lines = code
+            .as_ref()
+            .line_spans()
+            .map(|span| span.range())
+            .collect();
+        self.snippets
+            .insert(name, ShaderSnippet { code, lines })
+            .map(|snippet| snippet.code)
+    }
+
+    /// Removes a snippet code from manager.
+    pub fn remove_snippet(&mut self, name: &str) -> Option<Cow<'static, str>> {
+        self.snippets.remove(name).map(|snippet| snippet.code)
+    }
+
+    /// Returns a compiled [`WebGlShader`] from a [`ShaderSource`] under specified [`ShaderType`].
+    ///
+    /// Manager identifies shader as different variants by values of define directives in the shader code.
+    /// A cached [`WebGlShader`] is returned if it has been compiled before.
+    pub fn get_or_compile_shader<S>(
+        &mut self,
         shader_type: ShaderType,
-        shader_source: &'b S,
-    ) -> Result<&'a WebGlShader, Error>
+        shader_source: &S,
+    ) -> Result<&WebGlShader, Error>
     where
         S: ShaderSource,
     {
-        let key = ShaderCacheKey { shader_type, name };
+        let key = ShaderCacheKey {
+            shader_type,
+            name: shader_source.name(),
+        };
         let cache = match self.caches.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -246,7 +278,7 @@ impl ShaderManager {
 
     /// Creates a shader cache from a [`ShaderSource`].
     fn create_cache<S>(
-        snippets: &HashMap<Cow<'static, str>, Vec<String>>,
+        snippets: &HashMap<Cow<'static, str>, ShaderSnippet>,
         shader_source: &S,
     ) -> Result<ShaderCache, Error>
     where
@@ -270,7 +302,7 @@ impl ShaderManager {
 
     /// Prepares pragmas.
     fn prepare_pragmas<S>(
-        snippets: &HashMap<Cow<'static, str>, Vec<String>>,
+        snippets: &HashMap<Cow<'static, str>, ShaderSnippet>,
         lines: &mut Vec<String>,
         shader_source: &S,
     ) -> Result<(), Error>
@@ -320,7 +352,13 @@ impl ShaderManager {
                             // no need to accumulate line index
                         } else if let Some((name, snippet)) = snippets.get_key_value(name) {
                             injecteds.insert_unique_unchecked(Cow::Borrowed(name));
-                            lines.splice(i..=i, snippet.into_iter().map(|line| line.clone()));
+                            lines.splice(
+                                i..=i,
+                                snippet
+                                    .lines
+                                    .iter()
+                                    .map(|line| snippet.code[line.to_owned()].to_string()),
+                            );
                             // no need to accumulate line index
                         } else {
                             return Err(Error::SnippetNotFound(name.to_string()));

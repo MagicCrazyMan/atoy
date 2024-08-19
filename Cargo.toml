@@ -98,6 +98,7 @@ js-sys = "0.3.67"
 regex = "1.10.3"
 async-trait = "0.1.80"
 url = "2.5.0"
+line-span = "0.1.5"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
