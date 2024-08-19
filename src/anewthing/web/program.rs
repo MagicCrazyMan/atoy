@@ -90,7 +90,7 @@ pub trait ShaderSource {
     fn snippet(&self, name: &str) -> Option<&str>;
 
     /// Returns a custom define value by name.
-    fn define(&self, name: &str) -> Option<&str>;
+    fn define_value(&self, name: &str) -> Option<&str>;
 }
 
 #[derive(Clone)]
@@ -115,148 +115,6 @@ struct ShaderCache {
     lines: Vec<String>,
     defines: Vec<DefinePosition>,
     variants: HashMap<Vec<Define<'static>>, Shader>,
-}
-
-impl ShaderCache {
-    fn get_or_compile_variant<S>(
-        &mut self,
-        id: &mut AccumulatingId,
-        gl: &WebGl2RenderingContext,
-        shader_type: ShaderType,
-        shader_source: &S,
-    ) -> Result<Shader, Error>
-    where
-        S: ShaderSource,
-    {
-        let lines = &self.lines;
-        let mut replaced_defines = Vec::new();
-        let defines = self
-            .defines
-            .iter()
-            .enumerate()
-            .map(|(define_index, define_position)| {
-                let DefinePosition {
-                    line_index,
-                    name_position,
-                    value_position,
-                } = define_position;
-                let line = &lines[*line_index];
-                let name = &line[name_position.clone()];
-                let value = match shader_source.define(name) {
-                    Some(value) => {
-                        replaced_defines.push((define_index, define_position));
-                        Some(value.trim())
-                    }
-                    None => match value_position {
-                        Some(value) => Some(&line[value.clone()]),
-                        None => None,
-                    },
-                };
-
-                Define {
-                    name: Cow::Borrowed(name),
-                    value: value.map(|value| Cow::Borrowed(value)),
-                }
-            })
-            .collect::<Vec<_>>();
-
-        if let Some(variant) = self.variants.get(&defines) {
-            Ok(variant.clone())
-        } else {
-            let code = self.build_code(&defines, &replaced_defines);
-            let shader = self.compile_shader(gl, shader_type, &code)?;
-            // persists string slice to String
-            let defines = defines
-                .into_iter()
-                .map(|define| Define {
-                    name: Cow::Owned(define.name.to_string()),
-                    value: define.value.map(|value| Cow::Owned(value.to_string())),
-                })
-                .collect::<Vec<_>>();
-
-            Ok(self
-                .variants
-                .insert_unique_unchecked(
-                    defines,
-                    Shader {
-                        id: id.next(),
-                        shader,
-                    },
-                )
-                .1
-                .clone())
-        }
-    }
-
-    fn build_code(
-        &self,
-        defines: &[Define],
-        replaced_defines: &[(usize, &DefinePosition)],
-    ) -> String {
-        if replaced_defines.is_empty() {
-            return self.lines.join("\n");
-        }
-
-        let mut lines = self
-            .lines
-            .iter()
-            .map(|line| Cow::Borrowed(line.as_str()))
-            .collect::<Vec<_>>();
-        replaced_defines
-            .into_iter()
-            .for_each(|(define_index, define_position)| {
-                let DefinePosition {
-                    line_index,
-                    value_position,
-                    ..
-                } = define_position;
-                let Define { value, .. } = &defines[*define_index];
-                let value = match value {
-                    Some(value) => value.as_ref(),
-                    None => "",
-                };
-
-                let mut replaced_line = lines[*line_index].to_string();
-                replaced_line.shrink_to(replaced_line.len() + value.len() + 1); // 1 for a space
-                match value_position {
-                    Some(range) => replaced_line.replace_range(range.clone(), value),
-                    None => {
-                        replaced_line.push_str(" ");
-                        replaced_line.push_str(value);
-                    }
-                };
-                lines[*line_index] = Cow::Owned(replaced_line);
-            });
-        lines.join("\n")
-    }
-
-    fn compile_shader(
-        &self,
-        gl: &WebGl2RenderingContext,
-        shader_type: ShaderType,
-        code: &str,
-    ) -> Result<WebGlShader, Error> {
-        let shader = gl
-            .create_shader(shader_type.gl_enum())
-            .ok_or(Error::CreateShaderFailure(shader_type))?;
-
-        // attaches shader source
-        gl.shader_source(&shader, &code);
-        // compiles shader
-        gl.compile_shader(&shader);
-
-        let success = gl
-            .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
-            .as_bool()
-            .unwrap();
-        if !success {
-            let err = gl.get_shader_info_log(&shader).map(|err| err);
-            gl.delete_shader(Some(&shader));
-            Err(Error::CompileShaderFailure(err))
-        } else {
-            Ok(shader)
-        }
-    }
 }
 
 struct ShaderSnippet {
@@ -325,7 +183,8 @@ impl ShaderManager {
                 entry.insert(Self::create_cache(&self.snippets, shader_source)?)
             }
         };
-        cache.get_or_compile_variant(
+        Self::get_or_compile_variant_shader(
+            cache,
             &mut self.accumulating_id,
             &self.gl,
             shader_type,
@@ -447,7 +306,14 @@ impl ShaderManager {
                 else {
                     return;
                 };
-                let value_position = captures.name("value").map(|matched| matched.range());
+                let value_position = captures.name("value").and_then(|matched| {
+                    let range = matched.range();
+                    if line[range.clone()].is_empty() {
+                        None
+                    } else {
+                        Some(range)
+                    }
+                });
 
                 defines.push(DefinePosition {
                     line_index,
@@ -457,6 +323,150 @@ impl ShaderManager {
             });
 
         defines
+    }
+
+    fn get_or_compile_variant_shader<S>(
+        cache: &mut ShaderCache,
+        id: &mut AccumulatingId,
+        gl: &WebGl2RenderingContext,
+        shader_type: ShaderType,
+        shader_source: &S,
+    ) -> Result<Shader, Error>
+    where
+        S: ShaderSource,
+    {
+        let lines = &cache.lines;
+        let mut replaced_defines = Vec::new();
+        let defines = cache
+            .defines
+            .iter()
+            .enumerate()
+            .map(|(define_index, define_position)| {
+                let DefinePosition {
+                    line_index,
+                    name_position,
+                    value_position,
+                } = define_position;
+                let line = &lines[*line_index];
+                let name = &line[name_position.clone()];
+                let value = match shader_source.define_value(name) {
+                    Some(value) => {
+                        replaced_defines.push((define_index, define_position));
+                        let value = value.trim();
+                        if value.is_empty() {
+                            None
+                        } else {
+                            Some(value)
+                        }
+                    }
+                    None => match value_position {
+                        Some(value_position) => Some(&line[value_position.clone()]), // value is ensured to be non-empty
+                        None => None,
+                    },
+                };
+
+                Define {
+                    name: Cow::Borrowed(name),
+                    value: value.map(|value| Cow::Borrowed(value)),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(variant) = cache.variants.get(&defines) {
+            Ok(variant.clone())
+        } else {
+            let code = Self::create_variant_code(lines, &defines, &replaced_defines);
+            let shader = Self::compile_shader(gl, shader_type, &code)?;
+
+            // persists string slice to String
+            let defines = defines
+                .into_iter()
+                .map(|define| Define {
+                    name: Cow::Owned(define.name.to_string()),
+                    value: define.value.map(|value| Cow::Owned(value.to_string())),
+                })
+                .collect::<Vec<_>>();
+
+            Ok(cache
+                .variants
+                .insert_unique_unchecked(
+                    defines,
+                    Shader {
+                        id: id.next(),
+                        shader,
+                    },
+                )
+                .1
+                .clone())
+        }
+    }
+
+    fn create_variant_code(
+        lines: &[String],
+        defines: &[Define],
+        replaced_defines: &[(usize, &DefinePosition)],
+    ) -> String {
+        if replaced_defines.is_empty() {
+            return lines.join("\n");
+        }
+
+        let mut lines = lines
+            .iter()
+            .map(|line| Cow::Borrowed(line.as_str()))
+            .collect::<Vec<_>>();
+        replaced_defines
+            .into_iter()
+            .for_each(|(define_index, define_position)| {
+                let DefinePosition {
+                    line_index,
+                    value_position,
+                    ..
+                } = define_position;
+                let Define { value, .. } = &defines[*define_index];
+                let value = match value {
+                    Some(value) => value.as_ref(),
+                    None => "",
+                };
+
+                let mut replaced_line = lines[*line_index].to_string();
+                replaced_line.shrink_to(replaced_line.len() + value.len() + 1); // 1 for a space
+                match value_position {
+                    Some(range) => replaced_line.replace_range(range.clone(), value),
+                    None => {
+                        replaced_line.push_str(" ");
+                        replaced_line.push_str(value);
+                    }
+                };
+                lines[*line_index] = Cow::Owned(replaced_line);
+            });
+        lines.join("\n")
+    }
+
+    fn compile_shader(
+        gl: &WebGl2RenderingContext,
+        shader_type: ShaderType,
+        code: &str,
+    ) -> Result<WebGlShader, Error> {
+        let shader = gl
+            .create_shader(shader_type.gl_enum())
+            .ok_or(Error::CreateShaderFailure(shader_type))?;
+
+        // attaches shader source
+        gl.shader_source(&shader, &code);
+        // compiles shader
+        gl.compile_shader(&shader);
+
+        let success = gl
+            .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
+            .as_bool()
+            .unwrap();
+        if !success {
+            let err = gl.get_shader_info_log(&shader).map(|err| err);
+            gl.delete_shader(Some(&shader));
+            Err(Error::CompileShaderFailure(err))
+        } else {
+            Ok(shader)
+        }
     }
 }
 
@@ -522,7 +532,7 @@ impl ProgramManager {
     }
 
     /// Returns a compiled [`Program`] from a vertex shader and a fragment shader.
-    /// 
+    ///
     /// A cached program is returned if vertex shader and fragment shader are cached.
     pub fn get_or_compile_program<VS, FS>(
         &mut self,
