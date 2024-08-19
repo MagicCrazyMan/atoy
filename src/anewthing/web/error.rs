@@ -7,6 +7,8 @@ pub enum Error {
     SnippetNotFound(String),
     CreateShaderFailure(ShaderType),
     CompileShaderFailure(Option<String>),
+    CreateProgramFailure,
+    LinkProgramFailure(Option<String>),
 }
 
 impl Display for Error {
