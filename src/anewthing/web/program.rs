@@ -202,11 +202,7 @@ impl ShaderManager {
     where
         S: ShaderSource,
     {
-        let mut lines = shader_source
-            .code()
-            .lines()
-            .map(|line| Cow::Borrowed(line))
-            .collect::<Vec<_>>();
+        let mut lines = shader_source.code().lines().collect::<Vec<_>>();
         Self::prepare_pragmas(snippets, &mut lines, shader_source)?;
 
         let code = lines.join("\n");
@@ -229,7 +225,7 @@ impl ShaderManager {
     /// Prepares pragmas.
     fn prepare_pragmas<'a, 'b: 'a, S>(
         snippets: &'a HashMap<Cow<'static, str>, ShaderSnippet>,
-        lines: &mut Vec<Cow<'a, str>>,
+        lines: &mut Vec<&'a str>,
         shader_source: &'b S,
     ) -> Result<(), Error>
     where
@@ -240,10 +236,10 @@ impl ShaderManager {
             Regex::new(r"^\s*#pragma\s+(?P<operation>\w+)\s+(?P<value>.+)\s*$").unwrap()
         });
 
-        let mut injecteds: HashSet<Cow<'_, str>> = HashSet::new();
+        let mut injecteds: HashSet<&str> = HashSet::new();
         let mut i = 0;
         while i <= lines.len() {
-            let line = &mut lines[i];
+            let line = lines[i];
 
             let Some(captures) = PRAGMA_REGEX.captures(line) else {
                 i += 1;
@@ -273,21 +269,22 @@ impl ShaderManager {
                         // no need to accumulate line index
                     } else {
                         if let Some(snippet) = shader_source.snippet(name) {
-                            injecteds.insert_unique_unchecked(Cow::Owned(name.to_string()));
-                            lines.splice(i..=i, snippet.lines().map(|line| Cow::Borrowed(line)));
+                            lines.splice(i..=i, snippet.lines().map(|line| line));
                             // no need to accumulate line index
                         } else if let Some((name, snippet)) = snippets.get_key_value(name) {
-                            injecteds.insert_unique_unchecked(Cow::Borrowed(name));
                             lines.splice(
                                 i..=i,
-                                snippet.lines.iter().map(|line_range| {
-                                    Cow::Borrowed(&snippet.code[line_range.clone()])
-                                }),
+                                snippet
+                                    .lines
+                                    .iter()
+                                    .map(|line_range| &snippet.code[line_range.clone()]),
                             );
                             // no need to accumulate line index
                         } else {
                             return Err(Error::SnippetNotFound(name.to_string()));
                         }
+
+                        injecteds.insert_unique_unchecked(name);
                     }
                 }
             }
