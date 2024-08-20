@@ -69,6 +69,7 @@ struct ShaderCacheKey {
 
 struct DefinePosition {
     line_index: usize,
+    /// position in line, not in the whole code string
     name_position: Range<usize>,
     value_position: Option<Range<usize>>,
 }
@@ -112,7 +113,8 @@ impl Shader {
 }
 
 struct ShaderCache {
-    lines: Vec<String>,
+    code: String,
+    line_ranges: Vec<Range<usize>>,
     defines: Vec<DefinePosition>,
     variants: HashMap<Vec<Define<'static>>, Shader>,
 }
@@ -203,12 +205,20 @@ impl ShaderManager {
         let mut lines = shader_source
             .code()
             .lines()
-            .map(|line| line.to_string())
+            .map(|line| Cow::Borrowed(line))
             .collect::<Vec<_>>();
         Self::prepare_pragmas(snippets, &mut lines, shader_source)?;
-        let defines = Self::collect_defines(&lines);
+
+        let code = lines.join("\n");
+        let line_ranges = code
+            .line_spans()
+            .map(|line| line.range())
+            .collect::<Vec<_>>();
+        let defines = Self::collect_defines(&code, &line_ranges);
+
         let cache = ShaderCache {
-            lines,
+            code,
+            line_ranges,
             defines,
             variants: HashMap::new(),
         };
@@ -217,10 +227,10 @@ impl ShaderManager {
     }
 
     /// Prepares pragmas.
-    fn prepare_pragmas<S>(
-        snippets: &HashMap<Cow<'static, str>, ShaderSnippet>,
-        lines: &mut Vec<String>,
-        shader_source: &S,
+    fn prepare_pragmas<'a, 'b: 'a, S>(
+        snippets: &'a HashMap<Cow<'static, str>, ShaderSnippet>,
+        lines: &mut Vec<Cow<'a, str>>,
+        shader_source: &'b S,
     ) -> Result<(), Error>
     where
         S: ShaderSource,
@@ -264,16 +274,15 @@ impl ShaderManager {
                     } else {
                         if let Some(snippet) = shader_source.snippet(name) {
                             injecteds.insert_unique_unchecked(Cow::Owned(name.to_string()));
-                            lines.splice(i..=i, snippet.lines().map(|line| line.to_string()));
+                            lines.splice(i..=i, snippet.lines().map(|line| Cow::Borrowed(line)));
                             // no need to accumulate line index
                         } else if let Some((name, snippet)) = snippets.get_key_value(name) {
                             injecteds.insert_unique_unchecked(Cow::Borrowed(name));
                             lines.splice(
                                 i..=i,
-                                snippet
-                                    .lines
-                                    .iter()
-                                    .map(|line| snippet.code[line.to_owned()].to_string()),
+                                snippet.lines.iter().map(|line_range| {
+                                    Cow::Borrowed(&snippet.code[line_range.clone()])
+                                }),
                             );
                             // no need to accumulate line index
                         } else {
@@ -288,7 +297,7 @@ impl ShaderManager {
     }
 
     /// Collects define directives from lines of shader code
-    fn collect_defines(lines: &[String]) -> Vec<DefinePosition> {
+    fn collect_defines(code: &str, lines: &[Range<usize>]) -> Vec<DefinePosition> {
         /// Regex for extracting defines from `#define <name> [<value>]` directive. value is optional.
         const DEFINE_REGEX: LazyCell<Regex> = LazyCell::new(|| {
             Regex::new(r"^\s*#define\s+(?P<name>\w+)\s*(?P<value>.*)\s*$").unwrap()
@@ -298,7 +307,8 @@ impl ShaderManager {
         lines
             .into_iter()
             .enumerate()
-            .for_each(|(line_index, line)| {
+            .for_each(|(line_index, line_range)| {
+                let line = &code[line_range.clone()];
                 let Some(captures) = DEFINE_REGEX.captures(line) else {
                     return;
                 };
@@ -335,7 +345,7 @@ impl ShaderManager {
     where
         S: ShaderSource,
     {
-        let lines = &cache.lines;
+        let line_ranges = &cache.line_ranges;
         let mut replaced_defines = Vec::new();
         let defines = cache
             .defines
@@ -347,7 +357,9 @@ impl ShaderManager {
                     name_position,
                     value_position,
                 } = define_position;
-                let line = &lines[*line_index];
+                let line_range = &line_ranges[*line_index];
+                let line = &cache.code[line_range.clone()];
+
                 let name = &line[name_position.clone()];
                 let value = match shader_source.define_value(name) {
                     Some(value) => {
@@ -375,7 +387,7 @@ impl ShaderManager {
         if let Some(variant) = cache.variants.get(&defines) {
             Ok(variant.clone())
         } else {
-            let code = Self::create_variant_code(lines, &defines, &replaced_defines);
+            let code = Self::create_variant_code(cache, &defines, &replaced_defines);
             let shader = Self::compile_shader(gl, shader_type, &code)?;
 
             // persists string slice to String
@@ -401,18 +413,19 @@ impl ShaderManager {
         }
     }
 
-    fn create_variant_code(
-        lines: &[String],
+    fn create_variant_code<'a>(
+        cache: &'a ShaderCache,
         defines: &[Define],
         replaced_defines: &[(usize, &DefinePosition)],
-    ) -> String {
+    ) -> Cow<'a, str> {
         if replaced_defines.is_empty() {
-            return lines.join("\n");
+            return Cow::Borrowed(&cache.code);
         }
 
-        let mut lines = lines
+        let mut lines = cache
+            .line_ranges
             .iter()
-            .map(|line| Cow::Borrowed(line.as_str()))
+            .map(|line_range| Cow::Borrowed(&cache.code[line_range.clone()]))
             .collect::<Vec<_>>();
         replaced_defines
             .into_iter()
@@ -428,8 +441,9 @@ impl ShaderManager {
                     None => "",
                 };
 
-                let mut replaced_line = lines[*line_index].to_string();
-                replaced_line.shrink_to(replaced_line.len() + value.len() + 1); // 1 for a space
+                let line = &lines[*line_index];
+                let mut replaced_line = String::with_capacity(line.len() + value.len() + 1); // 1 for a space
+                replaced_line.push_str(&line);
                 match value_position {
                     Some(range) => replaced_line.replace_range(range.clone(), value),
                     None => {
@@ -439,7 +453,7 @@ impl ShaderManager {
                 };
                 lines[*line_index] = Cow::Owned(replaced_line);
             });
-        lines.join("\n")
+        Cow::Owned(lines.join("\n"))
     }
 
     fn compile_shader(
@@ -529,6 +543,20 @@ impl ProgramManager {
             caches: HashMap::new(),
             gl,
         }
+    }
+
+    /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
+    pub fn add_snippet(
+        &mut self,
+        name: Cow<'static, str>,
+        code: Cow<'static, str>,
+    ) -> Option<Cow<'static, str>> {
+        self.shader_manager.add_snippet(name, code)
+    }
+
+    /// Removes a snippet code from manager.
+    pub fn remove_snippet(&mut self, name: &str) -> Option<Cow<'static, str>> {
+        self.shader_manager.remove_snippet(name)
     }
 
     /// Returns a compiled [`Program`] from a vertex shader and a fragment shader.
@@ -684,21 +712,4 @@ impl ProgramManager {
 
         locations
     }
-}
-
-#[test]
-fn regex() {
-    const REGEX: LazyCell<Regex> =
-        LazyCell::new(|| Regex::new(r"^\s*#define\s+(?P<name>\w+)\s*(?P<value>.*)\s*$").unwrap());
-
-    let captures = REGEX.captures("#define light 1").unwrap();
-    assert_eq!("light", captures.name("name").unwrap().as_str());
-    assert_eq!("1", captures.name("value").unwrap().as_str());
-    let captures = REGEX.captures("     #define    light    0").unwrap();
-    assert_eq!("light", captures.name("name").unwrap().as_str());
-    assert_eq!("0", captures.name("value").unwrap().as_str());
-    let captures = REGEX.captures("#define light     ").unwrap();
-    assert_eq!("light", captures.name("name").unwrap().as_str());
-    assert_eq!("", captures.name("value").unwrap().as_str());
-    println!("{:?}", captures.name("value").unwrap());
 }
