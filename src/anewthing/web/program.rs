@@ -4,12 +4,10 @@ use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use line_span::LineSpanExt;
 use log::warn;
 use regex::Regex;
+use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::{
-    anewthing::{utils::AccumulatingId, web::error::Error},
-    renderer::webgl::conversion::ToGlEnum,
-};
+use crate::{anewthing::web::error::Error, renderer::webgl::conversion::ToGlEnum};
 
 /// Available shader types for WebGL 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -84,14 +82,14 @@ pub trait ShaderSource {
 
 #[derive(Clone)]
 pub struct Shader {
-    id: usize,
+    id: Uuid,
     shader: WebGlShader,
 }
 
 impl Shader {
     /// Returns accumulating id of this shader.
-    pub fn id(&self) -> usize {
-        self.id
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     /// Returns native [`WebGlShader`].
@@ -116,7 +114,6 @@ pub struct ShaderManager {
     gl: WebGl2RenderingContext,
     caches: HashMap<ShaderCacheKey, ShaderCache>,
     snippets: HashMap<Cow<'static, str>, ShaderSnippet>,
-    accumulating_id: AccumulatingId,
 }
 
 impl ShaderManager {
@@ -126,7 +123,6 @@ impl ShaderManager {
             gl,
             caches: HashMap::new(),
             snippets: HashMap::new(),
-            accumulating_id: AccumulatingId::new(),
         }
     }
 
@@ -178,13 +174,7 @@ impl ShaderManager {
                 entry.insert(Self::create_cache(&self.snippets, shader_source)?)
             }
         };
-        Self::get_or_compile_variant_shader(
-            cache,
-            &mut self.accumulating_id,
-            &self.gl,
-            shader_type,
-            shader_source,
-        )
+        Self::get_or_compile_variant_shader(cache, &self.gl, shader_type, shader_source)
     }
 
     /// Creates a shader cache from a [`ShaderSource`].
@@ -264,7 +254,7 @@ impl ShaderManager {
                         if let Some(snippet) = shader_source.snippet(name) {
                             lines.splice(i..=i, snippet.lines().map(|line| line));
                             // no need to accumulate line index
-                        } else if let Some((name, snippet)) = snippets.get_key_value(name) {
+                        } else if let Some(snippet) = snippets.get(name) {
                             lines.splice(
                                 i..=i,
                                 snippet
@@ -327,7 +317,6 @@ impl ShaderManager {
 
     fn get_or_compile_variant_shader<S>(
         cache: &mut ShaderCache,
-        id: &mut AccumulatingId,
         gl: &WebGl2RenderingContext,
         shader_type: ShaderType,
         shader_source: &S,
@@ -394,7 +383,7 @@ impl ShaderManager {
                 .insert_unique_unchecked(
                     defines,
                     Shader {
-                        id: id.next(),
+                        id: Uuid::new_v4(),
                         shader,
                     },
                 )
@@ -476,8 +465,8 @@ impl ShaderManager {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct ProgramCacheKey {
-    vertex_shader_id: usize,
-    fragment_shader_id: usize,
+    vertex_shader_id: Uuid,
+    fragment_shader_id: Uuid,
 }
 
 #[derive(Clone)]

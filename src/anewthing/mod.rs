@@ -1,10 +1,9 @@
-pub mod channel;
 pub mod app;
-pub mod key;
-pub mod web;
-pub mod scheduler;
+pub mod channel;
 pub mod clock;
-pub mod plugin;
 pub mod ecs;
+pub mod key;
+pub mod plugin;
 pub mod renderer;
-pub mod utils;
+pub mod scheduler;
+pub mod web;
