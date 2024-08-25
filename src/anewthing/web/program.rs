@@ -6,22 +6,10 @@ use log::warn;
 use regex::Regex;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::{anewthing::web::error::Error, renderer::webgl::conversion::ToGlEnum};
-
-struct AccumulatingId {
-    id: usize,
-}
-
-impl AccumulatingId {
-    fn new() -> Self {
-        Self { id: 0 }
-    }
-
-    fn next(&mut self) -> usize {
-        self.id += 1;
-        self.id
-    }
-}
+use crate::{
+    anewthing::{utils::AccumulatingId, web::error::Error},
+    renderer::webgl::conversion::ToGlEnum,
+};
 
 /// Available shader types for WebGL 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -140,6 +128,11 @@ impl ShaderManager {
             snippets: HashMap::new(),
             accumulating_id: AccumulatingId::new(),
         }
+    }
+
+    /// Returns a snippet code.
+    pub fn snippet(&mut self, name: &str) -> Option<&str> {
+        self.snippets.get(name).map(|snippet| snippet.code.as_ref())
     }
 
     /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
@@ -481,6 +474,12 @@ impl ShaderManager {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct ProgramCacheKey {
+    vertex_shader_id: usize,
+    fragment_shader_id: usize,
+}
+
 #[derive(Clone)]
 pub struct Program {
     program: WebGlProgram,
@@ -529,7 +528,7 @@ impl Program {
 pub struct ProgramManager {
     gl: WebGl2RenderingContext,
     shader_manager: ShaderManager,
-    caches: HashMap<(usize, usize), Program>,
+    caches: HashMap<ProgramCacheKey, Program>,
 }
 
 impl ProgramManager {
@@ -540,6 +539,11 @@ impl ProgramManager {
             caches: HashMap::new(),
             gl,
         }
+    }
+
+    /// Returns a snippet code.
+    pub fn snippet(&mut self, name: &str) -> Option<&str> {
+        self.shader_manager.snippet(name)
     }
 
     /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
@@ -569,19 +573,23 @@ impl ProgramManager {
         FS: ShaderSource,
     {
         let Shader {
-            id: vs_id,
+            id: vertex_shader_id,
             shader: vs,
         } = self
             .shader_manager
             .get_or_compile_shader(ShaderType::Vertex, vertex)?;
         let Shader {
-            id: fs_id,
+            id: fragment_shader_id,
             shader: fs,
         } = self
             .shader_manager
             .get_or_compile_shader(ShaderType::Fragment, fragment)?;
 
-        let program = match self.caches.entry((vs_id, fs_id)) {
+        let key = ProgramCacheKey {
+            vertex_shader_id,
+            fragment_shader_id,
+        };
+        let program = match self.caches.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let program = Self::create_program(&self.gl, &vs, &fs)?;

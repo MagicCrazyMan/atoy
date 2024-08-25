@@ -7,3 +7,4 @@ pub mod clock;
 pub mod plugin;
 pub mod ecs;
 pub mod renderer;
+pub mod utils;
