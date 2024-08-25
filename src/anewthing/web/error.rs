@@ -8,6 +8,7 @@ pub enum Error {
     CreateShaderFailure(ShaderType),
     CompileShaderFailure(Option<String>),
     CreateProgramFailure,
+    ProgramNotFound,
     LinkProgramFailure(Option<String>),
 }
 

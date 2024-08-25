@@ -28,8 +28,23 @@ impl ToGlEnum for ShaderType {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum ShaderName {
     Custom(Cow<'static, str>),
+}
+
+pub trait ShaderSource {
+    /// Global unique name for this shader source.
+    fn name(&self) -> ShaderName;
+
+    /// Returns the source code of the shader.
+    fn code(&self) -> &str;
+
+    /// Returns a custom snippet code by name.
+    fn snippet(&self, name: &str) -> Option<&str>;
+
+    /// Returns a custom define value by name.
+    fn define_value(&self, name: &str) -> Option<&str>;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -66,36 +81,10 @@ struct Define<'a> {
     value: Option<Cow<'a, str>>,
 }
 
-pub trait ShaderSource {
-    /// Global unique name for this shader source.
-    fn name(&self) -> ShaderName;
-
-    /// Returns the source code of the shader.
-    fn code(&self) -> &str;
-
-    /// Returns a custom snippet code by name.
-    fn snippet(&self, name: &str) -> Option<&str>;
-
-    /// Returns a custom define value by name.
-    fn define_value(&self, name: &str) -> Option<&str>;
-}
-
 #[derive(Clone)]
-pub struct Shader {
+struct Shader {
     id: Uuid,
     shader: WebGlShader,
-}
-
-impl Shader {
-    /// Returns accumulating id of this shader.
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-
-    /// Returns native [`WebGlShader`].
-    pub fn shader(&self) -> &WebGlShader {
-        &self.shader
-    }
 }
 
 struct ShaderCache {
@@ -110,7 +99,7 @@ struct ShaderSnippet {
     lines: Vec<Range<usize>>,
 }
 
-pub struct ShaderManager {
+struct ShaderManager {
     gl: WebGl2RenderingContext,
     caches: HashMap<ShaderCacheKey, ShaderCache>,
     snippets: HashMap<Cow<'static, str>, ShaderSnippet>,
@@ -118,7 +107,7 @@ pub struct ShaderManager {
 
 impl ShaderManager {
     /// Constructs a new shader manager.
-    pub fn new(gl: WebGl2RenderingContext) -> Self {
+    fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             gl,
             caches: HashMap::new(),
@@ -127,12 +116,12 @@ impl ShaderManager {
     }
 
     /// Returns a snippet code.
-    pub fn snippet(&mut self, name: &str) -> Option<&str> {
+    fn snippet(&mut self, name: &str) -> Option<&str> {
         self.snippets.get(name).map(|snippet| snippet.code.as_ref())
     }
 
     /// Adds a new snippet code to manager. Returns the previous snippet code if occupied.
-    pub fn add_snippet(
+    fn add_snippet(
         &mut self,
         name: Cow<'static, str>,
         code: Cow<'static, str>,
@@ -148,7 +137,7 @@ impl ShaderManager {
     }
 
     /// Removes a snippet code from manager.
-    pub fn remove_snippet(&mut self, name: &str) -> Option<Cow<'static, str>> {
+    fn remove_snippet(&mut self, name: &str) -> Option<Cow<'static, str>> {
         self.snippets.remove(name).map(|snippet| snippet.code)
     }
 
@@ -156,7 +145,7 @@ impl ShaderManager {
     ///
     /// Manager identifies shader as different variants by values of define directives in the shader code.
     /// A cached shader is returned if it has been compiled before.
-    pub fn get_or_compile_shader<S>(
+    fn get_or_compile_shader<S>(
         &mut self,
         shader_type: ShaderType,
         shader_source: &S,
@@ -464,60 +453,70 @@ impl ShaderManager {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct ProgramCacheKey {
+struct ProgramShaderKey {
     vertex_shader_id: Uuid,
     fragment_shader_id: Uuid,
 }
 
 #[derive(Clone)]
-pub struct Program {
+struct Program {
     program: WebGlProgram,
     attributes: HashMap<String, u32>,
     uniforms: HashMap<String, WebGlUniformLocation>,
     uniform_blocks: HashMap<String, u32>,
 }
 
-impl Program {
-    /// Returns native [`WebGlProgram`].
-    pub fn program(&self) -> &WebGlProgram {
-        &self.program
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramKey(Uuid);
 
-    /// Returns all attributes name and location key-value paris.
-    pub fn attributes(&self) -> &HashMap<String, u32> {
-        &self.attributes
-    }
+// impl Program {
+//     /// Returns native [`WebGlProgram`].
+//     fn program(&self) -> &WebGlProgram {
+//         &self.program
+//     }
 
-    /// Returns all uniforms name and [`WebGlUniformLocation`] key-value paris.
-    pub fn uniforms(&self) -> &HashMap<String, WebGlUniformLocation> {
-        &self.uniforms
-    }
+//     /// Returns all attributes name and location key-value paris.
+//     fn attributes(&self) -> &HashMap<String, u32> {
+//         &self.attributes
+//     }
 
-    /// Returns all uniform blocks name and location key-value paris.
-    pub fn uniform_blocks(&self) -> &HashMap<String, u32> {
-        &self.uniform_blocks
-    }
+//     /// Returns all uniforms name and [`WebGlUniformLocation`] key-value paris.
+//     fn uniforms(&self) -> &HashMap<String, WebGlUniformLocation> {
+//         &self.uniforms
+//     }
 
-    /// Returns attribute location by attribute name.
-    pub fn attribute(&self, name: &str) -> Option<u32> {
-        self.attributes.get(name).cloned()
-    }
+//     /// Returns all uniform blocks name and location key-value paris.
+//     fn uniform_blocks(&self) -> &HashMap<String, u32> {
+//         &self.uniform_blocks
+//     }
 
-    /// Returns uniform location by uniform name.
-    pub fn uniform(&self, name: &str) -> Option<WebGlUniformLocation> {
-        self.uniforms.get(name).cloned()
-    }
+//     /// Returns attribute location by attribute name.
+//     fn attribute(&self, name: &str) -> Option<u32> {
+//         self.attributes.get(name).cloned()
+//     }
 
-    /// Returns uniform block location by uniform block name.
-    pub fn uniform_block(&self, name: &str) -> Option<u32> {
-        self.uniform_blocks.get(name).cloned()
-    }
-}
+//     /// Returns uniform location by uniform name.
+//     fn uniform(&self, name: &str) -> Option<WebGlUniformLocation> {
+//         self.uniforms.get(name).cloned()
+//     }
 
+//     /// Returns uniform block location by uniform block name.
+//     fn uniform_block(&self, name: &str) -> Option<u32> {
+//         self.uniform_blocks.get(name).cloned()
+//     }
+// }
+
+/// Program manager.
+///
+/// Once a program compiled, it is cached and not deletable.
 pub struct ProgramManager {
     gl: WebGl2RenderingContext,
     shader_manager: ShaderManager,
-    caches: HashMap<ProgramCacheKey, Program>,
+    caches: Vec<Program>,
+    uuid_keys: HashMap<ProgramKey, usize>,
+    shader_keys: HashMap<ProgramShaderKey, ProgramKey>,
+
+    program_in_used: Option<usize>,
 }
 
 impl ProgramManager {
@@ -525,7 +524,10 @@ impl ProgramManager {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             shader_manager: ShaderManager::new(gl.clone()),
-            caches: HashMap::new(),
+            caches: Vec::new(),
+            uuid_keys: HashMap::new(),
+            shader_keys: HashMap::new(),
+            program_in_used: None,
             gl,
         }
     }
@@ -556,7 +558,7 @@ impl ProgramManager {
         &mut self,
         vertex: &VS,
         fragment: &FS,
-    ) -> Result<&Program, Error>
+    ) -> Result<&ProgramKey, Error>
     where
         VS: ShaderSource,
         FS: ShaderSource,
@@ -574,27 +576,109 @@ impl ProgramManager {
             .shader_manager
             .get_or_compile_shader(ShaderType::Fragment, fragment)?;
 
-        let key = ProgramCacheKey {
+        let cache_key = ProgramShaderKey {
             vertex_shader_id,
             fragment_shader_id,
         };
-        let program = match self.caches.entry(key) {
+        let uuid_key = match self.shader_keys.entry(cache_key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let program = Self::create_program(&self.gl, &vs, &fs)?;
                 let attributes = Self::collects_attributes(&self.gl, &program);
                 let uniforms = Self::collects_uniforms(&self.gl, &program);
                 let uniform_blocks = Self::collects_uniform_blocks(&self.gl, &program);
-
-                entry.insert(Program {
+                let program = Program {
                     program,
                     attributes,
                     uniforms,
                     uniform_blocks,
-                })
+                };
+                self.caches.push(program);
+                let uuid_key = ProgramKey(Uuid::new_v4());
+                self.uuid_keys.insert(uuid_key, self.caches.len() - 1);
+                entry.insert(uuid_key)
             }
         };
-        Ok(program)
+        Ok(uuid_key)
+    }
+
+    /// Binds and uses a program to [`WebGl2RenderingContext`].
+    pub fn use_program(&mut self, key: &ProgramKey) -> Result<(), Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        if self.program_in_used == Some(index) {
+            return Ok(());
+        }
+
+        let program = &self.caches[index];
+        self.gl.use_program(Some(&program.program));
+        self.program_in_used = Some(index);
+
+        Ok(())
+    }
+
+    /// Unbinds current using program from [`WebGl2RenderingContext`].
+    pub fn unuse_program(&mut self) {
+        if let Some(_) = self.program_in_used.take() {
+            self.gl.use_program(None);
+        }
+    }
+
+    /// Sets using program of [`WebGl2RenderingContext`] to [`None`] forcedly.
+    pub fn unuse_program_force(&mut self) {
+        self.gl.use_program(None);
+        self.program_in_used = None;
+    }
+
+    // pub fn bind
+
+    /// Returns all attributes name and location key-value pairs.
+    pub fn attributes_locations(&self, key: &ProgramKey) -> Result<HashMap<String, u32>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].attributes.clone())
+    }
+
+    /// Returns all uniforms name and [`WebGlUniformLocation`] key-value pairs.
+    pub fn uniforms_locations(
+        &self,
+        key: &ProgramKey,
+    ) -> Result<HashMap<String, WebGlUniformLocation>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].uniforms.clone())
+    }
+
+    /// Returns all uniform blocks name and location key-value pairs.
+    pub fn uniform_blocks_locations(
+        &self,
+        key: &ProgramKey,
+    ) -> Result<HashMap<String, u32>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].uniform_blocks.clone())
+    }
+
+    /// Returns the attribute location of a specified attribute name.
+    pub fn attribute_location(&self, key: &ProgramKey, name: &str) -> Result<Option<u32>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].attributes.get(name).cloned())
+    }
+
+    /// Returns the uniform location of a specified uniform name.
+    pub fn uniform_location(
+        &self,
+        key: &ProgramKey,
+        name: &str,
+    ) -> Result<Option<WebGlUniformLocation>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].uniforms.get(name).cloned())
+    }
+
+    /// Returns the uniform block location of a specified uniform block name.
+    pub fn uniform_block_location(
+        &self,
+        key: &ProgramKey,
+        name: &str,
+    ) -> Result<Option<u32>, Error> {
+        let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
+        Ok(self.caches[index].uniform_blocks.get(name).cloned())
     }
 
     /// Creates a [`WebGlProgram`], and links compiled [`WebGlShader`] to the program.
