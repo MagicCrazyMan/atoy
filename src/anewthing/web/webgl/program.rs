@@ -514,7 +514,7 @@ pub struct ProgramKey(Uuid);
 pub struct ProgramManager {
     gl: WebGl2RenderingContext,
     shader_manager: ShaderManager,
-    caches: Vec<Program>,
+    programs: Vec<Program>,
     uuid_keys: HashMap<ProgramKey, usize>,
     shader_keys: HashMap<ProgramShaderKey, ProgramKey>,
 
@@ -526,7 +526,7 @@ impl ProgramManager {
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             shader_manager: ShaderManager::new(gl.clone()),
-            caches: Vec::new(),
+            programs: Vec::new(),
             uuid_keys: HashMap::new(),
             shader_keys: HashMap::new(),
             program_in_used: None,
@@ -595,9 +595,9 @@ impl ProgramManager {
                     uniforms,
                     uniform_blocks,
                 };
-                self.caches.push(program);
+                self.programs.push(program);
                 let uuid_key = ProgramKey(Uuid::new_v4());
-                self.uuid_keys.insert(uuid_key, self.caches.len() - 1);
+                self.uuid_keys.insert(uuid_key, self.programs.len() - 1);
                 entry.insert(uuid_key)
             }
         };
@@ -611,7 +611,7 @@ impl ProgramManager {
             return Ok(());
         }
 
-        let program = &self.caches[index];
+        let program = &self.programs[index];
         self.gl.use_program(Some(&program.program));
         self.program_in_used = Some(index);
 
@@ -631,12 +631,10 @@ impl ProgramManager {
         self.program_in_used = None;
     }
 
-    // pub fn bind
-
     /// Returns all attributes name and location key-value pairs.
     pub fn attributes_locations(&self, key: &ProgramKey) -> Result<HashMap<String, u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].attributes.clone())
+        Ok(self.programs[index].attributes.clone())
     }
 
     /// Returns all uniforms name and [`WebGlUniformLocation`] key-value pairs.
@@ -645,7 +643,7 @@ impl ProgramManager {
         key: &ProgramKey,
     ) -> Result<HashMap<String, WebGlUniformLocation>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].uniforms.clone())
+        Ok(self.programs[index].uniforms.clone())
     }
 
     /// Returns all uniform blocks name and location key-value pairs.
@@ -654,13 +652,13 @@ impl ProgramManager {
         key: &ProgramKey,
     ) -> Result<HashMap<String, u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].uniform_blocks.clone())
+        Ok(self.programs[index].uniform_blocks.clone())
     }
 
     /// Returns the attribute location of a specified attribute name.
     pub fn attribute_location(&self, key: &ProgramKey, name: &str) -> Result<Option<u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].attributes.get(name).cloned())
+        Ok(self.programs[index].attributes.get(name).cloned())
     }
 
     /// Returns the uniform location of a specified uniform name.
@@ -670,7 +668,7 @@ impl ProgramManager {
         name: &str,
     ) -> Result<Option<WebGlUniformLocation>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].uniforms.get(name).cloned())
+        Ok(self.programs[index].uniforms.get(name).cloned())
     }
 
     /// Returns the uniform block location of a specified uniform block name.
@@ -680,7 +678,7 @@ impl ProgramManager {
         name: &str,
     ) -> Result<Option<u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        Ok(self.caches[index].uniform_blocks.get(name).cloned())
+        Ok(self.programs[index].uniform_blocks.get(name).cloned())
     }
 
     /// Creates a [`WebGlProgram`], and links compiled [`WebGlShader`] to the program.

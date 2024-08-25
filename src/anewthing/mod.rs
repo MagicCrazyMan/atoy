@@ -7,3 +7,4 @@ pub mod plugin;
 pub mod renderer;
 pub mod scheduler;
 pub mod web;
+pub mod buffer;

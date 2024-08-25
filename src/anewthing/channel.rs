@@ -1,23 +1,54 @@
 use std::{
     any::{Any, TypeId},
     cell::RefCell,
+    fmt::Debug,
+    hash::Hash,
     rc::Rc,
 };
 
 use hashbrown::HashMap;
+use uuid::Uuid;
 
 type Handlers = HashMap<TypeId, HashMap<TypeId, Box<dyn Any>>>;
 
 #[derive(Clone)]
 pub struct Channel {
+    id: Uuid,
     handlers: Rc<RefCell<Handlers>>,
 }
 
+impl Debug for Channel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Channel").field("id", &self.id).finish()
+    }
+}
+
+impl PartialEq for Channel {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Channel {}
+
+impl Hash for Channel {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
 impl Channel {
+    /// Constructs a new message channel.
     pub fn new() -> Self {
         Self {
+            id: Uuid::new_v4(),
             handlers: Rc::new(RefCell::new(HashMap::new())),
         }
+    }
+
+    /// Returns the id of the channel.
+    pub fn id(&self) -> Uuid {
+        self.id
     }
 
     pub fn on<M, H>(&self, handler: H) -> bool
