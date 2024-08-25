@@ -7,7 +7,9 @@ use regex::Regex;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::{anewthing::web::error::Error, renderer::webgl::conversion::ToGlEnum};
+use crate::renderer::webgl::conversion::ToGlEnum;
+
+use super::error::Error;
 
 /// Available shader types for WebGL 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
