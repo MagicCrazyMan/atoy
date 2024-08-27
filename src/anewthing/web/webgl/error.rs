@@ -1,11 +1,11 @@
 use std::{borrow::Cow, fmt::Display};
 
-use super::program::ShaderType;
+use super::program::WebGlShaderType;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Error {
     SnippetNotFound(String),
-    CreateShaderFailure(ShaderType),
+    CreateShaderFailure(WebGlShaderType),
     CompileShaderFailure(Option<String>),
     CreateProgramFailure,
     ProgramNotFound,

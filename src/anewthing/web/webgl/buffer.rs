@@ -13,11 +13,11 @@ use proc::GlEnum;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
-use crate::anewthing::channel::Channel;
+use crate::anewthing::{buffer::{Buffer, BufferData}, channel::Channel};
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum BufferTarget {
+pub enum WebGlBufferTarget {
     ArrayBuffer,
     ElementArrayBuffer,
     CopyReadBuffer,
@@ -30,7 +30,7 @@ pub enum BufferTarget {
 
 /// Available buffer usages mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum BufferUsage {
+pub enum WebGlBufferUsage {
     StaticDraw,
     DynamicDraw,
     StreamDraw,
@@ -44,76 +44,76 @@ pub enum BufferUsage {
 
 /// Buffer data range.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum BufferDataRange {
+pub enum WebGlBufferDataRange {
     Range(Range<usize>),
     RangeFrom(RangeFrom<usize>),
 }
 
 /// Buffer data.
 #[derive(Debug, Clone)]
-pub enum BufferData {
+pub enum WebGlBufferData {
     Binary {
         data: Cow<'static, [u8]>,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     ArrayBuffer {
         data: ArrayBuffer,
     },
     DataView {
         data: DataView,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Int8Array {
         data: Int8Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Uint8Array {
         data: Uint8Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Uint8ClampedArray {
         data: Uint8ClampedArray,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Int16Array {
         data: Int16Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Uint16Array {
         data: Uint16Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Int32Array {
         data: Int32Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Uint32Array {
         data: Uint32Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Float32Array {
         data: Float32Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     Float64Array {
         data: Float64Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     BigInt64Array {
         data: BigInt64Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
     BigUint64Array {
         data: BigUint64Array,
-        element_range: Option<BufferDataRange>,
+        element_range: Option<WebGlBufferDataRange>,
     },
 }
 
-impl BufferData {
+impl WebGlBufferData {
     /// Returns the range of elements.
     /// For [`TypedArray`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray),
     /// element offset is the offset of elements, not bytes.
-    pub fn element_range(&self) -> Option<BufferDataRange> {
+    pub fn element_range(&self) -> Option<WebGlBufferDataRange> {
         match self {
             Self::Binary { element_range, .. }
             | Self::DataView { element_range, .. }
@@ -132,10 +132,10 @@ impl BufferData {
         }
     }
 
-    /// Returns the element size.
+    /// Returns the length of elements.
     /// For [`TypedArray`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray),
     /// element length is the size of elements, not bytes.
-    pub fn element_size(&self) -> usize {
+    pub fn element_length(&self) -> usize {
         match self.element_range() {
             Some(_) => todo!(),
             None => match self {
@@ -157,9 +157,9 @@ impl BufferData {
         }
     }
 
-    /// Returns the bytes size of the buffer data.
-    pub fn bytes_size(&self) -> usize {
-        let element_size = self.element_size();
+    /// Returns the byte length of the buffer data.
+    pub fn byte_length(&self) -> usize {
+        let element_size = self.element_length();
         match self {
             Self::Binary { .. }
             | Self::ArrayBuffer { .. }
@@ -178,13 +178,13 @@ impl BufferData {
     }
 }
 
-impl crate::anewthing::buffer::BufferData for BufferData {
-    fn bytes_size(&self) -> usize {
-        self.bytes_size()
+impl BufferData for WebGlBufferData {
+    fn byte_length(&self) -> usize {
+        self.byte_length()
     }
 }
 
-struct Buffer {
+struct WebGlBufferItem {
     size: usize,
     native: WebGlBuffer,
 }
@@ -192,7 +192,7 @@ struct Buffer {
 pub struct WebGlBufferManager {
     gl: WebGl2RenderingContext,
     channel: Channel,
-    buffers: HashMap<Uuid, ()>,
+    buffers: HashMap<Uuid, WebGlBufferItem>,
 }
 
 impl WebGlBufferManager {
@@ -204,4 +204,6 @@ impl WebGlBufferManager {
             buffers: HashMap::new(),
         }
     }
+
+    pub fn use_buffer(&mut self, buffer: Buffer<WebGlBufferData>) {}
 }

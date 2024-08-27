@@ -7,37 +7,37 @@ use regex::Regex;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::renderer::webgl::conversion::ToGlEnum;
+use crate::{anewthing::key::Key, renderer::webgl::conversion::ToGlEnum};
 
 use super::error::Error;
 
 /// Available shader types for WebGL 2.0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ShaderType {
+pub enum WebGlShaderType {
     /// Vertex Shader.
     Vertex,
     /// Fragment Shader.
     Fragment,
 }
 
-impl ToGlEnum for ShaderType {
+impl ToGlEnum for WebGlShaderType {
     fn gl_enum(&self) -> u32 {
         match self {
-            ShaderType::Vertex => WebGl2RenderingContext::VERTEX_SHADER,
-            ShaderType::Fragment => WebGl2RenderingContext::FRAGMENT_SHADER,
+            WebGlShaderType::Vertex => WebGl2RenderingContext::VERTEX_SHADER,
+            WebGlShaderType::Fragment => WebGl2RenderingContext::FRAGMENT_SHADER,
         }
     }
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
-pub enum ShaderName {
-    Custom(Cow<'static, str>),
+pub enum WebGlShaderKey {
+    Custom(Key),
 }
 
-pub trait ShaderSource {
-    /// Global unique name for this shader source.
-    fn name(&self) -> ShaderName;
+pub trait WebGlShaderSource {
+    /// Global unique key for this shader source.
+    fn key(&self) -> WebGlShaderKey;
 
     /// Returns the source code of the shader.
     fn code(&self) -> &str;
@@ -51,26 +51,26 @@ pub trait ShaderSource {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
-enum PragmaOperation {
+enum WebGlPragmaOperation {
     InjectSnippet,
 }
 
-impl PragmaOperation {
+impl WebGlPragmaOperation {
     fn from_str(value: &str) -> Option<Self> {
         match value {
-            "inject" => Some(PragmaOperation::InjectSnippet),
+            "inject" => Some(WebGlPragmaOperation::InjectSnippet),
             _ => None,
         }
     }
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct ShaderCacheKey {
-    shader_type: ShaderType,
-    name: ShaderName,
+struct WebGlShaderCacheKey {
+    shader_type: WebGlShaderType,
+    name: WebGlShaderKey,
 }
 
-struct DefinePosition {
+struct GLSLDefinePosition {
     line_index: usize,
     /// position in line, not in the whole code string
     name_position: Range<usize>,
@@ -78,36 +78,36 @@ struct DefinePosition {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct Define<'a> {
+struct GLSLDefine<'a> {
     name: Cow<'a, str>,
     value: Option<Cow<'a, str>>,
 }
 
 #[derive(Clone)]
-struct Shader {
+struct WebGlShaderItem {
     id: Uuid,
     shader: WebGlShader,
 }
 
-struct ShaderCache {
+struct WebGlShaderCacheItem {
     code: String,
     line_ranges: Vec<Range<usize>>,
-    defines: Vec<DefinePosition>,
-    variants: HashMap<Vec<Define<'static>>, Shader>,
+    defines: Vec<GLSLDefinePosition>,
+    variants: HashMap<Vec<GLSLDefine<'static>>, WebGlShaderItem>,
 }
 
-struct ShaderSnippet {
+struct GLSLShaderSnippet {
     code: Cow<'static, str>,
     lines: Vec<Range<usize>>,
 }
 
-struct ShaderManager {
+struct WebGlShaderManager {
     gl: WebGl2RenderingContext,
-    caches: HashMap<ShaderCacheKey, ShaderCache>,
-    snippets: HashMap<Cow<'static, str>, ShaderSnippet>,
+    caches: HashMap<WebGlShaderCacheKey, WebGlShaderCacheItem>,
+    snippets: HashMap<Cow<'static, str>, GLSLShaderSnippet>,
 }
 
-impl ShaderManager {
+impl WebGlShaderManager {
     /// Constructs a new shader manager.
     fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
@@ -134,7 +134,7 @@ impl ShaderManager {
             .map(|span| span.range())
             .collect();
         self.snippets
-            .insert(name, ShaderSnippet { code, lines })
+            .insert(name, GLSLShaderSnippet { code, lines })
             .map(|snippet| snippet.code)
     }
 
@@ -149,15 +149,15 @@ impl ShaderManager {
     /// A cached shader is returned if it has been compiled before.
     fn get_or_compile_shader<S>(
         &mut self,
-        shader_type: ShaderType,
+        shader_type: WebGlShaderType,
         shader_source: &S,
-    ) -> Result<Shader, Error>
+    ) -> Result<WebGlShaderItem, Error>
     where
-        S: ShaderSource,
+        S: WebGlShaderSource,
     {
-        let key = ShaderCacheKey {
+        let key = WebGlShaderCacheKey {
             shader_type,
-            name: shader_source.name(),
+            name: shader_source.key(),
         };
         let cache = match self.caches.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -170,11 +170,11 @@ impl ShaderManager {
 
     /// Creates a shader cache from a [`ShaderSource`].
     fn create_cache<S>(
-        snippets: &HashMap<Cow<'static, str>, ShaderSnippet>,
+        snippets: &HashMap<Cow<'static, str>, GLSLShaderSnippet>,
         shader_source: &S,
-    ) -> Result<ShaderCache, Error>
+    ) -> Result<WebGlShaderCacheItem, Error>
     where
-        S: ShaderSource,
+        S: WebGlShaderSource,
     {
         let mut lines = shader_source.code().lines().collect::<Vec<_>>();
         Self::prepare_pragmas(snippets, &mut lines, shader_source)?;
@@ -186,7 +186,7 @@ impl ShaderManager {
             .collect::<Vec<_>>();
         let defines = Self::collect_defines(&code, &line_ranges);
 
-        let cache = ShaderCache {
+        let cache = WebGlShaderCacheItem {
             code,
             line_ranges,
             defines,
@@ -198,12 +198,12 @@ impl ShaderManager {
 
     /// Prepares pragmas.
     fn prepare_pragmas<'a, 'b: 'a, S>(
-        snippets: &'a HashMap<Cow<'static, str>, ShaderSnippet>,
+        snippets: &'a HashMap<Cow<'static, str>, GLSLShaderSnippet>,
         lines: &mut Vec<&'a str>,
         shader_source: &'b S,
     ) -> Result<(), Error>
     where
-        S: ShaderSource,
+        S: WebGlShaderSource,
     {
         /// Regex for extracting pragma operation from `#pragma <operation> <value>` directive.
         const PRAGMA_REGEX: LazyCell<Regex> = LazyCell::new(|| {
@@ -221,14 +221,14 @@ impl ShaderManager {
             };
             let Some(operation) = captures
                 .name("operation")
-                .and_then(|matched| PragmaOperation::from_str(matched.as_str()))
+                .and_then(|matched| WebGlPragmaOperation::from_str(matched.as_str()))
             else {
                 i += 1;
                 continue;
             };
 
             match operation {
-                PragmaOperation::InjectSnippet => {
+                WebGlPragmaOperation::InjectSnippet => {
                     let Some(name) = captures
                         .name("value")
                         .map(|matched| matched.as_str().trim())
@@ -268,7 +268,7 @@ impl ShaderManager {
     }
 
     /// Collects define directives from lines of shader code
-    fn collect_defines(code: &str, lines: &[Range<usize>]) -> Vec<DefinePosition> {
+    fn collect_defines(code: &str, lines: &[Range<usize>]) -> Vec<GLSLDefinePosition> {
         /// Regex for extracting defines from `#define <name> [<value>]` directive. value is optional.
         const DEFINE_REGEX: LazyCell<Regex> = LazyCell::new(|| {
             Regex::new(r"^\s*#define\s+(?P<name>\w+)\s*(?P<value>.*)\s*$").unwrap()
@@ -296,7 +296,7 @@ impl ShaderManager {
                     }
                 });
 
-                defines.push(DefinePosition {
+                defines.push(GLSLDefinePosition {
                     line_index,
                     name_position,
                     value_position,
@@ -307,13 +307,13 @@ impl ShaderManager {
     }
 
     fn get_or_compile_variant_shader<S>(
-        cache: &mut ShaderCache,
+        cache: &mut WebGlShaderCacheItem,
         gl: &WebGl2RenderingContext,
-        shader_type: ShaderType,
+        shader_type: WebGlShaderType,
         shader_source: &S,
-    ) -> Result<Shader, Error>
+    ) -> Result<WebGlShaderItem, Error>
     where
-        S: ShaderSource,
+        S: WebGlShaderSource,
     {
         let line_ranges = &cache.line_ranges;
         let mut replaced_defines = Vec::new();
@@ -322,7 +322,7 @@ impl ShaderManager {
             .iter()
             .enumerate()
             .map(|(define_index, define_position)| {
-                let DefinePosition {
+                let GLSLDefinePosition {
                     line_index,
                     name_position,
                     value_position,
@@ -347,7 +347,7 @@ impl ShaderManager {
                     },
                 };
 
-                Define {
+                GLSLDefine {
                     name: Cow::Borrowed(name),
                     value: value.map(|value| Cow::Borrowed(value)),
                 }
@@ -363,7 +363,7 @@ impl ShaderManager {
             // persists string slice to String
             let defines = defines
                 .into_iter()
-                .map(|define| Define {
+                .map(|define| GLSLDefine {
                     name: Cow::Owned(define.name.to_string()),
                     value: define.value.map(|value| Cow::Owned(value.to_string())),
                 })
@@ -373,7 +373,7 @@ impl ShaderManager {
                 .variants
                 .insert_unique_unchecked(
                     defines,
-                    Shader {
+                    WebGlShaderItem {
                         id: Uuid::new_v4(),
                         shader,
                     },
@@ -384,9 +384,9 @@ impl ShaderManager {
     }
 
     fn create_variant_code<'a>(
-        cache: &'a ShaderCache,
-        defines: &[Define],
-        replaced_defines: &[(usize, &DefinePosition)],
+        cache: &'a WebGlShaderCacheItem,
+        defines: &[GLSLDefine],
+        replaced_defines: &[(usize, &GLSLDefinePosition)],
     ) -> Cow<'a, str> {
         if replaced_defines.is_empty() {
             return Cow::Borrowed(&cache.code);
@@ -400,12 +400,12 @@ impl ShaderManager {
         replaced_defines
             .into_iter()
             .for_each(|(define_index, define_position)| {
-                let DefinePosition {
+                let GLSLDefinePosition {
                     line_index,
                     value_position,
                     ..
                 } = define_position;
-                let Define { value, .. } = &defines[*define_index];
+                let GLSLDefine { value, .. } = &defines[*define_index];
                 let value = match value {
                     Some(value) => value.as_ref(),
                     None => "",
@@ -428,7 +428,7 @@ impl ShaderManager {
 
     fn compile_shader(
         gl: &WebGl2RenderingContext,
-        shader_type: ShaderType,
+        shader_type: WebGlShaderType,
         code: &str,
     ) -> Result<WebGlShader, Error> {
         let shader = gl
@@ -455,13 +455,13 @@ impl ShaderManager {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct ProgramShaderKey {
+struct WebGlProgramCacheKey {
     vertex_shader_id: Uuid,
     fragment_shader_id: Uuid,
 }
 
 #[derive(Clone)]
-struct Program {
+struct WebGlProgramItem {
     program: WebGlProgram,
     attributes: HashMap<String, u32>,
     uniforms: HashMap<String, WebGlUniformLocation>,
@@ -469,67 +469,30 @@ struct Program {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProgramKey(Uuid);
-
-// impl Program {
-//     /// Returns native [`WebGlProgram`].
-//     fn program(&self) -> &WebGlProgram {
-//         &self.program
-//     }
-
-//     /// Returns all attributes name and location key-value paris.
-//     fn attributes(&self) -> &HashMap<String, u32> {
-//         &self.attributes
-//     }
-
-//     /// Returns all uniforms name and [`WebGlUniformLocation`] key-value paris.
-//     fn uniforms(&self) -> &HashMap<String, WebGlUniformLocation> {
-//         &self.uniforms
-//     }
-
-//     /// Returns all uniform blocks name and location key-value paris.
-//     fn uniform_blocks(&self) -> &HashMap<String, u32> {
-//         &self.uniform_blocks
-//     }
-
-//     /// Returns attribute location by attribute name.
-//     fn attribute(&self, name: &str) -> Option<u32> {
-//         self.attributes.get(name).cloned()
-//     }
-
-//     /// Returns uniform location by uniform name.
-//     fn uniform(&self, name: &str) -> Option<WebGlUniformLocation> {
-//         self.uniforms.get(name).cloned()
-//     }
-
-//     /// Returns uniform block location by uniform block name.
-//     fn uniform_block(&self, name: &str) -> Option<u32> {
-//         self.uniform_blocks.get(name).cloned()
-//     }
-// }
+pub struct WebGlProgramKey(Uuid);
 
 /// Program manager.
 ///
 /// Once a program compiled, it is cached and not deletable.
-pub struct ProgramManager {
+pub struct WebGlProgramManager {
     gl: WebGl2RenderingContext,
-    shader_manager: ShaderManager,
-    programs: Vec<Program>,
-    uuid_keys: HashMap<ProgramKey, usize>,
-    shader_keys: HashMap<ProgramShaderKey, ProgramKey>,
+    shader_manager: WebGlShaderManager,
+    programs: Vec<WebGlProgramItem>,
+    uuid_keys: HashMap<WebGlProgramKey, usize>,
+    cache_keys: HashMap<WebGlProgramCacheKey, WebGlProgramKey>,
 
-    program_in_used: Option<usize>,
+    program_in_use: Option<usize>,
 }
 
-impl ProgramManager {
+impl WebGlProgramManager {
     /// Constructs a new program manager.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
-            shader_manager: ShaderManager::new(gl.clone()),
+            shader_manager: WebGlShaderManager::new(gl.clone()),
             programs: Vec::new(),
             uuid_keys: HashMap::new(),
-            shader_keys: HashMap::new(),
-            program_in_used: None,
+            cache_keys: HashMap::new(),
+            program_in_use: None,
             gl,
         }
     }
@@ -560,43 +523,43 @@ impl ProgramManager {
         &mut self,
         vertex: &VS,
         fragment: &FS,
-    ) -> Result<&ProgramKey, Error>
+    ) -> Result<&WebGlProgramKey, Error>
     where
-        VS: ShaderSource,
-        FS: ShaderSource,
+        VS: WebGlShaderSource,
+        FS: WebGlShaderSource,
     {
-        let Shader {
+        let WebGlShaderItem {
             id: vertex_shader_id,
             shader: vs,
         } = self
             .shader_manager
-            .get_or_compile_shader(ShaderType::Vertex, vertex)?;
-        let Shader {
+            .get_or_compile_shader(WebGlShaderType::Vertex, vertex)?;
+        let WebGlShaderItem {
             id: fragment_shader_id,
             shader: fs,
         } = self
             .shader_manager
-            .get_or_compile_shader(ShaderType::Fragment, fragment)?;
+            .get_or_compile_shader(WebGlShaderType::Fragment, fragment)?;
 
-        let cache_key = ProgramShaderKey {
+        let cache_key = WebGlProgramCacheKey {
             vertex_shader_id,
             fragment_shader_id,
         };
-        let uuid_key = match self.shader_keys.entry(cache_key) {
+        let uuid_key = match self.cache_keys.entry(cache_key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let program = Self::create_program(&self.gl, &vs, &fs)?;
                 let attributes = Self::collects_attributes(&self.gl, &program);
                 let uniforms = Self::collects_uniforms(&self.gl, &program);
                 let uniform_blocks = Self::collects_uniform_blocks(&self.gl, &program);
-                let program = Program {
+                let program = WebGlProgramItem {
                     program,
                     attributes,
                     uniforms,
                     uniform_blocks,
                 };
                 self.programs.push(program);
-                let uuid_key = ProgramKey(Uuid::new_v4());
+                let uuid_key = WebGlProgramKey(Uuid::new_v4());
                 self.uuid_keys.insert(uuid_key, self.programs.len() - 1);
                 entry.insert(uuid_key)
             }
@@ -605,22 +568,22 @@ impl ProgramManager {
     }
 
     /// Binds and uses a program to [`WebGl2RenderingContext`].
-    pub fn use_program(&mut self, key: &ProgramKey) -> Result<(), Error> {
+    pub fn use_program(&mut self, key: &WebGlProgramKey) -> Result<(), Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
-        if self.program_in_used == Some(index) {
+        if self.program_in_use == Some(index) {
             return Ok(());
         }
 
         let program = &self.programs[index];
         self.gl.use_program(Some(&program.program));
-        self.program_in_used = Some(index);
+        self.program_in_use = Some(index);
 
         Ok(())
     }
 
     /// Unbinds current using program from [`WebGl2RenderingContext`].
     pub fn unuse_program(&mut self) {
-        if let Some(_) = self.program_in_used.take() {
+        if let Some(_) = self.program_in_use.take() {
             self.gl.use_program(None);
         }
     }
@@ -628,11 +591,11 @@ impl ProgramManager {
     /// Sets using program of [`WebGl2RenderingContext`] to [`None`] forcedly.
     pub fn unuse_program_force(&mut self) {
         self.gl.use_program(None);
-        self.program_in_used = None;
+        self.program_in_use = None;
     }
 
     /// Returns all attributes name and location key-value pairs.
-    pub fn attributes_locations(&self, key: &ProgramKey) -> Result<HashMap<String, u32>, Error> {
+    pub fn attributes_locations(&self, key: &WebGlProgramKey) -> Result<HashMap<String, u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
         Ok(self.programs[index].attributes.clone())
     }
@@ -640,7 +603,7 @@ impl ProgramManager {
     /// Returns all uniforms name and [`WebGlUniformLocation`] key-value pairs.
     pub fn uniforms_locations(
         &self,
-        key: &ProgramKey,
+        key: &WebGlProgramKey,
     ) -> Result<HashMap<String, WebGlUniformLocation>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
         Ok(self.programs[index].uniforms.clone())
@@ -649,14 +612,14 @@ impl ProgramManager {
     /// Returns all uniform blocks name and location key-value pairs.
     pub fn uniform_blocks_locations(
         &self,
-        key: &ProgramKey,
+        key: &WebGlProgramKey,
     ) -> Result<HashMap<String, u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
         Ok(self.programs[index].uniform_blocks.clone())
     }
 
     /// Returns the attribute location of a specified attribute name.
-    pub fn attribute_location(&self, key: &ProgramKey, name: &str) -> Result<Option<u32>, Error> {
+    pub fn attribute_location(&self, key: &WebGlProgramKey, name: &str) -> Result<Option<u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
         Ok(self.programs[index].attributes.get(name).cloned())
     }
@@ -664,7 +627,7 @@ impl ProgramManager {
     /// Returns the uniform location of a specified uniform name.
     pub fn uniform_location(
         &self,
-        key: &ProgramKey,
+        key: &WebGlProgramKey,
         name: &str,
     ) -> Result<Option<WebGlUniformLocation>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
@@ -674,7 +637,7 @@ impl ProgramManager {
     /// Returns the uniform block location of a specified uniform block name.
     pub fn uniform_block_location(
         &self,
-        key: &ProgramKey,
+        key: &WebGlProgramKey,
         name: &str,
     ) -> Result<Option<u32>, Error> {
         let index = *self.uuid_keys.get(key).ok_or(Error::ProgramNotFound)?;
