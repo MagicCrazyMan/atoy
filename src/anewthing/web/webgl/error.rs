@@ -10,6 +10,7 @@ pub enum Error {
     CreateProgramFailure,
     ProgramNotFound,
     LinkProgramFailure(Option<String>),
+    CreateBufferFailure,
 }
 
 impl Display for Error {

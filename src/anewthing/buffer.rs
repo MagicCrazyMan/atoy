@@ -23,6 +23,10 @@ impl<T: ?Sized> BufferItem<T> {
         &self.data
     }
 
+    pub(crate) fn take_data(self) -> Box<T> {
+        self.data
+    }
+
     pub(crate) fn dst_byte_offset(&self) -> usize {
         self.dst_byte_offset
     }
