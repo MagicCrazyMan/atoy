@@ -266,11 +266,6 @@ impl BufferData for WebGlBufferData {
     }
 }
 
-enum WebGlBufferOwner {
-    Me(Uuid),
-    Outside,
-}
-
 struct WebGlBufferItem {
     byte_length: usize,
     gl_buffer: WebGlBuffer,
@@ -283,7 +278,7 @@ pub struct WebGlBufferManager {
     buffers: HashMap<Uuid, WebGlBufferItem>,
 
     /// of all buffer targets
-    bound_targets: [Option<Uuid>; 8],
+    bound_targets: Vec<Option<WebGlBuffer>>,
 }
 
 impl WebGlBufferManager {
@@ -294,32 +289,118 @@ impl WebGlBufferManager {
             channel,
             buffers: HashMap::new(),
 
-            bound_targets: [None; 8],
+            bound_targets: vec![None; 8],
         }
     }
 
+    /// Creates a new [`Buffer`] and manages it immediately.
+    /// 
+    /// Since it is difficult to create a [`WebGlBuffer`] with specified usage by [`Buffer::new`],
+    /// this method provides a way to creates one with a custom usage.
+    pub fn create_buffer(
+        &mut self,
+        byte_length: usize,
+        growable: bool,
+        usage: WebGlBufferUsage,
+    ) -> Result<Buffer<WebGlBufferData>, Error> {
+        let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        let buffer = Buffer::with_size(byte_length, growable);
+        self.gl.bind_buffer(
+            WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+            Some(&gl_buffer),
+        );
+        self.gl.buffer_data_with_i32(
+            WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+            byte_length as i32,
+            usage.to_gl_enum(),
+        );
+        self.buffers.insert_unique_unchecked(
+            *buffer.id(),
+            WebGlBufferItem {
+                byte_length,
+                gl_buffer,
+                usage,
+            },
+        );
+        self.gl.bind_buffer(
+            WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+            self.bound_targets[0].as_ref(),
+        );
+
+        Ok(buffer)
+    }
+
+    /// Binds a buffer to specified target. Buffer data will be uploaded to WebGL context.
+    /// 
+    /// If a buffer is growable, it uses [`WebGlBufferUsage::DynamicDraw`] as usage,
+    /// and uses [`WebGlBufferUsage::StaticDraw`] otherwise.
+    /// 
+    /// If you want to create a buffer with custom usage,
+    /// calls [`WebGlBufferManager::create_buffer`] to create one.
     pub fn bind_buffer(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
     ) -> Result<(), Error> {
-        self.sync_buffer(buffer, target)?;
-
-        if self.bound_targets[target as usize] == Some(*buffer.id()) {
-            return Ok(());
-        }
-
-        todo!()
+        let gl_buffer = self.bind_and_sync_buffer(buffer, target)?;
+        self.bound_targets[target as usize] = Some(gl_buffer);
+        Ok(())
     }
 
-    fn sync_buffer(
+    fn bind_and_sync_buffer(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
-    ) -> Result<(), Error> {
+    ) -> Result<WebGlBuffer, Error> {
         match self.buffers.entry(*buffer.id()) {
             Entry::Occupied(entry) => {
-                todo!()
+                let WebGlBufferItem {
+                    byte_length,
+                    gl_buffer,
+                    usage,
+                } = entry.into_mut();
+
+                // creates a new buffer with new byte length,
+                // then copies data from old buffer to new buffer
+                if buffer.byte_length() > *byte_length {
+                    let new_gl_buffer =
+                        self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                    self.gl.bind_buffer(
+                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        Some(&new_gl_buffer),
+                    );
+                    self.gl.buffer_data_with_i32(
+                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        buffer.byte_length() as i32,
+                        usage.to_gl_enum(),
+                    );
+                    self.gl.bind_buffer(
+                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                        Some(gl_buffer),
+                    );
+                    self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
+                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        0,
+                        0,
+                        *byte_length as i32,
+                    );
+                    self.gl
+                        .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+                    self.gl
+                        .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+
+                    *gl_buffer = new_gl_buffer;
+                    *byte_length = buffer.byte_length();
+                }
+
+                self.gl.bind_buffer(target.to_gl_enum(), Some(gl_buffer));
+                for item in buffer.drain_queue() {
+                    item.data()
+                        .buffer_sub_data(&self.gl, target, item.dst_byte_offset());
+                }
+
+                Ok(gl_buffer.clone())
             }
             Entry::Vacant(entry) => {
                 let usage = if buffer.growable() {
@@ -341,16 +422,44 @@ impl WebGlBufferManager {
                         .buffer_sub_data(&self.gl, target, item.dst_byte_offset());
                 }
 
-                self.bound_targets[target as usize] = Some(*buffer.id());
                 let buffer_item = WebGlBufferItem {
                     byte_length,
-                    gl_buffer,
+                    gl_buffer: gl_buffer.clone(),
                     usage,
                 };
                 entry.insert(buffer_item);
 
-                Ok(())
+                Ok(gl_buffer)
             }
         }
+    }
+
+    // /// Binds a native [`WebGlBuffer`] to specified target.
+    // pub fn bind_gl_buffer(&mut self, gl_buffer: &WebGlBuffer, target: WebGlBufferTarget) {
+    //     self.gl.bind_buffer(target.to_gl_enum(), Some(gl_buffer));
+    //     self.bound_targets[target as usize] = Some(gl_buffer.clone());
+    // }
+
+    /// Unbinds a buffer in specified target.
+    pub fn unbind_buffer(&mut self, target: WebGlBufferTarget) {
+        self.gl.bind_buffer(target.to_gl_enum(), None);
+        self.bound_targets[target as usize] = None;
+    }
+
+    /// Returns `true` if specified target has bound a buffer.
+    pub fn is_target_bound(&self, target: WebGlBufferTarget) -> bool {
+        self.bound_targets[target as usize].is_some()
+    }
+
+    /// Returns `true` if a buffer has bound to the target.
+    pub fn is_buffer_bound(
+        &self,
+        buffer: &Buffer<WebGlBufferData>,
+        target: WebGlBufferTarget,
+    ) -> bool {
+        let Some(WebGlBufferItem { gl_buffer, .. }) = self.buffers.get(buffer.id()) else {
+            return false;
+        };
+        self.bound_targets[target as usize].as_ref() == Some(gl_buffer)
     }
 }
