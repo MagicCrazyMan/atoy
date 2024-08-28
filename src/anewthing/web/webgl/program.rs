@@ -3,6 +3,7 @@ use std::{borrow::Cow, cell::LazyCell, hash::Hash, ops::Range};
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use line_span::LineSpanExt;
 use log::warn;
+use proc::GlEnum;
 use regex::Regex;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
@@ -12,11 +13,13 @@ use crate::{anewthing::key::Key, renderer::webgl::conversion::ToGlEnum};
 use super::error::Error;
 
 /// Available shader types for WebGL 2.0.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, GlEnum)]
 pub enum WebGlShaderType {
     /// Vertex Shader.
+    #[gl_enum(VERTEX_SHADER)]
     Vertex,
     /// Fragment Shader.
+    #[gl_enum(FRAGMENT_SHADER)]
     Fragment,
 }
 

@@ -279,7 +279,6 @@ pub struct WebGlBufferManager {
     buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
     /// of all buffer targets
     bound_targets: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
-    bound_ubos: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
 }
 
 impl WebGlBufferManager {
