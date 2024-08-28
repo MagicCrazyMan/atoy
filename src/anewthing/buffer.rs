@@ -1,9 +1,5 @@
-use std::{
-    ops::{Bound, Range},
-    vec::Drain,
-};
+use std::{ops::Range, vec::Drain};
 
-use hashbrown::HashSet;
 use uuid::Uuid;
 
 use super::channel::Channel;
@@ -23,10 +19,6 @@ impl<T: ?Sized> BufferItem<T> {
         &self.data
     }
 
-    pub(crate) fn take_data(self) -> Box<T> {
-        self.data
-    }
-
     pub(crate) fn dst_byte_offset(&self) -> usize {
         self.dst_byte_offset
     }
@@ -38,7 +30,8 @@ pub struct Buffer<T: ?Sized> {
     queue_byte_range: Option<Range<usize>>,
     byte_length: usize,
     growable: bool,
-    channels: HashSet<Channel>,
+
+    synced: Option<(Channel, Uuid)>,
 }
 
 impl<T: ?Sized> Buffer<T> {
@@ -56,7 +49,7 @@ impl<T: ?Sized> Buffer<T> {
             queue_byte_range: None,
             byte_length,
             growable,
-            channels: HashSet::new(),
+            synced: None,
         }
     }
 
@@ -75,15 +68,25 @@ impl<T: ?Sized> Buffer<T> {
         self.growable
     }
 
+    /// Returns `true` if the buffer if is already synced by a manager.
+    pub fn synced(&self) -> bool {
+        self.synced.is_some()
+    }
+
     /// Drains and returns all [`BufferItem`] in queue.
     pub(crate) fn drain_queue(&mut self) -> Drain<'_, BufferItem<T>> {
         self.queue_byte_range = None;
         self.queue.drain(..)
     }
 
-    /// Registers a channel to the buffer.
-    pub(crate) fn register_channel(&mut self, channel: Channel) {
-        self.channels.insert(channel);
+    /// Returns the synced id.
+    pub(crate) fn synced_id(&self) -> Option<&Uuid> {
+        self.synced.as_ref().map(|synced| &synced.1)
+    }
+
+    /// Sets this buffer is already synced by a manager.
+    pub(crate) fn set_synced(&mut self, channel: Channel, id: Uuid) {
+        self.synced = Some((channel, id));
     }
 }
 
@@ -136,7 +139,7 @@ where
 
 impl<T: ?Sized> Drop for Buffer<T> {
     fn drop(&mut self) {
-        for channel in &self.channels {
+        if let Some((channel, _)) = &self.synced {
             channel.send(BufferDropped { id: self.id });
         }
     }

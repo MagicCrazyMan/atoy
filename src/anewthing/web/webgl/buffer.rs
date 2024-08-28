@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    ops::{Range, RangeFrom},
+    ops::{Bound, Range, RangeBounds, RangeFrom},
     rc::Rc,
 };
 
@@ -275,25 +275,27 @@ struct WebGlBufferItem {
 
 pub struct WebGlBufferManager {
     gl: WebGl2RenderingContext,
+    id: Uuid,
     channel: Channel,
     buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
-    /// of all buffer targets
-    bound_targets: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
+    bound_targets: HashMap<WebGlBufferTarget, WebGlBuffer>,
+    bound_ubos: HashMap<usize, WebGlBuffer>,
 }
 
 impl WebGlBufferManager {
     /// Constructs a new buffer manager.
     pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
-        let instance = Self {
+        let buffers = Rc::new(RefCell::new(HashMap::new()));
+        channel.on(BufferDroppedHandler::new(Rc::clone(&buffers)));
+
+        Self {
             gl,
-            channel: channel.clone(),
-            buffers: Rc::new(RefCell::new(HashMap::new())),
-
-            bound_targets: Rc::new(RefCell::new(HashMap::new())),
-        };
-        channel.on(BufferDroppedHandler::new(&instance));
-
-        instance
+            id: Uuid::new_v4(),
+            channel,
+            buffers,
+            bound_targets: HashMap::new(),
+            bound_ubos: HashMap::new(),
+        }
     }
 
     /// Creates a new [`Buffer`] and manages it immediately.
@@ -327,9 +329,7 @@ impl WebGlBufferManager {
         );
         self.gl.bind_buffer(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-            self.bound_targets
-                .borrow()
-                .get(&WebGlBufferTarget::ArrayBuffer),
+            self.bound_targets.get(&WebGlBufferTarget::ArrayBuffer),
         );
 
         Ok(buffer)
@@ -347,17 +347,105 @@ impl WebGlBufferManager {
         buffer: &mut Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
     ) -> Result<(), Error> {
-        let gl_buffer = self.bind_and_sync_buffer(buffer, target)?;
-        self.bound_targets.borrow_mut().insert(target, gl_buffer);
+        let gl_buffer = self.sync_buffer(buffer, target, false)?;
+        self.bound_targets.insert(target, gl_buffer);
         Ok(())
     }
 
-    fn bind_and_sync_buffer(
+    /// Updates a buffer without binding it to WebGL context.
+    /// Buffer data will be uploaded to WebGL context.
+    pub fn update_buffer(&mut self, buffer: &mut Buffer<WebGlBufferData>) -> Result<(), Error> {
+        self.sync_buffer(buffer, WebGlBufferTarget::ArrayBuffer, true)?;
+        Ok(())
+    }
+
+    /// Binds a buffer to uniform buffer object mount point.
+    /// Unmounting previous mounted buffer if occupied.
+    pub fn mount_uniform_buffer_object_base(
+        &mut self,
+        buffer: &mut Buffer<WebGlBufferData>,
+        mount_point: usize,
+    ) -> Result<(), Error> {
+        let gl_buffer = self.mount_uniform_buffer_object(buffer, mount_point, ..)?;
+        self.bound_ubos.insert(mount_point, gl_buffer);
+
+        Ok(())
+    }
+
+    /// Binds a buffer range to uniform buffer object mount point.
+    /// Unmounting previous mounted buffer if occupied.
+    pub fn mount_uniform_buffer_object_range<R>(
+        &mut self,
+        buffer: &mut Buffer<WebGlBufferData>,
+        mount_point: usize,
+        range: R,
+    ) -> Result<(), Error>
+    where
+        R: RangeBounds<usize>,
+    {
+        let gl_buffer = self.mount_uniform_buffer_object(buffer, mount_point, range)?;
+        self.bound_ubos.insert(mount_point, gl_buffer);
+
+        Ok(())
+    }
+
+    fn mount_uniform_buffer_object<R>(
+        &mut self,
+        buffer: &mut Buffer<WebGlBufferData>,
+        mount_point: usize,
+        range: R,
+    ) -> Result<WebGlBuffer, Error>
+    where
+        R: RangeBounds<usize>,
+    {
+        let gl_buffer = self.sync_buffer(buffer, WebGlBufferTarget::UniformBuffer, false)?;
+
+        let range = match (range.start_bound(), range.end_bound()) {
+            (Bound::Included(s), Bound::Included(e)) => Some(*s..*e + 1),
+            (Bound::Included(s), Bound::Excluded(e)) => Some(*s..*e),
+            (Bound::Included(s), Bound::Unbounded) => Some(*s..buffer.byte_length()),
+            (Bound::Unbounded, Bound::Included(e)) => Some(0..*e + 1),
+            (Bound::Unbounded, Bound::Excluded(e)) => Some(0..*e),
+            (Bound::Unbounded, Bound::Unbounded) => None,
+            (Bound::Excluded(_), _) => unreachable!(),
+        };
+
+        match range {
+            Some(range) => self.gl.bind_buffer_range_with_i32_and_i32(
+                WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                mount_point as u32,
+                Some(&gl_buffer),
+                range.start as i32,
+                range.len() as i32,
+            ),
+            None => self.gl.bind_buffer_base(
+                WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                mount_point as u32,
+                Some(&gl_buffer),
+            ),
+        };
+        self.gl.bind_buffer(
+            WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+            self.bound_targets.get(&WebGlBufferTarget::UniformBuffer),
+        );
+
+        Ok(gl_buffer)
+    }
+
+    fn sync_buffer(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
+        unbind: bool,
     ) -> Result<WebGlBuffer, Error> {
-        match self.buffers.borrow_mut().entry(*buffer.id()) {
+        if let Some(synced_id) = buffer.synced_id() {
+            if synced_id != &self.id {
+                return Err(Error::BufferManagedByOtherManager);
+            }
+        }
+
+        let mut buffers = self.buffers.borrow_mut();
+        let gl_buffer = match buffers.entry(*buffer.id()) {
             Entry::Occupied(entry) => {
                 let WebGlBufferItem {
                     byte_length,
@@ -390,10 +478,14 @@ impl WebGlBufferManager {
                         0,
                         *byte_length as i32,
                     );
-                    self.gl
-                        .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
-                    self.gl
-                        .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+                    self.gl.bind_buffer(
+                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        self.bound_targets.get(&WebGlBufferTarget::CopyWriteBuffer),
+                    );
+                    self.gl.bind_buffer(
+                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                        self.bound_targets.get(&WebGlBufferTarget::CopyReadBuffer),
+                    );
 
                     *gl_buffer = new_gl_buffer;
                     *byte_length = buffer.byte_length();
@@ -405,7 +497,7 @@ impl WebGlBufferManager {
                         .buffer_sub_data(&self.gl, target, item.dst_byte_offset());
                 }
 
-                Ok(gl_buffer.clone())
+                gl_buffer.clone()
             }
             Entry::Vacant(entry) => {
                 let usage = if buffer.growable() {
@@ -434,9 +526,18 @@ impl WebGlBufferManager {
                 };
                 entry.insert(buffer_item);
 
-                Ok(gl_buffer)
+                buffer.set_synced(self.channel.clone(), self.id);
+
+                gl_buffer
             }
+        };
+
+        if unbind {
+            self.gl
+                .bind_buffer(target.to_gl_enum(), self.bound_targets.get(&target));
         }
+
+        Ok(gl_buffer)
     }
 
     // /// Binds a native [`WebGlBuffer`] to specified target.
@@ -448,12 +549,20 @@ impl WebGlBufferManager {
     /// Unbinds a buffer in specified target.
     pub fn unbind_buffer(&mut self, target: WebGlBufferTarget) {
         self.gl.bind_buffer(target.to_gl_enum(), None);
-        self.bound_targets.borrow_mut().remove(&target);
+        self.bound_targets.remove(&target);
+    }
+
+    /// Gets native [`WebGlBuffer`] of specified buffer.
+    pub fn gl_buffer(&self, buffer: &Buffer<WebGlBufferData>) -> Option<WebGlBuffer> {
+        self.buffers
+            .borrow()
+            .get(buffer.id())
+            .map(|item| item.gl_buffer.clone())
     }
 
     /// Returns `true` if specified target has bound a buffer.
     pub fn is_target_bound(&self, target: WebGlBufferTarget) -> bool {
-        self.bound_targets.borrow().contains_key(&target)
+        self.bound_targets.contains_key(&target)
     }
 
     /// Returns `true` if a buffer has bound to the target.
@@ -466,39 +575,43 @@ impl WebGlBufferManager {
         let Some(WebGlBufferItem { gl_buffer, .. }) = buffers.get(buffer.id()) else {
             return false;
         };
-        self.bound_targets.borrow().get(&target) == Some(gl_buffer)
+        self.bound_targets.get(&target) == Some(gl_buffer)
+    }
+
+    /// Returns `true` if a buffer has bound to the target.
+    pub fn is_uniform_buffer_object_mounted(
+        &self,
+        buffer: &Buffer<WebGlBufferData>,
+        mount_point: usize,
+    ) -> bool {
+        let buffers = self.buffers.borrow();
+        let Some(WebGlBufferItem { gl_buffer, .. }) = buffers.get(buffer.id()) else {
+            return false;
+        };
+        self.bound_ubos.get(&mount_point) == Some(gl_buffer)
     }
 }
 
+impl Drop for WebGlBufferManager {
+    fn drop(&mut self) {
+        self.channel.off::<BufferDropped, BufferDroppedHandler>();
+    }
+}
+
+/// A handler removes [`WebGlBufferItem`] from manager when a [`Buffer`] dropped.
+/// This handler only removes items from [`WebGlBufferManager::buffers`], without unbinding them from WebGL context.
 struct BufferDroppedHandler {
-    gl: WebGl2RenderingContext,
     buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
-    bound_targets: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
 }
 
 impl BufferDroppedHandler {
-    fn new(manager: &WebGlBufferManager) -> Self {
-        Self {
-            gl: manager.gl.clone(),
-            buffers: Rc::clone(&manager.buffers),
-            bound_targets: Rc::clone(&manager.bound_targets),
-        }
+    fn new(buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>) -> Self {
+        Self { buffers }
     }
 }
 
 impl Handler<BufferDropped> for BufferDroppedHandler {
     fn handle(&mut self, msg: &BufferDropped, _: &mut channel::Context) {
-        let Some(buffer_item) = self.buffers.borrow_mut().remove(msg.id()) else {
-            return;
-        };
-        self.bound_targets.borrow_mut().retain(|target, buffer| {
-            if buffer == &buffer_item.gl_buffer {
-                self.gl.bind_buffer(target.to_gl_enum(), None);
-                false
-            } else {
-                true
-            }
-        });
-        self.gl.delete_buffer(Some(&buffer_item.gl_buffer));
+        self.buffers.borrow_mut().remove(msg.id());
     }
 }

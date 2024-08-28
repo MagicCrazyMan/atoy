@@ -11,6 +11,7 @@ pub enum Error {
     ProgramNotFound,
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
+    BufferManagedByOtherManager,
 }
 
 impl Display for Error {
