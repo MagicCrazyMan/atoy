@@ -1,6 +1,8 @@
 use std::{
     borrow::Cow,
+    cell::RefCell,
     ops::{Range, RangeFrom},
+    rc::Rc,
 };
 
 use hashbrown::{hash_map::Entry, HashMap};
@@ -13,15 +15,14 @@ use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use crate::anewthing::{
-    buffer::{self, Buffer, BufferData},
-    channel::Channel,
+    buffer::{Buffer, BufferData, BufferDropped},
+    channel::{self, Channel, Handler},
 };
 
 use super::error::Error;
 
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-#[repr(usize)]
 pub enum WebGlBufferTarget {
     ArrayBuffer = 0,
     ElementArrayBuffer = 1,
@@ -275,26 +276,29 @@ struct WebGlBufferItem {
 pub struct WebGlBufferManager {
     gl: WebGl2RenderingContext,
     channel: Channel,
-    buffers: HashMap<Uuid, WebGlBufferItem>,
-
+    buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
     /// of all buffer targets
-    bound_targets: Vec<Option<WebGlBuffer>>,
+    bound_targets: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
+    bound_ubos: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
 }
 
 impl WebGlBufferManager {
     /// Constructs a new buffer manager.
     pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
-        Self {
+        let instance = Self {
             gl,
-            channel,
-            buffers: HashMap::new(),
+            channel: channel.clone(),
+            buffers: Rc::new(RefCell::new(HashMap::new())),
 
-            bound_targets: vec![None; 8],
-        }
+            bound_targets: Rc::new(RefCell::new(HashMap::new())),
+        };
+        channel.on(BufferDroppedHandler::new(&instance));
+
+        instance
     }
 
     /// Creates a new [`Buffer`] and manages it immediately.
-    /// 
+    ///
     /// Since it is difficult to create a [`WebGlBuffer`] with specified usage by [`Buffer::new`],
     /// this method provides a way to creates one with a custom usage.
     pub fn create_buffer(
@@ -314,7 +318,7 @@ impl WebGlBufferManager {
             byte_length as i32,
             usage.to_gl_enum(),
         );
-        self.buffers.insert_unique_unchecked(
+        self.buffers.borrow_mut().insert_unique_unchecked(
             *buffer.id(),
             WebGlBufferItem {
                 byte_length,
@@ -324,17 +328,19 @@ impl WebGlBufferManager {
         );
         self.gl.bind_buffer(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-            self.bound_targets[0].as_ref(),
+            self.bound_targets
+                .borrow()
+                .get(&WebGlBufferTarget::ArrayBuffer),
         );
 
         Ok(buffer)
     }
 
     /// Binds a buffer to specified target. Buffer data will be uploaded to WebGL context.
-    /// 
+    ///
     /// If a buffer is growable, it uses [`WebGlBufferUsage::DynamicDraw`] as usage,
     /// and uses [`WebGlBufferUsage::StaticDraw`] otherwise.
-    /// 
+    ///
     /// If you want to create a buffer with custom usage,
     /// calls [`WebGlBufferManager::create_buffer`] to create one.
     pub fn bind_buffer(
@@ -343,7 +349,7 @@ impl WebGlBufferManager {
         target: WebGlBufferTarget,
     ) -> Result<(), Error> {
         let gl_buffer = self.bind_and_sync_buffer(buffer, target)?;
-        self.bound_targets[target as usize] = Some(gl_buffer);
+        self.bound_targets.borrow_mut().insert(target, gl_buffer);
         Ok(())
     }
 
@@ -352,7 +358,7 @@ impl WebGlBufferManager {
         buffer: &mut Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
     ) -> Result<WebGlBuffer, Error> {
-        match self.buffers.entry(*buffer.id()) {
+        match self.buffers.borrow_mut().entry(*buffer.id()) {
             Entry::Occupied(entry) => {
                 let WebGlBufferItem {
                     byte_length,
@@ -443,12 +449,12 @@ impl WebGlBufferManager {
     /// Unbinds a buffer in specified target.
     pub fn unbind_buffer(&mut self, target: WebGlBufferTarget) {
         self.gl.bind_buffer(target.to_gl_enum(), None);
-        self.bound_targets[target as usize] = None;
+        self.bound_targets.borrow_mut().remove(&target);
     }
 
     /// Returns `true` if specified target has bound a buffer.
     pub fn is_target_bound(&self, target: WebGlBufferTarget) -> bool {
-        self.bound_targets[target as usize].is_some()
+        self.bound_targets.borrow().contains_key(&target)
     }
 
     /// Returns `true` if a buffer has bound to the target.
@@ -457,9 +463,43 @@ impl WebGlBufferManager {
         buffer: &Buffer<WebGlBufferData>,
         target: WebGlBufferTarget,
     ) -> bool {
-        let Some(WebGlBufferItem { gl_buffer, .. }) = self.buffers.get(buffer.id()) else {
+        let buffers = self.buffers.borrow();
+        let Some(WebGlBufferItem { gl_buffer, .. }) = buffers.get(buffer.id()) else {
             return false;
         };
-        self.bound_targets[target as usize].as_ref() == Some(gl_buffer)
+        self.bound_targets.borrow().get(&target) == Some(gl_buffer)
+    }
+}
+
+struct BufferDroppedHandler {
+    gl: WebGl2RenderingContext,
+    buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
+    bound_targets: Rc<RefCell<HashMap<WebGlBufferTarget, WebGlBuffer>>>,
+}
+
+impl BufferDroppedHandler {
+    fn new(manager: &WebGlBufferManager) -> Self {
+        Self {
+            gl: manager.gl.clone(),
+            buffers: Rc::clone(&manager.buffers),
+            bound_targets: Rc::clone(&manager.bound_targets),
+        }
+    }
+}
+
+impl Handler<BufferDropped> for BufferDroppedHandler {
+    fn handle(&mut self, msg: &BufferDropped, _: &mut channel::Context) {
+        let Some(buffer_item) = self.buffers.borrow_mut().remove(msg.id()) else {
+            return;
+        };
+        self.bound_targets.borrow_mut().retain(|target, buffer| {
+            if buffer == &buffer_item.gl_buffer {
+                self.gl.bind_buffer(target.to_gl_enum(), None);
+                false
+            } else {
+                true
+            }
+        });
+        self.gl.delete_buffer(Some(&buffer_item.gl_buffer));
     }
 }
