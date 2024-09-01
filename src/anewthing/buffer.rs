@@ -152,7 +152,7 @@ pub(crate) struct BufferDropped {
 
 impl BufferDropped {
     /// Returns the id of the buffer.
-    pub(crate) fn id(&self) -> &Uuid {
+    pub(crate) fn buffer_id(&self) -> &Uuid {
         &self.id
     }
 }

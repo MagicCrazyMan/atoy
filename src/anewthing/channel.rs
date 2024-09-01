@@ -3,6 +3,7 @@ use std::{
     cell::RefCell,
     fmt::Debug,
     hash::Hash,
+    ops::{Deref, DerefMut},
     rc::Rc,
 };
 
@@ -51,6 +52,7 @@ impl Channel {
         self.id
     }
 
+    /// Registers a handler for a message type.
     pub fn on<M, H>(&self, handler: H) -> bool
     where
         M: 'static,
@@ -75,6 +77,7 @@ impl Channel {
         true
     }
 
+    /// Unregisters a handler for a message type.
     pub fn off<M, H>(&self)
     where
         M: 'static,
@@ -90,7 +93,8 @@ impl Channel {
         handlers.remove(&handler_type_id);
     }
 
-    pub fn send<M>(&self, msg: M)
+    /// Sends a message to the channel, and invokes all associated handlers.
+    pub fn send<M>(&self, mut msg: M)
     where
         M: 'static,
     {
@@ -104,14 +108,14 @@ impl Channel {
         let mut aborted = Vec::new();
         for (handler_type_id, handler) in handlers.iter_mut() {
             let handler = handler.downcast_mut::<Box<dyn Handler<M>>>().unwrap();
-            let mut ctx = Context::new();
-            handler.as_mut().handle(&msg, &mut ctx);
+            let mut event = Event::new(&mut msg);
+            handler.as_mut().handle(&mut event);
 
-            if ctx.aborted {
+            if event.aborted {
                 aborted.push(*handler_type_id);
             }
 
-            if ctx.terminated {
+            if event.terminated {
                 break;
             }
         }
@@ -122,28 +126,57 @@ impl Channel {
     }
 }
 
-pub struct Context {
+pub struct Event<'a, M> {
+    message: &'a mut M,
     aborted: bool,
     terminated: bool,
 }
 
-impl Context {
-    fn new() -> Self {
+impl<'a, M> Event<'a, M> {
+    fn new(message: &'a mut M) -> Self {
         Self {
+            message,
             aborted: false,
             terminated: false,
         }
     }
 
+    /// Returns the immutable message.
+    pub fn message(&self) -> &M {
+        self.message
+    }
+
+    /// Returns the mutable message.
+    pub fn message_mut(&mut self) -> &mut M {
+        self.message
+    }
+
+    /// Removes the handler after finishing invoking.
     pub fn abort(&mut self) {
         self.aborted = true;
     }
 
+    /// Terminates message propagation.
+    /// Ignores all remaining handlers after finishing invoking this handler.
     pub fn terminate(&mut self) {
         self.terminated = true;
     }
 }
 
+impl<'a, M> Deref for Event<'a, M> {
+    type Target = M;
+
+    fn deref(&self) -> &Self::Target {
+        self.message
+    }
+}
+
+impl<'a, M> DerefMut for Event<'a, M> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.message
+    }
+}
+
 pub trait Handler<M> {
-    fn handle(&mut self, msg: &M, ctx: &mut Context);
+    fn handle<'a>(&'a mut self, msg: &mut Event<'_, M>);
 }

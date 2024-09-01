@@ -611,7 +611,7 @@ impl BufferDroppedHandler {
 }
 
 impl Handler<BufferDropped> for BufferDroppedHandler {
-    fn handle(&mut self, msg: &BufferDropped, _: &mut channel::Context) {
-        self.buffers.borrow_mut().remove(msg.id());
+    fn handle(&mut self, evt: &mut Event<'_, BufferDropped>) {
+        self.buffers.borrow_mut().remove(evt.buffer_id());
     }
 }
