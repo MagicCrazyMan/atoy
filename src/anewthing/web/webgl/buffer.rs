@@ -16,7 +16,7 @@ use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use crate::anewthing::{
     buffer::{Buffer, BufferData, BufferDropped},
-    channel::{self, Channel, Handler},
+    channel::{Channel, Event, Handler},
 };
 
 use super::error::Error;
