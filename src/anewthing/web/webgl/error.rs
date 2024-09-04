@@ -12,6 +12,8 @@ pub enum Error {
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
     BufferManagedByOtherManager,
+    CreateFenceSyncFailure,
+    ClientWaitFailure(Option<String>),
 }
 
 impl Display for Error {

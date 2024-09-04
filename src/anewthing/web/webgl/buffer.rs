@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    ops::{Range, RangeFrom},
+    ops::{Bound, Range, RangeBounds, RangeFrom},
     rc::Rc,
 };
 
@@ -288,6 +288,23 @@ impl WebGlBufferItem {
     /// Returns [`WebGlBufferUsage`].
     pub fn usage(&self) -> WebGlBufferUsage {
         self.usage
+    }
+
+    /// Normalizes a [`RangeBounds`] to a [`Range<usize>`].
+    /// Returns [`None`] if start and end bounds of [`RangeBounds`] are both unbounded.
+    pub fn normalize_byte_range<R>(&self, range: R) -> Range<usize>
+    where
+        R: RangeBounds<usize>,
+    {
+        match (range.start_bound(), range.end_bound()) {
+            (Bound::Included(s), Bound::Included(e)) => *s..*e + 1,
+            (Bound::Included(s), Bound::Excluded(e)) => *s..*e,
+            (Bound::Included(s), Bound::Unbounded) => *s..self.byte_length(),
+            (Bound::Unbounded, Bound::Included(e)) => 0..*e + 1,
+            (Bound::Unbounded, Bound::Excluded(e)) => 0..*e,
+            (Bound::Unbounded, Bound::Unbounded) => 0..self.byte_length(),
+            (Bound::Excluded(_), _) => unreachable!(),
+        }
     }
 }
 
