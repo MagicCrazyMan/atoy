@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    ops::{Bound, Range, RangeBounds, RangeFrom},
+    ops::{Range, RangeFrom},
     rc::Rc,
 };
 
@@ -267,10 +267,28 @@ impl BufferData for WebGlBufferData {
     }
 }
 
-struct WebGlBufferItem {
+#[derive(Clone)]
+pub struct WebGlBufferItem {
     byte_length: usize,
     gl_buffer: WebGlBuffer,
     usage: WebGlBufferUsage,
+}
+
+impl WebGlBufferItem {
+    /// Returns byte length of the buffer.
+    pub fn byte_length(&self) -> usize {
+        self.byte_length
+    }
+
+    /// Returns native [`WebGlBuffer`].
+    pub fn gl_buffer(&self) -> &WebGlBuffer {
+        &self.gl_buffer
+    }
+
+    /// Returns [`WebGlBufferUsage`].
+    pub fn usage(&self) -> WebGlBufferUsage {
+        self.usage
+    }
 }
 
 pub struct WebGlBufferManager {
@@ -329,107 +347,10 @@ impl WebGlBufferManager {
         Ok(buffer)
     }
 
-    // /// Binds a buffer to specified target. Buffer data will be uploaded to WebGL context.
-    // ///
-    // /// If a buffer is growable, it uses [`WebGlBufferUsage::DynamicDraw`] as usage,
-    // /// and uses [`WebGlBufferUsage::StaticDraw`] otherwise.
-    // ///
-    // /// If you want to create a buffer with custom usage,
-    // /// calls [`WebGlBufferManager::create_buffer`] to create one.
-    // pub fn bind_buffer(
-    //     &mut self,
-    //     buffer: &mut Buffer<WebGlBufferData>,
-    //     target: WebGlBufferTarget,
-    // ) -> Result<(), Error> {
-    //     let gl_buffer = self.sync_buffer(buffer, target, false)?;
-    //     self.bound_targets.insert(target, gl_buffer);
-    //     Ok(())
-    // }
-
-    // /// Updates a buffer without binding it to WebGL context.
-    // /// Buffer data will be uploaded to WebGL context.
-    // pub fn update_buffer(&mut self, buffer: &mut Buffer<WebGlBufferData>) -> Result<(), Error> {
-    //     self.sync_buffer(buffer, WebGlBufferTarget::ArrayBuffer, true)?;
-    //     Ok(())
-    // }
-
-    // /// Binds a buffer to uniform buffer object mount point.
-    // /// Unmounting previous mounted buffer if occupied.
-    // pub fn mount_uniform_buffer_object_base(
-    //     &mut self,
-    //     buffer: &mut Buffer<WebGlBufferData>,
-    //     mount_point: usize,
-    // ) -> Result<(), Error> {
-    //     let gl_buffer = self.mount_uniform_buffer_object(buffer, mount_point, ..)?;
-    //     self.bound_ubos.insert(mount_point, gl_buffer);
-
-    //     Ok(())
-    // }
-
-    // /// Binds a buffer range to uniform buffer object mount point.
-    // /// Unmounting previous mounted buffer if occupied.
-    // pub fn mount_uniform_buffer_object_range<R>(
-    //     &mut self,
-    //     buffer: &mut Buffer<WebGlBufferData>,
-    //     mount_point: usize,
-    //     range: R,
-    // ) -> Result<(), Error>
-    // where
-    //     R: RangeBounds<usize>,
-    // {
-    //     let gl_buffer = self.mount_uniform_buffer_object(buffer, mount_point, range)?;
-    //     self.bound_ubos.insert(mount_point, gl_buffer);
-
-    //     Ok(())
-    // }
-
-    // fn mount_uniform_buffer_object<R>(
-    //     &mut self,
-    //     buffer: &mut Buffer<WebGlBufferData>,
-    //     mount_point: usize,
-    //     range: R,
-    // ) -> Result<WebGlBuffer, Error>
-    // where
-    //     R: RangeBounds<usize>,
-    // {
-    //     let gl_buffer = self.sync_buffer(buffer, WebGlBufferTarget::UniformBuffer, false)?;
-
-    //     let range = match (range.start_bound(), range.end_bound()) {
-    //         (Bound::Included(s), Bound::Included(e)) => Some(*s..*e + 1),
-    //         (Bound::Included(s), Bound::Excluded(e)) => Some(*s..*e),
-    //         (Bound::Included(s), Bound::Unbounded) => Some(*s..buffer.byte_length()),
-    //         (Bound::Unbounded, Bound::Included(e)) => Some(0..*e + 1),
-    //         (Bound::Unbounded, Bound::Excluded(e)) => Some(0..*e),
-    //         (Bound::Unbounded, Bound::Unbounded) => None,
-    //         (Bound::Excluded(_), _) => unreachable!(),
-    //     };
-
-    //     match range {
-    //         Some(range) => self.gl.bind_buffer_range_with_i32_and_i32(
-    //             WebGlBufferTarget::UniformBuffer.to_gl_enum(),
-    //             mount_point as u32,
-    //             Some(&gl_buffer),
-    //             range.start as i32,
-    //             range.len() as i32,
-    //         ),
-    //         None => self.gl.bind_buffer_base(
-    //             WebGlBufferTarget::UniformBuffer.to_gl_enum(),
-    //             mount_point as u32,
-    //             Some(&gl_buffer),
-    //         ),
-    //     };
-    //     self.gl.bind_buffer(
-    //         WebGlBufferTarget::UniformBuffer.to_gl_enum(),
-    //         self.bound_targets.get(&WebGlBufferTarget::UniformBuffer),
-    //     );
-
-    //     Ok(gl_buffer)
-    // }
-
     pub fn sync_buffer(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
-    ) -> Result<&WebGlBufferItem, Error> {
+    ) -> Result<WebGlBufferItem, Error> {
         if let Some(synced_id) = buffer.synced_id() {
             if synced_id != &self.id {
                 return Err(Error::BufferManagedByOtherManager);
@@ -532,59 +453,8 @@ impl WebGlBufferManager {
         self.gl
             .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
 
-        Ok(buffer_item)
+        Ok(buffer_item.clone())
     }
-
-    // /// Binds a native [`WebGlBuffer`] to specified target.
-    // pub fn bind_gl_buffer(&mut self, gl_buffer: &WebGlBuffer, target: WebGlBufferTarget) {
-    //     self.gl.bind_buffer(target.to_gl_enum(), Some(gl_buffer));
-    //     self.bound_targets[target as usize] = Some(gl_buffer.clone());
-    // }
-
-    // /// Unbinds a buffer in specified target.
-    // pub fn unbind_buffer(&mut self, target: WebGlBufferTarget) {
-    //     self.gl.bind_buffer(target.to_gl_enum(), None);
-    //     self.bound_targets.remove(&target);
-    // }
-
-    // /// Gets native [`WebGlBuffer`] of specified buffer.
-    // pub fn gl_buffer(&self, buffer: &Buffer<WebGlBufferData>) -> Option<WebGlBuffer> {
-    //     self.buffers
-    //         .borrow()
-    //         .get(buffer.id())
-    //         .map(|item| item.gl_buffer.clone())
-    // }
-
-    // /// Returns `true` if specified target has bound a buffer.
-    // pub fn is_target_bound(&self, target: WebGlBufferTarget) -> bool {
-    //     self.bound_targets.contains_key(&target)
-    // }
-
-    // /// Returns `true` if a buffer has bound to the target.
-    // pub fn is_buffer_bound(
-    //     &self,
-    //     buffer: &Buffer<WebGlBufferData>,
-    //     target: WebGlBufferTarget,
-    // ) -> bool {
-    //     let buffers = self.buffers.borrow();
-    //     let Some(WebGlBufferItem { gl_buffer, .. }) = buffers.get(buffer.id()) else {
-    //         return false;
-    //     };
-    //     self.bound_targets.get(&target) == Some(gl_buffer)
-    // }
-
-    // /// Returns `true` if a buffer has bound to the target.
-    // pub fn is_uniform_buffer_object_mounted(
-    //     &self,
-    //     buffer: &Buffer<WebGlBufferData>,
-    //     mount_point: usize,
-    // ) -> bool {
-    //     let buffers = self.buffers.borrow();
-    //     let Some(WebGlBufferItem { gl_buffer, .. }) = buffers.get(buffer.id()) else {
-    //         return false;
-    //     };
-    //     self.bound_ubos.get(&mount_point) == Some(gl_buffer)
-    // }
 }
 
 impl Drop for WebGlBufferManager {
