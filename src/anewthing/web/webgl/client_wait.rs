@@ -89,7 +89,7 @@ impl WebGlClientWait {
     }
 
     /// Executes client wait.
-    pub async fn client_wait(self) -> Result<(), Error> {
+    pub async fn client_wait(&self) -> Result<(), Error> {
         let gl = self.gl.clone();
         let flag_bits = self.flag_bits;
         let wait_timeout = self.wait_timeout;

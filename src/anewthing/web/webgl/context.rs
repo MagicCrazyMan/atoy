@@ -1,13 +1,21 @@
-use std::{ops::RangeBounds, time::Duration};
+use std::{
+    ops::{Range, RangeBounds},
+    time::Duration,
+};
 
 use hashbrown::HashMap;
 use js_sys::Uint8Array;
-use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlProgram};
+use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlProgram, WebGlUniformLocation};
 
 use crate::anewthing::{buffer::Buffer, channel::Channel};
 
 use super::{
-    buffer::{WebGlBufferData, WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget}, capabilities::WebGlCapabilities, client_wait::{WebGlClientWait, WebGlClientWaitFlag}, error::Error, program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource}
+    buffer::{WebGlBufferData, WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget},
+    capabilities::WebGlCapabilities,
+    client_wait::{WebGlClientWait, WebGlClientWaitFlag},
+    error::Error,
+    program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
+    uniform::WebGlUniformValue,
 };
 
 pub struct Context {
@@ -18,7 +26,7 @@ pub struct Context {
     capabilities: WebGlCapabilities,
 
     using_program: Option<WebGlProgram>,
-    using_ubos: HashMap<usize, WebGlBuffer>,
+    using_uniform_buffer_objects: HashMap<usize, (WebGlBuffer, Range<usize>)>,
 }
 
 impl Context {
@@ -32,7 +40,7 @@ impl Context {
             channel,
 
             using_program: None,
-            using_ubos: HashMap::new(),
+            using_uniform_buffer_objects: HashMap::new(),
         }
     }
 
@@ -65,7 +73,7 @@ impl Context {
     pub fn buffer_manager_mut(&mut self) -> &mut WebGlBufferManager {
         &mut self.buffer_manager
     }
-    
+
     /// Returns [`WebGlCapabilities`].
     pub fn capabilities(&self) -> &WebGlCapabilities {
         &self.capabilities
@@ -118,16 +126,6 @@ impl Context {
         )
     }
 
-    // /// Uses a compiled [`WebGlProgramItem`] to this WebGl context.
-    // pub fn use_program(&mut self, program: &WebGlProgramItem) {
-    //     if self.using_program.as_ref() == Some(program.gl_program()) {
-    //         return;
-    //     }
-
-    //     self.gl.use_program(Some(program.gl_program()));
-    //     self.using_program = Some(program.gl_program().clone());
-    // }
-
     /// Compiles shader sources and then uses the compiled program.
     /// Returns the compiled [`WebGlProgramItem`] as well.
     pub fn use_program_by_shader_sources<VS, FS>(
@@ -142,9 +140,60 @@ impl Context {
         let program = self
             .program_manager
             .get_or_compile_program(vertex, fragment)?;
-        self.gl.use_program(Some(program.gl_program()));
-        self.using_program = Some(program.gl_program().clone());
+        Self::use_program_inner(&self.gl, &mut self.using_program, program);
         Ok(program)
+    }
+
+    /// Uses a compiled [`WebGlProgramItem`] to this WebGl context.
+    fn use_program_inner(
+        gl: &WebGl2RenderingContext,
+        using_program: &mut Option<WebGlProgram>,
+        program: &WebGlProgramItem,
+    ) {
+        if using_program.as_ref() == Some(program.gl_program()) {
+            return;
+        }
+
+        gl.use_program(Some(program.gl_program()));
+        *using_program = Some(program.gl_program().clone());
+    }
+
+    fn upload_uniform_value_inner(
+        gl: &WebGl2RenderingContext,
+        location: &WebGlUniformLocation,
+        uniform_value: WebGlUniformValue,
+    ) {
+        match uniform_value {
+            WebGlUniformValue::Bool(v) => gl.uniform1i(Some(&location), if v { 1 } else { 0 }),
+            WebGlUniformValue::Texture(_) => todo!(),
+            WebGlUniformValue::Float1(_) => todo!(),
+            WebGlUniformValue::Float2(_, _) => todo!(),
+            WebGlUniformValue::Float3(_, _, _) => todo!(),
+            WebGlUniformValue::Float4(_, _, _, _) => todo!(),
+            WebGlUniformValue::UnsignedInteger1(_) => todo!(),
+            WebGlUniformValue::UnsignedInteger2(_, _) => todo!(),
+            WebGlUniformValue::UnsignedInteger3(_, _, _) => todo!(),
+            WebGlUniformValue::UnsignedInteger4(_, _, _, _) => todo!(),
+            WebGlUniformValue::Integer1(_) => todo!(),
+            WebGlUniformValue::Integer2(_, _) => todo!(),
+            WebGlUniformValue::Integer3(_, _, _) => todo!(),
+            WebGlUniformValue::Integer4(_, _, _, _) => todo!(),
+            WebGlUniformValue::FloatVector1(_) => todo!(),
+            WebGlUniformValue::FloatVector2(_) => todo!(),
+            WebGlUniformValue::FloatVector3(_) => todo!(),
+            WebGlUniformValue::FloatVector4(_) => todo!(),
+            WebGlUniformValue::IntegerVector1(_) => todo!(),
+            WebGlUniformValue::IntegerVector2(_) => todo!(),
+            WebGlUniformValue::IntegerVector3(_) => todo!(),
+            WebGlUniformValue::IntegerVector4(_) => todo!(),
+            WebGlUniformValue::UnsignedIntegerVector1(_) => todo!(),
+            WebGlUniformValue::UnsignedIntegerVector2(_) => todo!(),
+            WebGlUniformValue::UnsignedIntegerVector3(_) => todo!(),
+            WebGlUniformValue::UnsignedIntegerVector4(_) => todo!(),
+            WebGlUniformValue::Matrix2 { data, transpose } => todo!(),
+            WebGlUniformValue::Matrix3 { data, transpose } => todo!(),
+            WebGlUniformValue::Matrix4 { data, transpose } => todo!(),
+        }
     }
 
     /// Binds a buffer to uniform buffer object mount point.
@@ -154,7 +203,14 @@ impl Context {
         buffer: &mut Buffer<WebGlBufferData>,
         mount_point: usize,
     ) -> Result<(), Error> {
-        self.mount_uniform_buffer_object_inner(buffer, mount_point, ..)
+        Self::mount_uniform_buffer_object_inner(
+            &self.gl,
+            &mut self.buffer_manager,
+            &mut self.using_uniform_buffer_objects,
+            buffer,
+            mount_point,
+            ..,
+        )
     }
 
     /// Binds a buffer range to uniform buffer object mount point.
@@ -168,11 +224,20 @@ impl Context {
     where
         R: RangeBounds<usize>,
     {
-        self.mount_uniform_buffer_object_inner(buffer, mount_point, range)
+        Self::mount_uniform_buffer_object_inner(
+            &self.gl,
+            &mut self.buffer_manager,
+            &mut self.using_uniform_buffer_objects,
+            buffer,
+            mount_point,
+            range,
+        )
     }
 
     fn mount_uniform_buffer_object_inner<R>(
-        &mut self,
+        gl: &WebGl2RenderingContext,
+        buffer_manager: &mut WebGlBufferManager,
+        using_uniform_buffer_objects: &mut HashMap<usize, (WebGlBuffer, Range<usize>)>,
         buffer: &mut Buffer<WebGlBufferData>,
         mount_point: usize,
         range: R,
@@ -180,19 +245,26 @@ impl Context {
     where
         R: RangeBounds<usize>,
     {
-        let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
+        let buffer_item = buffer_manager.sync_buffer(buffer)?;
         let byte_range = buffer_item.normalize_byte_range(range);
-        self.gl.bind_buffer_range_with_i32_and_i32(
+        if let Some((bound_buffer, bound_byte_range)) =
+            using_uniform_buffer_objects.get(&mount_point)
+        {
+            if bound_buffer == buffer_item.gl_buffer() && bound_byte_range == &byte_range {
+                return Ok(());
+            }
+        }
+
+        gl.bind_buffer_range_with_i32_and_i32(
             WebGlBufferTarget::UniformBuffer.to_gl_enum(),
             mount_point as u32,
             Some(buffer_item.gl_buffer()),
             byte_range.start as i32,
             byte_range.len() as i32,
         );
-        self.gl
-            .bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
-        self.using_ubos
-            .insert(mount_point, buffer_item.gl_buffer().clone());
+        gl.bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
+        using_uniform_buffer_objects
+            .insert(mount_point, (buffer_item.gl_buffer().clone(), byte_range));
 
         Ok(())
     }
@@ -203,7 +275,7 @@ impl Context {
         buffer: &mut Buffer<WebGlBufferData>,
     ) -> Result<Uint8Array, Error> {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        self.read_buffer_inner(buffer_item, ..)
+        Self::read_buffer_inner(&self.gl, &buffer_item, ..)
     }
 
     /// Reads buffer data into an [`Uint8Array`] with byte range.
@@ -216,61 +288,59 @@ impl Context {
         R: RangeBounds<usize>,
     {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        self.read_buffer_inner(buffer_item, range)
+        Self::read_buffer_inner(&self.gl, &buffer_item, range)
     }
 
     /// Reads buffer data into an [`Uint8Array`] asynchronously.
     pub async fn read_buffer_with_client_wait(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
-        client_wait: WebGlClientWait,
+        client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error> {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
         client_wait.client_wait().await?;
-        self.read_buffer_inner(buffer_item, ..)
+        Self::read_buffer_inner(&self.gl, &buffer_item, ..)
     }
 
     /// Reads buffer data into an [`Uint8Array`] with byte range asynchronously.
     pub async fn read_buffer_by_range_with_client_wait<R>(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
-        range: R,
-        client_wait: WebGlClientWait,
+        byte_range: R,
+        client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error>
     where
         R: RangeBounds<usize>,
     {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
         client_wait.client_wait().await?;
-        self.read_buffer_inner(buffer_item, range)
+        Self::read_buffer_inner(&self.gl, &buffer_item, byte_range)
     }
 
     fn read_buffer_inner<R>(
-        &mut self,
-        buffer_item: WebGlBufferItem,
-        range: R,
+        gl: &WebGl2RenderingContext,
+        buffer_item: &WebGlBufferItem,
+        byte_range: R,
     ) -> Result<Uint8Array, Error>
     where
         R: RangeBounds<usize>,
     {
-        let byte_range = buffer_item.normalize_byte_range(range);
+        let byte_range = buffer_item.normalize_byte_range(byte_range);
         let dst_byte_length = byte_range.len();
         let dst = Uint8Array::new_with_length(dst_byte_length as u32);
 
-        self.gl.bind_buffer(
+        gl.bind_buffer(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
             Some(buffer_item.gl_buffer()),
         );
-        self.gl
-            .get_buffer_sub_data_with_i32_and_array_buffer_view_and_dst_offset_and_length(
-                WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-                byte_range.start as i32,
-                dst.as_ref(),
-                0,
-                byte_range.end as u32,
-            );
-        self.gl
-            .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+        gl.get_buffer_sub_data_with_i32_and_array_buffer_view_and_dst_offset_and_length(
+            WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+            byte_range.start as i32,
+            dst.as_ref(),
+            0,
+            byte_range.end as u32,
+        );
+        gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
 
         Ok(dst)
     }
