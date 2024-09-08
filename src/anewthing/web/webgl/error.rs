@@ -10,6 +10,7 @@ pub enum Error {
     CreateProgramFailure,
     ProgramNotFound,
     NoUsingProgram,
+    AttributeLocationNotFound(String),
     UniformLocationNotFound(String),
     UniformBlockLocationNotFound(String),
     LinkProgramFailure(Option<String>),

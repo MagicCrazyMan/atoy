@@ -10,6 +10,7 @@ use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlUniformLocation};
 use crate::anewthing::{buffer::Buffer, channel::Channel};
 
 use super::{
+    attribute::WebGlAttributeValue,
     buffer::{WebGlBufferData, WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget},
     capabilities::WebGlCapabilities,
     client_wait::{WebGlClientWait, WebGlClientWaitFlag},
@@ -158,8 +159,98 @@ impl Context {
         *using_program = Some(program_item.clone());
     }
 
+    /// Sets a attribute by specified attribute name.
+    pub fn set_attribute_value(
+        &mut self,
+        name: &str,
+        value: WebGlAttributeValue,
+    ) -> Result<(), Error> {
+        let Some(using_program) = self.using_program.as_ref() else {
+            return Err(Error::NoUsingProgram);
+        };
+        let Some(location) = using_program.attribute_location(name) else {
+            return Err(Error::AttributeLocationNotFound(name.to_string()));
+        };
+        Self::set_attribute_value_inner(&self.gl, &mut self.buffer_manager, location, value)?;
+        Ok(())
+    }
+
+    fn set_attribute_value_inner(
+        gl: &WebGl2RenderingContext,
+        buffer_manager: &mut WebGlBufferManager,
+        location: u32,
+        value: WebGlAttributeValue,
+    ) -> Result<(), Error> {
+        match value {
+            WebGlAttributeValue::ArrayBuffer {
+                buffer,
+                component_size,
+                data_type,
+                normalized,
+                byte_stride,
+                byte_offset,
+            } => {
+                let buffer_item = buffer_manager.sync_buffer(buffer)?;
+                gl.bind_buffer(
+                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    Some(buffer_item.gl_buffer()),
+                );
+                gl.vertex_attrib_pointer_with_i32(
+                    location,
+                    component_size as i32,
+                    data_type.to_gl_enum(),
+                    normalized,
+                    byte_stride as i32,
+                    byte_offset as i32,
+                );
+                gl.enable_vertex_attrib_array(location);
+                gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+            }
+            WebGlAttributeValue::InstancedBuffer {
+                buffer,
+                component_size,
+                instance_size,
+                data_type,
+                normalized,
+                byte_stride,
+                byte_offset,
+            } => {
+                let buffer_item = buffer_manager.sync_buffer(buffer)?;
+                gl.bind_buffer(
+                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    Some(buffer_item.gl_buffer()),
+                );
+                gl.vertex_attrib_pointer_with_i32(
+                    location,
+                    component_size as i32,
+                    data_type.to_gl_enum(),
+                    normalized,
+                    byte_stride as i32,
+                    byte_offset as i32,
+                );
+                gl.enable_vertex_attrib_array(location);
+                gl.vertex_attrib_divisor(location, instance_size as u32);
+                gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+            }
+            WebGlAttributeValue::Float1(x) => gl.vertex_attrib1f(location, x),
+            WebGlAttributeValue::Float2(x, y) => gl.vertex_attrib2f(location, x, y),
+            WebGlAttributeValue::Float3(x, y, z) => gl.vertex_attrib3f(location, x, y, z),
+            WebGlAttributeValue::Float4(x, y, z, w) => gl.vertex_attrib4f(location, x, y, z, w),
+            WebGlAttributeValue::Integer4(x, y, z, w) => gl.vertex_attrib_i4i(location, x, y, z, w),
+            WebGlAttributeValue::UnsignedInteger4(x, y, z, w) => gl.vertex_attrib_i4ui(location, x, y, z, w),
+            WebGlAttributeValue::FloatVector1(v) => gl.vertex_attrib1fv_with_f32_array(location, v.data.as_slice()),
+            WebGlAttributeValue::FloatVector2(v) => gl.vertex_attrib2fv_with_f32_array(location, v.data.as_slice()),
+            WebGlAttributeValue::FloatVector3(v) => gl.vertex_attrib3fv_with_f32_array(location, v.data.as_slice()),
+            WebGlAttributeValue::FloatVector4(v) => gl.vertex_attrib4fv_with_f32_array(location, v.data.as_slice()),
+            WebGlAttributeValue::IntegerVector4(v) => gl.vertex_attrib_i4i(location, v.x, v.y, v.z, v.w),
+            WebGlAttributeValue::UnsignedIntegerVector4(v) => gl.vertex_attrib_i4ui(location, v.x, v.y, v.z, v.w),
+        };
+
+        Ok(())
+    }
+
     /// Sets a uniform value by specified uniform name.
-    pub fn set_uniform_value(&self, name: &str, value: &WebGlUniformValue) -> Result<(), Error> {
+    pub fn set_uniform_value(&self, name: &str, value: WebGlUniformValue) -> Result<(), Error> {
         let Some(using_program) = self.using_program.as_ref() else {
             return Err(Error::NoUsingProgram);
         };
@@ -173,27 +264,25 @@ impl Context {
     fn set_uniform_value_inner(
         gl: &WebGl2RenderingContext,
         location: &WebGlUniformLocation,
-        value: &WebGlUniformValue,
+        value: WebGlUniformValue,
     ) {
         match value {
-            WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if *v { 1 } else { 0 }),
-            WebGlUniformValue::Texture(v) => gl.uniform1i(Some(location), *v),
-            WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), *x),
-            WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), *x, *y),
-            WebGlUniformValue::Float3(x, y, z) => gl.uniform3f(Some(location), *x, *y, *z),
-            WebGlUniformValue::Float4(x, y, z, w) => gl.uniform4f(Some(location), *x, *y, *z, *w),
-            WebGlUniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), *x),
-            WebGlUniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), *x, *y),
-            WebGlUniformValue::UnsignedInteger3(x, y, z) => {
-                gl.uniform3ui(Some(location), *x, *y, *z)
-            }
+            WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if v { 1 } else { 0 }),
+            WebGlUniformValue::Texture(v) => gl.uniform1i(Some(location), v),
+            WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), x),
+            WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), x, y),
+            WebGlUniformValue::Float3(x, y, z) => gl.uniform3f(Some(location), x, y, z),
+            WebGlUniformValue::Float4(x, y, z, w) => gl.uniform4f(Some(location), x, y, z, w),
+            WebGlUniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), x),
+            WebGlUniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), x, y),
+            WebGlUniformValue::UnsignedInteger3(x, y, z) => gl.uniform3ui(Some(location), x, y, z),
             WebGlUniformValue::UnsignedInteger4(x, y, z, w) => {
-                gl.uniform4ui(Some(location), *x, *y, *z, *w)
+                gl.uniform4ui(Some(location), x, y, z, w)
             }
-            WebGlUniformValue::Integer1(x) => gl.uniform1i(Some(location), *x),
-            WebGlUniformValue::Integer2(x, y) => gl.uniform2i(Some(location), *x, *y),
-            WebGlUniformValue::Integer3(x, y, z) => gl.uniform3i(Some(location), *x, *y, *z),
-            WebGlUniformValue::Integer4(x, y, z, w) => gl.uniform4i(Some(location), *x, *y, *z, *w),
+            WebGlUniformValue::Integer1(x) => gl.uniform1i(Some(location), x),
+            WebGlUniformValue::Integer2(x, y) => gl.uniform2i(Some(location), x, y),
+            WebGlUniformValue::Integer3(x, y, z) => gl.uniform3i(Some(location), x, y, z),
+            WebGlUniformValue::Integer4(x, y, z, w) => gl.uniform4i(Some(location), x, y, z, w),
             WebGlUniformValue::FloatVector1(v) => {
                 gl.uniform1fv_with_f32_array(Some(location), v.data.as_slice())
             }
@@ -232,53 +321,53 @@ impl Context {
             }
             WebGlUniformValue::Matrix2 { data, transpose } => gl.uniform_matrix2fv_with_f32_array(
                 Some(location),
-                *transpose,
+                transpose,
                 data.data.as_slice(),
             ),
             WebGlUniformValue::Matrix3 { data, transpose } => gl.uniform_matrix3fv_with_f32_array(
                 Some(location),
-                *transpose,
+                transpose,
                 data.data.as_slice(),
             ),
             WebGlUniformValue::Matrix4 { data, transpose } => gl.uniform_matrix4fv_with_f32_array(
                 Some(location),
-                *transpose,
+                transpose,
                 data.data.as_slice(),
             ),
             WebGlUniformValue::Matrix3x2 { data, transpose } => gl
                 .uniform_matrix3x2fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
             WebGlUniformValue::Matrix4x2 { data, transpose } => gl
                 .uniform_matrix4x2fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
             WebGlUniformValue::Matrix2x3 { data, transpose } => gl
                 .uniform_matrix2x3fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
             WebGlUniformValue::Matrix4x3 { data, transpose } => gl
                 .uniform_matrix4x3fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
             WebGlUniformValue::Matrix2x4 { data, transpose } => gl
                 .uniform_matrix2x4fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
             WebGlUniformValue::Matrix3x4 { data, transpose } => gl
                 .uniform_matrix3x4fv_with_f32_array(
                     Some(location),
-                    *transpose,
+                    transpose,
                     data.data.as_slice(),
                 ),
         }
