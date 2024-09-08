@@ -3,8 +3,6 @@ use proc::GlEnum;
 
 use crate::anewthing::buffer::Buffer;
 
-use super::buffer::WebGlBufferData;
-
 /// Available number of components per vertex attribute.
 /// According to WebGL definition, it should only be `1`, `2`, `3` or `4`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -42,7 +40,7 @@ pub enum WebGlIndicesDataType {
 /// Available attribute values.
 pub enum WebGlAttributeValue<'a> {
     ArrayBuffer {
-        buffer: &'a mut Buffer<WebGlBufferData>,
+        buffer: &'a mut Buffer,
         component_size: WebGlArrayBufferComponentSize,
         data_type: WebGlArrayBufferDataType,
         normalized: bool,
@@ -50,7 +48,7 @@ pub enum WebGlAttributeValue<'a> {
         byte_offset: usize,
     },
     InstancedBuffer {
-        buffer: &'a mut Buffer<WebGlBufferData>,
+        buffer: &'a mut Buffer,
         component_size: WebGlArrayBufferComponentSize,
         instance_size: usize,
         data_type: WebGlArrayBufferDataType,

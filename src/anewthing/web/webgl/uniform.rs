@@ -7,8 +7,6 @@ use nalgebra::{
 
 use crate::anewthing::buffer::Buffer;
 
-use super::buffer::WebGlBufferData;
-
 /// Available uniform values.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WebGlUniformValue<'a> {
@@ -81,7 +79,7 @@ pub struct WebGlUniformBlockValue<'a, R>
 where
     R: RangeBounds<usize>,
 {
-    pub buffer: &'a mut Buffer<WebGlBufferData>,
+    pub buffer: &'a mut Buffer,
     pub range: R,
     pub mount_point: usize,
 }

@@ -11,7 +11,7 @@ use crate::anewthing::{buffer::Buffer, channel::Channel};
 
 use super::{
     attribute::WebGlAttributeValue,
-    buffer::{WebGlBufferData, WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget},
+    buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget},
     capabilities::WebGlCapabilities,
     client_wait::{WebGlClientWait, WebGlClientWaitFlag},
     error::Error,
@@ -237,13 +237,27 @@ impl Context {
             WebGlAttributeValue::Float3(x, y, z) => gl.vertex_attrib3f(location, x, y, z),
             WebGlAttributeValue::Float4(x, y, z, w) => gl.vertex_attrib4f(location, x, y, z, w),
             WebGlAttributeValue::Integer4(x, y, z, w) => gl.vertex_attrib_i4i(location, x, y, z, w),
-            WebGlAttributeValue::UnsignedInteger4(x, y, z, w) => gl.vertex_attrib_i4ui(location, x, y, z, w),
-            WebGlAttributeValue::FloatVector1(v) => gl.vertex_attrib1fv_with_f32_array(location, v.data.as_slice()),
-            WebGlAttributeValue::FloatVector2(v) => gl.vertex_attrib2fv_with_f32_array(location, v.data.as_slice()),
-            WebGlAttributeValue::FloatVector3(v) => gl.vertex_attrib3fv_with_f32_array(location, v.data.as_slice()),
-            WebGlAttributeValue::FloatVector4(v) => gl.vertex_attrib4fv_with_f32_array(location, v.data.as_slice()),
-            WebGlAttributeValue::IntegerVector4(v) => gl.vertex_attrib_i4i(location, v.x, v.y, v.z, v.w),
-            WebGlAttributeValue::UnsignedIntegerVector4(v) => gl.vertex_attrib_i4ui(location, v.x, v.y, v.z, v.w),
+            WebGlAttributeValue::UnsignedInteger4(x, y, z, w) => {
+                gl.vertex_attrib_i4ui(location, x, y, z, w)
+            }
+            WebGlAttributeValue::FloatVector1(v) => {
+                gl.vertex_attrib1fv_with_f32_array(location, v.data.as_slice())
+            }
+            WebGlAttributeValue::FloatVector2(v) => {
+                gl.vertex_attrib2fv_with_f32_array(location, v.data.as_slice())
+            }
+            WebGlAttributeValue::FloatVector3(v) => {
+                gl.vertex_attrib3fv_with_f32_array(location, v.data.as_slice())
+            }
+            WebGlAttributeValue::FloatVector4(v) => {
+                gl.vertex_attrib4fv_with_f32_array(location, v.data.as_slice())
+            }
+            WebGlAttributeValue::IntegerVector4(v) => {
+                gl.vertex_attrib_i4i(location, v.x, v.y, v.z, v.w)
+            }
+            WebGlAttributeValue::UnsignedIntegerVector4(v) => {
+                gl.vertex_attrib_i4ui(location, v.x, v.y, v.z, v.w)
+            }
         };
 
         Ok(())
@@ -319,21 +333,15 @@ impl Context {
             WebGlUniformValue::UnsignedIntegerVector4(v) => {
                 gl.uniform4uiv_with_u32_array(Some(location), v.data.as_slice())
             }
-            WebGlUniformValue::Matrix2 { data, transpose } => gl.uniform_matrix2fv_with_f32_array(
-                Some(location),
-                transpose,
-                data.data.as_slice(),
-            ),
-            WebGlUniformValue::Matrix3 { data, transpose } => gl.uniform_matrix3fv_with_f32_array(
-                Some(location),
-                transpose,
-                data.data.as_slice(),
-            ),
-            WebGlUniformValue::Matrix4 { data, transpose } => gl.uniform_matrix4fv_with_f32_array(
-                Some(location),
-                transpose,
-                data.data.as_slice(),
-            ),
+            WebGlUniformValue::Matrix2 { data, transpose } => {
+                gl.uniform_matrix2fv_with_f32_array(Some(location), transpose, data.data.as_slice())
+            }
+            WebGlUniformValue::Matrix3 { data, transpose } => {
+                gl.uniform_matrix3fv_with_f32_array(Some(location), transpose, data.data.as_slice())
+            }
+            WebGlUniformValue::Matrix4 { data, transpose } => {
+                gl.uniform_matrix4fv_with_f32_array(Some(location), transpose, data.data.as_slice())
+            }
             WebGlUniformValue::Matrix3x2 { data, transpose } => gl
                 .uniform_matrix3x2fv_with_f32_array(
                     Some(location),
@@ -427,7 +435,7 @@ impl Context {
     /// Unmounting previous mounted buffer if occupied.
     pub fn mount_uniform_buffer_object(
         &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
+        buffer: &mut Buffer,
         mount_point: usize,
     ) -> Result<(), Error> {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
@@ -445,7 +453,7 @@ impl Context {
     /// Unmounting previous mounted buffer if occupied.
     pub fn mount_uniform_buffer_object_by_range<R>(
         &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
+        buffer: &mut Buffer,
         mount_point: usize,
         range: R,
     ) -> Result<(), Error>
@@ -494,10 +502,7 @@ impl Context {
     }
 
     /// Reads buffer data into an [`Uint8Array`].
-    pub fn read_buffer(
-        &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
-    ) -> Result<Uint8Array, Error> {
+    pub fn read_buffer(&mut self, buffer: &mut Buffer) -> Result<Uint8Array, Error> {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
         Self::read_buffer_inner(&self.gl, &buffer_item, ..)
     }
@@ -505,7 +510,7 @@ impl Context {
     /// Reads buffer data into an [`Uint8Array`] with byte range.
     pub fn read_buffer_by_range<R>(
         &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
+        buffer: &mut Buffer,
         range: R,
     ) -> Result<Uint8Array, Error>
     where
@@ -518,7 +523,7 @@ impl Context {
     /// Reads buffer data into an [`Uint8Array`] asynchronously.
     pub async fn read_buffer_with_client_wait(
         &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
+        buffer: &mut Buffer,
         client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error> {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
@@ -529,7 +534,7 @@ impl Context {
     /// Reads buffer data into an [`Uint8Array`] with byte range asynchronously.
     pub async fn read_buffer_by_range_with_client_wait<R>(
         &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
+        buffer: &mut Buffer,
         byte_range: R,
         client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error>

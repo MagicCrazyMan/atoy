@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     cell::RefCell,
     ops::{Bound, Range, RangeBounds, RangeFrom},
     rc::Rc,
@@ -15,23 +14,36 @@ use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
 use crate::anewthing::{
-    buffer::{Buffer, BufferData, BufferDropped},
+    buffer::{Buffer, BufferBuilder, BufferData, BufferDropped},
     channel::{Channel, Event, Handler},
 };
 
 use super::error::Error;
 
+pub struct WebGlBufferOptions {
+    /// Buffer usage.
+    pub usage: WebGlBufferUsage,
+}
+
+impl Default for WebGlBufferOptions {
+    fn default() -> Self {
+        Self {
+            usage: WebGlBufferUsage::StaticDraw,
+        }
+    }
+}
+
 /// Available buffer targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum WebGlBufferTarget {
-    ArrayBuffer = 0,
-    ElementArrayBuffer = 1,
-    CopyReadBuffer = 2,
-    CopyWriteBuffer = 3,
-    TransformFeedbackBuffer = 4,
-    UniformBuffer = 5,
-    PixelPackBuffer = 6,
-    PixelUnpackBuffer = 7,
+    ArrayBuffer,
+    ElementArrayBuffer,
+    CopyReadBuffer,
+    CopyWriteBuffer,
+    TransformFeedbackBuffer,
+    UniformBuffer,
+    PixelPackBuffer,
+    PixelUnpackBuffer,
 }
 
 /// Available buffer usages mapped from [`WebGl2RenderingContext`].
@@ -56,66 +68,66 @@ pub enum WebGlBufferDataRange {
 }
 
 /// Buffer data.
-#[derive(Debug, Clone)]
-pub enum WebGlBufferData {
+#[derive(Clone)]
+pub enum WebGlBufferData<'a> {
     Binary {
-        data: Cow<'static, [u8]>,
+        data: &'a [u8],
         element_range: Option<WebGlBufferDataRange>,
     },
     ArrayBuffer {
-        data: ArrayBuffer,
+        data: &'a ArrayBuffer,
     },
     DataView {
-        data: DataView,
+        data: &'a DataView,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int8Array {
-        data: Int8Array,
+        data: &'a Int8Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint8Array {
-        data: Uint8Array,
+        data: &'a Uint8Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint8ClampedArray {
-        data: Uint8ClampedArray,
+        data: &'a Uint8ClampedArray,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int16Array {
-        data: Int16Array,
+        data: &'a Int16Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint16Array {
-        data: Uint16Array,
+        data: &'a Uint16Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int32Array {
-        data: Int32Array,
+        data: &'a Int32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint32Array {
-        data: Uint32Array,
+        data: &'a Uint32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Float32Array {
-        data: Float32Array,
+        data: &'a Float32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Float64Array {
-        data: Float64Array,
+        data: &'a Float64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     BigInt64Array {
-        data: BigInt64Array,
+        data: &'a BigInt64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     BigUint64Array {
-        data: BigUint64Array,
+        data: &'a BigUint64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
 }
 
-impl WebGlBufferData {
+impl<'a> WebGlBufferData<'a> {
     /// Returns the range of elements.
     /// For [`TypedArray`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray),
     /// element range is the offset of elements, not bytes.
@@ -155,27 +167,49 @@ impl WebGlBufferData {
     /// For [`TypedArray`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray),
     /// element length is the size of elements, not bytes.
     pub fn element_length(&self) -> usize {
+        let data_element_length = self.data_element_length();
         match self.element_range() {
             Some(range) => match range {
-                WebGlBufferDataRange::Range(range) => range.len(),
-                WebGlBufferDataRange::RangeFrom(_) => todo!(),
+                WebGlBufferDataRange::Range(range) => {
+                    if range.start > data_element_length {
+                        0
+                    } else if range.end > data_element_length {
+                        data_element_length - range.start
+                    } else {
+                        range.len()
+                    }
+                }
+                WebGlBufferDataRange::RangeFrom(range) => {
+                    if range.start > data_element_length {
+                        0
+                    } else {
+                        data_element_length - range.start
+                    }
+                }
             },
-            None => match self {
-                Self::Binary { data, .. } => data.len(),
-                Self::ArrayBuffer { data } => data.byte_length() as usize,
-                Self::DataView { data, .. } => data.byte_length(),
-                Self::Int8Array { data, .. } => data.length() as usize,
-                Self::Uint8Array { data, .. } => data.length() as usize,
-                Self::Uint8ClampedArray { data, .. } => data.length() as usize,
-                Self::Int16Array { data, .. } => data.length() as usize,
-                Self::Uint16Array { data, .. } => data.length() as usize,
-                Self::Int32Array { data, .. } => data.length() as usize,
-                Self::Uint32Array { data, .. } => data.length() as usize,
-                Self::Float32Array { data, .. } => data.length() as usize,
-                Self::Float64Array { data, .. } => data.length() as usize,
-                Self::BigInt64Array { data, .. } => data.length() as usize,
-                Self::BigUint64Array { data, .. } => data.length() as usize,
-            },
+            None => data_element_length,
+        }
+    }
+
+    /// Returns the length of elements of the whole data ignoring element range.
+    /// For [`TypedArray`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray),
+    /// element length is the size of elements, not bytes.
+    pub fn data_element_length(&self) -> usize {
+        match self {
+            Self::Binary { data, .. } => data.len(),
+            Self::ArrayBuffer { data } => data.byte_length() as usize,
+            Self::DataView { data, .. } => data.byte_length(),
+            Self::Int8Array { data, .. } => data.length() as usize,
+            Self::Uint8Array { data, .. } => data.length() as usize,
+            Self::Uint8ClampedArray { data, .. } => data.length() as usize,
+            Self::Int16Array { data, .. } => data.length() as usize,
+            Self::Uint16Array { data, .. } => data.length() as usize,
+            Self::Int32Array { data, .. } => data.length() as usize,
+            Self::Uint32Array { data, .. } => data.length() as usize,
+            Self::Float32Array { data, .. } => data.length() as usize,
+            Self::Float64Array { data, .. } => data.length() as usize,
+            Self::BigInt64Array { data, .. } => data.length() as usize,
+            Self::BigUint64Array { data, .. } => data.length() as usize,
         }
     }
 
@@ -261,9 +295,13 @@ impl WebGlBufferData {
     }
 }
 
-impl BufferData for WebGlBufferData {
+impl<'a> BufferData for WebGlBufferData<'a> {
     fn byte_length(&self) -> usize {
         self.byte_length()
+    }
+
+    fn as_webgl_buffer_data(&self) -> Option<WebGlBufferData> {
+        Some(self.clone())
     }
 }
 
@@ -336,11 +374,13 @@ impl WebGlBufferManager {
     pub fn create_buffer(
         &mut self,
         byte_length: usize,
-        growable: bool,
         usage: WebGlBufferUsage,
-    ) -> Result<Buffer<WebGlBufferData>, Error> {
+    ) -> Result<Buffer, Error> {
         let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-        let buffer = Buffer::with_size(byte_length, growable);
+        let buffer = BufferBuilder::new()
+            .set_byte_length(byte_length)
+            .set_webgl_options(WebGlBufferOptions { usage })
+            .build();
         self.gl.bind_buffer(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
             Some(&gl_buffer),
@@ -364,11 +404,8 @@ impl WebGlBufferManager {
         Ok(buffer)
     }
 
-    pub fn sync_buffer(
-        &mut self,
-        buffer: &mut Buffer<WebGlBufferData>,
-    ) -> Result<WebGlBufferItem, Error> {
-        if let Some(synced_id) = buffer.synced_id() {
+    pub fn sync_buffer(&mut self, buffer: &mut Buffer) -> Result<WebGlBufferItem, Error> {
+        if let Some(synced_id) = buffer.manager_id() {
             if synced_id != &self.id {
                 return Err(Error::BufferManagedByOtherManager);
             }
@@ -420,22 +457,21 @@ impl WebGlBufferManager {
 
                 self.gl
                     .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), Some(gl_buffer));
-                for item in buffer.drain_queue() {
-                    item.data().buffer_sub_data(
+                for item in buffer.drain() {
+                    let Some(data) = item.data.as_webgl_buffer_data() else {
+                        panic!("buffer data is not a valid WebGlBufferData");
+                    };
+                    data.buffer_sub_data(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
-                        item.dst_byte_offset(),
+                        item.dst_byte_offset,
                     );
                 }
 
                 buffer_item
             }
             Entry::Vacant(entry) => {
-                let usage = if buffer.growable() {
-                    WebGlBufferUsage::DynamicDraw
-                } else {
-                    WebGlBufferUsage::StaticDraw
-                };
+                let usage = WebGlBufferUsage::StaticDraw;
                 let byte_length = buffer.byte_length();
 
                 let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
@@ -448,11 +484,14 @@ impl WebGlBufferManager {
                     byte_length as i32,
                     usage.to_gl_enum(),
                 );
-                for item in buffer.drain_queue() {
-                    item.data().buffer_sub_data(
+                for item in buffer.drain() {
+                    let Some(data) = item.data.as_webgl_buffer_data() else {
+                        panic!("buffer data is not a valid WebGlBufferData");
+                    };
+                    data.buffer_sub_data(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
-                        item.dst_byte_offset(),
+                        item.dst_byte_offset,
                     );
                 }
 
@@ -461,7 +500,7 @@ impl WebGlBufferManager {
                     gl_buffer: gl_buffer.clone(),
                     usage,
                 };
-                buffer.set_synced(self.channel.clone(), self.id);
+                buffer.set_managed(self.channel.clone(), self.id);
 
                 entry.insert(buffer_item)
             }
@@ -494,6 +533,6 @@ impl BufferDroppedHandler {
 
 impl Handler<BufferDropped> for BufferDroppedHandler {
     fn handle(&mut self, evt: &mut Event<'_, BufferDropped>) {
-        self.buffers.borrow_mut().remove(evt.buffer_id());
+        self.buffers.borrow_mut().remove(evt.id());
     }
 }

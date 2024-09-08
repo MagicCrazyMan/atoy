@@ -12,6 +12,8 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 rebind = []
 string_key = []
+web = []
+webgl = ["web"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2.92" }
