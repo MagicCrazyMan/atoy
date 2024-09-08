@@ -1,11 +1,15 @@
-use nalgebra::{Matrix2, Matrix3, Matrix4, Vector1, Vector2, Vector3, Vector4};
+use std::fmt::Debug;
 
-
+use nalgebra::{
+    Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3,
+    Vector1, Vector2, Vector3, Vector4,
+};
 
 /// Available uniform values.
-pub enum WebGlUniformValue {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WebGlUniformValue<'a> {
     Bool(bool),
-    Texture(u32),
+    Texture(i32),
     Float1(f32),
     Float2(f32, f32),
     Float3(f32, f32, f32),
@@ -18,19 +22,52 @@ pub enum WebGlUniformValue {
     Integer2(i32, i32),
     Integer3(i32, i32, i32),
     Integer4(i32, i32, i32, i32),
-    FloatVector1(Vector1<f32>),
-    FloatVector2(Vector2<f32>),
-    FloatVector3(Vector3<f32>),
-    FloatVector4(Vector4<f32>),
-    IntegerVector1(Vector1<i32>),
-    IntegerVector2(Vector2<i32>),
-    IntegerVector3(Vector3<i32>),
-    IntegerVector4(Vector4<i32>),
-    UnsignedIntegerVector1(Vector1<u32>),
-    UnsignedIntegerVector2(Vector2<u32>),
-    UnsignedIntegerVector3(Vector3<u32>),
-    UnsignedIntegerVector4(Vector4<u32>),
-    Matrix2 { data: Matrix2<f32>, transpose: bool },
-    Matrix3 { data: Matrix3<f32>, transpose: bool },
-    Matrix4 { data: Matrix4<f32>, transpose: bool },
+    FloatVector1(&'a Vector1<f32>),
+    FloatVector2(&'a Vector2<f32>),
+    FloatVector3(&'a Vector3<f32>),
+    FloatVector4(&'a Vector4<f32>),
+    IntegerVector1(&'a Vector1<i32>),
+    IntegerVector2(&'a Vector2<i32>),
+    IntegerVector3(&'a Vector3<i32>),
+    IntegerVector4(&'a Vector4<i32>),
+    UnsignedIntegerVector1(&'a Vector1<u32>),
+    UnsignedIntegerVector2(&'a Vector2<u32>),
+    UnsignedIntegerVector3(&'a Vector3<u32>),
+    UnsignedIntegerVector4(&'a Vector4<u32>),
+    Matrix2 {
+        data: &'a Matrix2<f32>,
+        transpose: bool,
+    },
+    Matrix3 {
+        data: &'a Matrix3<f32>,
+        transpose: bool,
+    },
+    Matrix4 {
+        data: &'a Matrix4<f32>,
+        transpose: bool,
+    },
+    Matrix3x2 {
+        data: &'a Matrix3x2<f32>,
+        transpose: bool,
+    },
+    Matrix4x2 {
+        data: &'a Matrix4x2<f32>,
+        transpose: bool,
+    },
+    Matrix2x3 {
+        data: &'a Matrix2x3<f32>,
+        transpose: bool,
+    },
+    Matrix4x3 {
+        data: &'a Matrix4x3<f32>,
+        transpose: bool,
+    },
+    Matrix2x4 {
+        data: &'a Matrix2x4<f32>,
+        transpose: bool,
+    },
+    Matrix3x4 {
+        data: &'a Matrix3x4<f32>,
+        transpose: bool,
+    },
 }

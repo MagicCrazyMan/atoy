@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::LazyCell, hash::Hash, ops::Range};
+use std::{borrow::Cow, cell::LazyCell, hash::Hash, ops::Range, rc::Rc};
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use line_span::LineSpanExt;
@@ -463,11 +463,12 @@ struct WebGlProgramKey {
     fragment_shader_id: Uuid,
 }
 
+#[derive(Clone)]
 pub struct WebGlProgramItem {
     gl_program: WebGlProgram,
-    attributes: HashMap<String, u32>,
-    uniforms: HashMap<String, WebGlUniformLocation>,
-    uniform_blocks: HashMap<String, u32>,
+    attributes: Rc<HashMap<String, u32>>,
+    uniforms: Rc<HashMap<String, WebGlUniformLocation>>,
+    uniform_blocks: Rc<HashMap<String, u32>>,
 }
 
 impl WebGlProgramItem {
@@ -552,7 +553,7 @@ impl WebGlProgramManager {
         &mut self,
         vertex: &VS,
         fragment: &FS,
-    ) -> Result<&WebGlProgramItem, Error>
+    ) -> Result<WebGlProgramItem, Error>
     where
         VS: WebGlShaderSource,
         FS: WebGlShaderSource,
@@ -577,20 +578,20 @@ impl WebGlProgramManager {
         let program = match self.programs.entry(cache_key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                let program = Self::create_program(&self.gl, &vs, &fs)?;
-                let attributes = Self::collects_attributes(&self.gl, &program);
-                let uniforms = Self::collects_uniforms(&self.gl, &program);
-                let uniform_blocks = Self::collects_uniform_blocks(&self.gl, &program);
+                let gl_program = Self::create_program(&self.gl, &vs, &fs)?;
+                let attributes = Self::collects_attributes(&self.gl, &gl_program);
+                let uniforms = Self::collects_uniforms(&self.gl, &gl_program);
+                let uniform_blocks = Self::collects_uniform_blocks(&self.gl, &gl_program);
                 let program = WebGlProgramItem {
-                    gl_program: program,
-                    attributes,
-                    uniforms,
-                    uniform_blocks,
+                    gl_program,
+                    attributes: Rc::new(attributes),
+                    uniforms: Rc::new(uniforms),
+                    uniform_blocks: Rc::new(uniform_blocks),
                 };
                 entry.insert(program)
             }
         };
-        Ok(program)
+        Ok(program.clone())
     }
 
     // /// Unbinds current using program from [`WebGl2RenderingContext`].

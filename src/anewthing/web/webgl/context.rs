@@ -25,7 +25,7 @@ pub struct Context {
     buffer_manager: WebGlBufferManager,
     capabilities: WebGlCapabilities,
 
-    using_program: Option<WebGlProgram>,
+    using_program: Option<WebGlProgramItem>,
     using_uniform_buffer_objects: HashMap<usize, (WebGlBuffer, Range<usize>)>,
 }
 
@@ -132,73 +132,161 @@ impl Context {
         &mut self,
         vertex: &VS,
         fragment: &FS,
-    ) -> Result<&WebGlProgramItem, Error>
+    ) -> Result<WebGlProgramItem, Error>
     where
         VS: WebGlShaderSource,
         FS: WebGlShaderSource,
     {
-        let program = self
+        let program_item = self
             .program_manager
             .get_or_compile_program(vertex, fragment)?;
-        Self::use_program_inner(&self.gl, &mut self.using_program, program);
-        Ok(program)
+        Self::use_program_inner(&self.gl, &mut self.using_program, &program_item);
+        Ok(program_item)
     }
 
     /// Uses a compiled [`WebGlProgramItem`] to this WebGl context.
     fn use_program_inner(
         gl: &WebGl2RenderingContext,
-        using_program: &mut Option<WebGlProgram>,
-        program: &WebGlProgramItem,
+        using_program: &mut Option<WebGlProgramItem>,
+        program_item: &WebGlProgramItem,
     ) {
-        if using_program.as_ref() == Some(program.gl_program()) {
+        if using_program.as_ref().map(|i| i.gl_program()) == Some(program_item.gl_program()) {
             return;
         }
 
-        gl.use_program(Some(program.gl_program()));
-        *using_program = Some(program.gl_program().clone());
+        gl.use_program(Some(program_item.gl_program()));
+        *using_program = Some(program_item.clone());
     }
 
-    fn upload_uniform_value_inner(
+    /// Sets a uniform value by specified uniform name.
+    pub fn set_uniform_value(&self, name: &str, value: &WebGlUniformValue) -> Result<(), Error> {
+        let Some(using_program) = self.using_program.as_ref() else {
+            return Err(Error::NoUsingProgram);
+        };
+        let Some(location) = using_program.uniform_location(name) else {
+            return Err(Error::UniformLocationNotFound(name.to_string()));
+        };
+        Self::set_uniform_value_inner(&self.gl, location, value);
+        Ok(())
+    }
+
+    fn set_uniform_value_inner(
         gl: &WebGl2RenderingContext,
         location: &WebGlUniformLocation,
-        uniform_value: WebGlUniformValue,
+        value: &WebGlUniformValue,
     ) {
-        match uniform_value {
-            WebGlUniformValue::Bool(v) => gl.uniform1i(Some(&location), if v { 1 } else { 0 }),
-            WebGlUniformValue::Texture(_) => todo!(),
-            WebGlUniformValue::Float1(_) => todo!(),
-            WebGlUniformValue::Float2(_, _) => todo!(),
-            WebGlUniformValue::Float3(_, _, _) => todo!(),
-            WebGlUniformValue::Float4(_, _, _, _) => todo!(),
-            WebGlUniformValue::UnsignedInteger1(_) => todo!(),
-            WebGlUniformValue::UnsignedInteger2(_, _) => todo!(),
-            WebGlUniformValue::UnsignedInteger3(_, _, _) => todo!(),
-            WebGlUniformValue::UnsignedInteger4(_, _, _, _) => todo!(),
-            WebGlUniformValue::Integer1(_) => todo!(),
-            WebGlUniformValue::Integer2(_, _) => todo!(),
-            WebGlUniformValue::Integer3(_, _, _) => todo!(),
-            WebGlUniformValue::Integer4(_, _, _, _) => todo!(),
-            WebGlUniformValue::FloatVector1(_) => todo!(),
-            WebGlUniformValue::FloatVector2(_) => todo!(),
-            WebGlUniformValue::FloatVector3(_) => todo!(),
-            WebGlUniformValue::FloatVector4(_) => todo!(),
-            WebGlUniformValue::IntegerVector1(_) => todo!(),
-            WebGlUniformValue::IntegerVector2(_) => todo!(),
-            WebGlUniformValue::IntegerVector3(_) => todo!(),
-            WebGlUniformValue::IntegerVector4(_) => todo!(),
-            WebGlUniformValue::UnsignedIntegerVector1(_) => todo!(),
-            WebGlUniformValue::UnsignedIntegerVector2(_) => todo!(),
-            WebGlUniformValue::UnsignedIntegerVector3(_) => todo!(),
-            WebGlUniformValue::UnsignedIntegerVector4(_) => todo!(),
-            WebGlUniformValue::Matrix2 { data, transpose } => todo!(),
-            WebGlUniformValue::Matrix3 { data, transpose } => todo!(),
-            WebGlUniformValue::Matrix4 { data, transpose } => todo!(),
+        match value {
+            WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if *v { 1 } else { 0 }),
+            WebGlUniformValue::Texture(v) => gl.uniform1i(Some(location), *v),
+            WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), *x),
+            WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), *x, *y),
+            WebGlUniformValue::Float3(x, y, z) => gl.uniform3f(Some(location), *x, *y, *z),
+            WebGlUniformValue::Float4(x, y, z, w) => gl.uniform4f(Some(location), *x, *y, *z, *w),
+            WebGlUniformValue::UnsignedInteger1(x) => gl.uniform1ui(Some(location), *x),
+            WebGlUniformValue::UnsignedInteger2(x, y) => gl.uniform2ui(Some(location), *x, *y),
+            WebGlUniformValue::UnsignedInteger3(x, y, z) => {
+                gl.uniform3ui(Some(location), *x, *y, *z)
+            }
+            WebGlUniformValue::UnsignedInteger4(x, y, z, w) => {
+                gl.uniform4ui(Some(location), *x, *y, *z, *w)
+            }
+            WebGlUniformValue::Integer1(x) => gl.uniform1i(Some(location), *x),
+            WebGlUniformValue::Integer2(x, y) => gl.uniform2i(Some(location), *x, *y),
+            WebGlUniformValue::Integer3(x, y, z) => gl.uniform3i(Some(location), *x, *y, *z),
+            WebGlUniformValue::Integer4(x, y, z, w) => gl.uniform4i(Some(location), *x, *y, *z, *w),
+            WebGlUniformValue::FloatVector1(v) => {
+                gl.uniform1fv_with_f32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::FloatVector2(v) => {
+                gl.uniform2fv_with_f32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::FloatVector3(v) => {
+                gl.uniform3fv_with_f32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::FloatVector4(v) => {
+                gl.uniform4fv_with_f32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::IntegerVector1(v) => {
+                gl.uniform1iv_with_i32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::IntegerVector2(v) => {
+                gl.uniform2iv_with_i32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::IntegerVector3(v) => {
+                gl.uniform3iv_with_i32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::IntegerVector4(v) => {
+                gl.uniform4iv_with_i32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::UnsignedIntegerVector1(v) => {
+                gl.uniform1uiv_with_u32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::UnsignedIntegerVector2(v) => {
+                gl.uniform2uiv_with_u32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::UnsignedIntegerVector3(v) => {
+                gl.uniform3uiv_with_u32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::UnsignedIntegerVector4(v) => {
+                gl.uniform4uiv_with_u32_array(Some(location), v.data.as_slice())
+            }
+            WebGlUniformValue::Matrix2 { data, transpose } => gl.uniform_matrix2fv_with_f32_array(
+                Some(location),
+                *transpose,
+                data.data.as_slice(),
+            ),
+            WebGlUniformValue::Matrix3 { data, transpose } => gl.uniform_matrix3fv_with_f32_array(
+                Some(location),
+                *transpose,
+                data.data.as_slice(),
+            ),
+            WebGlUniformValue::Matrix4 { data, transpose } => gl.uniform_matrix4fv_with_f32_array(
+                Some(location),
+                *transpose,
+                data.data.as_slice(),
+            ),
+            WebGlUniformValue::Matrix3x2 { data, transpose } => gl
+                .uniform_matrix3x2fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
+            WebGlUniformValue::Matrix4x2 { data, transpose } => gl
+                .uniform_matrix4x2fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
+            WebGlUniformValue::Matrix2x3 { data, transpose } => gl
+                .uniform_matrix2x3fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
+            WebGlUniformValue::Matrix4x3 { data, transpose } => gl
+                .uniform_matrix4x3fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
+            WebGlUniformValue::Matrix2x4 { data, transpose } => gl
+                .uniform_matrix2x4fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
+            WebGlUniformValue::Matrix3x4 { data, transpose } => gl
+                .uniform_matrix3x4fv_with_f32_array(
+                    Some(location),
+                    *transpose,
+                    data.data.as_slice(),
+                ),
         }
     }
 
     /// Binds a buffer to uniform buffer object mount point.
     /// Unmounting previous mounted buffer if occupied.
-    pub fn mount_uniform_buffer_object_base(
+    pub fn mount_uniform_buffer_object(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
         mount_point: usize,
@@ -215,7 +303,7 @@ impl Context {
 
     /// Binds a buffer range to uniform buffer object mount point.
     /// Unmounting previous mounted buffer if occupied.
-    pub fn mount_uniform_buffer_object_range<R>(
+    pub fn mount_uniform_buffer_object_by_range<R>(
         &mut self,
         buffer: &mut Buffer<WebGlBufferData>,
         mount_point: usize,

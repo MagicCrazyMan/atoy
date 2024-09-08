@@ -9,6 +9,8 @@ pub enum Error {
     CompileShaderFailure(Option<String>),
     CreateProgramFailure,
     ProgramNotFound,
+    NoUsingProgram,
+    UniformLocationNotFound(String),
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
     BufferManagedByOtherManager,
