@@ -11,6 +11,7 @@ pub enum Error {
     ProgramNotFound,
     NoUsingProgram,
     UniformLocationNotFound(String),
+    UniformBlockLocationNotFound(String),
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
     BufferManagedByOtherManager,
