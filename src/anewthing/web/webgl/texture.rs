@@ -7,9 +7,11 @@ use web_sys::{WebGl2RenderingContext, WebGlSampler, WebGlTexture};
 
 use crate::anewthing::channel::Channel;
 
-/// Available texture targets mapped from [`WebGl2RenderingContext`].
+use super::capabilities::WebGlCapabilities;
+
+/// Available texture layouts mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureTarget {
+pub enum WebGlTextureLayout {
     #[gl_enum(TEXTURE_2D)]
     Texture2D,
     TextureCubeMap,
@@ -694,33 +696,82 @@ pub enum WebGlImagePixelFormat {
     DepthStencil,
 }
 
-/// Available texture format pairs mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureFormatPair {}
-
 #[derive(Clone)]
 pub struct WebGlTextureItem {
     gl_texture: WebGlTexture,
     gl_sampler: WebGlSampler,
-    byte_length: usize,
-    // internal_format.
+    layout: WebGlTextureLayout,
+    internal_format: WebGlTextureInternalFormat,
+    width: usize,
+    height: usize,
+    levels: usize,
+    depth: usize,
+}
+
+impl WebGlTextureItem {
+    /// Returns native [`WebGlTexture`].
+    pub fn gl_texture(&self) -> &WebGlTexture {
+        &self.gl_texture
+    }
+
+    /// Returns native [`WebGlSampler`].
+    pub fn gl_sampler(&self) -> &WebGlSampler {
+        &self.gl_sampler
+    }
+
+    /// Returns [`WebGlTextureLayout`].
+    pub fn layout(&self) -> WebGlTextureLayout {
+        self.layout
+    }
+
+    /// Returns [`WebGlTextureInternalFormat`].
+    pub fn internal_format(&self) -> WebGlTextureInternalFormat {
+        self.internal_format
+    }
+
+    /// Returns width of the texture.
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Returns height of the texture.
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    /// Returns levels of the texture.
+    pub fn levels(&self) -> usize {
+        self.levels
+    }
+
+    /// Returns depth of the texture.
+    /// Useless when texture layout is not [`WebGlTextureLayout::Texture3D`] or [`WebGlTextureLayout::Texture2DArray`].
+    pub fn depth(&self) -> usize {
+        self.depth
+    }
 }
 
 pub struct WebGlTextureManager {
     id: Uuid,
     gl: WebGl2RenderingContext,
+    capabilities: WebGlCapabilities,
     channel: Channel,
     textures: Rc<RefCell<HashMap<Uuid, WebGlTextureItem>>>,
 }
 
 impl WebGlTextureManager {
-    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
+    pub fn new(
+        gl: WebGl2RenderingContext,
+        capabilities: WebGlCapabilities,
+        channel: Channel,
+    ) -> Self {
         let textures = Rc::new(RefCell::new(HashMap::new()));
         // channel.on::<TextureDropped>(TextureDroppedHandler::new(Rc::clone(&textures)));
 
         Self {
             id: Uuid::new_v4(),
             gl,
+            capabilities,
             channel,
             textures,
         }

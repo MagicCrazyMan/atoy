@@ -7,7 +7,14 @@ use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlUniformLocation};
 use crate::anewthing::{buffer::Buffer, channel::Channel};
 
 use super::{
-    attribute::WebGlAttributeValue, buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget, WebGlBufferUsage}, capabilities::WebGlCapabilities, client_wait::WebGlClientWait, error::Error, program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource}, texture::WebGlTextureManager, uniform::{WebGlUniformBlockValue, WebGlUniformValue}
+    attribute::WebGlAttributeValue,
+    buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget, WebGlBufferUsage},
+    capabilities::WebGlCapabilities,
+    client_wait::WebGlClientWait,
+    error::Error,
+    program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
+    texture::WebGlTextureManager,
+    uniform::{WebGlUniformBlockValue, WebGlUniformValue},
 };
 
 pub struct Context {
@@ -25,11 +32,16 @@ pub struct Context {
 impl Context {
     /// Constructs a new WebGl drawing context.
     pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
+        let capabilities = WebGlCapabilities::new(gl.clone());
         Self {
             program_manager: WebGlProgramManager::new(gl.clone()),
             buffer_manager: WebGlBufferManager::new(gl.clone(), channel.clone()),
-            texture_manager: WebGlTextureManager::new(gl.clone(), channel.clone()),
-            capabilities: WebGlCapabilities::new(gl.clone()),
+            texture_manager: WebGlTextureManager::new(
+                gl.clone(),
+                capabilities.clone(),
+                channel.clone(),
+            ),
+            capabilities,
             gl,
             channel,
 

@@ -229,7 +229,7 @@ macro_rules! web_typed_arrays {
             }
 
 
-            #[cfg(feature = "web")]
+            #[cfg(feature = "webgl")]
             impl BufferData for (js_sys::$buffer, super::web::webgl::buffer::WebGlBufferDataRange) {
                 fn byte_length(&self) -> usize {
                     let data_element_length = self.0.$length() as usize;
@@ -255,7 +255,6 @@ macro_rules! web_typed_arrays {
                     element_length * $size
                 }
 
-                #[cfg(feature = "webgl")]
                 fn as_webgl_buffer_data(&self) -> Option<super::web::webgl::buffer::WebGlBufferData> {
                     Some(super::web::webgl::buffer::WebGlBufferData::$buffer { data: &self.0, element_range: Some(self.1.clone()) })
                 }

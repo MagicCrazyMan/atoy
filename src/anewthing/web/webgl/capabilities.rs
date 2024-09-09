@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use wasm_bindgen::JsCast;
 use web_sys::{WebGl2RenderingContext, WebglDebugShaders, WebglLoseContext};
@@ -53,12 +53,13 @@ pub const EXTENSION_WEBGL_COMPRESSED_TEXTURE_ASTC: &'static str = "WEBGL_compres
 pub const EXTENSION_EXT_TEXTURE_COMPRESSION_BPTC: &'static str = "EXT_texture_compression_bptc";
 pub const EXTENSION_EXT_TEXTURE_COMPRESSION_RGTC: &'static str = "EXT_texture_compression_rgtc";
 
-pub struct WebGlCapabilities(RefCell<Capabilities>);
+#[derive(Clone)]
+pub struct WebGlCapabilities(Rc<RefCell<Capabilities>>);
 
 impl WebGlCapabilities {
     /// COnstructs a new WebGL capabilities container.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
-        Self(RefCell::new(Capabilities {
+        Self(Rc::new(RefCell::new(Capabilities {
             gl,
 
             max_client_wait_timeout: None,
@@ -81,7 +82,7 @@ impl WebGlCapabilities {
             compressed_astc: None,
             compressed_bptc: None,
             compressed_rgtc: None,
-        }))
+        })))
     }
 
     /// Returns [`WebglDebugShaders`] if [`WEBGL_debug_shaders`](https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_debug_shaders) is supported.
