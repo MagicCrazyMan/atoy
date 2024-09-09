@@ -1,7 +1,4 @@
-use std::{
-    ops::{Range, RangeBounds},
-    time::Duration,
-};
+use std::ops::{Range, RangeBounds};
 
 use hashbrown::HashMap;
 use js_sys::Uint8Array;
@@ -10,13 +7,7 @@ use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlUniformLocation};
 use crate::anewthing::{buffer::Buffer, channel::Channel};
 
 use super::{
-    attribute::WebGlAttributeValue,
-    buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget},
-    capabilities::WebGlCapabilities,
-    client_wait::{WebGlClientWait, WebGlClientWaitFlag},
-    error::Error,
-    program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
-    uniform::{WebGlUniformBlockValue, WebGlUniformValue},
+    attribute::WebGlAttributeValue, buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget, WebGlBufferUsage}, capabilities::WebGlCapabilities, client_wait::WebGlClientWait, error::Error, program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource}, texture::WebGlTextureManager, uniform::{WebGlUniformBlockValue, WebGlUniformValue}
 };
 
 pub struct Context {
@@ -24,6 +15,7 @@ pub struct Context {
     channel: Channel,
     program_manager: WebGlProgramManager,
     buffer_manager: WebGlBufferManager,
+    texture_manager: WebGlTextureManager,
     capabilities: WebGlCapabilities,
 
     using_program: Option<WebGlProgramItem>,
@@ -36,6 +28,7 @@ impl Context {
         Self {
             program_manager: WebGlProgramManager::new(gl.clone()),
             buffer_manager: WebGlBufferManager::new(gl.clone(), channel.clone()),
+            texture_manager: WebGlTextureManager::new(gl.clone(), channel.clone()),
             capabilities: WebGlCapabilities::new(gl.clone()),
             gl,
             channel,
@@ -75,57 +68,61 @@ impl Context {
         &mut self.buffer_manager
     }
 
+    /// Returns [`WebGlTextureManager`].
+    pub fn texture_manager(&self) -> &WebGlTextureManager {
+        &self.texture_manager
+    }
+
+    /// Returns mutable [`WebGlTextureManager`].
+    pub fn texture_manager_mut(&mut self) -> &mut WebGlTextureManager {
+        &mut self.texture_manager
+    }
+
     /// Returns [`WebGlCapabilities`].
     pub fn capabilities(&self) -> &WebGlCapabilities {
         &self.capabilities
     }
 
-    /// Creates a new [`WebGlClientWait`].
-    pub fn create_client_wait(&self, wait_timeout: Duration) -> WebGlClientWait {
-        WebGlClientWait::new(self.gl.clone(), wait_timeout)
-    }
+    // /// Creates a new [`WebGlClientWait`].
+    // pub fn create_client_wait(&self, wait_timeout: Duration) -> WebGlClientWait {
+    //     WebGlClientWait::new(wait_timeout)
+    // }
 
-    /// Creates a new [`WebGlClientWait`] with retries.
-    pub fn create_client_wait_with_retries(
-        &self,
-        wait_timeout: Duration,
-        retry_interval: Duration,
-        max_retries: usize,
-    ) -> WebGlClientWait {
-        WebGlClientWait::with_retries(self.gl.clone(), wait_timeout, retry_interval, max_retries)
-    }
+    // /// Creates a new [`WebGlClientWait`] with retries.
+    // pub fn create_client_wait_with_retries(
+    //     &self,
+    //     wait_timeout: Duration,
+    //     retry_interval: Duration,
+    //     max_retries: usize,
+    // ) -> WebGlClientWait {
+    //     WebGlClientWait::with_retries(wait_timeout, retry_interval, max_retries)
+    // }
 
-    /// Creates a new [`WebGlClientWait`] with flags.
-    pub fn create_client_wait_with_flags<I>(
-        &self,
-        wait_timeout: Duration,
-        flags: I,
-    ) -> WebGlClientWait
-    where
-        I: IntoIterator<Item = WebGlClientWaitFlag>,
-    {
-        WebGlClientWait::with_flags(self.gl.clone(), wait_timeout, flags)
-    }
+    // /// Creates a new [`WebGlClientWait`] with flags.
+    // pub fn create_client_wait_with_flags<I>(
+    //     &self,
+    //     wait_timeout: Duration,
+    //     flags: I,
+    // ) -> WebGlClientWait
+    // where
+    //     I: IntoIterator<Item = WebGlClientWaitFlag>,
+    // {
+    //     WebGlClientWait::with_flags(wait_timeout, flags)
+    // }
 
-    /// Creates a new [`WebGlClientWait`] with flags and retries.
-    pub fn create_client_wait_with_flags_and_retries<I>(
-        &self,
-        wait_timeout: Duration,
-        retry_interval: Duration,
-        max_retries: usize,
-        flags: I,
-    ) -> WebGlClientWait
-    where
-        I: IntoIterator<Item = WebGlClientWaitFlag>,
-    {
-        WebGlClientWait::with_flags_and_retries(
-            self.gl.clone(),
-            wait_timeout,
-            retry_interval,
-            max_retries,
-            flags,
-        )
-    }
+    // /// Creates a new [`WebGlClientWait`] with flags and retries.
+    // pub fn create_client_wait_with_flags_and_retries<I>(
+    //     &self,
+    //     wait_timeout: Duration,
+    //     retry_interval: Duration,
+    //     max_retries: usize,
+    //     flags: I,
+    // ) -> WebGlClientWait
+    // where
+    //     I: IntoIterator<Item = WebGlClientWaitFlag>,
+    // {
+    //     WebGlClientWait::with_flags_and_retries(wait_timeout, retry_interval, max_retries, flags)
+    // }
 
     /// Compiles shader sources and then uses the compiled program.
     /// Returns the compiled [`WebGlProgramItem`] as well.
@@ -503,21 +500,21 @@ impl Context {
 
     /// Reads buffer data into an [`Uint8Array`].
     pub fn read_buffer(&mut self, buffer: &mut Buffer) -> Result<Uint8Array, Error> {
-        let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        Self::read_buffer_inner(&self.gl, &buffer_item, ..)
+        self.read_buffer_by_range(buffer, ..)
     }
 
     /// Reads buffer data into an [`Uint8Array`] with byte range.
     pub fn read_buffer_by_range<R>(
         &mut self,
         buffer: &mut Buffer,
-        range: R,
+        byte_range: R,
     ) -> Result<Uint8Array, Error>
     where
         R: RangeBounds<usize>,
     {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        Self::read_buffer_inner(&self.gl, &buffer_item, range)
+        let byte_range = buffer_item.normalize_byte_range(byte_range);
+        Self::read_buffer_inner(&self.gl, buffer_item.gl_buffer(), byte_range)
     }
 
     /// Reads buffer data into an [`Uint8Array`] asynchronously.
@@ -526,9 +523,8 @@ impl Context {
         buffer: &mut Buffer,
         client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error> {
-        let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        client_wait.client_wait().await?;
-        Self::read_buffer_inner(&self.gl, &buffer_item, ..)
+        self.read_buffer_by_range_with_client_wait(buffer, .., client_wait)
+            .await
     }
 
     /// Reads buffer data into an [`Uint8Array`] with byte range asynchronously.
@@ -542,26 +538,51 @@ impl Context {
         R: RangeBounds<usize>,
     {
         let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
-        client_wait.client_wait().await?;
-        Self::read_buffer_inner(&self.gl, &buffer_item, byte_range)
+        let tmp_gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.gl.bind_buffer(
+            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+            Some(buffer_item.gl_buffer()),
+        );
+        self.gl.bind_buffer(
+            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            Some(&tmp_gl_buffer),
+        );
+        self.gl.buffer_data_with_i32(
+            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            buffer_item.byte_length() as i32,
+            WebGlBufferUsage::StreamRead.to_gl_enum(),
+        );
+        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
+            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            0,
+            0,
+            buffer_item.byte_length() as i32,
+        );
+        self.gl
+            .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+        self.gl
+            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+
+        client_wait.client_wait(&self.gl).await?;
+
+        let byte_range = buffer_item.normalize_byte_range(byte_range);
+        let data = Self::read_buffer_inner(&self.gl, &tmp_gl_buffer, byte_range)?;
+
+        self.gl.delete_buffer(Some(&tmp_gl_buffer));
+
+        Ok(data)
     }
 
-    fn read_buffer_inner<R>(
+    fn read_buffer_inner(
         gl: &WebGl2RenderingContext,
-        buffer_item: &WebGlBufferItem,
-        byte_range: R,
-    ) -> Result<Uint8Array, Error>
-    where
-        R: RangeBounds<usize>,
-    {
-        let byte_range = buffer_item.normalize_byte_range(byte_range);
+        gl_buffer: &WebGlBuffer,
+        byte_range: Range<usize>,
+    ) -> Result<Uint8Array, Error> {
         let dst_byte_length = byte_range.len();
         let dst = Uint8Array::new_with_length(dst_byte_length as u32);
 
-        gl.bind_buffer(
-            WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-            Some(buffer_item.gl_buffer()),
-        );
+        gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), Some(gl_buffer));
         gl.get_buffer_sub_data_with_i32_and_array_buffer_view_and_dst_offset_and_length(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
             byte_range.start as i32,

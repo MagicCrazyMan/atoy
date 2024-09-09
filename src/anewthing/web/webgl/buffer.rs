@@ -307,20 +307,20 @@ impl<'a> BufferData for WebGlBufferData<'a> {
 
 #[derive(Clone)]
 pub struct WebGlBufferItem {
-    byte_length: usize,
     gl_buffer: WebGlBuffer,
+    byte_length: usize,
     usage: WebGlBufferUsage,
 }
 
 impl WebGlBufferItem {
-    /// Returns byte length of the buffer.
-    pub fn byte_length(&self) -> usize {
-        self.byte_length
-    }
-
     /// Returns native [`WebGlBuffer`].
     pub fn gl_buffer(&self) -> &WebGlBuffer {
         &self.gl_buffer
+    }
+
+    /// Returns byte length of the buffer.
+    pub fn byte_length(&self) -> usize {
+        self.byte_length
     }
 
     /// Returns [`WebGlBufferUsage`].
@@ -347,8 +347,8 @@ impl WebGlBufferItem {
 }
 
 pub struct WebGlBufferManager {
-    gl: WebGl2RenderingContext,
     id: Uuid,
+    gl: WebGl2RenderingContext,
     channel: Channel,
     buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
 }
@@ -360,11 +360,16 @@ impl WebGlBufferManager {
         channel.on(BufferDroppedHandler::new(Rc::clone(&buffers)));
 
         Self {
-            gl,
             id: Uuid::new_v4(),
+            gl,
             channel,
             buffers,
         }
+    }
+
+    /// Returns buffer manager id.
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     /// Creates a new [`Buffer`] and manages it immediately.

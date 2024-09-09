@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range, vec::Drain};
+use std::{ops::Range, vec::Drain};
 
 use uuid::Uuid;
 
@@ -72,7 +72,14 @@ impl Buffer {
 
     /// Sets this buffer is already managed by a manager.
     pub(crate) fn set_managed(&mut self, channel: Channel, id: Uuid) {
-        self.managed = Some((channel, id));
+        match self.managed.as_ref() {
+            Some((c, d)) => {
+                if c.id() != channel.id() || d != &id {
+                    panic!("manage a buffer by multiple managers is prohibited");
+                }
+            }
+            None => self.managed = Some((channel, id)),
+        };
     }
 
     /// Pushes buffer data into the buffer.
@@ -159,6 +166,7 @@ impl BufferBuilder {
     pub fn new() -> Self {
         Self {
             byte_length: 0,
+            #[cfg(feature = "webgl")]
             webgl_options: None,
         }
     }
@@ -190,20 +198,6 @@ impl BufferBuilder {
             #[cfg(feature = "webgl")]
             webgl_options: self.webgl_options.unwrap_or_default(),
         }
-    }
-}
-
-impl<'a> BufferData for Cow<'a, [u8]> {
-    fn byte_length(&self) -> usize {
-        self.len()
-    }
-
-    #[cfg(feature = "webgl")]
-    fn as_webgl_buffer_data(&self) -> Option<super::web::webgl::buffer::WebGlBufferData> {
-        Some(super::web::webgl::buffer::WebGlBufferData::Binary {
-            data: self,
-            element_range: None,
-        })
     }
 }
 

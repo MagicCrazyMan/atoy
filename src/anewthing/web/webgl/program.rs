@@ -8,7 +8,7 @@ use regex::Regex;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
-use crate::{anewthing::key::Key, renderer::webgl::conversion::ToGlEnum};
+use crate::renderer::webgl::conversion::ToGlEnum;
 
 use super::error::Error;
 
@@ -35,7 +35,7 @@ impl ToGlEnum for WebGlShaderType {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum WebGlShaderKey {
-    Custom(Key),
+    Custom(Cow<'static, str>),
 }
 
 pub trait WebGlShaderSource {
@@ -70,7 +70,7 @@ impl WebGlPragmaOperation {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct WebGlShaderCacheKey {
     shader_type: WebGlShaderType,
-    name: WebGlShaderKey,
+    key: WebGlShaderKey,
 }
 
 struct GLSLDefinePosition {
@@ -160,7 +160,7 @@ impl WebGlShaderManager {
     {
         let key = WebGlShaderCacheKey {
             shader_type,
-            name: shader_source.key(),
+            key: shader_source.key(),
         };
         let cache = match self.caches.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -512,6 +512,7 @@ impl WebGlProgramItem {
 ///
 /// Once a program compiled, it is cached and not deletable.
 pub struct WebGlProgramManager {
+    id: Uuid,
     gl: WebGl2RenderingContext,
     shader_manager: WebGlShaderManager,
     programs: HashMap<WebGlProgramKey, WebGlProgramItem>,
@@ -521,10 +522,16 @@ impl WebGlProgramManager {
     /// Constructs a new program manager.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
+            id: Uuid::new_v4(),
             shader_manager: WebGlShaderManager::new(gl.clone()),
             programs: HashMap::new(),
             gl,
         }
+    }
+
+    /// Returns program manager id.
+    pub fn id(&self) -> &Uuid {
+        &self.id
     }
 
     /// Returns a snippet code.

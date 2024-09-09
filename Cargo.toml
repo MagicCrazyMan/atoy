@@ -9,9 +9,8 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "webgl"]
 rebind = []
-string_key = []
 web = []
 webgl = ["web"]
 

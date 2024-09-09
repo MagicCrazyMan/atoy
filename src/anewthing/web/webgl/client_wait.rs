@@ -26,7 +26,6 @@ pub enum WebGlClientWaitCondition {
 }
 
 pub struct WebGlClientWait {
-    gl: WebGl2RenderingContext,
     flag_bits: u32,
     wait_timeout: Duration,
     retry_interval: Duration,
@@ -35,19 +34,17 @@ pub struct WebGlClientWait {
 
 impl WebGlClientWait {
     /// Constructs a new client wait.
-    pub fn new(gl: WebGl2RenderingContext, wait_timeout: Duration) -> Self {
-        Self::with_retries(gl, wait_timeout, Duration::from_millis(0), 0)
+    pub fn new(wait_timeout: Duration) -> Self {
+        Self::with_retries(wait_timeout, Duration::from_millis(0), 0)
     }
 
     /// Constructs a new client wait with retries.
     pub fn with_retries(
-        gl: WebGl2RenderingContext,
         wait_timeout: Duration,
         retry_interval: Duration,
         max_retries: usize,
     ) -> Self {
         Self {
-            gl,
             flag_bits: WebGl2RenderingContext::NONE,
             wait_timeout,
             retry_interval,
@@ -56,16 +53,15 @@ impl WebGlClientWait {
     }
 
     /// Constructs a new client wait with flags.
-    pub fn with_flags<I>(gl: WebGl2RenderingContext, wait_timeout: Duration, flags: I) -> Self
+    pub fn with_flags<I>(wait_timeout: Duration, flags: I) -> Self
     where
         I: IntoIterator<Item = WebGlClientWaitFlag>,
     {
-        Self::with_flags_and_retries(gl, wait_timeout, Duration::from_millis(0), 0, flags)
+        Self::with_flags_and_retries(wait_timeout, Duration::from_millis(0), 0, flags)
     }
 
     /// Constructs a new client wait with flags.
     pub fn with_flags_and_retries<I>(
-        gl: WebGl2RenderingContext,
         wait_timeout: Duration,
         retry_interval: Duration,
         max_retries: usize,
@@ -80,7 +76,6 @@ impl WebGlClientWait {
         });
 
         Self {
-            gl,
             flag_bits,
             wait_timeout,
             retry_interval,
@@ -89,8 +84,7 @@ impl WebGlClientWait {
     }
 
     /// Executes client wait.
-    pub async fn client_wait(&self) -> Result<(), Error> {
-        let gl = self.gl.clone();
+    pub async fn client_wait(&self, gl: &WebGl2RenderingContext) -> Result<(), Error> {
         let flag_bits = self.flag_bits;
         let wait_timeout = self.wait_timeout;
         let retry_interval = self.retry_interval;
@@ -102,9 +96,9 @@ impl WebGlClientWait {
                 flag_bits,
             )
             .ok_or(Error::CreateFenceSyncFailure)?;
-        self.gl.flush();
+        gl.flush();
 
-        let gl_cloned = self.gl.clone();
+        let gl_cloned = gl.clone();
         let sync_cloned = sync.clone();
         let mut promise_callback = move |resolve: Function, reject: Function| {
             let gl = gl_cloned.clone();
@@ -182,7 +176,7 @@ impl WebGlClientWait {
             .map(|_| ())
             .or_else(|err| Err(Error::ClientWaitFailure(err.as_string())));
 
-        self.gl.delete_sync(Some(&sync));
+        gl.delete_sync(Some(&sync));
 
         result
     }
