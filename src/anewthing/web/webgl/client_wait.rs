@@ -29,20 +29,20 @@ pub struct WebGlClientWait {
     flag_bits: u32,
     wait_timeout: Duration,
     retry_interval: Duration,
-    max_retries: usize,
+    max_retries: Option<usize>,
 }
 
 impl WebGlClientWait {
-    /// Constructs a new client wait.
+    /// Constructs a new client wait with infinity retries and retry every event loop.
     pub fn new(wait_timeout: Duration) -> Self {
-        Self::with_retries(wait_timeout, Duration::from_millis(0), 0)
+        Self::with_retries(wait_timeout, Duration::from_millis(0), None)
     }
 
     /// Constructs a new client wait with retries.
     pub fn with_retries(
         wait_timeout: Duration,
         retry_interval: Duration,
-        max_retries: usize,
+        max_retries: Option<usize>,
     ) -> Self {
         Self {
             flag_bits: WebGl2RenderingContext::NONE,
@@ -52,19 +52,19 @@ impl WebGlClientWait {
         }
     }
 
-    /// Constructs a new client wait with flags.
+    /// Constructs a new client wait with flags, infinity retries and retry every event loop.
     pub fn with_flags<I>(wait_timeout: Duration, flags: I) -> Self
     where
         I: IntoIterator<Item = WebGlClientWaitFlag>,
     {
-        Self::with_flags_and_retries(wait_timeout, Duration::from_millis(0), 0, flags)
+        Self::with_flags_and_retries(wait_timeout, Duration::from_millis(0), None, flags)
     }
 
-    /// Constructs a new client wait with flags.
+    /// Constructs a new client wait with flags and retries.
     pub fn with_flags_and_retries<I>(
         wait_timeout: Duration,
         retry_interval: Duration,
-        max_retries: usize,
+        max_retries: Option<usize>,
         flags: I,
     ) -> Self
     where
@@ -121,7 +121,20 @@ impl WebGlClientWait {
                         resolve.call0(&JsValue::undefined())
                     }
                     WebGl2RenderingContext::TIMEOUT_EXPIRED => {
-                        if *retries.borrow() >= max_retries {
+                        let abort = match max_retries {
+                            Some(max_retries) => {
+                                let mut retries = retries.borrow_mut();
+                                if *retries >= max_retries {
+                                    true
+                                } else {
+                                    *retries += 1;
+                                    false
+                                }
+                            }
+                            None => false,
+                        };
+
+                        if abort {
                             reject.call0(&JsValue::undefined())
                         } else {
                             let wait_cloned = Rc::clone(&wait_cloned);

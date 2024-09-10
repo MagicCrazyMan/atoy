@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     rc::{Rc, Weak},
+    time::Duration,
 };
 
 use gl_matrix4rust::vec3::Vec3;
@@ -11,7 +12,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{js_sys::Uint32Array, HtmlCanvasElement, WebGl2RenderingContext};
 
 use crate::{
-    core::web::webgl::client_wait::ClientWaitAsync,
+    anewthing::web::webgl::client_wait::WebGlClientWait,
     entity::Entity,
     material::Transparency,
     pipeline::webgl::{
@@ -212,8 +213,8 @@ impl StandardPicking {
             return Ok(None);
         };
 
-        let client_await = ClientWaitAsync::new(gl.clone(), 0, 10, None);
-        client_await.wait().await.unwrap();
+        let client_await = WebGlClientWait::new(Duration::from_secs(0));
+        client_await.client_wait(&self.gl.as_ref().unwrap()).await.unwrap();
         self.framebuffer.bind(FramebufferTarget::READ_FRAMEBUFFER)?;
         self.framebuffer.read_pixels(
             window_position_x,

@@ -1,4 +1,10 @@
-use std::{ops::Range, vec::Drain};
+use std::{
+    cell::{RefCell, RefMut},
+    fmt::Debug,
+    ops::Range,
+    rc::Rc,
+    vec::Drain,
+};
 
 use uuid::Uuid;
 
@@ -15,189 +21,182 @@ pub trait BufferData {
     }
 }
 
-pub(crate) struct BufferItem {
+pub(crate) struct BufferingItem {
     pub(crate) data: Box<dyn BufferData>,
     pub(crate) dst_byte_offset: usize,
 }
 
-pub struct Buffer {
-    id: Uuid,
-    queue: Vec<BufferItem>,
-    queue_byte_range: Option<Range<usize>>,
-    byte_length: usize,
-    managed: Option<(Channel, Uuid)>,
-    #[cfg(feature = "webgl")]
-    webgl_options: super::web::webgl::buffer::WebGlBufferOptions,
+pub(crate) struct BufferingQueue {
+    queue: Vec<BufferingItem>,
+    covered_byte_range: Option<Range<usize>>,
 }
 
-impl Buffer {
-    /// Constructs a new buffer with default options.
-    pub fn new() -> Self {
+impl BufferingQueue {
+    fn new() -> Self {
         Self {
-            id: Uuid::new_v4(),
             queue: Vec::new(),
-            queue_byte_range: None,
-            byte_length: 0,
-            managed: None,
-            #[cfg(feature = "webgl")]
-            webgl_options: super::web::webgl::buffer::WebGlBufferOptions::default(),
+            covered_byte_range: None,
         }
     }
 
-    /// Returns the id of the buffer.
+    pub(crate) fn drain(&mut self) -> Drain<'_, BufferingItem> {
+        self.covered_byte_range = None;
+        self.queue.drain(..)
+    }
+}
+
+struct Managed {
+    id: Uuid,
+    channel: Channel,
+}
+
+#[derive(Clone)]
+pub struct Buffering {
+    id: Uuid,
+    queue: Rc<RefCell<BufferingQueue>>,
+    byte_length: Rc<RefCell<usize>>,
+
+    managed: Rc<RefCell<Option<Managed>>>,
+}
+
+impl Buffering {
+    /// Constructs a new buffering container.
+    pub fn new() -> Self {
+        Self::with_byte_length(0)
+    }
+
+    /// Constructs a new buffering container with byte length.
+    pub fn with_byte_length(byte_length: usize) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            queue: Rc::new(RefCell::new(BufferingQueue::new())),
+            byte_length: Rc::new(RefCell::new(byte_length)),
+
+            managed: Rc::new(RefCell::new(None)),
+        }
+    }
+
+    /// Returns id.
     pub fn id(&self) -> &Uuid {
         &self.id
     }
 
-    /// Returns byte length of the buffer.
+    /// Returns total byte length.
     pub fn byte_length(&self) -> usize {
-        self.byte_length
+        *self.byte_length.borrow()
     }
 
-    /// Drains and returns all [`BufferItem`] in queue.
-    pub(crate) fn drain(&mut self) -> Drain<'_, BufferItem> {
-        self.queue_byte_range = None;
-        self.queue.drain(..)
+    /// Returns the inner buffer queue.
+    pub(crate) fn queue(&self) -> RefMut<'_, BufferingQueue> {
+        self.queue.borrow_mut()
     }
 
-    /// Returns `true` if the buffer if is managed.
+    /// Returns `true` if the buffering is managed.
     pub fn is_managed(&self) -> bool {
-        self.managed.is_some()
+        self.managed.borrow().is_some()
     }
 
-    /// Returns the manager id.
-    pub(crate) fn manager_id(&self) -> Option<&Uuid> {
-        self.managed.as_ref().map(|synced| &synced.1)
+    /// Returns manager id.
+    pub(crate) fn manager_id(&self) -> Option<Uuid> {
+        self.managed.borrow().as_ref().map(|Managed { id, .. }| *id)
     }
 
-    /// Sets this buffer is already managed by a manager.
-    pub(crate) fn set_managed(&mut self, channel: Channel, id: Uuid) {
-        match self.managed.as_ref() {
-            Some((c, d)) => {
-                if c.id() != channel.id() || d != &id {
-                    panic!("manage a buffer by multiple managers is prohibited");
+    /// Sets this buffering is managed by a manager.
+    pub(crate) fn set_managed(&self, id: Uuid, channel: Channel) {
+        let mut managed = self.managed.borrow_mut();
+        match managed.as_ref() {
+            Some(managed) => {
+                if managed.channel.id() != channel.id() || &managed.id != &id {
+                    panic!("manage a buffering by multiple managers is prohibited");
                 }
             }
-            None => self.managed = Some((channel, id)),
+            None => *managed = Some(Managed { id, channel }),
         };
     }
 
-    /// Pushes buffer data into the buffer.
-    pub fn push<T>(&mut self, data: T)
+    /// Pushes buffer data into the buffering.
+    pub fn push<T>(&self, data: T)
     where
         T: BufferData + 'static,
     {
         self.push_with_offset(data, 0)
     }
 
-    /// Pushes buffer data into the buffer with byte offset indicating where to start replacing data.
-    pub fn push_with_offset<T>(&mut self, data: T, dst_byte_offset: usize)
+    /// Pushes buffer data into the buffering with byte offset indicating where to start replacing data.
+    pub fn push_with_offset<T>(&self, data: T, dst_byte_offset: usize)
     where
         T: BufferData + 'static,
     {
+        let mut queue = self.queue.borrow_mut();
+        let BufferingQueue {
+            queue,
+            covered_byte_range,
+        } = &mut *queue;
         let byte_length = dst_byte_offset + data.byte_length();
         let byte_range = dst_byte_offset..byte_length;
-        self.byte_length = self.byte_length.max(byte_length);
+        self.byte_length
+            .replace_with(|length| (*length).max(byte_length));
 
-        let item = BufferItem {
+        let item = BufferingItem {
             data: Box::new(data),
             dst_byte_offset,
         };
 
-        match &self.queue_byte_range {
-            Some(queue_byte_range) => {
+        match covered_byte_range {
+            Some(covered_byte_range) => {
                 // overrides queue if new byte range fully covers the range of current queue
-                if byte_range.start <= queue_byte_range.start
-                    && byte_range.end >= queue_byte_range.end
+                if byte_range.start <= covered_byte_range.start
+                    && byte_range.end >= covered_byte_range.end
                 {
-                    self.queue_byte_range = Some(byte_range);
-                    self.queue.clear();
-                    self.queue.push(item);
+                    *covered_byte_range = byte_range;
+                    queue.clear();
+                    queue.push(item);
                 } else {
-                    self.queue_byte_range = Some(
-                        byte_range.start.min(queue_byte_range.start)
-                            ..byte_range.end.max(queue_byte_range.end),
-                    );
-                    self.queue.push(item);
+                    *covered_byte_range = byte_range.start.min(covered_byte_range.start)
+                        ..byte_range.end.max(covered_byte_range.end);
+                    queue.push(item);
                 }
             }
             None => {
-                self.queue_byte_range = Some(byte_range);
-                self.queue.push(item);
+                *covered_byte_range = Some(byte_range);
+                queue.push(item);
             }
         }
     }
+}
 
-    /// Returns webgl buffer options.
-    #[cfg(feature = "webgl")]
-    pub fn webgl_options(&self) -> &super::web::webgl::buffer::WebGlBufferOptions {
-        &self.webgl_options
+impl Default for Buffering {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl Drop for Buffer {
+impl Debug for Buffering {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Buffering")
+            .field("id", self.id())
+            .field("byte_length", &self.byte_length())
+            .finish()
+    }
+}
+
+impl Drop for Buffering {
     fn drop(&mut self) {
-        if let Some((channel, _)) = &self.managed {
-            channel.send(BufferDropped { id: self.id });
+        if let Some(Managed { channel, .. }) = self.managed.borrow().as_ref() {
+            channel.send(BufferingDropped { id: self.id });
         }
     }
 }
 
-/// Events raised when a buffer is dropped.
-pub(crate) struct BufferDropped {
+/// Events raised when a [`Buffering`] is dropped.
+pub(crate) struct BufferingDropped {
     id: Uuid,
 }
 
-impl BufferDropped {
+impl BufferingDropped {
     /// Returns the id of the buffer.
     pub(crate) fn id(&self) -> &Uuid {
         &self.id
-    }
-}
-
-pub struct BufferBuilder {
-    byte_length: usize,
-    #[cfg(feature = "webgl")]
-    webgl_options: Option<super::web::webgl::buffer::WebGlBufferOptions>,
-}
-
-impl BufferBuilder {
-    /// Constructs a new buffer builder with default options.
-    pub fn new() -> Self {
-        Self {
-            byte_length: 0,
-            #[cfg(feature = "webgl")]
-            webgl_options: None,
-        }
-    }
-
-    /// Sets initial byte length of the buffer
-    pub fn set_byte_length(mut self, byte_length: usize) -> Self {
-        self.byte_length = byte_length;
-        self
-    }
-
-    /// Sets webgl buffer options.
-    #[cfg(feature = "webgl")]
-    pub fn set_webgl_options(
-        mut self,
-        options: super::web::webgl::buffer::WebGlBufferOptions,
-    ) -> Self {
-        self.webgl_options = Some(options);
-        self
-    }
-
-    /// Builds buffer.
-    pub fn build(self) -> Buffer {
-        Buffer {
-            id: Uuid::new_v4(),
-            queue: Vec::new(),
-            queue_byte_range: None,
-            byte_length: self.byte_length,
-            managed: None,
-            #[cfg(feature = "webgl")]
-            webgl_options: self.webgl_options.unwrap_or_default(),
-        }
     }
 }
 

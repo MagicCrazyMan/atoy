@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display};
+use std::fmt::Display;
 
 use super::program::WebGlShaderType;
 
@@ -16,6 +16,7 @@ pub enum Error {
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
     BufferManagedByOtherManager,
+    BufferDataUnsupported,
     CreateFenceSyncFailure,
     ClientWaitFailure(Option<String>),
 }

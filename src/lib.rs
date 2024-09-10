@@ -1,16 +1,11 @@
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
-
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Document, Performance, Window};
 
+pub mod anewthing;
 pub mod bounding;
 pub mod camera;
 pub mod clock;
 pub mod controller;
-pub mod core;
 pub mod entity;
 pub mod error;
 pub mod frustum;
@@ -28,7 +23,6 @@ pub mod test;
 pub mod utils;
 pub mod value;
 pub mod viewer;
-pub mod anewthing;
 
 pub(crate) fn window() -> Window {
     web_sys::window().expect("failed to get window instance")

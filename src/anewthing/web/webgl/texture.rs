@@ -1,13 +1,75 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 use hashbrown::HashMap;
 use proc::GlEnum;
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlSampler, WebGlTexture};
 
-use crate::anewthing::channel::Channel;
+use crate::anewthing::{channel::Channel, texturing::Texturing};
 
 use super::capabilities::WebGlCapabilities;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WebGlTextureOptions {
+    /// texture layout.
+    pub layout: WebGlTextureLayout,
+}
+
+impl Default for WebGlTextureOptions {
+    fn default() -> Self {
+        Self {
+            layout: WebGlTextureLayout::Texture2D,
+        }
+    }
+}
+
+/// A wrapped [`Texturing`] with [`WebGlTextureOptions`].
+///
+/// Do not use different [`WebGlTextureOptions`] for a same [`Texturing`].
+/// [`WebGlTextureOptions`] is ignored once a texturing is synced by [`WebGlTextureManager::sync_texture`].
+#[derive(Debug, Clone)]
+pub struct WebGlTexturing {
+    texturing: Texturing,
+    options: WebGlTextureOptions,
+}
+
+impl WebGlTexturing {
+    /// Constructs a new WebGl texturing container.
+    pub fn new(texturing: Texturing, options: WebGlTextureOptions) -> Self {
+        Self { texturing, options }
+    }
+
+    /// Constructs a new WebGl texturing container with default [`WebGlTextureOptions`].
+    pub fn with_default_options(texturing: Texturing) -> Self {
+        Self {
+            texturing,
+            options: WebGlTextureOptions::default(),
+        }
+    }
+
+    /// Returns WebGl texture options.
+    pub fn options(&self) -> WebGlTextureOptions {
+        self.options
+    }
+}
+
+impl Deref for WebGlTexturing {
+    type Target = Texturing;
+
+    fn deref(&self) -> &Self::Target {
+        &self.texturing
+    }
+}
+
+impl DerefMut for WebGlTexturing {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.texturing
+    }
+}
 
 /// Available texture layouts mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]

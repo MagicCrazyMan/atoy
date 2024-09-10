@@ -29,7 +29,6 @@ use crate::camera::perspective::PerspectiveCamera;
 use crate::camera::universal::UniversalCamera;
 use crate::camera::Camera;
 use crate::clock::{Clock, HtmlClock, Tick};
-use crate::core::web::performance;
 use crate::entity::{Entity, Group, SimpleEntity, SimpleGroup};
 use crate::error::Error;
 use crate::geometry::indexed_cube::IndexedCube;

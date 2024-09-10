@@ -68,7 +68,7 @@ impl WebGlPragmaOperation {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct WebGlShaderCacheKey {
+struct WebGlShaderTemplateKey {
     shader_type: WebGlShaderType,
     key: WebGlShaderKey,
 }
@@ -92,11 +92,11 @@ struct WebGlShaderItem {
     shader: WebGlShader,
 }
 
-struct WebGlShaderCacheItem {
+struct WebGlShaderTemplate {
     code: String,
     line_ranges: Vec<Range<usize>>,
     defines: Vec<GLSLDefinePosition>,
-    variants: HashMap<Vec<GLSLDefine<'static>>, WebGlShaderItem>,
+    cached_variants: HashMap<Vec<GLSLDefine<'static>>, WebGlShaderItem>,
 }
 
 struct GLSLShaderSnippet {
@@ -106,8 +106,9 @@ struct GLSLShaderSnippet {
 
 struct WebGlShaderManager {
     gl: WebGl2RenderingContext,
-    caches: HashMap<WebGlShaderCacheKey, WebGlShaderCacheItem>,
+    templates: HashMap<WebGlShaderTemplateKey, WebGlShaderTemplate>,
     snippets: HashMap<Cow<'static, str>, GLSLShaderSnippet>,
+    define_values: HashMap<Cow<'static, str>, Cow<'static, str>>,
 }
 
 impl WebGlShaderManager {
@@ -115,8 +116,9 @@ impl WebGlShaderManager {
     fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             gl,
-            caches: HashMap::new(),
+            templates: HashMap::new(),
             snippets: HashMap::new(),
+            define_values: HashMap::new(),
         }
     }
 
@@ -146,7 +148,27 @@ impl WebGlShaderManager {
         self.snippets.remove(name).map(|snippet| snippet.code)
     }
 
-    /// Returns a compiled [`Shader`] from a [`ShaderSource`] under specified [`ShaderType`].
+    /// Returns a global define value.
+    /// Manager searches for a define value if [`WebGlShaderSource`] does not provide it.
+    fn define_value(&self, name: &str) -> Option<&str> {
+        self.define_values.get(name).map(|value| value.as_ref())
+    }
+
+    /// Sets a global define value. Returns the old one if presents.
+    fn set_define_value(
+        &mut self,
+        name: Cow<'static, str>,
+        value: Cow<'static, str>,
+    ) -> Option<Cow<'static, str>> {
+        self.define_values.insert(name, value)
+    }
+
+    /// Removes a global define value. Returns the old one if presents.
+    fn remove_define_value(&mut self, name: &str) -> Option<Cow<'static, str>> {
+        self.define_values.remove(name)
+    }
+
+    /// Returns a compiled [`WebGlShader`] from a [`WebGlShaderSource`] under specified [`WebGlShaderType`].
     ///
     /// Manager identifies shader as different variants by values of define directives in the shader code.
     /// A cached shader is returned if it has been compiled before.
@@ -158,24 +180,30 @@ impl WebGlShaderManager {
     where
         S: WebGlShaderSource,
     {
-        let key = WebGlShaderCacheKey {
+        let key = WebGlShaderTemplateKey {
             shader_type,
             key: shader_source.key(),
         };
-        let cache = match self.caches.entry(key) {
+        let cache = match self.templates.entry(key) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 entry.insert(Self::create_cache(&self.snippets, shader_source)?)
             }
         };
-        Self::get_or_compile_variant_shader(cache, &self.gl, shader_type, shader_source)
+        Self::get_or_compile_variant_shader(
+            cache,
+            &self.define_values,
+            &self.gl,
+            shader_type,
+            shader_source,
+        )
     }
 
     /// Creates a shader cache from a [`ShaderSource`].
     fn create_cache<S>(
         snippets: &HashMap<Cow<'static, str>, GLSLShaderSnippet>,
         shader_source: &S,
-    ) -> Result<WebGlShaderCacheItem, Error>
+    ) -> Result<WebGlShaderTemplate, Error>
     where
         S: WebGlShaderSource,
     {
@@ -189,11 +217,11 @@ impl WebGlShaderManager {
             .collect::<Vec<_>>();
         let defines = Self::collect_defines(&code, &line_ranges);
 
-        let cache = WebGlShaderCacheItem {
+        let cache = WebGlShaderTemplate {
             code,
             line_ranges,
             defines,
-            variants: HashMap::new(),
+            cached_variants: HashMap::new(),
         };
 
         Ok(cache)
@@ -310,7 +338,8 @@ impl WebGlShaderManager {
     }
 
     fn get_or_compile_variant_shader<S>(
-        cache: &mut WebGlShaderCacheItem,
+        template: &mut WebGlShaderTemplate,
+        define_values: &HashMap<Cow<'static, str>, Cow<'static, str>>,
         gl: &WebGl2RenderingContext,
         shader_type: WebGlShaderType,
         shader_source: &S,
@@ -318,9 +347,9 @@ impl WebGlShaderManager {
     where
         S: WebGlShaderSource,
     {
-        let line_ranges = &cache.line_ranges;
+        let line_ranges = &template.line_ranges;
         let mut replaced_defines = Vec::new();
-        let defines = cache
+        let defines = template
             .defines
             .iter()
             .enumerate()
@@ -331,10 +360,14 @@ impl WebGlShaderManager {
                     value_position,
                 } = define_position;
                 let line_range = &line_ranges[*line_index];
-                let line = &cache.code[line_range.clone()];
+                let line = &template.code[line_range.clone()];
 
                 let name = &line[name_position.clone()];
-                let value = match shader_source.define_value(name) {
+                let value = match shader_source
+                    .define_value(name)
+                    // tries to get global define value if shader source does not provide it
+                    .or_else(|| define_values.get(name).map(|v| v.as_ref()))
+                {
                     Some(value) => {
                         replaced_defines.push((define_index, define_position));
                         let value = value.trim();
@@ -357,10 +390,10 @@ impl WebGlShaderManager {
             })
             .collect::<Vec<_>>();
 
-        if let Some(variant) = cache.variants.get(&defines) {
+        if let Some(variant) = template.cached_variants.get(&defines) {
             Ok(variant.clone())
         } else {
-            let code = Self::create_variant_code(cache, &defines, &replaced_defines);
+            let code = Self::create_variant_code(template, &defines, &replaced_defines);
             let shader = Self::compile_shader(gl, shader_type, &code)?;
 
             // persists string slice to String
@@ -372,8 +405,8 @@ impl WebGlShaderManager {
                 })
                 .collect::<Vec<_>>();
 
-            Ok(cache
-                .variants
+            Ok(template
+                .cached_variants
                 .insert_unique_unchecked(
                     defines,
                     WebGlShaderItem {
@@ -387,18 +420,18 @@ impl WebGlShaderManager {
     }
 
     fn create_variant_code<'a>(
-        cache: &'a WebGlShaderCacheItem,
+        template: &'a WebGlShaderTemplate,
         defines: &[GLSLDefine],
         replaced_defines: &[(usize, &GLSLDefinePosition)],
     ) -> Cow<'a, str> {
         if replaced_defines.is_empty() {
-            return Cow::Borrowed(&cache.code);
+            return Cow::Borrowed(&template.code);
         }
 
-        let mut lines = cache
+        let mut lines = template
             .line_ranges
             .iter()
-            .map(|line_range| Cow::Borrowed(&cache.code[line_range.clone()]))
+            .map(|line_range| Cow::Borrowed(&template.code[line_range.clone()]))
             .collect::<Vec<_>>();
         replaced_defines
             .into_iter()
@@ -551,6 +584,26 @@ impl WebGlProgramManager {
     /// Removes a snippet code from manager.
     pub fn remove_snippet(&mut self, name: &str) -> Option<Cow<'static, str>> {
         self.shader_manager.remove_snippet(name)
+    }
+
+    /// Returns a global define value.
+    /// Manager searches for a define value if [`WebGlShaderSource`] does not provide it.
+    pub fn global_define_value(&self, name: &str) -> Option<&str> {
+        self.shader_manager.define_value(name)
+    }
+
+    /// Sets a global define value. Returns the old one if presents.
+    pub fn set_global_define_value(
+        &mut self,
+        name: Cow<'static, str>,
+        value: Cow<'static, str>,
+    ) -> Option<Cow<'static, str>> {
+        self.shader_manager.set_define_value(name, value)
+    }
+
+    /// Removes a global define value. Returns the old one if presents.
+    pub fn remove_global_define_value(&mut self, name: &str) -> Option<Cow<'static, str>> {
+        self.shader_manager.remove_define_value(name)
     }
 
     /// Returns a compiled [`WebGlProgramItem`] from a vertex shader and a fragment shader.

@@ -1,11 +1,11 @@
-use std::{fmt::Debug, ops::RangeBounds};
+use std::fmt::Debug;
 
 use nalgebra::{
     Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3,
     Vector1, Vector2, Vector3, Vector4,
 };
 
-use crate::anewthing::buffer::Buffer;
+use super::buffer::WebGlBuffering;
 
 /// Available uniform values.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -75,19 +75,38 @@ pub enum WebGlUniformValue<'a> {
 }
 
 /// Uniform block value.
-pub struct WebGlUniformBlockValue<'a, R>
-where
-    R: RangeBounds<usize>,
-{
-    pub buffer: &'a mut Buffer,
-    pub range: R,
-    pub mount_point: usize,
+#[derive(Clone, Copy)]
+pub enum WebGlUniformBlockValue<'a> {
+    Base {
+        buffer: &'a WebGlBuffering,
+        mount_point: usize,
+    },
+    Range {
+        buffer: &'a WebGlBuffering,
+        mount_point: usize,
+        byte_offset: usize,
+        byte_length: Option<usize>,
+    },
 }
 
-impl<'a, R: RangeBounds<usize>> Debug for WebGlUniformBlockValue<'a, R> {
+impl<'a> Debug for WebGlUniformBlockValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WebGlUniformBlockValue")
-            .field("mount_point", &self.mount_point)
-            .finish()
+        match self {
+            Self::Base { mount_point, .. } => f
+                .debug_struct("Base")
+                .field("mount_point", mount_point)
+                .finish(),
+            Self::Range {
+                mount_point,
+                byte_offset,
+                byte_length,
+                ..
+            } => f
+                .debug_struct("Range")
+                .field("mount_point", mount_point)
+                .field("byte_offset", byte_offset)
+                .field("byte_length", byte_length)
+                .finish(),
+        }
     }
 }
