@@ -119,11 +119,11 @@ impl Buffering {
     where
         T: BufferData + 'static,
     {
-        self.push_with_offset(data, 0)
+        self.push_with_byte_offset(data, 0)
     }
 
     /// Pushes buffer data into the buffering with byte offset indicating where to start replacing data.
-    pub fn push_with_offset<T>(&self, data: T, dst_byte_offset: usize)
+    pub fn push_with_byte_offset<T>(&self, data: T, dst_byte_offset: usize)
     where
         T: BufferData + 'static,
     {
@@ -208,7 +208,7 @@ impl BufferData for js_sys::ArrayBuffer {
 
     #[cfg(feature = "webgl")]
     fn as_webgl_buffer_data(&self) -> Option<super::web::webgl::buffer::WebGlBufferData> {
-        Some(super::web::webgl::buffer::WebGlBufferData::ArrayBuffer { data: self })
+        Some(super::web::webgl::buffer::WebGlBufferData::ArrayBuffer { data: self.clone() })
     }
 }
 
@@ -223,7 +223,7 @@ macro_rules! web_typed_arrays {
 
                 #[cfg(feature = "webgl")]
                 fn as_webgl_buffer_data(&self) -> Option<super::web::webgl::buffer::WebGlBufferData> {
-                    Some(super::web::webgl::buffer::WebGlBufferData::$buffer { data: self, element_range: None })
+                    Some(super::web::webgl::buffer::WebGlBufferData::$buffer { data: self.clone(), element_range: None })
                 }
             }
 
@@ -255,7 +255,7 @@ macro_rules! web_typed_arrays {
                 }
 
                 fn as_webgl_buffer_data(&self) -> Option<super::web::webgl::buffer::WebGlBufferData> {
-                    Some(super::web::webgl::buffer::WebGlBufferData::$buffer { data: &self.0, element_range: Some(self.1.clone()) })
+                    Some(super::web::webgl::buffer::WebGlBufferData::$buffer { data: self.0.clone(), element_range: Some(self.1.clone()) })
                 }
             }
         )+

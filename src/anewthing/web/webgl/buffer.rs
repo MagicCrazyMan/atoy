@@ -126,54 +126,54 @@ pub enum WebGlBufferData<'a> {
         element_range: Option<WebGlBufferDataRange>,
     },
     ArrayBuffer {
-        data: &'a ArrayBuffer,
+        data: ArrayBuffer,
     },
     DataView {
-        data: &'a DataView,
+        data: DataView,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int8Array {
-        data: &'a Int8Array,
+        data: Int8Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint8Array {
-        data: &'a Uint8Array,
+        data: Uint8Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint8ClampedArray {
-        data: &'a Uint8ClampedArray,
+        data: Uint8ClampedArray,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int16Array {
-        data: &'a Int16Array,
+        data: Int16Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint16Array {
-        data: &'a Uint16Array,
+        data: Uint16Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Int32Array {
-        data: &'a Int32Array,
+        data: Int32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Uint32Array {
-        data: &'a Uint32Array,
+        data: Uint32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Float32Array {
-        data: &'a Float32Array,
+        data: Float32Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     Float64Array {
-        data: &'a Float64Array,
+        data: Float64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     BigInt64Array {
-        data: &'a BigInt64Array,
+        data: BigInt64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
     BigUint64Array {
-        data: &'a BigUint64Array,
+        data: BigUint64Array,
         element_range: Option<WebGlBufferDataRange>,
     },
 }
@@ -423,6 +423,7 @@ impl WebGlBufferManager {
         &self.id
     }
 
+    /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`] into WebGl context.
     pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
         if let Some(manager_id) = buffering.manager_id() {
             if manager_id != self.id {

@@ -4,7 +4,7 @@ use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
-use syn::{parse::Parser, parse_macro_input, Data, DeriveInput};
+use syn::{Data, DeriveInput};
 
 /// A procedure macro implements [`crate::core::AsAny`] trait.
 #[proc_macro_derive(AsAny)]

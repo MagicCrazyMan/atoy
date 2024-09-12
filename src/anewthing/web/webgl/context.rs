@@ -293,7 +293,7 @@ impl WebGlContext {
     ) {
         match value {
             WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if v { 1 } else { 0 }),
-            WebGlUniformValue::Texture(v) => gl.uniform1i(Some(location), v),
+            WebGlUniformValue::Texture(v) => todo!(),
             WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), x),
             WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), x, y),
             WebGlUniformValue::Float3(x, y, z) => gl.uniform3f(Some(location), x, y, z),
