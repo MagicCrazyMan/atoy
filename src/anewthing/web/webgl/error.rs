@@ -19,6 +19,9 @@ pub enum Error {
     BufferDataUnsupported,
     CreateFenceSyncFailure,
     ClientWaitFailure(Option<String>),
+    CreateSamplerFailure,
+    CreateTextureFailure,
+    TextureManagedByOtherManager,
 }
 
 impl Display for Error {

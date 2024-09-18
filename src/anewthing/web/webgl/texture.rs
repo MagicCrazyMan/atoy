@@ -1,14 +1,17 @@
 use std::{
     cell::RefCell,
+    hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
 
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use js_sys::{
     DataView, Float32Array, Int16Array, Int32Array, Int8Array, Uint16Array, Uint32Array,
     Uint8Array, Uint8ClampedArray,
 };
+use log::warn;
+use ordered_float::OrderedFloat;
 use proc::GlEnum;
 use uuid::Uuid;
 use web_sys::{
@@ -18,15 +21,19 @@ use web_sys::{
 
 use crate::anewthing::{
     channel::{Channel, Event, Handler},
-    texturing::{TextureData, Texturing, TexturingDropped},
+    texturing::{Texturing, TexturingDropped, TexturingItem},
 };
 
 use super::{buffer::WebGlBuffering, capabilities::WebGlCapabilities, error::Error};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WebGlTextureOptions {
     /// texture layout with size.
     pub layout: WebGlTextureLayoutWithSize,
+    /// texture internal format.
+    pub internal_format: WebGlTextureInternalFormat,
+    /// Samplers parameters.
+    pub sampler_parameters: Option<Vec<WebGlSamplerParamWithValue>>,
 }
 
 /// A wrapped [`Texturing`] with [`WebGlTextureOptions`].
@@ -46,8 +53,8 @@ impl WebGlTexturing {
     }
 
     /// Returns WebGl texture options.
-    pub fn options(&self) -> WebGlTextureOptions {
-        self.options
+    pub fn options(&self) -> &WebGlTextureOptions {
+        &self.options
     }
 }
 
@@ -81,27 +88,68 @@ pub enum WebGlTextureLayout {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WebGlTextureLayoutWithSize {
     Texture2D {
-        levels: usize,
+        /// Texture levels.
+        /// Caculates automatically if `None`.
+        levels: Option<usize>,
+        /// Texture width.
         width: usize,
+        /// Texture height.
         height: usize,
     },
     TextureCubeMap {
-        levels: usize,
+        /// Texture levels.
+        /// Caculates automatically if `None`.
+        levels: Option<usize>,
+        /// Texture width.
         width: usize,
+        /// Texture height.
         height: usize,
     },
     Texture2DArray {
-        levels: usize,
+        /// Texture levels.
+        /// Caculates automatically if `None`.
+        levels: Option<usize>,
+        /// Texture width.
         width: usize,
+        /// Texture height.
         height: usize,
+        /// Texture array length.
         len: usize,
     },
     Texture3D {
-        levels: usize,
+        /// Texture levels.
+        /// Caculates automatically if `None`.
+        levels: Option<usize>,
+        /// Texture width.
         width: usize,
+        /// Texture height.
         height: usize,
+        /// Texture depth.
         depth: usize,
     },
+}
+
+impl WebGlTextureLayoutWithSize {
+    #[inline]
+    fn get_or_auto_levels(&self) -> usize {
+        match self {
+            WebGlTextureLayoutWithSize::Texture2D { width, height, .. } => {
+                (*width.max(height) as f64).log2().floor() as usize + 1
+            }
+            WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. } => {
+                (*width.max(height) as f64).log2().floor() as usize + 1
+            }
+            WebGlTextureLayoutWithSize::Texture2DArray { width, height, .. } => {
+                (*width.max(height) as f64).log2().floor() as usize + 1
+            }
+            WebGlTextureLayoutWithSize::Texture3D {
+                width,
+                height,
+                depth,
+                ..
+            } => (*width.max(height).max(depth) as f64).log2().floor() as usize + 1,
+        }
+    }
 }
 
 impl From<WebGlTextureLayoutWithSize> for WebGlTextureLayout {
@@ -215,16 +263,16 @@ pub enum WebGlTextureUnit {
     Texture31,
 }
 
-/// Available texture magnification filters for [`WebGl2RenderingContext`].
+/// Available texture sample magnification filters for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureMagnificationFilter {
+pub enum WebGlSampleMagnificationFilter {
     Linear,
     Nearest,
 }
 
-/// Available texture minification filters for [`WebGl2RenderingContext`].
+/// Available texture sample minification filters for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureMinificationFilter {
+pub enum WebGlSampleMinificationFilter {
     Linear,
     Nearest,
     NearestMipmapNearest,
@@ -233,17 +281,17 @@ pub enum WebGlTextureMinificationFilter {
     LinearMipmapLinear,
 }
 
-/// Available texture wrap methods for [`WebGl2RenderingContext`].
+/// Available texture sample wrap methods for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureWrapMethod {
+pub enum WebGlSampleWrapMethod {
     Repeat,
     ClampToEdge,
     MirroredRepeat,
 }
 
-/// Available texture compare function for [`WebGl2RenderingContext`].
+/// Available texture sample compare function for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureCompareFunction {
+pub enum WebGlSampleCompareFunction {
     #[gl_enum(LEQUAL)]
     LessEqual,
     #[gl_enum(GEQUAL)]
@@ -257,9 +305,9 @@ pub enum WebGlTextureCompareFunction {
     Never,
 }
 
-/// Available texture compare modes for [`WebGl2RenderingContext`].
+/// Available texture sample compare modes for [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureCompareMode {
+pub enum WebGlSampleCompareMode {
     None,
     CompareRefToTexture,
 }
@@ -974,6 +1022,95 @@ impl WebGlPixelStoreWithValue {
     }
 }
 
+/// Available texture sample parameters for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlSamplerParam {
+    #[gl_enum(TEXTURE_MAG_FILTER)]
+    MagnificationFilter,
+    #[gl_enum(TEXTURE_MIN_FILTER)]
+    MinificationFilter,
+    #[gl_enum(TEXTURE_WRAP_S)]
+    WrapS,
+    #[gl_enum(TEXTURE_WRAP_T)]
+    WrapT,
+    #[gl_enum(TEXTURE_WRAP_R)]
+    WrapR,
+    #[gl_enum(TEXTURE_COMPARE_FUNC)]
+    CompareFunction,
+    #[gl_enum(TEXTURE_COMPARE_MODE)]
+    CompareMode,
+    #[gl_enum(TEXTURE_MAX_LOD)]
+    MaxLod,
+    #[gl_enum(TEXTURE_MIN_LOD)]
+    MinLod,
+}
+
+/// Available texture sample parameter with values for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WebGlSamplerParamWithValue {
+    MagnificationFilter(WebGlSampleMagnificationFilter),
+    MinificationFilter(WebGlSampleMinificationFilter),
+    WrapS(WebGlSampleWrapMethod),
+    WrapT(WebGlSampleWrapMethod),
+    WrapR(WebGlSampleWrapMethod),
+    CompareFunction(WebGlSampleCompareFunction),
+    CompareMode(WebGlSampleCompareMode),
+    MaxLod(f32),
+    MinLod(f32),
+}
+
+impl Eq for WebGlSamplerParamWithValue {}
+
+impl Hash for WebGlSamplerParamWithValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+    }
+}
+
+impl From<WebGlSamplerParamWithValue> for WebGlSamplerParam {
+    #[inline]
+    fn from(value: WebGlSamplerParamWithValue) -> Self {
+        match value {
+            WebGlSamplerParamWithValue::MagnificationFilter(_) => {
+                WebGlSamplerParam::MagnificationFilter
+            }
+            WebGlSamplerParamWithValue::MinificationFilter(_) => {
+                WebGlSamplerParam::MinificationFilter
+            }
+            WebGlSamplerParamWithValue::WrapS(_) => WebGlSamplerParam::WrapS,
+            WebGlSamplerParamWithValue::WrapT(_) => WebGlSamplerParam::WrapT,
+            WebGlSamplerParamWithValue::WrapR(_) => WebGlSamplerParam::WrapR,
+            WebGlSamplerParamWithValue::CompareFunction(_) => WebGlSamplerParam::CompareFunction,
+            WebGlSamplerParamWithValue::CompareMode(_) => WebGlSamplerParam::CompareMode,
+            WebGlSamplerParamWithValue::MaxLod(_) => WebGlSamplerParam::MaxLod,
+            WebGlSamplerParamWithValue::MinLod(_) => WebGlSamplerParam::MinLod,
+        }
+    }
+}
+
+impl WebGlSamplerParamWithValue {
+    /// Returns as [`WebGlSamplerParam`].
+    #[inline]
+    pub fn as_sample_parameter(&self) -> WebGlSamplerParam {
+        WebGlSamplerParam::from(*self)
+    }
+
+    #[inline]
+    fn priority(&self) -> u8 {
+        match self {
+            WebGlSamplerParamWithValue::MagnificationFilter(_) => 0,
+            WebGlSamplerParamWithValue::MinificationFilter(_) => 1,
+            WebGlSamplerParamWithValue::WrapS(_) => 2,
+            WebGlSamplerParamWithValue::WrapT(_) => 3,
+            WebGlSamplerParamWithValue::WrapR(_) => 4,
+            WebGlSamplerParamWithValue::CompareFunction(_) => 5,
+            WebGlSamplerParamWithValue::CompareMode(_) => 6,
+            WebGlSamplerParamWithValue::MaxLod(_) => 7,
+            WebGlSamplerParamWithValue::MinLod(_) => 8,
+        }
+    }
+}
+
 /// Available uncompressed texture data types.
 pub enum WebGlUncompressedTextureData<'a> {
     Binary {
@@ -1145,6 +1282,7 @@ pub enum WebGlTextureData<'a> {
         pixel_format: WebGlImagePixelFormat,
         pixel_data_type: WebGlImagePixelDataType,
         pixel_storages: &'a [WebGlPixelStoreWithValue],
+        generate_mipmaps: bool,
         flip_y: bool,
         data: WebGlUncompressedTextureData<'a>,
     },
@@ -1239,16 +1377,149 @@ impl<'a> WebGlTextureData<'a> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct SamplerParameters {
+    magnification_filter: WebGlSampleMagnificationFilter,
+    minification_filter: WebGlSampleMinificationFilter,
+    wrap_s: WebGlSampleWrapMethod,
+    wrap_t: WebGlSampleWrapMethod,
+    wrap_r: WebGlSampleWrapMethod,
+    compare_function: WebGlSampleCompareFunction,
+    compare_mode: WebGlSampleCompareMode,
+    max_lod: OrderedFloat<f32>,
+    min_lod: OrderedFloat<f32>,
+}
+
+impl Default for SamplerParameters {
+    fn default() -> Self {
+        Self {
+            magnification_filter: WebGlSampleMagnificationFilter::Linear,
+            minification_filter: WebGlSampleMinificationFilter::NearestMipmapLinear,
+            wrap_s: WebGlSampleWrapMethod::Repeat,
+            wrap_t: WebGlSampleWrapMethod::Repeat,
+            wrap_r: WebGlSampleWrapMethod::Repeat,
+            compare_function: WebGlSampleCompareFunction::LessEqual,
+            compare_mode: WebGlSampleCompareMode::None,
+            max_lod: OrderedFloat(1000.0),
+            min_lod: OrderedFloat(-1000.0),
+        }
+    }
+}
+
+struct WebGlSamplerManager {
+    gl: WebGl2RenderingContext,
+    samplers: HashMap<SamplerParameters, WebGlSampler>,
+}
+
+impl WebGlSamplerManager {
+    fn new(gl: WebGl2RenderingContext) -> Self {
+        Self {
+            gl,
+            samplers: HashMap::new(),
+        }
+    }
+
+    fn get_or_create_default_sampler(&mut self) -> Result<WebGlSampler, Error> {
+        self.get_or_create_sampler(SamplerParameters::default())
+    }
+
+    fn get_or_create_sampler_by_iter<I>(&mut self, params: I) -> Result<WebGlSampler, Error>
+    where
+        I: IntoIterator<Item = WebGlSamplerParamWithValue>,
+    {
+        let mut sampler_params = SamplerParameters::default();
+        params.into_iter().for_each(|param| match param {
+            WebGlSamplerParamWithValue::MagnificationFilter(value) => {
+                sampler_params.magnification_filter = value
+            }
+            WebGlSamplerParamWithValue::MinificationFilter(value) => {
+                sampler_params.minification_filter = value
+            }
+            WebGlSamplerParamWithValue::WrapS(value) => sampler_params.wrap_s = value,
+            WebGlSamplerParamWithValue::WrapT(value) => sampler_params.wrap_t = value,
+            WebGlSamplerParamWithValue::WrapR(value) => sampler_params.wrap_r = value,
+            WebGlSamplerParamWithValue::CompareFunction(value) => {
+                sampler_params.compare_function = value
+            }
+            WebGlSamplerParamWithValue::CompareMode(value) => sampler_params.compare_mode = value,
+            WebGlSamplerParamWithValue::MaxLod(value) => {
+                sampler_params.max_lod = OrderedFloat(value)
+            }
+            WebGlSamplerParamWithValue::MinLod(value) => {
+                sampler_params.min_lod = OrderedFloat(value)
+            }
+        });
+
+        self.get_or_create_sampler(sampler_params)
+    }
+
+    fn get_or_create_sampler(&mut self, params: SamplerParameters) -> Result<WebGlSampler, Error> {
+        if let Some(sampler) = self.samplers.get(&params) {
+            return Ok(sampler.clone());
+        }
+
+        let sampler = self
+            .gl
+            .create_sampler()
+            .ok_or(Error::CreateSamplerFailure)?;
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::MagnificationFilter.to_gl_enum(),
+            params.magnification_filter.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::MinificationFilter.to_gl_enum(),
+            params.minification_filter.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::WrapS.to_gl_enum(),
+            params.wrap_s.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::WrapT.to_gl_enum(),
+            params.wrap_t.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::WrapR.to_gl_enum(),
+            params.wrap_r.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::CompareFunction.to_gl_enum(),
+            params.compare_function.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameteri(
+            &sampler,
+            WebGlSamplerParam::CompareMode.to_gl_enum(),
+            params.compare_mode.to_gl_enum() as i32,
+        );
+        self.gl.sampler_parameterf(
+            &sampler,
+            WebGlSamplerParam::MaxLod.to_gl_enum(),
+            params.max_lod.0,
+        );
+        self.gl.sampler_parameterf(
+            &sampler,
+            WebGlSamplerParam::MinLod.to_gl_enum(),
+            params.min_lod.0,
+        );
+
+        self.samplers.insert(params, sampler.clone());
+        Ok(sampler)
+    }
+}
+
 #[derive(Clone)]
 pub struct WebGlTextureItem {
     gl_texture: WebGlTexture,
     gl_sampler: WebGlSampler,
-    layout: WebGlTextureLayout,
+    /// `levels` of texture layout here is safe to unwrap.
+    layout: WebGlTextureLayoutWithSize,
     internal_format: WebGlTextureInternalFormat,
-    width: usize,
-    height: usize,
-    levels: usize,
-    depth: usize,
 }
 
 impl WebGlTextureItem {
@@ -1262,35 +1533,15 @@ impl WebGlTextureItem {
         &self.gl_sampler
     }
 
-    /// Returns [`WebGlTextureLayout`].
-    pub fn layout(&self) -> WebGlTextureLayout {
+    /// Returns [`WebGlTextureLayoutWithSize`].
+    /// `levels` of texture layout here is safe to unwrap.
+    pub fn layout(&self) -> WebGlTextureLayoutWithSize {
         self.layout
     }
 
     /// Returns [`WebGlTextureInternalFormat`].
     pub fn internal_format(&self) -> WebGlTextureInternalFormat {
         self.internal_format
-    }
-
-    /// Returns width of the texture.
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    /// Returns height of the texture.
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
-    /// Returns levels of the texture.
-    pub fn levels(&self) -> usize {
-        self.levels
-    }
-
-    /// Returns depth of the texture.
-    /// Useless when texture layout is not [`WebGlTextureLayout::Texture3D`] or [`WebGlTextureLayout::Texture2DArray`].
-    pub fn depth(&self) -> usize {
-        self.depth
     }
 }
 
@@ -1299,6 +1550,7 @@ pub struct WebGlTextureManager {
     gl: WebGl2RenderingContext,
     capabilities: WebGlCapabilities,
     channel: Channel,
+    sampler_manager: WebGlSamplerManager,
     textures: Rc<RefCell<HashMap<Uuid, WebGlTextureItem>>>,
 }
 
@@ -1313,10 +1565,11 @@ impl WebGlTextureManager {
 
         Self {
             id: Uuid::new_v4(),
-            gl,
             capabilities,
             channel,
+            sampler_manager: WebGlSamplerManager::new(gl.clone()),
             textures,
+            gl,
         }
     }
 
@@ -1327,7 +1580,104 @@ impl WebGlTextureManager {
 
     /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`] into WebGl context.
     pub fn sync_texture(&mut self, texturing: &WebGlTexturing) -> Result<WebGlTextureItem, Error> {
-        todo!()
+        self.verify_manager(texturing)?;
+
+        let mut textures = self.textures.borrow_mut();
+        let item = match textures.entry(*texturing.id()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let gl_texture = self
+                    .gl
+                    .create_texture()
+                    .ok_or(Error::CreateTextureFailure)?;
+                let gl_sampler = match &texturing.options.sampler_parameters {
+                    Some(params) => self
+                        .sampler_manager
+                        .get_or_create_sampler_by_iter(params.iter().cloned())?,
+                    None => self.sampler_manager.get_or_create_default_sampler()?,
+                };
+                let layout = texturing.options.layout;
+                let levels = layout.get_or_auto_levels();
+                let internal_format = texturing.options.internal_format;
+
+                self.gl.bind_texture(layout.to_gl_enum(), Some(&gl_texture));
+                match layout {
+                    WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
+                    | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. } => {
+                        self.gl.tex_storage_2d(
+                            layout.to_gl_enum(),
+                            levels as i32,
+                            internal_format.to_gl_enum(),
+                            width as i32,
+                            height as i32,
+                        )
+                    }
+                    WebGlTextureLayoutWithSize::Texture2DArray {
+                        width,
+                        height,
+                        len: depth,
+                        ..
+                    }
+                    | WebGlTextureLayoutWithSize::Texture3D {
+                        width,
+                        height,
+                        depth,
+                        ..
+                    } => self.gl.tex_storage_3d(
+                        layout.to_gl_enum(),
+                        levels as i32,
+                        internal_format.to_gl_enum(),
+                        width as i32,
+                        height as i32,
+                        depth as i32,
+                    ),
+                };
+
+                let item = WebGlTextureItem {
+                    gl_texture,
+                    gl_sampler,
+                    layout,
+                    internal_format,
+                };
+                texturing.set_managed(self.id, self.channel.clone());
+
+                entry.insert(item)
+            }
+        };
+
+        let WebGlTextureItem {
+            gl_texture,
+            gl_sampler,
+            layout,
+            internal_format,
+        } = item;
+        self.gl.bind_texture(layout.to_gl_enum(), Some(&gl_texture));
+        for level in 0..layout.get_or_auto_levels() {
+            for item in texturing.queue_of_level(level).drain() {
+                let TexturingItem {
+                    data,
+                    dst_origin_x,
+                    dst_origin_y,
+                } = item;
+                let Some(data) = data.as_webgl_texture_data() else {
+                    warn!("texture data is not supported for WebGL, skipped");
+                    continue;
+                };
+            }
+        }
+        self.gl.bind_texture(layout.to_gl_enum(), None);
+
+        Ok(item.clone())
+    }
+
+    fn verify_manager(&self, texturing: &WebGlTexturing) -> Result<(), Error> {
+        if let Some(manager_id) = texturing.manager_id() {
+            if manager_id != self.id {
+                return Err(Error::TextureManagedByOtherManager);
+            }
+        }
+
+        Ok(())
     }
 }
 

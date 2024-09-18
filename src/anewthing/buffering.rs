@@ -22,7 +22,9 @@ pub trait BufferData {
 }
 
 pub(crate) struct BufferingItem {
+    /// Buffer data.
     pub(crate) data: Box<dyn BufferData>,
+    /// Offset in bytes specifying where data start to write to.
     pub(crate) dst_byte_offset: usize,
 }
 

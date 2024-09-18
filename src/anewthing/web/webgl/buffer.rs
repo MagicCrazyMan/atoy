@@ -425,11 +425,7 @@ impl WebGlBufferManager {
 
     /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`] into WebGl context.
     pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
-        if let Some(manager_id) = buffering.manager_id() {
-            if manager_id != self.id {
-                return Err(Error::BufferManagedByOtherManager);
-            }
-        }
+        self.verify_manager(buffering)?;
 
         let mut buffers = self.buffers.borrow_mut();
         let buffer_item = match buffers.entry(*buffering.id()) {
@@ -530,6 +526,16 @@ impl WebGlBufferManager {
             .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
 
         Ok(buffer_item.clone())
+    }
+
+    fn verify_manager(&self, buffering: &WebGlBuffering) -> Result<(), Error> {
+        if let Some(manager_id) = buffering.manager_id() {
+            if manager_id != self.id {
+                return Err(Error::BufferManagedByOtherManager);
+            }
+        }
+
+        Ok(())
     }
 }
 

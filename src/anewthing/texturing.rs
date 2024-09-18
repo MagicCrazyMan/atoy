@@ -31,8 +31,9 @@ pub trait TextureData {
 }
 
 pub(crate) struct TexturingItem {
+    /// Texture data.
     pub(crate) data: Box<dyn TextureData>,
-    pub(crate) level: usize,
+    /// Origin in bytes specifying where data start to write to.
     pub(crate) dst_origin_x: usize,
     pub(crate) dst_origin_y: usize,
 }
@@ -116,11 +117,11 @@ impl Texturing {
     where
         T: TextureData + 'static,
     {
-        self.push_with_origin(data, level, 0, 0)
+        self.push_with_params(data, level, 0, 0)
     }
 
     /// Pushes texture data into the texture with byte offset indicating where to start replacing data.
-    pub fn push_with_origin<T>(
+    pub fn push_with_params<T>(
         &self,
         data: T,
         level: usize,
@@ -134,7 +135,6 @@ impl Texturing {
 
         let item = TexturingItem {
             data: Box::new(data),
-            level,
             dst_origin_x,
             dst_origin_y,
         };
