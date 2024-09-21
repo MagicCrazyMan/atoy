@@ -33,9 +33,11 @@ pub trait TextureData {
 pub(crate) struct TexturingItem {
     /// Texture data.
     pub(crate) data: Box<dyn TextureData>,
-    /// Origin in bytes specifying where data start to write to.
     pub(crate) dst_origin_x: usize,
     pub(crate) dst_origin_y: usize,
+    pub(crate) dst_origin_z: usize,
+    pub(crate) dst_width: Option<usize>,
+    pub(crate) dst_height: Option<usize>,
 }
 
 pub(crate) struct TexturingQueue {
@@ -117,7 +119,7 @@ impl Texturing {
     where
         T: TextureData + 'static,
     {
-        self.push_with_params(data, level, 0, 0)
+        self.push_with_params(data, level, 0, 0, 0, None, None)
     }
 
     /// Pushes texture data into the texture with byte offset indicating where to start replacing data.
@@ -127,6 +129,9 @@ impl Texturing {
         level: usize,
         dst_origin_x: usize,
         dst_origin_y: usize,
+        dst_origin_z: usize,
+        dst_width: Option<usize>,
+        dst_height: Option<usize>,
     ) where
         T: TextureData + 'static,
     {
@@ -137,6 +142,9 @@ impl Texturing {
             data: Box::new(data),
             dst_origin_x,
             dst_origin_y,
+            dst_origin_z,
+            dst_width,
+            dst_height,
         };
         queue.push(item);
     }
