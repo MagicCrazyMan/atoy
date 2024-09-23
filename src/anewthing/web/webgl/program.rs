@@ -777,3 +777,13 @@ impl WebGlProgramManager {
         locations
     }
 }
+
+// BIG CHANGED!
+// 
+// Collects uniform blocks first, and collects all gl.UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES.
+// The collects plain uniforms, filter out all uniform indices including in gl.UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES.
+// 
+// When collecting attributes and plain uniforms, collect the native WebGlActiveInfo and store them!
+// Cast WebGlActiveInfo.type to concrete enum.
+// 
+// When collecting plain uniforms, an uniform may be an array, a structure or an array of structures and even an array of structures including array of values! deals with different situations!

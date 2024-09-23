@@ -11,18 +11,6 @@ use uuid::Uuid;
 use super::channel::Channel;
 
 pub trait TextureData {
-    // /// Returns width of the texture data.
-    // fn width(&self) -> usize;
-
-    // /// Returns height of the texture data.
-    // fn height(&self) -> usize;
-
-    // /// Returns x origin starts to copy image data of the texture data.
-    // fn x_origin(&self) -> usize;
-
-    // /// Returns y origin starts to copy image data of the texture data.
-    // fn y_origin(&self) -> usize;
-
     /// Converts the texture data into a [`WebGlTextureData`](super::web::webgl::texture::WebGlTextureData).
     #[cfg(feature = "webgl")]
     fn as_webgl_texture_data(&self) -> Option<super::web::webgl::texture::WebGlTextureData> {
@@ -36,7 +24,9 @@ pub(crate) struct TexturingItem {
     pub(crate) dst_origin_x: usize,
     pub(crate) dst_origin_y: usize,
     pub(crate) dst_origin_z: usize,
+    /// Width of the data to be replaced. If `None`, the width of the data is used.
     pub(crate) dst_width: Option<usize>,
+    /// Height of the data to be replaced. If `None`, the height of the data is used.
     pub(crate) dst_height: Option<usize>,
 }
 

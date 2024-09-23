@@ -937,6 +937,49 @@ pub enum WebGlImagePixelDataType {
     Float_32_UnsignedInt_24_8_Rev,
 }
 
+/// Available texture pack pixel store for [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlPackPixelStore {
+    PackAlignment,
+    PackRowLength,
+    PackSkipPixels,
+    PackSkipRows,
+}
+
+/// Available texture unpack pixel stores with value for [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WebGlPackPixelStoreWithValue {
+    PackAlignment(i32),
+    PackRowLength(i32),
+    PackSkipPixels(i32),
+    PackSkipRows(i32),
+}
+
+impl From<WebGlPackPixelStoreWithValue> for WebGlPackPixelStore {
+    #[inline]
+    fn from(value: WebGlPackPixelStoreWithValue) -> Self {
+        match value {
+            WebGlPackPixelStoreWithValue::PackAlignment(_) => WebGlPackPixelStore::PackAlignment,
+            WebGlPackPixelStoreWithValue::PackRowLength(_) => WebGlPackPixelStore::PackRowLength,
+            WebGlPackPixelStoreWithValue::PackSkipPixels(_) => WebGlPackPixelStore::PackSkipPixels,
+            WebGlPackPixelStoreWithValue::PackSkipRows(_) => WebGlPackPixelStore::PackSkipRows,
+        }
+    }
+}
+
+impl WebGlPackPixelStoreWithValue {
+    /// Returns as [`WebGlPackPixelStore`].
+    #[inline]
+    pub fn as_pack_pixel_store(&self) -> WebGlPackPixelStore {
+        WebGlPackPixelStore::from(*self)
+    }
+
+    #[inline]
+    pub fn to_gl_enum(&self) -> u32 {
+        WebGlPackPixelStore::from(*self).to_gl_enum()
+    }
+}
+
 /// Available texture unpack color space conversions for [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -945,80 +988,84 @@ pub enum WebGlPixelUnpackColorSpaceConversion {
     BROWSER_DEFAULT_WEBGL,
 }
 
-/// Available texture pixel store for [`WebGl2RenderingContext`].
+/// Available texture unpack pixel store for [`WebGl2RenderingContext`].
+///
+/// [`WebGl2RenderingContext::UNPACK_ALIGNMENT`] and [`WebGl2RenderingContext::UNPACK_ROW_LENGTH`] are ignored in WebGL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlPixelStore {
-    PackAlignment,
-    PackRowLength,
-    PackSkipPixels,
-    PackSkipRows,
-    UnpackAlignment,
+pub enum WebGlUnpackPixelStore {
+    // UnpackAlignment,
     #[gl_enum(UNPACK_FLIP_Y_WEBGL)]
     UnpackFlipY,
     #[gl_enum(UNPACK_PREMULTIPLY_ALPHA_WEBGL)]
     UnpackPremultiplyAlpha,
     #[gl_enum(UNPACK_COLORSPACE_CONVERSION_WEBGL)]
-    UnpackColorspaceConversion,
-    UnpackRowLength,
+    UnpackColorSpaceConversion,
+    // UnpackRowLength,
     UnpackImageHeight,
     UnpackSkipPixels,
     UnpackSkipRows,
     UnpackSkipImages,
 }
 
-/// Available texture pixel stores with value for [`WebGl2RenderingContext`].
+/// Available texture unpack pixel stores with value for [`WebGl2RenderingContext`].
+///
+/// [`WebGl2RenderingContext::UNPACK_ALIGNMENT`] and [`WebGl2RenderingContext::UNPACK_ROW_LENGTH`] are ignored in WebGL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WebGlPixelStoreWithValue {
-    PackAlignment(i32),
-    PackRowLength(i32),
-    PackSkipPixels(i32),
-    PackSkipRows(i32),
-    UnpackAlignment(i32),
+pub enum WebGlUnpackPixelStoreWithValue {
+    // UnpackAlignment(i32),
     UnpackFlipY(bool),
     UnpackPremultiplyAlpha(bool),
-    UnpackColorspaceConversion(WebGlPixelUnpackColorSpaceConversion),
-    UnpackRowLength(i32),
+    UnpackColorSpaceConversion(WebGlPixelUnpackColorSpaceConversion),
+    // UnpackRowLength(i32),
     UnpackImageHeight(i32),
     UnpackSkipPixels(i32),
     UnpackSkipRows(i32),
     UnpackSkipImages(i32),
 }
 
-impl From<WebGlPixelStoreWithValue> for WebGlPixelStore {
+impl From<WebGlUnpackPixelStoreWithValue> for WebGlUnpackPixelStore {
     #[inline]
-    fn from(value: WebGlPixelStoreWithValue) -> Self {
+    fn from(value: WebGlUnpackPixelStoreWithValue) -> Self {
         match value {
-            WebGlPixelStoreWithValue::PackAlignment(_) => WebGlPixelStore::PackAlignment,
-            WebGlPixelStoreWithValue::PackRowLength(_) => WebGlPixelStore::PackRowLength,
-            WebGlPixelStoreWithValue::PackSkipPixels(_) => WebGlPixelStore::PackSkipPixels,
-            WebGlPixelStoreWithValue::PackSkipRows(_) => WebGlPixelStore::PackSkipRows,
-            WebGlPixelStoreWithValue::UnpackAlignment(_) => WebGlPixelStore::UnpackAlignment,
-            WebGlPixelStoreWithValue::UnpackFlipY(_) => WebGlPixelStore::UnpackFlipY,
-            WebGlPixelStoreWithValue::UnpackPremultiplyAlpha(_) => {
-                WebGlPixelStore::UnpackPremultiplyAlpha
+            // WebGlUnpackPixelStoreWithValue::UnpackAlignment(_) => {
+            //     WebGlUnpackPixelStore::UnpackAlignment
+            // }
+            WebGlUnpackPixelStoreWithValue::UnpackFlipY(_) => WebGlUnpackPixelStore::UnpackFlipY,
+            WebGlUnpackPixelStoreWithValue::UnpackPremultiplyAlpha(_) => {
+                WebGlUnpackPixelStore::UnpackPremultiplyAlpha
             }
-            WebGlPixelStoreWithValue::UnpackColorspaceConversion(_) => {
-                WebGlPixelStore::UnpackColorspaceConversion
+            WebGlUnpackPixelStoreWithValue::UnpackColorSpaceConversion(_) => {
+                WebGlUnpackPixelStore::UnpackColorSpaceConversion
             }
-            WebGlPixelStoreWithValue::UnpackRowLength(_) => WebGlPixelStore::UnpackRowLength,
-            WebGlPixelStoreWithValue::UnpackImageHeight(_) => WebGlPixelStore::UnpackImageHeight,
-            WebGlPixelStoreWithValue::UnpackSkipPixels(_) => WebGlPixelStore::UnpackSkipPixels,
-            WebGlPixelStoreWithValue::UnpackSkipRows(_) => WebGlPixelStore::UnpackSkipRows,
-            WebGlPixelStoreWithValue::UnpackSkipImages(_) => WebGlPixelStore::UnpackSkipImages,
+            // WebGlUnpackPixelStoreWithValue::UnpackRowLength(_) => {
+            //     WebGlUnpackPixelStore::UnpackRowLength
+            // }
+            WebGlUnpackPixelStoreWithValue::UnpackImageHeight(_) => {
+                WebGlUnpackPixelStore::UnpackImageHeight
+            }
+            WebGlUnpackPixelStoreWithValue::UnpackSkipPixels(_) => {
+                WebGlUnpackPixelStore::UnpackSkipPixels
+            }
+            WebGlUnpackPixelStoreWithValue::UnpackSkipRows(_) => {
+                WebGlUnpackPixelStore::UnpackSkipRows
+            }
+            WebGlUnpackPixelStoreWithValue::UnpackSkipImages(_) => {
+                WebGlUnpackPixelStore::UnpackSkipImages
+            }
         }
     }
 }
 
-impl WebGlPixelStoreWithValue {
-    /// Returns as [`WebGlTexturePixelStore`].
+impl WebGlUnpackPixelStoreWithValue {
+    /// Returns as [`WebGlUnpackPixelStore`].
     #[inline]
-    pub fn as_pixel_store(&self) -> WebGlPixelStore {
-        WebGlPixelStore::from(*self)
+    pub fn as_pixel_store(&self) -> WebGlUnpackPixelStore {
+        WebGlUnpackPixelStore::from(*self)
     }
 
     #[inline]
     pub fn to_gl_enum(&self) -> u32 {
-        WebGlPixelStore::from(*self).to_gl_enum()
+        WebGlUnpackPixelStore::from(*self).to_gl_enum()
     }
 }
 
@@ -1125,6 +1172,12 @@ pub enum WebGlUncompressedTextureData<'a> {
         buffering: &'a WebGlBuffering,
         pbo_offset: Option<usize>,
     },
+    DataView {
+        width: usize,
+        height: usize,
+        data: DataView,
+        element_offset: Option<usize>,
+    },
     Int8Array {
         width: usize,
         height: usize,
@@ -1171,12 +1224,6 @@ pub enum WebGlUncompressedTextureData<'a> {
         width: usize,
         height: usize,
         data: Float32Array,
-        element_offset: Option<usize>,
-    },
-    DataView {
-        width: usize,
-        height: usize,
-        data: DataView,
         element_offset: Option<usize>,
     },
     HtmlCanvasElement {
@@ -1211,6 +1258,7 @@ pub enum WebGlCompressedTextureData<'a> {
         image_size: usize,
         pbo_offset: Option<usize>,
     },
+    /// Pixel data type of Int8Array is restricted to [`WebGlImagePixelDataType::Byte`].
     Int8Array {
         width: usize,
         height: usize,
@@ -1218,6 +1266,7 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Uint8Array is restricted to [`WebGlImagePixelDataType::UnsignedByte`].
     Uint8Array {
         width: usize,
         height: usize,
@@ -1225,6 +1274,7 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Uint8ClampedArray is restricted to [`WebGlImagePixelDataType::UnsignedByte`].
     Uint8ClampedArray {
         width: usize,
         height: usize,
@@ -1232,6 +1282,7 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Int32Array is restricted to [`WebGlImagePixelDataType::Short`].
     Int16Array {
         width: usize,
         height: usize,
@@ -1239,13 +1290,18 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Uint16Array can be [`WebGlImagePixelDataType::UnsignedShort`],
+    /// [`WebGlImagePixelDataType::UnsignedShort_5_6_5`], [`WebGlImagePixelDataType::UnsignedShort_5_5_5_1`],
+    /// [`WebGlImagePixelDataType::UnsignedShort_4_4_4_4`] or [`WebGlImagePixelDataType::HalfFloat`].
     Uint16Array {
+        pixel_data_type: WebGlImagePixelDataType,
         width: usize,
         height: usize,
         data: Uint16Array,
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Int32Array is restricted to [`WebGlImagePixelDataType::Int`].
     Int32Array {
         width: usize,
         height: usize,
@@ -1253,13 +1309,18 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Uint32Array can be [`WebGlImagePixelDataType::UnsignedInt`],
+    /// [`WebGlImagePixelDataType::UnsignedInt_5_9_9_9Rev`], [`WebGlImagePixelDataType::UnsignedInt_2_10_10_10Rev`],
+    /// [`WebGlImagePixelDataType::UnsignedInt_10F_11F_11F_Rev`] or [`WebGlImagePixelDataType::UnsignedInt_24_8`].
     Uint32Array {
+        pixel_data_type: WebGlImagePixelDataType,
         width: usize,
         height: usize,
         data: Uint32Array,
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
+    /// Pixel data type of Float32Array is restricted to [`WebGlImagePixelDataType::Float`].
     Float32Array {
         width: usize,
         height: usize,
@@ -1267,23 +1328,35 @@ pub enum WebGlCompressedTextureData<'a> {
         src_element_offset: Option<usize>,
         src_element_length_override: Option<usize>,
     },
-    DataView {
-        width: usize,
-        height: usize,
-        data: DataView,
-        src_element_offset: Option<usize>,
-        src_element_length_override: Option<usize>,
-    },
+}
+
+impl WebGlCompressedTextureData {
+    fn upload(&self, gl: WebGl2RenderingContext, layout: WebGlTextureLayout) {
+        match data {
+            WebGlCompressedTextureData::Binary { width, height, data, element_offset } => {
+                gl.compressed_tex_image_2d_with_array_buffer_view_and_u32_and_src_length_override(layout, level, internalformat, width, height, border, src_data, src_offset, src_length_override);
+            },
+            WebGlCompressedTextureData::PixelBufferObject { width, height, buffering, image_size, pbo_offset } => todo!(),
+            WebGlCompressedTextureData::Int8Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Uint8Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Uint8ClampedArray { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Int16Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Uint16Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Int32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Uint32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+            WebGlCompressedTextureData::Float32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
+        };
+
+        self.gl.compress
+    }
 }
 
 /// Texture data for uploading data to WebGL runtime.
 pub enum WebGlTextureData<'a> {
     Uncompressed {
         pixel_format: WebGlImagePixelFormat,
-        pixel_data_type: WebGlImagePixelDataType,
-        pixel_storages: &'a [WebGlPixelStoreWithValue],
+        pixel_stores: &'a [WebGlUnpackPixelStoreWithValue],
         generate_mipmaps: bool,
-        flip_y: bool,
         data: WebGlUncompressedTextureData<'a>,
     },
     Compressed {
@@ -1646,10 +1719,7 @@ impl WebGlTextureManager {
         };
 
         let WebGlTextureItem {
-            gl_texture,
-            gl_sampler,
-            layout,
-            internal_format,
+            gl_texture, layout, ..
         } = item;
         self.gl.bind_texture(layout.to_gl_enum(), Some(&gl_texture));
         for level in 0..layout.get_or_auto_levels() {
@@ -1658,10 +1728,25 @@ impl WebGlTextureManager {
                     data,
                     dst_origin_x,
                     dst_origin_y,
+                    dst_origin_z,
+                    dst_width,
+                    dst_height,
                 } = item;
                 let Some(data) = data.as_webgl_texture_data() else {
                     warn!("texture data is not supported for WebGL, skipped");
                     continue;
+                };
+                match data {
+                    WebGlTextureData::Uncompressed {
+                        pixel_format,
+                        pixel_data_type,
+                        pixel_stores,
+                        generate_mipmaps,
+                        data,
+                    } => todo!(),
+                    WebGlTextureData::Compressed { data } => {
+                        todo!()
+                    }
                 };
             }
         }

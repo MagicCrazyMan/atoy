@@ -284,7 +284,7 @@ impl<'a> WebGlBufferData<'a> {
         }
     }
 
-    fn buffer_sub_data(
+    fn upload(
         &self,
         gl: &WebGl2RenderingContext,
         target: WebGlBufferTarget,
@@ -477,7 +477,7 @@ impl WebGlBufferManager {
                     let Some(data) = item.data.as_webgl_buffer_data() else {
                         return Err(Error::BufferDataUnsupported);
                     };
-                    data.buffer_sub_data(
+                    data.upload(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
                         item.dst_byte_offset,
@@ -504,7 +504,7 @@ impl WebGlBufferManager {
                     let Some(data) = item.data.as_webgl_buffer_data() else {
                         return Err(Error::BufferDataUnsupported);
                     };
-                    data.buffer_sub_data(
+                    data.upload(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
                         item.dst_byte_offset,
