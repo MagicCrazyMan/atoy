@@ -33,7 +33,7 @@ pub struct WebGlContext {
 
 impl WebGlContext {
     /// Constructs a new WebGl drawing context.
-    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
+    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {  
         let capabilities = WebGlCapabilities::new(gl.clone());
         Self {
             program_manager: WebGlProgramManager::new(gl.clone()),

@@ -10,6 +10,38 @@ use uuid::Uuid;
 
 use super::channel::Channel;
 
+/// Texture dimension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureDimension {
+    One {
+        width: usize,
+    },
+    Two {
+        width: usize,
+        height: usize,
+    },
+    Three {
+        width: usize,
+        height: usize,
+        depth: usize,
+    },
+    CubeMap {
+        width: usize,
+        height: usize,
+    },
+}
+
+/// Faces of cube map texture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextureCubeMapFace {
+    NegativeX,
+    PositiveX,
+    NegativeY,
+    PositiveY,
+    NegativeZ,
+    PositiveZ,
+}
+
 pub trait TextureData {
     /// Converts the texture data into a [`WebGlTextureData`](super::web::webgl::texture::WebGlTextureData).
     #[cfg(feature = "webgl")]
@@ -52,6 +84,8 @@ struct Managed {
 #[derive(Clone)]
 pub struct Texturing {
     id: Uuid,
+    dimension: TextureDimension,
+    array_len: Option<usize>,
     /// Queue for each level.
     queues: Rc<RefCell<HashMap<usize, TexturingQueue>>>,
 
@@ -60,9 +94,24 @@ pub struct Texturing {
 
 impl Texturing {
     /// Constructs a new texturing container.
-    pub fn new() -> Self {
+    pub fn new(dimension: TextureDimension) -> Self {
         Self {
             id: Uuid::new_v4(),
+            dimension,
+            array_len: None,
+            queues: Rc::new(RefCell::new(HashMap::new())),
+
+            managed: Rc::new(RefCell::new(None)),
+        }
+    }
+
+    /// Constructs a new texturing array container.
+    /// Converts to `None` if array length is `0`.
+    pub fn new_array(dimension: TextureDimension, array_len: usize) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            dimension,
+            array_len: if array_len == 0 { None } else { Some(array_len) },
             queues: Rc::new(RefCell::new(HashMap::new())),
 
             managed: Rc::new(RefCell::new(None)),
@@ -72,6 +121,17 @@ impl Texturing {
     /// Returns id.
     pub fn id(&self) -> &Uuid {
         &self.id
+    }
+
+    /// Returns texture dimension.
+    pub fn dimension(&self) -> TextureDimension {
+        self.dimension
+    }
+    
+    /// Returns length of the array if this texture is a texture array.
+    /// Returns `None` if this texture is not an array.
+    pub fn array_len(&self) -> Option<usize> {
+        self.array_len
     }
 
     /// Returns the inner texturing queue.
