@@ -1,4 +1,4 @@
-workspace = { members = ["proc", "voice-input-test"] }
+workspace = { members = ["proc"] }
 [package]
 name = "atoy"
 version = "0.1.0"

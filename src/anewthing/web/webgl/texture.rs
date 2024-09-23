@@ -1330,24 +1330,9 @@ pub enum WebGlCompressedTextureData<'a> {
     },
 }
 
-impl WebGlCompressedTextureData {
+impl<'a> WebGlCompressedTextureData<'a> {
     fn upload(&self, gl: WebGl2RenderingContext, layout: WebGlTextureLayout) {
-        match data {
-            WebGlCompressedTextureData::Binary { width, height, data, element_offset } => {
-                gl.compressed_tex_image_2d_with_array_buffer_view_and_u32_and_src_length_override(layout, level, internalformat, width, height, border, src_data, src_offset, src_length_override);
-            },
-            WebGlCompressedTextureData::PixelBufferObject { width, height, buffering, image_size, pbo_offset } => todo!(),
-            WebGlCompressedTextureData::Int8Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Uint8Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Uint8ClampedArray { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Int16Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Uint16Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Int32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Uint32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-            WebGlCompressedTextureData::Float32Array { width, height, data, src_element_offset, src_element_length_override } => todo!(),
-        };
-
-        self.gl.compress
+        todo!()
     }
 }
 
@@ -1401,8 +1386,7 @@ impl<'a> WebGlTextureData<'a> {
                 | WebGlCompressedTextureData::Uint16Array { width, .. }
                 | WebGlCompressedTextureData::Int32Array { width, .. }
                 | WebGlCompressedTextureData::Uint32Array { width, .. }
-                | WebGlCompressedTextureData::Float32Array { width, .. }
-                | WebGlCompressedTextureData::DataView { width, .. } => *width,
+                | WebGlCompressedTextureData::Float32Array { width, .. } => *width,
             },
         }
     }
@@ -1443,8 +1427,7 @@ impl<'a> WebGlTextureData<'a> {
                 | WebGlCompressedTextureData::Uint16Array { height, .. }
                 | WebGlCompressedTextureData::Int32Array { height, .. }
                 | WebGlCompressedTextureData::Uint32Array { height, .. }
-                | WebGlCompressedTextureData::Float32Array { height, .. }
-                | WebGlCompressedTextureData::DataView { height, .. } => *height,
+                | WebGlCompressedTextureData::Float32Array { height, .. } => *height,
             },
         }
     }
@@ -1739,7 +1722,6 @@ impl WebGlTextureManager {
                 match data {
                     WebGlTextureData::Uncompressed {
                         pixel_format,
-                        pixel_data_type,
                         pixel_stores,
                         generate_mipmaps,
                         data,
