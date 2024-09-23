@@ -1,4 +1,10 @@
-use std::{borrow::Cow, cell::LazyCell, hash::Hash, ops::Range, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::{LazyCell, RefCell},
+    hash::Hash,
+    ops::Range,
+    rc::Rc,
+};
 
 use hashbrown::{hash_map::Entry, HashMap, HashSet};
 use line_span::LineSpanExt;
@@ -498,10 +504,11 @@ struct WebGlProgramKey {
 
 #[derive(Clone)]
 pub struct WebGlProgramItem {
+    gl: WebGl2RenderingContext,
     gl_program: WebGlProgram,
-    attributes: Rc<HashMap<String, u32>>,
-    uniforms: Rc<HashMap<String, WebGlUniformLocation>>,
-    uniform_blocks: Rc<HashMap<String, u32>>,
+    attributes: Rc<RefCell<HashMap<String, Option<u32>>>>,
+    uniforms: Rc<RefCell<HashMap<String, Option<WebGlUniformLocation>>>>,
+    uniform_blocks: Rc<RefCell<HashMap<String, Option<u32>>>>,
 }
 
 impl WebGlProgramItem {
@@ -510,34 +517,60 @@ impl WebGlProgramItem {
         &self.gl_program
     }
 
-    /// Returns all attributes name and location key-value pairs.
-    pub fn attributes_locations(&self) -> &HashMap<String, u32> {
-        &self.attributes
-    }
-
-    /// Returns all uniforms name and [`WebGlUniformLocation`] key-value pairs.
-    pub fn uniforms_locations(&self) -> &HashMap<String, WebGlUniformLocation> {
-        &self.uniforms
-    }
-
-    /// Returns all uniform blocks name and location key-value pairs.
-    pub fn uniform_blocks_locations(&self) -> &HashMap<String, u32> {
-        &self.uniform_blocks
-    }
-
     /// Returns the attribute location of a specified attribute name.
     pub fn attribute_location(&self, name: &str) -> Option<u32> {
-        self.attributes.get(name).copied()
+        let mut attributes = self.attributes.borrow_mut();
+        match attributes.get(name) {
+            Some(location) => location.clone(),
+            None => {
+                let location = self.gl.get_attrib_location(&self.gl_program, name);
+                let location = if location == -1 {
+                    None
+                } else {
+                    Some(location as u32)
+                };
+                attributes
+                    .insert_unique_unchecked(name.to_string(), location)
+                    .1
+                    .clone()
+            }
+        }
     }
 
     /// Returns the uniform location of a specified uniform name.
-    pub fn uniform_location(&self, name: &str) -> Option<&WebGlUniformLocation> {
-        self.uniforms.get(name)
+    pub fn uniform_location(&self, name: &str) -> Option<WebGlUniformLocation> {
+        let mut uniforms = self.uniforms.borrow_mut();
+        match uniforms.get(name) {
+            Some(location) => location.clone(),
+            None => {
+                let location = self.gl.get_uniform_location(&self.gl_program, name);
+                uniforms
+                    .insert_unique_unchecked(name.to_string(), location)
+                    .1
+                    .clone()
+            }
+        }
     }
 
     /// Returns the uniform block location of a specified uniform block name.
     pub fn uniform_block_location(&self, name: &str) -> Option<u32> {
-        self.uniform_blocks.get(name).copied()
+        let mut uniform_blocks = self.uniform_blocks.borrow_mut();
+        match uniform_blocks.get(name) {
+            Some(location) => location.clone(),
+            None => {
+                let location = self.gl.get_uniform_block_index(&self.gl_program, name);
+                // WebGl returns u32::MAX(-1 in i32) when uniform block does not exist
+                let location = if location == u32::MAX {
+                    None
+                } else {
+                    Some(location)
+                };
+                uniform_blocks
+                    .insert_unique_unchecked(name.to_string(), location)
+                    .1
+                    .clone()
+            }
+        }
     }
 }
 
@@ -639,14 +672,12 @@ impl WebGlProgramManager {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let gl_program = Self::create_program(&self.gl, &vs, &fs)?;
-                let attributes = Self::collects_attributes(&self.gl, &gl_program);
-                let uniforms = Self::collects_uniforms(&self.gl, &gl_program);
-                let uniform_blocks = Self::collects_uniform_blocks(&self.gl, &gl_program);
                 let program = WebGlProgramItem {
+                    gl: self.gl.clone(),
                     gl_program,
-                    attributes: Rc::new(attributes),
-                    uniforms: Rc::new(uniforms),
-                    uniform_blocks: Rc::new(uniform_blocks),
+                    attributes: Rc::new(RefCell::new(HashMap::new())),
+                    uniforms: Rc::new(RefCell::new(HashMap::new())),
+                    uniform_blocks: Rc::new(RefCell::new(HashMap::new())),
                 };
                 entry.insert(program)
             }
@@ -695,95 +726,14 @@ impl WebGlProgramManager {
 
         Ok(program)
     }
-
-    /// Collects active attribute name and location key-value pairs.
-    fn collects_attributes(
-        gl: &WebGl2RenderingContext,
-        program: &WebGlProgram,
-    ) -> HashMap<String, u32> {
-        let mut locations = HashMap::new();
-
-        let num = gl
-            .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_ATTRIBUTES)
-            .as_f64()
-            .map(|v| v as u32)
-            .unwrap_or(0);
-        for location in 0..num {
-            let Some(name) = gl
-                .get_active_attrib(&program, location)
-                .map(|info| info.name())
-            else {
-                continue;
-            };
-
-            locations.insert(name, location);
-        }
-
-        locations
-    }
-
-    /// Collects active uniform locations and bindings.
-    fn collects_uniforms(
-        gl: &WebGl2RenderingContext,
-        program: &WebGlProgram,
-    ) -> HashMap<String, WebGlUniformLocation> {
-        let mut locations = HashMap::new();
-
-        let num = gl
-            .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_UNIFORMS)
-            .as_f64()
-            .map(|v| v as u32)
-            .unwrap_or(0);
-        for index in 0..num {
-            let Some(name) = gl
-                .get_active_uniform(&program, index)
-                .map(|info| info.name())
-            else {
-                continue;
-            };
-            // getActiveUniform counts uniforms in Uniform Block as active uniforms as well.
-            // getUniformLocation maybe None for those uniforms in Uniform Block.
-            let Some(location) = gl.get_uniform_location(&program, &name) else {
-                continue;
-            };
-
-            locations.insert(name, location);
-        }
-
-        locations
-    }
-
-    /// Collects active uniform block indices.
-    fn collects_uniform_blocks(
-        gl: &WebGl2RenderingContext,
-        program: &WebGlProgram,
-    ) -> HashMap<String, u32> {
-        let mut locations = HashMap::new();
-
-        let num = gl
-            .get_program_parameter(&program, WebGl2RenderingContext::ACTIVE_UNIFORM_BLOCKS)
-            .as_f64()
-            .map(|v| v as u32)
-            .unwrap_or(0);
-
-        for location in 0..num {
-            let Some(name) = gl.get_active_uniform_block_name(&program, location) else {
-                continue;
-            };
-
-            locations.insert(name, location);
-        }
-
-        locations
-    }
 }
 
 // BIG CHANGED!
-// 
+//
 // Collects uniform blocks first, and collects all gl.UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES.
 // The collects plain uniforms, filter out all uniform indices including in gl.UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES.
-// 
+//
 // When collecting attributes and plain uniforms, collect the native WebGlActiveInfo and store them!
 // Cast WebGlActiveInfo.type to concrete enum.
-// 
+//
 // When collecting plain uniforms, an uniform may be an array, a structure or an array of structures and even an array of structures including array of values! deals with different situations!

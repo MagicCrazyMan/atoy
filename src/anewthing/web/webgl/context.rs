@@ -282,7 +282,7 @@ impl WebGlContext {
         let Some(location) = using_program.uniform_location(name) else {
             return Err(Error::UniformLocationNotFound(name.to_string()));
         };
-        Self::set_uniform_value_inner(&self.gl, location, value);
+        Self::set_uniform_value_inner(&self.gl, &location, value);
         Ok(())
     }
 
