@@ -5,13 +5,19 @@ use nalgebra::{
     Vector1, Vector2, Vector3, Vector4,
 };
 
-use super::{buffer::WebGlBuffering, texture::WebGlTexturing};
+use super::{
+    buffer::WebGlBuffering,
+    texture::{WebGlTextureUnit, WebGlTexturing},
+};
 
 /// Available uniform values.
 #[derive(Debug, Clone, Copy)]
 pub enum WebGlUniformValue<'a> {
     Bool(bool),
-    Texture(&'a WebGlTexturing),
+    Texture {
+        texturing: &'a WebGlTexturing,
+        unit: WebGlTextureUnit,
+    },
     Float1(f32),
     Float2(f32, f32),
     Float3(f32, f32, f32),

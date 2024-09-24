@@ -15,7 +15,7 @@ use super::{
     client_wait::WebGlClientWait,
     error::Error,
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
-    texture::WebGlTextureManager,
+    texture::{WebGlTextureItem, WebGlTextureManager, WebGlTextureUnit, WebGlTexturing},
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
 };
 
@@ -28,27 +28,24 @@ pub struct WebGlContext {
     capabilities: WebGlCapabilities,
 
     using_program: Option<WebGlProgramItem>,
-    using_uniform_buffer_objects: HashMap<usize, (WebGlBuffer, Range<usize>)>,
+    using_uniform_buffer_objects: HashMap<usize, (WebGlBufferItem, Range<usize>)>,
+    activating_texture_units: HashMap<WebGlTextureUnit, WebGlTextureItem>,
 }
 
 impl WebGlContext {
     /// Constructs a new WebGl drawing context.
-    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {  
-        let capabilities = WebGlCapabilities::new(gl.clone());
+    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
         Self {
             program_manager: WebGlProgramManager::new(gl.clone()),
             buffer_manager: WebGlBufferManager::new(gl.clone(), channel.clone()),
-            texture_manager: WebGlTextureManager::new(
-                gl.clone(),
-                capabilities.clone(),
-                channel.clone(),
-            ),
-            capabilities,
+            texture_manager: WebGlTextureManager::new(gl.clone(), channel.clone()),
+            capabilities: WebGlCapabilities::new(gl.clone()),
             gl,
             channel,
 
             using_program: None,
             using_uniform_buffer_objects: HashMap::new(),
+            activating_texture_units: HashMap::new(),
         }
     }
 
@@ -170,6 +167,17 @@ impl WebGlContext {
         *using_program = Some(program_item.clone());
     }
 
+    /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`](super::super::super::buffering::BufferData) into WebGl context.
+    pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
+        self.buffer_manager.sync_buffer(buffering)
+    }
+
+    /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`](super::super::super::texturing::TextureData) into WebGl context.
+    pub fn sync_texture(&mut self, texturing: &WebGlTexturing) -> Result<WebGlTextureItem, Error> {
+        self.texture_manager
+            .sync_texture(texturing, &mut self.buffer_manager, &self.capabilities)
+    }
+
     /// Sets a attribute by specified attribute name.
     pub fn set_attribute_value(
         &mut self,
@@ -275,14 +283,22 @@ impl WebGlContext {
     }
 
     /// Sets a uniform value by specified uniform name.
-    pub fn set_uniform_value(&self, name: &str, value: WebGlUniformValue) -> Result<(), Error> {
+    pub fn set_uniform_value(&mut self, name: &str, value: WebGlUniformValue) -> Result<(), Error> {
         let Some(using_program) = self.using_program.as_ref() else {
             return Err(Error::NoUsingProgram);
         };
         let Some(location) = using_program.uniform_location(name) else {
             return Err(Error::UniformLocationNotFound(name.to_string()));
         };
-        Self::set_uniform_value_inner(&self.gl, &location, value);
+        Self::set_uniform_value_inner(
+            &self.gl,
+            &location,
+            value,
+            &mut self.activating_texture_units,
+            &mut self.texture_manager,
+            &mut self.buffer_manager,
+            &self.capabilities,
+        )?;
         Ok(())
     }
 
@@ -290,10 +306,21 @@ impl WebGlContext {
         gl: &WebGl2RenderingContext,
         location: &WebGlUniformLocation,
         value: WebGlUniformValue,
-    ) {
+        activating_texture_units: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        texture_manager: &mut WebGlTextureManager,
+        buffer_manager: &mut WebGlBufferManager,
+        capabilities: &WebGlCapabilities,
+    ) -> Result<(), Error> {
         match value {
             WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if v { 1 } else { 0 }),
-            WebGlUniformValue::Texture(v) => todo!(),
+            WebGlUniformValue::Texture { texturing, unit } => {
+                let item = texture_manager.sync_texture(texturing, buffer_manager, capabilities)?;
+                gl.bind_texture(item.layout().to_gl_enum(), Some(item.gl_texture()));
+                gl.uniform1i(Some(location), unit.as_index());
+                gl.active_texture(unit.to_gl_enum());
+                gl.bind_texture(item.layout().to_gl_enum(), None);
+                activating_texture_units.insert(unit, item);
+            }
             WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), x),
             WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), x, y),
             WebGlUniformValue::Float3(x, y, z) => gl.uniform3f(Some(location), x, y, z),
@@ -389,7 +416,9 @@ impl WebGlContext {
                     transpose,
                     data.data.as_slice(),
                 ),
-        }
+        };
+
+        Ok(())
     }
 
     /// Sets a uniform block value by specified uniform block name.
@@ -411,7 +440,7 @@ impl WebGlContext {
             } => (buffer, mount_point, byte_offset, byte_length),
         };
 
-        let buffer_item: WebGlBufferItem = self.buffer_manager.sync_buffer(buffer)?;
+        let buffer_item = self.buffer_manager.sync_buffer(buffer)?;
         let Some(using_program) = self.using_program.as_ref() else {
             return Err(Error::NoUsingProgram);
         };
@@ -423,7 +452,7 @@ impl WebGlContext {
             Some(byte_length) => {
                 Self::mount_uniform_buffer_object_inner(
                     &self.gl,
-                    &buffer_item,
+                    buffer_item.clone(),
                     &mut self.using_uniform_buffer_objects,
                     mount_point,
                     byte_offset..byte_length,
@@ -432,7 +461,7 @@ impl WebGlContext {
             None => {
                 Self::mount_uniform_buffer_object_inner(
                     &self.gl,
-                    &buffer_item,
+                    buffer_item.clone(),
                     &mut self.using_uniform_buffer_objects,
                     mount_point,
                     byte_offset..,
@@ -476,7 +505,7 @@ impl WebGlContext {
         let buffer_item = self.buffer_manager.sync_buffer(buffering)?;
         Self::mount_uniform_buffer_object_inner(
             &self.gl,
-            &buffer_item,
+            buffer_item,
             &mut self.using_uniform_buffer_objects,
             mount_point,
             ..,
@@ -498,7 +527,7 @@ impl WebGlContext {
         let buffer_item = self.buffer_manager.sync_buffer(buffering)?;
         Self::mount_uniform_buffer_object_inner(
             &self.gl,
-            &buffer_item,
+            buffer_item,
             &mut self.using_uniform_buffer_objects,
             mount_point,
             range,
@@ -508,18 +537,20 @@ impl WebGlContext {
 
     fn mount_uniform_buffer_object_inner<R>(
         gl: &WebGl2RenderingContext,
-        buffer_item: &WebGlBufferItem,
-        using_uniform_buffer_objects: &mut HashMap<usize, (WebGlBuffer, Range<usize>)>,
+        buffer_item: WebGlBufferItem,
+        using_uniform_buffer_objects: &mut HashMap<usize, (WebGlBufferItem, Range<usize>)>,
         mount_point: usize,
         range: R,
     ) where
         R: RangeBounds<usize>,
     {
         let byte_range = buffer_item.normalize_byte_range(range);
-        if let Some((bound_buffer, bound_byte_range)) =
+        if let Some((bound_buffer_item, bound_byte_range)) =
             using_uniform_buffer_objects.get(&mount_point)
         {
-            if bound_buffer == buffer_item.gl_buffer() && bound_byte_range == &byte_range {
+            if bound_buffer_item.gl_buffer() == buffer_item.gl_buffer()
+                && bound_byte_range == &byte_range
+            {
                 return;
             }
         }
@@ -532,8 +563,7 @@ impl WebGlContext {
             byte_range.len() as i32,
         );
         gl.bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
-        using_uniform_buffer_objects
-            .insert(mount_point, (buffer_item.gl_buffer().clone(), byte_range));
+        using_uniform_buffer_objects.insert(mount_point, (buffer_item, byte_range));
     }
 
     /// Reads buffer data into an [`Uint8Array`].

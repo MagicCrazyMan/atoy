@@ -7,3 +7,5 @@ pub mod error;
 pub mod program;
 pub mod texture;
 pub mod uniform;
+pub mod framebuffer;
+pub mod renderbuffer;

@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
+use web_sys::DomException;
+
 use super::program::WebGlShaderType;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone)]
 pub enum Error {
     SnippetNotFound(String),
     CreateShaderFailure(WebGlShaderType),
@@ -22,6 +24,7 @@ pub enum Error {
     CreateSamplerFailure,
     CreateTextureFailure,
     TextureManagedByOtherManager,
+    TextureImageSourceError(DomException),
 }
 
 impl Display for Error {

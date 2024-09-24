@@ -10,27 +10,6 @@ use uuid::Uuid;
 
 use super::channel::Channel;
 
-/// Texture dimension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TextureDimension {
-    One {
-        width: usize,
-    },
-    Two {
-        width: usize,
-        height: usize,
-    },
-    Three {
-        width: usize,
-        height: usize,
-        depth: usize,
-    },
-    CubeMap {
-        width: usize,
-        height: usize,
-    },
-}
-
 /// Faces of cube map texture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TextureCubeMapFace {
@@ -53,13 +32,15 @@ pub trait TextureData {
 pub(crate) struct TexturingItem {
     /// Texture data.
     pub(crate) data: Box<dyn TextureData>,
-    pub(crate) dst_origin_x: usize,
-    pub(crate) dst_origin_y: usize,
-    pub(crate) dst_origin_z: usize,
+    pub(crate) cube_map_face: TextureCubeMapFace,
+    pub(crate) dst_origin_x: Option<usize>,
+    pub(crate) dst_origin_y: Option<usize>,
+    pub(crate) dst_origin_z: Option<usize>,
     /// Width of the data to be replaced. If `None`, the width of the data is used.
     pub(crate) dst_width: Option<usize>,
     /// Height of the data to be replaced. If `None`, the height of the data is used.
     pub(crate) dst_height: Option<usize>,
+    pub(crate) dst_depth_or_len: Option<usize>,
 }
 
 pub(crate) struct TexturingQueue {
@@ -84,8 +65,6 @@ struct Managed {
 #[derive(Clone)]
 pub struct Texturing {
     id: Uuid,
-    dimension: TextureDimension,
-    array_len: Option<usize>,
     /// Queue for each level.
     queues: Rc<RefCell<HashMap<usize, TexturingQueue>>>,
 
@@ -94,24 +73,9 @@ pub struct Texturing {
 
 impl Texturing {
     /// Constructs a new texturing container.
-    pub fn new(dimension: TextureDimension) -> Self {
+    pub fn new() -> Self {
         Self {
             id: Uuid::new_v4(),
-            dimension,
-            array_len: None,
-            queues: Rc::new(RefCell::new(HashMap::new())),
-
-            managed: Rc::new(RefCell::new(None)),
-        }
-    }
-
-    /// Constructs a new texturing array container.
-    /// Converts to `None` if array length is `0`.
-    pub fn new_array(dimension: TextureDimension, array_len: usize) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            dimension,
-            array_len: if array_len == 0 { None } else { Some(array_len) },
             queues: Rc::new(RefCell::new(HashMap::new())),
 
             managed: Rc::new(RefCell::new(None)),
@@ -121,17 +85,6 @@ impl Texturing {
     /// Returns id.
     pub fn id(&self) -> &Uuid {
         &self.id
-    }
-
-    /// Returns texture dimension.
-    pub fn dimension(&self) -> TextureDimension {
-        self.dimension
-    }
-    
-    /// Returns length of the array if this texture is a texture array.
-    /// Returns `None` if this texture is not an array.
-    pub fn array_len(&self) -> Option<usize> {
-        self.array_len
     }
 
     /// Returns the inner texturing queue.
@@ -169,19 +122,31 @@ impl Texturing {
     where
         T: TextureData + 'static,
     {
-        self.push_with_params(data, level, 0, 0, 0, None, None)
+        self.push_with_params(
+            data,
+            level,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
     }
 
     /// Pushes texture data into the texture with byte offset indicating where to start replacing data.
-    pub fn push_with_params<T>(
+    fn push_with_params<T>(
         &self,
         data: T,
         level: usize,
-        dst_origin_x: usize,
-        dst_origin_y: usize,
-        dst_origin_z: usize,
+        cube_map_face: Option<TextureCubeMapFace>,
+        dst_origin_x: Option<usize>,
+        dst_origin_y: Option<usize>,
+        dst_origin_z: Option<usize>,
         dst_width: Option<usize>,
         dst_height: Option<usize>,
+        dst_depth_or_len: Option<usize>,
     ) where
         T: TextureData + 'static,
     {
@@ -190,11 +155,13 @@ impl Texturing {
 
         let item = TexturingItem {
             data: Box::new(data),
+            cube_map_face: cube_map_face.unwrap_or(TextureCubeMapFace::NegativeX),
             dst_origin_x,
             dst_origin_y,
             dst_origin_z,
             dst_width,
             dst_height,
+            dst_depth_or_len,
         };
         queue.push(item);
     }
