@@ -1,6 +1,6 @@
 use std::ops::{Range, RangeBounds};
 
-use hashbrown::HashMap;
+use hashbrown::{hash_map::Entry, HashMap};
 use js_sys::Uint8Array;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlUniformLocation};
 
@@ -29,7 +29,7 @@ pub struct WebGlContext {
 
     using_program: Option<WebGlProgramItem>,
     using_uniform_buffer_objects: HashMap<usize, (WebGlBufferItem, Range<usize>)>,
-    activating_texture_units: HashMap<WebGlTextureUnit, WebGlTextureItem>,
+    using_textures: HashMap<WebGlTextureUnit, WebGlTextureItem>,
 }
 
 impl WebGlContext {
@@ -45,7 +45,7 @@ impl WebGlContext {
 
             using_program: None,
             using_uniform_buffer_objects: HashMap::new(),
-            activating_texture_units: HashMap::new(),
+            using_textures: HashMap::new(),
         }
     }
 
@@ -294,7 +294,7 @@ impl WebGlContext {
             &self.gl,
             &location,
             value,
-            &mut self.activating_texture_units,
+            &mut self.using_textures,
             &mut self.texture_manager,
             &mut self.buffer_manager,
             &self.capabilities,
@@ -306,7 +306,7 @@ impl WebGlContext {
         gl: &WebGl2RenderingContext,
         location: &WebGlUniformLocation,
         value: WebGlUniformValue,
-        activating_texture_units: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        using_textures: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
         texture_manager: &mut WebGlTextureManager,
         buffer_manager: &mut WebGlBufferManager,
         capabilities: &WebGlCapabilities,
@@ -314,12 +314,16 @@ impl WebGlContext {
         match value {
             WebGlUniformValue::Bool(v) => gl.uniform1i(Some(location), if v { 1 } else { 0 }),
             WebGlUniformValue::Texture { texturing, unit } => {
-                let item = texture_manager.sync_texture(texturing, buffer_manager, capabilities)?;
-                gl.bind_texture(item.layout().to_gl_enum(), Some(item.gl_texture()));
+                Self::bind_texture_inner(
+                    gl,
+                    texturing,
+                    unit,
+                    using_textures,
+                    texture_manager,
+                    buffer_manager,
+                    capabilities,
+                )?;
                 gl.uniform1i(Some(location), unit.as_index());
-                gl.active_texture(unit.to_gl_enum());
-                gl.bind_texture(item.layout().to_gl_enum(), None);
-                activating_texture_units.insert(unit, item);
             }
             WebGlUniformValue::Float1(x) => gl.uniform1f(Some(location), x),
             WebGlUniformValue::Float2(x, y) => gl.uniform2f(Some(location), x, y),
@@ -511,6 +515,64 @@ impl WebGlContext {
             ..,
         );
         Ok(())
+    }
+
+    /// Binds and actives a texture from [`WebGlTexturing`] to specified texture unit.
+    pub fn bind_texture(
+        &mut self,
+        texturing: &WebGlTexturing,
+        unit: WebGlTextureUnit,
+    ) -> Result<(), Error> {
+        Self::bind_texture_inner(
+            &self.gl,
+            texturing,
+            unit,
+            &mut self.using_textures,
+            &mut self.texture_manager,
+            &mut self.buffer_manager,
+            &self.capabilities,
+        )
+    }
+
+    fn bind_texture_inner(
+        gl: &WebGl2RenderingContext,
+        texturing: &WebGlTexturing,
+        unit: WebGlTextureUnit,
+        using_textures: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        texture_manager: &mut WebGlTextureManager,
+        buffer_manager: &mut WebGlBufferManager,
+        capabilities: &WebGlCapabilities,
+    ) -> Result<(), Error> {
+        let item = texture_manager.sync_texture(texturing, buffer_manager, capabilities)?;
+        match using_textures.entry(unit) {
+            Entry::Occupied(mut e) => {
+                let u = e.get_mut();
+                if u.gl_texture() != item.gl_texture() || u.gl_sampler() != item.gl_sampler() {
+                    gl.active_texture(unit.to_gl_enum());
+                    gl.bind_texture(item.layout().to_gl_enum(), Some(item.gl_texture()));
+                    gl.bind_sampler(unit.as_index() as u32, Some(item.gl_sampler()));
+                    e.replace_entry(item);
+                }
+            }
+            Entry::Vacant(e) => {
+                gl.active_texture(unit.to_gl_enum());
+                gl.bind_texture(item.layout().to_gl_enum(), Some(item.gl_texture()));
+                gl.bind_sampler(unit.as_index() as u32, Some(item.gl_sampler()));
+                e.insert(item);
+            }
+        };
+
+        Ok(())
+    }
+
+    /// Unbinds a texture in specified texture unit.
+    pub fn unbind_texture(&mut self, unit: WebGlTextureUnit) {
+        let Some(item) = self.using_textures.remove(&unit) else {
+            return;
+        };
+        self.gl.active_texture(unit.to_gl_enum());
+        self.gl.bind_texture(item.layout().to_gl_enum(), None);
+        self.gl.bind_sampler(unit.as_index() as u32, None);
     }
 
     /// Binds a buffer range to uniform buffer object mount point.

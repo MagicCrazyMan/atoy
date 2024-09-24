@@ -38,30 +38,18 @@ pub struct WebGlTextureOptions {
     pub layout: WebGlTextureLayoutWithSize,
     /// texture internal format.
     pub internal_format: WebGlTextureInternalFormat,
-    /// Samplers parameters.
-    pub sampler_parameters: Option<Vec<WebGlSamplerParamWithValue>>,
 }
 
 /// A wrapped [`Texturing`] with [`WebGlTextureOptions`].
-///
-/// Do not use different [`WebGlTextureOptions`] for a same [`Texturing`].
-/// [`WebGlTextureOptions`] is ignored once a texturing is synced by [`WebGlTextureManager::sync_texture`].
 #[derive(Debug, Clone)]
 pub struct WebGlTexturing {
-    texturing: Texturing,
-    options: WebGlTextureOptions,
-}
-
-impl WebGlTexturing {
-    /// Constructs a new WebGl texturing container.
-    pub fn new(texturing: Texturing, options: WebGlTextureOptions) -> Self {
-        Self { texturing, options }
-    }
-
-    /// Returns WebGl texture options.
-    pub fn options(&self) -> &WebGlTextureOptions {
-        &self.options
-    }
+    pub texturing: Texturing,
+    /// Create options of a texture.
+    /// This field only works once, changing this does not influence anything.
+    pub create_options: WebGlTextureOptions,
+    /// Sampler parameters to a texture.
+    /// Manager will set a different sampler to the texture if this field changed.
+    pub sampler_parameters: Vec<WebGlSamplerParamWithValue>,
 }
 
 impl Deref for WebGlTexturing {
@@ -375,10 +363,10 @@ pub enum WebGlSampleCompareMode {
     CompareRefToTexture,
 }
 
-/// Available texture color internal formats mapped from [`WebGl2RenderingContext`].
+/// Available texture plain internal formats mapped from [`WebGl2RenderingContext`].
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlTextureInternalFormat {
+pub enum WebGlTexturePlainInternalFormat {
     #[gl_enum(RGB)]
     RGB,
     #[gl_enum(RGBA)]
@@ -504,6 +492,156 @@ pub enum WebGlTextureInternalFormat {
     SRGB8,
     #[gl_enum(RGB9_E5)]
     RGB9_E5,
+}
+
+impl WebGlTexturePlainInternalFormat {
+    // /// Checks whether the pixel data type is compatible with the internal format.
+    // ///
+    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
+    // fn check_pixel_data_type(&self, data_type: WebGlImagePixelDataType) -> bool {
+    //     match self {
+    //         Self::RGB => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte
+    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
+    //             _ => false,
+    //         },
+    //         Self::RGBA => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte
+    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1
+    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
+    //             _ => false,
+    //         },
+    //         Self::LUMINANCE
+    //         | Self::LUMINANCE_ALPHA
+    //         | Self::ALPHA
+    //         | Self::RGBA8
+    //         | Self::RGBA8UI
+    //         | Self::SRGB8_ALPHA8
+    //         | Self::RGB8
+    //         | Self::RG8
+    //         | Self::RG8UI
+    //         | Self::R8
+    //         | Self::R8UI
+    //         | Self::RGB8UI
+    //         | Self::SRGB8 => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte => true,
+    //             _ => false,
+    //         },
+    //         Self::RGB10_A2 => match data_type {
+    //             WebGlImagePixelDataType::UnsignedInt_2_10_10_10Rev => true,
+    //             _ => false,
+    //         },
+    //         Self::RGBA4 => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte
+    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
+    //             _ => false,
+    //         },
+    //         Self::RGB5_A1 => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte
+    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1 => true,
+    //             _ => false,
+    //         },
+    //         Self::RGB565 => match data_type {
+    //             WebGlImagePixelDataType::UnsignedByte
+    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
+    //             _ => false,
+    //         },
+    //         Self::R16F
+    //         | Self::RG16F
+    //         | Self::RGBA16F
+    //         | Self::RGB16F
+    //         | Self::RGB9_E5 => match data_type {
+    //             WebGlImagePixelDataType::HalfFloat | WebGlImagePixelDataType::Float => true,
+    //             _ => false,
+    //         },
+    //         Self::R32F
+    //         | Self::RG32F
+    //         | Self::RGBA32F
+    //         | Self::RGB32F => match data_type {
+    //             WebGlImagePixelDataType::Float => true,
+    //             _ => false,
+    //         },
+    //         Self::R11F_G11F_B10F => match data_type {
+    //             WebGlImagePixelDataType::HalfFloat
+    //             | WebGlImagePixelDataType::Float
+    //             | WebGlImagePixelDataType::UnsignedInt_10F_11F_11F_Rev => true,
+    //             _ => false,
+    //         },
+    //     }
+    // }
+
+    // /// Checks whether the pixel format is compatible with the internal format.
+    // ///
+    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
+    // fn check_pixel_format(&self, format: WebGlImagePixelFormat) -> bool {
+    //     match self {
+    //         Self::RGB
+    //         | Self::RGB16F
+    //         | Self::RGB32F
+    //         | Self::SRGB8
+    //         | Self::RGB9_E5
+    //         | Self::RGB8
+    //         | Self::RGB565
+    //         | Self::R11F_G11F_B10F => match format {
+    //             WebGlImagePixelFormat::Rgb => true,
+    //             _ => false,
+    //         },
+    //         Self::RGBA
+    //         | Self::RGBA8
+    //         | Self::RGBA8UI
+    //         | Self::SRGB8_ALPHA8
+    //         | Self::RGB10_A2
+    //         | Self::RGBA4
+    //         | Self::RGB5_A1
+    //         | Self::RGBA16F
+    //         | Self::RGBA32F => match format {
+    //             WebGlImagePixelFormat::Rgba => true,
+    //             _ => false,
+    //         },
+    //         Self::LUMINANCE => match format {
+    //             WebGlImagePixelFormat::Luminance => true,
+    //             _ => false,
+    //         },
+    //         Self::LUMINANCE_ALPHA => match format {
+    //             WebGlImagePixelFormat::LuminanceAlpha => true,
+    //             _ => false,
+    //         },
+    //         Self::ALPHA => match format {
+    //             WebGlImagePixelFormat::Alpha => true,
+    //             _ => false,
+    //         },
+    //         Self::RG8
+    //         | Self::RG16F
+    //         | Self::RG32F => match format {
+    //             WebGlImagePixelFormat::Rg => true,
+    //             _ => false,
+    //         },
+    //         Self::RG8UI => match format {
+    //             WebGlImagePixelFormat::RgInteger => true,
+    //             _ => false,
+    //         },
+    //         Self::R8
+    //         | Self::R16F
+    //         | Self::R32F => match format {
+    //             WebGlImagePixelFormat::Red => true,
+    //             _ => false,
+    //         },
+    //         Self::R8UI => match format {
+    //             WebGlImagePixelFormat::RedInteger => true,
+    //             _ => false,
+    //         },
+    //         Self::RGB8UI => match format {
+    //             WebGlImagePixelFormat::RgbInteger => true,
+    //             _ => false,
+    //         },
+    //     }
+    // }
+}
+
+/// Available texture compressed formats mapped from [`WebGl2RenderingContext`].
+#[allow(non_camel_case_types)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlTextureCompressedFormat {
     /// Available when extension `WEBGL_compressed_texture_s3tc` enabled.
     #[gl_enum(COMPRESSED_RGB_S3TC_DXT1_EXT)]
     COMPRESSED_RGB_S3TC_DXT1,
@@ -677,68 +815,9 @@ pub enum WebGlTextureInternalFormat {
     COMPRESSED_SIGNED_RED_GREEN_RGTC2,
 }
 
-impl WebGlTextureInternalFormat {
+impl WebGlTextureCompressedFormat {
     fn byte_length(&self, width: usize, height: usize) -> usize {
         match self {
-            Self::RGB => width * height * 3,
-            Self::RGBA => width * height * 4,
-            Self::LUMINANCE => width * height * 3, // luminance is stored as RGB where all components represent the same value
-            Self::LUMINANCE_ALPHA => width * height * 4, // luminance alpha is stored as RGBA where RGB components represent the same value
-            Self::ALPHA => width * height * 1,
-            Self::RGBA32I => width * height * 16,
-            Self::RGBA32UI => width * height * 16,
-            Self::RGBA16I => width * height * 4,
-            Self::RGBA16UI => width * height * 4,
-            Self::RGBA8 => width * height * 4,
-            Self::RGBA8I => width * height * 4,
-            Self::RGBA8UI => width * height * 4,
-            Self::SRGB8_ALPHA8 => width * height * 4,
-            Self::RGB10_A2 => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            Self::RGB10_A2UI => width * height * 4, // 10 + 10 + 10 + 2 in bits
-            Self::RGBA4 => width * height * 2,
-            Self::RGB5_A1 => width * height * 2, // 5 + 5 + 5 + 1 in bits
-            Self::RGB8 => width * height * 3,
-            Self::RGB565 => width * height * 2, // 5 + 6 + 5 in bits
-            Self::RG32I => width * height * 4,
-            Self::RG32UI => width * height * 4,
-            Self::RG16I => width * height * 4,
-            Self::RG16UI => width * height * 4,
-            Self::RG8 => width * height * 2,
-            Self::RG8I => width * height * 2,
-            Self::RG8UI => width * height * 2,
-            Self::R32I => width * height * 4,
-            Self::R32UI => width * height * 4,
-            Self::R16I => width * height * 2,
-            Self::R16UI => width * height * 2,
-            Self::R8 => width * height * 1,
-            Self::R8I => width * height * 1,
-            Self::R8UI => width * height * 1,
-            Self::RGBA32F => width * height * 16,
-            Self::RGBA16F => width * height * 4,
-            Self::RGBA8_SNORM => width * height * 4,
-            Self::RGB32F => width * height * 12,
-            Self::RGB32I => width * height * 12,
-            Self::RGB32UI => width * height * 12,
-            Self::RGB16F => width * height * 6,
-            Self::RGB16I => width * height * 6,
-            Self::RGB16UI => width * height * 6,
-            Self::RGB8_SNORM => width * height * 3,
-            Self::RGB8I => width * height * 3,
-            Self::RGB8UI => width * height * 3,
-            Self::SRGB8 => width * height * 3,
-            Self::R11F_G11F_B10F => width * height * 4, // 11 + 11 + 10 in bits
-            Self::RGB9_E5 => width * height * 4,        // 9 + 9 + 9 + 5 in bits
-            Self::RG32F => width * height * 4,
-            Self::RG16F => width * height * 4,
-            Self::RG8_SNORM => width * height * 2,
-            Self::R32F => width * height * 4,
-            Self::R16F => width * height * 2,
-            Self::R8_SNORM => width * height * 1,
-            Self::DEPTH_COMPONENT32F => width * height * 4,
-            Self::DEPTH_COMPONENT24 => width * height * 3,
-            Self::DEPTH_COMPONENT16 => width * height * 2,
-            Self::DEPTH32F_STENCIL8 => width * height * 5, // 32 + 8 in bits
-            Self::DEPTH24_STENCIL8 => width * height * 4,
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
             Self::COMPRESSED_RGB_S3TC_DXT1 => width.div_ceil(4) * height.div_ceil(4) * 8,
             Self::COMPRESSED_RGBA_S3TC_DXT1 => width.div_ceil(4) * height.div_ceil(4) * 8,
@@ -819,238 +898,110 @@ impl WebGlTextureInternalFormat {
 
     fn check_compressed_format_supported(&self, capabilities: &WebGlCapabilities) {
         let (name, supported) = match self {
-            WebGlTextureInternalFormat::COMPRESSED_RGB_S3TC_DXT1
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_S3TC_DXT1
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_S3TC_DXT3
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_S3TC_DXT5 => (
+            WebGlTextureCompressedFormat::COMPRESSED_RGB_S3TC_DXT1
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_S3TC_DXT1
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_S3TC_DXT3
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_S3TC_DXT5 => (
                 "WEBGL_compressed_texture_s3tc",
                 capabilities.compressed_s3tc_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_SRGB_S3TC_DXT1
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT1
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT3
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT5 => (
+            WebGlTextureCompressedFormat::COMPRESSED_SRGB_S3TC_DXT1
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT1
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT3
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB_ALPHA_S3TC_DXT5 => (
                 "WEBGL_compressed_texture_s3tc_srgb",
                 capabilities.compressed_s3tc_srgb_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_R11_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_SIGNED_R11_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_RG11_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_SIGNED_RG11_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_RGB8_ETC2
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA8_ETC2_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ETC2
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
-            | WebGlTextureInternalFormat::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => (
+            WebGlTextureCompressedFormat::COMPRESSED_R11_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_SIGNED_R11_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_RG11_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_SIGNED_RG11_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_RGB8_ETC2
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA8_ETC2_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ETC2
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
+            | WebGlTextureCompressedFormat::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2 => (
                 "WEBGL_compressed_texture_etc",
                 capabilities.compressed_etc_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_RGB_PVRTC_2BPPV1_IMG
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_PVRTC_2BPPV1_IMG
-            | WebGlTextureInternalFormat::COMPRESSED_RGB_PVRTC_4BPPV1_IMG
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_PVRTC_4BPPV1_IMG => (
+            WebGlTextureCompressedFormat::COMPRESSED_RGB_PVRTC_2BPPV1_IMG
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_PVRTC_2BPPV1_IMG
+            | WebGlTextureCompressedFormat::COMPRESSED_RGB_PVRTC_4BPPV1_IMG
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_PVRTC_4BPPV1_IMG => (
                 "WEBGL_compressed_texture_pvrtc",
                 capabilities.compressed_pvrtc_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_RGB_ETC1_WEBGL => (
+            WebGlTextureCompressedFormat::COMPRESSED_RGB_ETC1_WEBGL => (
                 "WEBGL_compressed_texture_etc1",
                 capabilities.compressed_etc1_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_4x4
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_4x4
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_5x4
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_5x4
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_5x5
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_5x5
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_6x5
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_6x5
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_6x6
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_6x6
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_8x5
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x5
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_8x6
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x6
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_8x8
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x8
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_10x5
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x5
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_10x6
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x6
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_10x10
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x10
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_12x10
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_12x10
-            | WebGlTextureInternalFormat::COMPRESSED_RGBA_ASTC_12x12
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_12x12 => (
+            WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_4x4
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_4x4
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_5x4
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_5x4
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_5x5
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_5x5
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_6x5
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_6x5
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_6x6
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_6x6
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_8x5
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x5
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_8x6
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x6
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_8x8
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_8x8
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_10x5
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x5
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_10x6
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x6
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_10x10
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_10x10
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_12x10
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_12x10
+            | WebGlTextureCompressedFormat::COMPRESSED_RGBA_ASTC_12x12
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB8_ALPHA8_ASTC_12x12 => (
                 "WEBGL_compressed_texture_astc",
                 capabilities.compressed_astc_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_RGBA_BPTC_UNORM
-            | WebGlTextureInternalFormat::COMPRESSED_SRGB_ALPHA_BPTC_UNORM
-            | WebGlTextureInternalFormat::COMPRESSED_RGB_BPTC_SIGNED_FLOAT
-            | WebGlTextureInternalFormat::COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT => (
+            WebGlTextureCompressedFormat::COMPRESSED_RGBA_BPTC_UNORM
+            | WebGlTextureCompressedFormat::COMPRESSED_SRGB_ALPHA_BPTC_UNORM
+            | WebGlTextureCompressedFormat::COMPRESSED_RGB_BPTC_SIGNED_FLOAT
+            | WebGlTextureCompressedFormat::COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT => (
                 "EXT_texture_compression_bptc",
                 capabilities.compressed_bptc_supported(),
             ),
-            WebGlTextureInternalFormat::COMPRESSED_RED_RGTC1
-            | WebGlTextureInternalFormat::COMPRESSED_SIGNED_RED_RGTC1
-            | WebGlTextureInternalFormat::COMPRESSED_RED_GREEN_RGTC2
-            | WebGlTextureInternalFormat::COMPRESSED_SIGNED_RED_GREEN_RGTC2 => (
+            WebGlTextureCompressedFormat::COMPRESSED_RED_RGTC1
+            | WebGlTextureCompressedFormat::COMPRESSED_SIGNED_RED_RGTC1
+            | WebGlTextureCompressedFormat::COMPRESSED_RED_GREEN_RGTC2
+            | WebGlTextureCompressedFormat::COMPRESSED_SIGNED_RED_GREEN_RGTC2 => (
                 "EXT_texture_compression_rgtc",
                 capabilities.compressed_rgtc_supported(),
             ),
-            _ => return,
         };
 
         if !supported {
             warn!("compressed format {name} does not supported.");
         }
     }
+}
 
-    // /// Checks whether the pixel data type is compatible with the internal format.
-    // ///
-    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_data_type(&self, data_type: WebGlImagePixelDataType) -> bool {
-    //     match self {
-    //         WebGlTextureInternalFormat::RGB => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGBA => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1
-    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::LUMINANCE
-    //         | WebGlTextureInternalFormat::LUMINANCE_ALPHA
-    //         | WebGlTextureInternalFormat::ALPHA
-    //         | WebGlTextureInternalFormat::RGBA8
-    //         | WebGlTextureInternalFormat::RGBA8UI
-    //         | WebGlTextureInternalFormat::SRGB8_ALPHA8
-    //         | WebGlTextureInternalFormat::RGB8
-    //         | WebGlTextureInternalFormat::RG8
-    //         | WebGlTextureInternalFormat::RG8UI
-    //         | WebGlTextureInternalFormat::R8
-    //         | WebGlTextureInternalFormat::R8UI
-    //         | WebGlTextureInternalFormat::RGB8UI
-    //         | WebGlTextureInternalFormat::SRGB8 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGB10_A2 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedInt_2_10_10_10Rev => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGBA4 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGB5_A1 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1 => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGB565 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::R16F
-    //         | WebGlTextureInternalFormat::RG16F
-    //         | WebGlTextureInternalFormat::RGBA16F
-    //         | WebGlTextureInternalFormat::RGB16F
-    //         | WebGlTextureInternalFormat::RGB9_E5 => match data_type {
-    //             WebGlImagePixelDataType::HalfFloat | WebGlImagePixelDataType::Float => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::R32F
-    //         | WebGlTextureInternalFormat::RG32F
-    //         | WebGlTextureInternalFormat::RGBA32F
-    //         | WebGlTextureInternalFormat::RGB32F => match data_type {
-    //             WebGlImagePixelDataType::Float => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::R11F_G11F_B10F => match data_type {
-    //             WebGlImagePixelDataType::HalfFloat
-    //             | WebGlImagePixelDataType::Float
-    //             | WebGlImagePixelDataType::UnsignedInt_10F_11F_11F_Rev => true,
-    //             _ => false,
-    //         },
-    //         _ => false,
-    //     }
-    // }
+/// Available texture internal formats mapped from [`WebGl2RenderingContext`],
+/// including plain internal formats and compressed formats.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WebGlTextureInternalFormat {
+    Plain(WebGlTexturePlainInternalFormat),
+    Compressed(WebGlTextureCompressedFormat),
+}
 
-    // /// Checks whether the pixel format is compatible with the internal format.
-    // ///
-    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_format(&self, format: WebGlImagePixelFormat) -> bool {
-    //     match self {
-    //         WebGlTextureInternalFormat::RGB
-    //         | WebGlTextureInternalFormat::RGB16F
-    //         | WebGlTextureInternalFormat::RGB32F
-    //         | WebGlTextureInternalFormat::SRGB8
-    //         | WebGlTextureInternalFormat::RGB9_E5
-    //         | WebGlTextureInternalFormat::RGB8
-    //         | WebGlTextureInternalFormat::RGB565
-    //         | WebGlTextureInternalFormat::R11F_G11F_B10F => match format {
-    //             WebGlImagePixelFormat::Rgb => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGBA
-    //         | WebGlTextureInternalFormat::RGBA8
-    //         | WebGlTextureInternalFormat::RGBA8UI
-    //         | WebGlTextureInternalFormat::SRGB8_ALPHA8
-    //         | WebGlTextureInternalFormat::RGB10_A2
-    //         | WebGlTextureInternalFormat::RGBA4
-    //         | WebGlTextureInternalFormat::RGB5_A1
-    //         | WebGlTextureInternalFormat::RGBA16F
-    //         | WebGlTextureInternalFormat::RGBA32F => match format {
-    //             WebGlImagePixelFormat::Rgba => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::LUMINANCE => match format {
-    //             WebGlImagePixelFormat::Luminance => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::LUMINANCE_ALPHA => match format {
-    //             WebGlImagePixelFormat::LuminanceAlpha => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::ALPHA => match format {
-    //             WebGlImagePixelFormat::Alpha => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RG8
-    //         | WebGlTextureInternalFormat::RG16F
-    //         | WebGlTextureInternalFormat::RG32F => match format {
-    //             WebGlImagePixelFormat::Rg => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RG8UI => match format {
-    //             WebGlImagePixelFormat::RgInteger => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::R8
-    //         | WebGlTextureInternalFormat::R16F
-    //         | WebGlTextureInternalFormat::R32F => match format {
-    //             WebGlImagePixelFormat::Red => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::R8UI => match format {
-    //             WebGlImagePixelFormat::RedInteger => true,
-    //             _ => false,
-    //         },
-    //         WebGlTextureInternalFormat::RGB8UI => match format {
-    //             WebGlImagePixelFormat::RgbInteger => true,
-    //             _ => false,
-    //         },
-    //         _ => false,
-    //     }
-    // }
+impl WebGlTextureInternalFormat {
+    pub fn to_gl_enum(&self) -> u32 {
+        match self {
+            WebGlTextureInternalFormat::Plain(f) => f.to_gl_enum(),
+            WebGlTextureInternalFormat::Compressed(f) => f.to_gl_enum(),
+        }
+    }
 }
 
 /// Available image pixel formats mapped from [`WebGl2RenderingContext`].
@@ -2062,7 +2013,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
         gl: &WebGl2RenderingContext,
         layout: &WebGlTextureLayoutWithSize,
         cube_map_face: TextureCubeMapFace,
-        internal_format: WebGlTextureInternalFormat,
+        compressed_format: WebGlTextureCompressedFormat,
         level: usize,
         dst_origin_x: Option<usize>,
         dst_origin_y: Option<usize>,
@@ -2131,7 +2082,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                             dst_width as i32,
                             dst_height as i32,
                             dst_depth_or_len as i32,
-                            internal_format.to_gl_enum(),
+                            compressed_format.to_gl_enum(),
                             data,
                             bytes_offset as u32,
                             bytes_length_override as u32,
@@ -2149,7 +2100,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
                 );
-                let bytes_length = internal_format.byte_length(dst_width, dst_height);
+                let bytes_length = compressed_format.byte_length(dst_width, dst_height);
                 let bytes_offset = bytes_offset.unwrap_or(0);
                 match is3d {
                     true => gl.compressed_tex_sub_image_3d_with_i32_and_i32(
@@ -2161,7 +2112,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         dst_width as i32,
                         dst_height as i32,
                         dst_depth_or_len as i32,
-                        internal_format.to_gl_enum(),
+                        compressed_format.to_gl_enum(),
                         bytes_length as i32,
                         bytes_offset as i32,
                     ),
@@ -2172,7 +2123,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         dst_origin_y as i32,
                         dst_width as i32,
                         dst_height as i32,
-                        internal_format.to_gl_enum(),
+                        compressed_format.to_gl_enum(),
                         bytes_length as i32,
                         bytes_offset as i32,
                     ),
@@ -2243,7 +2194,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         dst_width as i32,
                         dst_height as i32,
                         dst_depth_or_len as i32,
-                        internal_format.to_gl_enum(),
+                        compressed_format.to_gl_enum(),
                         &data,
                         element_offset as u32,
                         element_length_override as u32
@@ -2255,7 +2206,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         dst_origin_y as i32,
                         dst_width as i32,
                         dst_height as i32,
-                        internal_format.to_gl_enum(),
+                        compressed_format.to_gl_enum(),
                         &data,
                         element_offset as u32,
                         element_length_override as u32
@@ -2270,10 +2221,10 @@ impl<'a> WebGlCompressedTextureData<'a> {
 
 /// Texture data for uploading data to WebGL runtime.
 pub enum WebGlTextureData<'a> {
-    Uncompressed {
+    Plain {
         pixel_format: WebGlImagePixelFormat,
         pixel_stores: &'a [WebGlUnpackPixelStoreWithValue],
-        generate_mipmaps: bool,
+        generate_mipmap: bool,
         data: WebGlUncompressedTextureData<'a>,
     },
     Compressed {
@@ -2485,33 +2436,37 @@ impl WebGlTextureManager {
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlTextureItem, Error> {
         self.verify_manager(texturing)?;
+        
+        let gl_sampler = match texturing.sampler_parameters.len() {
+            0 => self.sampler_manager.get_or_create_default_sampler()?,
+            _ => self
+                .sampler_manager
+                .get_or_create_sampler_by_iter(texturing.sampler_parameters.iter().cloned())?,
+        };
 
         let mut textures = self.textures.borrow_mut();
         let item = match textures.entry(*texturing.id()) {
             Entry::Occupied(entry) => {
                 let item = entry.into_mut();
+                item.gl_sampler = gl_sampler;
                 self.gl
                     .bind_texture(item.layout.to_gl_enum(), Some(&item.gl_texture));
                 item
             }
             Entry::Vacant(entry) => {
-                let layout = texturing.options.layout;
-                let internal_format = texturing.options.internal_format;
+                let layout = texturing.create_options.layout;
+                let internal_format = texturing.create_options.internal_format;
 
                 // checks whether compressed format is supported.
                 // Throws no error even is not supported, prints a warning log only.
-                internal_format.check_compressed_format_supported(capabilities);
+                if let WebGlTextureInternalFormat::Compressed(f) = internal_format {
+                    f.check_compressed_format_supported(capabilities);
+                }
 
                 let gl_texture = self
                     .gl
                     .create_texture()
                     .ok_or(Error::CreateTextureFailure)?;
-                let gl_sampler = match &texturing.options.sampler_parameters {
-                    Some(params) => self
-                        .sampler_manager
-                        .get_or_create_sampler_by_iter(params.iter().cloned())?,
-                    None => self.sampler_manager.get_or_create_default_sampler()?,
-                };
 
                 self.gl.bind_texture(layout.to_gl_enum(), Some(&gl_texture));
                 layout.tex_store(&self.gl, internal_format);
@@ -2549,13 +2504,17 @@ impl WebGlTextureManager {
                     warn!("texture data is not supported for WebGL, skipped");
                     continue;
                 };
-                match data {
-                    WebGlTextureData::Uncompressed {
-                        pixel_format,
-                        pixel_stores,
-                        generate_mipmaps,
-                        data,
-                    } => {
+
+                match (data, *internal_format) {
+                    (
+                        WebGlTextureData::Plain {
+                            pixel_format,
+                            pixel_stores,
+                            generate_mipmap,
+                            data,
+                        },
+                        WebGlTextureInternalFormat::Plain(_),
+                    ) => {
                         data.upload(
                             &self.gl,
                             layout,
@@ -2571,15 +2530,19 @@ impl WebGlTextureManager {
                             dst_depth_or_len,
                             buffer_manager,
                         )?;
-                        if generate_mipmaps {
+
+                        if generate_mipmap {
                             self.gl.generate_mipmap(layout.to_gl_enum());
                         }
                     }
-                    WebGlTextureData::Compressed { data } => data.upload(
+                    (
+                        WebGlTextureData::Compressed { data },
+                        WebGlTextureInternalFormat::Compressed(compressed_format),
+                    ) => data.upload(
                         &self.gl,
                         layout,
                         cube_map_face,
-                        *internal_format,
+                        compressed_format,
                         level,
                         dst_origin_x,
                         dst_origin_y,
@@ -2589,7 +2552,10 @@ impl WebGlTextureManager {
                         dst_depth_or_len,
                         buffer_manager,
                     )?,
-                };
+                    _ => {
+                        warn!("incompatible texture data and internal format, skipped");
+                    }
+                }
             }
         }
         self.gl.bind_texture(layout.to_gl_enum(), None);

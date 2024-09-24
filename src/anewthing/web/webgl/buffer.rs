@@ -21,13 +21,14 @@ use crate::anewthing::{
 
 use super::error::Error;
 
+/// WebGl buffer create options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct WebGlBufferOptions {
+pub struct WebGlBufferCreateOptions {
     /// Buffer usage.
     pub usage: WebGlBufferUsage,
 }
 
-impl Default for WebGlBufferOptions {
+impl Default for WebGlBufferCreateOptions {
     fn default() -> Self {
         Self {
             usage: WebGlBufferUsage::StaticDraw,
@@ -35,38 +36,27 @@ impl Default for WebGlBufferOptions {
     }
 }
 
-/// A wrapped [`Buffering`] with [`WebGlBufferOptions`].
-///
-/// Do not use different [`WebGlBufferOptions`] for a same [`Buffering`].
-/// [`WebGlBufferOptions`] is ignored once a buffering is synced by [`WebGlBufferManager::sync_buffer`].
+/// A wrapped [`Buffering`] with [`WebGlBufferCreateOptions`].
 #[derive(Debug, Clone, Default)]
 pub struct WebGlBuffering {
-    buffering: Buffering,
-    options: WebGlBufferOptions,
+    pub buffering: Buffering,
+    /// Create options of a buffer.
+    /// This field only works once, changing this does not influence anything.
+    pub create_options: WebGlBufferCreateOptions,
 }
 
 impl WebGlBuffering {
     /// Constructs a new WebGl buffering container.
-    pub fn new(buffering: Buffering, options: WebGlBufferOptions) -> Self {
-        Self { buffering, options }
+    pub fn new(buffering: Buffering, options: WebGlBufferCreateOptions) -> Self {
+        Self { buffering, create_options: options }
     }
 
     /// Constructs a new WebGl buffering container with default [`WebGlBufferOptions`].
     pub fn with_default_options(buffering: Buffering) -> Self {
         Self {
             buffering,
-            options: WebGlBufferOptions::default(),
+            create_options: WebGlBufferCreateOptions::default(),
         }
-    }
-
-    /// Returns native buffering.
-    pub fn buffering(&self) -> &Buffering {
-        &self.buffering
-    }
-
-    /// Returns WebGl buffer options.
-    pub fn options(&self) -> WebGlBufferOptions {
-        self.options
     }
 }
 
@@ -487,7 +477,7 @@ impl WebGlBufferManager {
                 buffer_item
             }
             Entry::Vacant(entry) => {
-                let usage = buffering.options.usage;
+                let usage = buffering.create_options.usage;
                 let byte_length = buffering.byte_length();
 
                 let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
