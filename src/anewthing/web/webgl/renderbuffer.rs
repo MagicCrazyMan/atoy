@@ -1,6 +1,6 @@
 use proc::GlEnum;
 
-/// Available render buffer storages mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+/// Available renderbuffer internal format mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum WebGlRenderbufferInternalFormat {
@@ -60,16 +60,6 @@ pub enum WebGlRenderbufferInternalFormat {
     R8I,
     #[gl_enum(R8UI)]
     R8UI,
-    #[gl_enum(DEPTH_COMPONENT32F)]
-    DEPTH_COMPONENT32F,
-    #[gl_enum(DEPTH_COMPONENT24)]
-    DEPTH_COMPONENT24,
-    #[gl_enum(DEPTH_COMPONENT16)]
-    DEPTH_COMPONENT16,
-    #[gl_enum(DEPTH32F_STENCIL8)]
-    DEPTH32F_STENCIL8,
-    #[gl_enum(DEPTH24_STENCIL8)]
-    DEPTH24_STENCIL8,
     /// Available only when extension EXT_color_buffer_float is enabled
     #[gl_enum(R16F)]
     R16F,

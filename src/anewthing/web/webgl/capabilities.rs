@@ -10,6 +10,7 @@ struct Capabilities {
     max_texture_size: Option<usize>,
     max_cube_map_texture_size: Option<usize>,
     max_texture_image_units: Option<usize>,
+    max_color_attachments: Option<usize>,
 
     color_buffer_float: Option<bool>,
     texture_filter_anisotropic: Option<bool>,
@@ -66,6 +67,7 @@ impl WebGlCapabilities {
             max_texture_size: None,
             max_cube_map_texture_size: None,
             max_texture_image_units: None,
+            max_color_attachments: None,
 
             color_buffer_float: None,
             texture_filter_anisotropic: None,
@@ -150,6 +152,7 @@ usize_parameters! {
     (max_texture_size, max_texture_size, WebGl2RenderingContext::MAX_TEXTURE_SIZE)
     (max_texture_image_units, max_texture_image_units, WebGl2RenderingContext::MAX_TEXTURE_IMAGE_UNITS)
     (max_cube_map_texture_size, max_cube_map_texture_size, WebGl2RenderingContext::MAX_CUBE_MAP_TEXTURE_SIZE)
+    (max_color_attachments, max_color_attachments, WebGl2RenderingContext::MAX_COLOR_ATTACHMENTS)
 
 }
 

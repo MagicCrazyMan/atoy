@@ -433,16 +433,6 @@ pub enum WebGlTexturePlainInternalFormat {
     R8I,
     #[gl_enum(R8UI)]
     R8UI,
-    #[gl_enum(DEPTH_COMPONENT32F)]
-    DEPTH_COMPONENT32F,
-    #[gl_enum(DEPTH_COMPONENT24)]
-    DEPTH_COMPONENT24,
-    #[gl_enum(DEPTH_COMPONENT16)]
-    DEPTH_COMPONENT16,
-    #[gl_enum(DEPTH32F_STENCIL8)]
-    DEPTH32F_STENCIL8,
-    #[gl_enum(DEPTH24_STENCIL8)]
-    DEPTH24_STENCIL8,
     /// Color renderable when extension EXT_color_buffer_float is enabled.
     #[gl_enum(R16F)]
     R16F,

@@ -25,6 +25,7 @@ pub enum Error {
     CreateTextureFailure,
     TextureManagedByOtherManager,
     TextureImageSourceError(DomException),
+    CreateFramebufferFailure,
 }
 
 impl Display for Error {

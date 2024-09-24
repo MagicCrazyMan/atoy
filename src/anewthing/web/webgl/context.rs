@@ -14,6 +14,7 @@ use super::{
     capabilities::WebGlCapabilities,
     client_wait::WebGlClientWait,
     error::Error,
+    framebuffer::{WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem},
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
     texture::{WebGlTextureItem, WebGlTextureManager, WebGlTextureUnit, WebGlTexturing},
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
@@ -25,6 +26,7 @@ pub struct WebGlContext {
     program_manager: WebGlProgramManager,
     buffer_manager: WebGlBufferManager,
     texture_manager: WebGlTextureManager,
+    framebuffer_factory: WebGlFramebufferFactory,
     capabilities: WebGlCapabilities,
 
     using_program: Option<WebGlProgramItem>,
@@ -39,6 +41,7 @@ impl WebGlContext {
             program_manager: WebGlProgramManager::new(gl.clone()),
             buffer_manager: WebGlBufferManager::new(gl.clone(), channel.clone()),
             texture_manager: WebGlTextureManager::new(gl.clone(), channel.clone()),
+            framebuffer_factory: WebGlFramebufferFactory::new(gl.clone()),
             capabilities: WebGlCapabilities::new(gl.clone()),
             gl,
             channel,
@@ -176,6 +179,15 @@ impl WebGlContext {
     pub fn sync_texture(&mut self, texturing: &WebGlTexturing) -> Result<WebGlTextureItem, Error> {
         self.texture_manager
             .sync_texture(texturing, &mut self.buffer_manager, &self.capabilities)
+    }
+
+    /// Creates a new framebuffer item by a [`WebGlFramebufferCreateOptions`].
+    pub fn create_framebuffer(
+        &self,
+        options: WebGlFramebufferCreateOptions,
+    ) -> Result<WebGlFramebufferItem, Error> {
+        self.framebuffer_factory
+            .create_framebuffer(options, &self.capabilities)
     }
 
     /// Sets a attribute by specified attribute name.
