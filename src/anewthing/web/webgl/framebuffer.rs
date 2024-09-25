@@ -1,11 +1,15 @@
+use std::{cell::RefCell, rc::Rc};
+
+use hashbrown::HashMap;
 use log::warn;
 use proc::GlEnum;
-use smallvec::SmallVec;
 use web_sys::{WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture};
 
 use super::{
-    capabilities::WebGlCapabilities, error::Error, renderbuffer::WebGlRenderbufferInternalFormat,
-    texture::WebGlTextureInternalFormat,
+    capabilities::WebGlCapabilities,
+    error::Error,
+    renderbuffer::WebGlRenderbufferInternalFormat,
+    texture::{WebGlTextureItem, WebGlTexturePlainInternalFormat, WebGlTextureUnit},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -185,12 +189,72 @@ pub enum WebGlFramebufferDepthStencilFormat {
 /// Available framebuffer size policies.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SizePolicy {
-    /// Uses the size of current drawing buffer.
+    /// Uses the size of WebGL context drawing buffer.
     FollowDrawingBuffer,
-    /// Ceiling scales the size of current drawing buffer.
+    /// Ceiling scales the size of WebGL context drawing buffer.
     ScaleDrawingBuffer(f64),
     /// Uses a custom size.
     Custom { width: usize, height: usize },
+}
+
+impl SizePolicy {
+    fn size_of(&self, gl: &WebGl2RenderingContext) -> (usize, usize) {
+        match self {
+            SizePolicy::FollowDrawingBuffer => (
+                gl.drawing_buffer_width() as usize,
+                gl.drawing_buffer_height() as usize,
+            ),
+            SizePolicy::ScaleDrawingBuffer(scale) => (
+                (gl.drawing_buffer_width() as f64 * scale).ceil() as usize,
+                (gl.drawing_buffer_height() as f64 * scale).ceil() as usize,
+            ),
+            SizePolicy::Custom { width, height } => (*width, *height),
+        }
+    }
+}
+
+/// Available texture targets mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WebGlFramebufferTextureTarget {
+    Texture2D,
+    TextureCubeMapPositiveX,
+    TextureCubeMapNegativeX,
+    TextureCubeMapPositiveY,
+    TextureCubeMapNegativeY,
+    TextureCubeMapPositiveZ,
+    TextureCubeMapNegativeZ,
+    Texture2DArray { index: usize },
+    Texture3D { depth: usize },
+}
+
+impl WebGlFramebufferTextureTarget {
+    pub fn to_gl_enum(&self) -> u32 {
+        match self {
+            WebGlFramebufferTextureTarget::Texture2D => WebGl2RenderingContext::TEXTURE_2D,
+            WebGlFramebufferTextureTarget::TextureCubeMapPositiveX => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
+            }
+            WebGlFramebufferTextureTarget::TextureCubeMapNegativeX => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
+            }
+            WebGlFramebufferTextureTarget::TextureCubeMapPositiveY => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
+            }
+            WebGlFramebufferTextureTarget::TextureCubeMapNegativeY => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
+            }
+            WebGlFramebufferTextureTarget::TextureCubeMapPositiveZ => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
+            }
+            WebGlFramebufferTextureTarget::TextureCubeMapNegativeZ => {
+                WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
+            }
+            WebGlFramebufferTextureTarget::Texture2DArray { .. } => {
+                WebGl2RenderingContext::TEXTURE_2D_ARRAY
+            }
+            WebGlFramebufferTextureTarget::Texture3D { .. } => WebGl2RenderingContext::TEXTURE_3D,
+        }
+    }
 }
 
 /// Framebuffer color attachment source.
@@ -203,18 +267,18 @@ pub enum SizePolicy {
 /// If internal format of an external texture or rbo is not provided, it is queried from WebGL context.
 pub enum WebGlFramebufferColorSource {
     CreateTexture {
-        internal_format: WebGlTextureInternalFormat,
+        internal_format: WebGlTexturePlainInternalFormat,
     },
     CreateRenderbuffer {
         internal_format: WebGlRenderbufferInternalFormat,
     },
     ExternalTexture {
-        internal_format: Option<WebGlTextureInternalFormat>,
-        texture: WebGlTexture,
+        target: WebGlFramebufferTextureTarget,
+        level: usize,
+        gl_texture: WebGlTexture,
     },
     ExternalRenderbuffer {
-        internal_format: Option<WebGlRenderbufferInternalFormat>,
-        renderbuffer: WebGlRenderbuffer,
+        gl_renderbuffer: WebGlRenderbuffer,
     },
 }
 
@@ -234,18 +298,41 @@ pub enum WebGlFramebufferDepthStencilSource {
         internal_format: WebGlFramebufferDepthStencilFormat,
     },
     ExternalTexture {
-        internal_format: Option<WebGlFramebufferDepthStencilFormat>,
+        internal_format: WebGlFramebufferDepthStencilFormat,
+        target: WebGlFramebufferTextureTarget,
         level: usize,
-        texture: WebGlTexture,
+        gl_texture: WebGlTexture,
     },
     ExternalRenderbuffer {
-        internal_format: Option<WebGlFramebufferDepthStencilFormat>,
-        level: usize,
-        renderbuffer: WebGlRenderbuffer,
+        internal_format: WebGlFramebufferDepthStencilFormat,
+        gl_renderbuffer: WebGlRenderbuffer,
     },
 }
 
+impl WebGlFramebufferDepthStencilSource {
+    fn internal_format(&self) -> WebGlFramebufferDepthStencilFormat {
+        match self {
+            WebGlFramebufferDepthStencilSource::CreateTexture {
+                internal_format, ..
+            } => *internal_format,
+            WebGlFramebufferDepthStencilSource::CreateRenderbuffer { internal_format } => {
+                *internal_format
+            }
+            WebGlFramebufferDepthStencilSource::ExternalTexture {
+                internal_format, ..
+            } => *internal_format,
+            WebGlFramebufferDepthStencilSource::ExternalRenderbuffer {
+                internal_format, ..
+            } => *internal_format,
+        }
+    }
+}
+
 /// WebGL framebuffer create options.
+///
+/// When creating a framebuffer,
+/// factory does not check whether the combination of attachments is valid or not.
+/// Developer should learns the rules from WebGL specification and take care of it by yourself.
 pub struct WebGlFramebufferCreateOptions {
     /// Size policy telling factory the size to use when creates textures or renderbuffers.
     ///
@@ -257,44 +344,38 @@ pub struct WebGlFramebufferCreateOptions {
     ///
     /// If the length of this list is greater than the maximum color attachments,
     /// the rest of the attachments are ignored.
+    ///
+    /// If a floating format is used, factory will try to enable `EXT_color_buffer_float` automatically.
+    /// But no error is thrown even if it is not supported.
     pub colors: Vec<WebGlFramebufferColorSource>,
     /// Depth and stencil attachment.
     ///
     /// Factory decides what kind of attachment should be used automatically
     /// by the internal format of the texture or renderbuffer.
     pub depth_stencil: Option<WebGlFramebufferDepthStencilSource>,
+    /// MSAA sample count, sets a value greater than zero to enable.
+    ///
+    /// When MASS enabled, all attachment must be renderbuffer,
+    /// since multisampling texture does not support in WebGL.
+    /// But no error is thrown even texture attachment is used.
+    pub multisample: Option<usize>,
 }
 
-enum ColorAttachment {
-    Texture {
-        internal_format: WebGlTextureInternalFormat,
-        texture: WebGlTexture,
-    },
-    Renderbuffer {
-        internal_format: WebGlRenderbufferInternalFormat,
-        renderbuffer: WebGlRenderbuffer,
-    },
+#[derive(Clone)]
+enum Attachment {
+    Texture { gl_texture: WebGlTexture },
+    Renderbuffer { gl_renderbuffer: WebGlRenderbuffer },
 }
 
-enum DepthStencilAttachment {
-    Texture {
-        internal_format: WebGlFramebufferDepthStencilFormat,
-        texture: WebGlTexture,
-    },
-    Renderbuffer {
-        internal_format: WebGlFramebufferDepthStencilFormat,
-        renderbuffer: WebGlRenderbuffer,
-    },
-}
-
+#[derive(Clone)]
 pub struct WebGlFramebufferItem {
-    size_policy: SizePolicy,
-    current_with: usize,
-    current_height: usize,
     gl_framebuffer: WebGlFramebuffer,
-    colors: Vec<ColorAttachment>,
-    depth: Option<DepthStencilAttachment>,
-    stencil: Option<DepthStencilAttachment>,
+    create_options: Rc<WebGlFramebufferCreateOptions>,
+    current_width: Rc<RefCell<usize>>,
+    current_height: Rc<RefCell<usize>>,
+    color_attachments: Vec<Attachment>,
+    depth_attachment: Option<Attachment>,
+    stencil_attachment: Option<Attachment>,
 }
 
 impl WebGlFramebufferItem {
@@ -305,48 +386,48 @@ impl WebGlFramebufferItem {
 
     /// Returns size policy.
     pub fn size_policy(&self) -> SizePolicy {
-        self.size_policy
+        self.create_options.size_policy
+    }
+
+    /// Returns MSAA samples count.
+    pub fn multisample(&self) -> Option<usize> {
+        self.create_options.multisample
     }
 
     /// Returns current width of framebuffer.
-    pub fn current_with(&self) -> usize {
-        self.current_with
+    pub fn current_width(&self) -> usize {
+        *self.current_width.borrow()
     }
 
     /// Returns current height of framebuffer.
     pub fn current_height(&self) -> usize {
-        self.current_height
+        *self.current_height.borrow()
+    }
+
+    /// Returns the length of color attachments.
+    pub fn color_attachment_len(&self) -> usize {
+        self.color_attachments.len()
     }
 
     /// Returns color texture by index.
     ///
     /// Returns `None` if no color attachment at specified index or color attachment is renderbuffer.
-    pub fn color_texture(
-        &self,
-        index: usize,
-    ) -> Option<(WebGlTexture, WebGlTextureInternalFormat)> {
-        self.colors.get(index).and_then(|a| match a {
-            ColorAttachment::Texture {
-                internal_format,
-                texture,
-            } => Some((texture.clone(), *internal_format)),
-            ColorAttachment::Renderbuffer { .. } => None,
+    pub fn color_texture(&self, index: usize) -> Option<WebGlTexture> {
+        self.color_attachments.get(index).and_then(|a| match a {
+            Attachment::Texture { gl_texture, .. } => Some(gl_texture.clone()),
+            Attachment::Renderbuffer { .. } => None,
         })
     }
 
     /// Returns color renderbuffer by index.
     ///
     /// Returns `None` if no color attachment at specified index or color attachment is texture.
-    pub fn color_renderbuffer(
-        &self,
-        index: usize,
-    ) -> Option<(WebGlRenderbuffer, WebGlRenderbufferInternalFormat)> {
-        self.colors.get(index).and_then(|a| match a {
-            ColorAttachment::Texture { .. } => None,
-            ColorAttachment::Renderbuffer {
-                internal_format,
-                renderbuffer,
-            } => Some((renderbuffer.clone(), *internal_format)),
+    pub fn color_renderbuffer(&self, index: usize) -> Option<WebGlRenderbuffer> {
+        self.color_attachments.get(index).and_then(|a| match a {
+            Attachment::Texture { .. } => None,
+            Attachment::Renderbuffer {
+                gl_renderbuffer, ..
+            } => Some(gl_renderbuffer.clone()),
         })
     }
 
@@ -356,13 +437,10 @@ impl WebGlFramebufferItem {
     ///
     /// Returns as same as [`stencil_texture`](WebGlFramebufferItem::stencil_texture)
     /// if this is a depth stencil combination format.
-    pub fn depth_texture(&self) -> Option<(WebGlTexture, WebGlFramebufferDepthStencilFormat)> {
-        self.depth.as_ref().and_then(|a| match a {
-            DepthStencilAttachment::Texture {
-                internal_format,
-                texture,
-            } => Some((texture.clone(), *internal_format)),
-            DepthStencilAttachment::Renderbuffer { .. } => None,
+    pub fn depth_texture(&self) -> Option<WebGlTexture> {
+        self.depth_attachment.as_ref().and_then(|a| match a {
+            Attachment::Texture { gl_texture, .. } => Some(gl_texture.clone()),
+            Attachment::Renderbuffer { .. } => None,
         })
     }
 
@@ -372,15 +450,12 @@ impl WebGlFramebufferItem {
     ///
     /// Returns as same as [`stencil_renderbuffer`](WebGlFramebufferItem::stencil_renderbuffer)
     /// if this is a depth stencil combination format.
-    pub fn depth_renderbuffer(
-        &self,
-    ) -> Option<(WebGlRenderbuffer, WebGlFramebufferDepthStencilFormat)> {
-        self.depth.as_ref().and_then(|a| match a {
-            DepthStencilAttachment::Texture { .. } => None,
-            DepthStencilAttachment::Renderbuffer {
-                internal_format,
-                renderbuffer,
-            } => Some((renderbuffer.clone(), *internal_format)),
+    pub fn depth_renderbuffer(&self) -> Option<WebGlRenderbuffer> {
+        self.depth_attachment.as_ref().and_then(|a| match a {
+            Attachment::Texture { .. } => None,
+            Attachment::Renderbuffer {
+                gl_renderbuffer, ..
+            } => Some(gl_renderbuffer.clone()),
         })
     }
 
@@ -390,13 +465,10 @@ impl WebGlFramebufferItem {
     ///
     /// Returns as same as [`depth_texture`](WebGlFramebufferItem::depth_texture)
     /// if this is a depth stencil combination format.
-    pub fn stencil_texture(&self) -> Option<(WebGlTexture, WebGlFramebufferDepthStencilFormat)> {
-        self.stencil.as_ref().and_then(|a| match a {
-            DepthStencilAttachment::Texture {
-                internal_format,
-                texture,
-            } => Some((texture.clone(), *internal_format)),
-            DepthStencilAttachment::Renderbuffer { .. } => None,
+    pub fn stencil_texture(&self) -> Option<WebGlTexture> {
+        self.stencil_attachment.as_ref().and_then(|a| match a {
+            Attachment::Texture { gl_texture, .. } => Some(gl_texture.clone()),
+            Attachment::Renderbuffer { .. } => None,
         })
     }
 
@@ -406,15 +478,12 @@ impl WebGlFramebufferItem {
     ///
     /// Returns as same as [`depth_renderbuffer`](WebGlFramebufferItem::depth_renderbuffer)
     /// if this is a depth stencil combination format.
-    pub fn stencil_renderbuffer(
-        &self,
-    ) -> Option<(WebGlRenderbuffer, WebGlFramebufferDepthStencilFormat)> {
-        self.stencil.as_ref().and_then(|a| match a {
-            DepthStencilAttachment::Texture { .. } => None,
-            DepthStencilAttachment::Renderbuffer {
-                internal_format,
-                renderbuffer,
-            } => Some((renderbuffer.clone(), *internal_format)),
+    pub fn stencil_renderbuffer(&self) -> Option<WebGlRenderbuffer> {
+        self.stencil_attachment.as_ref().and_then(|a| match a {
+            Attachment::Texture { .. } => None,
+            Attachment::Renderbuffer {
+                gl_renderbuffer, ..
+            } => Some(gl_renderbuffer.clone()),
         })
     }
 }
@@ -438,42 +507,441 @@ impl WebGlFramebufferFactory {
     pub fn create_framebuffer(
         &self,
         options: WebGlFramebufferCreateOptions,
+        using_draw_framebuffer: &Option<WebGlFramebufferItem>,
+        activating_texture_unit: &WebGlTextureUnit,
+        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlFramebufferItem, Error> {
-        let framebuffer = self
+        let gl_framebuffer = self
             .gl
             .create_framebuffer()
             .ok_or(Error::CreateFramebufferFailure)?;
+        let (width, height) = options.size_policy.size_of(&self.gl);
+        let mut item = WebGlFramebufferItem {
+            gl_framebuffer,
+            create_options: Rc::new(options),
+            current_width: Rc::new(RefCell::new(width)),
+            current_height: Rc::new(RefCell::new(height)),
+            color_attachments: Vec::new(),
+            depth_attachment: None,
+            stencil_attachment: None,
+        };
+        self.create_attachments(
+            &mut item,
+            using_draw_framebuffer,
+            activating_texture_unit,
+            using_textures,
+            capabilities,
+        )?;
 
-        let max_color_attachments = capabilities.max_color_attachments();
-        if max_color_attachments < options.colors.len() {
-            warn!("color attachments exceed the maximum color attachments");
+        Ok(item)
+    }
+
+    pub fn update_framebuffer(
+        &self,
+        item: &mut WebGlFramebufferItem,
+        using_draw_framebuffer: &Option<WebGlFramebufferItem>,
+        activating_texture_unit: &WebGlTextureUnit,
+        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        capabilities: &WebGlCapabilities,
+    ) -> Result<(), Error> {
+        let (width, height) = item.create_options.size_policy.size_of(&self.gl);
+        let mut current_width = item.current_width.borrow_mut();
+        let mut current_height = item.current_height.borrow_mut();
+
+        if *current_width == width && *current_height == height {
+            return Ok(());
         }
-        let color_len = max_color_attachments.min(options.colors.len());
-        let mut colors = Vec::with_capacity(color_len);
-        for i in 0..color_len {
-            let source = &options.colors[i];
-            let attachment = match source {
+
+        *current_width = width;
+        *current_height = height;
+        drop(current_width);
+        drop(current_height);
+
+        self.create_attachments(
+            item,
+            using_draw_framebuffer,
+            activating_texture_unit,
+            using_textures,
+            capabilities,
+        )?;
+
+        Ok(())
+    }
+
+    fn create_attachments(
+        &self,
+        item: &mut WebGlFramebufferItem,
+        using_draw_framebuffer: &Option<WebGlFramebufferItem>,
+        activating_texture_unit: &WebGlTextureUnit,
+        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        capabilities: &WebGlCapabilities,
+    ) -> Result<(), Error> {
+        self.gl.bind_framebuffer(
+            WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+            Some(&item.gl_framebuffer),
+        );
+
+        let WebGlFramebufferCreateOptions {
+            colors,
+            depth_stencil,
+            multisample,
+            ..
+        } = &*item.create_options;
+        let width = *item.current_width.borrow();
+        let height = *item.current_height.borrow();
+        let multisample = multisample.and_then(|m| if m == 0 { None } else { Some(m) });
+        let using_gl_draw_framebuffer = using_draw_framebuffer.as_ref().map(|i| i.gl_framebuffer());
+        let using_gl_texture = using_textures
+            .get(activating_texture_unit)
+            .map(|i| i.gl_texture());
+
+
+        // Creates color attachments
+        let max_color_attachments = capabilities.max_color_attachments();
+        if max_color_attachments < colors.len() {
+            warn!(
+                "color attachments exceed the maximum color attachments ({max_color_attachments})"
+            );
+        }
+        let color_attachment_len = max_color_attachments.min(colors.len());
+        let mut color_attachments = Vec::with_capacity(color_attachment_len);
+        for (i, color) in colors.into_iter().enumerate() {
+            if i >= color_attachment_len {
+                break;
+            }
+            let attachment = match color {
                 WebGlFramebufferColorSource::CreateTexture { internal_format } => {
-                   let texture= self.gl
+                    internal_format.check_color_buffer_float_supported(capabilities);
+
+                    let gl_texture = self
+                        .gl
                         .create_texture()
                         .ok_or(Error::CreateTextureFailure)?;
-                    self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-                    self.gl.tex_storage_2d(WebGl2RenderingContext::TEXTURE_2D, 1, internal_format.to_gl_enum(), width, height);
-                    self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&gl_texture));
+                    self.gl.tex_storage_2d(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        1,
+                        internal_format.to_gl_enum(),
+                        width as i32,
+                        height as i32,
+                    );
+                    self.gl.framebuffer_texture_2d(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::TEXTURE0 + i as u32,
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        Some(&gl_texture),
+                        0,
+                    );
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, using_gl_texture);
+
+                    Attachment::Texture { gl_texture }
                 }
-                WebGlFramebufferColorSource::CreateRenderbuffer { internal_format } => todo!(),
+                WebGlFramebufferColorSource::CreateRenderbuffer { internal_format } => {
+                    internal_format.check_color_buffer_float_supported(capabilities);
+
+                    let gl_renderbuffer = self
+                        .gl
+                        .create_renderbuffer()
+                        .ok_or(Error::CreateRenderbufferFailure)?;
+                    self.gl.bind_renderbuffer(
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    match multisample {
+                        Some(multisample) => self.gl.renderbuffer_storage_multisample(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            multisample as i32,
+                            internal_format.to_gl_enum(),
+                            width as i32,
+                            height as i32,
+                        ),
+                        None => self.gl.renderbuffer_storage(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            internal_format.to_gl_enum(),
+                            width as i32,
+                            height as i32,
+                        ),
+                    };
+                    self.gl.framebuffer_renderbuffer(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::TEXTURE0 + i as u32,
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl
+                        .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+
+                    Attachment::Renderbuffer { gl_renderbuffer }
+                }
                 WebGlFramebufferColorSource::ExternalTexture {
-                    internal_format,
-                    texture,
-                } => todo!(),
-                WebGlFramebufferColorSource::ExternalRenderbuffer {
-                    internal_format,
-                    renderbuffer,
-                } => todo!(),
+                    target,
+                    level,
+                    gl_texture,
+                } => {
+                    self.gl.bind_texture(target.to_gl_enum(), Some(&gl_texture));
+                    match target {
+                        WebGlFramebufferTextureTarget::Texture2D
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveX
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeX
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveY
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeY
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveZ
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeZ => {
+                            self.gl.framebuffer_texture_2d(
+                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::TEXTURE0 + i as u32,
+                                target.to_gl_enum(),
+                                Some(&gl_texture),
+                                *level as i32,
+                            );
+                        }
+                        WebGlFramebufferTextureTarget::Texture2DArray { index: depth }
+                        | WebGlFramebufferTextureTarget::Texture3D { depth } => {
+                            self.gl.framebuffer_texture_layer(
+                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::TEXTURE0 + i as u32,
+                                Some(&gl_texture),
+                                *level as i32,
+                                *depth as i32,
+                            );
+                        }
+                    }
+                    self.gl.bind_texture(target.to_gl_enum(), using_gl_texture);
+
+                    Attachment::Texture {
+                        gl_texture: gl_texture.clone(),
+                    }
+                }
+                WebGlFramebufferColorSource::ExternalRenderbuffer { gl_renderbuffer } => {
+                    self.gl.bind_renderbuffer(
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl.framebuffer_renderbuffer(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::TEXTURE0 + i as u32,
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl
+                        .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+
+                    Attachment::Renderbuffer {
+                        gl_renderbuffer: gl_renderbuffer.clone(),
+                    }
+                }
             };
-            colors.push(attachment);
+            color_attachments.push(attachment);
         }
-        todo!()
+
+        // Creates depth stencil attachments
+        if let Some(depth_stencil) = depth_stencil {
+            let internal_format = depth_stencil.internal_format();
+            let attachment_target = match internal_format {
+                WebGlFramebufferDepthStencilFormat::STENCIL_INDEX8 => {
+                    WebGl2RenderingContext::STENCIL_ATTACHMENT
+                }
+                WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT32F
+                | WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT24
+                | WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT16 => {
+                    WebGl2RenderingContext::DEPTH_ATTACHMENT
+                }
+                WebGlFramebufferDepthStencilFormat::DEPTH32F_STENCIL8
+                | WebGlFramebufferDepthStencilFormat::DEPTH24_STENCIL8 => {
+                    WebGl2RenderingContext::DEPTH_STENCIL_ATTACHMENT
+                }
+            };
+            let attachment = match depth_stencil {
+                WebGlFramebufferDepthStencilSource::CreateTexture { internal_format } => {
+                    let gl_texture = self
+                        .gl
+                        .create_texture()
+                        .ok_or(Error::CreateTextureFailure)?;
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&gl_texture));
+                    self.gl.tex_storage_2d(
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        1,
+                        internal_format.to_gl_enum(),
+                        width as i32,
+                        height as i32,
+                    );
+                    self.gl.framebuffer_texture_2d(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        attachment_target,
+                        WebGl2RenderingContext::TEXTURE_2D,
+                        Some(&gl_texture),
+                        0,
+                    );
+                    self.gl
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, using_gl_texture);
+
+                    Attachment::Texture { gl_texture }
+                }
+                WebGlFramebufferDepthStencilSource::CreateRenderbuffer { internal_format } => {
+                    let gl_renderbuffer = self
+                        .gl
+                        .create_renderbuffer()
+                        .ok_or(Error::CreateRenderbufferFailure)?;
+                    self.gl.bind_renderbuffer(
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    match multisample {
+                        Some(multisample) => self.gl.renderbuffer_storage_multisample(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            multisample as i32,
+                            internal_format.to_gl_enum(),
+                            width as i32,
+                            height as i32,
+                        ),
+                        None => self.gl.renderbuffer_storage(
+                            WebGl2RenderingContext::RENDERBUFFER,
+                            internal_format.to_gl_enum(),
+                            width as i32,
+                            height as i32,
+                        ),
+                    };
+                    self.gl.framebuffer_renderbuffer(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        attachment_target,
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl
+                        .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+
+                    Attachment::Renderbuffer { gl_renderbuffer }
+                }
+                WebGlFramebufferDepthStencilSource::ExternalTexture {
+                    target,
+                    level,
+                    gl_texture,
+                    ..
+                } => {
+                    self.gl.bind_texture(target.to_gl_enum(), Some(&gl_texture));
+                    match target {
+                        WebGlFramebufferTextureTarget::Texture2D
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveX
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeX
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveY
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeY
+                        | WebGlFramebufferTextureTarget::TextureCubeMapPositiveZ
+                        | WebGlFramebufferTextureTarget::TextureCubeMapNegativeZ => {
+                            self.gl.framebuffer_texture_2d(
+                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                attachment_target,
+                                target.to_gl_enum(),
+                                Some(&gl_texture),
+                                *level as i32,
+                            );
+                        }
+                        WebGlFramebufferTextureTarget::Texture2DArray { index: depth }
+                        | WebGlFramebufferTextureTarget::Texture3D { depth } => {
+                            self.gl.framebuffer_texture_layer(
+                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                attachment_target,
+                                Some(&gl_texture),
+                                *level as i32,
+                                *depth as i32,
+                            );
+                        }
+                    }
+                    self.gl.bind_texture(target.to_gl_enum(), using_gl_texture);
+
+                    Attachment::Texture {
+                        gl_texture: gl_texture.clone(),
+                    }
+                }
+                WebGlFramebufferDepthStencilSource::ExternalRenderbuffer {
+                    gl_renderbuffer,
+                    ..
+                } => {
+                    self.gl.bind_renderbuffer(
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl.framebuffer_renderbuffer(
+                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        attachment_target,
+                        WebGl2RenderingContext::RENDERBUFFER,
+                        Some(&gl_renderbuffer),
+                    );
+                    self.gl
+                        .bind_renderbuffer(WebGl2RenderingContext::RENDERBUFFER, None);
+
+                    Attachment::Renderbuffer {
+                        gl_renderbuffer: gl_renderbuffer.clone(),
+                    }
+                }
+            };
+            match internal_format {
+                WebGlFramebufferDepthStencilFormat::STENCIL_INDEX8 => {
+                    item.stencil_attachment = Some(attachment);
+                }
+                WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT32F
+                | WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT24
+                | WebGlFramebufferDepthStencilFormat::DEPTH_COMPONENT16 => {
+                    item.depth_attachment = Some(attachment);
+                }
+                WebGlFramebufferDepthStencilFormat::DEPTH32F_STENCIL8
+                | WebGlFramebufferDepthStencilFormat::DEPTH24_STENCIL8 => {
+                    item.stencil_attachment = Some(attachment.clone());
+                    item.depth_attachment = Some(attachment);
+                }
+            }
+        };
+
+        self.gl.bind_framebuffer(
+            WebGl2RenderingContext::RENDERBUFFER,
+            using_gl_draw_framebuffer,
+        );
+
+        Ok(())
+    }
+}
+
+impl WebGlTexturePlainInternalFormat {
+    fn check_color_buffer_float_supported(&self, capabilities: &WebGlCapabilities) {
+        let supported = match self {
+            WebGlTexturePlainInternalFormat::R16F
+            | WebGlTexturePlainInternalFormat::RG16F
+            | WebGlTexturePlainInternalFormat::RGBA16F
+            | WebGlTexturePlainInternalFormat::R32F
+            | WebGlTexturePlainInternalFormat::RG32F
+            | WebGlTexturePlainInternalFormat::RGBA32F
+            | WebGlTexturePlainInternalFormat::R11F_G11F_B10F => {
+                capabilities.color_buffer_float_supported()
+            }
+            _ => return,
+        };
+
+        if !supported {
+            warn!("EXT_color_buffer_float does not supported.");
+        }
+    }
+}
+
+impl WebGlRenderbufferInternalFormat {
+    fn check_color_buffer_float_supported(&self, capabilities: &WebGlCapabilities) {
+        let supported = match self {
+            WebGlRenderbufferInternalFormat::R16F
+            | WebGlRenderbufferInternalFormat::RG16F
+            | WebGlRenderbufferInternalFormat::RGBA16F
+            | WebGlRenderbufferInternalFormat::R32F
+            | WebGlRenderbufferInternalFormat::RG32F
+            | WebGlRenderbufferInternalFormat::RGBA32F
+            | WebGlRenderbufferInternalFormat::R11F_G11F_B10F => {
+                capabilities.color_buffer_float_supported()
+            }
+            _ => return,
+        };
+
+        if !supported {
+            warn!("EXT_color_buffer_float does not supported.");
+        }
     }
 }

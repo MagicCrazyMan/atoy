@@ -29,7 +29,7 @@ use crate::anewthing::{
 use super::{
     buffer::{WebGlBufferManager, WebGlBufferTarget, WebGlBuffering},
     capabilities::WebGlCapabilities,
-    error::Error,
+    error::Error, pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelUnpackStoreWithValue},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -124,16 +124,23 @@ pub enum WebGlTextureLayoutWithSize {
 }
 
 impl WebGlTextureLayoutWithSize {
+    /// Returns as [`WebGlTextureLayout`].
+    #[inline]
+    pub fn as_layout(&self) -> WebGlTextureLayout {
+        WebGlTextureLayout::from(*self)
+    }
+
+    #[inline]
+    pub fn to_gl_enum(&self) -> u32 {
+        WebGlTextureLayout::from(*self).to_gl_enum()
+    }
+
     #[inline]
     fn get_or_auto_levels(&self) -> usize {
         match self {
-            WebGlTextureLayoutWithSize::Texture2D { width, height, .. } => {
-                (*width.max(height) as f64).log2().floor() as usize + 1
-            }
-            WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. } => {
-                (*width.max(height) as f64).log2().floor() as usize + 1
-            }
-            WebGlTextureLayoutWithSize::Texture2DArray { width, height, .. } => {
+            WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
+            | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. }
+            | WebGlTextureLayoutWithSize::Texture2DArray { width, height, .. } => {
                 (*width.max(height) as f64).log2().floor() as usize + 1
             }
             WebGlTextureLayoutWithSize::Texture3D {
@@ -192,17 +199,21 @@ impl From<WebGlTextureLayoutWithSize> for WebGlTextureLayout {
     }
 }
 
-impl WebGlTextureLayoutWithSize {
-    /// Returns as [`WebGlTextureLayout`].
-    #[inline]
-    pub fn as_layout(&self) -> WebGlTextureLayout {
-        WebGlTextureLayout::from(*self)
-    }
-
-    #[inline]
-    pub fn to_gl_enum(&self) -> u32 {
-        WebGlTextureLayout::from(*self).to_gl_enum()
-    }
+/// Available texture targets mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlTextureTarget {
+    #[gl_enum(TEXTURE_2D)]
+    Texture2D,
+    TextureCubeMapPositiveX,
+    TextureCubeMapNegativeX,
+    TextureCubeMapPositiveY,
+    TextureCubeMapNegativeY,
+    TextureCubeMapPositiveZ,
+    TextureCubeMapNegativeZ,
+    #[gl_enum(TEXTURE_2D_ARRAY)]
+    Texture2DArray,
+    #[gl_enum(TEXTURE_3D)]
+    Texture3D,
 }
 
 /// Available texture units mapped from [`WebGl2RenderingContext`].
@@ -488,17 +499,17 @@ impl WebGlTexturePlainInternalFormat {
     // /// Checks whether the pixel data type is compatible with the internal format.
     // ///
     // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_data_type(&self, data_type: WebGlImagePixelDataType) -> bool {
+    // fn check_pixel_data_type(&self, data_type: WebGlPixelDataType) -> bool {
     //     match self {
     //         Self::RGB => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
+    //             WebGlPixelDataType::UnsignedByte
+    //             | WebGlPixelDataType::UnsignedShort_5_6_5 => true,
     //             _ => false,
     //         },
     //         Self::RGBA => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1
-    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
+    //             WebGlPixelDataType::UnsignedByte
+    //             | WebGlPixelDataType::UnsignedShort_5_5_5_1
+    //             | WebGlPixelDataType::UnsignedShort_4_4_4_4 => true,
     //             _ => false,
     //         },
     //         Self::LUMINANCE
@@ -514,26 +525,26 @@ impl WebGlTexturePlainInternalFormat {
     //         | Self::R8UI
     //         | Self::RGB8UI
     //         | Self::SRGB8 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte => true,
+    //             WebGlPixelDataType::UnsignedByte => true,
     //             _ => false,
     //         },
     //         Self::RGB10_A2 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedInt_2_10_10_10Rev => true,
+    //             WebGlPixelDataType::UnsignedInt_2_10_10_10Rev => true,
     //             _ => false,
     //         },
     //         Self::RGBA4 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_4_4_4_4 => true,
+    //             WebGlPixelDataType::UnsignedByte
+    //             | WebGlPixelDataType::UnsignedShort_4_4_4_4 => true,
     //             _ => false,
     //         },
     //         Self::RGB5_A1 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_5_5_1 => true,
+    //             WebGlPixelDataType::UnsignedByte
+    //             | WebGlPixelDataType::UnsignedShort_5_5_5_1 => true,
     //             _ => false,
     //         },
     //         Self::RGB565 => match data_type {
-    //             WebGlImagePixelDataType::UnsignedByte
-    //             | WebGlImagePixelDataType::UnsignedShort_5_6_5 => true,
+    //             WebGlPixelDataType::UnsignedByte
+    //             | WebGlPixelDataType::UnsignedShort_5_6_5 => true,
     //             _ => false,
     //         },
     //         Self::R16F
@@ -541,20 +552,20 @@ impl WebGlTexturePlainInternalFormat {
     //         | Self::RGBA16F
     //         | Self::RGB16F
     //         | Self::RGB9_E5 => match data_type {
-    //             WebGlImagePixelDataType::HalfFloat | WebGlImagePixelDataType::Float => true,
+    //             WebGlPixelDataType::HalfFloat | WebGlPixelDataType::Float => true,
     //             _ => false,
     //         },
     //         Self::R32F
     //         | Self::RG32F
     //         | Self::RGBA32F
     //         | Self::RGB32F => match data_type {
-    //             WebGlImagePixelDataType::Float => true,
+    //             WebGlPixelDataType::Float => true,
     //             _ => false,
     //         },
     //         Self::R11F_G11F_B10F => match data_type {
-    //             WebGlImagePixelDataType::HalfFloat
-    //             | WebGlImagePixelDataType::Float
-    //             | WebGlImagePixelDataType::UnsignedInt_10F_11F_11F_Rev => true,
+    //             WebGlPixelDataType::HalfFloat
+    //             | WebGlPixelDataType::Float
+    //             | WebGlPixelDataType::UnsignedInt_10F_11F_11F_Rev => true,
     //             _ => false,
     //         },
     //     }
@@ -563,7 +574,7 @@ impl WebGlTexturePlainInternalFormat {
     // /// Checks whether the pixel format is compatible with the internal format.
     // ///
     // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_format(&self, format: WebGlImagePixelFormat) -> bool {
+    // fn check_pixel_format(&self, format: WebGlPixelFormat) -> bool {
     //     match self {
     //         Self::RGB
     //         | Self::RGB16F
@@ -573,7 +584,7 @@ impl WebGlTexturePlainInternalFormat {
     //         | Self::RGB8
     //         | Self::RGB565
     //         | Self::R11F_G11F_B10F => match format {
-    //             WebGlImagePixelFormat::Rgb => true,
+    //             WebGlPixelFormat::Rgb => true,
     //             _ => false,
     //         },
     //         Self::RGBA
@@ -585,43 +596,43 @@ impl WebGlTexturePlainInternalFormat {
     //         | Self::RGB5_A1
     //         | Self::RGBA16F
     //         | Self::RGBA32F => match format {
-    //             WebGlImagePixelFormat::Rgba => true,
+    //             WebGlPixelFormat::Rgba => true,
     //             _ => false,
     //         },
     //         Self::LUMINANCE => match format {
-    //             WebGlImagePixelFormat::Luminance => true,
+    //             WebGlPixelFormat::Luminance => true,
     //             _ => false,
     //         },
     //         Self::LUMINANCE_ALPHA => match format {
-    //             WebGlImagePixelFormat::LuminanceAlpha => true,
+    //             WebGlPixelFormat::LuminanceAlpha => true,
     //             _ => false,
     //         },
     //         Self::ALPHA => match format {
-    //             WebGlImagePixelFormat::Alpha => true,
+    //             WebGlPixelFormat::Alpha => true,
     //             _ => false,
     //         },
     //         Self::RG8
     //         | Self::RG16F
     //         | Self::RG32F => match format {
-    //             WebGlImagePixelFormat::Rg => true,
+    //             WebGlPixelFormat::Rg => true,
     //             _ => false,
     //         },
     //         Self::RG8UI => match format {
-    //             WebGlImagePixelFormat::RgInteger => true,
+    //             WebGlPixelFormat::RgInteger => true,
     //             _ => false,
     //         },
     //         Self::R8
     //         | Self::R16F
     //         | Self::R32F => match format {
-    //             WebGlImagePixelFormat::Red => true,
+    //             WebGlPixelFormat::Red => true,
     //             _ => false,
     //         },
     //         Self::R8UI => match format {
-    //             WebGlImagePixelFormat::RedInteger => true,
+    //             WebGlPixelFormat::RedInteger => true,
     //             _ => false,
     //         },
     //         Self::RGB8UI => match format {
-    //             WebGlImagePixelFormat::RgbInteger => true,
+    //             WebGlPixelFormat::RgbInteger => true,
     //             _ => false,
     //         },
     //     }
@@ -994,234 +1005,6 @@ impl WebGlTextureInternalFormat {
     }
 }
 
-/// Available image pixel formats mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlImagePixelFormat {
-    Red,
-    RedInteger,
-    Rg,
-    RgInteger,
-    Rgb,
-    RgbInteger,
-    Rgba,
-    RgbaInteger,
-    Luminance,
-    LuminanceAlpha,
-    Alpha,
-    DepthComponent,
-    DepthStencil,
-}
-
-/// Available image pixel data types mapped from [`WebGl2RenderingContext`].
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlImagePixelDataType {
-    Float,
-    HalfFloat,
-    Byte,
-    Short,
-    Int,
-    UnsignedByte,
-    UnsignedShort,
-    UnsignedInt,
-    #[gl_enum(UNSIGNED_SHORT_5_6_5)]
-    UnsignedShort_5_6_5,
-    #[gl_enum(UNSIGNED_SHORT_4_4_4_4)]
-    UnsignedShort_4_4_4_4,
-    #[gl_enum(UNSIGNED_SHORT_5_5_5_1)]
-    UnsignedShort_5_5_5_1,
-    #[gl_enum(UNSIGNED_INT_2_10_10_10_REV)]
-    UnsignedInt_2_10_10_10Rev,
-    #[gl_enum(UNSIGNED_INT_10F_11F_11F_REV)]
-    UnsignedInt_10F_11F_11F_Rev,
-    #[gl_enum(UNSIGNED_INT_5_9_9_9_REV)]
-    UnsignedInt_5_9_9_9Rev,
-    #[gl_enum(UNSIGNED_INT_24_8)]
-    UnsignedInt_24_8,
-    #[gl_enum(FLOAT_32_UNSIGNED_INT_24_8_REV)]
-    Float_32_UnsignedInt_24_8_Rev,
-}
-
-/// Available texture pack pixel store for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlPackPixelStore {
-    PackAlignment,
-    PackRowLength,
-    PackSkipPixels,
-    PackSkipRows,
-}
-
-/// Available texture unpack pixel stores with value for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WebGlPackPixelStoreWithValue {
-    PackAlignment(i32),
-    PackRowLength(i32),
-    PackSkipPixels(i32),
-    PackSkipRows(i32),
-}
-
-impl From<WebGlPackPixelStoreWithValue> for WebGlPackPixelStore {
-    #[inline]
-    fn from(value: WebGlPackPixelStoreWithValue) -> Self {
-        match value {
-            WebGlPackPixelStoreWithValue::PackAlignment(_) => WebGlPackPixelStore::PackAlignment,
-            WebGlPackPixelStoreWithValue::PackRowLength(_) => WebGlPackPixelStore::PackRowLength,
-            WebGlPackPixelStoreWithValue::PackSkipPixels(_) => WebGlPackPixelStore::PackSkipPixels,
-            WebGlPackPixelStoreWithValue::PackSkipRows(_) => WebGlPackPixelStore::PackSkipRows,
-        }
-    }
-}
-
-impl WebGlPackPixelStoreWithValue {
-    /// Returns as [`WebGlPackPixelStore`].
-    #[inline]
-    pub fn as_pack_pixel_store(&self) -> WebGlPackPixelStore {
-        WebGlPackPixelStore::from(*self)
-    }
-
-    #[inline]
-    pub fn to_gl_enum(&self) -> u32 {
-        WebGlPackPixelStore::from(*self).to_gl_enum()
-    }
-}
-
-/// Available texture unpack color space conversions for [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlPixelUnpackColorSpaceConversion {
-    None,
-    #[gl_enum(BROWSER_DEFAULT_WEBGL)]
-    BrowserDefault,
-}
-
-/// Available texture unpack pixel store for [`WebGl2RenderingContext`].
-///
-/// [`WebGl2RenderingContext::UNPACK_ALIGNMENT`] and [`WebGl2RenderingContext::UNPACK_ROW_LENGTH`] are ignored in WebGL.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlUnpackPixelStore {
-    // UnpackAlignment,
-    #[gl_enum(UNPACK_FLIP_Y_WEBGL)]
-    UnpackFlipY,
-    #[gl_enum(UNPACK_PREMULTIPLY_ALPHA_WEBGL)]
-    UnpackPremultiplyAlpha,
-    #[gl_enum(UNPACK_COLORSPACE_CONVERSION_WEBGL)]
-    UnpackColorSpaceConversion,
-    // UnpackRowLength,
-    UnpackImageHeight,
-    UnpackSkipPixels,
-    UnpackSkipRows,
-    UnpackSkipImages,
-}
-
-/// Available texture unpack pixel stores with value for [`WebGl2RenderingContext`].
-///
-/// [`WebGl2RenderingContext::UNPACK_ALIGNMENT`] and [`WebGl2RenderingContext::UNPACK_ROW_LENGTH`] are ignored in WebGL.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WebGlUnpackPixelStoreWithValue {
-    // UnpackAlignment(i32),
-    UnpackFlipY(bool),
-    UnpackPremultiplyAlpha(bool),
-    UnpackColorSpaceConversion(WebGlPixelUnpackColorSpaceConversion),
-    // UnpackRowLength(i32),
-    UnpackImageHeight(i32),
-    UnpackSkipPixels(i32),
-    UnpackSkipRows(i32),
-    UnpackSkipImages(i32),
-}
-
-impl From<WebGlUnpackPixelStoreWithValue> for WebGlUnpackPixelStore {
-    #[inline]
-    fn from(value: WebGlUnpackPixelStoreWithValue) -> Self {
-        match value {
-            // WebGlUnpackPixelStoreWithValue::UnpackAlignment(_) => {
-            //     WebGlUnpackPixelStore::UnpackAlignment
-            // }
-            WebGlUnpackPixelStoreWithValue::UnpackFlipY(_) => WebGlUnpackPixelStore::UnpackFlipY,
-            WebGlUnpackPixelStoreWithValue::UnpackPremultiplyAlpha(_) => {
-                WebGlUnpackPixelStore::UnpackPremultiplyAlpha
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackColorSpaceConversion(_) => {
-                WebGlUnpackPixelStore::UnpackColorSpaceConversion
-            }
-            // WebGlUnpackPixelStoreWithValue::UnpackRowLength(_) => {
-            //     WebGlUnpackPixelStore::UnpackRowLength
-            // }
-            WebGlUnpackPixelStoreWithValue::UnpackImageHeight(_) => {
-                WebGlUnpackPixelStore::UnpackImageHeight
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackSkipPixels(_) => {
-                WebGlUnpackPixelStore::UnpackSkipPixels
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackSkipRows(_) => {
-                WebGlUnpackPixelStore::UnpackSkipRows
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackSkipImages(_) => {
-                WebGlUnpackPixelStore::UnpackSkipImages
-            }
-        }
-    }
-}
-
-impl WebGlUnpackPixelStoreWithValue {
-    /// Returns as [`WebGlUnpackPixelStore`].
-    #[inline]
-    pub fn as_pixel_store(&self) -> WebGlUnpackPixelStore {
-        WebGlUnpackPixelStore::from(*self)
-    }
-
-    #[inline]
-    pub fn to_gl_enum(&self) -> u32 {
-        WebGlUnpackPixelStore::from(*self).to_gl_enum()
-    }
-
-    /// Returns default value of a specified [`WebGlUnpackPixelStore`].
-    pub fn default_of(store: WebGlUnpackPixelStore) -> WebGlUnpackPixelStoreWithValue {
-        match store {
-            WebGlUnpackPixelStore::UnpackFlipY => {
-                WebGlUnpackPixelStoreWithValue::UnpackFlipY(false)
-            }
-            WebGlUnpackPixelStore::UnpackPremultiplyAlpha => {
-                WebGlUnpackPixelStoreWithValue::UnpackPremultiplyAlpha(false)
-            }
-            WebGlUnpackPixelStore::UnpackColorSpaceConversion => {
-                WebGlUnpackPixelStoreWithValue::UnpackColorSpaceConversion(
-                    WebGlPixelUnpackColorSpaceConversion::BrowserDefault,
-                )
-            }
-            WebGlUnpackPixelStore::UnpackImageHeight => {
-                WebGlUnpackPixelStoreWithValue::UnpackImageHeight(0)
-            }
-            WebGlUnpackPixelStore::UnpackSkipPixels => {
-                WebGlUnpackPixelStoreWithValue::UnpackSkipPixels(0)
-            }
-            WebGlUnpackPixelStore::UnpackSkipRows => {
-                WebGlUnpackPixelStoreWithValue::UnpackSkipRows(0)
-            }
-            WebGlUnpackPixelStore::UnpackSkipImages => {
-                WebGlUnpackPixelStoreWithValue::UnpackSkipImages(0)
-            }
-        }
-    }
-
-    fn set_pixel_store(&self, gl: &WebGl2RenderingContext) {
-        let pname = self.to_gl_enum();
-        match self {
-            WebGlUnpackPixelStoreWithValue::UnpackFlipY(v) => {
-                gl.pixel_storei(pname, if *v { 1 } else { 0 })
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackPremultiplyAlpha(v) => {
-                gl.pixel_storei(pname, if *v { 1 } else { 0 })
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackColorSpaceConversion(v) => {
-                gl.pixel_storei(pname, v.to_gl_enum() as i32)
-            }
-            WebGlUnpackPixelStoreWithValue::UnpackImageHeight(v) => gl.pixel_storei(pname, *v),
-            WebGlUnpackPixelStoreWithValue::UnpackSkipPixels(v) => gl.pixel_storei(pname, *v),
-            WebGlUnpackPixelStoreWithValue::UnpackSkipRows(v) => gl.pixel_storei(pname, *v),
-            WebGlUnpackPixelStoreWithValue::UnpackSkipImages(v) => gl.pixel_storei(pname, *v),
-        }
-    }
-}
-
 /// Available texture sample parameters for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum WebGlSamplerParam {
@@ -1297,8 +1080,8 @@ impl WebGlSamplerParamWithValue {
 }
 
 /// Available uncompressed texture data types.
-pub enum WebGlUncompressedTextureData<'a> {
-    /// Pixel data type of binary is restricted to [`WebGlImagePixelDataType::UnsignedByte`].
+pub enum WebGlPlainTextureData<'a> {
+    /// Pixel data type of binary is restricted to [`WebGlPixelDataType::UnsignedByte`].
     Binary {
         width: usize,
         height: usize,
@@ -1306,68 +1089,68 @@ pub enum WebGlUncompressedTextureData<'a> {
         bytes_offset: Option<usize>,
     },
     PixelBufferObject {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         width: usize,
         height: usize,
         buffering: &'a WebGlBuffering,
         bytes_offset: Option<usize>,
     },
-    /// Pixel data type of Int8Array is restricted to [`WebGlImagePixelDataType::Byte`].
+    /// Pixel data type of Int8Array is restricted to [`WebGlPixelDataType::Byte`].
     Int8Array {
         width: usize,
         height: usize,
         data: Int8Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Uint8Array is restricted to [`WebGlImagePixelDataType::UnsignedByte`].
+    /// Pixel data type of Uint8Array is restricted to [`WebGlPixelDataType::UnsignedByte`].
     Uint8Array {
         width: usize,
         height: usize,
         data: Uint8Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Uint8ClampedArray is restricted to [`WebGlImagePixelDataType::UnsignedByte`].
+    /// Pixel data type of Uint8ClampedArray is restricted to [`WebGlPixelDataType::UnsignedByte`].
     Uint8ClampedArray {
         width: usize,
         height: usize,
         data: Uint8ClampedArray,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Int32Array is restricted to [`WebGlImagePixelDataType::Short`].
+    /// Pixel data type of Int32Array is restricted to [`WebGlPixelDataType::Short`].
     Int16Array {
         width: usize,
         height: usize,
         data: Int16Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Uint16Array can be [`WebGlImagePixelDataType::UnsignedShort`],
-    /// [`WebGlImagePixelDataType::UnsignedShort_5_6_5`], [`WebGlImagePixelDataType::UnsignedShort_5_5_5_1`],
-    /// [`WebGlImagePixelDataType::UnsignedShort_4_4_4_4`] or [`WebGlImagePixelDataType::HalfFloat`].
+    /// Pixel data type of Uint16Array can be [`WebGlPixelDataType::UnsignedShort`],
+    /// [`WebGlPixelDataType::UnsignedShort_5_6_5`], [`WebGlPixelDataType::UnsignedShort_5_5_5_1`],
+    /// [`WebGlPixelDataType::UnsignedShort_4_4_4_4`] or [`WebGlPixelDataType::HalfFloat`].
     Uint16Array {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         width: usize,
         height: usize,
         data: Uint16Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Int32Array is restricted to [`WebGlImagePixelDataType::Int`].
+    /// Pixel data type of Int32Array is restricted to [`WebGlPixelDataType::Int`].
     Int32Array {
         width: usize,
         height: usize,
         data: Int32Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Uint32Array can be [`WebGlImagePixelDataType::UnsignedInt`],
-    /// [`WebGlImagePixelDataType::UnsignedInt_5_9_9_9Rev`], [`WebGlImagePixelDataType::UnsignedInt_2_10_10_10Rev`],
-    /// [`WebGlImagePixelDataType::UnsignedInt_10F_11F_11F_Rev`] or [`WebGlImagePixelDataType::UnsignedInt_24_8`].
+    /// Pixel data type of Uint32Array can be [`WebGlPixelDataType::UnsignedInt`],
+    /// [`WebGlPixelDataType::UnsignedInt_5_9_9_9Rev`], [`WebGlPixelDataType::UnsignedInt_2_10_10_10Rev`],
+    /// [`WebGlPixelDataType::UnsignedInt_10F_11F_11F_Rev`] or [`WebGlPixelDataType::UnsignedInt_24_8`].
     Uint32Array {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         width: usize,
         height: usize,
         data: Uint32Array,
         element_offset: Option<usize>,
     },
-    /// Pixel data type of Float32Array is restricted to [`WebGlImagePixelDataType::Float`].
+    /// Pixel data type of Float32Array is restricted to [`WebGlPixelDataType::Float`].
     Float32Array {
         width: usize,
         height: usize,
@@ -1375,73 +1158,65 @@ pub enum WebGlUncompressedTextureData<'a> {
         element_offset: Option<usize>,
     },
     HtmlCanvasElement {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         data: HtmlCanvasElement,
     },
     HtmlImageElement {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         data: HtmlImageElement,
     },
     HtmlVideoElement {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         data: HtmlVideoElement,
     },
     ImageData {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         data: ImageData,
     },
     ImageBitmap {
-        pixel_data_type: WebGlImagePixelDataType,
+        pixel_data_type: WebGlPixelDataType,
         data: ImageBitmap,
     },
 }
 
-impl<'a> WebGlUncompressedTextureData<'a> {
+impl<'a> WebGlPlainTextureData<'a> {
     fn width(&self) -> usize {
         match self {
-            WebGlUncompressedTextureData::Binary { width, .. }
-            | WebGlUncompressedTextureData::PixelBufferObject { width, .. }
-            | WebGlUncompressedTextureData::Int8Array { width, .. }
-            | WebGlUncompressedTextureData::Uint8Array { width, .. }
-            | WebGlUncompressedTextureData::Uint8ClampedArray { width, .. }
-            | WebGlUncompressedTextureData::Int16Array { width, .. }
-            | WebGlUncompressedTextureData::Uint16Array { width, .. }
-            | WebGlUncompressedTextureData::Int32Array { width, .. }
-            | WebGlUncompressedTextureData::Uint32Array { width, .. }
-            | WebGlUncompressedTextureData::Float32Array { width, .. } => *width,
-            WebGlUncompressedTextureData::HtmlCanvasElement { data, .. } => data.width() as usize,
-            WebGlUncompressedTextureData::HtmlImageElement { data, .. } => {
-                data.natural_width() as usize
-            }
-            WebGlUncompressedTextureData::HtmlVideoElement { data, .. } => {
-                data.video_width() as usize
-            }
-            WebGlUncompressedTextureData::ImageData { data, .. } => data.width() as usize,
-            WebGlUncompressedTextureData::ImageBitmap { data, .. } => data.width() as usize,
+            WebGlPlainTextureData::Binary { width, .. }
+            | WebGlPlainTextureData::PixelBufferObject { width, .. }
+            | WebGlPlainTextureData::Int8Array { width, .. }
+            | WebGlPlainTextureData::Uint8Array { width, .. }
+            | WebGlPlainTextureData::Uint8ClampedArray { width, .. }
+            | WebGlPlainTextureData::Int16Array { width, .. }
+            | WebGlPlainTextureData::Uint16Array { width, .. }
+            | WebGlPlainTextureData::Int32Array { width, .. }
+            | WebGlPlainTextureData::Uint32Array { width, .. }
+            | WebGlPlainTextureData::Float32Array { width, .. } => *width,
+            WebGlPlainTextureData::HtmlCanvasElement { data, .. } => data.width() as usize,
+            WebGlPlainTextureData::HtmlImageElement { data, .. } => data.natural_width() as usize,
+            WebGlPlainTextureData::HtmlVideoElement { data, .. } => data.video_width() as usize,
+            WebGlPlainTextureData::ImageData { data, .. } => data.width() as usize,
+            WebGlPlainTextureData::ImageBitmap { data, .. } => data.width() as usize,
         }
     }
 
     fn height(&self) -> usize {
         match self {
-            WebGlUncompressedTextureData::Binary { height, .. }
-            | WebGlUncompressedTextureData::PixelBufferObject { height, .. }
-            | WebGlUncompressedTextureData::Int8Array { height, .. }
-            | WebGlUncompressedTextureData::Uint8Array { height, .. }
-            | WebGlUncompressedTextureData::Uint8ClampedArray { height, .. }
-            | WebGlUncompressedTextureData::Int16Array { height, .. }
-            | WebGlUncompressedTextureData::Uint16Array { height, .. }
-            | WebGlUncompressedTextureData::Int32Array { height, .. }
-            | WebGlUncompressedTextureData::Uint32Array { height, .. }
-            | WebGlUncompressedTextureData::Float32Array { height, .. } => *height,
-            WebGlUncompressedTextureData::HtmlCanvasElement { data, .. } => data.height() as usize,
-            WebGlUncompressedTextureData::HtmlImageElement { data, .. } => {
-                data.natural_height() as usize
-            }
-            WebGlUncompressedTextureData::HtmlVideoElement { data, .. } => {
-                data.video_height() as usize
-            }
-            WebGlUncompressedTextureData::ImageData { data, .. } => data.height() as usize,
-            WebGlUncompressedTextureData::ImageBitmap { data, .. } => data.height() as usize,
+            WebGlPlainTextureData::Binary { height, .. }
+            | WebGlPlainTextureData::PixelBufferObject { height, .. }
+            | WebGlPlainTextureData::Int8Array { height, .. }
+            | WebGlPlainTextureData::Uint8Array { height, .. }
+            | WebGlPlainTextureData::Uint8ClampedArray { height, .. }
+            | WebGlPlainTextureData::Int16Array { height, .. }
+            | WebGlPlainTextureData::Uint16Array { height, .. }
+            | WebGlPlainTextureData::Int32Array { height, .. }
+            | WebGlPlainTextureData::Uint32Array { height, .. }
+            | WebGlPlainTextureData::Float32Array { height, .. } => *height,
+            WebGlPlainTextureData::HtmlCanvasElement { data, .. } => data.height() as usize,
+            WebGlPlainTextureData::HtmlImageElement { data, .. } => data.natural_height() as usize,
+            WebGlPlainTextureData::HtmlVideoElement { data, .. } => data.video_height() as usize,
+            WebGlPlainTextureData::ImageData { data, .. } => data.height() as usize,
+            WebGlPlainTextureData::ImageBitmap { data, .. } => data.height() as usize,
         }
     }
 
@@ -1450,8 +1225,8 @@ impl<'a> WebGlUncompressedTextureData<'a> {
         gl: &WebGl2RenderingContext,
         layout: &WebGlTextureLayoutWithSize,
         cube_map_face: TextureCubeMapFace,
-        pixel_format: WebGlImagePixelFormat,
-        pixel_stores: &[WebGlUnpackPixelStoreWithValue],
+        pixel_format: WebGlPixelFormat,
+        pixel_stores: &[WebGlPixelUnpackStoreWithValue],
         level: usize,
         dst_origin_x: Option<usize>,
         dst_origin_y: Option<usize>,
@@ -1468,31 +1243,17 @@ impl<'a> WebGlUncompressedTextureData<'a> {
         let dst_height = dst_height.unwrap_or(self.height());
         let dst_depth_or_len = dst_depth_or_len.unwrap_or(0);
         let target = match layout {
-            WebGlTextureLayoutWithSize::Texture2D { .. } => WebGl2RenderingContext::TEXTURE_2D,
+            WebGlTextureLayoutWithSize::Texture2D { .. } => WebGlTextureTarget::Texture2D,
             WebGlTextureLayoutWithSize::TextureCubeMap { .. } => match cube_map_face {
-                TextureCubeMapFace::PositiveX => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
-                }
-                TextureCubeMapFace::NegativeX => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
-                }
-                TextureCubeMapFace::PositiveY => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
-                }
-                TextureCubeMapFace::NegativeY => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
-                }
-                TextureCubeMapFace::PositiveZ => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
-                }
-                TextureCubeMapFace::NegativeZ => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
-                }
+                TextureCubeMapFace::PositiveX => WebGlTextureTarget::TextureCubeMapPositiveX,
+                TextureCubeMapFace::NegativeX => WebGlTextureTarget::TextureCubeMapNegativeX,
+                TextureCubeMapFace::PositiveY => WebGlTextureTarget::TextureCubeMapPositiveY,
+                TextureCubeMapFace::NegativeY => WebGlTextureTarget::TextureCubeMapNegativeY,
+                TextureCubeMapFace::PositiveZ => WebGlTextureTarget::TextureCubeMapPositiveZ,
+                TextureCubeMapFace::NegativeZ => WebGlTextureTarget::TextureCubeMapNegativeZ,
             },
-            WebGlTextureLayoutWithSize::Texture2DArray { .. } => {
-                WebGl2RenderingContext::TEXTURE_2D_ARRAY
-            }
-            WebGlTextureLayoutWithSize::Texture3D { .. } => WebGl2RenderingContext::TEXTURE_3D,
+            WebGlTextureLayoutWithSize::Texture2DArray { .. } => WebGlTextureTarget::Texture2DArray,
+            WebGlTextureLayoutWithSize::Texture3D { .. } => WebGlTextureTarget::Texture3D,
         };
         let is3d = match layout {
             WebGlTextureLayoutWithSize::Texture2D { .. } => false,
@@ -1502,23 +1263,23 @@ impl<'a> WebGlUncompressedTextureData<'a> {
         };
 
         // sets piexl stores
-        let mut default_pixel_stores: SmallVec<[WebGlUnpackPixelStoreWithValue; 7]> =
+        let mut default_pixel_stores: SmallVec<[WebGlPixelUnpackStoreWithValue; 7]> =
             SmallVec::new();
         for pixel_store in pixel_stores {
             pixel_store.set_pixel_store(gl);
-            default_pixel_stores.push(WebGlUnpackPixelStoreWithValue::default_of(
+            default_pixel_stores.push(WebGlPixelUnpackStoreWithValue::default_of(
                 pixel_store.as_pixel_store(),
             ));
         }
 
         match self {
-            WebGlUncompressedTextureData::Binary {
+            WebGlPlainTextureData::Binary {
                 data, bytes_offset, ..
             } => {
                 let bytes_offset = bytes_offset.unwrap_or(0);
                 match is3d {
                     true => gl.tex_sub_image_3d_with_opt_u8_array_and_src_offset(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1527,25 +1288,25 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         dst_height as i32,
                         dst_depth_or_len as i32,
                         pixel_format.to_gl_enum(),
-                        WebGlImagePixelDataType::UnsignedByte.to_gl_enum(),
+                        WebGlPixelDataType::UnsignedByte.to_gl_enum(),
                         Some(data),
                         bytes_offset as u32,
                     ).unwrap(),
                     false => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_u8_array_and_src_offset(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
                         dst_width as i32,
                         dst_height as i32,
                         pixel_format.to_gl_enum(),
-                        WebGlImagePixelDataType::UnsignedByte.to_gl_enum(),
+                        WebGlPixelDataType::UnsignedByte.to_gl_enum(),
                         data,
                         bytes_offset as u32,
                     ).unwrap(),
                 };
             }
-            WebGlUncompressedTextureData::PixelBufferObject {
+            WebGlPlainTextureData::PixelBufferObject {
                 pixel_data_type,
                 buffering,
                 bytes_offset,
@@ -1560,7 +1321,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                 match is3d {
                     true => gl
                         .tex_sub_image_3d_with_i32(
-                            target,
+                            target.to_gl_enum(),
                             level as i32,
                             dst_origin_x as i32,
                             dst_origin_y as i32,
@@ -1575,7 +1336,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         .unwrap(),
                     false => gl
                         .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_i32(
-                            target,
+                            target.to_gl_enum(),
                             level as i32,
                             dst_origin_x as i32,
                             dst_origin_y as i32,
@@ -1589,13 +1350,13 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                 };
                 gl.bind_buffer(WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(), None);
             }
-            WebGlUncompressedTextureData::HtmlCanvasElement {
+            WebGlPlainTextureData::HtmlCanvasElement {
                 pixel_data_type,
                 data,
             } => match is3d {
                 true => gl
                     .tex_sub_image_3d_with_html_canvas_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1612,7 +1373,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                     })?,
                 false => gl
                     .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_canvas_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1626,13 +1387,13 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         Error::TextureImageSourceError(err.dyn_into::<DomException>().unwrap())
                     })?,
             },
-            WebGlUncompressedTextureData::HtmlImageElement {
+            WebGlPlainTextureData::HtmlImageElement {
                 pixel_data_type,
                 data,
             } => match is3d {
                 true => gl
                     .tex_sub_image_3d_with_html_image_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1649,7 +1410,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                     })?,
                 false => gl
                     .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_image_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1663,13 +1424,13 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         Error::TextureImageSourceError(err.dyn_into::<DomException>().unwrap())
                     })?,
             },
-            WebGlUncompressedTextureData::HtmlVideoElement {
+            WebGlPlainTextureData::HtmlVideoElement {
                 pixel_data_type,
                 data,
             } => match is3d {
                 true => gl
                     .tex_sub_image_3d_with_html_video_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1686,7 +1447,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                     })?,
                 false => gl
                     .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_html_video_element(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1700,13 +1461,13 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         Error::TextureImageSourceError(err.dyn_into::<DomException>().unwrap())
                     })?,
             },
-            WebGlUncompressedTextureData::ImageData {
+            WebGlPlainTextureData::ImageData {
                 pixel_data_type,
                 data,
             } => match is3d {
                 true => gl
                     .tex_sub_image_3d_with_image_data(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1723,7 +1484,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                     })?,
                 false => gl
                     .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_data(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1737,13 +1498,13 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         Error::TextureImageSourceError(err.dyn_into::<DomException>().unwrap())
                     })?,
             },
-            WebGlUncompressedTextureData::ImageBitmap {
+            WebGlPlainTextureData::ImageBitmap {
                 pixel_data_type,
                 data,
             } => match is3d {
                 true => gl
                     .tex_sub_image_3d_with_image_bitmap(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1760,7 +1521,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                     })?,
                 false => gl
                     .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_image_bitmap(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1776,7 +1537,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
             },
             _ => {
                 let (data, pixel_data_type, element_offset) = match self {
-                    WebGlUncompressedTextureData::Int8Array {
+                    WebGlPlainTextureData::Int8Array {
                         data,
                         element_offset,
                         ..
@@ -1785,7 +1546,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         WebGl2RenderingContext::BYTE,
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Uint8Array {
+                    WebGlPlainTextureData::Uint8Array {
                         data,
                         element_offset,
                         ..
@@ -1794,7 +1555,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         WebGl2RenderingContext::UNSIGNED_BYTE,
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Uint8ClampedArray {
+                    WebGlPlainTextureData::Uint8ClampedArray {
                         data,
                         element_offset,
                         ..
@@ -1803,7 +1564,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         WebGl2RenderingContext::UNSIGNED_BYTE,
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Int16Array {
+                    WebGlPlainTextureData::Int16Array {
                         data,
                         element_offset,
                         ..
@@ -1812,7 +1573,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         WebGl2RenderingContext::SHORT,
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Uint16Array {
+                    WebGlPlainTextureData::Uint16Array {
                         pixel_data_type,
                         data,
                         element_offset,
@@ -1822,7 +1583,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         pixel_data_type.to_gl_enum(),
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Int32Array {
+                    WebGlPlainTextureData::Int32Array {
                         data,
                         element_offset,
                         ..
@@ -1831,7 +1592,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         WebGl2RenderingContext::INT,
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Uint32Array {
+                    WebGlPlainTextureData::Uint32Array {
                         pixel_data_type,
                         data,
                         element_offset,
@@ -1841,7 +1602,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         pixel_data_type.to_gl_enum(),
                         element_offset,
                     ),
-                    WebGlUncompressedTextureData::Float32Array {
+                    WebGlPlainTextureData::Float32Array {
                         data,
                         element_offset,
                         ..
@@ -1856,7 +1617,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                 // those calls never throws an error
                 match is3d {
                     true => gl.tex_sub_image_3d_with_opt_array_buffer_view_and_src_offset(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -1870,7 +1631,7 @@ impl<'a> WebGlUncompressedTextureData<'a> {
                         element_offset as u32,
                     ).unwrap(),
                     false => gl.tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_array_buffer_view_and_src_offset(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -2020,31 +1781,17 @@ impl<'a> WebGlCompressedTextureData<'a> {
         let dst_height = dst_height.unwrap_or(self.height());
         let dst_depth_or_len = dst_depth_or_len.unwrap_or(0);
         let target = match layout {
-            WebGlTextureLayoutWithSize::Texture2D { .. } => WebGl2RenderingContext::TEXTURE_2D,
+            WebGlTextureLayoutWithSize::Texture2D { .. } => WebGlTextureTarget::Texture2D,
             WebGlTextureLayoutWithSize::TextureCubeMap { .. } => match cube_map_face {
-                TextureCubeMapFace::PositiveX => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_X
-                }
-                TextureCubeMapFace::NegativeX => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_X
-                }
-                TextureCubeMapFace::PositiveY => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Y
-                }
-                TextureCubeMapFace::NegativeY => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Y
-                }
-                TextureCubeMapFace::PositiveZ => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_POSITIVE_Z
-                }
-                TextureCubeMapFace::NegativeZ => {
-                    WebGl2RenderingContext::TEXTURE_CUBE_MAP_NEGATIVE_Z
-                }
+                TextureCubeMapFace::PositiveX => WebGlTextureTarget::TextureCubeMapPositiveX,
+                TextureCubeMapFace::NegativeX => WebGlTextureTarget::TextureCubeMapNegativeX,
+                TextureCubeMapFace::PositiveY => WebGlTextureTarget::TextureCubeMapPositiveY,
+                TextureCubeMapFace::NegativeY => WebGlTextureTarget::TextureCubeMapNegativeY,
+                TextureCubeMapFace::PositiveZ => WebGlTextureTarget::TextureCubeMapPositiveZ,
+                TextureCubeMapFace::NegativeZ => WebGlTextureTarget::TextureCubeMapNegativeZ,
             },
-            WebGlTextureLayoutWithSize::Texture2DArray { .. } => {
-                WebGl2RenderingContext::TEXTURE_2D_ARRAY
-            }
-            WebGlTextureLayoutWithSize::Texture3D { .. } => WebGl2RenderingContext::TEXTURE_3D,
+            WebGlTextureLayoutWithSize::Texture2DArray { .. } => WebGlTextureTarget::Texture2DArray,
+            WebGlTextureLayoutWithSize::Texture3D { .. } => WebGlTextureTarget::Texture3D,
         };
         let is3d = match layout {
             WebGlTextureLayoutWithSize::Texture2D { .. } => false,
@@ -2064,7 +1811,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                 match is3d {
                     true => gl
                         .compressed_tex_sub_image_3d_with_u8_array_and_u32_and_src_length_override(
-                            target,
+                            target.to_gl_enum(),
                             level as i32,
                             dst_origin_x as i32,
                             dst_origin_y as i32,
@@ -2077,7 +1824,19 @@ impl<'a> WebGlCompressedTextureData<'a> {
                             bytes_offset as u32,
                             bytes_length_override as u32,
                         ),
-                    false => todo!(),
+                    false => gl
+                        .compressed_tex_sub_image_2d_with_u8_array_and_u32_and_src_length_override(
+                            target.to_gl_enum(),
+                            level as i32,
+                            dst_origin_x as i32,
+                            dst_origin_y as i32,
+                            dst_width as i32,
+                            dst_height as i32,
+                            compressed_format.to_gl_enum(),
+                            data,
+                            bytes_offset as u32,
+                            bytes_length_override as u32,
+                        ),
                 };
             }
             WebGlCompressedTextureData::PixelBufferObject {
@@ -2094,7 +1853,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                 let bytes_offset = bytes_offset.unwrap_or(0);
                 match is3d {
                     true => gl.compressed_tex_sub_image_3d_with_i32_and_i32(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -2107,7 +1866,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         bytes_offset as i32,
                     ),
                     false => gl.compressed_tex_sub_image_2d_with_i32_and_i32(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -2176,7 +1935,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                 let element_length_override = element_length_override.clone().unwrap_or(0);
                 match is3d {
                     true => gl.compressed_tex_sub_image_3d_with_array_buffer_view_and_u32_and_src_length_override(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -2190,7 +1949,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         element_length_override as u32
                     ),
                     false => gl.compressed_tex_sub_image_2d_with_array_buffer_view_and_u32_and_src_length_override(
-                        target,
+                        target.to_gl_enum(),
                         level as i32,
                         dst_origin_x as i32,
                         dst_origin_y as i32,
@@ -2212,10 +1971,10 @@ impl<'a> WebGlCompressedTextureData<'a> {
 /// Texture data for uploading data to WebGL runtime.
 pub enum WebGlTextureData<'a> {
     Plain {
-        pixel_format: WebGlImagePixelFormat,
-        pixel_stores: &'a [WebGlUnpackPixelStoreWithValue],
+        pixel_format: WebGlPixelFormat,
+        pixel_stores: &'a [WebGlPixelUnpackStoreWithValue],
         generate_mipmap: bool,
-        data: WebGlUncompressedTextureData<'a>,
+        data: WebGlPlainTextureData<'a>,
     },
     Compressed {
         data: WebGlCompressedTextureData<'a>,
@@ -2400,6 +2159,7 @@ pub struct WebGlTextureManager {
 }
 
 impl WebGlTextureManager {
+    /// Constructs a new texture manager.
     pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
         let textures = Rc::new(RefCell::new(HashMap::new()));
         channel.on(TextureDroppedHandler::new(Rc::clone(&textures)));
@@ -2423,10 +2183,12 @@ impl WebGlTextureManager {
         &mut self,
         texturing: &WebGlTexturing,
         buffer_manager: &mut WebGlBufferManager,
+        activating_texture_unit: &WebGlTextureUnit,
+        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlTextureItem, Error> {
         self.verify_manager(texturing)?;
-        
+
         let gl_sampler = match texturing.sampler_parameters.len() {
             0 => self.sampler_manager.get_or_create_default_sampler()?,
             _ => self
@@ -2434,6 +2196,9 @@ impl WebGlTextureManager {
                 .get_or_create_sampler_by_iter(texturing.sampler_parameters.iter().cloned())?,
         };
 
+        let using_gl_texture = using_textures
+            .get(activating_texture_unit)
+            .map(|i| &i.gl_texture);
         let mut textures = self.textures.borrow_mut();
         let item = match textures.entry(*texturing.id()) {
             Entry::Occupied(entry) => {
@@ -2548,7 +2313,7 @@ impl WebGlTextureManager {
                 }
             }
         }
-        self.gl.bind_texture(layout.to_gl_enum(), None);
+        self.gl.bind_texture(layout.to_gl_enum(), using_gl_texture);
 
         Ok(item.clone())
     }

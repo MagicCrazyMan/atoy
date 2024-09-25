@@ -48,7 +48,10 @@ pub struct WebGlBuffering {
 impl WebGlBuffering {
     /// Constructs a new WebGl buffering container.
     pub fn new(buffering: Buffering, options: WebGlBufferCreateOptions) -> Self {
-        Self { buffering, create_options: options }
+        Self {
+            buffering,
+            create_options: options,
+        }
     }
 
     /// Constructs a new WebGl buffering container with default [`WebGlBufferOptions`].
@@ -349,7 +352,7 @@ impl<'a> BufferData for WebGlBufferData<'a> {
 #[derive(Clone)]
 pub struct WebGlBufferItem {
     gl_buffer: WebGlBuffer,
-    byte_length: usize,
+    byte_length: Rc<RefCell<usize>>,
     usage: WebGlBufferUsage,
 }
 
@@ -361,7 +364,7 @@ impl WebGlBufferItem {
 
     /// Returns byte length of the buffer.
     pub fn byte_length(&self) -> usize {
-        self.byte_length
+        *self.byte_length.borrow()
     }
 
     /// Returns [`WebGlBufferUsage`].
@@ -426,6 +429,7 @@ impl WebGlBufferManager {
                     gl_buffer,
                     usage,
                 } = buffer_item;
+                let mut byte_length = byte_length.borrow_mut();
 
                 // creates a new buffer with new byte length,
                 // then copies data from old buffer to new buffer
@@ -473,6 +477,7 @@ impl WebGlBufferManager {
                         item.dst_byte_offset,
                     );
                 }
+                drop(byte_length);
 
                 buffer_item
             }
@@ -502,7 +507,7 @@ impl WebGlBufferManager {
                 }
 
                 let buffer_item = WebGlBufferItem {
-                    byte_length,
+                    byte_length: Rc::new(RefCell::new(byte_length)),
                     gl_buffer: gl_buffer.clone(),
                     usage,
                 };

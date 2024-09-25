@@ -9,3 +9,4 @@ pub mod texture;
 pub mod uniform;
 pub mod framebuffer;
 pub mod renderbuffer;
+pub mod pixel;

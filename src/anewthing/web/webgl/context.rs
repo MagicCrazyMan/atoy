@@ -1,7 +1,8 @@
-use std::ops::{Range, RangeBounds};
+use std::ops::{Bound, Range, RangeBounds};
 
 use hashbrown::{hash_map::Entry, HashMap};
-use js_sys::Uint8Array;
+use js_sys::{Array, Uint8Array};
+use wasm_bindgen::JsValue;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer, WebGlUniformLocation};
 
 use crate::anewthing::channel::Channel;
@@ -14,7 +15,11 @@ use super::{
     capabilities::WebGlCapabilities,
     client_wait::WebGlClientWait,
     error::Error,
-    framebuffer::{WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem},
+    framebuffer::{
+        WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem,
+        WebGlFramebufferTarget,
+    },
+    pixel::WebGlPixelFormat,
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
     texture::{WebGlTextureItem, WebGlTextureManager, WebGlTextureUnit, WebGlTexturing},
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
@@ -29,8 +34,10 @@ pub struct WebGlContext {
     framebuffer_factory: WebGlFramebufferFactory,
     capabilities: WebGlCapabilities,
 
+    using_draw_framebuffer: Option<WebGlFramebufferItem>,
     using_program: Option<WebGlProgramItem>,
     using_uniform_buffer_objects: HashMap<usize, (WebGlBufferItem, Range<usize>)>,
+    activating_texture_unit: WebGlTextureUnit,
     using_textures: HashMap<WebGlTextureUnit, WebGlTextureItem>,
 }
 
@@ -46,8 +53,10 @@ impl WebGlContext {
             gl,
             channel,
 
+            using_draw_framebuffer: None,
             using_program: None,
             using_uniform_buffer_objects: HashMap::new(),
+            activating_texture_unit: WebGlTextureUnit::Texture0,
             using_textures: HashMap::new(),
         }
     }
@@ -138,6 +147,87 @@ impl WebGlContext {
     //     WebGlClientWait::with_flags_and_retries(wait_timeout, retry_interval, max_retries, flags)
     // }
 
+    /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`](super::super::super::buffering::BufferData) into WebGl context.
+    pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
+        self.buffer_manager.sync_buffer(buffering)
+    }
+
+    /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`](super::super::super::texturing::TextureData) into WebGl context.
+    pub fn sync_texture(&mut self, texturing: &WebGlTexturing) -> Result<WebGlTextureItem, Error> {
+        self.texture_manager.sync_texture(
+            texturing,
+            &mut self.buffer_manager,
+            &self.activating_texture_unit,
+            &self.using_textures,
+            &self.capabilities,
+        )
+    }
+
+    /// Creates a new framebuffer item by a [`WebGlFramebufferCreateOptions`].
+    pub fn create_framebuffer(
+        &self,
+        options: WebGlFramebufferCreateOptions,
+    ) -> Result<WebGlFramebufferItem, Error> {
+        self.framebuffer_factory.create_framebuffer(
+            options,
+            &self.using_draw_framebuffer,
+            &self.activating_texture_unit,
+            &self.using_textures,
+            &self.capabilities,
+        )
+    }
+
+    /// Binds a [`WebGlFramebufferItem`] to draw framebuffer and enable all color attachments.
+    pub fn bind_draw_framebuffer(&mut self, item: &mut WebGlFramebufferItem) -> Result<(), Error> {
+        self.bind_draw_framebuffer_with_draw_buffers(item, ..)
+    }
+
+    /// Binds a [`WebGlFramebufferItem`] to draw framebuffer
+    /// with specifying the color attachments are available to written to.
+    pub fn bind_draw_framebuffer_with_draw_buffers<R>(
+        &mut self,
+        item: &mut WebGlFramebufferItem,
+        draw_buffers_range: R,
+    ) -> Result<(), Error>
+    where
+        R: RangeBounds<usize>,
+    {
+        self.framebuffer_factory.update_framebuffer(
+            item,
+            &self.using_draw_framebuffer,
+            &self.activating_texture_unit,
+            &self.using_textures,
+            &self.capabilities,
+        )?;
+        self.gl.bind_framebuffer(
+            WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+            Some(item.gl_framebuffer()),
+        );
+
+        let draw_buffers = Array::new();
+        for i in 0..item.color_attachment_len() {
+            if draw_buffers_range.contains(&i) {
+                draw_buffers.push(&JsValue::from_f64(
+                    (WebGl2RenderingContext::COLOR_ATTACHMENT0 + i as u32) as f64,
+                ));
+            } else {
+                draw_buffers.push(&JsValue::from_f64(WebGl2RenderingContext::NONE as f64));
+            }
+        }
+        self.gl.draw_buffers(&draw_buffers);
+
+        self.using_draw_framebuffer = Some(item.clone());
+        Ok(())
+    }
+
+    // Unbinds draw buffer
+    pub fn unbind_draw_framebuffer(&mut self) {
+        if let Some(_) = self.using_draw_framebuffer.take() {
+            self.gl
+                .bind_framebuffer(WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
+        }
+    }
+
     /// Compiles shader sources and then uses the compiled program.
     /// Returns the compiled [`WebGlProgramItem`] as well.
     pub fn use_program_by_shader_sources<VS, FS>(
@@ -168,26 +258,6 @@ impl WebGlContext {
 
         gl.use_program(Some(program_item.gl_program()));
         *using_program = Some(program_item.clone());
-    }
-
-    /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`](super::super::super::buffering::BufferData) into WebGl context.
-    pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
-        self.buffer_manager.sync_buffer(buffering)
-    }
-
-    /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`](super::super::super::texturing::TextureData) into WebGl context.
-    pub fn sync_texture(&mut self, texturing: &WebGlTexturing) -> Result<WebGlTextureItem, Error> {
-        self.texture_manager
-            .sync_texture(texturing, &mut self.buffer_manager, &self.capabilities)
-    }
-
-    /// Creates a new framebuffer item by a [`WebGlFramebufferCreateOptions`].
-    pub fn create_framebuffer(
-        &self,
-        options: WebGlFramebufferCreateOptions,
-    ) -> Result<WebGlFramebufferItem, Error> {
-        self.framebuffer_factory
-            .create_framebuffer(options, &self.capabilities)
     }
 
     /// Sets a attribute by specified attribute name.
@@ -306,6 +376,7 @@ impl WebGlContext {
             &self.gl,
             &location,
             value,
+            &mut self.activating_texture_unit,
             &mut self.using_textures,
             &mut self.texture_manager,
             &mut self.buffer_manager,
@@ -318,6 +389,7 @@ impl WebGlContext {
         gl: &WebGl2RenderingContext,
         location: &WebGlUniformLocation,
         value: WebGlUniformValue,
+        activating_texture_unit: &mut WebGlTextureUnit,
         using_textures: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
         texture_manager: &mut WebGlTextureManager,
         buffer_manager: &mut WebGlBufferManager,
@@ -330,6 +402,7 @@ impl WebGlContext {
                     gl,
                     texturing,
                     unit,
+                    activating_texture_unit,
                     using_textures,
                     texture_manager,
                     buffer_manager,
@@ -539,6 +612,7 @@ impl WebGlContext {
             &self.gl,
             texturing,
             unit,
+            &mut self.activating_texture_unit,
             &mut self.using_textures,
             &mut self.texture_manager,
             &mut self.buffer_manager,
@@ -550,12 +624,19 @@ impl WebGlContext {
         gl: &WebGl2RenderingContext,
         texturing: &WebGlTexturing,
         unit: WebGlTextureUnit,
+        activating_texture_unit: &mut WebGlTextureUnit,
         using_textures: &mut HashMap<WebGlTextureUnit, WebGlTextureItem>,
         texture_manager: &mut WebGlTextureManager,
         buffer_manager: &mut WebGlBufferManager,
         capabilities: &WebGlCapabilities,
     ) -> Result<(), Error> {
-        let item = texture_manager.sync_texture(texturing, buffer_manager, capabilities)?;
+        let item = texture_manager.sync_texture(
+            texturing,
+            buffer_manager,
+            activating_texture_unit,
+            using_textures,
+            capabilities,
+        )?;
         match using_textures.entry(unit) {
             Entry::Occupied(mut e) => {
                 let u = e.get_mut();
@@ -573,6 +654,7 @@ impl WebGlContext {
                 e.insert(item);
             }
         };
+        *activating_texture_unit = unit;
 
         Ok(())
     }
@@ -585,6 +667,7 @@ impl WebGlContext {
         self.gl.active_texture(unit.to_gl_enum());
         self.gl.bind_texture(item.layout().to_gl_enum(), None);
         self.gl.bind_sampler(unit.as_index() as u32, None);
+        self.activating_texture_unit = unit;
     }
 
     /// Binds a buffer range to uniform buffer object mount point.
@@ -735,5 +818,62 @@ impl WebGlContext {
         gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
 
         Ok(dst)
+    }
+
+    /// Reads pixels from framebuffer and writes them to an [`Uint8Array`].
+    ///
+    /// - `framebuffer`: Reads pixels from back framebuffer if framebuffer is `None`.
+    /// When providing a framebuffer, a read buffer index should be specified as well.
+    /// - `x` and `y`: Uses `0` as default if not specified.
+    /// - `width` and `height`: Uses framebuffer width and height if not specified.
+    /// - `offset`: applies no offset if not specified.
+    pub fn read_pixels(
+        &self,
+        framebuffer: Option<(&WebGlFramebufferItem, usize)>,
+        pixel_format: WebGlPixelFormat,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Uint8Array, Error> {
+        match framebuffer {
+            Some((framebuffer, read_buffer)) => {
+                self.gl.bind_framebuffer(
+                    WebGl2RenderingContext::READ_FRAMEBUFFER,
+                    Some(framebuffer.gl_framebuffer()),
+                );
+                self.gl
+                    .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer as u32);
+            }
+            None => {
+                self.gl.read_buffer(WebGl2RenderingContext::BACK);
+            }
+        };
+
+        let buffer = Uint8Array::new_with_length(length);
+
+        if framebuffer.is_some() {
+            self.gl
+                .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
+        }
+        
+        Ok(buffer)
+    }
+
+    /// Read pixels from framebuffer and writes them to an [`Uint8Array`].
+    ///
+    /// Refers to [`read_pixels`](WebGlContext::read_pixels) for more details.
+    pub async fn read_pixels_with_client_wait(
+        &self,
+        framebuffer: Option<&WebGlFramebufferItem>,
+        pixel_format: WebGlPixelFormat,
+        x: Option<usize>,
+        y: Option<usize>,
+        width: Option<usize>,
+        height: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Uint8Array, Error> {
+        todo!()
     }
 }
