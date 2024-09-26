@@ -86,7 +86,7 @@ pub enum WebGlTextureLayout {
 pub enum WebGlTextureLayoutWithSize {
     Texture2D {
         /// Texture levels.
-        /// Caculates automatically if `None`.
+        /// Calculates automatically if `None`.
         levels: Option<usize>,
         /// Texture width.
         width: usize,
@@ -95,7 +95,7 @@ pub enum WebGlTextureLayoutWithSize {
     },
     TextureCubeMap {
         /// Texture levels.
-        /// Caculates automatically if `None`.
+        /// Calculates automatically if `None`.
         levels: Option<usize>,
         /// Texture width.
         width: usize,
@@ -104,7 +104,7 @@ pub enum WebGlTextureLayoutWithSize {
     },
     Texture2DArray {
         /// Texture levels.
-        /// Caculates automatically if `None`.
+        /// Calculates automatically if `None`.
         levels: Option<usize>,
         /// Texture width.
         width: usize,
@@ -115,7 +115,7 @@ pub enum WebGlTextureLayoutWithSize {
     },
     Texture3D {
         /// Texture levels.
-        /// Caculates automatically if `None`.
+        /// Calculates automatically if `None`.
         levels: Option<usize>,
         /// Texture width.
         width: usize,
@@ -139,24 +139,40 @@ impl WebGlTextureLayoutWithSize {
     }
 
     #[inline]
-    fn compute_mipmap_levels(&self) -> usize {
+    fn get_or_auto_levels(&self) -> usize {
         match self {
-            WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
-            | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. }
-            | WebGlTextureLayoutWithSize::Texture2DArray { width, height, .. } => {
-                (*width.max(height) as f64).log2().floor() as usize + 1
+            WebGlTextureLayoutWithSize::Texture2D {
+                levels,
+                width,
+                height,
+                ..
             }
+            | WebGlTextureLayoutWithSize::TextureCubeMap {
+                levels,
+                width,
+                height,
+                ..
+            }
+            | WebGlTextureLayoutWithSize::Texture2DArray {
+                levels,
+                width,
+                height,
+                ..
+            } => levels.unwrap_or_else(|| (*width.max(height) as f64).log2().floor() as usize + 1),
             WebGlTextureLayoutWithSize::Texture3D {
+                levels,
                 width,
                 height,
                 depth,
                 ..
-            } => (*width.max(height).max(depth) as f64).log2().floor() as usize + 1,
+            } => levels.unwrap_or_else(|| {
+                (*width.max(height).max(depth) as f64).log2().floor() as usize + 1
+            }),
         }
     }
 
     fn tex_store(&self, gl: &WebGl2RenderingContext, internal_format: WebGlTextureInternalFormat) {
-        let levels = self.compute_mipmap_levels();
+        let levels = self.get_or_auto_levels();
         match self {
             WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
             | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. } => gl
@@ -2209,7 +2225,7 @@ impl WebGlTextureManager {
             .texture_parameters
             .set_texture_parameters(&self.gl, layout.as_layout());
 
-        for level in 0..layout.compute_mipmap_levels() {
+        for level in 0..layout.get_or_auto_levels() {
             for item in texturing.queue_of_level(level).drain() {
                 let TexturingItem {
                     data,
