@@ -19,7 +19,7 @@ use super::{
         WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem,
         WebGlFramebufferTarget,
     },
-    pixel::WebGlPixelFormat,
+    pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelPackStoreWithValue},
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
     texture::{WebGlTextureItem, WebGlTextureManager, WebGlTextureUnit, WebGlTexturing},
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
@@ -333,31 +333,41 @@ impl WebGlContext {
                 gl.vertex_attrib_divisor(location, instance_size as u32);
                 gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
             }
-            WebGlAttributeValue::Float1(x) => gl.vertex_attrib1f(location, x),
-            WebGlAttributeValue::Float2(x, y) => gl.vertex_attrib2f(location, x, y),
-            WebGlAttributeValue::Float3(x, y, z) => gl.vertex_attrib3f(location, x, y, z),
-            WebGlAttributeValue::Float4(x, y, z, w) => gl.vertex_attrib4f(location, x, y, z, w),
-            WebGlAttributeValue::Integer4(x, y, z, w) => gl.vertex_attrib_i4i(location, x, y, z, w),
-            WebGlAttributeValue::UnsignedInteger4(x, y, z, w) => {
-                gl.vertex_attrib_i4ui(location, x, y, z, w)
-            }
-            WebGlAttributeValue::FloatVector1(v) => {
-                gl.vertex_attrib1fv_with_f32_array(location, v.data.as_slice())
-            }
-            WebGlAttributeValue::FloatVector2(v) => {
-                gl.vertex_attrib2fv_with_f32_array(location, v.data.as_slice())
-            }
-            WebGlAttributeValue::FloatVector3(v) => {
-                gl.vertex_attrib3fv_with_f32_array(location, v.data.as_slice())
-            }
-            WebGlAttributeValue::FloatVector4(v) => {
-                gl.vertex_attrib4fv_with_f32_array(location, v.data.as_slice())
-            }
-            WebGlAttributeValue::IntegerVector4(v) => {
-                gl.vertex_attrib_i4i(location, v.x, v.y, v.z, v.w)
-            }
-            WebGlAttributeValue::UnsignedIntegerVector4(v) => {
-                gl.vertex_attrib_i4ui(location, v.x, v.y, v.z, v.w)
+            _ => {
+                match value {
+                    WebGlAttributeValue::Float1(x) => gl.vertex_attrib1f(location, x),
+                    WebGlAttributeValue::Float2(x, y) => gl.vertex_attrib2f(location, x, y),
+                    WebGlAttributeValue::Float3(x, y, z) => gl.vertex_attrib3f(location, x, y, z),
+                    WebGlAttributeValue::Float4(x, y, z, w) => {
+                        gl.vertex_attrib4f(location, x, y, z, w)
+                    }
+                    WebGlAttributeValue::Integer4(x, y, z, w) => {
+                        gl.vertex_attrib_i4i(location, x, y, z, w)
+                    }
+                    WebGlAttributeValue::UnsignedInteger4(x, y, z, w) => {
+                        gl.vertex_attrib_i4ui(location, x, y, z, w)
+                    }
+                    WebGlAttributeValue::FloatVector1(v) => {
+                        gl.vertex_attrib1fv_with_f32_array(location, v.data.as_slice())
+                    }
+                    WebGlAttributeValue::FloatVector2(v) => {
+                        gl.vertex_attrib2fv_with_f32_array(location, v.data.as_slice())
+                    }
+                    WebGlAttributeValue::FloatVector3(v) => {
+                        gl.vertex_attrib3fv_with_f32_array(location, v.data.as_slice())
+                    }
+                    WebGlAttributeValue::FloatVector4(v) => {
+                        gl.vertex_attrib4fv_with_f32_array(location, v.data.as_slice())
+                    }
+                    WebGlAttributeValue::IntegerVector4(v) => {
+                        gl.vertex_attrib_i4i(location, v.x, v.y, v.z, v.w)
+                    }
+                    WebGlAttributeValue::UnsignedIntegerVector4(v) => {
+                        gl.vertex_attrib_i4ui(location, v.x, v.y, v.z, v.w)
+                    }
+                    _ => unreachable!(),
+                };
+                gl.disable_vertex_attrib_array(location);
             }
         };
 
@@ -820,31 +830,33 @@ impl WebGlContext {
         Ok(dst)
     }
 
-    /// Reads pixels from framebuffer and writes them to an [`Uint8Array`].
+    /// Reads pixels from framebuffer into a pixel buffer object.
     ///
     /// - `framebuffer`: Reads pixels from back framebuffer if framebuffer is `None`.
     /// When providing a framebuffer, a read buffer index should be specified as well.
     /// - `x` and `y`: Uses `0` as default if not specified.
     /// - `width` and `height`: Uses framebuffer width and height if not specified.
     /// - `offset`: applies no offset if not specified.
-    pub fn read_pixels(
+    pub fn read_pixels_pbo(
         &self,
         framebuffer: Option<(&WebGlFramebufferItem, usize)>,
         pixel_format: WebGlPixelFormat,
+        pixel_data_type: WebGlPixelDataType,
         x: Option<usize>,
         y: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
         offset: Option<usize>,
+        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
     ) -> Result<Uint8Array, Error> {
         match framebuffer {
-            Some((framebuffer, read_buffer)) => {
+            Some((framebuffer, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
                     WebGl2RenderingContext::READ_FRAMEBUFFER,
                     Some(framebuffer.gl_framebuffer()),
                 );
                 self.gl
-                    .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer as u32);
+                    .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer_index as u32);
             }
             None => {
                 self.gl.read_buffer(WebGl2RenderingContext::BACK);
@@ -857,22 +869,24 @@ impl WebGlContext {
             self.gl
                 .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         }
-        
+
         Ok(buffer)
     }
 
     /// Read pixels from framebuffer and writes them to an [`Uint8Array`].
     ///
     /// Refers to [`read_pixels`](WebGlContext::read_pixels) for more details.
-    pub async fn read_pixels_with_client_wait(
+    pub async fn read_pixels_pbo_with_client_wait(
         &self,
         framebuffer: Option<&WebGlFramebufferItem>,
         pixel_format: WebGlPixelFormat,
+        pixel_data_type: WebGlPixelDataType,
         x: Option<usize>,
         y: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
         offset: Option<usize>,
+        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
     ) -> Result<Uint8Array, Error> {
         todo!()
     }

@@ -537,6 +537,8 @@ impl WebGlFramebufferFactory {
         Ok(item)
     }
 
+    /// Updates framebuffer.
+    /// Recreates self-hosted texture and renderbuffer if size changed.
     pub fn update_framebuffer(
         &self,
         item: &mut WebGlFramebufferItem,
