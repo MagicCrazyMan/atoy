@@ -842,12 +842,12 @@ impl WebGlContext {
         framebuffer: Option<(&WebGlFramebufferItem, usize)>,
         pixel_format: WebGlPixelFormat,
         pixel_data_type: WebGlPixelDataType,
+        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
         x: Option<usize>,
         y: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
         offset: Option<usize>,
-        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
     ) -> Result<Uint8Array, Error> {
         match framebuffer {
             Some((framebuffer, read_buffer_index)) => {
@@ -871,23 +871,5 @@ impl WebGlContext {
         }
 
         Ok(buffer)
-    }
-
-    /// Read pixels from framebuffer and writes them to an [`Uint8Array`].
-    ///
-    /// Refers to [`read_pixels`](WebGlContext::read_pixels) for more details.
-    pub async fn read_pixels_pbo_with_client_wait(
-        &self,
-        framebuffer: Option<&WebGlFramebufferItem>,
-        pixel_format: WebGlPixelFormat,
-        pixel_data_type: WebGlPixelDataType,
-        x: Option<usize>,
-        y: Option<usize>,
-        width: Option<usize>,
-        height: Option<usize>,
-        offset: Option<usize>,
-        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
-    ) -> Result<Uint8Array, Error> {
-        todo!()
     }
 }
