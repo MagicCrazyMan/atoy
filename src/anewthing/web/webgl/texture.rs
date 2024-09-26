@@ -139,7 +139,7 @@ impl WebGlTextureLayoutWithSize {
     }
 
     #[inline]
-    fn get_or_auto_levels(&self) -> usize {
+    fn compute_mipmap_levels(&self) -> usize {
         match self {
             WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
             | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. }
@@ -156,7 +156,7 @@ impl WebGlTextureLayoutWithSize {
     }
 
     fn tex_store(&self, gl: &WebGl2RenderingContext, internal_format: WebGlTextureInternalFormat) {
-        let levels = self.get_or_auto_levels();
+        let levels = self.compute_mipmap_levels();
         match self {
             WebGlTextureLayoutWithSize::Texture2D { width, height, .. }
             | WebGlTextureLayoutWithSize::TextureCubeMap { width, height, .. } => gl
@@ -2209,7 +2209,7 @@ impl WebGlTextureManager {
             .texture_parameters
             .set_texture_parameters(&self.gl, layout.as_layout());
 
-        for level in 0..layout.get_or_auto_levels() {
+        for level in 0..layout.compute_mipmap_levels() {
             for item in texturing.queue_of_level(level).drain() {
                 let TexturingItem {
                     data,
