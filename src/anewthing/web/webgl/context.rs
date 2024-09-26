@@ -19,7 +19,7 @@ use super::{
         WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem,
         WebGlFramebufferTarget,
     },
-    pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelPackStoreWithValue},
+    pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelPackStores},
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
     texture::{WebGlTextureItem, WebGlTextureManager, WebGlTextureUnit, WebGlTexturing},
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
@@ -842,7 +842,7 @@ impl WebGlContext {
         framebuffer: Option<(&WebGlFramebufferItem, usize)>,
         pixel_format: WebGlPixelFormat,
         pixel_data_type: WebGlPixelDataType,
-        pixel_pack_stores: &[WebGlPixelPackStoreWithValue],
+        pixel_pack_stores: WebGlPixelPackStores,
         x: Option<usize>,
         y: Option<usize>,
         width: Option<usize>,
@@ -855,15 +855,16 @@ impl WebGlContext {
                     WebGl2RenderingContext::READ_FRAMEBUFFER,
                     Some(framebuffer.gl_framebuffer()),
                 );
-                self.gl
-                    .read_buffer(WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer_index as u32);
+                self.gl.read_buffer(
+                    WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer_index as u32,
+                );
             }
             None => {
                 self.gl.read_buffer(WebGl2RenderingContext::BACK);
             }
         };
 
-        let buffer = Uint8Array::new_with_length(length);
+        let buffer = Uint8Array::new_with_length(todo!());
 
         if framebuffer.is_some() {
             self.gl

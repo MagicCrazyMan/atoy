@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    hash::{Hash, Hasher},
+    hash::Hash,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -13,7 +13,6 @@ use js_sys::{
 use log::warn;
 use ordered_float::OrderedFloat;
 use proc::GlEnum;
-use smallvec::SmallVec;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -29,7 +28,8 @@ use crate::anewthing::{
 use super::{
     buffer::{WebGlBufferManager, WebGlBufferTarget, WebGlBuffering},
     capabilities::WebGlCapabilities,
-    error::Error, pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelUnpackStoreWithValue},
+    error::Error,
+    pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelUnpackStores},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,9 +47,12 @@ pub struct WebGlTexturing {
     /// Create options of a texture.
     /// This field only works once, changing this does not influence anything.
     pub create_options: WebGlTextureOptions,
-    /// Sampler parameters to a texture.
+    /// Textures parameters.
     /// Manager will set a different sampler to the texture if this field changed.
-    pub sampler_parameters: Vec<WebGlSamplerParamWithValue>,
+    pub texture_parameters: WebGlTextureParameters,
+    /// Sampler parameters to a texture sampler.
+    /// Manager will set a different sampler to the texture if this field changed.
+    pub sampler_parameters: WebGlSamplerParameters,
 }
 
 impl Deref for WebGlTexturing {
@@ -1005,9 +1008,49 @@ impl WebGlTextureInternalFormat {
     }
 }
 
+/// Available texture parameters mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlTextureParameter {
+    #[gl_enum(TEXTURE_BASE_LEVEL)]
+    BaseLevel,
+    #[gl_enum(TEXTURE_MAX_LEVEL)]
+    MaxLevel,
+}
+
+/// A collection of texture parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WebGlTextureParameters {
+    pub base_level: usize,
+    pub max_level: usize,
+}
+
+impl Default for WebGlTextureParameters {
+    fn default() -> Self {
+        Self {
+            base_level: 0,
+            max_level: 1000,
+        }
+    }
+}
+
+impl WebGlTextureParameters {
+    fn set_texture_parameters(&self, gl: &WebGl2RenderingContext, layout: WebGlTextureLayout) {
+        gl.tex_parameteri(
+            layout.to_gl_enum(),
+            WebGlTextureParameter::BaseLevel.to_gl_enum(),
+            self.base_level as i32,
+        );
+        gl.tex_parameteri(
+            layout.to_gl_enum(),
+            WebGlTextureParameter::MaxLevel.to_gl_enum(),
+            self.max_level as i32,
+        );
+    }
+}
+
 /// Available texture sample parameters for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlSamplerParam {
+pub enum WebGlSamplerParameter {
     #[gl_enum(TEXTURE_MAG_FILTER)]
     MagnificationFilter,
     #[gl_enum(TEXTURE_MIN_FILTER)]
@@ -1026,56 +1069,96 @@ pub enum WebGlSamplerParam {
     MaxLod,
     #[gl_enum(TEXTURE_MIN_LOD)]
     MinLod,
+    /// Available when extension `EXT_texture_filter_anisotropic` is enabled.
+    #[gl_enum(TEXTURE_MAX_ANISOTROPY_EXT)]
+    MaxAnisotropy,
 }
 
-/// Available texture sample parameter with values for [`WebGlSampler`] mapped from [`WebGl2RenderingContext`].
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WebGlSamplerParamWithValue {
-    MagnificationFilter(WebGlSampleMagnificationFilter),
-    MinificationFilter(WebGlSampleMinificationFilter),
-    WrapS(WebGlSampleWrapMethod),
-    WrapT(WebGlSampleWrapMethod),
-    WrapR(WebGlSampleWrapMethod),
-    CompareFunction(WebGlSampleCompareFunction),
-    CompareMode(WebGlSampleCompareMode),
-    MaxLod(f32),
-    MinLod(f32),
+/// A collection of sampler parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct WebGlSamplerParameters {
+    pub magnification_filter: WebGlSampleMagnificationFilter,
+    pub minification_filter: WebGlSampleMinificationFilter,
+    pub wrap_s: WebGlSampleWrapMethod,
+    pub wrap_t: WebGlSampleWrapMethod,
+    pub wrap_r: WebGlSampleWrapMethod,
+    pub compare_function: WebGlSampleCompareFunction,
+    pub compare_mode: WebGlSampleCompareMode,
+    pub max_lod: OrderedFloat<f32>,
+    pub min_lod: OrderedFloat<f32>,
+    /// Available when extension `EXT_texture_filter_anisotropic` is enabled.
+    pub max_anisotropy: OrderedFloat<f32>,
 }
 
-impl Eq for WebGlSamplerParamWithValue {}
-
-impl Hash for WebGlSamplerParamWithValue {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        core::mem::discriminant(self).hash(state);
-    }
-}
-
-impl From<WebGlSamplerParamWithValue> for WebGlSamplerParam {
-    #[inline]
-    fn from(value: WebGlSamplerParamWithValue) -> Self {
-        match value {
-            WebGlSamplerParamWithValue::MagnificationFilter(_) => {
-                WebGlSamplerParam::MagnificationFilter
-            }
-            WebGlSamplerParamWithValue::MinificationFilter(_) => {
-                WebGlSamplerParam::MinificationFilter
-            }
-            WebGlSamplerParamWithValue::WrapS(_) => WebGlSamplerParam::WrapS,
-            WebGlSamplerParamWithValue::WrapT(_) => WebGlSamplerParam::WrapT,
-            WebGlSamplerParamWithValue::WrapR(_) => WebGlSamplerParam::WrapR,
-            WebGlSamplerParamWithValue::CompareFunction(_) => WebGlSamplerParam::CompareFunction,
-            WebGlSamplerParamWithValue::CompareMode(_) => WebGlSamplerParam::CompareMode,
-            WebGlSamplerParamWithValue::MaxLod(_) => WebGlSamplerParam::MaxLod,
-            WebGlSamplerParamWithValue::MinLod(_) => WebGlSamplerParam::MinLod,
+impl Default for WebGlSamplerParameters {
+    fn default() -> Self {
+        Self {
+            magnification_filter: WebGlSampleMagnificationFilter::Linear,
+            minification_filter: WebGlSampleMinificationFilter::NearestMipmapLinear,
+            wrap_s: WebGlSampleWrapMethod::Repeat,
+            wrap_t: WebGlSampleWrapMethod::Repeat,
+            wrap_r: WebGlSampleWrapMethod::Repeat,
+            compare_function: WebGlSampleCompareFunction::LessEqual,
+            compare_mode: WebGlSampleCompareMode::None,
+            max_lod: OrderedFloat(1000.0),
+            min_lod: OrderedFloat(-1000.0),
+            max_anisotropy: OrderedFloat(1.0),
         }
     }
 }
 
-impl WebGlSamplerParamWithValue {
-    /// Returns as [`WebGlSamplerParam`].
-    #[inline]
-    pub fn as_sample_parameter(&self) -> WebGlSamplerParam {
-        WebGlSamplerParam::from(*self)
+impl WebGlSamplerParameters {
+    fn set_sampler_parameters(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::MagnificationFilter.to_gl_enum(),
+            self.magnification_filter.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::MinificationFilter.to_gl_enum(),
+            self.minification_filter.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::WrapS.to_gl_enum(),
+            self.wrap_s.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::WrapT.to_gl_enum(),
+            self.wrap_t.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::WrapR.to_gl_enum(),
+            self.wrap_r.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::CompareFunction.to_gl_enum(),
+            self.compare_function.to_gl_enum() as i32,
+        );
+        gl.sampler_parameteri(
+            sampler,
+            WebGlSamplerParameter::CompareMode.to_gl_enum(),
+            self.compare_mode.to_gl_enum() as i32,
+        );
+        gl.sampler_parameterf(
+            sampler,
+            WebGlSamplerParameter::MaxLod.to_gl_enum(),
+            self.max_lod.0,
+        );
+        gl.sampler_parameterf(
+            sampler,
+            WebGlSamplerParameter::MinLod.to_gl_enum(),
+            self.min_lod.0,
+        );
+        gl.sampler_parameterf(
+            sampler,
+            WebGlSamplerParameter::MaxAnisotropy.to_gl_enum(),
+            self.max_anisotropy.0,
+        );
     }
 }
 
@@ -1226,7 +1309,7 @@ impl<'a> WebGlPlainTextureData<'a> {
         layout: &WebGlTextureLayoutWithSize,
         cube_map_face: TextureCubeMapFace,
         pixel_format: WebGlPixelFormat,
-        pixel_stores: &[WebGlPixelUnpackStoreWithValue],
+        pixel_unpack_stores: WebGlPixelUnpackStores,
         level: usize,
         dst_origin_x: Option<usize>,
         dst_origin_y: Option<usize>,
@@ -1262,15 +1345,8 @@ impl<'a> WebGlPlainTextureData<'a> {
             WebGlTextureLayoutWithSize::Texture3D { .. } => true,
         };
 
-        // sets piexl stores
-        let mut default_pixel_stores: SmallVec<[WebGlPixelUnpackStoreWithValue; 7]> =
-            SmallVec::new();
-        for pixel_store in pixel_stores {
-            pixel_store.set_pixel_store(gl);
-            default_pixel_stores.push(WebGlPixelUnpackStoreWithValue::default_of(
-                pixel_store.as_pixel_store(),
-            ));
-        }
+        // sets pixel ubpack stores
+        pixel_unpack_stores.set_pixel_store(gl);
 
         match self {
             WebGlPlainTextureData::Binary {
@@ -1646,10 +1722,8 @@ impl<'a> WebGlPlainTextureData<'a> {
             }
         };
 
-        // reset piexl stores
-        for pixel_store in default_pixel_stores {
-            pixel_store.set_pixel_store(gl);
-        }
+        // reset pixel unpack stores
+        WebGlPixelUnpackStores::default().set_pixel_store(gl);
 
         Ok(())
     }
@@ -1972,7 +2046,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
 pub enum WebGlTextureData<'a> {
     Plain {
         pixel_format: WebGlPixelFormat,
-        pixel_stores: &'a [WebGlPixelUnpackStoreWithValue],
+        pixel_unpack_stores: WebGlPixelUnpackStores,
         generate_mipmap: bool,
         data: WebGlPlainTextureData<'a>,
     },
@@ -1981,38 +2055,9 @@ pub enum WebGlTextureData<'a> {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct SamplerParameters {
-    magnification_filter: WebGlSampleMagnificationFilter,
-    minification_filter: WebGlSampleMinificationFilter,
-    wrap_s: WebGlSampleWrapMethod,
-    wrap_t: WebGlSampleWrapMethod,
-    wrap_r: WebGlSampleWrapMethod,
-    compare_function: WebGlSampleCompareFunction,
-    compare_mode: WebGlSampleCompareMode,
-    max_lod: OrderedFloat<f32>,
-    min_lod: OrderedFloat<f32>,
-}
-
-impl Default for SamplerParameters {
-    fn default() -> Self {
-        Self {
-            magnification_filter: WebGlSampleMagnificationFilter::Linear,
-            minification_filter: WebGlSampleMinificationFilter::NearestMipmapLinear,
-            wrap_s: WebGlSampleWrapMethod::Repeat,
-            wrap_t: WebGlSampleWrapMethod::Repeat,
-            wrap_r: WebGlSampleWrapMethod::Repeat,
-            compare_function: WebGlSampleCompareFunction::LessEqual,
-            compare_mode: WebGlSampleCompareMode::None,
-            max_lod: OrderedFloat(1000.0),
-            min_lod: OrderedFloat(-1000.0),
-        }
-    }
-}
-
 struct WebGlSamplerManager {
     gl: WebGl2RenderingContext,
-    samplers: HashMap<SamplerParameters, WebGlSampler>,
+    samplers: HashMap<WebGlSamplerParameters, WebGlSampler>,
 }
 
 impl WebGlSamplerManager {
@@ -2023,41 +2068,10 @@ impl WebGlSamplerManager {
         }
     }
 
-    fn get_or_create_default_sampler(&mut self) -> Result<WebGlSampler, Error> {
-        self.get_or_create_sampler(SamplerParameters::default())
-    }
-
-    fn get_or_create_sampler_by_iter<I>(&mut self, params: I) -> Result<WebGlSampler, Error>
-    where
-        I: IntoIterator<Item = WebGlSamplerParamWithValue>,
-    {
-        let mut sampler_params = SamplerParameters::default();
-        params.into_iter().for_each(|param| match param {
-            WebGlSamplerParamWithValue::MagnificationFilter(value) => {
-                sampler_params.magnification_filter = value
-            }
-            WebGlSamplerParamWithValue::MinificationFilter(value) => {
-                sampler_params.minification_filter = value
-            }
-            WebGlSamplerParamWithValue::WrapS(value) => sampler_params.wrap_s = value,
-            WebGlSamplerParamWithValue::WrapT(value) => sampler_params.wrap_t = value,
-            WebGlSamplerParamWithValue::WrapR(value) => sampler_params.wrap_r = value,
-            WebGlSamplerParamWithValue::CompareFunction(value) => {
-                sampler_params.compare_function = value
-            }
-            WebGlSamplerParamWithValue::CompareMode(value) => sampler_params.compare_mode = value,
-            WebGlSamplerParamWithValue::MaxLod(value) => {
-                sampler_params.max_lod = OrderedFloat(value)
-            }
-            WebGlSamplerParamWithValue::MinLod(value) => {
-                sampler_params.min_lod = OrderedFloat(value)
-            }
-        });
-
-        self.get_or_create_sampler(sampler_params)
-    }
-
-    fn get_or_create_sampler(&mut self, params: SamplerParameters) -> Result<WebGlSampler, Error> {
+    fn get_or_create_sampler(
+        &mut self,
+        params: WebGlSamplerParameters,
+    ) -> Result<WebGlSampler, Error> {
         if let Some(sampler) = self.samplers.get(&params) {
             return Ok(sampler.clone());
         }
@@ -2066,51 +2080,7 @@ impl WebGlSamplerManager {
             .gl
             .create_sampler()
             .ok_or(Error::CreateSamplerFailure)?;
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::MagnificationFilter.to_gl_enum(),
-            params.magnification_filter.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::MinificationFilter.to_gl_enum(),
-            params.minification_filter.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::WrapS.to_gl_enum(),
-            params.wrap_s.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::WrapT.to_gl_enum(),
-            params.wrap_t.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::WrapR.to_gl_enum(),
-            params.wrap_r.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::CompareFunction.to_gl_enum(),
-            params.compare_function.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameteri(
-            &sampler,
-            WebGlSamplerParam::CompareMode.to_gl_enum(),
-            params.compare_mode.to_gl_enum() as i32,
-        );
-        self.gl.sampler_parameterf(
-            &sampler,
-            WebGlSamplerParam::MaxLod.to_gl_enum(),
-            params.max_lod.0,
-        );
-        self.gl.sampler_parameterf(
-            &sampler,
-            WebGlSamplerParam::MinLod.to_gl_enum(),
-            params.min_lod.0,
-        );
+        params.set_sampler_parameters(&self.gl, &sampler);
 
         self.samplers.insert(params, sampler.clone());
         Ok(sampler)
@@ -2189,12 +2159,12 @@ impl WebGlTextureManager {
     ) -> Result<WebGlTextureItem, Error> {
         self.verify_manager(texturing)?;
 
-        let gl_sampler = match texturing.sampler_parameters.len() {
-            0 => self.sampler_manager.get_or_create_default_sampler()?,
-            _ => self
-                .sampler_manager
-                .get_or_create_sampler_by_iter(texturing.sampler_parameters.iter().cloned())?,
-        };
+        let layout = texturing.create_options.layout;
+        let internal_format = texturing.create_options.internal_format;
+
+        let gl_sampler = self
+            .sampler_manager
+            .get_or_create_sampler(texturing.sampler_parameters)?;
 
         let using_gl_texture = using_textures
             .get(activating_texture_unit)
@@ -2209,9 +2179,6 @@ impl WebGlTextureManager {
                 item
             }
             Entry::Vacant(entry) => {
-                let layout = texturing.create_options.layout;
-                let internal_format = texturing.create_options.internal_format;
-
                 // checks whether compressed format is supported.
                 // Throws no error even is not supported, prints a warning log only.
                 if let WebGlTextureInternalFormat::Compressed(f) = internal_format {
@@ -2238,11 +2205,10 @@ impl WebGlTextureManager {
             }
         };
 
-        let WebGlTextureItem {
-            layout,
-            internal_format,
-            ..
-        } = item;
+        texturing
+            .texture_parameters
+            .set_texture_parameters(&self.gl, layout.as_layout());
+
         for level in 0..layout.get_or_auto_levels() {
             for item in texturing.queue_of_level(level).drain() {
                 let TexturingItem {
@@ -2260,11 +2226,11 @@ impl WebGlTextureManager {
                     continue;
                 };
 
-                match (data, *internal_format) {
+                match (data, internal_format) {
                     (
                         WebGlTextureData::Plain {
                             pixel_format,
-                            pixel_stores,
+                            pixel_unpack_stores: pixel_stores,
                             generate_mipmap,
                             data,
                         },
@@ -2272,7 +2238,7 @@ impl WebGlTextureManager {
                     ) => {
                         data.upload(
                             &self.gl,
-                            layout,
+                            &layout,
                             cube_map_face,
                             pixel_format,
                             pixel_stores,
@@ -2295,7 +2261,7 @@ impl WebGlTextureManager {
                         WebGlTextureInternalFormat::Compressed(compressed_format),
                     ) => data.upload(
                         &self.gl,
-                        layout,
+                        &layout,
                         cube_map_face,
                         compressed_format,
                         level,

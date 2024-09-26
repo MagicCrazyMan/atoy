@@ -101,12 +101,12 @@ pub fn bytes_per_pixel(format: WebGlPixelFormat, data_type: WebGlPixelDataType) 
 pub fn size_of(
     format: WebGlPixelFormat,
     data_type: WebGlPixelDataType,
-    stores: &[WebGlPixelPackStoreWithValue],
+    stores: WebGlPixelPackStores,
     width: usize,
     height: usize,
 ) -> usize {
-     let bytes_per_pixel = bytes_per_pixel(format, data_type);
-    //  let width = 
+    let bytes_per_pixel = bytes_per_pixel(format, data_type);
+    //  let width =
     todo!()
 }
 
@@ -129,37 +129,44 @@ pub enum WebGlPixelPackStore {
     PackSkipRows,
 }
 
-/// Available unpack pixel stores with value for [`WebGl2RenderingContext`].
+/// A collection of pixel pack store parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WebGlPixelPackStoreWithValue {
-    PackAlignment(WebGlPixelAlignment),
-    PackRowLength(i32),
-    PackSkipPixels(i32),
-    PackSkipRows(i32),
+pub struct WebGlPixelPackStores {
+    pub alignment: usize,
+    pub row_length: usize,
+    pub skip_pixels: usize,
+    pub skip_rows: usize,
 }
 
-impl From<WebGlPixelPackStoreWithValue> for WebGlPixelPackStore {
-    #[inline]
-    fn from(value: WebGlPixelPackStoreWithValue) -> Self {
-        match value {
-            WebGlPixelPackStoreWithValue::PackAlignment(_) => WebGlPixelPackStore::PackAlignment,
-            WebGlPixelPackStoreWithValue::PackRowLength(_) => WebGlPixelPackStore::PackRowLength,
-            WebGlPixelPackStoreWithValue::PackSkipPixels(_) => WebGlPixelPackStore::PackSkipPixels,
-            WebGlPixelPackStoreWithValue::PackSkipRows(_) => WebGlPixelPackStore::PackSkipRows,
+impl Default for WebGlPixelPackStores {
+    fn default() -> Self {
+        Self {
+            alignment: 4,
+            row_length: 0,
+            skip_pixels: 0,
+            skip_rows: 0,
         }
     }
 }
 
-impl WebGlPixelPackStoreWithValue {
-    /// Returns as [`WebGlPixelPackStore`].
-    #[inline]
-    pub fn as_pack_pixel_store(&self) -> WebGlPixelPackStore {
-        WebGlPixelPackStore::from(*self)
-    }
-
-    #[inline]
-    pub fn to_gl_enum(&self) -> u32 {
-        WebGlPixelPackStore::from(*self).to_gl_enum()
+impl WebGlPixelPackStores {
+    pub(crate) fn set_pixel_store(&self, gl: &WebGl2RenderingContext) {
+        gl.pixel_storei(
+            WebGlPixelPackStore::PackAlignment.to_gl_enum(),
+            self.alignment as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelPackStore::PackRowLength.to_gl_enum(),
+            self.row_length as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelPackStore::PackSkipPixels.to_gl_enum(),
+            self.skip_pixels as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelPackStore::PackSkipRows.to_gl_enum(),
+            self.skip_rows as i32,
+        );
     }
 }
 
@@ -190,112 +197,61 @@ pub enum WebGlPixelUnpackStore {
     UnpackSkipImages,
 }
 
-/// Available unpack pixel stores with value for [`WebGl2RenderingContext`].
-///
-/// [`WebGl2RenderingContext::UNPACK_ALIGNMENT`] and [`WebGl2RenderingContext::UNPACK_ROW_LENGTH`] are ignored in WebGL.
+/// A collection of pixel unpack store parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WebGlPixelUnpackStoreWithValue {
-    // UnpackAlignment(WebGlPixelAlignment),
-    UnpackFlipY(bool),
-    UnpackPremultiplyAlpha(bool),
-    UnpackColorSpaceConversion(WebGlPixelUnpackColorSpaceConversion),
-    // UnpackRowLength(i32),
-    UnpackImageHeight(i32),
-    UnpackSkipPixels(i32),
-    UnpackSkipRows(i32),
-    UnpackSkipImages(i32),
+pub struct WebGlPixelUnpackStores {
+    pub flip_y: bool,
+    pub premultiply_alpha: bool,
+    pub color_space_conversion: WebGlPixelUnpackColorSpaceConversion,
+    pub image_height: usize,
+    pub skip_pixels: usize,
+    pub skip_rows: usize,
+    pub skip_images: usize,
 }
 
-impl From<WebGlPixelUnpackStoreWithValue> for WebGlPixelUnpackStore {
-    #[inline]
-    fn from(value: WebGlPixelUnpackStoreWithValue) -> Self {
-        match value {
-            // WebGlPixelUnpackStoreWithValue::UnpackAlignment(_) => {
-            //     WebGlPixelUnpackStore::UnpackAlignment
-            // }
-            WebGlPixelUnpackStoreWithValue::UnpackFlipY(_) => WebGlPixelUnpackStore::UnpackFlipY,
-            WebGlPixelUnpackStoreWithValue::UnpackPremultiplyAlpha(_) => {
-                WebGlPixelUnpackStore::UnpackPremultiplyAlpha
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackColorSpaceConversion(_) => {
-                WebGlPixelUnpackStore::UnpackColorSpaceConversion
-            }
-            // WebGlPixelUnpackStoreWithValue::UnpackRowLength(_) => {
-            //     WebGlPixelUnpackStore::UnpackRowLength
-            // }
-            WebGlPixelUnpackStoreWithValue::UnpackImageHeight(_) => {
-                WebGlPixelUnpackStore::UnpackImageHeight
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackSkipPixels(_) => {
-                WebGlPixelUnpackStore::UnpackSkipPixels
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackSkipRows(_) => {
-                WebGlPixelUnpackStore::UnpackSkipRows
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackSkipImages(_) => {
-                WebGlPixelUnpackStore::UnpackSkipImages
-            }
+impl Default for WebGlPixelUnpackStores {
+    fn default() -> Self {
+        Self {
+            flip_y: false,
+            premultiply_alpha: false,
+            color_space_conversion: WebGlPixelUnpackColorSpaceConversion::BrowserDefault,
+            image_height: 0,
+            skip_pixels: 0,
+            skip_rows: 0,
+            skip_images: 0,
         }
     }
 }
 
-impl WebGlPixelUnpackStoreWithValue {
-    /// Returns as [`WebGlPixelUnpackStore`].
-    #[inline]
-    pub fn as_pixel_store(&self) -> WebGlPixelUnpackStore {
-        WebGlPixelUnpackStore::from(*self)
-    }
-
-    #[inline]
-    pub fn to_gl_enum(&self) -> u32 {
-        WebGlPixelUnpackStore::from(*self).to_gl_enum()
-    }
-
-    /// Returns default value of a specified [`WebGlPixelUnpackStore`].
-    pub fn default_of(store: WebGlPixelUnpackStore) -> WebGlPixelUnpackStoreWithValue {
-        match store {
-            WebGlPixelUnpackStore::UnpackFlipY => {
-                WebGlPixelUnpackStoreWithValue::UnpackFlipY(false)
-            }
-            WebGlPixelUnpackStore::UnpackPremultiplyAlpha => {
-                WebGlPixelUnpackStoreWithValue::UnpackPremultiplyAlpha(false)
-            }
-            WebGlPixelUnpackStore::UnpackColorSpaceConversion => {
-                WebGlPixelUnpackStoreWithValue::UnpackColorSpaceConversion(
-                    WebGlPixelUnpackColorSpaceConversion::BrowserDefault,
-                )
-            }
-            WebGlPixelUnpackStore::UnpackImageHeight => {
-                WebGlPixelUnpackStoreWithValue::UnpackImageHeight(0)
-            }
-            WebGlPixelUnpackStore::UnpackSkipPixels => {
-                WebGlPixelUnpackStoreWithValue::UnpackSkipPixels(0)
-            }
-            WebGlPixelUnpackStore::UnpackSkipRows => {
-                WebGlPixelUnpackStoreWithValue::UnpackSkipRows(0)
-            }
-            WebGlPixelUnpackStore::UnpackSkipImages => {
-                WebGlPixelUnpackStoreWithValue::UnpackSkipImages(0)
-            }
-        }
-    }
-
+impl WebGlPixelUnpackStores {
     pub(crate) fn set_pixel_store(&self, gl: &WebGl2RenderingContext) {
-        let pname = self.to_gl_enum();
-        match self {
-            WebGlPixelUnpackStoreWithValue::UnpackFlipY(v) => {
-                gl.pixel_storei(pname, if *v { 1 } else { 0 })
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackPremultiplyAlpha(v) => {
-                gl.pixel_storei(pname, if *v { 1 } else { 0 })
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackColorSpaceConversion(v) => {
-                gl.pixel_storei(pname, v.to_gl_enum() as i32)
-            }
-            WebGlPixelUnpackStoreWithValue::UnpackImageHeight(v) => gl.pixel_storei(pname, *v),
-            WebGlPixelUnpackStoreWithValue::UnpackSkipPixels(v) => gl.pixel_storei(pname, *v),
-            WebGlPixelUnpackStoreWithValue::UnpackSkipRows(v) => gl.pixel_storei(pname, *v),
-            WebGlPixelUnpackStoreWithValue::UnpackSkipImages(v) => gl.pixel_storei(pname, *v),
-        }
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackFlipY.to_gl_enum(),
+            if self.flip_y { 1 } else { 0 },
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackPremultiplyAlpha.to_gl_enum(),
+            if self.premultiply_alpha { 1 } else { 0 },
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackColorSpaceConversion.to_gl_enum(),
+            self.color_space_conversion.to_gl_enum() as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackImageHeight.to_gl_enum(),
+            self.image_height as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackSkipPixels.to_gl_enum(),
+            self.skip_pixels as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackSkipRows.to_gl_enum(),
+            self.skip_rows as i32,
+        );
+        gl.pixel_storei(
+            WebGlPixelUnpackStore::UnpackSkipImages.to_gl_enum(),
+            self.skip_images as i32,
+        );
     }
 }
