@@ -98,7 +98,7 @@ pub fn bytes_per_pixel(format: WebGlPixelFormat, data_type: WebGlPixelDataType) 
     }
 }
 
-pub fn size_of(
+pub fn byte_length_of(
     format: WebGlPixelFormat,
     data_type: WebGlPixelDataType,
     stores: WebGlPixelPackStores,
