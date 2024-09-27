@@ -836,7 +836,7 @@ pub enum WebGlTextureCompressedFormat {
 }
 
 impl WebGlTextureCompressedFormat {
-    fn byte_length(&self, width: usize, height: usize) -> usize {
+    fn byte_length_of(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
             Self::COMPRESSED_RGB_S3TC_DXT1 => width.div_ceil(4) * height.div_ceil(4) * 8,
@@ -1103,7 +1103,7 @@ pub struct WebGlSamplerParameters {
     pub max_lod: OrderedFloat<f32>,
     pub min_lod: OrderedFloat<f32>,
     /// Available when extension `EXT_texture_filter_anisotropic` is enabled.
-    pub max_anisotropy: OrderedFloat<f32>,
+    pub max_anisotropy: Option<OrderedFloat<f32>>,
 }
 
 impl Default for WebGlSamplerParameters {
@@ -1118,13 +1118,18 @@ impl Default for WebGlSamplerParameters {
             compare_mode: WebGlSampleCompareMode::None,
             max_lod: OrderedFloat(1000.0),
             min_lod: OrderedFloat(-1000.0),
-            max_anisotropy: OrderedFloat(1.0),
+            max_anisotropy: None,
         }
     }
 }
 
 impl WebGlSamplerParameters {
-    fn set_sampler_parameters(&self, gl: &WebGl2RenderingContext, sampler: &WebGlSampler) {
+    fn set_sampler_parameters(
+        &self,
+        gl: &WebGl2RenderingContext,
+        sampler: &WebGlSampler,
+        capabilities: &WebGlCapabilities,
+    ) {
         gl.sampler_parameteri(
             sampler,
             WebGlSamplerParameter::MagnificationFilter.to_gl_enum(),
@@ -1170,10 +1175,17 @@ impl WebGlSamplerParameters {
             WebGlSamplerParameter::MinLod.to_gl_enum(),
             self.min_lod.0,
         );
+
+        let max_anisotropy = if let Some(max_anisotropy) = &self.max_anisotropy {
+            capabilities.texture_filter_anisotropic_supported();
+            max_anisotropy.0
+        } else {
+            1.0
+        };
         gl.sampler_parameterf(
             sampler,
             WebGlSamplerParameter::MaxAnisotropy.to_gl_enum(),
-            self.max_anisotropy.0,
+            max_anisotropy,
         );
     }
 }
@@ -1939,7 +1951,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
                 );
-                let bytes_length = compressed_format.byte_length(dst_width, dst_height);
+                let bytes_length = compressed_format.byte_length_of(dst_width, dst_height);
                 let bytes_offset = bytes_offset.unwrap_or(0);
                 match is3d {
                     true => gl.compressed_tex_sub_image_3d_with_i32_and_i32(
@@ -2087,6 +2099,7 @@ impl WebGlSamplerManager {
     fn get_or_create_sampler(
         &mut self,
         params: WebGlSamplerParameters,
+        capabilities: &WebGlCapabilities,
     ) -> Result<WebGlSampler, Error> {
         if let Some(sampler) = self.samplers.get(&params) {
             return Ok(sampler.clone());
@@ -2096,7 +2109,7 @@ impl WebGlSamplerManager {
             .gl
             .create_sampler()
             .ok_or(Error::CreateSamplerFailure)?;
-        params.set_sampler_parameters(&self.gl, &sampler);
+        params.set_sampler_parameters(&self.gl, &sampler, capabilities);
 
         self.samplers.insert(params, sampler.clone());
         Ok(sampler)
@@ -2180,7 +2193,7 @@ impl WebGlTextureManager {
 
         let gl_sampler = self
             .sampler_manager
-            .get_or_create_sampler(texturing.sampler_parameters)?;
+            .get_or_create_sampler(texturing.sampler_parameters, capabilities)?;
 
         let using_gl_texture = using_textures
             .get(activating_texture_unit)

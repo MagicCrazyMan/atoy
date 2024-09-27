@@ -76,9 +76,12 @@ pub enum WebGlPixelDataType {
 ///
 /// Incompatible format and data type combination does not returns `Err`,
 /// checks the source code for details.
-pub fn bytes_per_pixel(format: WebGlPixelFormat, data_type: WebGlPixelDataType) -> usize {
-    let channels = format.channels();
-    match data_type {
+pub fn bytes_per_pixel(
+    pixel_format: WebGlPixelFormat,
+    pixel_data_type: WebGlPixelDataType,
+) -> usize {
+    let channels = pixel_format.channels();
+    match pixel_data_type {
         WebGlPixelDataType::Float => channels * 4,
         WebGlPixelDataType::HalfFloat => channels * 2,
         WebGlPixelDataType::Byte => channels * 1,
@@ -98,16 +101,40 @@ pub fn bytes_per_pixel(format: WebGlPixelFormat, data_type: WebGlPixelDataType) 
     }
 }
 
+/// Calculates bytes length of a packed 
 pub fn byte_length_of(
-    format: WebGlPixelFormat,
-    data_type: WebGlPixelDataType,
-    stores: WebGlPixelPackStores,
+    pixel_format: WebGlPixelFormat,
+    pixel_data_type: WebGlPixelDataType,
+    pixel_pack_stores: WebGlPixelPackStores,
     width: usize,
     height: usize,
 ) -> usize {
-    let bytes_per_pixel = bytes_per_pixel(format, data_type);
-    //  let width =
-    todo!()
+    let rows = if pixel_pack_stores.row_length == 0 {
+        pixel_pack_stores.skip_pixels + width
+    } else {
+        pixel_pack_stores.row_length
+    };
+    let height = pixel_pack_stores.skip_rows + height;
+
+    // s
+    let bytes_per_pixel = bytes_per_pixel(pixel_format, pixel_data_type);
+    // nl
+    let bytes_per_row = match pixel_pack_stores.alignment {
+        WebGlPixelAlignment::One => bytes_per_pixel * rows,
+        _ => {
+            let nl = (bytes_per_pixel * rows) as f64;
+            let a = match pixel_pack_stores.alignment {
+                WebGlPixelAlignment::Two => 2.0,
+                WebGlPixelAlignment::Four => 4.0,
+                WebGlPixelAlignment::Eight => 8.0,
+                _ => unreachable!(),
+            };
+            let s = bytes_per_pixel as f64;
+            ((a / s) * ((s / a) * nl).ceil()) as usize
+        }
+    };
+
+    rows * bytes_per_row * height
 }
 
 /// Available pixel alignment for [`WebGl2RenderingContext`].
@@ -116,8 +143,8 @@ pub fn byte_length_of(
 pub enum WebGlPixelAlignment {
     One = 1,
     Two = 2,
-    Three = 3,
     Four = 4,
+    Eight = 8,
 }
 
 /// Available pack pixel store for [`WebGl2RenderingContext`].
@@ -132,7 +159,7 @@ pub enum WebGlPixelPackStore {
 /// A collection of pixel pack store parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WebGlPixelPackStores {
-    pub alignment: usize,
+    pub alignment: WebGlPixelAlignment,
     pub row_length: usize,
     pub skip_pixels: usize,
     pub skip_rows: usize,
@@ -141,7 +168,7 @@ pub struct WebGlPixelPackStores {
 impl Default for WebGlPixelPackStores {
     fn default() -> Self {
         Self {
-            alignment: 4,
+            alignment: WebGlPixelAlignment::Eight,
             row_length: 0,
             skip_pixels: 0,
             skip_rows: 0,
