@@ -416,8 +416,54 @@ impl WebGlBufferManager {
         &self.id
     }
 
+    /// Wraps a native [`WebGlBuffer`] into an managed [`WebGlBuffering`], returning [`WebGlBuffering`] and [`WebGlBufferItem`].
+    /// Developer should stop using the native buffer after wrapping it.
+    ///
+    /// Developer should provides a correct [`WebGlBufferUsage`] of the buffer,
+    /// nor the manager may fetch it from WebGl context.
+    pub fn wrap_gl_buffer(
+        &mut self,
+        gl_buffer: WebGlBuffer,
+        usage: Option<WebGlBufferUsage>,
+    ) -> Result<(WebGlBuffering, WebGlBufferItem), Error> {
+        let buffering = Buffering::new();
+        let usage = match usage {
+            Some(usage) => usage,
+            None => {
+                self.gl.bind_buffer(
+                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    Some(&gl_buffer),
+                );
+                let usage = self
+                    .gl
+                    .get_buffer_parameter(
+                        WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::BUFFER_USAGE,
+                    )
+                    .as_f64()
+                    .unwrap() as u32;
+                let usage = WebGlBufferUsage::from_gl_enum(usage).unwrap();
+                self.gl
+                    .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+
+                usage
+            }
+        };
+        let buffer_item = WebGlBufferItem {
+            gl_buffer,
+            byte_length: Rc::new(RefCell::new(0)),
+            usage,
+        };
+        self.buffers
+            .borrow_mut()
+            .insert_unique_unchecked(*buffering.id(), buffer_item.clone());
+
+        let buffering = WebGlBuffering::new(buffering, WebGlBufferCreateOptions { usage });
+        Ok((buffering, buffer_item))
+    }
+
     /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`] into WebGl context.
-    pub fn sync_buffer(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
+    pub fn sync_buffering(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
         self.verify_manager(buffering)?;
 
         let mut buffers = self.buffers.borrow_mut();

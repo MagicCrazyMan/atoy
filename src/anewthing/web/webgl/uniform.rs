@@ -91,7 +91,7 @@ pub enum WebGlUniformBlockValue<'a> {
         buffer: &'a WebGlBuffering,
         mount_point: usize,
         byte_offset: usize,
-        byte_length: Option<usize>,
+        byte_length: usize,
     },
 }
 

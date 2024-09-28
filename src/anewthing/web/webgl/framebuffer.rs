@@ -3,13 +3,15 @@ use std::{cell::RefCell, rc::Rc};
 use hashbrown::HashMap;
 use log::warn;
 use proc::GlEnum;
-use web_sys::{WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlTexture};
+use web_sys::{
+    WebGl2RenderingContext, WebGlFramebuffer, WebGlRenderbuffer, WebGlSampler, WebGlTexture,
+};
 
 use super::{
     capabilities::WebGlCapabilities,
     error::Error,
     renderbuffer::WebGlRenderbufferInternalFormat,
-    texture::{WebGlTextureItem, WebGlTexturePlainInternalFormat, WebGlTextureUnit},
+    texture::{WebGlTextureLayout, WebGlTexturePlainInternalFormat, WebGlTextureUnit},
 };
 
 /// Available framebuffer targets mapped from [`WebGl2RenderingContext`].
@@ -508,8 +510,11 @@ impl WebGlFramebufferFactory {
         &self,
         options: WebGlFramebufferCreateOptions,
         using_draw_framebuffer: &Option<WebGlFramebufferItem>,
-        activating_texture_unit: &WebGlTextureUnit,
-        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        activating_texture_unit: WebGlTextureUnit,
+        using_textures: &HashMap<
+            (WebGlTextureUnit, WebGlTextureLayout),
+            (WebGlTexture, WebGlSampler),
+        >,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlFramebufferItem, Error> {
         let gl_framebuffer = self
@@ -543,8 +548,11 @@ impl WebGlFramebufferFactory {
         &self,
         item: &mut WebGlFramebufferItem,
         using_draw_framebuffer: &Option<WebGlFramebufferItem>,
-        activating_texture_unit: &WebGlTextureUnit,
-        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        activating_texture_unit: WebGlTextureUnit,
+        using_textures: &HashMap<
+            (WebGlTextureUnit, WebGlTextureLayout),
+            (WebGlTexture, WebGlSampler),
+        >,
         capabilities: &WebGlCapabilities,
     ) -> Result<(), Error> {
         let (width, height) = item.create_options.size_policy.size_of(&self.gl);
@@ -575,8 +583,11 @@ impl WebGlFramebufferFactory {
         &self,
         item: &mut WebGlFramebufferItem,
         using_draw_framebuffer: &Option<WebGlFramebufferItem>,
-        activating_texture_unit: &WebGlTextureUnit,
-        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        activating_texture_unit: WebGlTextureUnit,
+        using_textures: &HashMap<
+            (WebGlTextureUnit, WebGlTextureLayout),
+            (WebGlTexture, WebGlSampler),
+        >,
         capabilities: &WebGlCapabilities,
     ) -> Result<(), Error> {
         self.gl.bind_framebuffer(
@@ -595,9 +606,8 @@ impl WebGlFramebufferFactory {
         let multisample = multisample.and_then(|m| if m == 0 { None } else { Some(m) });
         let using_gl_draw_framebuffer = using_draw_framebuffer.as_ref().map(|i| i.gl_framebuffer());
         let using_gl_texture = using_textures
-            .get(activating_texture_unit)
-            .map(|i| i.gl_texture());
-
+            .get(&(activating_texture_unit, WebGlTextureLayout::Texture2D))
+            .map(|(t, _)| t);
 
         // Creates color attachments
         let max_color_attachments = capabilities.max_color_attachments();

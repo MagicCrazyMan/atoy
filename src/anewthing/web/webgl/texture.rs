@@ -1416,7 +1416,7 @@ impl<'a> WebGlPlainTextureData<'a> {
                 bytes_offset,
                 ..
             } => {
-                let item = buffer_manager.sync_buffer(buffering)?;
+                let item = buffer_manager.sync_buffering(buffering)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
@@ -1946,7 +1946,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                 bytes_offset,
                 ..
             } => {
-                let item = buffer_manager.sync_buffer(buffering)?;
+                let item = buffer_manager.sync_buffering(buffering)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
@@ -2178,12 +2178,15 @@ impl WebGlTextureManager {
     }
 
     /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`](super::super::super::texturing::TextureData) into WebGl context.
-    pub fn sync_texture(
+    pub fn sync_texturing(
         &mut self,
         texturing: &WebGlTexturing,
         buffer_manager: &mut WebGlBufferManager,
-        activating_texture_unit: &WebGlTextureUnit,
-        using_textures: &HashMap<WebGlTextureUnit, WebGlTextureItem>,
+        activating_texture_unit: WebGlTextureUnit,
+        using_textures: &HashMap<
+            (WebGlTextureUnit, WebGlTextureLayout),
+            (WebGlTexture, WebGlSampler),
+        >,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlTextureItem, Error> {
         self.verify_manager(texturing)?;
@@ -2195,9 +2198,6 @@ impl WebGlTextureManager {
             .sampler_manager
             .get_or_create_sampler(texturing.sampler_parameters, capabilities)?;
 
-        let using_gl_texture = using_textures
-            .get(activating_texture_unit)
-            .map(|i| &i.gl_texture);
         let mut textures = self.textures.borrow_mut();
         let item = match textures.entry(*texturing.id()) {
             Entry::Occupied(entry) => {
@@ -2308,6 +2308,10 @@ impl WebGlTextureManager {
                 }
             }
         }
+
+        let using_gl_texture = using_textures
+            .get(&(activating_texture_unit, item.layout.as_layout()))
+            .map(|(t, _)| t);
         self.gl.bind_texture(layout.to_gl_enum(), using_gl_texture);
 
         Ok(item.clone())
