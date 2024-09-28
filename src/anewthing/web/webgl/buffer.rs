@@ -241,8 +241,8 @@ impl<'a> WebGlBufferData<'a> {
     pub fn data_element_length(&self) -> usize {
         match self {
             Self::Binary { data, .. } => data.len(),
-            Self::ArrayBuffer { data } => data.byte_length() as usize,
-            Self::DataView { data, .. } => data.byte_length(),
+            Self::ArrayBuffer { data } => data.bytes_length() as usize,
+            Self::DataView { data, .. } => data.bytes_length(),
             Self::Int8Array { data, .. } => data.length() as usize,
             Self::Uint8Array { data, .. } => data.length() as usize,
             Self::Uint8ClampedArray { data, .. } => data.length() as usize,
@@ -258,7 +258,7 @@ impl<'a> WebGlBufferData<'a> {
     }
 
     /// Returns the byte length of the buffer data.
-    pub fn byte_length(&self) -> usize {
+    pub fn bytes_length(&self) -> usize {
         let element_size = self.element_length();
         match self {
             Self::Binary { .. }
@@ -281,10 +281,10 @@ impl<'a> WebGlBufferData<'a> {
         &self,
         gl: &WebGl2RenderingContext,
         target: WebGlBufferTarget,
-        dst_byte_offset: usize,
+        dst_bytes_offset: usize,
     ) {
         let target = target.to_gl_enum();
-        let dst_byte_offset = dst_byte_offset as i32;
+        let dst_bytes_offset = dst_bytes_offset as i32;
         let src_element_offset = self.element_offset() as u32;
         let src_element_length = self.element_length() as u32;
 
@@ -292,13 +292,13 @@ impl<'a> WebGlBufferData<'a> {
             WebGlBufferData::Binary { data, .. } => gl
                 .buffer_sub_data_with_i32_and_u8_array_and_src_offset_and_length(
                     target,
-                    dst_byte_offset,
+                    dst_bytes_offset,
                     &data,
                     src_element_offset,
                     src_element_length,
                 ),
             WebGlBufferData::ArrayBuffer { data } => {
-                gl.buffer_sub_data_with_i32_and_array_buffer(target, dst_byte_offset, &data)
+                gl.buffer_sub_data_with_i32_and_array_buffer(target, dst_bytes_offset, &data)
             }
             WebGlBufferData::DataView { .. }
             | WebGlBufferData::Int8Array { .. }
@@ -329,7 +329,7 @@ impl<'a> WebGlBufferData<'a> {
                 };
                 gl.buffer_sub_data_with_i32_and_array_buffer_view_and_src_offset_and_length(
                     target,
-                    dst_byte_offset,
+                    dst_bytes_offset,
                     &data,
                     src_element_offset,
                     src_element_length,
@@ -340,8 +340,8 @@ impl<'a> WebGlBufferData<'a> {
 }
 
 impl<'a> BufferData for WebGlBufferData<'a> {
-    fn byte_length(&self) -> usize {
-        self.byte_length()
+    fn bytes_length(&self) -> usize {
+        self.bytes_length()
     }
 
     fn as_webgl_buffer_data(&self) -> Option<WebGlBufferData> {
@@ -352,7 +352,7 @@ impl<'a> BufferData for WebGlBufferData<'a> {
 #[derive(Clone)]
 pub struct WebGlBufferItem {
     gl_buffer: WebGlBuffer,
-    byte_length: Rc<RefCell<usize>>,
+    bytes_length: Rc<RefCell<usize>>,
     usage: WebGlBufferUsage,
 }
 
@@ -363,8 +363,8 @@ impl WebGlBufferItem {
     }
 
     /// Returns byte length of the buffer.
-    pub fn byte_length(&self) -> usize {
-        *self.byte_length.borrow()
+    pub fn bytes_length(&self) -> usize {
+        *self.bytes_length.borrow()
     }
 
     /// Returns [`WebGlBufferUsage`].
@@ -374,17 +374,17 @@ impl WebGlBufferItem {
 
     /// Normalizes a [`RangeBounds`] to a [`Range<usize>`].
     /// Returns [`None`] if start and end bounds of [`RangeBounds`] are both unbounded.
-    pub fn normalize_byte_range<R>(&self, range: R) -> Range<usize>
+    pub fn normalize_bytes_range<R>(&self, range: R) -> Range<usize>
     where
         R: RangeBounds<usize>,
     {
         match (range.start_bound(), range.end_bound()) {
             (Bound::Included(s), Bound::Included(e)) => *s..*e + 1,
             (Bound::Included(s), Bound::Excluded(e)) => *s..*e,
-            (Bound::Included(s), Bound::Unbounded) => *s..self.byte_length(),
+            (Bound::Included(s), Bound::Unbounded) => *s..self.bytes_length(),
             (Bound::Unbounded, Bound::Included(e)) => 0..*e + 1,
             (Bound::Unbounded, Bound::Excluded(e)) => 0..*e,
-            (Bound::Unbounded, Bound::Unbounded) => 0..self.byte_length(),
+            (Bound::Unbounded, Bound::Unbounded) => 0..self.bytes_length(),
             (Bound::Excluded(_), _) => unreachable!(),
         }
     }
@@ -427,6 +427,8 @@ impl WebGlBufferManager {
         usage: Option<WebGlBufferUsage>,
     ) -> Result<(WebGlBuffering, WebGlBufferItem), Error> {
         let buffering = Buffering::new();
+        buffering.set_managed(self.id, self.channel.clone());
+
         let usage = match usage {
             Some(usage) => usage,
             None => {
@@ -451,7 +453,7 @@ impl WebGlBufferManager {
         };
         let buffer_item = WebGlBufferItem {
             gl_buffer,
-            byte_length: Rc::new(RefCell::new(0)),
+            bytes_length: Rc::new(RefCell::new(0)),
             usage,
         };
         self.buffers
@@ -471,15 +473,15 @@ impl WebGlBufferManager {
             Entry::Occupied(entry) => {
                 let buffer_item = entry.into_mut();
                 let WebGlBufferItem {
-                    byte_length,
+                    bytes_length,
                     gl_buffer,
                     usage,
                 } = buffer_item;
-                let mut byte_length = byte_length.borrow_mut();
+                let mut bytes_length = bytes_length.borrow_mut();
 
                 // creates a new buffer with new byte length,
                 // then copies data from old buffer to new buffer
-                if buffering.byte_length() > *byte_length {
+                if buffering.bytes_length() > *bytes_length {
                     let new_gl_buffer =
                         self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                     self.gl.bind_buffer(
@@ -488,7 +490,7 @@ impl WebGlBufferManager {
                     );
                     self.gl.buffer_data_with_i32(
                         WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
-                        buffering.byte_length() as i32,
+                        buffering.bytes_length() as i32,
                         usage.to_gl_enum(),
                     );
                     self.gl.bind_buffer(
@@ -500,7 +502,7 @@ impl WebGlBufferManager {
                         WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
                         0,
                         0,
-                        *byte_length as i32,
+                        *bytes_length as i32,
                     );
                     self.gl
                         .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
@@ -508,7 +510,7 @@ impl WebGlBufferManager {
                         .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
 
                     *gl_buffer = new_gl_buffer;
-                    *byte_length = buffering.byte_length();
+                    *bytes_length = buffering.bytes_length();
                 }
 
                 self.gl
@@ -520,16 +522,16 @@ impl WebGlBufferManager {
                     data.upload(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
-                        item.dst_byte_offset,
+                        item.dst_bytes_offset,
                     );
                 }
-                drop(byte_length);
+                drop(bytes_length);
 
                 buffer_item
             }
             Entry::Vacant(entry) => {
                 let usage = buffering.create_options.usage;
-                let byte_length = buffering.byte_length();
+                let bytes_length = buffering.bytes_length();
 
                 let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                 self.gl.bind_buffer(
@@ -538,7 +540,7 @@ impl WebGlBufferManager {
                 );
                 self.gl.buffer_data_with_i32(
                     WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-                    byte_length as i32,
+                    bytes_length as i32,
                     usage.to_gl_enum(),
                 );
                 for item in buffering.queue().drain() {
@@ -548,12 +550,12 @@ impl WebGlBufferManager {
                     data.upload(
                         &self.gl,
                         WebGlBufferTarget::ArrayBuffer,
-                        item.dst_byte_offset,
+                        item.dst_bytes_offset,
                     );
                 }
 
                 let buffer_item = WebGlBufferItem {
-                    byte_length: Rc::new(RefCell::new(byte_length)),
+                    bytes_length: Rc::new(RefCell::new(bytes_length)),
                     gl_buffer: gl_buffer.clone(),
                     usage,
                 };

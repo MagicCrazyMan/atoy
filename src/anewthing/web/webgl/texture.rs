@@ -836,7 +836,7 @@ pub enum WebGlTextureCompressedFormat {
 }
 
 impl WebGlTextureCompressedFormat {
-    fn byte_length_of(&self, width: usize, height: usize) -> usize {
+    fn bytes_length_of(&self, width: usize, height: usize) -> usize {
         match self {
             // for S3TC, checks https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_s3tc/ for more details
             Self::COMPRESSED_RGB_S3TC_DXT1 => width.div_ceil(4) * height.div_ceil(4) * 8,
@@ -1951,7 +1951,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
                 );
-                let bytes_length = compressed_format.byte_length_of(dst_width, dst_height);
+                let bytes_length = compressed_format.bytes_length_of(dst_width, dst_height);
                 let bytes_offset = bytes_offset.unwrap_or(0);
                 match is3d {
                     true => gl.compressed_tex_sub_image_3d_with_i32_and_i32(

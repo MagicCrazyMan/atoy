@@ -102,7 +102,7 @@ pub fn bytes_per_pixel(
 }
 
 /// Calculates bytes length of a packed 
-pub fn byte_length_of(
+pub fn bytes_length_of(
     pixel_format: WebGlPixelFormat,
     pixel_data_type: WebGlPixelDataType,
     pixel_pack_stores: WebGlPixelPackStores,

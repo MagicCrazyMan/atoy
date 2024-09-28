@@ -90,8 +90,8 @@ pub enum WebGlUniformBlockValue<'a> {
     Range {
         buffer: &'a WebGlBuffering,
         mount_point: usize,
-        byte_offset: usize,
-        byte_length: usize,
+        bytes_offset: usize,
+        bytes_length: usize,
     },
 }
 
@@ -104,14 +104,14 @@ impl<'a> Debug for WebGlUniformBlockValue<'a> {
                 .finish(),
             Self::Range {
                 mount_point,
-                byte_offset,
-                byte_length,
+                bytes_offset,
+                bytes_length,
                 ..
             } => f
                 .debug_struct("Range")
                 .field("mount_point", mount_point)
-                .field("byte_offset", byte_offset)
-                .field("byte_length", byte_length)
+                .field("bytes_offset", bytes_offset)
+                .field("bytes_length", bytes_length)
                 .finish(),
         }
     }

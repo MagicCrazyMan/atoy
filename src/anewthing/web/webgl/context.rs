@@ -295,8 +295,8 @@ impl WebGlContext {
                 component_size,
                 data_type,
                 normalized,
-                byte_stride,
-                byte_offset,
+                bytes_stride,
+                bytes_offset,
             } => {
                 let buffer_item = buffer_manager.sync_buffering(buffering)?;
                 gl.bind_buffer(
@@ -308,8 +308,8 @@ impl WebGlContext {
                     component_size as i32,
                     data_type.to_gl_enum(),
                     normalized,
-                    byte_stride as i32,
-                    byte_offset as i32,
+                    bytes_stride as i32,
+                    bytes_offset as i32,
                 );
                 gl.enable_vertex_attrib_array(location);
                 gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
@@ -320,8 +320,8 @@ impl WebGlContext {
                 instance_size,
                 data_type,
                 normalized,
-                byte_stride,
-                byte_offset,
+                bytes_stride,
+                bytes_offset,
             } => {
                 let buffer_item = buffer_manager.sync_buffering(buffering)?;
                 gl.bind_buffer(
@@ -333,8 +333,8 @@ impl WebGlContext {
                     component_size as i32,
                     data_type.to_gl_enum(),
                     normalized,
-                    byte_stride as i32,
-                    byte_offset as i32,
+                    bytes_stride as i32,
+                    bytes_offset as i32,
                 );
                 gl.enable_vertex_attrib_array(location);
                 gl.vertex_attrib_divisor(location, instance_size as u32);
@@ -544,9 +544,9 @@ impl WebGlContext {
             WebGlUniformBlockValue::Range {
                 buffer,
                 mount_point,
-                byte_offset,
-                byte_length,
-            } => (buffer, mount_point, Some((byte_offset, byte_length))),
+                bytes_offset,
+                bytes_length,
+            } => (buffer, mount_point, Some((bytes_offset, bytes_length))),
         };
 
         let buffer_item = self.buffer_manager.sync_buffering(buffer)?;
@@ -735,14 +735,14 @@ impl WebGlContext {
     pub fn read_buffer_by_range<R>(
         &mut self,
         buffering: &WebGlBuffering,
-        byte_range: R,
+        bytes_range: R,
     ) -> Result<Uint8Array, Error>
     where
         R: RangeBounds<usize>,
     {
-        let buffer_item = self.buffer_manager.sync_buffering(buffering)?;
-        let byte_range = buffer_item.normalize_byte_range(byte_range);
-        Self::read_buffer_inner(&self.gl, buffer_item.gl_buffer(), byte_range)
+        let item = self.buffer_manager.sync_buffering(buffering)?;
+        let bytes_range = item.normalize_bytes_range(bytes_range);
+        Self::read_buffer_inner(&self.gl, item.gl_buffer(), bytes_range)
     }
 
     /// Reads buffer data into an [`Uint8Array`] asynchronously.
@@ -759,7 +759,7 @@ impl WebGlContext {
     pub async fn read_buffer_by_range_with_client_wait<R>(
         &mut self,
         buffering: &WebGlBuffering,
-        byte_range: R,
+        bytes_range: R,
         client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error>
     where
@@ -777,7 +777,7 @@ impl WebGlContext {
         );
         self.gl.buffer_data_with_i32(
             WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
-            buffer_item.byte_length() as i32,
+            buffer_item.bytes_length() as i32,
             WebGlBufferUsage::StreamRead.to_gl_enum(),
         );
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
@@ -785,7 +785,7 @@ impl WebGlContext {
             WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
             0,
             0,
-            buffer_item.byte_length() as i32,
+            buffer_item.bytes_length() as i32,
         );
         self.gl
             .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
@@ -794,8 +794,8 @@ impl WebGlContext {
 
         client_wait.client_wait(&self.gl).await?;
 
-        let byte_range = buffer_item.normalize_byte_range(byte_range);
-        let data = Self::read_buffer_inner(&self.gl, &tmp_gl_buffer, byte_range)?;
+        let bytes_range = buffer_item.normalize_bytes_range(bytes_range);
+        let data = Self::read_buffer_inner(&self.gl, &tmp_gl_buffer, bytes_range)?;
 
         self.gl.delete_buffer(Some(&tmp_gl_buffer));
 
@@ -805,18 +805,18 @@ impl WebGlContext {
     fn read_buffer_inner(
         gl: &WebGl2RenderingContext,
         gl_buffer: &WebGlBuffer,
-        byte_range: Range<usize>,
+        bytes_range: Range<usize>,
     ) -> Result<Uint8Array, Error> {
-        let dst_byte_length = byte_range.len();
-        let dst = Uint8Array::new_with_length(dst_byte_length as u32);
+        let bytes_length = bytes_range.len();
+        let dst = Uint8Array::new_with_length(bytes_length as u32);
 
         gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), Some(gl_buffer));
         gl.get_buffer_sub_data_with_i32_and_array_buffer_view_and_dst_offset_and_length(
             WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-            byte_range.start as i32,
+            bytes_range.start as i32,
             dst.as_ref(),
             0,
-            byte_range.end as u32,
+            bytes_length as u32,
         );
         gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
 
@@ -824,14 +824,16 @@ impl WebGlContext {
     }
 
     /// Reads pixels from framebuffer into a pixel buffer object and returns a native [`WebGlBuffer`].
+    /// Calls [`read_buffer`](WebGlContext::read_buffer) or [`read_buffer_by_range`](WebGlContext::read_buffer_by_range)
+    /// to get pixels back to client.
     ///
     /// - `framebuffer`: Reads pixels from back framebuffer if framebuffer is `None`.
     /// When providing a framebuffer, a read buffer index should be specified as well.
     /// - `x` and `y`: Uses `0` as default if not specified.
     /// - `width` and `height`: Uses framebuffer width and height if not specified.
-    /// - `dst_byte_offset`: applies no offset if not specified.
+    /// - `dst_bytes_offset`: applies no offset if not specified.
     pub fn read_pixels_pbo(
-        &self,
+        &mut self,
         framebuffer: Option<(&WebGlFramebufferItem, usize)>,
         pixel_format: WebGlPixelFormat,
         pixel_data_type: WebGlPixelDataType,
@@ -840,9 +842,9 @@ impl WebGlContext {
         y: Option<usize>,
         width: Option<usize>,
         height: Option<usize>,
-        dst_byte_offset: Option<usize>,
-    ) -> Result<WebGlBuffer, Error> {
-        let buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        dst_bytes_offset: Option<usize>,
+    ) -> Result<WebGlBuffering, Error> {
+        let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         match framebuffer {
             Some((framebuffer, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
@@ -871,9 +873,9 @@ impl WebGlContext {
             (Some((framebuffer, _)), None) => framebuffer.current_height(),
             (_, Some(height)) => height,
         };
-        let dst_byte_offset = dst_byte_offset.unwrap_or(0);
+        let dst_bytes_offset = dst_bytes_offset.unwrap_or(0);
 
-        let byte_length = pixel::byte_length_of(
+        let bytes_length = pixel::bytes_length_of(
             pixel_format,
             pixel_data_type,
             pixel_pack_stores,
@@ -883,11 +885,11 @@ impl WebGlContext {
 
         self.gl.bind_buffer(
             WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
-            Some(&buffer),
+            Some(&gl_buffer),
         );
         self.gl.buffer_data_with_i32(
             WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
-            byte_length as i32,
+            bytes_length as i32,
             WebGlBufferUsage::StaticRead.to_gl_enum(),
         );
         pixel_pack_stores.set_pixel_store(&self.gl);
@@ -899,7 +901,7 @@ impl WebGlContext {
                 height as i32,
                 pixel_format.to_gl_enum(),
                 pixel_data_type.to_gl_enum(),
-                dst_byte_offset as i32,
+                dst_bytes_offset as i32,
             )
             .unwrap(); // no DomException thrown
         WebGlPixelPackStores::default().set_pixel_store(&self.gl);
@@ -911,6 +913,9 @@ impl WebGlContext {
                 .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
         }
 
-        Ok(buffer)
+        let (buffering, _) = self
+            .buffer_manager
+            .wrap_gl_buffer(gl_buffer, Some(WebGlBufferUsage::StaticRead))?;
+        Ok(buffering)
     }
 }

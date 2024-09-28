@@ -12,7 +12,7 @@ use super::channel::Channel;
 
 pub trait BufferData {
     /// Returns the byte length of the buffer data.
-    fn byte_length(&self) -> usize;
+    fn bytes_length(&self) -> usize;
 
     /// Converts the buffer data into a [`WebGlBufferData`](super::web::webgl::buffer::WebGlBufferData).
     #[cfg(feature = "webgl")]
@@ -25,24 +25,24 @@ pub(crate) struct BufferingItem {
     /// Buffer data.
     pub(crate) data: Box<dyn BufferData>,
     /// Offset in bytes specifying where data start to write to.
-    pub(crate) dst_byte_offset: usize,
+    pub(crate) dst_bytes_offset: usize,
 }
 
 pub(crate) struct BufferingQueue {
     queue: Vec<BufferingItem>,
-    covered_byte_range: Option<Range<usize>>,
+    covered_bytes_range: Option<Range<usize>>,
 }
 
 impl BufferingQueue {
     fn new() -> Self {
         Self {
             queue: Vec::new(),
-            covered_byte_range: None,
+            covered_bytes_range: None,
         }
     }
 
     pub(crate) fn drain(&mut self) -> Drain<'_, BufferingItem> {
-        self.covered_byte_range = None;
+        self.covered_bytes_range = None;
         self.queue.drain(..)
     }
 }
@@ -56,7 +56,7 @@ struct Managed {
 pub struct Buffering {
     id: Uuid,
     queue: Rc<RefCell<BufferingQueue>>,
-    byte_length: Rc<RefCell<usize>>,
+    bytes_length: Rc<RefCell<usize>>,
 
     managed: Rc<RefCell<Option<Managed>>>,
 }
@@ -64,15 +64,15 @@ pub struct Buffering {
 impl Buffering {
     /// Constructs a new buffering container.
     pub fn new() -> Self {
-        Self::with_byte_length(0)
+        Self::with_bytes_length(0)
     }
 
     /// Constructs a new buffering container with byte length.
-    pub fn with_byte_length(byte_length: usize) -> Self {
+    pub fn with_bytes_length(bytes_length: usize) -> Self {
         Self {
             id: Uuid::new_v4(),
             queue: Rc::new(RefCell::new(BufferingQueue::new())),
-            byte_length: Rc::new(RefCell::new(byte_length)),
+            bytes_length: Rc::new(RefCell::new(bytes_length)),
 
             managed: Rc::new(RefCell::new(None)),
         }
@@ -84,8 +84,8 @@ impl Buffering {
     }
 
     /// Returns total byte length.
-    pub fn byte_length(&self) -> usize {
-        *self.byte_length.borrow()
+    pub fn bytes_length(&self) -> usize {
+        *self.bytes_length.borrow()
     }
 
     /// Returns the inner buffer queue.
@@ -121,46 +121,46 @@ impl Buffering {
     where
         T: BufferData + 'static,
     {
-        self.push_with_byte_offset(data, 0)
+        self.push_with_bytes_offset(data, 0)
     }
 
     /// Pushes buffer data into the buffering with byte offset indicating where to start replacing data.
-    pub fn push_with_byte_offset<T>(&self, data: T, dst_byte_offset: usize)
+    pub fn push_with_bytes_offset<T>(&self, data: T, dst_bytes_offset: usize)
     where
         T: BufferData + 'static,
     {
         let mut queue = self.queue.borrow_mut();
         let BufferingQueue {
             queue,
-            covered_byte_range,
+            covered_bytes_range,
         } = &mut *queue;
-        let byte_length = dst_byte_offset + data.byte_length();
-        let byte_range = dst_byte_offset..byte_length;
-        self.byte_length
-            .replace_with(|length| (*length).max(byte_length));
+        let bytes_length = dst_bytes_offset + data.bytes_length();
+        let bytes_range = dst_bytes_offset..bytes_length;
+        self.bytes_length
+            .replace_with(|length| (*length).max(bytes_length));
 
         let item = BufferingItem {
             data: Box::new(data),
-            dst_byte_offset,
+            dst_bytes_offset,
         };
 
-        match covered_byte_range {
-            Some(covered_byte_range) => {
+        match covered_bytes_range {
+            Some(covered_bytes_range) => {
                 // overrides queue if new byte range fully covers the range of current queue
-                if byte_range.start <= covered_byte_range.start
-                    && byte_range.end >= covered_byte_range.end
+                if bytes_range.start <= covered_bytes_range.start
+                    && bytes_range.end >= covered_bytes_range.end
                 {
-                    *covered_byte_range = byte_range;
+                    *covered_bytes_range = bytes_range;
                     queue.clear();
                     queue.push(item);
                 } else {
-                    *covered_byte_range = byte_range.start.min(covered_byte_range.start)
-                        ..byte_range.end.max(covered_byte_range.end);
+                    *covered_bytes_range = bytes_range.start.min(covered_bytes_range.start)
+                        ..bytes_range.end.max(covered_bytes_range.end);
                     queue.push(item);
                 }
             }
             None => {
-                *covered_byte_range = Some(byte_range);
+                *covered_bytes_range = Some(bytes_range);
                 queue.push(item);
             }
         }
@@ -177,7 +177,7 @@ impl Debug for Buffering {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Buffering")
             .field("id", self.id())
-            .field("byte_length", &self.byte_length())
+            .field("bytes_length", &self.bytes_length())
             .finish()
     }
 }
@@ -204,7 +204,7 @@ impl BufferingDropped {
 
 #[cfg(feature = "web")]
 impl BufferData for js_sys::ArrayBuffer {
-    fn byte_length(&self) -> usize {
+    fn bytes_length(&self) -> usize {
         self.byte_length() as usize
     }
 
@@ -219,7 +219,7 @@ macro_rules! web_typed_arrays {
         $(
             #[cfg(feature = "web")]
             impl BufferData for js_sys::$buffer {
-                fn byte_length(&self) -> usize {
+                fn bytes_length(&self) -> usize {
                     self.byte_length() as usize
                 }
 
@@ -232,7 +232,7 @@ macro_rules! web_typed_arrays {
 
             #[cfg(feature = "webgl")]
             impl BufferData for (js_sys::$buffer, super::web::webgl::buffer::WebGlBufferDataRange) {
-                fn byte_length(&self) -> usize {
+                fn bytes_length(&self) -> usize {
                     let data_element_length = self.0.$length() as usize;
                     let element_length = match &self.1 {
                         super::web::webgl::buffer::WebGlBufferDataRange::Range(range) => {
@@ -264,7 +264,7 @@ macro_rules! web_typed_arrays {
     };
 }
 web_typed_arrays! {
-    (DataView, byte_length, 1)
+    (DataView, bytes_length, 1)
     (Int8Array, length, 1)
     (Uint8Array, length, 1)
     (Uint8ClampedArray, length, 1)
