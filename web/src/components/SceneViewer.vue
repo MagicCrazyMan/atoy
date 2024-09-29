@@ -23,25 +23,10 @@
 </template>
 
 <script setup lang="ts">
-import init, {
-  LogLevel,
-  WebApp,
-  demo,
-  init_with_log_level,
-  test_cube,
-  test_pick,
-} from "atoy";
-import { onMounted } from "vue";
-import SceneController from "./SceneController.vue";
-import { ref } from "vue";
-import { watch } from "vue";
 import { HdrToneMappingType, ShadingType } from "@/types";
-
-declare global {
-  interface Window {
-    app?: WebApp;
-  }
-}
+import init, { LogLevel, async_test, init_with_log_level } from "atoy";
+import { onMounted, ref } from "vue";
+import SceneController from "./SceneController.vue";
 
 const renderWhenNeeded = ref(true);
 const randomColor = ref(true);
@@ -68,8 +53,9 @@ const pickTime = ref(0);
 
 onMounted(async () => {
   await init();
-  window.app = demo();
   init_with_log_level(LogLevel.Info);
+
+  async_test();
 
   // const viewer = test_cube(
   //   40,
