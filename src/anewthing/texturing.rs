@@ -6,9 +6,8 @@ use std::{
 };
 
 use hashbrown::HashMap;
+use tokio::sync::broadcast::{self, Receiver, Sender};
 use uuid::Uuid;
-
-use super::channel::Channel;
 
 /// Faces of cube map texture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -57,18 +56,13 @@ impl TexturingQueue {
     }
 }
 
-struct Managed {
-    id: Uuid,
-    channel: Channel,
-}
-
 #[derive(Clone)]
 pub struct Texturing {
     id: Uuid,
     /// Queue for each level.
     queues: Rc<RefCell<HashMap<usize, TexturingQueue>>>,
 
-    managed: Rc<RefCell<Option<Managed>>>,
+    channel: Sender<TexturingMessage>,
 }
 
 impl Texturing {
@@ -78,7 +72,7 @@ impl Texturing {
             id: Uuid::new_v4(),
             queues: Rc::new(RefCell::new(HashMap::new())),
 
-            managed: Rc::new(RefCell::new(None)),
+            channel: broadcast::channel(5).0,
         }
     }
 
@@ -94,45 +88,12 @@ impl Texturing {
         })
     }
 
-    /// Returns `true` if the texturing is managed.
-    pub fn is_managed(&self) -> bool {
-        self.managed.borrow().is_some()
-    }
-
-    /// Returns manager id.
-    pub(crate) fn manager_id(&self) -> Option<Uuid> {
-        self.managed.borrow().as_ref().map(|Managed { id, .. }| *id)
-    }
-
-    /// Sets this texturing is managed by a manager.
-    pub(crate) fn set_managed(&self, id: Uuid, channel: Channel) {
-        let mut managed = self.managed.borrow_mut();
-        match managed.as_ref() {
-            Some(managed) => {
-                if managed.channel.id() != channel.id() || &managed.id != &id {
-                    panic!("manage a texturing by multiple managers is prohibited");
-                }
-            }
-            None => *managed = Some(Managed { id, channel }),
-        };
-    }
-
     /// Pushes texture data into the texture.
     pub fn push<T>(&self, data: T, level: usize)
     where
         T: TextureData + 'static,
     {
-        self.push_with_params(
-            data,
-            level,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
+        self.push_with_params(data, level, None, None, None, None, None, None, None)
     }
 
     /// Pushes texture data into the texture with byte offset indicating where to start replacing data.
@@ -165,6 +126,11 @@ impl Texturing {
         };
         queue.push(item);
     }
+
+    /// Returns a message receiver associated with this texturing.
+    pub fn receiver(&self) -> Receiver<TexturingMessage> {
+        self.channel.subscribe()
+    }
 }
 
 impl Debug for Texturing {
@@ -175,20 +141,12 @@ impl Debug for Texturing {
 
 impl Drop for Texturing {
     fn drop(&mut self) {
-        if let Some(Managed { channel, .. }) = self.managed.borrow().as_ref() {
-            channel.send(TexturingDropped { id: self.id });
-        }
+        let _ = self.channel.send(TexturingMessage::Dropped);
     }
 }
 
-/// Events raised when a [`Texturing`] is dropped.
-pub(crate) struct TexturingDropped {
-    id: Uuid,
-}
-
-impl TexturingDropped {
-    /// Returns id.
-    pub(crate) fn id(&self) -> &Uuid {
-        &self.id
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum TexturingMessage {
+    Dropped,
 }

@@ -1,8 +1,7 @@
 use std::any::Any;
 
 use hashbrown::HashMap;
-
-use crate::anewthing::channel::Channel;
+use tokio::sync::broadcast::{self, Sender};
 
 use super::{
     archetype::Archetype,
@@ -13,19 +12,21 @@ use super::{
 };
 
 pub struct EntityManager {
-    channel: Channel,
     entities: HashMap<EntityKey, EntityItem>,
     pub(super) chunks: HashMap<Archetype, ChunkItem>,
     pub(super) shared_components: HashMap<SharedComponentKey, SharedComponentItem>,
+
+    sender: Sender<EntityManagerMessage>,
 }
 
 impl EntityManager {
-    pub fn new(channel: Channel) -> Self {
+    pub fn new() -> Self {
         Self {
-            channel,
             entities: HashMap::new(),
             chunks: HashMap::new(),
             shared_components: HashMap::new(),
+
+            sender: broadcast::channel(5).0,
         }
     }
 
@@ -174,7 +175,9 @@ impl EntityManager {
 
         let (entity_key, _) = self.entities.insert_unique_unchecked(entity_key, entity);
 
-        self.channel.send(CreateEntity::new(*entity_key));
+        let _ = self
+            .sender
+            .send(EntityManagerMessage::CreateEntity(*entity_key));
 
         Ok(*entity_key)
     }
@@ -184,7 +187,7 @@ impl EntityManager {
             return Err(Error::NoSuchEntity);
         }
 
-        self.channel.send(RemoveEntity::new(*key));
+        let _ = self.sender.send(EntityManagerMessage::RemoveEntity(*key));
 
         unsafe { Ok(self.swap_and_remove_entity(&key)) }
     }
@@ -238,7 +241,10 @@ impl EntityManager {
             self.set_components(entity_key, components)
         };
 
-        self.channel.send(AddComponent::new::<C>(*entity_key));
+        let _ = self.sender.send(EntityManagerMessage::AddComponent(
+            *entity_key,
+            ComponentKey::new::<C>(),
+        ));
 
         Ok(())
     }
@@ -261,7 +267,10 @@ impl EntityManager {
             removed
         };
 
-        self.channel.send(RemoveComponent::new::<C>(*entity_key));
+        let _ = self.sender.send(EntityManagerMessage::RemoveComponent(
+            *entity_key,
+            ComponentKey::new::<C>(),
+        ));
 
         Ok(removed)
     }
@@ -293,7 +302,9 @@ impl EntityManager {
             },
         );
 
-        self.channel.send(AddSharedComponent::new::<C, T>());
+        let _ = self.sender.send(EntityManagerMessage::AddSharedComponent(
+            SharedComponentKey::new::<C, T>(),
+        ));
 
         Ok(())
     }
@@ -325,7 +336,11 @@ impl EntityManager {
             .downcast::<C>()
             .unwrap();
 
-        self.channel.send(RemoveSharedComponent::new::<C, T>());
+        let _ = self
+            .sender
+            .send(EntityManagerMessage::RemoveSharedComponent(
+                SharedComponentKey::new::<C, T>(),
+            ));
 
         Ok(removed)
     }
@@ -374,102 +389,13 @@ pub(super) struct ChunkItem {
     pub(super) components: Vec<ComponentItem>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CreateEntity(EntityKey);
-
-impl CreateEntity {
-    fn new(entity_key: EntityKey) -> Self {
-        Self(entity_key)
-    }
-
-    pub fn entity_key(&self) -> &EntityKey {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveEntity(EntityKey);
-
-impl RemoveEntity {
-    fn new(entity_key: EntityKey) -> Self {
-        Self(entity_key)
-    }
-
-    pub fn entity_key(&self) -> &EntityKey {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddComponent(EntityKey, ComponentKey);
-
-impl AddComponent {
-    fn new<C>(entity_key: EntityKey) -> Self
-    where
-        C: Component + 'static,
-    {
-        Self(entity_key, ComponentKey::new::<C>())
-    }
-
-    pub fn entity_key(&self) -> &EntityKey {
-        &self.0
-    }
-
-    pub fn component_key(&self) -> &ComponentKey {
-        &self.1
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveComponent(EntityKey, ComponentKey);
-
-impl RemoveComponent {
-    fn new<C>(entity: EntityKey) -> Self
-    where
-        C: Component + 'static,
-    {
-        Self(entity, ComponentKey::new::<C>())
-    }
-
-    pub fn entity_key(&self) -> &EntityKey {
-        &self.0
-    }
-
-    pub fn component_key(&self) -> &ComponentKey {
-        &self.1
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AddSharedComponent(SharedComponentKey);
-
-impl AddSharedComponent {
-    fn new<C, T>() -> Self
-    where
-        C: Component + 'static,
-        T: 'static,
-    {
-        Self(SharedComponentKey::new::<C, T>())
-    }
-
-    pub fn shared_component_key(&self) -> &SharedComponentKey {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RemoveSharedComponent(SharedComponentKey);
-
-impl RemoveSharedComponent {
-    fn new<C, T>() -> Self
-    where
-        C: Component + 'static,
-        T: 'static,
-    {
-        Self(SharedComponentKey::new::<C, T>())
-    }
-
-    pub fn shared_component_key(&self) -> &SharedComponentKey {
-        &self.0
-    }
+/// Entity manager messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EntityManagerMessage {
+    CreateEntity(EntityKey),
+    RemoveEntity(EntityKey),
+    AddComponent(EntityKey, ComponentKey),
+    RemoveComponent(EntityKey, ComponentKey),
+    AddSharedComponent(SharedComponentKey),
+    RemoveSharedComponent(SharedComponentKey),
 }

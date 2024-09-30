@@ -17,7 +17,6 @@ pub enum Error {
     UniformBlockLocationNotFound(String),
     LinkProgramFailure(Option<String>),
     CreateBufferFailure,
-    BufferManagedByOtherManager,
     BufferDataUnsupported,
     CreateFenceSyncFailure,
     ClientWaitFailure(Option<String>),

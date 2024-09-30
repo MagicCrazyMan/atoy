@@ -1,4 +1,4 @@
-pub trait Tick {
+pub trait Tick: Clone {
     /// Constructs a new clock tick.
     fn new(start_time: i64, previous_time: i64, current_time: i64) -> Self
     where

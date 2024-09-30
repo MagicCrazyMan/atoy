@@ -13,6 +13,10 @@ use js_sys::{
 use log::warn;
 use ordered_float::OrderedFloat;
 use proc::GlEnum;
+use tokio::{
+    select,
+    sync::broadcast::{self, error::RecvError},
+};
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
@@ -20,10 +24,7 @@ use web_sys::{
     WebGl2RenderingContext, WebGlSampler, WebGlTexture,
 };
 
-use crate::anewthing::{
-    channel::{Channel, Event, Handler},
-    texturing::{TextureCubeMapFace, Texturing, TexturingDropped, TexturingItem},
-};
+use crate::anewthing::texturing::{TextureCubeMapFace, Texturing, TexturingItem, TexturingMessage};
 
 use super::{
     buffer::{WebGlBufferManager, WebGlBufferTarget, WebGlBuffering},
@@ -2152,23 +2153,24 @@ pub struct WebGlTextureManager {
     id: Uuid,
     gl: WebGl2RenderingContext,
 
-    channel: Channel,
     sampler_manager: WebGlSamplerManager,
     textures: Rc<RefCell<HashMap<Uuid, WebGlTextureItem>>>,
+
+    abortion: broadcast::Sender<()>,
 }
 
 impl WebGlTextureManager {
     /// Constructs a new texture manager.
-    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
         let textures = Rc::new(RefCell::new(HashMap::new()));
-        channel.on(TextureDroppedHandler::new(Rc::clone(&textures)));
 
         Self {
             id: Uuid::new_v4(),
-            channel,
             sampler_manager: WebGlSamplerManager::new(gl.clone()),
             textures,
             gl,
+
+            abortion: broadcast::channel(5).0,
         }
     }
 
@@ -2189,8 +2191,6 @@ impl WebGlTextureManager {
         >,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlTextureItem, Error> {
-        self.verify_manager(texturing)?;
-
         let layout = texturing.create_options.layout;
         let internal_format = texturing.create_options.internal_format;
 
@@ -2228,7 +2228,8 @@ impl WebGlTextureManager {
                     layout,
                     internal_format,
                 };
-                texturing.set_managed(self.id, self.channel.clone());
+
+                self.listen_texturing_dropped(texturing);
 
                 entry.insert(item)
             }
@@ -2317,38 +2318,38 @@ impl WebGlTextureManager {
         Ok(item.clone())
     }
 
-    fn verify_manager(&self, texturing: &WebGlTexturing) -> Result<(), Error> {
-        if let Some(manager_id) = texturing.manager_id() {
-            if manager_id != self.id {
-                return Err(Error::TextureManagedByOtherManager);
-            }
-        }
+    fn listen_texturing_dropped(&self, texturing: &Texturing) {
+        let id = *texturing.id();
+        let mut rx = texturing.receiver();
+        let mut abortion = self.abortion.subscribe();
+        let textures = Rc::clone(&self.textures);
+        wasm_bindgen_futures::spawn_local(async move {
+            loop {
+                let result = select! {
+                    _ = abortion.recv() => break,
+                    result = rx.recv() => result
+                };
 
-        Ok(())
+                match result {
+                    Ok(msg) => match msg {
+                        TexturingMessage::Dropped => {
+                            textures.borrow_mut().remove(&id);
+                        }
+                        #[allow(unreachable_patterns)]
+                        _ => {}
+                    },
+                    Err(err) => match err {
+                        RecvError::Closed => break,
+                        RecvError::Lagged(_) => continue,
+                    },
+                }
+            }
+        });
     }
 }
 
 impl Drop for WebGlTextureManager {
     fn drop(&mut self) {
-        self.channel
-            .off::<TexturingDropped, TextureDroppedHandler>();
-    }
-}
-
-/// A handler removes [`WebGlBufferItem`] from manager when a [`Buffer`] dropped.
-/// This handler only removes items from [`WebGlBufferManager::buffers`], without unbinding them from WebGL context.
-struct TextureDroppedHandler {
-    textures: Rc<RefCell<HashMap<Uuid, WebGlTextureItem>>>,
-}
-
-impl TextureDroppedHandler {
-    fn new(textures: Rc<RefCell<HashMap<Uuid, WebGlTextureItem>>>) -> Self {
-        Self { textures }
-    }
-}
-
-impl Handler<TexturingDropped> for TextureDroppedHandler {
-    fn handle(&mut self, evt: &mut Event<'_, TexturingDropped>) {
-        self.textures.borrow_mut().remove(evt.id());
+        let _ = self.abortion.send(());
     }
 }

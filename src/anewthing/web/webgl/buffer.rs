@@ -11,13 +11,14 @@ use js_sys::{
     Int32Array, Int8Array, Object, Uint16Array, Uint32Array, Uint8Array, Uint8ClampedArray,
 };
 use proc::GlEnum;
+use tokio::{
+    select,
+    sync::broadcast::{self, error::RecvError},
+};
 use uuid::Uuid;
 use web_sys::{WebGl2RenderingContext, WebGlBuffer};
 
-use crate::anewthing::{
-    buffering::{BufferData, Buffering, BufferingDropped},
-    channel::{Channel, Event, Handler},
-};
+use crate::anewthing::buffering::{BufferData, Buffering, BufferingMessage};
 
 use super::error::Error;
 
@@ -393,21 +394,20 @@ impl WebGlBufferItem {
 pub struct WebGlBufferManager {
     id: Uuid,
     gl: WebGl2RenderingContext,
-    channel: Channel,
     buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
+
+    abortion: broadcast::Sender<()>,
 }
 
 impl WebGlBufferManager {
     /// Constructs a new buffer manager.
-    pub fn new(gl: WebGl2RenderingContext, channel: Channel) -> Self {
-        let buffers = Rc::new(RefCell::new(HashMap::new()));
-        channel.on(BufferingDroppedHandler::new(Rc::clone(&buffers)));
-
+    pub fn new(gl: WebGl2RenderingContext) -> Self {
         Self {
             id: Uuid::new_v4(),
             gl,
-            channel,
-            buffers,
+            buffers: Rc::new(RefCell::new(HashMap::new())),
+
+            abortion: broadcast::channel(5).0,
         }
     }
 
@@ -416,58 +416,8 @@ impl WebGlBufferManager {
         &self.id
     }
 
-    /// Wraps a native [`WebGlBuffer`] into an managed [`WebGlBuffering`], returning [`WebGlBuffering`] and [`WebGlBufferItem`].
-    /// Developer should stop using the native buffer after wrapping it.
-    ///
-    /// Developer should provides a correct [`WebGlBufferUsage`] of the buffer,
-    /// nor the manager may fetch it from WebGl context.
-    pub fn wrap_gl_buffer(
-        &mut self,
-        gl_buffer: WebGlBuffer,
-        usage: Option<WebGlBufferUsage>,
-    ) -> Result<(WebGlBuffering, WebGlBufferItem), Error> {
-        let buffering = Buffering::new();
-        buffering.set_managed(self.id, self.channel.clone());
-
-        let usage = match usage {
-            Some(usage) => usage,
-            None => {
-                self.gl.bind_buffer(
-                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-                    Some(&gl_buffer),
-                );
-                let usage = self
-                    .gl
-                    .get_buffer_parameter(
-                        WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-                        WebGl2RenderingContext::BUFFER_USAGE,
-                    )
-                    .as_f64()
-                    .unwrap() as u32;
-                let usage = WebGlBufferUsage::from_gl_enum(usage).unwrap();
-                self.gl
-                    .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
-
-                usage
-            }
-        };
-        let buffer_item = WebGlBufferItem {
-            gl_buffer,
-            bytes_length: Rc::new(RefCell::new(0)),
-            usage,
-        };
-        self.buffers
-            .borrow_mut()
-            .insert_unique_unchecked(*buffering.id(), buffer_item.clone());
-
-        let buffering = WebGlBuffering::new(buffering, WebGlBufferCreateOptions { usage });
-        Ok((buffering, buffer_item))
-    }
-
     /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`] into WebGl context.
     pub fn sync_buffering(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
-        self.verify_manager(buffering)?;
-
         let mut buffers = self.buffers.borrow_mut();
         let buffer_item = match buffers.entry(*buffering.id()) {
             Entry::Occupied(entry) => {
@@ -559,7 +509,8 @@ impl WebGlBufferManager {
                     gl_buffer: gl_buffer.clone(),
                     usage,
                 };
-                buffering.set_managed(self.id, self.channel.clone());
+
+                self.listen_buffering_dropped(buffering);
 
                 entry.insert(buffer_item)
             }
@@ -571,38 +522,38 @@ impl WebGlBufferManager {
         Ok(buffer_item.clone())
     }
 
-    fn verify_manager(&self, buffering: &WebGlBuffering) -> Result<(), Error> {
-        if let Some(manager_id) = buffering.manager_id() {
-            if manager_id != self.id {
-                return Err(Error::BufferManagedByOtherManager);
-            }
-        }
+    fn listen_buffering_dropped(&self, buffering: &Buffering) {
+        let id = *buffering.id();
+        let mut rx = buffering.receiver();
+        let mut abortion = self.abortion.subscribe();
+        let buffers = Rc::clone(&self.buffers);
+        wasm_bindgen_futures::spawn_local(async move {
+            loop {
+                let result = select! {
+                    _ = abortion.recv() => break,
+                    result = rx.recv() => result
+                };
 
-        Ok(())
+                match result {
+                    Ok(msg) => match msg {
+                        BufferingMessage::Dropped => {
+                            buffers.borrow_mut().remove(&id);
+                        }
+                        #[allow(unreachable_patterns)]
+                        _ => {}
+                    },
+                    Err(err) => match err {
+                        RecvError::Closed => break,
+                        RecvError::Lagged(_) => continue,
+                    },
+                }
+            }
+        });
     }
 }
 
 impl Drop for WebGlBufferManager {
     fn drop(&mut self) {
-        self.channel
-            .off::<BufferingDropped, BufferingDroppedHandler>();
-    }
-}
-
-/// A handler removes [`WebGlBufferItem`] from manager when a [`Buffer`] dropped.
-/// This handler only removes items from [`WebGlBufferManager::buffers`], without unbinding them from WebGL context.
-struct BufferingDroppedHandler {
-    buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>,
-}
-
-impl BufferingDroppedHandler {
-    fn new(buffers: Rc<RefCell<HashMap<Uuid, WebGlBufferItem>>>) -> Self {
-        Self { buffers }
-    }
-}
-
-impl Handler<BufferingDropped> for BufferingDroppedHandler {
-    fn handle(&mut self, evt: &mut Event<'_, BufferingDropped>) {
-        self.buffers.borrow_mut().remove(evt.id());
+        let _ = self.abortion.send(());
     }
 }

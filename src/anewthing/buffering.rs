@@ -6,9 +6,8 @@ use std::{
     vec::Drain,
 };
 
+use tokio::sync::broadcast::{self, Receiver, Sender};
 use uuid::Uuid;
-
-use super::channel::Channel;
 
 pub trait BufferData {
     /// Returns the byte length of the buffer data.
@@ -47,18 +46,13 @@ impl BufferingQueue {
     }
 }
 
-struct Managed {
-    id: Uuid,
-    channel: Channel,
-}
-
 #[derive(Clone)]
 pub struct Buffering {
     id: Uuid,
     queue: Rc<RefCell<BufferingQueue>>,
     bytes_length: Rc<RefCell<usize>>,
 
-    managed: Rc<RefCell<Option<Managed>>>,
+    channel: Sender<BufferingMessage>,
 }
 
 impl Buffering {
@@ -74,7 +68,7 @@ impl Buffering {
             queue: Rc::new(RefCell::new(BufferingQueue::new())),
             bytes_length: Rc::new(RefCell::new(bytes_length)),
 
-            managed: Rc::new(RefCell::new(None)),
+            channel: broadcast::channel(5).0,
         }
     }
 
@@ -91,29 +85,6 @@ impl Buffering {
     /// Returns the inner buffer queue.
     pub(crate) fn queue(&self) -> RefMut<'_, BufferingQueue> {
         self.queue.borrow_mut()
-    }
-
-    /// Returns `true` if the buffering is managed.
-    pub fn is_managed(&self) -> bool {
-        self.managed.borrow().is_some()
-    }
-
-    /// Returns manager id.
-    pub(crate) fn manager_id(&self) -> Option<Uuid> {
-        self.managed.borrow().as_ref().map(|Managed { id, .. }| *id)
-    }
-
-    /// Sets this buffering is managed by a manager.
-    pub(crate) fn set_managed(&self, id: Uuid, channel: Channel) {
-        let mut managed = self.managed.borrow_mut();
-        match managed.as_ref() {
-            Some(managed) => {
-                if managed.channel.id() != channel.id() || &managed.id != &id {
-                    panic!("manage a buffering by multiple managers is prohibited");
-                }
-            }
-            None => *managed = Some(Managed { id, channel }),
-        };
     }
 
     /// Pushes buffer data into the buffering.
@@ -165,6 +136,11 @@ impl Buffering {
             }
         }
     }
+
+    /// Returns a message receiver associated with this buffering.
+    pub fn receiver(&self) -> Receiver<BufferingMessage> {
+        self.channel.subscribe()
+    }
 }
 
 impl Default for Buffering {
@@ -184,22 +160,14 @@ impl Debug for Buffering {
 
 impl Drop for Buffering {
     fn drop(&mut self) {
-        if let Some(Managed { channel, .. }) = self.managed.borrow().as_ref() {
-            channel.send(BufferingDropped { id: self.id });
-        }
+        let _ = self.channel.send(BufferingMessage::Dropped);
     }
 }
 
-/// Events raised when a [`Buffering`] is dropped.
-pub(crate) struct BufferingDropped {
-    id: Uuid,
-}
-
-impl BufferingDropped {
-    /// Returns the id of the buffer.
-    pub(crate) fn id(&self) -> &Uuid {
-        &self.id
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum BufferingMessage {
+    Dropped,
 }
 
 #[cfg(feature = "web")]

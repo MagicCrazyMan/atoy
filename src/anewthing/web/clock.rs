@@ -1,9 +1,10 @@
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Duration};
 
+use tokio::sync::broadcast::{self, Receiver, Sender};
 use wasm_bindgen::{closure::Closure, JsCast};
 
 use crate::{
-    anewthing::{app::App, channel::Channel, clock::Tick, plugin::Plugin},
+    anewthing::{app::App, clock::Tick, plugin::Plugin},
     performance, window,
 };
 
@@ -15,7 +16,7 @@ pub struct WebClock<T> {
     stop_time: Option<i64>,
     interval: Duration,
 
-    channel: *mut Option<Channel>,
+    sender: Sender<T>,
     handler: *mut Option<Closure<dyn FnMut()>>,
     handle: Option<i32>,
 
@@ -37,12 +38,17 @@ where
             stop_time: None,
             interval,
 
-            channel: Box::into_raw(Box::new(None)),
+            sender: broadcast::channel(5).0,
             handler: Box::into_raw(Box::new(None)),
             handle: None,
 
             _tick: PhantomData,
         }
+    }
+
+    /// Returns a message receiver associated with this clock.
+    pub fn receiver(&self) -> Receiver<T> {
+        self.sender.subscribe()
     }
 
     /// Sets whether automatically start the clock when plugin.
@@ -124,17 +130,10 @@ where
             let handler = {
                 let start_time = start_time;
                 let previous_time = Rc::new(RefCell::new(start_time));
-                let channel = self.channel.clone();
+                let sender = self.sender.clone();
                 Closure::new(move || {
                     let current_time = performance().now() as i64;
-
-                    if let Some(channel) = (*channel).as_ref() {
-                        channel.send(T::new(
-                            start_time,
-                            *previous_time.borrow(),
-                            current_time,
-                        ));
-                    }
+                    let _ = sender.send(T::new(start_time, *previous_time.borrow(), current_time));
 
                     *previous_time.borrow_mut() = current_time;
                 })
@@ -171,21 +170,13 @@ impl<T> Plugin for WebClock<T>
 where
     T: Tick + 'static,
 {
-    fn plugin(&mut self, app: &mut App) {
-        unsafe {
-            *self.channel = Some(app.channel().clone());
-        }
-
+    fn plugin(&mut self, _: &mut App) {
         if self.start_on_plugin {
             self.start();
         }
     }
 
     fn plugout(&mut self, _: &mut App) {
-        unsafe {
-            *self.channel = None;
-        }
-
         if self.stop_on_plugout {
             self.stop();
         }
@@ -195,7 +186,6 @@ where
 impl<T> Drop for WebClock<T> {
     fn drop(&mut self) {
         unsafe {
-            drop(Box::from_raw(self.channel));
             drop(Box::from_raw(self.handler));
         }
     }
