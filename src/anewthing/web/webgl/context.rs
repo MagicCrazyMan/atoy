@@ -16,8 +16,9 @@ use super::{
     client_wait::WebGlClientWait,
     error::Error,
     framebuffer::{
-        WebGlFramebufferAttachTarget, WebGlFramebufferCreateOptions, WebGlFramebufferFactory,
-        WebGlFramebufferItem, WebGlFramebufferTarget,
+        WebGlFramebufferAttachTarget, WebGlFramebufferBlitFilter, WebGlFramebufferBlitMask,
+        WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem,
+        WebGlFramebufferTarget,
     },
     pixel::{self, WebGlPixelDataType, WebGlPixelFormat, WebGlPixelPackStores},
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
@@ -144,7 +145,8 @@ impl WebGlContext {
 
     /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`](super::super::super::buffering::BufferData) into WebGl context.
     pub fn sync_buffering(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
-        self.buffer_manager.sync_buffering(buffering)
+        self.buffer_manager
+            .sync_buffering(buffering, &mut self.using_ubos)
     }
 
     /// Manages a [`WebGlTexturing`] and syncs its queueing [`TextureData`](super::super::super::texturing::TextureData) into WebGl context.
@@ -154,9 +156,10 @@ impl WebGlContext {
     ) -> Result<WebGlTextureItem, Error> {
         self.texture_manager.sync_texturing(
             texturing,
-            &mut self.buffer_manager,
             self.activating_texture_unit,
             &self.using_textures,
+            &mut self.using_ubos,
+            &mut self.buffer_manager,
             &self.capabilities,
         )
     }
@@ -270,7 +273,13 @@ impl WebGlContext {
         let Some(location) = using_program.attribute_location(name) else {
             return Err(Error::AttributeLocationNotFound(name.to_string()));
         };
-        Self::set_attribute_value_inner(&self.gl, &mut self.buffer_manager, location, value)?;
+        Self::set_attribute_value_inner(
+            &self.gl,
+            &mut self.buffer_manager,
+            location,
+            value,
+            &mut self.using_ubos,
+        )?;
         Ok(())
     }
 
@@ -279,6 +288,7 @@ impl WebGlContext {
         buffer_manager: &mut WebGlBufferManager,
         location: u32,
         value: WebGlAttributeValue,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
     ) -> Result<(), Error> {
         match value {
             WebGlAttributeValue::ArrayBuffer {
@@ -289,7 +299,7 @@ impl WebGlContext {
                 bytes_stride,
                 bytes_offset,
             } => {
-                let buffer_item = buffer_manager.sync_buffering(buffering)?;
+                let buffer_item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
                     Some(buffer_item.gl_buffer()),
@@ -314,7 +324,7 @@ impl WebGlContext {
                 bytes_stride,
                 bytes_offset,
             } => {
-                let buffer_item = buffer_manager.sync_buffering(buffering)?;
+                let buffer_item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
                     Some(buffer_item.gl_buffer()),
@@ -386,6 +396,7 @@ impl WebGlContext {
             value,
             &mut self.activating_texture_unit,
             &mut self.using_textures,
+            &mut self.using_ubos,
             &mut self.texture_manager,
             &mut self.buffer_manager,
             &self.capabilities,
@@ -402,6 +413,7 @@ impl WebGlContext {
             (WebGlTextureUnit, WebGlTextureLayout),
             (WebGlTexture, WebGlSampler),
         >,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
         texture_manager: &mut WebGlTextureManager,
         buffer_manager: &mut WebGlBufferManager,
         capabilities: &WebGlCapabilities,
@@ -411,9 +423,10 @@ impl WebGlContext {
             WebGlUniformValue::Texture { texturing, unit } => {
                 let item = texture_manager.sync_texturing(
                     texturing,
-                    buffer_manager,
                     *activating_texture_unit,
                     using_textures,
+                    using_ubos,
+                    buffer_manager,
                     capabilities,
                 )?;
                 Self::bind_texture_inner(
@@ -546,7 +559,9 @@ impl WebGlContext {
             } => (buffer, mount_point, Some((bytes_offset, bytes_length))),
         };
 
-        let buffer_item = self.buffer_manager.sync_buffering(buffer)?;
+        let buffer_item = self
+            .buffer_manager
+            .sync_buffering(buffer, &mut self.using_ubos)?;
         let Some(using_program) = self.using_program_item.as_ref() else {
             return Err(Error::NoUsingProgram);
         };
@@ -712,6 +727,95 @@ impl WebGlContext {
         gl.bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
 
         using_ubos.insert(mount_point, (gl_buffer.clone(), bytes_range));
+    }
+
+    /// Copies sub buffer data from a [`WebGlBuffer`] to another [`WebGlBuffer`],
+    ///
+    /// Refers to [`copy_buffer_with_params`](WebGlContext::copy_buffer_with_params) for more details.
+    pub fn copy_buffer(
+        &self,
+        from: &WebGlBuffer,
+        to: Option<WebGlBuffer>,
+    ) -> Result<WebGlBuffer, Error> {
+        self.copy_buffer_with_params(from, None, None, to, None, None, None)
+    }
+
+    /// Copies sub buffer data from a [`WebGlBuffer`] to another [`WebGlBuffer`] with complete parameters.
+    ///
+    /// - `from`: The [`WebGlBuffer`] to read.
+    /// - `from_buffer_bytes_length`: The bytes length of the [`WebGlBuffer`], reads from WebGl context if not provided.
+    /// - `to`: The [`WebGlBuffer`] to write to, creates a new one if not provided.
+    /// - `to_buffer_usage`: [`WebGlBufferUsage`] when creating a new [`WebGlBuffer`].
+    /// - `dst_bytes_offset`: Bytes offset from which to start reading writing to [`WebGlBuffer`].
+    /// - `read_bytes_length`: The number of bytes to copy.
+    pub fn copy_buffer_with_params(
+        &self,
+        from: &WebGlBuffer,
+        from_buffer_bytes_length: Option<usize>,
+        src_bytes_offset: Option<usize>,
+        to: Option<WebGlBuffer>,
+        to_buffer_usage: Option<WebGlBufferUsage>,
+        dst_bytes_offset: Option<usize>,
+        read_bytes_length: Option<usize>,
+    ) -> Result<WebGlBuffer, Error> {
+        if let Some(to) = to.as_ref() {
+            if to == from {
+                return Ok(to.clone());
+            }
+        }
+
+        self.gl
+            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), Some(from));
+
+        let src_bytes_offset = src_bytes_offset.unwrap_or(0);
+        let dst_bytes_offset = dst_bytes_offset.unwrap_or(0);
+        let read_bytes_length =
+            read_bytes_length.unwrap_or_else(|| match from_buffer_bytes_length {
+                Some(bytes_length) => bytes_length,
+                None => self
+                    .gl
+                    .get_buffer_parameter(
+                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::BUFFER_SIZE,
+                    )
+                    .as_f64()
+                    .unwrap() as usize,
+            });
+
+        let to = match to {
+            Some(to) => {
+                self.gl
+                    .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), Some(&to));
+                to
+            }
+            None => {
+                let to = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                let to_buffer_usage = to_buffer_usage.unwrap_or(WebGlBufferUsage::StaticRead);
+                self.gl
+                    .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), Some(&to));
+                self.gl.buffer_data_with_i32(
+                    WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                    (read_bytes_length + dst_bytes_offset) as i32,
+                    to_buffer_usage.to_gl_enum(),
+                );
+                to
+            }
+        };
+
+        self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
+            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            src_bytes_offset as i32,
+            dst_bytes_offset as i32,
+            read_bytes_length as i32,
+        );
+
+        self.gl
+            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+        self.gl
+            .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+
+        Ok(to)
     }
 
     /// Reads all buffer data into an [`Uint8Array`].
@@ -887,13 +991,15 @@ impl WebGlContext {
     /// Reads pixels from framebuffer into a pixel buffer object and returns a native [`WebGlBuffer`].
     /// Calls [`read_buffer`](WebGlContext::read_buffer) or
     /// [`read_buffer_with_params`](WebGlContext::read_buffer_with_params)
-    /// to get pixels back to client.
+    /// or the asynchronous versions to get pixels back to client.
     ///
     /// - `framebuffer`: Reads pixels from back framebuffer if framebuffer is not specified.
     /// A read buffer index should be specified when read from a custom framebuffer.
     /// - `x` and `y`: Uses `0` as default if not specified.
     /// - `width` and `height`: Uses framebuffer width and height if not specified.
     /// - `dst_bytes_offset`: applies no offset if not specified.
+    /// - `to`: [`WebGlBuffer`] to write to. Creates a new one if not provided.
+    /// Custom [`WebGlBuffer`] should be large enough to store the data.
     pub fn read_pixels_pbo(
         &self,
         framebuffer_item: Option<(&WebGlFramebufferItem, usize)>,
@@ -905,8 +1011,8 @@ impl WebGlContext {
         width: Option<usize>,
         height: Option<usize>,
         dst_bytes_offset: Option<usize>,
+        to: Option<WebGlBuffer>,
     ) -> Result<WebGlBuffer, Error> {
-        let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
         match framebuffer_item {
             Some((framebuffer, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
@@ -937,23 +1043,37 @@ impl WebGlContext {
         };
         let dst_bytes_offset = dst_bytes_offset.unwrap_or(0);
 
-        let bytes_length = pixel::bytes_length_of(
-            pixel_format,
-            pixel_data_type,
-            pixel_pack_stores,
-            width,
-            height,
-        );
+        let to_gl_buffer = match to {
+            Some(to) => {
+                self.gl
+                    .bind_buffer(WebGlBufferTarget::PixelPackBuffer.to_gl_enum(), Some(&to));
+                to
+            }
+            None => {
+                let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+                self.gl.bind_buffer(
+                    WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
+                    Some(&gl_buffer),
+                );
 
-        self.gl.bind_buffer(
-            WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
-            Some(&gl_buffer),
-        );
-        self.gl.buffer_data_with_i32(
-            WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
-            bytes_length as i32,
-            WebGlBufferUsage::StaticRead.to_gl_enum(),
-        );
+                let bytes_length = dst_bytes_offset
+                    + pixel::bytes_length_of(
+                        pixel_format,
+                        pixel_data_type,
+                        pixel_pack_stores,
+                        width,
+                        height,
+                    );
+
+                self.gl.buffer_data_with_i32(
+                    WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
+                    bytes_length as i32,
+                    WebGlBufferUsage::StaticRead.to_gl_enum(),
+                );
+
+                gl_buffer
+            }
+        };
         pixel_pack_stores.set_pixel_store(&self.gl);
         self.gl
             .read_pixels_with_i32(
@@ -975,10 +1095,40 @@ impl WebGlContext {
                 .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
         }
 
-        Ok(gl_buffer)
+        Ok(to_gl_buffer)
     }
 
+    /// Blits color buffer bit from read framebuffer to draw framebuffer using linear filter.
+    ///
+    /// Refers to [`blit_framebuffer_with_params`](WebGlContext::blit_framebuffer_with_params) for more details.
     pub fn blit_framebuffer(
+        &self,
+        read: Option<&WebGlFramebufferItem>,
+        draw: Option<&WebGlFramebufferItem>,
+    ) {
+        self.blit_framebuffer_with_params(
+            read,
+            draw,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            WebGlFramebufferBlitMask::Color,
+            WebGlFramebufferBlitFilter::Linear,
+        )
+    }
+
+    /// Blits from read framebuffer to draw framebuffer with complete parameters.
+    ///
+    /// - `read`: Read framebuffer, read from back drawing buffer if not specified.
+    /// - `draw`: Draw framebuffer, draw to back drawing buffer if not specified.
+    ///
+    /// This method does nothing if read and draw framebuffers are the same framebuffers.
+    pub fn blit_framebuffer_with_params(
         &self,
         read: Option<&WebGlFramebufferItem>,
         draw: Option<&WebGlFramebufferItem>,
@@ -990,7 +1140,8 @@ impl WebGlContext {
         dst_y: Option<usize>,
         dst_width: Option<usize>,
         dst_height: Option<usize>,
-        filter_linear: bool,
+        mask: WebGlFramebufferBlitMask,
+        filter: WebGlFramebufferBlitFilter,
     ) {
         match (read, draw) {
             (None, None) => return,
@@ -1023,11 +1174,6 @@ impl WebGlContext {
             Some(draw) => draw.current_height(),
             None => self.gl.drawing_buffer_height() as usize,
         });
-        let filter = if filter_linear {
-            WebGl2RenderingContext::LINEAR
-        } else {
-            WebGl2RenderingContext::NEAREST
-        };
 
         self.gl.bind_framebuffer(
             WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(),
@@ -1040,14 +1186,14 @@ impl WebGlContext {
         self.gl.blit_framebuffer(
             src_x as i32,
             src_y as i32,
-            src_x as i32,
-            src_y as i32,
+            (src_x + src_width) as i32,
+            (src_y + src_height) as i32,
             dst_x as i32,
             dst_y as i32,
-            dst_x as i32,
-            dst_y as i32,
-            mask,
-            filter,
+            (dst_x + dst_width) as i32,
+            (dst_y + dst_height) as i32,
+            mask.to_gl_enum(),
+            filter.to_gl_enum(),
         );
         let bound_draw = self
             .using_draw_framebuffer_item

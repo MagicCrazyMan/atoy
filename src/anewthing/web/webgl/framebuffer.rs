@@ -63,6 +63,26 @@ pub enum WebGlFramebufferAttachTarget {
     DepthStencilAttachment,
 }
 
+/// Available framebuffer blit masks mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlFramebufferBlitMask {
+    #[gl_enum(COLOR_BUFFER_BIT)]
+    Color,
+    #[gl_enum(DEPTH_BUFFER_BIT)]
+    Depth,
+    #[gl_enum(STENCIL_BUFFER_BIT)]
+    Stencil,
+}
+
+/// Available framebuffer blit filters mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlFramebufferBlitFilter {
+    #[gl_enum(NEAREST)]
+    Nearest,
+    #[gl_enum(LINEAR)]
+    Linear,
+}
+
 impl WebGlFramebufferAttachTarget {
     /// Returns the sequence index of color attachments.
     /// Always returns `0` for depth and stencil attachments.

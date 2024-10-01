@@ -21,7 +21,7 @@ use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
     DomException, HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
-    WebGl2RenderingContext, WebGlSampler, WebGlTexture,
+    WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
 };
 
 use crate::anewthing::texturing::{TextureCubeMapFace, Texturing, TexturingItem, TexturingMessage};
@@ -1347,6 +1347,7 @@ impl<'a> WebGlPlainTextureData<'a> {
         dst_height: Option<usize>,
         dst_depth_or_len: Option<usize>,
         buffer_manager: &mut WebGlBufferManager,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
     ) -> Result<(), Error> {
         let dst_origin_x = dst_origin_x.unwrap_or(0);
         let dst_origin_y = dst_origin_y.unwrap_or(0);
@@ -1417,7 +1418,7 @@ impl<'a> WebGlPlainTextureData<'a> {
                 bytes_offset,
                 ..
             } => {
-                let item = buffer_manager.sync_buffering(buffering)?;
+                let item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
@@ -1876,6 +1877,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
         dst_height: Option<usize>,
         dst_depth_or_len: Option<usize>,
         buffer_manager: &mut WebGlBufferManager,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
     ) -> Result<(), Error> {
         let dst_origin_x = dst_origin_x.unwrap_or(0);
         let dst_origin_y = dst_origin_y.unwrap_or(0);
@@ -1947,7 +1949,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                 bytes_offset,
                 ..
             } => {
-                let item = buffer_manager.sync_buffering(buffering)?;
+                let item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
                     WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
                     Some(item.gl_buffer()),
@@ -2183,12 +2185,13 @@ impl WebGlTextureManager {
     pub fn sync_texturing(
         &mut self,
         texturing: &WebGlTexturing,
-        buffer_manager: &mut WebGlBufferManager,
         activating_texture_unit: WebGlTextureUnit,
         using_textures: &HashMap<
             (WebGlTextureUnit, WebGlTextureLayout),
             (WebGlTexture, WebGlSampler),
         >,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
+        buffer_manager: &mut WebGlBufferManager,
         capabilities: &WebGlCapabilities,
     ) -> Result<WebGlTextureItem, Error> {
         let layout = texturing.create_options.layout;
@@ -2280,6 +2283,7 @@ impl WebGlTextureManager {
                             dst_height,
                             dst_depth_or_len,
                             buffer_manager,
+                            using_ubos,
                         )?;
 
                         if generate_mipmap {
@@ -2302,6 +2306,7 @@ impl WebGlTextureManager {
                         dst_height,
                         dst_depth_or_len,
                         buffer_manager,
+                        using_ubos,
                     )?,
                     _ => {
                         warn!("incompatible texture data and internal format, skipped");

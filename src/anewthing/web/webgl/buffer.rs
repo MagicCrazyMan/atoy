@@ -417,7 +417,11 @@ impl WebGlBufferManager {
     }
 
     /// Manages a [`WebGlBuffering`] and syncs its queueing [`BufferData`] into WebGl context.
-    pub fn sync_buffering(&mut self, buffering: &WebGlBuffering) -> Result<WebGlBufferItem, Error> {
+    pub fn sync_buffering(
+        &mut self,
+        buffering: &WebGlBuffering,
+        using_ubos: &mut HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
+    ) -> Result<WebGlBufferItem, Error> {
         let mut buffers = self.buffers.borrow_mut();
         let buffer_item = match buffers.entry(*buffering.id()) {
             Entry::Occupied(entry) => {
@@ -459,6 +463,29 @@ impl WebGlBufferManager {
                     self.gl
                         .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
 
+                    // remounts uniform buffer objects if necessary.
+                    using_ubos
+                        .iter_mut()
+                        .filter(|(_, (g, _))| g == gl_buffer)
+                        .for_each(|(k, v)| {
+                            match &v.1 {
+                                Some((offset, length)) => {
+                                    self.gl.bind_buffer_range_with_i32_and_i32(
+                                        WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                                        *k as u32,
+                                        Some(&new_gl_buffer),
+                                        *offset as i32,
+                                        *length as i32,
+                                    )
+                                }
+                                None => self.gl.bind_buffer_base(
+                                    WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                                    *k as u32,
+                                    Some(&new_gl_buffer),
+                                ),
+                            }
+                            v.0 = new_gl_buffer.clone();
+                        });
                     *gl_buffer = new_gl_buffer;
                     *bytes_length = buffering.bytes_length();
                 }
