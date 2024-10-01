@@ -63,9 +63,9 @@ pub enum WebGlFramebufferAttachTarget {
     DepthStencilAttachment,
 }
 
-/// Available framebuffer blit masks mapped from [`WebGl2RenderingContext`].
+/// Available buffer blit masks mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlFramebufferBlitMask {
+pub enum WebGlBufferBitMask {
     #[gl_enum(COLOR_BUFFER_BIT)]
     Color,
     #[gl_enum(DEPTH_BUFFER_BIT)]

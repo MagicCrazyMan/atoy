@@ -219,6 +219,28 @@ impl From<WebGlTextureLayoutWithSize> for WebGlTextureLayout {
     }
 }
 
+/// Available texture 2d targets mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlTexture2DTarget {
+    #[gl_enum(TEXTURE_2D)]
+    Texture2D,
+    TextureCubeMapPositiveX,
+    TextureCubeMapNegativeX,
+    TextureCubeMapPositiveY,
+    TextureCubeMapNegativeY,
+    TextureCubeMapPositiveZ,
+    TextureCubeMapNegativeZ,
+}
+
+/// Available texture 3d targets mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlTexture3DTarget {
+    #[gl_enum(TEXTURE_2D_ARRAY)]
+    Texture2DArray,
+    #[gl_enum(TEXTURE_3D)]
+    Texture3D,
+}
+
 /// Available texture targets mapped from [`WebGl2RenderingContext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum WebGlTextureTarget {
@@ -395,19 +417,10 @@ pub enum WebGlSampleCompareMode {
 }
 
 /// Available texture plain internal formats mapped from [`WebGl2RenderingContext`].
+/// Unsized internal formats are removed.
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
 pub enum WebGlTexturePlainInternalFormat {
-    #[gl_enum(RGB)]
-    RGB,
-    #[gl_enum(RGBA)]
-    RGBA,
-    #[gl_enum(LUMINANCE)]
-    LUMINANCE,
-    #[gl_enum(LUMINANCE_ALPHA)]
-    LUMINANCE_ALPHA,
-    #[gl_enum(ALPHA)]
-    ALPHA,
     #[gl_enum(RGBA32I)]
     RGBA32I,
     #[gl_enum(RGBA32UI)]
@@ -513,150 +526,6 @@ pub enum WebGlTexturePlainInternalFormat {
     SRGB8,
     #[gl_enum(RGB9_E5)]
     RGB9_E5,
-}
-
-impl WebGlTexturePlainInternalFormat {
-    // /// Checks whether the pixel data type is compatible with the internal format.
-    // ///
-    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_data_type(&self, data_type: WebGlPixelDataType) -> bool {
-    //     match self {
-    //         Self::RGB => match data_type {
-    //             WebGlPixelDataType::UnsignedByte
-    //             | WebGlPixelDataType::UnsignedShort_5_6_5 => true,
-    //             _ => false,
-    //         },
-    //         Self::RGBA => match data_type {
-    //             WebGlPixelDataType::UnsignedByte
-    //             | WebGlPixelDataType::UnsignedShort_5_5_5_1
-    //             | WebGlPixelDataType::UnsignedShort_4_4_4_4 => true,
-    //             _ => false,
-    //         },
-    //         Self::LUMINANCE
-    //         | Self::LUMINANCE_ALPHA
-    //         | Self::ALPHA
-    //         | Self::RGBA8
-    //         | Self::RGBA8UI
-    //         | Self::SRGB8_ALPHA8
-    //         | Self::RGB8
-    //         | Self::RG8
-    //         | Self::RG8UI
-    //         | Self::R8
-    //         | Self::R8UI
-    //         | Self::RGB8UI
-    //         | Self::SRGB8 => match data_type {
-    //             WebGlPixelDataType::UnsignedByte => true,
-    //             _ => false,
-    //         },
-    //         Self::RGB10_A2 => match data_type {
-    //             WebGlPixelDataType::UnsignedInt_2_10_10_10Rev => true,
-    //             _ => false,
-    //         },
-    //         Self::RGBA4 => match data_type {
-    //             WebGlPixelDataType::UnsignedByte
-    //             | WebGlPixelDataType::UnsignedShort_4_4_4_4 => true,
-    //             _ => false,
-    //         },
-    //         Self::RGB5_A1 => match data_type {
-    //             WebGlPixelDataType::UnsignedByte
-    //             | WebGlPixelDataType::UnsignedShort_5_5_5_1 => true,
-    //             _ => false,
-    //         },
-    //         Self::RGB565 => match data_type {
-    //             WebGlPixelDataType::UnsignedByte
-    //             | WebGlPixelDataType::UnsignedShort_5_6_5 => true,
-    //             _ => false,
-    //         },
-    //         Self::R16F
-    //         | Self::RG16F
-    //         | Self::RGBA16F
-    //         | Self::RGB16F
-    //         | Self::RGB9_E5 => match data_type {
-    //             WebGlPixelDataType::HalfFloat | WebGlPixelDataType::Float => true,
-    //             _ => false,
-    //         },
-    //         Self::R32F
-    //         | Self::RG32F
-    //         | Self::RGBA32F
-    //         | Self::RGB32F => match data_type {
-    //             WebGlPixelDataType::Float => true,
-    //             _ => false,
-    //         },
-    //         Self::R11F_G11F_B10F => match data_type {
-    //             WebGlPixelDataType::HalfFloat
-    //             | WebGlPixelDataType::Float
-    //             | WebGlPixelDataType::UnsignedInt_10F_11F_11F_Rev => true,
-    //             _ => false,
-    //         },
-    //     }
-    // }
-
-    // /// Checks whether the pixel format is compatible with the internal format.
-    // ///
-    // /// References [https://registry.khronos.org/webgl/specs/latest/2.0/#3.7.6] for more details.
-    // fn check_pixel_format(&self, format: WebGlPixelFormat) -> bool {
-    //     match self {
-    //         Self::RGB
-    //         | Self::RGB16F
-    //         | Self::RGB32F
-    //         | Self::SRGB8
-    //         | Self::RGB9_E5
-    //         | Self::RGB8
-    //         | Self::RGB565
-    //         | Self::R11F_G11F_B10F => match format {
-    //             WebGlPixelFormat::Rgb => true,
-    //             _ => false,
-    //         },
-    //         Self::RGBA
-    //         | Self::RGBA8
-    //         | Self::RGBA8UI
-    //         | Self::SRGB8_ALPHA8
-    //         | Self::RGB10_A2
-    //         | Self::RGBA4
-    //         | Self::RGB5_A1
-    //         | Self::RGBA16F
-    //         | Self::RGBA32F => match format {
-    //             WebGlPixelFormat::Rgba => true,
-    //             _ => false,
-    //         },
-    //         Self::LUMINANCE => match format {
-    //             WebGlPixelFormat::Luminance => true,
-    //             _ => false,
-    //         },
-    //         Self::LUMINANCE_ALPHA => match format {
-    //             WebGlPixelFormat::LuminanceAlpha => true,
-    //             _ => false,
-    //         },
-    //         Self::ALPHA => match format {
-    //             WebGlPixelFormat::Alpha => true,
-    //             _ => false,
-    //         },
-    //         Self::RG8
-    //         | Self::RG16F
-    //         | Self::RG32F => match format {
-    //             WebGlPixelFormat::Rg => true,
-    //             _ => false,
-    //         },
-    //         Self::RG8UI => match format {
-    //             WebGlPixelFormat::RgInteger => true,
-    //             _ => false,
-    //         },
-    //         Self::R8
-    //         | Self::R16F
-    //         | Self::R32F => match format {
-    //             WebGlPixelFormat::Red => true,
-    //             _ => false,
-    //         },
-    //         Self::R8UI => match format {
-    //             WebGlPixelFormat::RedInteger => true,
-    //             _ => false,
-    //         },
-    //         Self::RGB8UI => match format {
-    //             WebGlPixelFormat::RgbInteger => true,
-    //             _ => false,
-    //         },
-    //     }
-    // }
 }
 
 /// Available texture compressed formats mapped from [`WebGl2RenderingContext`].
