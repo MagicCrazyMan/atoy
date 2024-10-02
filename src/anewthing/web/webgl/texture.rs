@@ -1060,6 +1060,20 @@ impl WebGlSamplerParameters {
     }
 }
 
+/// Available mipmap generation hint mapped from [`WebGl2RenderingContext`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlMipmapGenerationHint {
+    Fastest,
+    Nicest,
+    DontCare,
+}
+
+impl Default for WebGlMipmapGenerationHint {
+    fn default() -> Self {
+        Self::DontCare
+    }
+}
+
 /// Available uncompressed texture data types.
 pub enum WebGlPlainTextureData<'a> {
     /// Pixel data type of binary is restricted to [`WebGlPixelDataType::UnsignedByte`].
@@ -1947,7 +1961,7 @@ pub enum WebGlTextureData<'a> {
     Plain {
         pixel_format: WebGlPixelFormat,
         pixel_unpack_stores: WebGlPixelUnpackStores,
-        generate_mipmap: bool,
+        generate_mipmap: (bool, WebGlMipmapGenerationHint),
         data: WebGlPlainTextureData<'a>,
     },
     Compressed {
@@ -2155,8 +2169,20 @@ impl WebGlTextureManager {
                             using_ubos,
                         )?;
 
-                        if generate_mipmap {
+                        if generate_mipmap.0 {
+                            if generate_mipmap.1 != WebGlMipmapGenerationHint::DontCare {
+                                self.gl.hint(
+                                    WebGl2RenderingContext::GENERATE_MIPMAP_HINT,
+                                    generate_mipmap.1.to_gl_enum(),
+                                );
+                            }
                             self.gl.generate_mipmap(layout.to_gl_enum());
+                            if generate_mipmap.1 != WebGlMipmapGenerationHint::DontCare {
+                                self.gl.hint(
+                                    WebGl2RenderingContext::GENERATE_MIPMAP_HINT,
+                                    WebGl2RenderingContext::DONT_CARE,
+                                );
+                            }
                         }
                     }
                     (

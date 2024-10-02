@@ -1372,4 +1372,9 @@ impl WebGlContext {
 
         Ok(to)
     }
+
+    pub fn draw_arrays(&self, draw_mode: WebGlDrawMode, first: usize, count: usize) {
+        // self.gl
+        //     .draw_arrays(draw_mode.to_gl_enum(), first as i32, count as i32);
+    }
 }
