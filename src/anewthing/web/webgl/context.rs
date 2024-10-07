@@ -1,6 +1,8 @@
+use std::ops::{Bound, Range, RangeBounds};
+
 use hashbrown::{hash_map::Entry, HashMap};
-use js_sys::{Array, Uint8Array};
-use wasm_bindgen::JsValue;
+use js_sys::{Array, Float32Array, Uint8Array};
+use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture, WebGlUniformLocation,
 };
@@ -12,6 +14,7 @@ use super::{
     },
     capabilities::WebGlCapabilities,
     client_wait::WebGlClientWait,
+    draw::WebGlDepthCompareFunction,
     error::Error,
     framebuffer::{
         WebGlBufferBitMask, WebGlFramebufferAttachTarget, WebGlFramebufferBlitFilter,
@@ -35,6 +38,12 @@ pub struct WebGlContext {
     framebuffer_factory: WebGlFramebufferFactory,
     capabilities: WebGlCapabilities,
 
+    depth_test: bool,
+    depth_write_mask: bool,
+    depth_compare_function: WebGlDepthCompareFunction,
+    depth_range: Range<f32>,
+    blend: bool,
+
     using_draw_framebuffer_item: Option<WebGlFramebufferItem>,
     using_program_item: Option<WebGlProgramItem>,
     using_ubos: HashMap<usize, (WebGlBuffer, Option<(usize, usize)>)>,
@@ -51,13 +60,34 @@ impl WebGlContext {
             texture_manager: WebGlTextureManager::new(gl.clone()),
             framebuffer_factory: WebGlFramebufferFactory::new(gl.clone()),
             capabilities: WebGlCapabilities::new(gl.clone()),
-            gl,
+
+            depth_test: gl.is_enabled(WebGl2RenderingContext::DEPTH_TEST),
+            depth_write_mask: gl
+                .get_parameter(WebGl2RenderingContext::DEPTH_WRITEMASK)
+                .ok()
+                .and_then(|v| v.as_bool())
+                .unwrap(),
+            depth_compare_function: gl
+                .get_parameter(WebGl2RenderingContext::DEPTH_FUNC)
+                .ok()
+                .and_then(|v| v.as_f64())
+                .and_then(|v| WebGlDepthCompareFunction::from_gl_enum(v as u32).ok())
+                .unwrap(),
+            depth_range: gl
+                .get_parameter(WebGl2RenderingContext::DEPTH_RANGE)
+                .ok()
+                .and_then(|v| v.dyn_into::<Float32Array>().ok())
+                .map(|v| (v.get_index(0)..v.get_index(1)))
+                .unwrap(),
+            blend: gl.is_enabled(WebGl2RenderingContext::BLEND),
 
             using_draw_framebuffer_item: None,
             using_program_item: None,
             using_ubos: HashMap::new(),
             activating_texture_unit: WebGlTextureUnit::Texture0,
             using_textures: HashMap::new(),
+
+            gl,
         }
     }
 
@@ -99,6 +129,64 @@ impl WebGlContext {
     /// Returns [`WebGlCapabilities`].
     pub fn capabilities(&self) -> &WebGlCapabilities {
         &self.capabilities
+    }
+
+    /// Returns `true` if depth test is enabled.
+    pub fn depth_test(&self) -> bool {
+        self.depth_test
+    }
+
+    /// Sets whether enable depth test.
+    pub fn set_depth_test(&mut self, enable: bool) {
+        self.depth_test = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::DEPTH_TEST);
+        }
+    }
+
+    /// Returns `true` if writing into the depth buffer is enabled.
+    pub fn depth_write_mask(&self) -> bool {
+        self.depth_write_mask
+    }
+
+    /// Sets whether or not writing into the depth buffer.
+    pub fn set_depth_write_mask(&mut self, writable: bool) {
+        self.depth_write_mask = writable;
+        self.gl.depth_mask(writable);
+    }
+
+    /// Returns depth range.
+    pub fn depth_range(&self) -> Range<f32> {
+        self.depth_range.clone()
+    }
+
+    /// Sets depth range.
+    ///
+    /// `z_near` and `z_far` are both clamped to range 0.0 to 1.0.
+    /// If `z_near` is greater than `z_far`, the values are swapped.
+    pub fn set_depth_range(&mut self, z_near: f32, z_far: f32) {
+        let z_near = z_near.clamp(0.0, 1.0);
+        let z_far = z_far.clamp(0.0, 1.0);
+        let (z_near, z_far) = if z_near <= z_far {
+            (z_near, z_far)
+        } else {
+            (z_far, z_near)
+        };
+        self.depth_range = z_near..z_far;
+        self.gl.depth_range(z_near, z_far);
+    }
+
+    /// Returns depth test compare function.
+    pub fn depth_compare_function(&self) -> WebGlDepthCompareFunction {
+        self.depth_compare_function
+    }
+
+    /// Sets depth test compare function.
+    pub fn set_depth_compare_function(&mut self, cmp: WebGlDepthCompareFunction) {
+        self.depth_compare_function = cmp;
+        self.gl.depth_func(cmp.to_gl_enum());
     }
 
     // /// Creates a new [`WebGlClientWait`].
@@ -1371,10 +1459,5 @@ impl WebGlContext {
             .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
 
         Ok(to)
-    }
-
-    pub fn draw_arrays(&self, draw_mode: WebGlDrawMode, first: usize, count: usize) {
-        // self.gl
-        //     .draw_arrays(draw_mode.to_gl_enum(), first as i32, count as i32);
     }
 }
