@@ -1,4 +1,4 @@
-use std::ops::{Bound, Range, RangeBounds};
+use std::ops::Range;
 
 use hashbrown::{hash_map::Entry, HashMap};
 use js_sys::{Array, Float32Array, Uint8Array};
@@ -39,7 +39,7 @@ pub struct WebGlContext {
     capabilities: WebGlCapabilities,
 
     depth_test: bool,
-    depth_write_mask: bool,
+    depth_writable: bool,
     depth_compare_function: WebGlDepthCompareFunction,
     depth_range: Range<f32>,
     blend: bool,
@@ -62,7 +62,7 @@ impl WebGlContext {
             capabilities: WebGlCapabilities::new(gl.clone()),
 
             depth_test: gl.is_enabled(WebGl2RenderingContext::DEPTH_TEST),
-            depth_write_mask: gl
+            depth_writable: gl
                 .get_parameter(WebGl2RenderingContext::DEPTH_WRITEMASK)
                 .ok()
                 .and_then(|v| v.as_bool())
@@ -136,7 +136,7 @@ impl WebGlContext {
         self.depth_test
     }
 
-    /// Sets whether enable depth test.
+    /// Enables or disables depth test.
     pub fn set_depth_test(&mut self, enable: bool) {
         self.depth_test = enable;
         if enable {
@@ -147,13 +147,13 @@ impl WebGlContext {
     }
 
     /// Returns `true` if writing into the depth buffer is enabled.
-    pub fn depth_write_mask(&self) -> bool {
-        self.depth_write_mask
+    pub fn depth_writable(&self) -> bool {
+        self.depth_writable
     }
 
     /// Sets whether or not writing into the depth buffer.
-    pub fn set_depth_write_mask(&mut self, writable: bool) {
-        self.depth_write_mask = writable;
+    pub fn set_depth_writable(&mut self, writable: bool) {
+        self.depth_writable = writable;
         self.gl.depth_mask(writable);
     }
 
@@ -187,6 +187,21 @@ impl WebGlContext {
     pub fn set_depth_compare_function(&mut self, cmp: WebGlDepthCompareFunction) {
         self.depth_compare_function = cmp;
         self.gl.depth_func(cmp.to_gl_enum());
+    }
+
+    /// Returns `true` if color blending is enabled.
+    pub fn blend(&self) -> bool {
+        self.blend
+    }
+
+    /// Enables or disables color blending.
+    pub fn set_blend(&mut self, enable: bool) {
+        self.blend = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::BLEND);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::BLEND);
+        }
     }
 
     // /// Creates a new [`WebGlClientWait`].
