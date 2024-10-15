@@ -1,8 +1,8 @@
 use proc::GlEnum;
 
-/// Available cull face mode mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+/// Available face mode mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlCullFace {
+pub enum WebGlFaceMode {
     Front,
     Back,
     FrontAndBack,
@@ -72,7 +72,7 @@ pub enum WebGlBlendEquation {
 
 /// Available blend functions mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
-pub enum WebGlBlendFunction {
+pub enum WebGlBlendFactor {
     Zero,
     One,
     SrcColor,
@@ -88,26 +88,6 @@ pub enum WebGlBlendFunction {
     OneMinusConstantColor,
     ConstantAlpha,
     OneMinusConstantAlpha,
-}
-
-/// Available blend function with values mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum WebGlBlendFunctionWithValue {
-    Zero,
-    One,
-    SrcColor,
-    OneMinusSrcColor,
-    DstColor,
-    OneMinusDstColor,
-    SrcAlpha,
-    OneMinusSrcAlpha,
-    SrcAlphaSaturate,
-    DstAlpha,
-    OneMinusDstAlpha,
-    ConstantColor(f64, f64, f64, f64),
-    OneMinusConstantColor(f64, f64, f64, f64),
-    ConstantAlpha(f64),
-    OneMinusConstantAlpha(f64),
 }
 
 /// Available data type of element indices mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
@@ -128,4 +108,13 @@ pub enum WebGlDrawMode {
     Triangles,
     TriangleStrip,
     TriangleFan,
+}
+
+/// Available front face modes mapped from [`WebGl2RenderingContext`](web_sys::WebGl2RenderingContext).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, GlEnum)]
+pub enum WebGlFrontFace {
+    #[gl_enum(CW)]
+    Clockwise,
+    #[gl_enum(CCW)]
+    CounterClockwise,
 }

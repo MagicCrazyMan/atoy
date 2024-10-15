@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use hashbrown::{hash_map::Entry, HashMap};
-use js_sys::{Array, Float32Array, Uint8Array};
+use js_sys::{Array, Float32Array, Int32Array, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{
     WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture, WebGlUniformLocation,
@@ -14,7 +14,10 @@ use super::{
     },
     capabilities::WebGlCapabilities,
     client_wait::WebGlClientWait,
-    draw::WebGlDepthCompareFunction,
+    draw::{
+        WebGlBlendEquation, WebGlBlendFactor, WebGlDepthCompareFunction, WebGlFaceMode,
+        WebGlFrontFace, WebGlStencilCompareFunction, WebGlStencilOperator,
+    },
     error::Error,
     framebuffer::{
         WebGlBufferBitMask, WebGlFramebufferAttachTarget, WebGlFramebufferBlitFilter,
@@ -38,11 +41,45 @@ pub struct WebGlContext {
     framebuffer_factory: WebGlFramebufferFactory,
     capabilities: WebGlCapabilities,
 
+    dither: bool,
+    scissor_test: bool,
+    scissor: (i32, i32, i32, i32),
     depth_test: bool,
     depth_writable: bool,
     depth_compare_function: WebGlDepthCompareFunction,
     depth_range: Range<f32>,
+    stencil_test: bool,
+    stencil_compare_functions_front: (WebGlStencilCompareFunction, i32, u32),
+    stencil_compare_functions_back: (WebGlStencilCompareFunction, i32, u32),
+    stencil_operators_front: (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ),
+    stencil_operators_back: (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ),
+    stencil_write_mask_front: u32,
+    stencil_write_mask_back: u32,
     blend: bool,
+    blend_color: (f32, f32, f32, f32),
+    blend_factors: (
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+    ), // separated
+    blend_equations: (WebGlBlendEquation, WebGlBlendEquation), // separate
+    front_face: WebGlFrontFace,
+    cull_face: bool,
+    cull_face_mode: WebGlFaceMode,
+    polygon_offset: bool,
+    polygon_offset_params: (f32, f32),
+    sample_coverage: bool,
+    sample_alpha_to_coverage: bool,
+    sample_coverage_params: (f32, bool),
 
     using_draw_framebuffer_item: Option<WebGlFramebufferItem>,
     using_program_item: Option<WebGlProgramItem>,
@@ -54,6 +91,7 @@ pub struct WebGlContext {
 impl WebGlContext {
     /// Constructs a new WebGl drawing context.
     pub fn new(gl: WebGl2RenderingContext) -> Self {
+        let get_parameters = GetParameter(&gl);
         Self {
             program_manager: WebGlProgramManager::new(gl.clone()),
             buffer_manager: WebGlBufferManager::new(gl.clone()),
@@ -61,25 +99,47 @@ impl WebGlContext {
             framebuffer_factory: WebGlFramebufferFactory::new(gl.clone()),
             capabilities: WebGlCapabilities::new(gl.clone()),
 
+            dither: gl.is_enabled(WebGl2RenderingContext::DITHER),
+            scissor_test: gl.is_enabled(WebGl2RenderingContext::SCISSOR_TEST),
+            scissor: get_parameters.scissor_box(),
             depth_test: gl.is_enabled(WebGl2RenderingContext::DEPTH_TEST),
-            depth_writable: gl
-                .get_parameter(WebGl2RenderingContext::DEPTH_WRITEMASK)
-                .ok()
-                .and_then(|v| v.as_bool())
-                .unwrap(),
-            depth_compare_function: gl
-                .get_parameter(WebGl2RenderingContext::DEPTH_FUNC)
-                .ok()
-                .and_then(|v| v.as_f64())
-                .and_then(|v| WebGlDepthCompareFunction::from_gl_enum(v as u32).ok())
-                .unwrap(),
-            depth_range: gl
-                .get_parameter(WebGl2RenderingContext::DEPTH_RANGE)
-                .ok()
-                .and_then(|v| v.dyn_into::<Float32Array>().ok())
-                .map(|v| (v.get_index(0)..v.get_index(1)))
-                .unwrap(),
+            depth_writable: get_parameters.depth_writable(),
+            depth_compare_function: get_parameters.depth_compare_function(),
+            depth_range: get_parameters.depth_range(),
+            stencil_test: gl.is_enabled(WebGl2RenderingContext::STENCIL_TEST),
+            stencil_compare_functions_front: get_parameters.stencil_compare_functions_front(),
+            stencil_compare_functions_back: get_parameters.stencil_compare_functions_back(),
+            stencil_operators_front: get_parameters.stencil_operators_front(),
+            stencil_operators_back: get_parameters.stencil_operators_back(),
+            stencil_write_mask_front: get_parameters.stencil_write_mask_front(),
+            stencil_write_mask_back: get_parameters.stencil_write_mask_back(),
             blend: gl.is_enabled(WebGl2RenderingContext::BLEND),
+            blend_color: get_parameters.blend_color(),
+            blend_factors: (
+                get_parameters.blend_src_rgb_factor(),
+                get_parameters.blend_dst_rgb_factor(),
+                get_parameters.blend_src_alpha_factor(),
+                get_parameters.blend_dst_alpha_factor(),
+            ),
+            blend_equations: (
+                get_parameters.blend_equation_rgb(),
+                get_parameters.blend_equation_alpha(),
+            ),
+            front_face: get_parameters.front_face(),
+            cull_face: gl.is_enabled(WebGl2RenderingContext::CULL_FACE),
+            cull_face_mode: get_parameters.cull_face_mode(),
+            polygon_offset: gl.is_enabled(WebGl2RenderingContext::POLYGON_OFFSET_FILL),
+            polygon_offset_params: (
+                get_parameters.polygon_offset_factor(),
+                get_parameters.polygon_offset_units(),
+            ),
+            sample_coverage: gl.is_enabled(WebGl2RenderingContext::SAMPLE_COVERAGE),
+            sample_alpha_to_coverage: gl
+                .is_enabled(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE),
+            sample_coverage_params: (
+                get_parameters.sample_coverage_value(),
+                get_parameters.sample_coverage_invert(),
+            ),
 
             using_draw_framebuffer_item: None,
             using_program_item: None,
@@ -131,6 +191,59 @@ impl WebGlContext {
         &self.capabilities
     }
 
+    /// Returns `true` if dither is enabled.
+    pub fn dither(&self) -> bool {
+        self.dither
+    }
+
+    /// Enables or disables dither.
+    pub fn set_dither(&mut self, enable: bool) {
+        if self.dither == enable {
+            return;
+        }
+
+        self.dither = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::DITHER);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::DITHER);
+        }
+    }
+
+    /// Returns `true` if scissor test is enabled.
+    pub fn scissor_test(&self) -> bool {
+        self.scissor_test
+    }
+
+    /// Enables or disables scissor test.
+    pub fn set_scissor_test(&mut self, enable: bool) {
+        if self.scissor_test == enable {
+            return;
+        }
+
+        self.scissor_test = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::SCISSOR_TEST);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::SCISSOR_TEST);
+        }
+    }
+
+    /// Returns scissor box of scissor test in (x, y, width, height).
+    pub fn scissor_box(&self) -> (i32, i32, i32, i32) {
+        self.scissor
+    }
+
+    /// Returns scissor box of scissor test in (x, y, width, height).
+    pub fn set_scissor_box(&mut self, x: i32, y: i32, width: i32, height: i32) {
+        if self.scissor == (x, y, width, height) {
+            return;
+        }
+
+        self.scissor = (x, y, width, height);
+        self.gl.scissor(x, y, width, height);
+    }
+
     /// Returns `true` if depth test is enabled.
     pub fn depth_test(&self) -> bool {
         self.depth_test
@@ -138,6 +251,10 @@ impl WebGlContext {
 
     /// Enables or disables depth test.
     pub fn set_depth_test(&mut self, enable: bool) {
+        if self.depth_test == enable {
+            return;
+        }
+
         self.depth_test = enable;
         if enable {
             self.gl.enable(WebGl2RenderingContext::DEPTH_TEST);
@@ -153,6 +270,10 @@ impl WebGlContext {
 
     /// Sets whether or not writing into the depth buffer.
     pub fn set_depth_writable(&mut self, writable: bool) {
+        if self.depth_writable == writable {
+            return;
+        }
+
         self.depth_writable = writable;
         self.gl.depth_mask(writable);
     }
@@ -174,6 +295,11 @@ impl WebGlContext {
         } else {
             (z_far, z_near)
         };
+
+        if self.depth_range == (z_near..z_far) {
+            return;
+        }
+
         self.depth_range = z_near..z_far;
         self.gl.depth_range(z_near, z_far);
     }
@@ -185,8 +311,185 @@ impl WebGlContext {
 
     /// Sets depth test compare function.
     pub fn set_depth_compare_function(&mut self, cmp: WebGlDepthCompareFunction) {
+        if self.depth_compare_function == cmp {
+            return;
+        }
+
         self.depth_compare_function = cmp;
         self.gl.depth_func(cmp.to_gl_enum());
+    }
+
+    /// Returns `true` if stencil test is enabled.
+    pub fn stencil_test(&self) -> bool {
+        self.stencil_test
+    }
+
+    /// Enables or disables stencil test.
+    pub fn set_stencil_test(&mut self, enable: bool) {
+        if self.stencil_test == enable {
+            return;
+        }
+
+        self.stencil_test = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::STENCIL_TEST);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::STENCIL_TEST);
+        }
+    }
+
+    /// Returns stencil compare functions for front face in (func, ref, mask).
+    pub fn stencil_compare_functions_front(&self) -> (WebGlStencilCompareFunction, i32, u32) {
+        self.stencil_compare_functions_front
+    }
+
+    /// Returns stencil compare functions for back face in (func, ref, mask).
+    pub fn stencil_compare_functions_back(&self) -> (WebGlStencilCompareFunction, i32, u32) {
+        self.stencil_compare_functions_back
+    }
+
+    /// Sets stencil compare function for face.
+    pub fn set_stencil_compare_functions(
+        &mut self,
+        face: WebGlFaceMode,
+        func: WebGlStencilCompareFunction,
+        reference: i32,
+        mask: u32,
+    ) {
+        let p = (func, reference, mask);
+        match face {
+            WebGlFaceMode::Front => {
+                if self.stencil_compare_functions_front == p {
+                    return;
+                } else {
+                    self.stencil_compare_functions_front = p;
+                }
+            }
+            WebGlFaceMode::Back => {
+                if self.stencil_compare_functions_back == p {
+                    return;
+                } else {
+                    self.stencil_compare_functions_back = p;
+                }
+            }
+            WebGlFaceMode::FrontAndBack => {
+                if self.stencil_compare_functions_front == p
+                    && self.stencil_compare_functions_back == p
+                {
+                    return;
+                } else {
+                    self.stencil_compare_functions_front = p;
+                    self.stencil_compare_functions_back = p;
+                }
+            }
+        }
+
+        self.gl
+            .stencil_func_separate(face.to_gl_enum(), func.to_gl_enum(), reference, mask);
+    }
+
+    /// Returns stencil operators for front face in (fail, zfail, zpass).
+    pub fn stencil_operators_front(
+        &self,
+    ) -> (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ) {
+        self.stencil_operators_front
+    }
+
+    /// Returns stencil operators for back face in (fail, zfail, zpass).
+    pub fn stencil_operators_back(
+        &self,
+    ) -> (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ) {
+        self.stencil_operators_back
+    }
+
+    /// Sets stencil operators for face.
+    pub fn set_stencil_operators(
+        &mut self,
+        face: WebGlFaceMode,
+        fail: WebGlStencilOperator,
+        zfail: WebGlStencilOperator,
+        zpass: WebGlStencilOperator,
+    ) {
+        let p = (fail, zfail, zpass);
+        match face {
+            WebGlFaceMode::Front => {
+                if self.stencil_operators_front == p {
+                    return;
+                } else {
+                    self.stencil_operators_front = p;
+                }
+            }
+            WebGlFaceMode::Back => {
+                if self.stencil_operators_back == p {
+                    return;
+                } else {
+                    self.stencil_operators_back = p;
+                }
+            }
+            WebGlFaceMode::FrontAndBack => {
+                if self.stencil_operators_front == p && self.stencil_operators_back == p {
+                    return;
+                } else {
+                    self.stencil_operators_front = p;
+                    self.stencil_operators_back = p;
+                }
+            }
+        }
+
+        self.gl.stencil_op_separate(
+            face.to_gl_enum(),
+            fail.to_gl_enum(),
+            zfail.to_gl_enum(),
+            zpass.to_gl_enum(),
+        );
+    }
+
+    /// Returns stencil write mask for front face.
+    pub fn stencil_write_mask_front(&self) -> u32 {
+        self.stencil_write_mask_front
+    }
+
+    /// Returns stencil write mask for back face.
+    pub fn stencil_write_mask_back(&self) -> u32 {
+        self.stencil_write_mask_back
+    }
+
+    /// Sets stencil write mask for face.
+    pub fn set_write_mask(&mut self, face: WebGlFaceMode, mask: u32) {
+        match face {
+            WebGlFaceMode::Front => {
+                if self.stencil_write_mask_front == mask {
+                    return;
+                } else {
+                    self.stencil_write_mask_front = mask;
+                }
+            }
+            WebGlFaceMode::Back => {
+                if self.stencil_write_mask_back == mask {
+                    return;
+                } else {
+                    self.stencil_write_mask_back = mask;
+                }
+            }
+            WebGlFaceMode::FrontAndBack => {
+                if self.stencil_write_mask_front == mask && self.stencil_write_mask_back == mask {
+                    return;
+                } else {
+                    self.stencil_write_mask_front = mask;
+                    self.stencil_write_mask_back = mask;
+                }
+            }
+        }
+
+        self.gl.stencil_mask_separate(face.to_gl_enum(), mask);
     }
 
     /// Returns `true` if color blending is enabled.
@@ -196,12 +499,259 @@ impl WebGlContext {
 
     /// Enables or disables color blending.
     pub fn set_blend(&mut self, enable: bool) {
+        if self.blend == enable {
+            return;
+        }
+
         self.blend = enable;
         if enable {
             self.gl.enable(WebGl2RenderingContext::BLEND);
         } else {
             self.gl.disable(WebGl2RenderingContext::BLEND);
         }
+    }
+
+    /// Returns blend factors in (src_rgb, src_alpha, dst_rgb, dst_alpha).
+    pub fn blend_factors(
+        &self,
+    ) -> (
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+        WebGlBlendFactor,
+    ) {
+        self.blend_factors
+    }
+
+    /// Sets blend factors.
+    pub fn set_blend_factors(&mut self, s_factor: WebGlBlendFactor, d_factor: WebGlBlendFactor) {
+        if self.blend_factors.0 == s_factor
+            && self.blend_factors.1 == s_factor
+            && self.blend_factors.2 == d_factor
+            && self.blend_factors.3 == d_factor
+        {
+            return;
+        }
+
+        self.blend_factors.0 = s_factor;
+        self.blend_factors.1 = s_factor;
+        self.blend_factors.2 = d_factor;
+        self.blend_factors.3 = d_factor;
+        self.gl
+            .blend_func(s_factor.to_gl_enum(), d_factor.to_gl_enum());
+    }
+
+    /// Sets blend factors separately.
+    pub fn set_blend_factors_separate(
+        &mut self,
+        src_rgb: WebGlBlendFactor,
+        src_alpha: WebGlBlendFactor,
+        dst_rgb: WebGlBlendFactor,
+        dst_alpha: WebGlBlendFactor,
+    ) {
+        if self.blend_factors.0 == src_rgb
+            && self.blend_factors.1 == src_alpha
+            && self.blend_factors.2 == dst_rgb
+            && self.blend_factors.3 == dst_alpha
+        {
+            return;
+        }
+
+        self.blend_factors.0 = src_rgb;
+        self.blend_factors.1 = src_alpha;
+        self.blend_factors.2 = dst_rgb;
+        self.blend_factors.3 = dst_alpha;
+        self.gl.blend_func_separate(
+            src_rgb.to_gl_enum(),
+            dst_rgb.to_gl_enum(),
+            src_alpha.to_gl_enum(),
+            dst_alpha.to_gl_enum(),
+        );
+    }
+
+    /// Returns blend color.
+    pub fn blend_color(&self) -> (f32, f32, f32, f32) {
+        self.blend_color
+    }
+
+    /// Sets blend color.
+    pub fn set_blend_color(&mut self, r: f32, g: f32, b: f32, a: f32) {
+        if self.blend_color == (r, g, b, a) {
+            return;
+        }
+
+        self.blend_color = (r, g, b, a);
+        self.gl.blend_color(r, g, b, a);
+    }
+
+    /// Returns blend equations in (mode_rgb, mode_alpha).
+    pub fn blend_equations(&self) -> (WebGlBlendEquation, WebGlBlendEquation) {
+        self.blend_equations
+    }
+
+    /// Sets blend equations.
+    pub fn set_blend_equations(&mut self, e: WebGlBlendEquation) {
+        if self.blend_equations.0 == e && self.blend_equations.1 == e {
+            return;
+        }
+
+        self.blend_equations.0 = e;
+        self.blend_equations.1 = e;
+        self.gl.blend_equation(e.to_gl_enum());
+    }
+
+    /// Sets blend equations separately.
+    pub fn set_blend_equations_separate(
+        &mut self,
+        rgb: WebGlBlendEquation,
+        alpha: WebGlBlendEquation,
+    ) {
+        if self.blend_equations.0 == rgb && self.blend_equations.1 == alpha {
+            return;
+        }
+
+        self.blend_equations.0 = rgb;
+        self.blend_equations.1 = alpha;
+        self.gl
+            .blend_equation_separate(rgb.to_gl_enum(), alpha.to_gl_enum());
+    }
+
+    /// Returns front face mode.
+    pub fn front_face(&self) -> WebGlFrontFace {
+        self.front_face
+    }
+
+    /// Sets front face mode.
+    pub fn set_front_face(&mut self, front_face: WebGlFrontFace) {
+        if self.front_face == front_face {
+            return;
+        }
+
+        self.front_face = front_face;
+        self.gl.front_face(front_face.to_gl_enum());
+    }
+
+    /// Returns `true` if cull face is enabled.
+    pub fn cull_face(&self) -> bool {
+        self.cull_face
+    }
+
+    /// Enables or disables cull face.
+    pub fn set_cull_face(&mut self, enable: bool) {
+        if self.cull_face == enable {
+            return;
+        }
+
+        self.cull_face = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::CULL_FACE);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::CULL_FACE);
+        }
+    }
+
+    /// Returns cull face mode.
+    pub fn cull_face_mode(&self) -> WebGlFaceMode {
+        self.cull_face_mode
+    }
+
+    /// Sets cull face modes.
+    pub fn set_cull_face_mode(&mut self, mode: WebGlFaceMode) {
+        if self.cull_face_mode == mode {
+            return;
+        }
+
+        self.cull_face_mode = mode;
+        self.gl.cull_face(mode.to_gl_enum());
+    }
+
+    /// Returns `true` if polygon offset fill is enabled.
+    pub fn polygon_offset(&self) -> bool {
+        self.polygon_offset
+    }
+
+    /// Enables or disables polygon offset fill.
+    pub fn set_polygon_offset(&mut self, enable: bool) {
+        if self.polygon_offset == enable {
+            return;
+        }
+
+        self.polygon_offset = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::POLYGON_OFFSET_FILL);
+        }
+    }
+
+    /// Returns polygon offset parameters in (factors, units).
+    pub fn polygon_offset_params(&self) -> (f32, f32) {
+        self.polygon_offset_params
+    }
+
+    /// Sets polygon offset scale factors and units.
+    pub fn set_polygon_offset_params(&mut self, factor: f32, units: f32) {
+        if self.polygon_offset_params == (factor, units) {
+            return;
+        }
+
+        self.polygon_offset_params = (factor, units);
+        self.gl.polygon_offset(factor, units);
+    }
+
+    /// Returns `true` if sample coverage is enabled.
+    pub fn sample_coverage(&self) -> bool {
+        self.sample_coverage
+    }
+
+    /// Enables or disables sample coverage.
+    pub fn set_sample_coverage(&mut self, enable: bool) {
+        if self.sample_coverage == enable {
+            return;
+        }
+
+        self.sample_coverage = enable;
+        if enable {
+            self.gl.enable(WebGl2RenderingContext::SAMPLE_COVERAGE);
+        } else {
+            self.gl.disable(WebGl2RenderingContext::SAMPLE_COVERAGE);
+        }
+    }
+
+    /// Returns `true` if sample alpha to coverage is enabled.
+    pub fn sample_alpha_to_coverage(&self) -> bool {
+        self.sample_alpha_to_coverage
+    }
+
+    /// Enables or disables sample alpha to coverage.
+    pub fn set_sample_alpha_to_coverage(&mut self, enable: bool) {
+        if self.sample_alpha_to_coverage == enable {
+            return;
+        }
+
+        self.sample_alpha_to_coverage = enable;
+        if enable {
+            self.gl
+                .enable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
+        } else {
+            self.gl
+                .disable(WebGl2RenderingContext::SAMPLE_ALPHA_TO_COVERAGE);
+        }
+    }
+
+    /// Returns sample coverage parameters in (value, invert).
+    pub fn sample_coverage_params(&self) -> (f32, bool) {
+        self.sample_coverage_params
+    }
+
+    /// Sets sample coverage parameters.
+    pub fn set_sample_coverage_params(&mut self, value: f32, invert: bool) {
+        if self.sample_coverage_params == (value, invert) {
+            return;
+        }
+
+        self.sample_coverage_params = (value, invert);
+        self.gl.sample_coverage(value, invert);
     }
 
     // /// Creates a new [`WebGlClientWait`].
@@ -1474,5 +2024,224 @@ impl WebGlContext {
             .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
 
         Ok(to)
+    }
+}
+
+struct GetParameter<'a>(&'a WebGl2RenderingContext);
+
+impl<'a> GetParameter<'a> {
+    fn as_bool(&self, pname: u32) -> bool {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap()
+    }
+
+    fn as_f32(&self, pname: u32) -> f32 {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.as_f64())
+            .map(|v| v as f32)
+            .unwrap()
+    }
+
+    fn as_i32(&self, pname: u32) -> i32 {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.as_f64())
+            .map(|v| v as i32)
+            .unwrap()
+    }
+
+    fn as_u32(&self, pname: u32) -> u32 {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.as_f64())
+            .map(|v| v as u32)
+            .unwrap()
+    }
+
+    fn as_float32array(&self, pname: u32) -> Float32Array {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.dyn_into::<Float32Array>().ok())
+            .unwrap()
+    }
+
+    fn as_int32array(&self, pname: u32) -> Int32Array {
+        self.0
+            .get_parameter(pname)
+            .ok()
+            .and_then(|v| v.dyn_into::<Int32Array>().ok())
+            .unwrap()
+    }
+
+    fn depth_writable(&self) -> bool {
+        self.as_bool(WebGl2RenderingContext::DEPTH_WRITEMASK)
+    }
+
+    fn depth_compare_function(&self) -> WebGlDepthCompareFunction {
+        WebGlDepthCompareFunction::from_gl_enum(self.as_u32(WebGl2RenderingContext::DEPTH_FUNC))
+            .unwrap()
+    }
+
+    fn depth_range(&self) -> Range<f32> {
+        self.0
+            .get_parameter(WebGl2RenderingContext::DEPTH_RANGE)
+            .ok()
+            .and_then(|v| v.dyn_into::<Float32Array>().ok())
+            .map(|v| (v.get_index(0)..v.get_index(1)))
+            .unwrap()
+    }
+
+    fn stencil_compare_functions_front(&self) -> (WebGlStencilCompareFunction, i32, u32) {
+        (
+            WebGlStencilCompareFunction::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_FUNC),
+            )
+            .unwrap(),
+            self.as_i32(WebGl2RenderingContext::STENCIL_REF),
+            self.as_u32(WebGl2RenderingContext::STENCIL_VALUE_MASK),
+        )
+    }
+
+    fn stencil_compare_functions_back(&self) -> (WebGlStencilCompareFunction, i32, u32) {
+        (
+            WebGlStencilCompareFunction::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_BACK_FUNC),
+            )
+            .unwrap(),
+            self.as_i32(WebGl2RenderingContext::STENCIL_BACK_REF),
+            self.as_u32(WebGl2RenderingContext::STENCIL_BACK_VALUE_MASK),
+        )
+    }
+
+    fn stencil_operators_front(
+        &self,
+    ) -> (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ) {
+        (
+            WebGlStencilOperator::from_gl_enum(self.as_u32(WebGl2RenderingContext::STENCIL_FAIL))
+                .unwrap(),
+            WebGlStencilOperator::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_PASS_DEPTH_FAIL),
+            )
+            .unwrap(),
+            WebGlStencilOperator::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_PASS_DEPTH_PASS),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn stencil_operators_back(
+        &self,
+    ) -> (
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+        WebGlStencilOperator,
+    ) {
+        (
+            WebGlStencilOperator::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_BACK_FAIL),
+            )
+            .unwrap(),
+            WebGlStencilOperator::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_BACK_PASS_DEPTH_FAIL),
+            )
+            .unwrap(),
+            WebGlStencilOperator::from_gl_enum(
+                self.as_u32(WebGl2RenderingContext::STENCIL_BACK_PASS_DEPTH_PASS),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn stencil_write_mask_front(&self) -> u32 {
+        self.as_u32(WebGl2RenderingContext::STENCIL_WRITEMASK)
+    }
+
+    fn stencil_write_mask_back(&self) -> u32 {
+        self.as_u32(WebGl2RenderingContext::STENCIL_BACK_WRITEMASK)
+    }
+
+    fn blend_src_rgb_factor(&self) -> WebGlBlendFactor {
+        WebGlBlendFactor::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_SRC_RGB)).unwrap()
+    }
+
+    fn blend_dst_rgb_factor(&self) -> WebGlBlendFactor {
+        WebGlBlendFactor::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_DST_RGB)).unwrap()
+    }
+
+    fn blend_src_alpha_factor(&self) -> WebGlBlendFactor {
+        WebGlBlendFactor::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_SRC_ALPHA))
+            .unwrap()
+    }
+
+    fn blend_dst_alpha_factor(&self) -> WebGlBlendFactor {
+        WebGlBlendFactor::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_DST_ALPHA))
+            .unwrap()
+    }
+
+    fn blend_color(&self) -> (f32, f32, f32, f32) {
+        let color = self.as_float32array(WebGl2RenderingContext::BLEND_COLOR);
+        (
+            color.get_index(0),
+            color.get_index(1),
+            color.get_index(2),
+            color.get_index(3),
+        )
+    }
+
+    fn blend_equation_rgb(&self) -> WebGlBlendEquation {
+        WebGlBlendEquation::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_EQUATION_RGB))
+            .unwrap()
+    }
+
+    fn blend_equation_alpha(&self) -> WebGlBlendEquation {
+        WebGlBlendEquation::from_gl_enum(self.as_u32(WebGl2RenderingContext::BLEND_EQUATION_ALPHA))
+            .unwrap()
+    }
+
+    fn front_face(&self) -> WebGlFrontFace {
+        WebGlFrontFace::from_gl_enum(self.as_u32(WebGl2RenderingContext::FRONT_FACE)).unwrap()
+    }
+
+    fn cull_face_mode(&self) -> WebGlFaceMode {
+        WebGlFaceMode::from_gl_enum(self.as_u32(WebGl2RenderingContext::CULL_FACE_MODE)).unwrap()
+    }
+
+    fn polygon_offset_factor(&self) -> f32 {
+        self.as_f32(WebGl2RenderingContext::POLYGON_OFFSET_FACTOR)
+    }
+
+    fn polygon_offset_units(&self) -> f32 {
+        self.as_f32(WebGl2RenderingContext::POLYGON_OFFSET_UNITS)
+    }
+
+    fn sample_coverage_value(&self) -> f32 {
+        self.as_f32(WebGl2RenderingContext::SAMPLE_COVERAGE_VALUE)
+    }
+
+    fn sample_coverage_invert(&self) -> bool {
+        self.as_bool(WebGl2RenderingContext::SAMPLE_COVERAGE_INVERT)
+    }
+
+    fn scissor_box(&self) -> (i32, i32, i32, i32) {
+        let scissor_box = self.as_int32array(WebGl2RenderingContext::SCISSOR_BOX);
+        (
+            scissor_box.get_index(0),
+            scissor_box.get_index(1),
+            scissor_box.get_index(2),
+            scissor_box.get_index(3),
+        )
     }
 }
