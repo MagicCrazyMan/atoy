@@ -40,7 +40,7 @@ pub enum WebGlIndicesDataType {
 /// Available attribute values.
 pub enum WebGlAttributeValue<'a> {
     ArrayBuffer {
-        buffering: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         component_size: WebGlArrayBufferComponentSize,
         data_type: WebGlArrayBufferDataType,
         normalized: bool,
@@ -48,7 +48,7 @@ pub enum WebGlAttributeValue<'a> {
         bytes_offset: usize,
     },
     InstancedBuffer {
-        buffering: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         component_size: WebGlArrayBufferComponentSize,
         instance_size: usize,
         data_type: WebGlArrayBufferDataType,

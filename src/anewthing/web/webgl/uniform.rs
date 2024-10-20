@@ -15,7 +15,7 @@ use super::{
 pub enum WebGlUniformValue<'a> {
     Bool(bool),
     Texture {
-        texturing: &'a WebGlTexturing,
+        texturing: &'a WebGlTexturing<'a>,
         unit: WebGlTextureUnit,
     },
     Float1(f32),
@@ -84,11 +84,11 @@ pub enum WebGlUniformValue<'a> {
 #[derive(Clone, Copy)]
 pub enum WebGlUniformBlockValue<'a> {
     Base {
-        buffer: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         mount_point: usize,
     },
     Range {
-        buffer: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         mount_point: usize,
         bytes_offset: usize,
         bytes_length: usize,

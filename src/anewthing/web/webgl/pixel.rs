@@ -101,7 +101,7 @@ pub fn bytes_per_pixel(
     }
 }
 
-/// Calculates bytes length of a packed 
+/// Calculates bytes length of a packed
 pub fn bytes_length_of(
     pixel_format: WebGlPixelFormat,
     pixel_data_type: WebGlPixelDataType,
@@ -179,19 +179,19 @@ impl Default for WebGlPixelPackStores {
 impl WebGlPixelPackStores {
     pub(crate) fn set_pixel_store(&self, gl: &WebGl2RenderingContext) {
         gl.pixel_storei(
-            WebGlPixelPackStore::PackAlignment.to_gl_enum(),
+            WebGl2RenderingContext::PACK_ALIGNMENT,
             self.alignment as i32,
         );
         gl.pixel_storei(
-            WebGlPixelPackStore::PackRowLength.to_gl_enum(),
+            WebGl2RenderingContext::PACK_ROW_LENGTH,
             self.row_length as i32,
         );
         gl.pixel_storei(
-            WebGlPixelPackStore::PackSkipPixels.to_gl_enum(),
+            WebGl2RenderingContext::PACK_SKIP_PIXELS,
             self.skip_pixels as i32,
         );
         gl.pixel_storei(
-            WebGlPixelPackStore::PackSkipRows.to_gl_enum(),
+            WebGl2RenderingContext::PACK_SKIP_ROWS,
             self.skip_rows as i32,
         );
     }
@@ -253,31 +253,31 @@ impl Default for WebGlPixelUnpackStores {
 impl WebGlPixelUnpackStores {
     pub(crate) fn set_pixel_store(&self, gl: &WebGl2RenderingContext) {
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackFlipY.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_FLIP_Y_WEBGL,
             if self.flip_y { 1 } else { 0 },
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackPremultiplyAlpha.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL,
             if self.premultiply_alpha { 1 } else { 0 },
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackColorSpaceConversion.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_COLORSPACE_CONVERSION_WEBGL,
             self.color_space_conversion.to_gl_enum() as i32,
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackImageHeight.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_IMAGE_HEIGHT,
             self.image_height as i32,
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackSkipPixels.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_SKIP_PIXELS,
             self.skip_pixels as i32,
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackSkipRows.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_SKIP_ROWS,
             self.skip_rows as i32,
         );
         gl.pixel_storei(
-            WebGlPixelUnpackStore::UnpackSkipImages.to_gl_enum(),
+            WebGl2RenderingContext::UNPACK_SKIP_IMAGES,
             self.skip_images as i32,
         );
     }

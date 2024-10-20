@@ -91,10 +91,7 @@ impl WebGlClientWait {
         let max_retries = self.max_retries;
 
         let sync = gl
-            .fence_sync(
-                WebGlClientWaitCondition::SyncGpuCommandsComplete.to_gl_enum(),
-                flag_bits,
-            )
+            .fence_sync(WebGl2RenderingContext::SYNC_GPU_COMMANDS_COMPLETE, 0)
             .ok_or(Error::CreateFenceSyncFailure)?;
         gl.flush();
 

@@ -9,9 +9,7 @@ use web_sys::{
 
 use super::{
     attribute::WebGlAttributeValue,
-    buffer::{
-        WebGlBufferItem, WebGlBufferManager, WebGlBufferTarget, WebGlBufferUsage, WebGlBuffering,
-    },
+    buffer::{WebGlBufferItem, WebGlBufferManager, WebGlBufferUsage, WebGlBuffering},
     capabilities::WebGlCapabilities,
     client_wait::WebGlClientWait,
     draw::{
@@ -20,15 +18,14 @@ use super::{
     },
     error::Error,
     framebuffer::{
-        WebGlBufferBitMask, WebGlFramebufferAttachTarget, WebGlFramebufferBlitFilter,
-        WebGlFramebufferCreateOptions, WebGlFramebufferFactory, WebGlFramebufferItem,
-        WebGlFramebufferTarget,
+        WebGlBufferBitMask, WebGlFramebufferBlitFilter, WebGlFramebufferCreateOptions,
+        WebGlFramebufferFactory, WebGlFramebufferItem,
     },
     pixel::{self, WebGlPixelDataType, WebGlPixelFormat, WebGlPixelPackStores},
     program::{WebGlProgramItem, WebGlProgramManager, WebGlShaderSource},
     texture::{
         WebGlTexture2DTarget, WebGlTextureItem, WebGlTextureLayout, WebGlTextureManager,
-        WebGlTexturePlainInternalFormat, WebGlTextureTarget, WebGlTextureUnit, WebGlTexturing,
+        WebGlTexturePlainInternalFormat, WebGlTextureUnit, WebGlTexturing,
     },
     uniform::{WebGlUniformBlockValue, WebGlUniformValue},
 };
@@ -852,7 +849,7 @@ impl WebGlContext {
             &self.capabilities,
         )?;
         self.gl.bind_framebuffer(
-            WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+            WebGl2RenderingContext::DRAW_FRAMEBUFFER,
             Some(item.gl_framebuffer()),
         );
 
@@ -860,7 +857,7 @@ impl WebGlContext {
         for i in 0..item.color_attachment_len() {
             if draw_buffer_indices.is_empty() || draw_buffer_indices.contains(&i) {
                 draw_buffers.push(&JsValue::from_f64(
-                    (WebGlFramebufferAttachTarget::ColorAttachment0.to_gl_enum() + i as u32) as f64,
+                    (WebGl2RenderingContext::COLOR_ATTACHMENT0 + i as u32) as f64,
                 ));
             } else {
                 draw_buffers.push(&JsValue::from_f64(WebGl2RenderingContext::NONE as f64));
@@ -876,7 +873,7 @@ impl WebGlContext {
     pub fn unbind_draw_framebuffer(&mut self) {
         if let Some(_) = self.using_draw_framebuffer_item.take() {
             self.gl
-                .bind_framebuffer(WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
+                .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
         }
     }
 
@@ -952,7 +949,7 @@ impl WebGlContext {
             } => {
                 let buffer_item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
-                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::ARRAY_BUFFER,
                     Some(buffer_item.gl_buffer()),
                 );
                 gl.vertex_attrib_pointer_with_i32(
@@ -964,7 +961,7 @@ impl WebGlContext {
                     bytes_offset as i32,
                 );
                 gl.enable_vertex_attrib_array(location);
-                gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+                gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
             }
             WebGlAttributeValue::InstancedBuffer {
                 buffering,
@@ -977,7 +974,7 @@ impl WebGlContext {
             } => {
                 let buffer_item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
-                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::ARRAY_BUFFER,
                     Some(buffer_item.gl_buffer()),
                 );
                 gl.vertex_attrib_pointer_with_i32(
@@ -990,7 +987,7 @@ impl WebGlContext {
                 );
                 gl.enable_vertex_attrib_array(location);
                 gl.vertex_attrib_divisor(location, instance_size as u32);
-                gl.bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+                gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
             }
             _ => {
                 match value {
@@ -1197,22 +1194,22 @@ impl WebGlContext {
         name: &str,
         value: WebGlUniformBlockValue,
     ) -> Result<(), Error> {
-        let (buffer, mount_point, bytes_range) = match value {
+        let (buffering, mount_point, bytes_range) = match value {
             WebGlUniformBlockValue::Base {
-                buffer,
+                buffering,
                 mount_point,
-            } => (buffer, mount_point, None),
+            } => (buffering, mount_point, None),
             WebGlUniformBlockValue::Range {
-                buffer,
+                buffering,
                 mount_point,
                 bytes_offset,
                 bytes_length,
-            } => (buffer, mount_point, Some((bytes_offset, bytes_length))),
+            } => (buffering, mount_point, Some((bytes_offset, bytes_length))),
         };
 
         let buffer_item = self
             .buffer_manager
-            .sync_buffering(buffer, &mut self.using_ubos)?;
+            .sync_buffering(buffering, &mut self.using_ubos)?;
         let Some(using_program) = self.using_program_item.as_ref() else {
             return Err(Error::NoUsingProgram);
         };
@@ -1246,12 +1243,9 @@ impl WebGlContext {
         location: u32,
         mount_point: usize,
     ) {
-        gl.bind_buffer(
-            WebGlBufferTarget::UniformBuffer.to_gl_enum(),
-            Some(gl_buffer),
-        );
+        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, Some(gl_buffer));
         gl.uniform_block_binding(program_item.gl_program(), location, mount_point as u32);
-        gl.bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
+        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
     }
 
     /// Binds and actives a texture to specified texture unit.
@@ -1363,19 +1357,19 @@ impl WebGlContext {
 
         match bytes_range {
             Some((offset, length)) => gl.bind_buffer_range_with_i32_and_i32(
-                WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                WebGl2RenderingContext::UNIFORM_BUFFER,
                 mount_point as u32,
                 Some(gl_buffer),
                 offset as i32,
                 length as i32,
             ),
             None => gl.bind_buffer_base(
-                WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                WebGl2RenderingContext::UNIFORM_BUFFER,
                 mount_point as u32,
                 Some(gl_buffer),
             ),
         };
-        gl.bind_buffer(WebGlBufferTarget::UniformBuffer.to_gl_enum(), None);
+        gl.bind_buffer(WebGl2RenderingContext::UNIFORM_BUFFER, None);
 
         using_ubos.insert(mount_point, (gl_buffer.clone(), bytes_range));
     }
@@ -1416,7 +1410,7 @@ impl WebGlContext {
         }
 
         self.gl
-            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), Some(from));
+            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, Some(from));
 
         let src_bytes_offset = src_bytes_offset.unwrap_or(0);
         let dst_bytes_offset = dst_bytes_offset.unwrap_or(0);
@@ -1426,7 +1420,7 @@ impl WebGlContext {
                 None => self
                     .gl
                     .get_buffer_parameter(
-                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::COPY_READ_BUFFER,
                         WebGl2RenderingContext::BUFFER_SIZE,
                     )
                     .as_f64()
@@ -1436,16 +1430,16 @@ impl WebGlContext {
         let to = match to {
             Some(to) => {
                 self.gl
-                    .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), Some(&to));
+                    .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, Some(&to));
                 to
             }
             None => {
                 let to = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                 let to_buffer_usage = to_buffer_usage.unwrap_or(WebGlBufferUsage::StaticRead);
                 self.gl
-                    .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), Some(&to));
+                    .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, Some(&to));
                 self.gl.buffer_data_with_i32(
-                    WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::COPY_WRITE_BUFFER,
                     (read_bytes_length + dst_bytes_offset) as i32,
                     to_buffer_usage.to_gl_enum(),
                 );
@@ -1454,17 +1448,17 @@ impl WebGlContext {
         };
 
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
-            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            WebGl2RenderingContext::COPY_READ_BUFFER,
+            WebGl2RenderingContext::COPY_WRITE_BUFFER,
             src_bytes_offset as i32,
             dst_bytes_offset as i32,
             read_bytes_length as i32,
         );
 
         self.gl
-            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
         self.gl
-            .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
 
         Ok(to)
     }
@@ -1539,12 +1533,10 @@ impl WebGlContext {
         client_wait: &WebGlClientWait,
     ) -> Result<Uint8Array, Error> {
         let tmp_gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
+        self.gl
+            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, Some(gl_buffer));
         self.gl.bind_buffer(
-            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-            Some(gl_buffer),
-        );
-        self.gl.bind_buffer(
-            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            WebGl2RenderingContext::COPY_WRITE_BUFFER,
             Some(&tmp_gl_buffer),
         );
 
@@ -1554,7 +1546,7 @@ impl WebGlContext {
             None => self
                 .gl
                 .get_buffer_parameter(
-                    WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::COPY_READ_BUFFER,
                     WebGl2RenderingContext::BUFFER_SIZE,
                 )
                 .as_f64()
@@ -1562,21 +1554,21 @@ impl WebGlContext {
         });
 
         self.gl.buffer_data_with_i32(
-            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            WebGl2RenderingContext::COPY_WRITE_BUFFER,
             read_bytes_length as i32,
-            WebGlBufferUsage::StreamRead.to_gl_enum(),
+            WebGl2RenderingContext::STREAM_READ,
         );
         self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
-            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-            WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+            WebGl2RenderingContext::COPY_READ_BUFFER,
+            WebGl2RenderingContext::COPY_WRITE_BUFFER,
             src_bytes_offset as i32,
             0,
             read_bytes_length as i32,
         );
         self.gl
-            .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
         self.gl
-            .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
 
         client_wait.client_wait(&self.gl).await?;
 
@@ -1604,10 +1596,7 @@ impl WebGlContext {
         read_bytes_length: Option<usize>,
         to: Option<Uint8Array>,
     ) -> Result<Uint8Array, Error> {
-        gl.bind_buffer(
-            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-            Some(gl_buffer),
-        );
+        gl.bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, Some(gl_buffer));
 
         let src_bytes_offset = src_bytes_offset.unwrap_or(0);
         let dst_bytes_offset = dst_bytes_offset.unwrap_or(0);
@@ -1615,7 +1604,7 @@ impl WebGlContext {
             Some(length) => length,
             None => gl
                 .get_buffer_parameter(
-                    WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::COPY_READ_BUFFER,
                     WebGl2RenderingContext::BUFFER_SIZE,
                 )
                 .as_f64()
@@ -1628,13 +1617,13 @@ impl WebGlContext {
         };
 
         gl.get_buffer_sub_data_with_i32_and_array_buffer_view_and_dst_offset_and_length(
-            WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
+            WebGl2RenderingContext::COPY_READ_BUFFER,
             src_bytes_offset as i32,
             to.as_ref(),
             dst_bytes_offset as u32,
             read_bytes_length as u32,
         );
-        gl.bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+        gl.bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
 
         Ok(to)
     }
@@ -1666,17 +1655,16 @@ impl WebGlContext {
         match from {
             Some((framebuffer, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
-                    WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(),
+                    WebGl2RenderingContext::READ_FRAMEBUFFER,
                     Some(framebuffer.gl_framebuffer()),
                 );
                 self.gl.read_buffer(
-                    WebGlFramebufferAttachTarget::ColorAttachment0.to_gl_enum()
-                        + read_buffer_index as u32,
+                    WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer_index as u32,
                 );
             }
             None => {
                 self.gl
-                    .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+                    .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
                 self.gl.read_buffer(WebGl2RenderingContext::BACK);
             }
         };
@@ -1698,15 +1686,13 @@ impl WebGlContext {
         let to_gl_buffer = match to {
             Some(to) => {
                 self.gl
-                    .bind_buffer(WebGlBufferTarget::PixelPackBuffer.to_gl_enum(), Some(&to));
+                    .bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, Some(&to));
                 to
             }
             None => {
                 let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                self.gl.bind_buffer(
-                    WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
-                    Some(&gl_buffer),
-                );
+                self.gl
+                    .bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, Some(&gl_buffer));
 
                 let bytes_length = dst_bytes_offset
                     + pixel::bytes_length_of(
@@ -1718,9 +1704,9 @@ impl WebGlContext {
                     );
 
                 self.gl.buffer_data_with_i32(
-                    WebGlBufferTarget::PixelPackBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::PIXEL_PACK_BUFFER,
                     bytes_length as i32,
-                    WebGlBufferUsage::StaticRead.to_gl_enum(),
+                    WebGl2RenderingContext::STATIC_READ,
                 );
 
                 gl_buffer
@@ -1740,11 +1726,11 @@ impl WebGlContext {
             .unwrap(); // no DomException thrown
         WebGlPixelPackStores::default().set_pixel_store(&self.gl);
         self.gl
-            .bind_buffer(WebGlBufferTarget::PixelPackBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::PIXEL_PACK_BUFFER, None);
 
         if from.is_some() {
             self.gl
-                .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+                .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
         }
 
         Ok(to_gl_buffer)
@@ -1826,24 +1812,23 @@ impl WebGlContext {
         match read {
             Some((framebuffer, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
-                    WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(),
+                    WebGl2RenderingContext::READ_FRAMEBUFFER,
                     Some(framebuffer.gl_framebuffer()),
                 );
                 self.gl.read_buffer(
-                    WebGlFramebufferAttachTarget::ColorAttachment0.to_gl_enum()
-                        + read_buffer_index as u32,
+                    WebGl2RenderingContext::COLOR_ATTACHMENT0 + read_buffer_index as u32,
                 );
             }
             None => {
                 self.gl
-                    .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+                    .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
                 self.gl.read_buffer(WebGl2RenderingContext::BACK);
             }
         };
         match draw {
             Some((framebuffer, draw_buffer_indices)) => {
                 self.gl.bind_framebuffer(
-                    WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                    WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                     Some(framebuffer.gl_framebuffer()),
                 );
 
@@ -1861,7 +1846,7 @@ impl WebGlContext {
             }
             None => {
                 self.gl
-                    .bind_framebuffer(WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(), None);
+                    .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, None);
 
                 let draw_buffers = Array::new_with_length(1);
                 draw_buffers.set(0, JsValue::from_f64(WebGl2RenderingContext::BACK as f64));
@@ -1886,12 +1871,10 @@ impl WebGlContext {
             .using_draw_framebuffer_item
             .as_ref()
             .map(|d| d.gl_framebuffer());
-        self.gl.bind_framebuffer(
-            WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
-            bound_draw,
-        );
         self.gl
-            .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+            .bind_framebuffer(WebGl2RenderingContext::DRAW_FRAMEBUFFER, bound_draw);
+        self.gl
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
     }
 
     /// Copies pixels from read framebuffer into an 2d texture.
@@ -1941,7 +1924,7 @@ impl WebGlContext {
         match from {
             Some((from, read_buffer_index)) => {
                 self.gl.bind_framebuffer(
-                    WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(),
+                    WebGl2RenderingContext::READ_FRAMEBUFFER,
                     Some(from.gl_framebuffer()),
                 );
                 self.gl.read_buffer(
@@ -1950,7 +1933,7 @@ impl WebGlContext {
             }
             None => {
                 self.gl
-                    .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+                    .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
                 self.gl.read_buffer(WebGl2RenderingContext::BACK);
             }
         }
@@ -1960,7 +1943,7 @@ impl WebGlContext {
                 match to_target {
                     WebGlTexture2DTarget::Texture2D => self
                         .gl
-                        .bind_texture(WebGlTextureLayout::Texture2D.to_gl_enum(), Some(&to)),
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&to)),
                     WebGlTexture2DTarget::TextureCubeMapPositiveX
                     | WebGlTexture2DTarget::TextureCubeMapNegativeX
                     | WebGlTexture2DTarget::TextureCubeMapPositiveY
@@ -1968,7 +1951,7 @@ impl WebGlContext {
                     | WebGlTexture2DTarget::TextureCubeMapPositiveZ
                     | WebGlTexture2DTarget::TextureCubeMapNegativeZ => self
                         .gl
-                        .bind_texture(WebGlTextureLayout::TextureCubeMap.to_gl_enum(), Some(&to)),
+                        .bind_texture(WebGl2RenderingContext::TEXTURE_CUBE_MAP, Some(&to)),
                 };
                 (to, to_target, to_level)
             }
@@ -1980,9 +1963,9 @@ impl WebGlContext {
                 let to_internal_format =
                     to_internal_format.unwrap_or(WebGlTexturePlainInternalFormat::RGBA8);
                 self.gl
-                    .bind_texture(WebGlTextureTarget::Texture2D.to_gl_enum(), Some(&to));
+                    .bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&to));
                 self.gl.tex_storage_2d(
-                    WebGlTextureTarget::Texture2D.to_gl_enum(),
+                    WebGl2RenderingContext::TEXTURE_2D,
                     1,
                     to_internal_format.to_gl_enum(),
                     width as i32,
@@ -2021,7 +2004,7 @@ impl WebGlContext {
         self.gl
             .bind_texture(to_target.to_gl_enum(), bound_texture.map(|(t, _)| t));
         self.gl
-            .bind_framebuffer(WebGlFramebufferTarget::ReadFramebuffer.to_gl_enum(), None);
+            .bind_framebuffer(WebGl2RenderingContext::READ_FRAMEBUFFER, None);
 
         Ok(to)
     }

@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     fmt::Debug,
-    ops::{Bound, Deref, DerefMut, Range, RangeBounds, RangeFrom},
+    ops::{Bound, Deref, Range, RangeBounds, RangeFrom},
     rc::Rc,
 };
 
@@ -38,17 +38,17 @@ impl Default for WebGlBufferCreateOptions {
 }
 
 /// A wrapped [`Buffering`] with [`WebGlBufferCreateOptions`].
-#[derive(Debug, Clone, Default)]
-pub struct WebGlBuffering {
-    pub buffering: Buffering,
+#[derive(Debug)]
+pub struct WebGlBuffering<'a> {
+    pub buffering: &'a Buffering,
     /// Create options of a buffer.
     /// This field only works once, changing this does not influence anything.
     pub create_options: WebGlBufferCreateOptions,
 }
 
-impl WebGlBuffering {
+impl<'a> WebGlBuffering<'a> {
     /// Constructs a new WebGl buffering container.
-    pub fn new(buffering: Buffering, options: WebGlBufferCreateOptions) -> Self {
+    pub fn new(buffering: &'a Buffering, options: WebGlBufferCreateOptions) -> Self {
         Self {
             buffering,
             create_options: options,
@@ -56,7 +56,7 @@ impl WebGlBuffering {
     }
 
     /// Constructs a new WebGl buffering container with default [`WebGlBufferOptions`].
-    pub fn with_default_options(buffering: Buffering) -> Self {
+    pub fn with_default_options(buffering: &'a Buffering) -> Self {
         Self {
             buffering,
             create_options: WebGlBufferCreateOptions::default(),
@@ -64,17 +64,11 @@ impl WebGlBuffering {
     }
 }
 
-impl Deref for WebGlBuffering {
+impl<'a> Deref for WebGlBuffering<'a> {
     type Target = Buffering;
 
     fn deref(&self) -> &Self::Target {
         &self.buffering
-    }
-}
-
-impl DerefMut for WebGlBuffering {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.buffering
     }
 }
 
@@ -278,13 +272,7 @@ impl<'a> WebGlBufferData<'a> {
         }
     }
 
-    fn upload(
-        &self,
-        gl: &WebGl2RenderingContext,
-        target: WebGlBufferTarget,
-        dst_bytes_offset: usize,
-    ) {
-        let target = target.to_gl_enum();
+    fn upload(&self, gl: &WebGl2RenderingContext, target: u32, dst_bytes_offset: usize) {
         let dst_bytes_offset = dst_bytes_offset as i32;
         let src_element_offset = self.element_offset() as u32;
         let src_element_length = self.element_length() as u32;
@@ -439,29 +427,27 @@ impl WebGlBufferManager {
                     let new_gl_buffer =
                         self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
                     self.gl.bind_buffer(
-                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::COPY_WRITE_BUFFER,
                         Some(&new_gl_buffer),
                     );
                     self.gl.buffer_data_with_i32(
-                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::COPY_WRITE_BUFFER,
                         buffering.bytes_length() as i32,
                         usage.to_gl_enum(),
                     );
-                    self.gl.bind_buffer(
-                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-                        Some(gl_buffer),
-                    );
+                    self.gl
+                        .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, Some(gl_buffer));
                     self.gl.copy_buffer_sub_data_with_i32_and_i32_and_i32(
-                        WebGlBufferTarget::CopyReadBuffer.to_gl_enum(),
-                        WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(),
+                        WebGl2RenderingContext::COPY_READ_BUFFER,
+                        WebGl2RenderingContext::COPY_WRITE_BUFFER,
                         0,
                         0,
                         *bytes_length as i32,
                     );
                     self.gl
-                        .bind_buffer(WebGlBufferTarget::CopyWriteBuffer.to_gl_enum(), None);
+                        .bind_buffer(WebGl2RenderingContext::COPY_WRITE_BUFFER, None);
                     self.gl
-                        .bind_buffer(WebGlBufferTarget::CopyReadBuffer.to_gl_enum(), None);
+                        .bind_buffer(WebGl2RenderingContext::COPY_READ_BUFFER, None);
 
                     // remounts uniform buffer objects if necessary.
                     using_ubos
@@ -471,7 +457,7 @@ impl WebGlBufferManager {
                             match &v.1 {
                                 Some((offset, length)) => {
                                     self.gl.bind_buffer_range_with_i32_and_i32(
-                                        WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                                        WebGl2RenderingContext::UNIFORM_BUFFER,
                                         *k as u32,
                                         Some(&new_gl_buffer),
                                         *offset as i32,
@@ -479,7 +465,7 @@ impl WebGlBufferManager {
                                     )
                                 }
                                 None => self.gl.bind_buffer_base(
-                                    WebGlBufferTarget::UniformBuffer.to_gl_enum(),
+                                    WebGl2RenderingContext::UNIFORM_BUFFER,
                                     *k as u32,
                                     Some(&new_gl_buffer),
                                 ),
@@ -491,14 +477,14 @@ impl WebGlBufferManager {
                 }
 
                 self.gl
-                    .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), Some(gl_buffer));
+                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(gl_buffer));
                 for item in buffering.queue().drain() {
                     let Some(data) = item.data.as_webgl_buffer_data() else {
                         return Err(Error::BufferDataUnsupported);
                     };
                     data.upload(
                         &self.gl,
-                        WebGlBufferTarget::ArrayBuffer,
+                        WebGl2RenderingContext::ARRAY_BUFFER,
                         item.dst_bytes_offset,
                     );
                 }
@@ -511,12 +497,10 @@ impl WebGlBufferManager {
                 let bytes_length = buffering.bytes_length();
 
                 let gl_buffer = self.gl.create_buffer().ok_or(Error::CreateBufferFailure)?;
-                self.gl.bind_buffer(
-                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
-                    Some(&gl_buffer),
-                );
+                self.gl
+                    .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&gl_buffer));
                 self.gl.buffer_data_with_i32(
-                    WebGlBufferTarget::ArrayBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::ARRAY_BUFFER,
                     bytes_length as i32,
                     usage.to_gl_enum(),
                 );
@@ -526,7 +510,7 @@ impl WebGlBufferManager {
                     };
                     data.upload(
                         &self.gl,
-                        WebGlBufferTarget::ArrayBuffer,
+                        WebGl2RenderingContext::ARRAY_BUFFER,
                         item.dst_bytes_offset,
                     );
                 }
@@ -544,7 +528,7 @@ impl WebGlBufferManager {
         };
 
         self.gl
-            .bind_buffer(WebGlBufferTarget::ArrayBuffer.to_gl_enum(), None);
+            .bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, None);
 
         Ok(buffer_item.clone())
     }

@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    hash::Hash,
-    ops::{Deref, DerefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, hash::Hash, ops::Deref, rc::Rc};
 
 use hashbrown::{hash_map::Entry, HashMap};
 use js_sys::{
@@ -20,14 +15,15 @@ use tokio::{
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    DomException, HtmlCanvasElement, HtmlImageElement, HtmlVideoElement, ImageBitmap, ImageData,
-    WebGl2RenderingContext, WebGlBuffer, WebGlSampler, WebGlTexture,
+    DomException, ExtTextureFilterAnisotropic, HtmlCanvasElement, HtmlImageElement,
+    HtmlVideoElement, ImageBitmap, ImageData, WebGl2RenderingContext, WebGlBuffer, WebGlSampler,
+    WebGlTexture,
 };
 
 use crate::anewthing::texturing::{TextureCubeMapFace, Texturing, TexturingItem, TexturingMessage};
 
 use super::{
-    buffer::{WebGlBufferManager, WebGlBufferTarget, WebGlBuffering},
+    buffer::{WebGlBufferManager, WebGlBuffering},
     capabilities::WebGlCapabilities,
     error::Error,
     pixel::{WebGlPixelDataType, WebGlPixelFormat, WebGlPixelUnpackStores},
@@ -42,9 +38,9 @@ pub struct WebGlTextureOptions {
 }
 
 /// A wrapped [`Texturing`] with [`WebGlTextureOptions`].
-#[derive(Debug, Clone)]
-pub struct WebGlTexturing {
-    pub texturing: Texturing,
+#[derive(Debug)]
+pub struct WebGlTexturing<'a> {
+    pub texturing: &'a Texturing,
     /// Create options of a texture.
     /// This field only works once, changing this does not influence anything.
     pub create_options: WebGlTextureOptions,
@@ -56,17 +52,11 @@ pub struct WebGlTexturing {
     pub sampler_parameters: WebGlSamplerParameters,
 }
 
-impl Deref for WebGlTexturing {
+impl<'a> Deref for WebGlTexturing<'a> {
     type Target = Texturing;
 
     fn deref(&self) -> &Self::Target {
         &self.texturing
-    }
-}
-
-impl DerefMut for WebGlTexturing {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.texturing
     }
 }
 
@@ -923,12 +913,12 @@ impl WebGlTextureParameters {
     fn set_texture_parameters(&self, gl: &WebGl2RenderingContext, layout: WebGlTextureLayout) {
         gl.tex_parameteri(
             layout.to_gl_enum(),
-            WebGlTextureParameter::BaseLevel.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_BASE_LEVEL,
             self.base_level as i32,
         );
         gl.tex_parameteri(
             layout.to_gl_enum(),
-            WebGlTextureParameter::MaxLevel.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_MAX_LEVEL,
             self.max_level as i32,
         );
     }
@@ -1002,47 +992,47 @@ impl WebGlSamplerParameters {
     ) {
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::MagnificationFilter.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_MAG_FILTER,
             self.magnification_filter.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::MinificationFilter.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_MIN_FILTER,
             self.minification_filter.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::WrapS.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_WRAP_S,
             self.wrap_s.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::WrapT.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_WRAP_T,
             self.wrap_t.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::WrapR.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_WRAP_R,
             self.wrap_r.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::CompareFunction.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_COMPARE_FUNC,
             self.compare_function.to_gl_enum() as i32,
         );
         gl.sampler_parameteri(
             sampler,
-            WebGlSamplerParameter::CompareMode.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_COMPARE_MODE,
             self.compare_mode.to_gl_enum() as i32,
         );
         gl.sampler_parameterf(
             sampler,
-            WebGlSamplerParameter::MaxLod.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_MAX_LOD,
             self.max_lod.0,
         );
         gl.sampler_parameterf(
             sampler,
-            WebGlSamplerParameter::MinLod.to_gl_enum(),
+            WebGl2RenderingContext::TEXTURE_MIN_LOD,
             self.min_lod.0,
         );
 
@@ -1054,7 +1044,7 @@ impl WebGlSamplerParameters {
         };
         gl.sampler_parameterf(
             sampler,
-            WebGlSamplerParameter::MaxAnisotropy.to_gl_enum(),
+            ExtTextureFilterAnisotropic::TEXTURE_MAX_ANISOTROPY_EXT,
             max_anisotropy,
         );
     }
@@ -1087,7 +1077,7 @@ pub enum WebGlPlainTextureData<'a> {
         pixel_data_type: WebGlPixelDataType,
         width: usize,
         height: usize,
-        buffering: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         bytes_offset: Option<usize>,
     },
     /// Pixel data type of Int8Array is restricted to [`WebGlPixelDataType::Byte`].
@@ -1277,7 +1267,7 @@ impl<'a> WebGlPlainTextureData<'a> {
                         dst_height as i32,
                         dst_depth_or_len as i32,
                         pixel_format.to_gl_enum(),
-                        WebGlPixelDataType::UnsignedByte.to_gl_enum(),
+                        WebGl2RenderingContext::UNSIGNED_BYTE,
                         Some(data),
                         bytes_offset as u32,
                     ).unwrap(),
@@ -1289,7 +1279,7 @@ impl<'a> WebGlPlainTextureData<'a> {
                         dst_width as i32,
                         dst_height as i32,
                         pixel_format.to_gl_enum(),
-                        WebGlPixelDataType::UnsignedByte.to_gl_enum(),
+                        WebGl2RenderingContext::UNSIGNED_BYTE,
                         data,
                         bytes_offset as u32,
                     ).unwrap(),
@@ -1303,7 +1293,7 @@ impl<'a> WebGlPlainTextureData<'a> {
             } => {
                 let item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
-                    WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
                     Some(item.gl_buffer()),
                 );
                 let bytes_offset = bytes_offset.unwrap_or(0);
@@ -1337,7 +1327,7 @@ impl<'a> WebGlPlainTextureData<'a> {
                         )
                         .unwrap(),
                 };
-                gl.bind_buffer(WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(), None);
+                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
             }
             WebGlPlainTextureData::HtmlCanvasElement {
                 pixel_data_type,
@@ -1654,7 +1644,7 @@ pub enum WebGlCompressedTextureData<'a> {
     PixelBufferObject {
         width: usize,
         height: usize,
-        buffering: &'a WebGlBuffering,
+        buffering: &'a WebGlBuffering<'a>,
         bytes_offset: Option<usize>,
     },
     Int8Array {
@@ -1834,7 +1824,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
             } => {
                 let item = buffer_manager.sync_buffering(buffering, using_ubos)?;
                 gl.bind_buffer(
-                    WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(),
+                    WebGl2RenderingContext::PIXEL_UNPACK_BUFFER,
                     Some(item.gl_buffer()),
                 );
                 let bytes_length = compressed_format.bytes_length_of(dst_width, dst_height);
@@ -1865,7 +1855,7 @@ impl<'a> WebGlCompressedTextureData<'a> {
                         bytes_offset as i32,
                     ),
                 };
-                gl.bind_buffer(WebGlBufferTarget::PixelUnpackBuffer.to_gl_enum(), None);
+                gl.bind_buffer(WebGl2RenderingContext::PIXEL_UNPACK_BUFFER, None);
             }
             _ => {
                 let (data, element_offset, element_length_override) = match self {

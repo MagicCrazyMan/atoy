@@ -534,7 +534,7 @@ impl WebGlFramebufferFactory {
         capabilities: &WebGlCapabilities,
     ) -> Result<(), Error> {
         self.gl.bind_framebuffer(
-            WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+            WebGl2RenderingContext::DRAW_FRAMEBUFFER,
             Some(&item.gl_framebuffer),
         );
 
@@ -583,7 +583,7 @@ impl WebGlFramebufferFactory {
                         height as i32,
                     );
                     self.gl.framebuffer_texture_2d(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         WebGl2RenderingContext::TEXTURE0 + i as u32,
                         WebGl2RenderingContext::TEXTURE_2D,
                         Some(&gl_texture),
@@ -621,7 +621,7 @@ impl WebGlFramebufferFactory {
                         ),
                     };
                     self.gl.framebuffer_renderbuffer(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         WebGl2RenderingContext::TEXTURE0 + i as u32,
                         WebGl2RenderingContext::RENDERBUFFER,
                         Some(&gl_renderbuffer),
@@ -646,7 +646,7 @@ impl WebGlFramebufferFactory {
                         | WebGlFramebufferTextureTarget::TextureCubeMapPositiveZ
                         | WebGlFramebufferTextureTarget::TextureCubeMapNegativeZ => {
                             self.gl.framebuffer_texture_2d(
-                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                                 WebGl2RenderingContext::TEXTURE0 + i as u32,
                                 target.to_gl_enum(),
                                 Some(&gl_texture),
@@ -656,7 +656,7 @@ impl WebGlFramebufferFactory {
                         WebGlFramebufferTextureTarget::Texture2DArray { index: depth }
                         | WebGlFramebufferTextureTarget::Texture3D { depth } => {
                             self.gl.framebuffer_texture_layer(
-                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                                 WebGl2RenderingContext::TEXTURE0 + i as u32,
                                 Some(&gl_texture),
                                 *level as i32,
@@ -676,7 +676,7 @@ impl WebGlFramebufferFactory {
                         Some(&gl_renderbuffer),
                     );
                     self.gl.framebuffer_renderbuffer(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         WebGl2RenderingContext::TEXTURE0 + i as u32,
                         WebGl2RenderingContext::RENDERBUFFER,
                         Some(&gl_renderbuffer),
@@ -725,7 +725,7 @@ impl WebGlFramebufferFactory {
                         height as i32,
                     );
                     self.gl.framebuffer_texture_2d(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         attachment_target,
                         WebGl2RenderingContext::TEXTURE_2D,
                         Some(&gl_texture),
@@ -761,7 +761,7 @@ impl WebGlFramebufferFactory {
                         ),
                     };
                     self.gl.framebuffer_renderbuffer(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         attachment_target,
                         WebGl2RenderingContext::RENDERBUFFER,
                         Some(&gl_renderbuffer),
@@ -787,7 +787,7 @@ impl WebGlFramebufferFactory {
                         | WebGlFramebufferTextureTarget::TextureCubeMapPositiveZ
                         | WebGlFramebufferTextureTarget::TextureCubeMapNegativeZ => {
                             self.gl.framebuffer_texture_2d(
-                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                                 attachment_target,
                                 target.to_gl_enum(),
                                 Some(&gl_texture),
@@ -797,7 +797,7 @@ impl WebGlFramebufferFactory {
                         WebGlFramebufferTextureTarget::Texture2DArray { index: depth }
                         | WebGlFramebufferTextureTarget::Texture3D { depth } => {
                             self.gl.framebuffer_texture_layer(
-                                WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                                WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                                 attachment_target,
                                 Some(&gl_texture),
                                 *level as i32,
@@ -820,7 +820,7 @@ impl WebGlFramebufferFactory {
                         Some(&gl_renderbuffer),
                     );
                     self.gl.framebuffer_renderbuffer(
-                        WebGlFramebufferTarget::DrawFramebuffer.to_gl_enum(),
+                        WebGl2RenderingContext::DRAW_FRAMEBUFFER,
                         attachment_target,
                         WebGl2RenderingContext::RENDERBUFFER,
                         Some(&gl_renderbuffer),
